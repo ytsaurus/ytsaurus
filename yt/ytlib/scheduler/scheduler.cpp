@@ -7,6 +7,7 @@
 #include "operation_controller.h"
 #include "map_controller.h"
 #include "merge_controller.h"
+#include "sort_controller.h"
 #include "scheduler_proxy.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -245,14 +246,12 @@ private:
 
         RegisterOperation(operation);
 
-        YASSERT(operation->GetState() == EOperationState::Initializing);
         operation->SetState(EOperationState::Reviving);
 
         // Run async revival.
         LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
-        operation ->GetController()->Revive()
-            .Subscribe(
-                BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
+        operation ->GetController()->Revive().Subscribe(
+            BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -554,13 +553,15 @@ private:
             }
 
             for (int index = 0; index < batchRsp->GetSize(); ++index) {
+                const auto& operationId = operationIds[index];
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(index);
                 if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to get operation info\n%s",
+                    ythrow yexception() << Sprintf("Failed to get operation %s info\n%s",
+                        ~operationId.ToString(),
                         ~rsp->GetError().ToString());
                 }
 
-                auto operation = ParseOperationYson(operationIds[index], rsp->value());
+                auto operation = ParseOperationYson(operationId, rsp->value());
                 if (operation->GetState() != EOperationState::Completed &&
                     operation->GetState() != EOperationState::Aborted &&
                     operation->GetState() != EOperationState::Failed)
@@ -824,6 +825,8 @@ private:
                 return CreateMergeController(Config, this, operation);
             case EOperationType::Erase:
                 return CreateEraseController(Config, this, operation);
+            case EOperationType::Sort:
+                return CreateSortController(Config, this, operation);
             default:
                 YUNREACHABLE();
         }
@@ -989,7 +992,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto state = operation->GetState();
-        if (state != EOperationState::Preparing && state != EOperationState::Running) {
+        if (state != EOperationState::Preparing &&
+            state != EOperationState::Running &&
+            state != EOperationState::Reviving)
+        {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }

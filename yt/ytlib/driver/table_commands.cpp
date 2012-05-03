@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "table_commands.h"
+#include "config.h"
 
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/tree_visitor.h>
@@ -17,9 +18,14 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCommandDescriptor TReadCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Table);
+}
+
 void TReadCommand::DoExecute(TReadRequestPtr request)
 {
-    auto stream = Host->CreateOutputStream();
+    auto stream = Host->GetOutputStream();
 
     auto reader = New<TTableReader>(
         Host->GetConfig()->ChunkSequenceReader,
@@ -30,7 +36,7 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
     reader->Open();
 
     TYsonWriter writer(
-        stream.Get(),
+        stream,
         Host->GetConfig()->OutputFormat,
         EYsonType::Node,
         true);
@@ -38,6 +44,11 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TWriteCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Table, EDataType::Null);
+}
 
 void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
@@ -49,6 +60,7 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
         request->Path,
         Null);
 
+    //ToDo: write sorted data.
     writer->Open();
     TTableConsumer consumer(writer);
 
@@ -71,8 +83,8 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
                 YUNREACHABLE();
         }
     } else {
-        auto stream = Host->CreateInputStream();
-        ParseYson(stream.Get(), &consumer, EYsonType::ListFragment);
+        auto stream = Host->GetInputStream();
+        ParseYson(stream, &consumer, EYsonType::ListFragment);
     }
 
     writer->Close();

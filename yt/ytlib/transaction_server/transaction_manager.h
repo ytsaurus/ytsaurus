@@ -20,9 +20,6 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransaction;
-struct TTransactionManifest;
-
 //! Manages client transactions.
 class TTransactionManager
     : public NMetaState::TMetaStatePart
@@ -38,28 +35,9 @@ class TTransactionManager
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration DefaultTransactionTimeout;
-        TDuration TransactionAbortBackoffTime;
-
-        TConfig()
-        {
-            Register("default_transaction_timeout", DefaultTransactionTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(15));
-            Register("transaction_abort_backoff_time", TransactionAbortBackoffTime)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(15));
-        }
-    };
-
     //! Creates an instance.
     TTransactionManager(
-        TConfig* config,
+        TTransactionManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     void Init();
@@ -83,7 +61,7 @@ private:
     class TTransactionProxy;
     friend class TTransactionProxy;
 
-    TConfig::TPtr Config;
+    TTransactionManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;

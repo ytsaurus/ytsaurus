@@ -256,7 +256,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    TConfig* config,
+    TTransactionManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
         ~bootstrap->GetMetaStateManager(),
@@ -471,9 +471,11 @@ void TTransactionManager::OnStopLeading()
 
 void TTransactionManager::CreateLease(const TTransaction& transaction, TNullable<TDuration> timeout)
 {
-    auto lease = TLeaseManager::CreateLease(
-        // TODO(babenko): upper-bound the limit
+    auto actualTimeout = Min(
         timeout.Get(Config->DefaultTransactionTimeout),
+        Config->MaximumTransactionTimeout);
+    auto lease = TLeaseManager::CreateLease(
+        actualTimeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
         .Via(
             Bootstrap->GetStateInvoker(),

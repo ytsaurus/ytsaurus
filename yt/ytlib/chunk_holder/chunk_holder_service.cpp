@@ -52,6 +52,7 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
     RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(UpdatePeer));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples));
 }
 
 void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
@@ -398,6 +399,22 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
         TBlockId blockId(TGuid::FromProto(block_id.chunk_id()), block_id.block_index());
         peerBlockTable->UpdatePeer(blockId, peer);
     }
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
+{
+    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
+        request->key_columns_size(),
+        request->chunk_ids_size());
+
+    auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
+    FOREACH (const auto& chunkId, chunkIds) {
+        auto* chunkSamples = response->add_samples();
+        // TODO(babenko): implement this
+        *chunkSamples->mutable_error() = TError("Not implemented :)").ToProto();
+    }
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

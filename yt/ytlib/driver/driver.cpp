@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "driver.h"
+#include "config.h"
 #include "command.h"
 #include "transaction_commands.h"
 #include "cypress_commands.h"
@@ -42,82 +43,33 @@ class TOutputStreamConsumer
     : public TForwardingYsonConsumer
 {
 public:
-    TOutputStreamConsumer(TAutoPtr<TOutputStream> output, EYsonFormat format)
-        : Output(output)
-        , BufferedOutput(~Output)
-        , Writer(&BufferedOutput, format)
+    TOutputStreamConsumer(TOutputStream* output, EYsonFormat format)
+        : Writer(output, format)
     {
         ForwardNode(&Writer, BIND([=] () {
-            BufferedOutput.Write('\n');
+            output->Write('\n');
         }));
     }
 
 private:
-    TAutoPtr<TOutputStream> Output;
-    TBufferedOutput BufferedOutput;
     TYsonWriter Writer;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOwningBufferedInput
-    : public TInputStream
-{
-public:
-    TOwningBufferedInput(TAutoPtr<TInputStream> slave)
-        : Slave(slave)
-        , Buffered(~Slave)
-    { }
-
-private:
-    // NB: The order is important.
-    TAutoPtr<TInputStream> Slave;
-    TBufferedInput Buffered;
-
-    virtual size_t DoRead(void* buf, size_t len)
-    {
-        return Buffered.Read(buf, len);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOwningBufferedOutput
-    : public TOutputStream
-{
-public:
-    TOwningBufferedOutput(TAutoPtr<TOutputStream> slave)
-        : Slave(slave)
-        , Buffered(~Slave)
-    { }
-
-private:
-    // NB: The order is important.
-    TAutoPtr<TOutputStream> Slave;
-    TBufferedOutput Buffered;
-
-    virtual void DoWrite(const void* buf, size_t len)
-    {
-        Buffered.Write(buf, len);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDriver::TImpl
-    : private TNonCopyable
+class TDriver
+    : public IDriver
     , public ICommandHost
 {
 public:
-    TImpl(
-        TConfig::TPtr config,
-        IDriverStreamProvider* streamProvider)
+    TDriver(
+        TDriverConfigPtr config,
+        IDriverHost* driverHost)
         : Config(config)
-        , StreamProvider(streamProvider)
+        , DriverHost(driverHost)
     {
         YASSERT(config);
-        YASSERT(streamProvider);
+        YASSERT(driverHost);
 
         MasterChannel = CreateLeaderChannel(config->Masters);
 
@@ -151,22 +103,32 @@ public:
 
         RegisterCommand("map", New<TMapCommand>(this));
         RegisterCommand("merge", New<TMergeCommand>(this));
+        RegisterCommand("sort", New<TSortCommand>(this));
         RegisterCommand("erase", New<TEraseCommand>(this));
         RegisterCommand("abort_op", New<TAbortOperationCommand>(this));
     }
 
-    TError Execute(INodePtr command)
+    TError Execute(const Stroka& commandName, INodePtr requestNode)
     {
         Error = TError();
         try {
-            DoExecute(command);
+            DoExecute(commandName, requestNode);
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
         return Error;
     }
 
-    virtual TConfig::TPtr GetConfig() const
+    TCommandDescriptor GetDescriptor(const Stroka& commandName)
+    {
+        auto commandIt = Commands.find(commandName);
+        if (commandIt == Commands.end()) {
+            ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
+        }
+        return commandIt->second->GetDescriptor();
+    }
+
+    virtual TDriverConfigPtr GetConfig() const
     {
         return ~Config;
     }
@@ -186,7 +148,7 @@ public:
         YASSERT(!error.IsOK());
         YASSERT(Error.IsOK());
         Error = error;
-        auto output = StreamProvider->CreateErrorStream();
+        auto output = DriverHost->GetErrorStream();
         TYsonWriter writer(~output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
@@ -211,28 +173,26 @@ public:
 
     virtual TYsonProducer CreateInputProducer()
     {
-        auto stream = CreateInputStream();
+        auto stream = GetInputStream();
         return BIND([=] (IYsonConsumer* consumer) {
-            ParseYson(~stream, consumer);
+            ParseYson(stream, consumer);
         });
     }
 
-    virtual TAutoPtr<TInputStream> CreateInputStream()
+    virtual TInputStream* GetInputStream()
     {
-        auto stream = StreamProvider->CreateInputStream();
-        return new TOwningBufferedInput(stream);
+        return ~DriverHost->GetInputStream();
     }
 
     virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer()
     {
-        auto stream = CreateOutputStream();
+        auto stream = GetOutputStream();
         return new TOutputStreamConsumer(stream, Config->OutputFormat);
     }
 
-    virtual TAutoPtr<TOutputStream> CreateOutputStream()
+    virtual TOutputStream* GetOutputStream()
     {
-        auto stream = StreamProvider->CreateOutputStream();
-        return new TOwningBufferedOutput(stream);
+        return ~DriverHost->GetOutputStream();
     }
 
     virtual IBlockCachePtr GetBlockCache()
@@ -263,8 +223,8 @@ public:
     }
 
 private:
-    TConfig::TPtr Config;
-    IDriverStreamProvider* StreamProvider;
+    TDriverConfigPtr Config;
+    IDriverHost* DriverHost;
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannelPtr MasterChannel;
@@ -277,7 +237,7 @@ private:
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
 
-    void DoExecute(INodePtr requestNode)
+    void DoExecute(const Stroka& commandName, INodePtr requestNode)
     {
         auto request = New<TRequestBase>();
         try {
@@ -287,7 +247,6 @@ private:
             ythrow yexception() << Sprintf("Error parsing command from node\n%s", ex.what());
         }
 
-        auto commandName = request->Do;
         auto commandIt = Commands.find(commandName);
         if (commandIt == Commands.end()) {
             ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
@@ -301,18 +260,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDriver::TDriver(
-    TConfig::TPtr config,
-    IDriverStreamProvider* streamProvider)
-    : Impl(new TImpl(config, streamProvider))
-{ }
-
-TDriver::~TDriver()
-{ }
-
-TError TDriver::Execute(INodePtr command)
+IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverHost* driverHost)
 {
-    return Impl->Execute(command);
+    return New<TDriver>(config, driverHost);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

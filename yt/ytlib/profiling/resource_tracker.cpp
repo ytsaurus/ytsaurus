@@ -23,6 +23,7 @@ const TDuration TResourceTracker::UpdateInterval = TDuration::Seconds(1);
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceTracker::TResourceTracker(IInvoker::TPtr invoker)
+    : PreviousProcTicks(0)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
         invoker,
@@ -101,6 +102,6 @@ void TResourceTracker::EnqueueUsage()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NProfiling
 } // namespace NYT

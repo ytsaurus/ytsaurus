@@ -6,7 +6,6 @@
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/object_server/object_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/actions/async_pipeline.h>
 
 #include <cmath>
 
@@ -85,7 +84,7 @@ TFuture<void> TOperationControllerBase::Prepare()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto this_ = MakeStrong(this);
-    return StartAsyncPipeline(Host->GetBackgroundInvoker())
+    auto pipeline = StartAsyncPipeline(Host->GetBackgroundInvoker())
         ->Add(BIND(&TThis::StartPrimaryTransaction, MakeStrong(this)))
         ->Add(BIND(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
         ->Add(BIND(&TThis::StartSeconaryTransactions, MakeStrong(this)))
@@ -94,7 +93,10 @@ TFuture<void> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnObjectIdsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
-        ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
+        ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)));
+     pipeline = CustomizePreparationPipeline(pipeline);
+     return pipeline
+        ->Add(BIND(&TThis::OnPreparationCompleted, MakeStrong(this)))
         ->Run()
         .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
             if (result.IsOK()) {
@@ -324,6 +326,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
         }
         if (table.SetSorted) {
             auto req = TTableYPathProxy::SetSorted(WithTransaction(ypath, OutputTransaction->GetId()));
+            ToProto(req->mutable_key_columns(), table.KeyColumns);
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
@@ -564,6 +567,10 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TYPathProxy::Get(WithTransaction(ypath, PrimaryTransaction->GetId()) + "/@sorted");
             batchReq->AddRequest(req, "get_in_sorted");
         }
+        {
+            auto req = TYPathProxy::Get(WithTransaction(ypath, PrimaryTransaction->GetId()) + "/@key_columns");
+            batchReq->AddRequest(req, "get_in_key_columns");
+        }
     }
 
     FOREACH (const auto& table, OutputTables) {
@@ -610,6 +617,7 @@ void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecut
         auto fetchInRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in");
         auto lockInRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in");
         auto getInSortedRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_sorted");
+        auto getInKeyColumns = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_key_columnns");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
             {
@@ -640,6 +648,13 @@ void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecut
                     rsp,
                     Sprintf("Error getting \"sorted\" attribute for input table %s", ~table.Path));
                 table.Sorted = DeserializeFromYson<bool>(rsp->value());
+            }
+            if (table.Sorted) {
+                auto rsp = getInKeyColumns[index];
+                CheckResponse(
+                    rsp,
+                    Sprintf("Error getting \"key_columns\" attribute for input table %s", ~table.Path));
+                table.KeyColumns = DeserializeFromYson< yvector<Stroka> >(rsp->value());
             }
         }
     }
@@ -719,12 +734,19 @@ void TOperationControllerBase::CompletePreparation()
         Host->GetControlInvoker(),
         Operation,
         PrimaryTransaction->GetId());
+}
 
-    CustomCompletePreparation();
+void TOperationControllerBase::OnPreparationCompleted()
+{
+    if (!Active)
+        return;
 
-    if (Active) {
-        LOG_INFO("Preparation completed");
-    }
+    LOG_INFO("Preparation completed");
+}
+
+TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+{
+    return pipeline;
 }
 
 void TOperationControllerBase::ReleaseChunkList(const TChunkListId& id)
@@ -776,10 +798,24 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
     }
 }
 
-void TOperationControllerBase::SetOutputTablesSorted()
+std::vector<Stroka> TOperationControllerBase::GetInputKeyColumns()
+{
+    YASSERT(!InputTables.empty());
+    for (int index = 1; index < static_cast<int>(InputTables.size()); ++index) {
+        if (InputTables[0].KeyColumns != InputTables[index].KeyColumns) {
+            ythrow yexception() << Sprintf("Key columns mismatch in input tables %s and %s",
+                ~InputTables[0].Path,
+                ~InputTables[index].Path);
+        }
+    }
+    return InputTables[0].KeyColumns;
+}
+
+void TOperationControllerBase::SetOutputTablesSorted(const std::vector<Stroka>& keyColumns)
 {
     FOREACH (auto& table, OutputTables) {
         table.SetSorted = true;
+        table.KeyColumns = keyColumns;
     }
 }
 
@@ -846,6 +882,11 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
         .BeginMap()
             .Item("error").Do(BIND(&TError::ToYson, &error))
         .EndMap();
+}
+
+std::vector<TYPath> TOperationControllerBase::GetFilePaths()
+{
+    return std::vector<TYPath>();
 }
 
 ////////////////////////////////////////////////////////////////////

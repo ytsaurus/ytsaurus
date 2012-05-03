@@ -37,6 +37,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkMeta);
     DECLARE_RPC_SERVICE_METHOD(NProto, PrecacheChunk);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, UpdatePeer);
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetTableSamples);
 
     void ValidateNoSession(const TChunkId& chunkId);
     void ValidateNoChunk(const TChunkId& chunkId);

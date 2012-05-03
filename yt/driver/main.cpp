@@ -7,6 +7,7 @@
 #include <ytlib/misc/delayed_invoker.h>
 
 #include <ytlib/driver/driver.h>
+#include <ytlib/driver/config.h>
 
 #include <ytlib/rpc/rpc_manager.h>
 
@@ -43,94 +44,37 @@ static const char* SystemConfigFileName = "ytdriver.conf";
 
 static const char* SystemConfigPath = "/etc/";
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
-class TSystemInput
-    : public TInputStream
+class TDriverHost
+    : public IDriverHost
 {
 public:
-    TSystemInput(int handle)
-        : Handle(handle)
+    virtual TSharedPtr<TInputStream> GetInputStream()
+    {
+        return InputStream;
+    }
+
+    virtual TSharedPtr<TOutputStream> GetOutputStream()
+    {
+        return OutputStream;
+    }
+
+    virtual TSharedPtr<TOutputStream> GetErrorStream()
+    {
+        return ErrorStream;
+    }
+
+    TDriverHost()
+        : InputStream(new TBufferedInput(&StdInStream()))
+        , OutputStream(new TBufferedOutput(&StdOutStream()))
+        , ErrorStream(new TBufferedOutput(&StdErrStream()))
     { }
 
 private:
-    int Handle;
-
-    virtual size_t DoRead(void* buf, size_t len)
-    {
-        int result;
-        do {
-            result = read(Handle, buf, len);
-        } while (result < 0 && errno == EINTR);
-        
-
-        if (result < 0) {
-            ythrow yexception() << Sprintf("Error reading from stream (Handle: %d, Error: %d)",
-                Handle,
-                errno);
-        }
-
-        return result;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSystemOutput
-    : public TOutputStream
-{
-public:
-    TSystemOutput(int handle)
-        : Handle(handle)
-    { }
-
-private:
-    int Handle;
-
-    virtual void DoWrite(const void* buf, size_t len)
-    {
-        size_t totalWritten = 0;
-        while (totalWritten < len) {
-            int result;
-            do {
-                result = write(Handle, static_cast<const char*>(buf) + totalWritten, len - totalWritten);
-            } while (result < 0 && errno == EINTR);
-
-            if (result == 0) {
-                ythrow yexception() << Sprintf("Error writing to stream (Handle: %d, Error: nothing written)",
-                    Handle);
-            }
-            if (result < 0 ) {
-                ythrow yexception() << Sprintf("Error writing to stream (Handle: %d, Error: %d)",
-                    Handle,
-                    errno);
-            }
-            
-            totalWritten += result;
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStreamProvider
-    : public IDriverStreamProvider
-{
-public:
-    virtual TAutoPtr<TInputStream> CreateInputStream()
-    {
-        return new TSystemInput(0);
-    }
-
-    virtual TAutoPtr<TOutputStream> CreateOutputStream()
-    {
-        return new TSystemOutput(1);
-    }
-
-    virtual TAutoPtr<TOutputStream> CreateErrorStream()
-    {
-        return new TSystemOutput(2);
-    }
+    TSharedPtr<TInputStream> InputStream;
+    TSharedPtr<TOutputStream> OutputStream;
+    TSharedPtr<TOutputStream> ErrorStream;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +83,7 @@ class TDriverProgram
 {
 public:
     struct TConfig
-        : public TDriver::TConfig
+        : public TDriverConfig
     {
         INodePtr Logging;
 
@@ -171,6 +115,7 @@ public:
 
         RegisterParser("map", New<TMapArgsParser>());
         RegisterParser("merge", New<TMergeArgsParser>());
+        RegisterParser("sort", New<TSortArgsParser>());
         RegisterParser("erase", New<TEraseArgsParser>());
         RegisterParser("abort_op", New<TAbortOpArgsParser>());
     }
@@ -262,10 +207,10 @@ public:
                 config->OutputFormat = outputFormatFromCmd.Get();
             }
 
-            Driver = new TDriver(~config, &StreamProvider);
+            Driver = CreateDriver(~config, &DriverHost);
 
             auto command = argsParser->GetCommand();
-            RunCommand(command);
+            RunCommand(commandName, command);
         } catch (const std::exception& ex) {
             Cerr << "Error occured: " << ex.what() << Endl;
             ExitCode = 1;
@@ -297,8 +242,8 @@ public:
 private:
     int ExitCode;
 
-    TStreamProvider StreamProvider;
-    TAutoPtr<TDriver> Driver;
+    TDriverHost DriverHost;
+    IDriverPtr Driver;
 
     yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;
 
@@ -315,9 +260,9 @@ private:
         return parserIt->second;
     }
 
-    void RunCommand(INodePtr command)
+    void RunCommand(const Stroka& commandName, INodePtr command)
     {
-        auto error = Driver->Execute(command);
+        auto error = Driver->Execute(commandName, command);
         if (!error.IsOK()) {
             ExitCode = 1;
         }

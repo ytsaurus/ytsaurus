@@ -10,7 +10,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TParallelAwaiter::TParallelAwaiter(
-    IInvoker* invoker,
+    IInvoker::TPtr invoker,
     NProfiling::TProfiler* profiler,
     const NYTree::TYPath& timerPath)
 {
@@ -25,7 +25,7 @@ inline TParallelAwaiter::TParallelAwaiter(
 }
 
 inline void TParallelAwaiter::Init(
-    IInvoker* invoker,
+    IInvoker::TPtr invoker,
     NProfiling::TProfiler* profiler,
     const NYTree::TYPath& timerPath)
 {
@@ -155,6 +155,16 @@ inline void TParallelAwaiter::Cancel()
     CancelableContext->Cancel();
     Canceled = true;
     Terminate();
+}
+
+inline int TParallelAwaiter::GetRequestCount() const
+{
+    return RequestCount;
+}
+
+inline int TParallelAwaiter::GetResponseCount() const
+{
+    return ResponseCount;
 }
 
 inline bool TParallelAwaiter::IsCanceled() const

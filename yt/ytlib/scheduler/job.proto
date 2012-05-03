@@ -73,7 +73,7 @@ message TUserJobSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Below one can find the "map" job specs.
+// Map jobs.
 /*
  * Conceptually map is the simplest operation.
  * Input consists of a number of tables (or parts thereof).
@@ -83,7 +83,6 @@ message TUserJobSpec
  * The outputs of jobs are collected thus forming a number
  * of output tables.
  */
-
 message TMapJobSpec
 {
     extend TJobSpec
@@ -106,6 +105,11 @@ message TMapJobSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Merge jobs.
+/*
+ * Merge job takes a number of chunks sequences (each containing sorted data)
+ * and merges them. The result is split into chunks again.
+ */
 message TMergeJobSpec
 {
     extend TJobSpec
@@ -113,6 +117,7 @@ message TMergeJobSpec
         optional TMergeJobSpec merge_job_spec = 102;
     }
 
+    // TODO(babenko): must be "repeated"
     required TTableInputSpec input_spec = 1;
     required TTableOutputSpec output_spec = 2;
     required NYT.NProto.TGuid output_transaction_id = 3;
@@ -125,8 +130,7 @@ message TMergeJobResult
         optional TMergeJobResult merge_job_result = 101;
     }
 
-    // XXX(psushin): I didn't understand what is this?
-    // repeated NYT.NChunkHolder.NProto.TChunkInfo chunks = 1;
+    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

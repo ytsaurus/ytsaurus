@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
+#include "config.h"
 
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/property.h>
@@ -266,7 +267,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    TConfig::TPtr config, 
+    TTransactionManagerConfigPtr config,
     NRpc::IChannelPtr channel)
     : Config(config)
     , Channel(channel)

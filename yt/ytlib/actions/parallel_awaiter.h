@@ -18,7 +18,7 @@ public:
     typedef TIntrusivePtr<TParallelAwaiter> TPtr;
 
     explicit TParallelAwaiter(
-        IInvoker* invoker,
+        IInvoker::TPtr invoker,
         NProfiling::TProfiler* profiler = NULL,
         const NYTree::TYPath& timerPath = "");
     explicit TParallelAwaiter(
@@ -37,6 +37,9 @@ public:
 
     void Complete(TClosure onComplete = TClosure());
     void Cancel();
+
+    int GetRequestCount() const;
+    int GetResponseCount() const;
     bool IsCanceled() const;
 
 private:
@@ -44,8 +47,8 @@ private:
     bool Canceled;
     bool Completed;
     bool Terminated;
-    i32 RequestCount;
-    i32 ResponseCount;
+    int RequestCount;
+    int ResponseCount;
     TClosure OnComplete;
     TCancelableContextPtr CancelableContext;
     IInvoker::TPtr CancelableInvoker;
@@ -53,7 +56,7 @@ private:
     NProfiling::TTimer Timer;
 
     void Init(
-        IInvoker* invoker,
+        IInvoker::TPtr invoker,
         NProfiling::TProfiler* profiler,
         const NYTree::TYPath& timerPath);
     void Terminate();

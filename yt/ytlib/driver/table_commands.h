@@ -32,6 +32,8 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TReadRequestPtr request);
 };
@@ -44,15 +46,17 @@ struct TWriteRequest
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
     NYTree::INodePtr Value;
-    //bool Sorted;
+    bool Sorted;
+    yvector<Stroka> KeyColumns;
 
     TWriteRequest()
     {
         Register("path", Path);
         Register("value", Value)
             .Default();
-        // ToDo: add key columns here.
-        //  Register("sorted", Sorted).Default(false);
+        Register("sorted", Sorted)
+            .Default(false);
+        Register("key_columns", KeyColumns).Default();
     }
 
     virtual void DoValidate() const
@@ -76,6 +80,8 @@ public:
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
+
+    virtual TCommandDescriptor GetDescriptor();
 
 private:
     virtual void DoExecute(TWriteRequestPtr request);

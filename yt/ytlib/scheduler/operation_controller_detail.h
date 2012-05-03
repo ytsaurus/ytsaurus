@@ -7,6 +7,7 @@
 
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/async_pipeline.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
@@ -91,6 +92,7 @@ protected:
         NTableServer::TTableYPathProxy::TRspFetch::TPtr FetchResponse;
         bool NegateFetch;
         bool Sorted;
+        std::vector<Stroka> KeyColumns;
     };
 
     std::vector<TInputTable> InputTables;
@@ -106,6 +108,7 @@ protected:
 
         i64 InitialRowCount;
         bool SetSorted;
+        std::vector<Stroka> KeyColumns;
         NYTree::TYson Schema;
         // Chunk list for appending the output.
         NChunkServer::TChunkListId OutputChunkListId;
@@ -209,13 +212,15 @@ protected:
     //! Extensibility point for handling additional info from master.
     virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
-    // Round 5.
+
+    // Round 4.
     // - (Custom)
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline);
 
+    // Round 5.
+    // - Init chunk list pool.
     void CompletePreparation();
-
-    virtual void CustomCompletePreparation() = 0;
-
+    void OnPreparationCompleted();
 
     // Here comes the completion pipeline.
 
@@ -248,7 +253,7 @@ protected:
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
     //! Called to extract file paths from the spec.
-    virtual std::vector<NYTree::TYPath> GetFilePaths() = 0;
+    virtual std::vector<NYTree::TYPath> GetFilePaths();
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkServer::TChunkId& chunkId);
@@ -279,7 +284,8 @@ protected:
     // Unsorted helpers.
     void CheckInputTablesSorted();
     void CheckOutputTablesEmpty();
-    void SetOutputTablesSorted();
+    std::vector<Stroka> GetInputKeyColumns();
+    void SetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
     bool CheckChunkListsPoolSize(int minSize);
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);

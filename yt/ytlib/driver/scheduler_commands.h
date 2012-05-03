@@ -54,6 +54,8 @@ class TMapCommand
 public:
     explicit TMapCommand(ICommandHost* commandHost);
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TSchedulerRequestPtr request);
 };
@@ -67,6 +69,23 @@ class TMergeCommand
 public:
     explicit TMergeCommand(ICommandHost* commandHost);
 
+    virtual TCommandDescriptor GetDescriptor();
+
+private:
+    virtual void DoExecute(TSchedulerRequestPtr request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSortCommand
+    : public TSchedulerCommandBase
+    , public TTypedCommandBase<TSchedulerRequest>
+{
+public:
+    explicit TSortCommand(ICommandHost* commandHost);
+
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TSchedulerRequestPtr request);
 };
@@ -79,6 +98,8 @@ class TEraseCommand
 {
 public:
     explicit TEraseCommand(ICommandHost* commandHost);
+
+    virtual TCommandDescriptor GetDescriptor();
 
 private:
     virtual void DoExecute(TSchedulerRequestPtr request);
@@ -105,6 +126,8 @@ class TAbortOperationCommand
 {
 public:
     explicit TAbortOperationCommand(ICommandHost* commandHost);
+
+    virtual TCommandDescriptor GetDescriptor();
 
 private:
     virtual void DoExecute(TAbortOperationRequestPtr request);

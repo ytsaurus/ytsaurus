@@ -14,16 +14,25 @@ struct TSchedulerConfig
     : public TConfigurable
 {
     TDuration StartupRetryPeriod;
+
     TDuration TransactionsRefreshPeriod;
+
     TDuration NodesRefreshPeriod;
+
     TDuration OperationsUpdatePeriod;
 
     ESchedulerStrategy Strategy;
+
+    //! Timeout used for direct RPC requests to nodes.
+    TDuration NodeRpcTimeout;
+
     //! Once this limit is reached the operation fails.
     int FailedJobsLimit;
+
     //! The additional number of chunk lists to preallocate during preparation phase.
     //! These chunk lists are used in case of job failures.
     int SpareChunkListCount;
+
     //! Each time we run out of free chunk lists and unable to provide another |count| chunk lists,
     //! job scheduling gets suspended until |count * ChunkListAllocationMultiplier| chunk lists are allocated.
     int ChunkListAllocationMultiplier;
@@ -40,6 +49,8 @@ struct TSchedulerConfig
             .Default(TDuration::Seconds(3));
         Register("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);
+        Register("node_rpc_timeout", NodeRpcTimeout)
+            .Default(TDuration::Seconds(15));
         Register("failed_jobs_limit", FailedJobsLimit)
             .Default(10)
             .GreaterThanOrEqual(0);
@@ -133,6 +144,24 @@ struct TEraseOperationSpec
         Register("output_table_path", OutputTablePath);
         Register("combine_chunks", CombineChunks)
             .Default(false);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSortOperationSpec
+    : public TOperationSpecBase
+{
+    yvector<NYTree::TYPath> InputTablePaths;
+    NYTree::TYPath OutputTablePath;
+    yvector<Stroka> KeyColumns;
+
+    TSortOperationSpec()
+    {
+        Register("input_table_paths", InputTablePaths);
+        Register("output_table_path", OutputTablePath);
+        Register("key_columns", KeyColumns)
+            .NonEmpty();
     }
 };
 

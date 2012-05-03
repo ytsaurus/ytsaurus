@@ -25,6 +25,16 @@ TOperation::TOperation(
     , FinishedPromise(NewPromise<void>())
 { }
 
+TFuture<void> TOperation::GetFinished()
+{
+    return FinishedPromise;
+}
+
+void TOperation::SetFinished()
+{
+    FinishedPromise.Set();
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

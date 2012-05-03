@@ -223,7 +223,7 @@ public:
 private:
     TUnlabeledStringArg PathArg;
     TUnlabeledStringArg ValueArg;
-    TCLAP::SwitchArg SortedArg;
+    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
     
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
@@ -297,6 +297,22 @@ private:
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSortArgsParser
+    : public TTransactedArgsParser
+{
+public:
+    TSortArgsParser();
+
+private:
+    TCLAP::MultiArg<Stroka> InArg;
+    TCLAP::ValueArg<Stroka> OutArg;
+    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
+
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
