@@ -17,6 +17,7 @@
 #include <ytlib/chunk_holder/bootstrap.h>
 #include <ytlib/chunk_holder/config.h>
 #include <ytlib/chunk_holder/chunk_cache.h>
+#include <ytlib/rpc/server.h>
 
 namespace NYT {
 namespace NExecAgent {

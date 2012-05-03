@@ -1,6 +1,6 @@
 #pragma once
 
-#include "channel.h"
+#include "public.h"
 
 #include <ytlib/misc/error.h>
 

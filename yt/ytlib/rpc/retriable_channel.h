@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "channel.h"
+#include "public.h"
 
 #include <ytlib/misc/configurable.h>
 

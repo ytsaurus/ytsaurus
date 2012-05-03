@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "public.h"
+#include "private.h"
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/property.h>
@@ -11,9 +12,6 @@ namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct IClientRequest;
-struct IClientResponseHandler;
 
 /*!
  * \note Thread affinity: any.

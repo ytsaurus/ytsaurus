@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "server.h"
+#include "service.h"
 #include <ytlib/rpc/rpc.pb.h>
 #include "server_detail.h"
 
@@ -200,7 +201,7 @@ private:
 
 };
 
-IServer::TPtr CreateRpcServer(NBus::IBusServer::TPtr busServer)
+IServerPtr CreateRpcServer(NBus::IBusServer::TPtr busServer)
 {
     return New<TRpcServer>(busServer);
 }

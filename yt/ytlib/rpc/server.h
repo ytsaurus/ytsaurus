@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "service.h"
+#include "public.h"
 
 #include <ytlib/bus/server.h>
 #include <ytlib/ytree/public.h>
@@ -16,14 +16,14 @@ struct IServer
 {
     typedef TIntrusivePtr<IServer> TPtr;
 
-    virtual void RegisterService(IService::TPtr service) = 0;
+    virtual void RegisterService(IServicePtr service) = 0;
     
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
 };
 
-IServer::TPtr CreateRpcServer(NBus::IBusServer::TPtr busServer);
+IServerPtr CreateRpcServer(NBus::IBusServer::TPtr busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
