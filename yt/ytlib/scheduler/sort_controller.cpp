@@ -178,6 +178,7 @@ private:
     {
         auto samplesFetcher = New<TSamplesFetcher>(
             Config,
+            Spec,
             Host->GetBackgroundInvoker(),
             Operation->GetOperationId());
 

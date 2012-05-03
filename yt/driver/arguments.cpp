@@ -52,7 +52,7 @@ TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
     return OutputFormatArg.getValue();
 }
 
-void TArgsParserBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
+void TArgsParserBase::ApplyConfigUpdates(IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
         TTokenizer tokenizer(updateString);
@@ -71,8 +71,8 @@ void TArgsParserBase::BuildOptions(IYsonConsumer* consumer)
 {
     // TODO(babenko): think about a better way of doing this
     FOREACH (const auto& opts, OptsArg.getValue()) {
-        NYTree::TYson yson = Stroka("{") + Stroka(opts) + "}";
-        auto items = NYTree::DeserializeFromYson(yson)->AsMap();
+        TYson yson = Stroka("{") + Stroka(opts) + "}";
+        auto items = DeserializeFromYson(yson)->AsMap();
         FOREACH (const auto& pair, items->GetChildren()) {
             consumer->OnKeyedItem(pair.first);
             VisitTree(pair.second, consumer, true);
@@ -401,20 +401,25 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
 TSortArgsParser::TSortArgsParser()
     : InArg("", "in", "input tables", false, "ypath")
     , OutArg("", "out", "output table", false, "", "ypath")
+    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "list_fragment")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
+    CmdLine.add(KeyColumnsArg);
 }
 
 void TSortArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
+    // TODO(babenko): refactor
+    auto keyColumns = DeserializeFromYson< yvector<Stroka> >("[" + KeyColumnsArg.getValue() + "]");
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(input)
             .Item("output_table_path").Scalar(output)
+            .Item("key_columns").List(keyColumns)
         .EndMap();
 }
 

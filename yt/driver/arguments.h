@@ -310,6 +310,7 @@ public:
 private:
     TCLAP::MultiArg<Stroka> InArg;
     TCLAP::ValueArg<Stroka> OutArg;
+    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
