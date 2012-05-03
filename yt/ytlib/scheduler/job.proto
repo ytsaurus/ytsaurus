@@ -41,8 +41,8 @@ message TTableInputSpec
 // Defines how to store output from a job into a table.
 message TTableOutputSpec
 {
-    // The schema that must be used for writing the table.
-    // Upon receiving an operation spec, the scheduler requests this schema from the master.
+    // The channels that must be used for writing the table.
+    // Upon receiving an operation spec, the scheduler requests these channels from the master.
     required bytes channels = 1;
     // Chunk list where new chunks must be attached to.
     required NYT.NProto.TGuid chunk_list_id = 2;

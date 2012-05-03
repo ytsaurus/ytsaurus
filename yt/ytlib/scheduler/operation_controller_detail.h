@@ -109,7 +109,7 @@ protected:
         i64 InitialRowCount;
         bool SetSorted;
         std::vector<Stroka> KeyColumns;
-        NYTree::TYson Schema;
+        NYTree::TYson Channels;
         // Chunk list for appending the output.
         NChunkServer::TChunkListId OutputChunkListId;
         // Chunk trees comprising the output (the order matters).
@@ -199,7 +199,7 @@ protected:
     // - Lock input tables.
     // - Lock output tables.
     // - Fetch files.
-    // - Get output tables schemata.
+    // - Get output tables channels.
     // - Get output chunk lists.
     // - (Custom)
 

@@ -559,7 +559,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             // NB: Use table.Path not ypath here, otherwise path suffix is ignored.
             auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path, PrimaryTransaction->GetId()));
             req->set_fetch_holder_addresses(true);
-            req->set_fetch_chunk_attributes(true);
+            req->set_fetch_all_meta_extensions(true);
             req->set_negate(table.NegateFetch);
             batchReq->AddRequest(req, "fetch_in");
         }
@@ -581,8 +581,8 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "lock_out");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, Operation->GetTransactionId()) + "/@schema");
-            batchReq->AddRequest(req, "get_out_schema");
+            auto req = TYPathProxy::Get(WithTransaction(ypath, Operation->GetTransactionId()) + "/@channels");
+            batchReq->AddRequest(req, "get_out_channels");
         }
         {
             auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(ypath, OutputTransaction->GetId()));
@@ -662,8 +662,8 @@ void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecut
     {
         auto lockOutRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out");
         auto getOutChunkListRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_chunk_list");
-        auto getOutSchemaRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_schema");
-        auto getOutRowCount = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_row_count");
+        auto getOutChannelsRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_channels");
+        auto getOutRowCountRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_row_count");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
             {
@@ -680,14 +680,14 @@ void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecut
                 table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
             }
             {
-                auto rsp = getOutSchemaRsps[index];
+                auto rsp = getOutChannelsRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting schema for output table %s", ~table.Path));
-                table.Schema = rsp->value();
+                    Sprintf("Error getting channels for output table %s", ~table.Path));
+                table.Channels = rsp->value();
             }
             {
-                auto rsp = getOutRowCount[index];
+                auto rsp = getOutRowCountRsps[index];
                 CheckResponse(
                     rsp,
                     Sprintf("Error getting \"row_count\" attribute for output table %s", ~table.Path));

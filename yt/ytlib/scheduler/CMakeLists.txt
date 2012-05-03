@@ -1,21 +1,21 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/scheduler )
 set( SRCS
-#  ${BASE}/chunk_list_pool.cpp
-#  ${BASE}/chunk_pool.cpp
-#  ${BASE}/exec_node.cpp
-#  ${BASE}/fifo_strategy.cpp
-#  ${BASE}/job.cpp
-#  ${BASE}/map_controller.cpp
+  ${BASE}/chunk_list_pool.cpp
+  ${BASE}/chunk_pool.cpp
+  ${BASE}/exec_node.cpp
+  ${BASE}/fifo_strategy.cpp
+  ${BASE}/job.cpp
+  ${BASE}/map_controller.cpp
 #  ${BASE}/merge_controller.cpp
 #  ${BASE}/sort_controller.cpp
 #  ${BASE}/samples_fetcher.cpp
-#  ${BASE}/null_strategy.cpp
-#  ${BASE}/operation.cpp
-#  ${BASE}/operation_controller_detail.cpp
-#  ${BASE}/private.cpp
-#  ${BASE}/progress_counter.cpp
-#  ${BASE}/scheduler.cpp
+  ${BASE}/null_strategy.cpp
+  ${BASE}/operation.cpp
+  ${BASE}/operation_controller_detail.cpp
+  ${BASE}/private.cpp
+  ${BASE}/progress_counter.cpp
+  ${BASE}/scheduler.cpp
   ${BASE}/scheduler_channel.cpp
 )
 set( HDRS

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/election/leader_lookup.h>
+#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/config.h>
 
 namespace NYT {

@@ -86,13 +86,13 @@ public:
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
-        // Parse and validate schema, if any.
+        // Parse and validate channels, if any.
         auto ysonChannels = request->Attributes().FindYson("channels");
         if (ysonChannels) {
             try {
                 ChannelsFromYson(ysonChannels.Get());
             } catch (const std::exception& ex) {
-                ythrow yexception() << Sprintf("Invalid table schema\n%s", ex.what());
+                ythrow yexception() << Sprintf("Invalid table channels\n%s", ex.what());
             }
         } else {
             request->Attributes().SetYson("channels", "[]");

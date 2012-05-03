@@ -205,11 +205,14 @@ private:
                         chunk.set_row_attributes(rowAttributes.Get());
                     }
 
-                    i64 rowCount = chunk.approximate_row_count();
-                    i64 dataSize = chunk.approximate_data_size();
+                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+
+                    i64 rowCount = misc->row_count();
+                    i64 dataSize = misc->uncompressed_size();
+
                     // TODO(babenko): make customizable
                     // Plus one is to ensure that weights are positive.
-                    i64 weight = chunk.approximate_data_size() + 1;
+                    i64 weight = dataSize + 1;
 
                     totalRowCount += rowCount;
                     totalDataSize += dataSize;
@@ -295,7 +298,7 @@ private:
         *mapJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
         FOREACH (const auto& table, OutputTables) {
             auto* outputSpec = mapJobSpec.add_output_specs();
-            outputSpec->set_schema(table.Schema);
+            outputSpec->set_channels(table.Channels);
         }
         *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
 
