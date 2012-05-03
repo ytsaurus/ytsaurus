@@ -268,6 +268,7 @@ const TJobSpec& TJob::GetSpec()
 
 void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 {
+    // ToDo: improve here. If jobResult is set to true replace it with error.
     if (!JobResult.IsSet()) {
         JobResult.Set(jobResult);
     }
