@@ -25,7 +25,7 @@ struct ILogWriter
 
     virtual void Write(const TLogEvent& event) = 0;
     virtual void Flush() = 0;
-    virtual void Reopen() = 0;
+    virtual void Reload() = 0;
 
     DECLARE_ENUM(EType,
         (File)
@@ -86,7 +86,7 @@ public:
 
     virtual void Write(const TLogEvent& event);
     virtual void Flush();
-    virtual void Reopen();
+    virtual void Reload();
 
 private:
     TOutputStream* Stream;
@@ -126,7 +126,7 @@ public:
 
     virtual void Write(const TLogEvent& event);
     virtual void Flush();
-    virtual void Reopen();
+    virtual void Reload();
 
 private:
     static const size_t BufferSize = 1 << 16;
@@ -152,7 +152,7 @@ public:
 
     virtual void Write(const TLogEvent& event);
     virtual void Flush();
-    virtual void Reopen();
+    virtual void Reload();
 
 private:
     static const size_t BufferSize = 1 << 16;

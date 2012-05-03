@@ -31,7 +31,7 @@ void TStreamLogWriter::Flush()
     Stream->Flush();
 }
 
-void TStreamLogWriter::Reopen()
+void TStreamLogWriter::Reload()
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,11 +100,11 @@ void TFileLogWriter::Flush()
     }
 }
 
-void TFileLogWriter::Reopen()
+void TFileLogWriter::Reload()
 {
     Flush();
-    Initialized = false;
     File->Close();
+    Initialized = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,11 +165,11 @@ void TRawFileLogWriter::Flush()
     }
 }
 
-void TRawFileLogWriter::Reopen()
+void TRawFileLogWriter::Reload()
 {
     Flush();
-    Initialized = false;
     File->Close();
+    Initialized = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

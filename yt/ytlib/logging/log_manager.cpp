@@ -150,10 +150,10 @@ public:
         }
     }
 
-    void ReopenWriters()
+    void ReloadWriters()
     {
         FOREACH (auto& pair, Writers) {
-            pair.second->Reopen();
+            pair.second->Reload();
         }
     }
 
@@ -368,7 +368,7 @@ public:
 
             if (TLogManager::Get()->NeedReopen) {
                 TLogManager::Get()->NeedReopen = false;
-                Config->ReopenWriters();
+                Config->ReloadWriters();
             }
 
             Write(event);
