@@ -14,6 +14,7 @@ TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
     , InsideRow(false)
     , ValueConsumer(&RowBuffer)
     , CurrentKey(KeyColumns ? KeyColumns->size() : 0)
+    , OnValueFinished(BIND(&TTableConsumer::OnValueEnded, this))
 { }
 
 void TTableConsumer::OnMyStringScalar(const TStringBuf& value)
@@ -88,13 +89,8 @@ void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
             ValueConsumer.OnNewValue(&CurrentKey, keyIndex);
     }
 
-    ForwardNode(&ValueConsumer, BIND(
-        &TTableConsumer::OnValueEnded, 
-        this));
+    ForwardNode(&ValueConsumer, OnValueFinished);
 }
-
-void TTableConsumer::OnColumn()
-{ }
 
 void TTableConsumer::OnValueEnded()
 {

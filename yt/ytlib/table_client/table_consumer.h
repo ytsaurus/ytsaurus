@@ -19,7 +19,7 @@ class TTableConsumer
     : public NYTree::TForwardingYsonConsumer
 {
 public:
-    TTableConsumer(const ISyncWriterPtr& writer);
+    explicit TTableConsumer(const ISyncWriterPtr& writer);
 
 private:
     void OnMyStringScalar(const TStringBuf& value);
@@ -37,8 +37,6 @@ private:
 
     void OnValueEnded();
 
-    void OnColumn();
-
     ISyncWriterPtr Writer;
     TNullable<TKeyColumns> KeyColumns;
 
@@ -46,12 +44,12 @@ private:
 
     TKey CurrentKey;
 
-    //ToDo(psushin): avoid allocations here.
     yhash_set<TBlobRange> UsedColumns;
 
     std::vector<size_t> Offsets;
     TBlobOutput RowBuffer;
     TValueConsumer ValueConsumer;
+    TClosure OnValueFinished;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
