@@ -84,8 +84,6 @@ public:
     static int Compare(const TKey& lhs, const TKey& rhs);
 
 private:
-    friend class TKey;
-
     const int MaxSize;
     int ColumnCount;
 
