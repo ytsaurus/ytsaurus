@@ -31,6 +31,9 @@ void TStreamLogWriter::Flush()
     Stream->Flush();
 }
 
+void TStreamLogWriter::Reload()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStdErrLogWriter::TStdErrLogWriter(Stroka pattern)
@@ -97,6 +100,13 @@ void TFileLogWriter::Flush()
     }
 }
 
+void TFileLogWriter::Reload()
+{
+    Flush();
+    File->Close();
+    Initialized = false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
@@ -153,6 +163,13 @@ void TRawFileLogWriter::Flush()
     if (~FileOutput) {
         FileOutput->Flush();
     }
+}
+
+void TRawFileLogWriter::Reload()
+{
+    Flush();
+    File->Close();
+    Initialized = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

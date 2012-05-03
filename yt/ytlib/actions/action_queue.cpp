@@ -124,8 +124,8 @@ void* TActionQueueBase::ThreadFunc(void* param)
 
 void TActionQueueBase::ThreadMain()
 {
+    OnThreadStart();
     NThread::SetCurrentThreadName(~ThreadName);
-
     while (true) {
         if (!DequeueAndExecute()) {
             WakeupEvent.Reset();
@@ -138,8 +138,8 @@ void TActionQueueBase::ThreadMain()
             }
         }
     }
-
     YASSERT(!DequeueAndExecute());
+    OnThreadShutdown();
 }
 
 void TActionQueueBase::Shutdown()
@@ -164,6 +164,12 @@ bool TActionQueueBase::IsRunning() const
 {
     return Running;
 }
+
+void TActionQueueBase::OnThreadStart()
+{ }
+
+void TActionQueueBase::OnThreadShutdown()
+{ }
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -75,6 +75,9 @@ protected:
     virtual bool DequeueAndExecute() = 0;
     virtual void OnIdle();
 
+    virtual void OnThreadStart();
+    virtual void OnThreadShutdown();
+
     bool IsRunning() const;
 
 private:
