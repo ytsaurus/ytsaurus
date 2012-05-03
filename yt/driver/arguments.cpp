@@ -274,7 +274,7 @@ void TReadArgsParser::BuildCommand(IYsonConsumer* consumer)
 TWriteArgsParser::TWriteArgsParser()
     : PathArg("path", "path to a table in Cypress that must be written", true, "", "ypath")
     , ValueArg("value", "row(s) to write", false, "", "yson")
-    , KeyColumnsArg("", "sorted", "key columns names (table must initially be empty, input data must be sorted)", true, "", "list_fragment")
+    , KeyColumnsArg("", "sorted", "key columns names (table must initially be empty, input data must be sorted)", false, "", "list_fragment")
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);
