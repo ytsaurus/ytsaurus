@@ -172,7 +172,6 @@ set( ST_SRCS
   ${ST_BASE}/chunk.cpp
   ${ST_BASE}/debug.cpp
   ${ST_BASE}/file.cpp
-  ${ST_BASE}/glue.cpp
   ${ST_BASE}/helpers.cpp
   ${ST_BASE}/http.cpp
   ${ST_BASE}/input.cpp
