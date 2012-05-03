@@ -138,7 +138,7 @@ message TReqUpdatePeer
 message TReqGetTableSamples
 {
     repeated NYT.NProto.TGuid chunk_ids = 1;
-    repeated bytes key_columns = 2;
+    repeated string key_columns = 2;
 }
 
 message TRspGetTableSamples

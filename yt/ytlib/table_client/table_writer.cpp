@@ -203,6 +203,7 @@ void TTableWriter::Close()
     if (Options.Sorted) {
         LOG_INFO("Marking table as sorted");
         auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
+        // TODO(babenko): fill key columns
         auto rsp = CypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",

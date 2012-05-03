@@ -37,12 +37,14 @@ void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
     SaveObjectRef(output, ChunkList_);
+    ::Save(output, KeyColumns_);
 }
 
 void TTableNode::Load(const TLoadContext& context, TInputStream* input)
 {
     TCypressNodeBase::Load(context, input);
     LoadObjectRef(input, ChunkList_, context);
+    ::Load(input, KeyColumns_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

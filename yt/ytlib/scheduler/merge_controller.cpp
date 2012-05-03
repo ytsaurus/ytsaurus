@@ -223,6 +223,15 @@ protected:
 
     // Init/finish.
 
+    virtual void CustomInitialize()
+    {
+        if (InputTables.empty()) {
+            // At least one table is needed for sorted merge to figure out the key columns.
+            // To be consistent, we don't allow empty set of input tables in for any merge type.
+            ythrow yexception() << "At least more input table must be given";
+        }
+    }
+
     virtual bool HasPendingJobs()
     {
         // Use the chunk counter, not the job counter! The latter may be inaccurate.
@@ -586,7 +595,7 @@ private:
             CheckOutputTablesEmpty();
             // - if the input is sorted then the output is marked as sorted as well
             if (InputTables[0].Sorted) {
-                SetOutputTablesSorted();
+                SetOutputTablesSorted(InputTables[0].KeyColumns);
             }
         }
     }
@@ -714,7 +723,8 @@ private:
         }
 
         // Force all output tables to be marked as sorted.
-        SetOutputTablesSorted();
+        auto keyColumns = GetInputKeyColumns();
+        SetOutputTablesSorted(keyColumns);
     }
 
     void BuildGroupIfNeeded(const std::vector<const TInputChunk*>& chunks)
