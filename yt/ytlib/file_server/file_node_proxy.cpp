@@ -104,7 +104,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     if (name == "compression_ratio") {
         double ratio = statistics.UncompressedSize > 0 ?
             static_cast<double>(statistics.CompressedSize) / statistics.UncompressedSize :
-            NAN;
+            1;
         BuildYsonFluently(consumer)
             .Scalar(ratio);
         return true;
