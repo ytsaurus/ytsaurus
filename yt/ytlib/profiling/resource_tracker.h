@@ -15,8 +15,6 @@ class TResourceTracker
 public:
     explicit TResourceTracker(IInvoker::TPtr invoker);
 
-    void EnqueueUsage();
-
     void Start();
 
 private:
@@ -26,6 +24,9 @@ private:
 
     TPeriodicInvoker::TPtr PeriodicInvoker;
     static const TDuration UpdateInterval;
+
+    void EnqueueUsage();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
