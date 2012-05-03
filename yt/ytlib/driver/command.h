@@ -10,7 +10,7 @@
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/public.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "client.h"
 
 #include <ytlib/misc/property.h>

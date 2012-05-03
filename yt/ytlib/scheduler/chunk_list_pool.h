@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/logging/tagged_logger.h>

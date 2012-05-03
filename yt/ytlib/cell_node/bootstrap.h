@@ -6,9 +6,6 @@
 //#include <ytlib/misc/guid.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>
-// TODO(babenko): replace with public.h
-//#include <ytlib/rpc/channel.h>
-//#include <ytlib/rpc/server.h>
 #include <ytlib/rpc/public.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/chunk_server/public.h>

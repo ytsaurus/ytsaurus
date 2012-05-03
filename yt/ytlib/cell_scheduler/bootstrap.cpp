@@ -8,6 +8,8 @@
 
 #include <ytlib/bus/nl_server.h>
 
+#include <ytlib/rpc/server.h>
+
 #include <ytlib/election/leader_channel.h>
 
 #include <ytlib/orchid/orchid_service.h>

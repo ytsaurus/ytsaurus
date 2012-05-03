@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NScheduler {

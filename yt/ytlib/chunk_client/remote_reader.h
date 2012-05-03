@@ -5,7 +5,7 @@
 #include "block_cache.h"
 
 #include <ytlib/misc/configurable.h>
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {

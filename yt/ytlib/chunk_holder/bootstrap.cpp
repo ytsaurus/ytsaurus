@@ -22,6 +22,7 @@
 #include <ytlib/ytree/virtual.h>
 
 #include <ytlib/rpc/server.h>
+#include <ytlib/rpc/channel_cache.h>
 
 namespace NYT {
 namespace NChunkHolder {

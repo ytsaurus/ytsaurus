@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "cell_manager.h"
 
+#include <ytlib/rpc/channel.h>
+
 #include <util/system/hostname.h>
 
 namespace NYT {

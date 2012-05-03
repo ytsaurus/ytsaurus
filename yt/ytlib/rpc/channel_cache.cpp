@@ -2,6 +2,7 @@
 #include "channel_cache.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NRpc {

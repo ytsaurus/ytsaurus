@@ -5,7 +5,6 @@
 #include "transaction.h"
 
 #include <ytlib/misc/configurable.h>
-#include <ytlib/rpc/channel.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/ytree/public.h>

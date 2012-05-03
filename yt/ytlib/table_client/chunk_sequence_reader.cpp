@@ -2,6 +2,7 @@
 #include "chunk_sequence_reader.h"
 
 #include <ytlib/misc/protobuf_helpers.h>
+#include <ytlib/rpc/channel.h>
 
 #include <limits>
 
