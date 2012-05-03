@@ -18,9 +18,11 @@ static NRpc::TChannelCache ChannelCache;
 
 TSamplesFetcher::TSamplesFetcher(
     TSchedulerConfigPtr config,
+    TSortOperationSpecPtr spec,
     IInvoker::TPtr invoker,
     const TOperationId& operationId)
     : Config(config)
+    , Spec(spec)
     , Invoker(invoker)
     , Logger(SchedulerLogger)
     , Promise(NewPromise< TValueOrError<void> >())
@@ -109,6 +111,8 @@ void TSamplesFetcher::SendRequests()
             LOG_INFO("Requesting samples for %d chunks from %s",
                 req->chunk_ids_size(),
                 ~address);
+
+            ToProto(req->mutable_key_columns(), Spec->KeyColumns);
             awaiter->Await(
                 req->Invoke(),
                 BIND(

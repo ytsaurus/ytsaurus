@@ -399,7 +399,9 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
 {
-    context->SetRequestInfo("ChunkCount: %d", request->chunk_ids_size());
+    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
+        request->key_columns_size(),
+        request->chunk_ids_size());
 
     auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
     FOREACH (const auto& chunkId, chunkIds) {

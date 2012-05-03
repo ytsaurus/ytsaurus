@@ -22,6 +22,7 @@ class TSamplesFetcher
 public:
     TSamplesFetcher(
         TSchedulerConfigPtr config,
+        TSortOperationSpecPtr spec,
         IInvoker::TPtr invoker,
         const TOperationId& operationId);
 
@@ -33,6 +34,7 @@ public:
 
 private:
     TSchedulerConfigPtr Config;
+    TSortOperationSpecPtr Spec;
     IInvoker::TPtr Invoker;
 
     NLog::TTaggedLogger Logger;

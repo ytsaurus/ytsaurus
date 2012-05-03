@@ -154,11 +154,14 @@ struct TSortOperationSpec
 {
     yvector<NYTree::TYPath> InputTablePaths;
     NYTree::TYPath OutputTablePath;
+    yvector<Stroka> KeyColumns;
 
     TSortOperationSpec()
     {
         Register("input_table_paths", InputTablePaths);
         Register("output_table_path", OutputTablePath);
+        Register("key_columns", KeyColumns)
+            .NonEmpty();
     }
 };
 
