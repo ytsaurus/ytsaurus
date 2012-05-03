@@ -10,6 +10,8 @@
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/profiling/profiler.h>
 
+#include <util/system/sigset.h>
+
 namespace NYT {
 namespace NLog {
 
@@ -242,6 +244,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void LogReopenHandler(int signum)
+{
+    NLog::TLogManager::Get()->NeedReopen = true;
+}
+
 class TLogManager::TImpl
     : public TActionQueueBase
 {
@@ -289,6 +296,21 @@ public:
     void Shutdown()
     {
         TActionQueueBase::Shutdown();
+    }
+
+    virtual void OnThreadStart()
+    {
+        sigset_t sigset;
+        SigEmptySet(&sigset);
+        SigAddSet(&sigset, SIGHUP);
+        SigProcMask(SIG_UNBLOCK, &sigset, NULL);
+
+#ifdef _unix_
+        // set handler
+        struct sigaction new_action;
+        new_action.sa_handler = LogReopenHandler;
+        sigaction(SIGHUP, &new_action, NULL);
+#endif
     }
 
     /*! 
@@ -442,6 +464,7 @@ void TLogManager::Enqueue(const TLogEvent& event)
 {
     Impl->Enqueue(event);
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
