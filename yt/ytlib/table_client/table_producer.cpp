@@ -24,9 +24,10 @@ bool TTableProducer::ProduceRow()
     if (!Reader->IsValid())
         return false;
 
-    const auto& attributes = Reader->GetRowAttributes();
+    /*const auto& attributes = Reader->GetRowAttributes();
     if (!attributes.empty())
         Consumer->OnRaw(Reader->GetRowAttributes(), EYsonType::Node);
+    */
 
     Consumer->OnListItem();
     Consumer->OnBeginMap();
