@@ -171,7 +171,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
 class TRpcTest
     : public ::testing::Test
 {
-    IServer::TPtr RpcServer;
+    IServerPtr RpcServer;
 
     // need to remember
     TActionQueue::TPtr Queue;

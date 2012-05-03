@@ -37,12 +37,6 @@ protected:
         NScheduler::EOperationType type,
         const NYTree::TYson& spec);
 
-    void WaitForOperation(const NScheduler::TOperationId& operationId);
-    void AbortOperation(const NScheduler::TOperationId& operationId);
-
-    void DumpOperationProgress(const NScheduler::TOperationId& operationId);
-    void DumpOperationResult(const NScheduler::TOperationId& operationId);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,8 +115,7 @@ struct TAbortOperationRequest
 typedef TIntrusivePtr<TAbortOperationRequest> TAbortOperationRequestPtr;
 
 class TAbortOperationCommand
-    : public TSchedulerCommandBase
-    , public TTypedCommandBase<TAbortOperationRequest>
+    : public TTypedCommandBase<TAbortOperationRequest>
 {
 public:
     explicit TAbortOperationCommand(ICommandHost* commandHost);

@@ -29,6 +29,8 @@ public:
 
     void Enqueue(const TLogEvent& event);
 
+    volatile bool NeedReload;
+
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;

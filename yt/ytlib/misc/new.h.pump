@@ -4,6 +4,8 @@ $var n = 20 $$ The maximum arity.
 // vim:set ft=cpp:
 #pragma once
 
+#include <typeinfo>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

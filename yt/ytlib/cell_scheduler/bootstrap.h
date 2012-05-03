@@ -5,9 +5,7 @@
 #include <ytlib/actions/invoker.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/rpc/channel.h>
-// TODO(babenko): replace with public.h
+#include <ytlib/rpc/public.h>
 #include <ytlib/scheduler/public.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/transaction_client/transaction_manager.h>

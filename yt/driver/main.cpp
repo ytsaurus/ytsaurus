@@ -46,53 +46,9 @@ static const char* SystemConfigPath = "/etc/";
 
 /////////////////////////////////////////////////////////////////////////////
 
-class TDriverHost
-    : public IDriverHost
-{
-public:
-    virtual TSharedPtr<TInputStream> GetInputStream()
-    {
-        return InputStream;
-    }
-
-    virtual TSharedPtr<TOutputStream> GetOutputStream()
-    {
-        return OutputStream;
-    }
-
-    virtual TSharedPtr<TOutputStream> GetErrorStream()
-    {
-        return ErrorStream;
-    }
-
-    TDriverHost()
-        : InputStream(new TBufferedInput(&StdInStream()))
-        , OutputStream(new TBufferedOutput(&StdOutStream()))
-        , ErrorStream(new TBufferedOutput(&StdErrStream()))
-    { }
-
-private:
-    TSharedPtr<TInputStream> InputStream;
-    TSharedPtr<TOutputStream> OutputStream;
-    TSharedPtr<TOutputStream> ErrorStream;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDriverProgram
 {
 public:
-    struct TConfig
-        : public TDriverConfig
-    {
-        INodePtr Logging;
-
-        TConfig()
-        {
-            Register("logging", Logging);
-        }
-    };
-
     TDriverProgram()
         : ExitCode(0)
     {
@@ -145,7 +101,7 @@ public:
 
             if (commandName == "--config-template") {
                 TYsonWriter writer(&Cout, EYsonFormat::Pretty);
-                New<TConfig>()->Save(&writer);
+                New<TArgsParserBase::TConfig>()->Save(&writer);
                 return 0;
             }
 
@@ -156,9 +112,7 @@ public:
                 args.push_back(std::string(argv[i]));
             }
 
-            argsParser->Parse(args);
-
-            Stroka configFromCmd = argsParser->GetConfigName();
+            Stroka configFromCmd = argsParser->GetConfigFileName();
             Stroka configFromEnv = Stroka(getenv("YT_CONFIG"));
             Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
             Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
@@ -183,7 +137,6 @@ public:
                 }
             }
 
-            auto config = New<TConfig>();
             INodePtr configNode;
             try {
                 TIFStream configStream(configName);
@@ -192,27 +145,12 @@ public:
                 ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
             }
 
-            argsParser->ApplyConfigUpdates(~configNode);
-
-            try {
-                config->Load(~configNode);
-            } catch (const std::exception& ex) {
-                ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
+            auto error = argsParser->Execute(args, configNode);
+            if (!error.IsOK()) {
+                ExitCode = 1;
             }
-
-            NLog::TLogManager::Get()->Configure(~config->Logging);
-
-            auto outputFormatFromCmd = argsParser->GetOutputFormat();
-            if (outputFormatFromCmd) {
-                config->OutputFormat = outputFormatFromCmd.Get();
-            }
-
-            Driver = CreateDriver(~config, &DriverHost);
-
-            auto command = argsParser->GetCommand();
-            RunCommand(commandName, command);
         } catch (const std::exception& ex) {
-            Cerr << "Error occured: " << ex.what() << Endl;
+            Cerr << "ERROR: " << ex.what() << Endl;
             ExitCode = 1;
         }
 
@@ -225,6 +163,10 @@ public:
 
         return ExitCode;
     }
+
+private:
+    int ExitCode;
+    yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;
 
     void PrintAllCommands()
     {
@@ -239,38 +181,22 @@ public:
         Cout << YT_VERSION << Endl;
     }
 
-private:
-    int ExitCode;
-
-    TDriverHost DriverHost;
-    IDriverPtr Driver;
-
-    yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;
-
     void RegisterParser(const Stroka& name, TArgsBasePtr command)
     {
         YVERIFY(ArgsParsers.insert(MakePair(name, command)).second);
     }
 
-    TArgsParserBase::TPtr GetArgsParser(Stroka command) {
-        auto parserIt = ArgsParsers.find(command);
+    TArgsParserBase::TPtr GetArgsParser(const Stroka& commandName)
+    {
+        auto parserIt = ArgsParsers.find(commandName);
         if (parserIt == ArgsParsers.end()) {
-            ythrow yexception() << Sprintf("Unknown command %s", ~command.Quote());
+            ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
         }
         return parserIt->second;
-    }
-
-    void RunCommand(const Stroka& commandName, INodePtr command)
-    {
-        auto error = Driver->Execute(commandName, command);
-        if (!error.IsOK()) {
-            ExitCode = 1;
-        }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT
 

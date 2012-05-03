@@ -8,6 +8,7 @@
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/misc/protobuf_helpers.h>
+#include <ytlib/rpc/channel.h>
 
 #include <limits>
 

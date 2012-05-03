@@ -5,7 +5,6 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/configurable.h>
-#include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/cypress/cypress_service_proxy.h>

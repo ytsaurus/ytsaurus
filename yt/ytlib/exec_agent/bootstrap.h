@@ -6,8 +6,7 @@
 #include <ytlib/cell_node/public.h>
 #include <ytlib/chunk_holder/public.h>
 #include <ytlib/job_proxy/public.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NExecAgent {

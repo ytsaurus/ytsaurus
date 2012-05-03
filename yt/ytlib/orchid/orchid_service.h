@@ -5,7 +5,6 @@
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/rpc/service.h>
-#include <ytlib/rpc/server.h>
 
 namespace NYT {
 namespace NOrchid {

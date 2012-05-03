@@ -22,7 +22,7 @@ class TRetriableChannel
     : public IChannel
 {
     DEFINE_BYVAL_RO_PROPERTY(IChannelPtr, UnderlyingChannel);
-    DEFINE_BYVAL_RO_PROPERTY(TRetryConfig::TPtr, Config);
+    DEFINE_BYVAL_RO_PROPERTY(TRetryConfigPtr, Config);
 
 public:
     typedef TIntrusivePtr<TRetriableChannel> TPtr;

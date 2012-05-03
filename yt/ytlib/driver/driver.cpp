@@ -128,6 +128,21 @@ public:
         return commandIt->second->GetDescriptor();
     }
 
+    ICommandHost* GetCommandHost()
+    {
+        return this;
+    }
+
+private:
+    TDriverConfigPtr Config;
+    IDriverHost* DriverHost;
+    TError Error;
+    yhash_map<Stroka, ICommand::TPtr> Commands;
+    IChannelPtr MasterChannel;
+    IChannelPtr SchedulerChannel;
+    IBlockCache::TPtr BlockCache;
+    TTransactionManager::TPtr TransactionManager;
+
     virtual TDriverConfigPtr GetConfig() const
     {
         return ~Config;
@@ -221,16 +236,6 @@ public:
         }
         return TransactionManager->Attach(transactionId);
     }
-
-private:
-    TDriverConfigPtr Config;
-    IDriverHost* DriverHost;
-    TError Error;
-    yhash_map<Stroka, ICommand::TPtr> Commands;
-    IChannelPtr MasterChannel;
-    IChannelPtr SchedulerChannel;
-    IBlockCachePtr BlockCache;
-    TTransactionManager::TPtr TransactionManager;
 
     void RegisterCommand(const Stroka& name, ICommand::TPtr command)
     {

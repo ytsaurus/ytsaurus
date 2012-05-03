@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "channel.h"
+#include "public.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -13,8 +13,6 @@ namespace NRpc {
 struct TRetryConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TRetryConfig> TPtr;
-    
     TDuration BackoffTime;
     int RetryCount;
 

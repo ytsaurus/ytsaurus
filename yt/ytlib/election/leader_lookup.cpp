@@ -6,6 +6,7 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/profiling/profiler.h>
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/rpc/channel_cache.h>
 
 namespace NYT {
 namespace NElection {

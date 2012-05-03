@@ -1,5 +1,6 @@
 #pragma once
 
+#include "private.h"
 #include "channel.h"
 
 #include <ytlib/misc/property.h>
@@ -12,20 +13,6 @@
 
 namespace NYT {
 namespace NRpc {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TClientRequest;
-
-template <class TRequestMessage, class TResponse>
-class TTypedClientRequest;
-
-class TClientResponse;
-
-template <class TResponseMessage>
-class TTypedClientResponse;
-
-class TOneWayClientResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,8 +62,6 @@ class TClientRequest
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
 public:
-    typedef TIntrusivePtr<TClientRequest> TPtr;
-
     virtual NBus::IMessage::TPtr Serialize() const;
 
     virtual const TRequestId& GetRequestId() const;

@@ -21,7 +21,6 @@ struct TDriverConfig
     : public TConfigurable
 {
     NYTree::EYsonFormat OutputFormat;
-    TDuration OperationWaitTimeout;
     NElection::TLeaderLookup::TConfigPtr Masters;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;
@@ -34,8 +33,6 @@ struct TDriverConfig
     {
         Register("output_format", OutputFormat)
             .Default(NYTree::EYsonFormat::Text);
-        Register("operation_wait_timeout", OperationWaitTimeout)
-            .Default(TDuration::Seconds(3));
         Register("masters", Masters);
         Register("transaction_manager", TransactionManager)
             .DefaultNew();

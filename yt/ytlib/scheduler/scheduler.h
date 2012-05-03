@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/cell_scheduler/public.h>
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/public.h>
 #include <ytlib/ytree/public.h>
 
 namespace NYT {
@@ -23,7 +23,7 @@ public:
 
     void Start();
 
-    NRpc::IService::TPtr GetService();
+    NRpc::IServicePtr GetService();
     NYTree::TYPathServiceProducer CreateOrchidProducer();
 
 private:

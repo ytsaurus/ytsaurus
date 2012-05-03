@@ -9,6 +9,7 @@
 #include <ytlib/meta_state/meta_change.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
+#include <ytlib/rpc/service.h>
 
 namespace NYT {
 namespace NChunkServer {

@@ -31,6 +31,7 @@ struct IDriver
 {
     virtual TError Execute(const Stroka& commandName, NYTree::INodePtr requestNode) = 0;
     virtual TCommandDescriptor GetDescriptor(const Stroka& commandName) = 0;
+    virtual ICommandHost* GetCommandHost() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

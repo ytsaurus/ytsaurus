@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <ytlib/misc/error.h>
-#include <ytlib/rpc/channel.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>

@@ -9,6 +9,7 @@
 #include "merge_controller.h"
 #include "sort_controller.h"
 #include "scheduler_proxy.h"
+#include "helpers.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -811,11 +812,6 @@ private:
     }
 
 
-    static NYTree::TYPath GetOperationPath(const TOperationId& id)
-    {
-        return "//sys/operations/" + EscapeYPathToken(id.ToString());
-    }
-
     IOperationControllerPtr CreateController(TOperation* operation)
     {
         switch (operation->GetType()) {
@@ -1343,7 +1339,7 @@ void TScheduler::Start()
     Impl->Start();
 }
 
-NRpc::IService::TPtr TScheduler::GetService()
+NRpc::IServicePtr TScheduler::GetService()
 {
     return Impl;
 }

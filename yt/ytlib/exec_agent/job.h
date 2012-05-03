@@ -9,7 +9,7 @@
 #include <ytlib/chunk_holder/public.h>
 // TODO(babenko): consider removing.
 #include <ytlib/chunk_holder/chunk_cache.h>
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/public.h>
 #include <ytlib/ytree/public.h>
 
 #include <ytlib/file_server/file_ypath.pb.h>

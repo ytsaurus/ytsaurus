@@ -16,6 +16,7 @@ import subprocess
 
 import cmake_parsing
 import cmake_writing
+from ansi import Fore, Style
 
 ################################################################################
 ### Auxiliary functions.
@@ -76,15 +77,6 @@ def works_only_from_the_project_root(func):
         return func(directory, *args, **kwargs)
 
     return inner_func
-
-# Colorize given string (now only green and red are supported)
-def colored(color, string):
-    CSI="\x1B["
-    colors = {
-        'Red':'01;31',
-        'Green':'01;32'}
-    code = colors[color];
-    return CSI + code + 'm' + string + CSI + '0m'
 
 ################################################################################
 ### CMakeLists.txt discovery functions.
@@ -341,9 +333,9 @@ if __name__ == '__main__':
         for list in filter_updatable_lists(expand_args_to_lists(args)):
             print '* Processing {0}...'.format(list)
             if update_list(list):
-                print colored('Red', 'REWRITTEN'), list
+                print Style.BRIGHT + Fore.RED + 'REWRITTEN' + Style.RESET_ALL, list
             else:
-                print colored('Green', 'UNTOUCHED'), list
+                print Style.BRIGHT + Fore.GREEN + 'UNTOUCHED' + Style.RESET_ALL, list
 
     def do_discover_lists(args):
         for list in expand_args_to_lists(args):

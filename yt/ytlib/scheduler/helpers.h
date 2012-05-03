@@ -1,16 +1,15 @@
 #pragma once
 
-#include <ytlib/rpc/public.h>
+#include "public.h"
+
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a channel pointing to the scheduler of a given cell.
-NRpc::IChannelPtr CreateSchedulerChannel(
-    TNullable<TDuration> defaultTimeout,
-    NRpc::IChannelPtr masterChannel);
+NYTree::TYPath GetOperationPath(const TOperationId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
