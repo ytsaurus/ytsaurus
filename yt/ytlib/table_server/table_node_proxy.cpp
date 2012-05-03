@@ -305,7 +305,8 @@ void TTableNodeProxy::TraverseChunkTree(
     TNullable<i64> upperBound,
     NProto::TRspFetch* response)
 {
-    if (lowerBound >= chunkList->Statistics().RowCount ||
+    if (chunkList->Children().empty() || 
+        lowerBound >= chunkList->Statistics().RowCount ||
         upperBound && (*upperBound <= 0 || *upperBound <= lowerBound))
     {
         return;
