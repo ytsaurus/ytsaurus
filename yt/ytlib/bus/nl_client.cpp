@@ -611,6 +611,9 @@ public:
 
     void Shutdown()
     {
+        if (!Requester)
+            return;
+
         Terminated = true;
         Thread.Join();
 
