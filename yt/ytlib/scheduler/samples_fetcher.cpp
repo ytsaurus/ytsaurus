@@ -36,7 +36,7 @@ void TSamplesFetcher::AddChunk(const TInputChunk& chunk)
     Chunks.push_back(chunk);
 }
 
-const std::vector<TKeySample>& TSamplesFetcher::GetSamples() const
+const std::vector<TKey>& TSamplesFetcher::GetSamples() const
 {
     return Samples;
 }

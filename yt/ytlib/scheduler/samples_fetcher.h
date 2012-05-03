@@ -30,7 +30,7 @@ public:
 
     TFuture< TValueOrError<void> > Run();
 
-    const std::vector<NTableClient::NProto::TKeySample>& GetSamples() const;
+    const std::vector<NTableClient::NProto::TKey>& GetSamples() const;
 
 private:
     TSchedulerConfigPtr Config;
@@ -47,7 +47,7 @@ private:
     yhash_set<int> UnfetchedChunkIndexes;
 
     //! All samples fetched so far.
-    std::vector<NTableClient::NProto::TKeySample> Samples;
+    std::vector<NTableClient::NProto::TKey> Samples;
 
     //! Addresses of nodes that failed to reply.
     yhash_set<Stroka> DeadNodes;
