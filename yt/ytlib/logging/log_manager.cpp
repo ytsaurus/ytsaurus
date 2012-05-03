@@ -244,7 +244,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LogReload(int signum)
+void LogReloadHandler(int signum)
 {
     NLog::TLogManager::Get()->NeedReload = true;
 }
