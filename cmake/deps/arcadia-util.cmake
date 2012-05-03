@@ -135,6 +135,7 @@ set( S_SRCS
 
   ${S_BASE}/defaults.h
   ${S_BASE}/platform.h
+  ${S_BASE}/sigset.h
   ${S_BASE}/maxlen.h
 )
 
