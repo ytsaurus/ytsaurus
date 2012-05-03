@@ -898,7 +898,6 @@ void TCypressManager::MergeBranchedNode(
         FOREACH (auto* lock, transaction.Locks()) {
             lock->PromoteToTransaction(parentTransaction);
             parentTransaction->Locks().push_back(lock);
-            YVERIFY(originatingNode->Locks().insert(lock).second);
             LOG_DEBUG_IF(!IsRecovery(), "Promoted lock %s to transaction %s",
                 ~lock->GetId().ToString(),
                 ~parentTransaction->GetId().ToString());
