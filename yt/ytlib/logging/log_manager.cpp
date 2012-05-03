@@ -141,12 +141,18 @@ public:
         return level;
     }
 
-    TVoid FlushWriters()
+    void FlushWriters()
     {
         FOREACH (auto& pair, Writers) {
             pair.second->Flush();
         }
-        return TVoid();
+    }
+
+    void ReopenWriters()
+    {
+        FOREACH (auto& pair, Writers) {
+            pair.second->Reopen();
+        }
     }
 
     static TPtr CreateDefault()
@@ -338,6 +344,11 @@ public:
                 DoUpdateConfig(config);
             }
 
+            if (TLogManager::Get()->NeedReopen) {
+                TLogManager::Get()->NeedReopen = false;
+                Config->ReopenWriters();
+            }
+
             Write(event);
             result = true;
         }
@@ -391,6 +402,7 @@ private:
 
 TLogManager::TLogManager()
     : Impl(new TImpl())
+    , NeedReopen(false)
 { }
 
 TLogManager* TLogManager::Get()
