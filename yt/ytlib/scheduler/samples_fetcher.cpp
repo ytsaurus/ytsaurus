@@ -138,8 +138,8 @@ void TSamplesFetcher::OnResponse(
                 YVERIFY(DeadChunks.insert(std::make_pair(address, chunkId)).second);
             } else {
                 LOG_TRACE("Received %d samples for chunk %s",
-                    ~chunkId.ToString(),
-                    chunkSamples.samples_size());
+                    chunkSamples.samples_size(),
+                    ~chunkId.ToString());
                 FOREACH (const auto& keySamples, chunkSamples.samples()) {
                     Samples.push_back(keySamples);
                     ++samplesAdded;
