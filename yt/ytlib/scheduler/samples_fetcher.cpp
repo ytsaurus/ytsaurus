@@ -32,6 +32,7 @@ TSamplesFetcher::TSamplesFetcher(
 
 void TSamplesFetcher::AddChunk(const TInputChunk& chunk)
 {
+    YVERIFY(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);
 }
 
@@ -49,47 +50,48 @@ TFuture< TValueOrError<void> > TSamplesFetcher::Run()
 void TSamplesFetcher::SendRequests()
 {
     // Construct address -> chunk* map.
-    typedef yhash_map<Stroka, std::vector<TInputChunk*> > TAddressToChunks;
-    TAddressToChunks addressToChunks;
+    typedef yhash_map<Stroka, std::vector<int> > TAddressToChunkIndexes;
+    TAddressToChunkIndexes addressToChunkIndexes;
 
-    FOREACH (auto chunk, UnfetchedChunks) {
-        auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
+    FOREACH (auto chunkIndex, UnfetchedChunkIndexes) {
+        const auto& chunk = Chunks[chunkIndex];
+        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         bool chunkAvailable = false;
-        FOREACH (const auto& address, chunk->holder_addresses()) {
+        FOREACH (const auto& address, chunk.holder_addresses()) {
             if (DeadNodes.find(address) == DeadNodes.end() &&
                 DeadChunks.find(std::make_pair(address, chunkId)) == DeadChunks.end())
             {
-                addressToChunks[address].push_back(chunk);
+                addressToChunkIndexes[address].push_back(chunkIndex);
                 chunkAvailable = true;
             }
         }
         if (!chunkAvailable) {
             Promise.Set(TError("Unable to fetch table samples for chunk %s from any of nodes [%s]",
                 ~chunkId.ToString(),
-                ~JoinToString(chunk->holder_addresses())));
+                ~JoinToString(chunk.holder_addresses())));
             return;
         }
     }
 
     LOG_INFO("Fetching samples for %" PRISZT " chunks from up to %" PRISZT " nodes",
-        UnfetchedChunks.size(),
-        addressToChunks.size());
+        UnfetchedChunkIndexes.size(),
+        addressToChunkIndexes.size());
 
     // Sort nodes by number of chunks (in decreasing order).
-    std::vector<TAddressToChunks::iterator> addressIts;
-    for (auto it = addressToChunks.begin(); it != addressToChunks.end(); ++it) {
+    std::vector<TAddressToChunkIndexes::iterator> addressIts;
+    for (auto it = addressToChunkIndexes.begin(); it != addressToChunkIndexes.end(); ++it) {
         addressIts.push_back(it);
     }
     std::sort(
         addressIts.begin(),
         addressIts.end(),
-        [=] (const TAddressToChunks::iterator& lhs, const TAddressToChunks::iterator& rhs) {
+        [=] (const TAddressToChunkIndexes::iterator& lhs, const TAddressToChunkIndexes::iterator& rhs) {
             return lhs->second.size() > rhs->second.size();
         });
 
     // Pick nodes greedily.
     auto awaiter = New<TParallelAwaiter>(Invoker);
-    yhash_set<TInputChunk*> requestedChunks;
+    yhash_set<int> requestedChunkIndexes;
     FOREACH (const auto& it, addressIts) {
         auto address = it->first;
         auto channel = ChannelCache.GetChannel(address);
@@ -98,16 +100,19 @@ void TSamplesFetcher::SendRequests()
 
         // Take all (still unfetched) chunks from this node.
         auto req = proxy.GetTableSamples();
-        std::vector<TInputChunk*> chunksToRequest;
-        FOREACH (auto chunk, it->second) {
-            if (requestedChunks.find(chunk) == requestedChunks.end()) {
-                chunksToRequest.push_back(chunk);
-                YVERIFY(requestedChunks.insert(chunk).second);
+        std::vector<int> chunkIndexes;
+        FOREACH (auto chunkIndex, it->second) {
+            if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
+                const auto& chunk = Chunks[chunkIndex];
+                auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+                chunkIndexes.push_back(chunkIndex);
+                YVERIFY(requestedChunkIndexes.insert(chunkIndex).second);
+                *req->add_chunk_ids() = chunkId.ToProto();
             }
         }
 
         // Send the request, if not empty.
-        if (!chunksToRequest.empty()) {
+        if (!chunkIndexes.empty()) {
             LOG_INFO("Requesting samples for %d chunks from %s",
                 req->chunk_ids_size(),
                 ~address);
@@ -119,7 +124,7 @@ void TSamplesFetcher::SendRequests()
                     &TSamplesFetcher::OnResponse,
                     MakeStrong(this),
                     address,
-                    Passed(MoveRV(chunksToRequest))));
+                    Passed(MoveRV(chunkIndexes))));
         }
     }
     awaiter->Complete(BIND(&TSamplesFetcher::OnEndRound, MakeStrong(this)));
@@ -128,15 +133,16 @@ void TSamplesFetcher::SendRequests()
 
 void TSamplesFetcher::OnResponse(
     const Stroka& address,
-    std::vector<TInputChunk*> chunks,
+    std::vector<int> chunkIndexes,
     TChunkHolderServiceProxy::TRspGetTableSamples::TPtr rsp)
 {
     if (rsp->IsOK()) {
-        YASSERT(chunks.size() == rsp->samples_size());
+        YASSERT(chunkIndexes.size() == rsp->samples_size());
         int samplesAdded = 0;
-        for (int index = 0; index < static_cast<int>(chunks.size()); ++index) {
-            auto* chunk = chunks[index];
-            auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
+        for (int index = 0; index < static_cast<int>(chunkIndexes.size()); ++index) {
+            int chunkIndex = chunkIndexes[index];
+            const auto& chunk = Chunks[chunkIndex];
+            auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
             const auto& chunkSamples = rsp->samples(index);
             if (chunkSamples.has_error()) {
                 LOG_WARNING("Unable to fetch samples for chunk %s from %s\n%s",
@@ -152,7 +158,7 @@ void TSamplesFetcher::OnResponse(
                     Samples.push_back(keySamples);
                     ++samplesAdded;
                 }
-                YVERIFY(UnfetchedChunks.erase(chunk) == 1);
+                YVERIFY(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             }
         }
         LOG_INFO("Received %d samples from %s",
@@ -168,7 +174,7 @@ void TSamplesFetcher::OnResponse(
 
 void TSamplesFetcher::OnEndRound()
 {
-    if (UnfetchedChunks.empty()) {
+    if (UnfetchedChunkIndexes.empty()) {
         Promise.Set(TError());
     } else {
         SendRequests();

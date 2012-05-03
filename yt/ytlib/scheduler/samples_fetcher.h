@@ -43,8 +43,8 @@ private:
     //! All chunks for which samples are to be fetched.
     std::vector<NTableClient::NProto::TInputChunk> Chunks;
     
-    //! Chunks for which no samples are fetched yet.
-    yhash_set<NTableClient::NProto::TInputChunk*> UnfetchedChunks;
+    //! Indexes of chunks for which no samples are fetched yet.
+    yhash_set<int> UnfetchedChunkIndexes;
 
     //! All samples fetched so far.
     std::vector<NTableClient::NProto::TKeySample> Samples;
@@ -59,7 +59,7 @@ private:
     void SendRequests();
     void OnResponse(
         const Stroka& addresss,
-        std::vector<NTableClient::NProto::TInputChunk*> chunks,
+        std::vector<int> chunkIndexes,
         NChunkHolder::TChunkHolderServiceProxy::TRspGetTableSamples::TPtr rsp);
     void OnEndRound();
 
