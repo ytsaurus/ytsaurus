@@ -24,7 +24,7 @@ struct TTransactionManagerConfig
         Register("transaction_abort_backoff_time", TransactionAbortBackoffTime)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(15));
-        Register("maximum_transaction_timeout", DefaultTransactionTimeout)
+        Register("maximum_transaction_timeout", MaximumTransactionTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Minutes(30));
     }
