@@ -111,8 +111,11 @@ void TSamplesFetcher::SendRequests()
                 ~address);
             awaiter->Await(
                 req->Invoke(),
-                // TODO(babenko): cannot use Passed, investigate
-                BIND(&TSamplesFetcher::OnResponse, MakeStrong(this), address, chunksToRequest));
+                BIND(
+                    &TSamplesFetcher::OnResponse,
+                    MakeStrong(this),
+                    address,
+                    Passed(MoveRV(chunksToRequest))));
         }
     }
     awaiter->Complete(BIND(&TSamplesFetcher::OnEndRound, MakeStrong(this)));
