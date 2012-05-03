@@ -1423,14 +1423,13 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 {
     UNUSED(transaction);
 
+    const auto* requestExt = &request->GetExtension(TReqCreateChunk::create_chunk);
+    auto* responseExt = response->MutableExtension(TRspCreateChunk::create_chunk);
+
     auto& chunk = Owner->CreateChunk();
+    chunk.SetReplicationFactor(requestExt->replication_factor());
 
-    if (Owner->IsLeader() && request->HasExtension(TReqCreateChunk::create_chunk)) {
-        const auto* requestExt = &request->GetExtension(TReqCreateChunk::create_chunk);
-        auto* responseExt = response->MutableExtension(TRspCreateChunk::create_chunk);
-
-        chunk.SetReplicationFactor(requestExt->replication_factor());
-
+    if (Owner->IsLeader()) {
         int holderCount = requestExt->upload_replication_factor();
         auto holders = Owner->AllocateUploadTargets(holderCount);
         FOREACH (auto holder, holders) {
