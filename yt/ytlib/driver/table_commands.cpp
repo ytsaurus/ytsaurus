@@ -38,8 +38,8 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
     TYsonWriter writer(
         stream,
         Host->GetConfig()->OutputFormat,
-        EYsonType::Node,
-        true);
+        EYsonType::ListFragment,
+        Host->GetConfig()->OutputFormat != EYsonFormat::Binary);
     ProduceYson(reader, &writer);
 }
 

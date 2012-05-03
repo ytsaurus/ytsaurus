@@ -99,7 +99,7 @@ public:
     TInputPipe(
         TAutoPtr<NTableClient::TTableProducer> tableProducer, 
         TAutoPtr<TBlobOutput> buffer, 
-        TAutoPtr<NYTree::IYsonConsumer> cosumer,
+        TAutoPtr<NYTree::IYsonConsumer> consumer,
         int jobDescriptor);
 
     void PrepareJobDescriptors();
