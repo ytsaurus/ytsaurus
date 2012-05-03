@@ -825,6 +825,7 @@ void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
 
     MergeBranchedNodes(transaction);
     if (transaction.GetParent()) {
+        PromoteLocks(transaction);
         PromoteCreatedNodes(transaction);
     } else {
         ReleaseLocks(transaction);
@@ -892,17 +893,6 @@ void TCypressManager::MergeBranchedNode(
             ~branchedId.ToString(),
             ~parentTransaction->GetId().ToString());
     }
-
-    // Promote locks if needed.
-    if (parentTransaction) {
-        FOREACH (auto* lock, transaction.Locks()) {
-            lock->PromoteToTransaction(parentTransaction);
-            parentTransaction->Locks().push_back(lock);
-            LOG_DEBUG_IF(!IsRecovery(), "Promoted lock %s to transaction %s",
-                ~lock->GetId().ToString(),
-                ~parentTransaction->GetId().ToString());
-        }
-    }
 }
 
 void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
@@ -916,9 +906,12 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
 
 void TCypressManager::PromoteCreatedNodes(NTransactionServer::TTransaction& transaction)
 {
-    auto parentTransaction = transaction.GetParent();
+    auto* parentTransaction = transaction.GetParent();
     FOREACH (auto* node, transaction.CreatedNodes()) {
         parentTransaction->CreatedNodes().push_back(node);
+        LOG_DEBUG_IF(!IsRecovery(), "Promoted node %s to transaction %s",
+            ~node->GetId().ObjectId.ToString(),
+            ~parentTransaction->GetId().ToString());
     }
 }
 
@@ -927,6 +920,18 @@ void TCypressManager::ReleaseCreatedNodes(NTransactionServer::TTransaction& tran
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (auto* node, transaction.CreatedNodes()) {
         objectManager->UnrefObject(node->GetId().ObjectId);
+    }
+}
+
+void TCypressManager::PromoteLocks(TTransaction& transaction)
+{
+    auto* parentTransaction = transaction.GetParent();
+    FOREACH (auto* lock, transaction.Locks()) {
+        lock->PromoteToTransaction(parentTransaction);
+        parentTransaction->Locks().push_back(lock);
+        LOG_DEBUG_IF(!IsRecovery(), "Promoted lock %s to transaction %s",
+            ~lock->GetId().ToString(),
+            ~parentTransaction->GetId().ToString());
     }
 }
 

@@ -28,7 +28,7 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
 
-    //! Replaces transaction id.
+    //! Replaces transaction.
     void PromoteToTransaction(NTransactionServer::TTransaction* transaction);
 
     void Save(TOutputStream* output) const;

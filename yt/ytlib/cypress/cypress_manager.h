@@ -143,6 +143,7 @@ private:
     void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
     void PromoteCreatedNodes(NTransactionServer::TTransaction& transaction);
     void ReleaseCreatedNodes(NTransactionServer::TTransaction& transaction);
+    void PromoteLocks(NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetHandler(const ICypressNode& node);
 
