@@ -1,16 +1,109 @@
 #include "arguments.h"
 #include "preprocess.h"
 
-#include <ytlib/ytree/tokenizer.h>
-
 #include <build.h>
 
+#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/job_proxy/config.h>
+#include <ytlib/driver/driver.h>
+#include <ytlib/driver/command.h>
+#include <ytlib/logging/log_manager.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/scheduler/scheduler_proxy.h>
 
 namespace NYT {
 
 using namespace NYTree;
 using namespace NScheduler;
+using namespace NDriver;
+using namespace NCypress;
+using namespace NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TArgsParserBase::TPassthroughDriverHost
+    : public IDriverHost
+{
+public:
+    TPassthroughDriverHost()
+        : InputStream(new TBufferedInput(&StdInStream()))
+        , OutputStream(new TBufferedOutput(&StdOutStream()))
+        , ErrorStream(new TBufferedOutput(&StdErrStream()))
+    { }
+
+private:
+    virtual TSharedPtr<TInputStream> GetInputStream()
+    {
+        return InputStream;
+    }
+
+    virtual TSharedPtr<TOutputStream> GetOutputStream()
+    {
+        return OutputStream;
+    }
+
+    virtual TSharedPtr<TOutputStream> GetErrorStream()
+    {
+        return ErrorStream;
+    }
+
+    TSharedPtr<TInputStream> InputStream;
+    TSharedPtr<TOutputStream> OutputStream;
+    TSharedPtr<TOutputStream> ErrorStream;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TArgsParserBase::TInterceptingDriverHost
+    : public IDriverHost
+{
+public:
+    TInterceptingDriverHost(const TYson& input = "")
+        : Input(input)
+        , InputStream(new TStringInput(Input))
+        , OutputStream(new TStringOutput(Output))
+        , ErrorStream(new TStringOutput(Error))
+    { }
+
+    const TYson& GetInput()
+    {
+        return Input;
+    }
+
+    const TYson& GetOutput()
+    {
+        return Output;
+    }
+    
+    const TYson& GetError()
+    {
+        return Error;
+    }
+
+private:
+    virtual TSharedPtr<TInputStream> GetInputStream()
+    {
+        return InputStream;
+    }
+
+    virtual TSharedPtr<TOutputStream> GetOutputStream()
+    {
+        return OutputStream;
+    }
+
+    virtual TSharedPtr<TOutputStream> GetErrorStream()
+    {
+        return ErrorStream;
+    }
+
+    TYson Input;
+    TYson Output;
+    TYson Error;
+
+    TSharedPtr<TInputStream> InputStream;
+    TSharedPtr<TOutputStream> OutputStream;
+    TSharedPtr<TOutputStream> ErrorStream;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,33 +111,58 @@ TArgsParserBase::TArgsParserBase()
     : CmdLine("Command line", ' ', YT_VERSION)
     , ConfigArg("", "config", "configuration file", false, "", "file_name")
     , OutputFormatArg("", "format", "output format", false, TFormat(), "text, pretty, binary")
-    , ConfigUpdatesArg("", "config_set", "set configuration value", false, "ypath=yson")
+    , ConfigSetArg("", "config_set", "set configuration value", false, "ypath=yson")
     , OptsArg("", "opts", "other options", false, "key=yson")
 {
     CmdLine.add(ConfigArg);
     CmdLine.add(OptsArg);
     CmdLine.add(OutputFormatArg);
-    CmdLine.add(ConfigUpdatesArg);
+    CmdLine.add(ConfigSetArg);
 }
 
-void TArgsParserBase::Parse(std::vector<std::string>& args)
+INodePtr TArgsParserBase::ParseArgs(const std::vector<std::string>& args)
 {
-    CmdLine.parse(args);
-}
+    auto argsCopy = args;
+    CmdLine.parse(argsCopy);
 
-INodePtr TArgsParserBase::GetCommand()
-{
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
     builder->OnBeginMap();
-    BuildCommand(~builder);
+    BuildRequest(~builder);
     builder->OnEndMap();
     return builder->EndTree();
 }
 
-Stroka TArgsParserBase::GetConfigName()
+TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig(INodePtr configNode)
 {
-    return Stroka(ConfigArg.getValue());
+    ApplyConfigUpdates(configNode);   
+
+    auto config = New<TConfig>();
+    try {
+        config->Load(~configNode);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
+    }
+
+    NLog::TLogManager::Get()->Configure(~config->Logging);
+
+    return config;
+}
+
+TError TArgsParserBase::Execute(
+    const std::vector<std::string>& args,
+    NYTree::INodePtr configNode)
+{
+    auto request = ParseArgs(args);
+    auto config = ParseConfig(configNode);
+    TPassthroughDriverHost driverHost;
+    auto driver = CreateDriver(config, &driverHost);
+    return driver->Execute(GetDriverCommandName(), request);
+}
+
+Stroka TArgsParserBase::GetConfigFileName()
+{
+    return ConfigArg.getValue();
 }
 
 TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
@@ -54,7 +172,7 @@ TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
 
 void TArgsParserBase::ApplyConfigUpdates(IYPathServicePtr service)
 {
-    FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
+    FOREACH (auto updateString, ConfigSetArg.getValue()) {
         TTokenizer tokenizer(updateString);
         tokenizer.ParseNext();
         while (tokenizer.GetCurrentType() != ETokenType::Equals) {
@@ -80,8 +198,10 @@ void TArgsParserBase::BuildOptions(IYsonConsumer* consumer)
     }
 }
 
-void TArgsParserBase::BuildCommand(IYsonConsumer* consumer)
-{ }
+void TArgsParserBase::BuildRequest(IYsonConsumer* consumer)
+{
+    UNUSED(consumer);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +211,7 @@ TTransactedArgsParser::TTransactedArgsParser()
     CmdLine.add(TxArg);
 }
 
-void TTransactedArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TTransactedArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
@@ -100,7 +220,7 @@ void TTransactedArgsParser::BuildCommand(IYsonConsumer* consumer)
             fluent.Item("transaction_id").Node(txYson);
         });
 
-    TArgsParserBase::BuildCommand(consumer);
+    TArgsParserBase::BuildRequest(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,15 +231,20 @@ TGetArgsParser::TGetArgsParser()
     CmdLine.add(PathArg);
 }
 
-void TGetArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TGetArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Scalar(path);
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
     BuildOptions(consumer);
+}
+
+Stroka TGetArgsParser::GetDriverCommandName() const
+{
+    return "get";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +257,7 @@ TSetArgsParser::TSetArgsParser()
     CmdLine.add(ValueArg);
 }
 
-void TSetArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TSetArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -140,8 +265,13 @@ void TSetArgsParser::BuildCommand(IYsonConsumer* consumer)
         .Item("path").Scalar(path)
         .Item("value").Node(ValueArg.getValue());
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
     BuildOptions(consumer);
+}
+
+Stroka TSetArgsParser::GetDriverCommandName() const
+{
+    return "set";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,15 +282,20 @@ TRemoveArgsParser::TRemoveArgsParser()
     CmdLine.add(PathArg);
 }
 
-void TRemoveArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TRemoveArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Scalar(path);
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
     BuildOptions(consumer);
+}
+
+Stroka TRemoveArgsParser::GetDriverCommandName() const
+{
+    return "remove";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,15 +306,20 @@ TListArgsParser::TListArgsParser()
     CmdLine.add(PathArg);
 }
 
-void TListArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TListArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Scalar(path);
  
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
     BuildOptions(consumer);
+}
+
+Stroka TListArgsParser::GetDriverCommandName() const
+{
+    return "list";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +332,7 @@ TCreateArgsParser::TCreateArgsParser()
     CmdLine.add(PathArg);
 }
 
-void TCreateArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TCreateArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -200,8 +340,13 @@ void TCreateArgsParser::BuildCommand(IYsonConsumer* consumer)
         .Item("path").Scalar(path)
         .Item("type").Scalar(TypeArg.getValue().ToString());
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
     BuildOptions(consumer);
+}
+
+Stroka TCreateArgsParser::GetDriverCommandName() const
+{
+    return "create";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,7 +359,7 @@ TLockArgsParser::TLockArgsParser()
     CmdLine.add(ModeArg);
 }
 
-void TLockArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TLockArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -222,32 +367,39 @@ void TLockArgsParser::BuildCommand(IYsonConsumer* consumer)
         .Item("path").Scalar(path)
         .Item("mode").Scalar(ModeArg.getValue().ToString());
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
+}
+
+Stroka TLockArgsParser::GetDriverCommandName() const
+{
+    return "lock";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartTxArgsParser::TStartTxArgsParser()
-{ }
-
-void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TStartTxArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
-    TArgsParserBase::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
     BuildOptions(consumer);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TCommitTxArgsParser::BuildCommand(IYsonConsumer* consumer)
+Stroka TStartTxArgsParser::GetDriverCommandName() const
 {
-    TTransactedArgsParser::BuildCommand(consumer);
+    return "start_tx";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortTxArgsParser::BuildCommand(IYsonConsumer* consumer)
+Stroka TCommitTxArgsParser::GetDriverCommandName() const
 {
-    TTransactedArgsParser::BuildCommand(consumer);
+    return "commit_tx";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka TAbortTxArgsParser::GetDriverCommandName() const
+{
+    return "abort_tx";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,7 +410,7 @@ TReadArgsParser::TReadArgsParser()
     CmdLine.add(PathArg);
 }
 
-void TReadArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TReadArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -266,7 +418,12 @@ void TReadArgsParser::BuildCommand(IYsonConsumer* consumer)
         .Item("do").Scalar("read")
         .Item("path").Scalar(path);
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
+}
+
+Stroka TReadArgsParser::GetDriverCommandName() const
+{
+    return "read";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,7 +438,7 @@ TWriteArgsParser::TWriteArgsParser()
     CmdLine.add(KeyColumnsArg);
 }
 
-void TWriteArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TWriteArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
     auto value = ValueArg.getValue();
@@ -299,7 +456,12 @@ void TWriteArgsParser::BuildCommand(IYsonConsumer* consumer)
                 fluent.Item("value").Node(value);
         });
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
+}
+
+Stroka TWriteArgsParser::GetDriverCommandName() const
+{
+    return "write";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,14 +472,19 @@ TUploadArgsParser::TUploadArgsParser()
     CmdLine.add(PathArg);
 }
 
-void TUploadArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TUploadArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Scalar(path);
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
+}
+
+Stroka TUploadArgsParser::GetDriverCommandName() const
+{
+    return "upload";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,14 +495,198 @@ TDownloadArgsParser::TDownloadArgsParser()
     CmdLine.add(PathArg);
 }
 
-void TDownloadArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TDownloadArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Scalar(path);
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
+}
+
+Stroka TDownloadArgsParser::GetDriverCommandName() const
+{
+    return "download";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStartOpArgsParser::TOperationTracker
+{
+public:
+    TOperationTracker(
+        TArgsParserBase::TConfig::TPtr config,
+        IDriverPtr driver,
+        const TOperationId& operationId)
+        : Config(config)
+        , Driver(driver)
+        , OperationId(operationId)
+    { }
+
+    void Run()
+    {
+        TSchedulerServiceProxy proxy(Driver->GetCommandHost()->GetSchedulerChannel());
+
+        while (true)  {
+            auto waitOpReq = proxy.WaitForOperation();
+            *waitOpReq->mutable_operation_id() = OperationId.ToProto();
+            waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
+
+            // Override default timeout.
+            waitOpReq->SetTimeout(Config->OperationWaitTimeout * 2);
+            auto waitOpRsp = waitOpReq->Invoke().Get();
+
+            if (!waitOpRsp->IsOK()) {
+                ythrow yexception() << waitOpRsp->GetError().ToString();
+            }
+
+            if (waitOpRsp->finished())
+                break;
+
+            DumpProgress();
+        }
+
+        DumpResult();
+    }
+
+private:
+    TArgsParserBase::TConfig::TPtr Config;
+    IDriverPtr Driver;
+    TOperationId OperationId;
+
+    // TODO(babenko): refactor
+    static NYTree::TYPath GetOperationPath(const TOperationId& id)
+    {
+        return "//sys/operations/" + EscapeYPathToken(id.ToString());
+    }
+
+    // TODO(babenko): refactor
+    // TODO(babenko): YPath and RPC responses currently share no base class.
+    template <class TResponse>
+    static void CheckResponse(TResponse response, const Stroka& failureMessage) 
+    {
+        if (response->IsOK())
+            return;
+
+        ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+    }
+
+    void DumpProgress()
+    {
+        auto operationPath = GetOperationPath(OperationId);
+
+        TCypressServiceProxy proxy(Driver->GetCommandHost()->GetMasterChannel());
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TYPathProxy::Get(operationPath + "/@state");
+            batchReq->AddRequest(req, "get_state");
+        }
+
+        {
+            auto req = TYPathProxy::Get(operationPath + "/@progress");
+            batchReq->AddRequest(req, "get_progress");
+        }
+
+        auto batchRsp = batchReq->Invoke().Get();
+        CheckResponse(batchRsp, "Error getting operation progress");
+
+        EOperationState state;
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
+            CheckResponse(rsp, "Error getting operation state");
+            state = DeserializeFromYson<EOperationState>(rsp->value());
+        }
+
+        TYson progress;
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
+            CheckResponse(rsp, "Error getting operation progress");
+            progress = rsp->value();
+        }
+
+        if (state == EOperationState::Running) {
+            i64 jobsTotal = DeserializeFromYson<i64>(progress, "/jobs/total");
+            i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/jobs/completed");
+            int donePercentage  = (jobsCompleted * 100) / jobsTotal;
+            printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
+                ~state.ToString(),
+                donePercentage,
+                jobsCompleted,
+                jobsTotal);
+        } else {
+            printf("%s\n", ~state.ToString());
+        }
+    }
+
+    void DumpResult()
+    {
+        auto operationPath = GetOperationPath(OperationId);
+
+        TCypressServiceProxy proxy(Driver->GetCommandHost()->GetMasterChannel());
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TYPathProxy::Get(operationPath + "/@result");
+            batchReq->AddRequest(req, "get_result");
+        }
+
+        auto batchRsp = batchReq->Invoke().Get();
+        CheckResponse(batchRsp, "Error getting operation result");
+
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_result");
+            CheckResponse(rsp, "Error getting operation result");
+            // TODO(babenko): refactor!
+            auto errorNode = DeserializeFromYson<INodePtr>(rsp->value(), "/error");
+            auto error = TError::FromYson(errorNode);
+            if (!error.IsOK()) {
+                ythrow yexception() << error.ToString();
+            }
+        }
+
+        printf("Operation completed successfully\n");
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStartOpArgsParser::TStartOpArgsParser()
+    : NoTrackArg("", "no_track", "don't track operation progress")
+{
+    CmdLine.add(NoTrackArg);
+}
+
+TError TStartOpArgsParser::Execute(
+    const std::vector<std::string>& args,
+    INodePtr configNode)
+{
+    if (NoTrackArg.getValue()) {
+        return TArgsParserBase::Execute(args, configNode);
+    }
+
+    auto request = ParseArgs(args);
+    auto config = ParseConfig(configNode);
+
+    printf("Starting %s operation... ", ~GetDriverCommandName().Quote());
+
+    TInterceptingDriverHost driverHost;
+    auto driver = CreateDriver(config, &driverHost);
+    auto error = driver->Execute(GetDriverCommandName(), request);
+
+    if (!error.IsOK()) {
+        printf("failed\n");
+        ythrow yexception() << error.ToString();
+    }
+
+    auto operationId = DeserializeFromYson<TOperationId>(driverHost.GetOutput());
+    printf("done, %s\n", ~operationId.ToString());
+
+    TOperationTracker tracker(config, driver, operationId);
+    tracker.Run();
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,7 +703,7 @@ TMapArgsParser::TMapArgsParser()
     CmdLine.add(MapperArg);
 }
 
-void TMapArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TMapArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPaths(OutArg.getValue());
@@ -367,7 +718,12 @@ void TMapArgsParser::BuildCommand(IYsonConsumer* consumer)
             .Do(BIND(&TMapArgsParser::BuildOptions, Unretained(this)))
         .EndMap();
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
+}
+
+Stroka TMapArgsParser::GetDriverCommandName() const
+{
+    return "map";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,7 +740,7 @@ TMergeArgsParser::TMergeArgsParser()
     CmdLine.add(CombineArg);
 }
 
-void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TMergeArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
@@ -398,7 +754,12 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
             .Do(BIND(&TMergeArgsParser::BuildOptions, Unretained(this)))
         .EndMap();
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
+}
+
+Stroka TMergeArgsParser::GetDriverCommandName() const
+{
+    return "merge";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -413,7 +774,7 @@ TSortArgsParser::TSortArgsParser()
     CmdLine.add(KeyColumnsArg);
 }
 
-void TSortArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TSortArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
@@ -428,6 +789,11 @@ void TSortArgsParser::BuildCommand(IYsonConsumer* consumer)
         .EndMap();
 }
 
+Stroka TSortArgsParser::GetDriverCommandName() const
+{
+    return "sort";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEraseArgsParser::TEraseArgsParser()
@@ -440,7 +806,7 @@ TEraseArgsParser::TEraseArgsParser()
     CmdLine.add(CombineArg);
 }
 
-void TEraseArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TEraseArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPath(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
@@ -453,7 +819,12 @@ void TEraseArgsParser::BuildCommand(IYsonConsumer* consumer)
             .Do(BIND(&TEraseArgsParser::BuildOptions, Unretained(this)))
         .EndMap();
 
-    TTransactedArgsParser::BuildCommand(consumer);
+    TTransactedArgsParser::BuildRequest(consumer);
+}
+
+Stroka TEraseArgsParser::GetDriverCommandName() const
+{
+    return "erase";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,12 +835,17 @@ TAbortOpArgsParser::TAbortOpArgsParser()
     CmdLine.add(OpArg);
 }
 
-void TAbortOpArgsParser::BuildCommand(IYsonConsumer* consumer)
+void TAbortOpArgsParser::BuildRequest(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_id").Scalar(OpArg.getValue());
 
-    TArgsParserBase::BuildCommand(consumer);
+    TArgsParserBase::BuildRequest(consumer);
+}
+
+Stroka TAbortOpArgsParser::GetDriverCommandName() const
+{
+    return "abort_op";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
