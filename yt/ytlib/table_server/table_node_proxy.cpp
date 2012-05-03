@@ -12,6 +12,8 @@
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/key.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NTableServer {
