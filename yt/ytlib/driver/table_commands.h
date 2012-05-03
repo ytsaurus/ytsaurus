@@ -47,6 +47,7 @@ struct TWriteRequest
     NYTree::INodePtr Stream;
     NYTree::INodePtr Value;
     bool Sorted;
+    yvector<Stroka> KeyColumns;
 
     TWriteRequest()
     {
@@ -55,6 +56,7 @@ struct TWriteRequest
             .Default();
         Register("sorted", Sorted)
             .Default(false);
+        Register("key_columns", KeyColumns).Default();
     }
 
     virtual void DoValidate() const

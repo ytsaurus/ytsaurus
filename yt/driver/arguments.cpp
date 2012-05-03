@@ -274,22 +274,27 @@ void TReadArgsParser::BuildCommand(IYsonConsumer* consumer)
 TWriteArgsParser::TWriteArgsParser()
     : PathArg("path", "path to a table in Cypress that must be written", true, "", "ypath")
     , ValueArg("value", "row(s) to write", false, "", "yson")
-    , SortedArg("s", "sorted", "create sorted table (table must initially be empty, input data must be sorted)")
+    , KeyColumnsArg("", "sorted", "key columns names (table must initially be empty, input data must be sorted)", true, "", "list_fragment")
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);
-    CmdLine.add(SortedArg);
+    CmdLine.add(KeyColumnsArg);
 }
 
 void TWriteArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
     auto value = ValueArg.getValue();
+    // TODO(babenko): refactor
+    auto keyColumns = DeserializeFromYson< yvector<Stroka> >("[" + KeyColumnsArg.getValue() + "]");
 
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
         .Item("path").Scalar(path)
-        .Item("sorted").Scalar(SortedArg.getValue())
+        .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
+            fluent.Item("sorted").Scalar(true);
+            fluent.Item("key_columns").List(keyColumns);
+        })
         .DoIf(!value.empty(), [=] (TFluentMap fluent) {
                 fluent.Item("value").Node(value);
         });
