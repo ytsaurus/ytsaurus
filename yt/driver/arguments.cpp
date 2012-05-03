@@ -4,12 +4,18 @@
 #include <build.h>
 
 #include <ytlib/ytree/tokenizer.h>
+
 #include <ytlib/job_proxy/config.h>
+
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/command.h>
+
 #include <ytlib/logging/log_manager.h>
+
 #include <ytlib/cypress/cypress_service_proxy.h>
+
 #include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/scheduler/helpers.h>
 
 namespace NYT {
 
@@ -554,12 +560,6 @@ private:
     TArgsParserBase::TConfig::TPtr Config;
     IDriverPtr Driver;
     TOperationId OperationId;
-
-    // TODO(babenko): refactor
-    static NYTree::TYPath GetOperationPath(const TOperationId& id)
-    {
-        return "//sys/operations/" + EscapeYPathToken(id.ToString());
-    }
 
     // TODO(babenko): refactor
     // TODO(babenko): YPath and RPC responses currently share no base class.

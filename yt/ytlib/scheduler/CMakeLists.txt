@@ -17,6 +17,7 @@ set( SRCS
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_channel.cpp
   ${BASE}/sort_controller.cpp
+  ${BASE}/helpers.cpp
 )
 set( HDRS
   ${BASE}/chunk_list_pool.h
@@ -40,6 +41,7 @@ set( HDRS
   ${BASE}/scheduler_proxy.h
   ${BASE}/scheduler_strategy.h
   ${BASE}/sort_controller.h
+  ${BASE}/helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES
