@@ -39,9 +39,11 @@ void TBlobOutput::Clear()
     Blob.clear();
 }
 
-TSharedRef TBlobOutput::Flush()
+TSharedRef TBlobOutput::Flush(size_t size)
 {
-    return TSharedRef(MoveRV(Blob));
+    auto result = TSharedRef(MoveRV(Blob));
+    Blob.reserve(size);
+    return result;
 }
 
 void TBlobOutput::Swap(TBlobOutput& other)

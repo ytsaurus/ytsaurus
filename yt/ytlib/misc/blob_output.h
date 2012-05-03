@@ -27,7 +27,7 @@ public:
     i32 GetSize() const;
 
     void Clear();
-    TSharedRef Flush();
+    TSharedRef Flush(size_t size);
 
     void Swap(TBlobOutput& other);
 
