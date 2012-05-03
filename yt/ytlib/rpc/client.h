@@ -62,8 +62,6 @@ class TClientRequest
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
 public:
-    typedef TIntrusivePtr<TClientRequest> TPtr;
-
     virtual NBus::IMessage::TPtr Serialize() const;
 
     virtual const TRequestId& GetRequestId() const;

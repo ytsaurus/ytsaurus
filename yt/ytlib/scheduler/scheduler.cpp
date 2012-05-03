@@ -1339,7 +1339,7 @@ void TScheduler::Start()
     Impl->Start();
 }
 
-NRpc::IService::TPtr TScheduler::GetService()
+NRpc::IServicePtr TScheduler::GetService()
 {
     return Impl;
 }

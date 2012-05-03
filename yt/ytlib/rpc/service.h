@@ -127,8 +127,6 @@ struct IServiceContext
 struct IService
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IService> TPtr;
-
     virtual Stroka GetServiceName() const = 0;
     virtual Stroka GetLoggingCategory() const = 0;
 

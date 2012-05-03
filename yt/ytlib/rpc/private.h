@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ytlib/misc/common.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -19,6 +21,9 @@ template <class TResponseMessage>
 class TTypedClientResponse;
 
 class TOneWayClientResponse;
+
+struct TRetryConfig;
+typedef TIntrusivePtr<TRetryConfig> TRetryConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
             

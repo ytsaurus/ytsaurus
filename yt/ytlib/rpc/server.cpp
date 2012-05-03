@@ -31,7 +31,7 @@ public:
         const NProto::TRequestHeader& header,
         IMessage::TPtr requestMessage,
         IBus::TPtr replyBus,
-        IService::TPtr service,
+        IServicePtr service,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
         , ReplyBus(replyBus)
@@ -44,7 +44,7 @@ public:
 
 private:
     IBus::TPtr ReplyBus;
-    IService::TPtr Service;
+    IServicePtr Service;
     NLog::TLogger Logger;
 
     virtual void DoReply(const TError& error, IMessage::TPtr responseMessage)
@@ -92,7 +92,7 @@ public:
         , Started(false)
     { }
 
-    virtual void RegisterService(IService::TPtr service)
+    virtual void RegisterService(IServicePtr service)
     {
         YASSERT(service);
 
@@ -126,9 +126,9 @@ private:
     IBusServer::TPtr BusServer;
     volatile bool Started;
 
-    yhash_map<Stroka, IService::TPtr> Services;
+    yhash_map<Stroka, IServicePtr> Services;
 
-    IService::TPtr GetService(const Stroka& serviceName)
+    IServicePtr GetService(const Stroka& serviceName)
     {
         auto it = Services.find(serviceName);
         return it == Services.end() ? NULL : it->second;

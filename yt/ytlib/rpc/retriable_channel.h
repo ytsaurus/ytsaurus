@@ -13,8 +13,6 @@ namespace NRpc {
 struct TRetryConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TRetryConfig> TPtr;
-    
     TDuration BackoffTime;
     int RetryCount;
 
