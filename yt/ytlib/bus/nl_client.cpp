@@ -616,6 +616,7 @@ public:
 
         // XXX(babenko): just drop the reference, this should force the requester
         // to send all pending packets.
+        Requester->StopNoWait();
         Requester = NULL;
 
         // NB: Cannot use log here!
