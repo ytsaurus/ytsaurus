@@ -119,17 +119,19 @@ void TTableConsumer::OnMyEndMap()
 
     int i = 0;
     auto begin = 0;
+    auto end = 0;
     while (i < Offsets.size()) {
-        auto end = Offsets[i];
+        begin = end;
+        end = Offsets[i];
         TStringBuf name(RowBuffer.Begin() + begin, end - begin);
-
         ++i;
+
         begin = end;
         end = Offsets[i];
         TStringBuf value(RowBuffer.Begin() + begin, end - begin);
-        row.push_back(std::make_pair(name, value));
-
         ++i;
+
+        row.push_back(std::make_pair(name, value));
     }
 
     Writer->WriteRow(row, CurrentKey);
