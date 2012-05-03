@@ -598,6 +598,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         auto* inputChunk = response->mutable_chunks(i);
 
         *inputChunk->mutable_channel() = channel.ToProto();
+        inputChunk->mutable_extensions();
 
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         const auto& chunk = chunkManager->GetChunk(chunkId);
