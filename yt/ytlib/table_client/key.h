@@ -2,6 +2,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/blob_range.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/property.h>
 
@@ -29,7 +30,7 @@ class TKeyPart
 public:
     //! Creates null key part.
     TKeyPart();
-    TKeyPart(size_t offset, int length, const TBlob* buffer);
+    TKeyPart(const TBlobRange& value);
     TKeyPart(i64 value);
     TKeyPart(double value);
 
@@ -39,20 +40,18 @@ public:
     double GetDouble() const;
     TStringBuf GetString() const;
 
+    size_t GetSize() const;
+
     Stroka ToString() const;
 
     // Makes protobuf representation. Strips string part length to maxSize if exceeds.
-    NProto::TKeyPart ToProto(int maxSize = 0) const;
+    NProto::TKeyPart ToProto(size_t maxSize = 0) const;
     //FromProto();
 
 private:
     i64 IntValue;
     double DoubleValue;
-
-    // Offset in the internal buffer of TKey.
-    size_t StrOffset;
-    int StrLength;
-    const TBlob* Buffer;
+    TBlobRange StrValue;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +64,7 @@ public:
     /* 
      *  \param size - maximum key size.
      */
-    TKey(int columnCount = 0, int size = 4096);
+    TKey(int columnCount = 0, size_t size = 4096);
 
     void AddValue(int index, i64 value);
     void AddValue(int index, double value);
@@ -76,6 +75,8 @@ public:
     void Reset(int columnCount = -1);
     void Swap(TKey& other);
 
+    size_t GetSize() const;
+
     Stroka ToString() const;
 
     NProto::TKey ToProto() const;
@@ -84,7 +85,7 @@ public:
     static int Compare(const TKey& lhs, const TKey& rhs);
 
 private:
-    const int MaxSize;
+    const size_t MaxSize;
     int ColumnCount;
 
     std::vector<TKeyPart> Parts;

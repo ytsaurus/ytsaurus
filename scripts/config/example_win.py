@@ -4,7 +4,7 @@ from cfglib.ytwin import *
 import cfglib.opts as opts
 import socket
 
-build_dir = r'C:\Projects\yt-build'
+build_dir = r'C:\Projects\yt-new-build\build'
 
 
 Logging = {

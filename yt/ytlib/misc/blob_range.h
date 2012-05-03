@@ -10,6 +10,7 @@ namespace NYT {
 class TBlobRange
 {
 public:
+    TBlobRange();
     TBlobRange(const TBlob* blob, size_t offset, size_t length);
     TStringBuf GetStringBuf() const;
 

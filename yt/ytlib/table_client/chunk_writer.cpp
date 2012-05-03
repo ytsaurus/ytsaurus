@@ -43,6 +43,8 @@ TChunkWriter::TChunkWriter(
     , SentSize(0)
     , UncompressedSize(0)
     , LastKey()
+    , SamplesSize(0)
+    , IndexSize(0)
 {
     YASSERT(chunkWriter);
     Codec = GetCodec(ECodecId(Config->CodecId));
@@ -133,7 +135,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
 
     LastKey.Swap(key);
 
-    if (ProtoSamples.ByteSize() < Config->SampleRate * CurrentSize) {
+    if (SamplesSize < Config->SampleRate * CurrentSize) {
         *ProtoSamples.add_items() = MakeSample(row);
     }
 
@@ -142,10 +144,11 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
             *ProtoBoundaryKeys.mutable_first() = key.ToProto();
         }
 
-        if (ProtoIndex.ByteSize() < Config->IndexRate * CurrentSize) {
+        if (IndexSize < Config->IndexRate * CurrentSize) {
             auto* indexRow = ProtoIndex.add_index_rows();
             *indexRow->mutable_key() = key.ToProto();
             indexRow->set_row_index(ProtoMisc.row_count() - 1);
+            IndexSize += key.GetSize();
         }
     }
 
@@ -264,23 +267,31 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
         switch (token.GetType()) {
         case ETokenType::Integer:
             *(part->mutable_key_part()) = TKeyPart(token.GetIntegerValue()).ToProto();
+            // sizeof(int) for type field.
+            SamplesSize += sizeof(i64) + sizeof(int);
             break;
 
         case ETokenType::String: {
             auto *keyPart = part->mutable_key_part();
             keyPart->set_type(EKeyType::String);
-            keyPart->set_str_value(
-                token.GetStringValue().begin(), 
-                std::min(token.GetStringValue().size(), static_cast<size_t>(Config->MaxSampleSize)));
+            auto length = std::min(
+                token.GetStringValue().size(), 
+                static_cast<size_t>(Config->MaxSampleSize));
+            keyPart->set_str_value(token.GetStringValue().begin(), length);
+            // sizeof(int) for type field.
+            SamplesSize += length + sizeof(int);
             break;
         }
 
         case ETokenType::Double:
             *(part->mutable_key_part()) = TKeyPart(token.GetDoubleValue()).ToProto();
+            SamplesSize += sizeof(double) + sizeof(int);
             break;
 
         default:
             *(part->mutable_key_part()) = TKeyPart::CreateComposite().ToProto();
+            // sizeof(int) for type field.
+            SamplesSize += sizeof(int);
             break;
 
         }

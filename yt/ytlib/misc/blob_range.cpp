@@ -5,6 +5,13 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TBlobRange::TBlobRange()
+    : Blob(NULL)
+    , Offset(0)
+    , Length(0)
+{ }
+
+
 TBlobRange::TBlobRange(const TBlob* blob, size_t offset, size_t length)
     : Blob(blob)
     , Offset(offset)
