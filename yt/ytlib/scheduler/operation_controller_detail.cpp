@@ -320,6 +320,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
         {
             auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
             FOREACH (const auto& childId, table.PartitionTreeIds) {
+                LOG_DEBUG("committing tree %s", ~childId.ToString());
                 *req->add_children_ids() = childId.ToProto();
             }
             batchReq->AddRequest(req, "attach_out");

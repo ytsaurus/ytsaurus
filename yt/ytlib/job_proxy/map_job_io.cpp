@@ -162,11 +162,11 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
         MasterChannel,
         blockCache,
         chunks);
+    auto syncReader = New<TSyncReaderAdapter>(reader);
+    syncReader->Open();
 
     // ToDo(psushin): extract format from operation spec.
-    return new TTableProducer(
-        New<TSyncReaderAdapter>(reader), 
-        consumer);
+    return new TTableProducer(syncReader, consumer);
 }
 
 TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
