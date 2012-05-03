@@ -244,9 +244,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LogReopenHandler(int signum)
+void LogReload(int signum)
 {
-    NLog::TLogManager::Get()->NeedReopen = true;
+    NLog::TLogManager::Get()->NeedReload = true;
 }
 
 class TLogManager::TImpl
@@ -308,7 +308,7 @@ public:
 #ifdef _unix_
         // set handler
         struct sigaction new_action;
-        new_action.sa_handler = LogReopenHandler;
+        new_action.sa_handler = LogReloadHandler;
         sigaction(SIGHUP, &new_action, NULL);
 #endif
     }
@@ -366,8 +366,8 @@ public:
                 DoUpdateConfig(config);
             }
 
-            if (TLogManager::Get()->NeedReopen) {
-                TLogManager::Get()->NeedReopen = false;
+            if (TLogManager::Get()->NeedReload) {
+                TLogManager::Get()->NeedReload = false;
                 Config->ReloadWriters();
             }
 
@@ -424,7 +424,7 @@ private:
 
 TLogManager::TLogManager()
     : Impl(new TImpl())
-    , NeedReopen(false)
+    , NeedReload(false)
 { }
 
 TLogManager* TLogManager::Get()

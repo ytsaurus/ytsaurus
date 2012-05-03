@@ -29,7 +29,7 @@ public:
 
     void Enqueue(const TLogEvent& event);
 
-    volatile bool NeedReopen;
+    volatile bool NeedReload;
 
 private:
     class TImpl;
