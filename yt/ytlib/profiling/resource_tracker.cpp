@@ -42,6 +42,10 @@ void TResourceTracker::EnqueueUsage()
     i64 procTicks = FromString<i64>(cpuFields[1]);
     i64 totalProcTicks = procTicks - PreviousProcTicks;
 
+    if (totalProcTicks == 0) {
+        return;
+     }
+
     int pid = getpid();
     Stroka path = Sprintf("/proc/%d/task/", pid);
     TDirsList dirsList;
