@@ -107,9 +107,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isScheduler) {
-        Cout << "Scheduler currently disabled" << Endl;
-        exit(1);
-        //++modeCount;
+        ++modeCount;
     }
 
     if (isJobProxy) {
