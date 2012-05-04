@@ -53,6 +53,7 @@ public:
         : ExitCode(0)
     {
         RegisterParser("start_tx", New<TStartTxArgsParser>());
+        RegisterParser("renew_tx", New<TRenewTxArgsParser>());
         RegisterParser("commit_tx", New<TCommitTxArgsParser>());
         RegisterParser("abort_tx", New<TAbortTxArgsParser>());
 

@@ -30,6 +30,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRenewTransactionRequest
+    : public TTransactedRequest
+{ };
+
+typedef TIntrusivePtr<TRenewTransactionRequest> TRenewRequestPtr;
+
+class TRenewTransactionCommand
+    : public TTypedCommandBase<TRenewTransactionRequest>
+{
+public:
+    explicit TRenewTransactionCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
+    { }
+
+    virtual TCommandDescriptor GetDescriptor();
+
+private:
+    virtual void DoExecute(TRenewRequestPtr request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCommitTransactionRequest
     : public TTransactedRequest
 { };

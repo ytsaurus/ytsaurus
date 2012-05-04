@@ -85,6 +85,7 @@ public:
             MasterChannel);
 
         RegisterCommand("start_tx", New<TStartTransactionCommand>(this));
+        RegisterCommand("renew_tx", New<TRenewTransactionCommand>(this));
         RegisterCommand("commit_tx", New<TCommitTransactionCommand>(this));
         RegisterCommand("abort_tx", New<TAbortTransactionCommand>(this));
 
