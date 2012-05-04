@@ -300,16 +300,17 @@ public:
 
     virtual void OnThreadStart()
     {
+#ifdef _unix_
+        // Set mask.
         sigset_t sigset;
         SigEmptySet(&sigset);
         SigAddSet(&sigset, SIGHUP);
         SigProcMask(SIG_UNBLOCK, &sigset, NULL);
 
-#ifdef _unix_
-        // set handler
-        struct sigaction new_action;
-        new_action.sa_handler = LogReloadHandler;
-        sigaction(SIGHUP, &new_action, NULL);
+        // Set handler.
+        struct sigaction newAction;
+        newAction.sa_handler = LogReloadHandler;
+        sigaction(SIGHUP, &newAction, NULL);
 #endif
     }
 
