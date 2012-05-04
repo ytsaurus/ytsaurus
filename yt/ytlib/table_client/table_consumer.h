@@ -32,10 +32,10 @@ private:
     void OnMyKeyedItem(const TStringBuf& name);
     void OnMyEndMap();
 
-    // We currently ignore user attributes.
+    // XXX(psushin): We currently ignore user attributes.
     // void OnMyBeginAttributes();
 
-    void OnValueEnded();
+    void OnValueFinished();
 
     ISyncWriterPtr Writer;
     TNullable<TKeyColumns> KeyColumns;
@@ -49,7 +49,8 @@ private:
     std::vector<size_t> Offsets;
     TBlobOutput RowBuffer;
     TValueConsumer ValueConsumer;
-    TClosure OnValueFinished;
+    //! A cached callback for #OnValueFinished.
+    TClosure OnValueFinished_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

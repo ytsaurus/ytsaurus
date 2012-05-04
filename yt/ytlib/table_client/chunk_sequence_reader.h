@@ -39,7 +39,7 @@ private:
     void PrepareNextChunk();
     void OnNextReaderOpened(TChunkReaderPtr reader, TError error);
     void SetCurrentChunk(TChunkReaderPtr nextReader);
-    void OnNextRow(TError error);
+    void OnRowFetched(TError error);
 
     TChunkSequenceReaderConfigPtr Config;
     NChunkClient::IBlockCachePtr BlockCache;

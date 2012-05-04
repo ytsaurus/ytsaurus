@@ -527,7 +527,6 @@ TChunkReader::TChunkReader(
     : Codec(NULL)
     , SequentialReader(NULL)
     , Channel(channel)
-    , OnNextRowFetched_(BIND(&TChunkReader::OnNextRowFetched, MakeWeak(this)))
     , CurrentRowIndex(-1)
     , EndRowIndex(0)
     , Options(options)
@@ -565,15 +564,15 @@ TAsyncError TChunkReader::AsyncNextRow()
     // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
     auto asyncResult = DoNextRow();
     if (asyncResult.IsSet()) {
-        OnNextRowFetched(asyncResult.Get());
+        OnRowFetched(asyncResult.Get());
     } else {
-        asyncResult.Subscribe(OnNextRowFetched_);
+        asyncResult.Subscribe(BIND(&TChunkReader::OnRowFetched, MakeWeak(this)));
     }
     
     return State.GetOperationError();
 }
 
-void TChunkReader::OnNextRowFetched(TError error)
+void TChunkReader::OnRowFetched(TError error)
 {
     if (error.IsOK()) {
         State.FinishOperation();

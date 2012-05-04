@@ -65,10 +65,7 @@ private:
     TChannel Channel;
 
     TAsyncError DoNextRow();
-
-    // TODO(babenko): performance critical, use const TError&
-    void OnNextRowFetched(TError error);
-    TCallback<void(TError)> OnNextRowFetched_;
+    void OnRowFetched(TError error);
 
     TAsyncError ContinueNextRow(
         int channelIndex, 

@@ -118,7 +118,7 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReaderPtr nextReader)
     State.FinishOperation();
 }
 
-void TChunkSequenceReader::OnNextRow(TError error)
+void TChunkSequenceReader::OnRowFetched(TError error)
 {
     if (!error.IsOK()) {
         State.Fail(error);
@@ -169,9 +169,13 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
 
     State.StartOperation();
     
-    CurrentReader->AsyncNextRow().Subscribe(BIND(
-        &TChunkSequenceReader::OnNextRow,
-        MakeWeak(this)));
+    // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
+    auto asyncResult = CurrentReader->AsyncNextRow();
+    if (asyncResult.IsSet()) {
+        OnRowFetched(asyncResult.Get());
+    } else {
+        asyncResult.Subscribe(BIND(&TChunkSequenceReader::OnRowFetched, MakeWeak(this)));
+    }
 
     return State.GetOperationError();
 }

@@ -93,7 +93,7 @@ private:
         NChunkServer::TChunkId chunkId,
         TError error);
 
-    void OnRowEnded(TError error);
+    void OnRowWritten(TError error);
 
     void OnClose();
 

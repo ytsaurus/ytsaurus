@@ -168,14 +168,18 @@ TAsyncError TChunkSequenceWriter::AsyncWriteRow(TRow& row, TKey& key)
     State.StartOperation();
     ++RowCount;
 
-    CurrentSession.ChunkWriter->AsyncWriteRow(row, key).Subscribe(BIND(
-        &TChunkSequenceWriter::OnRowEnded,
-        MakeWeak(this)));
+    // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
+    auto asyncResult = CurrentSession.ChunkWriter->AsyncWriteRow(row, key);
+    if (asyncResult.IsSet()) {
+        OnRowWritten(asyncResult.Get());
+    } else {
+        asyncResult.Subscribe(BIND(&TChunkSequenceWriter::OnRowWritten, MakeWeak(this)));
+    }
 
     return State.GetOperationError();
 }
 
-void TChunkSequenceWriter::OnRowEnded(TError error)
+void TChunkSequenceWriter::OnRowWritten(TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -184,8 +188,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
         auto expectedInputSize = currentDataSize * std::max(.0, 1. - Progress);
 
         if (expectedInputSize > Config->DesiredChunkSize) {
-            LOG_DEBUG(
-                "Switching to next chunk (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
+            LOG_DEBUG("Switching to next chunk (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
                 ~TransactionId.ToString(),
                 CurrentSession.ChunkWriter->GetCurrentSize(),
                 expectedInputSize);
