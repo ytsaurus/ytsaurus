@@ -54,7 +54,7 @@ TStringBuf TKeyPart::GetString() const
 
 Stroka ToString(const TKeyPart& keyPart)
 {
-    switch (Type_) {
+    switch (keyPart.GetType()) {
         case EKeyType::Null:
             return "<null>";
         case EKeyType::Composite:
@@ -64,7 +64,7 @@ Stroka ToString(const TKeyPart& keyPart)
         case EKeyType::Integer:
             return ::ToString(keyPart.GetInteger());
         case EKeyType::Double:
-            return ::ToString(keyPart.GetDouble);
+            return ::ToString(keyPart.GetDouble());
         default:
             YUNREACHABLE();
     }
@@ -75,14 +75,14 @@ size_t TKeyPart::GetSize() const
     auto typeSize = sizeof(Type_);
 
     switch (Type_) {
-    case EKeyType::String:
-        return typeSize + StrValue.GetStringBuf().size();
-    case EKeyType::Integer:
-        return typeSize + sizeof(i64);
-    case EKeyType::Double:
-        return typeSize + sizeof(double);
-    default:
-        return typeSize;
+        case EKeyType::String:
+            return typeSize + StrValue.GetStringBuf().size();
+        case EKeyType::Integer:
+            return typeSize + sizeof(i64);
+        case EKeyType::Double:
+            return typeSize + sizeof(double);
+        default:
+            return typeSize;
     }
 }
 
@@ -93,7 +93,7 @@ NProto::TKeyPart TKeyPart::ToProto(size_t maxSize) const
 
     switch (Type_) {
 	    case EKeyType::String:
-            keyPart.set_str_value(StrValue.begin(), StrValue.size());
+            keyPart.set_str_value(StrValue.GetStringBuf().begin(), StrValue.GetStringBuf().size());
             break;
 
         case EKeyType::Integer:
