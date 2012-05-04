@@ -162,7 +162,7 @@ class YTEnv:
 
     def _wait_for_ready_holders(self):
         if self.NUM_HOLDERS == 0: return
-        self._wait_for(self._all_holders_ready, name = "holders", max_wait_time = 15)
+        self._wait_for(self._all_holders_ready, name = "holders", max_wait_time = 30)
 
     def _all_holders_ready(self):
         holders_status = {}
