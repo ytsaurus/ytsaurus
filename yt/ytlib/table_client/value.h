@@ -18,8 +18,8 @@ class TValue
 {
 public:
     TValue();
-    //TValue(TRef data);
     TValue(const TStringBuf& data);
+
     bool IsNull() const;
 
     int Save(TOutputStream* out);

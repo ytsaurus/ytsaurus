@@ -39,28 +39,17 @@ struct TChunkReader::IValidator
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNullValidator
-    : public TChunkReader::IValidator
-{
-    bool IsValid(const TKey& key)
-    {
-        return true;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <template <typename T> class TComparator>
-class TGenericValidator
+class TChunkReader::TGenericValidator
     : public TChunkReader::IValidator
 {
 public:
-    TGenericValidator(const NProto::TKey& protoKey)
+    explicit TGenericValidator(const NProto::TKey& protoKey)
     {
         Key.FromProto(protoKey);
     }
 
-    bool IsValid(const TKey& key)
+    virtual bool IsValid(const TKey& key)
     {
         return Comparator(TKey::Compare(key, Key), 0);
     }
@@ -124,7 +113,7 @@ public:
 
     TInitializer(
         TSequentialReaderConfigPtr config,
-        TChunkReader* chunkReader, 
+        TChunkReaderPtr chunkReader, 
         NChunkClient::IAsyncReaderPtr asyncReader,
         const NProto::TReadLimit& startLimit,
         const NProto::TReadLimit& endLimit)
@@ -191,8 +180,8 @@ private:
             columnInfo.InChannel = true;
         }
 
-        StartValidator.Reset(new TNullValidator());
-        chunkReader->EndValidator.Reset(new TNullValidator());
+        StartValidator.Destroy();
+        chunkReader->EndValidator.Destroy();
 
         auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(
             result.Value().extensions());
@@ -254,8 +243,7 @@ private:
             }
 
             if (EndLimit.has_key() && EndLimit.key().parts_size() > 0) {
-                chunkReader->EndValidator.Reset(
-                    new TGenericValidator<std::less>(EndLimit.key()));
+                chunkReader->EndValidator.Reset(new TGenericValidator<std::less>(EndLimit.key()));
 
                 auto it = std::upper_bound(
                     index->index_rows().begin(), 
@@ -309,7 +297,7 @@ private:
 
         chunkReader->SequentialReader->AsyncNextBlock().Subscribe(
             BIND(&TInitializer::OnFirstBlock, MakeWeak(this), 0)
-                .Via(ReaderThread->GetInvoker()));
+            .Via(ReaderThread->GetInvoker()));
     }
 
     void SelectChannels(TChunkReaderPtr chunkReader)
@@ -443,7 +431,7 @@ private:
 
         auto& channelIdx = SelectedChannels[selectedChannelIndex];
 
-        LOG_DEBUG("Fetched first block for channel %d.", channelIdx);
+        LOG_DEBUG("Fetched first block for channel %d", channelIdx);
 
         if (!error.IsOK()) {
             LOG_WARNING("Failed to download first block in channel %d\n%s", 
@@ -478,7 +466,7 @@ private:
                 .Via(ReaderThread->GetInvoker()));
         } else {
             // Create current row.
-            LOG_DEBUG("All first blocks fetched.");
+            LOG_DEBUG("All first blocks fetched");
 
             chunkReader->MakeCurrentRow();
             ValidateRow(TError());
@@ -494,11 +482,11 @@ private:
         LOG_TRACE("Validating row %" PRId64, chunkReader->CurrentRowIndex);
 
         YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
-        if (!StartValidator->IsValid(chunkReader->CurrentKey)) {
-            chunkReader->DoNextRow()
-                .Subscribe(
-                    BIND(&TInitializer::ValidateRow, MakeWeak(this))
-                    .Via(ReaderThread->GetInvoker()));
+        if (~StartValidator && !StartValidator->IsValid(chunkReader->CurrentKey)) {
+            // TODO(babenko): potential performance issue
+            chunkReader->DoNextRow().Subscribe(
+                BIND(&TInitializer::ValidateRow, MakeWeak(this))
+                .Via(ReaderThread->GetInvoker()));
             return;
         }
 
@@ -541,12 +529,13 @@ TChunkReader::TChunkReader(
     const TChannel& channel,
     NChunkClient::IAsyncReaderPtr chunkReader,
     const NProto::TReadLimit& startLimit,
-    const NProto::TReadLimit& endLimit,
+    const NProto::TReadLimit& endLimit, 
     const NYTree::TYson& rowAttributes,
     TOptions options)
     : Codec(NULL)
     , SequentialReader(NULL)
     , Channel(channel)
+    , OnNextRowFetched_(BIND(&TChunkReader::OnNextRowFetched, MakeWeak(this)))
     , CurrentRowIndex(-1)
     , EndRowIndex(0)
     , Options(options)
@@ -575,22 +564,22 @@ TAsyncError TChunkReader::AsyncOpen()
 
 TAsyncError TChunkReader::AsyncNextRow()
 {
-    // No thread affinity - called from SetCurrentChunk of TChunkSequenceReader.
+    // No thread affinity, called from SetCurrentChunk of TChunkSequenceReader.
     YASSERT(!State.HasRunningOperation());
     YASSERT(!Initializer);
 
     State.StartOperation();
-
-    auto this_ = MakeStrong(this);
-    DoNextRow().Subscribe(BIND([=] (TError error) {
-        if (error.IsOK()) {
-            this_->State.FinishOperation();
-        } else {
-            this_->State.Fail(error);
-        }
-    }));
-
+    DoNextRow().Subscribe(OnNextRowFetched_);
     return State.GetOperationError();
+}
+
+void TChunkReader::OnNextRowFetched(TError error)
+{
+    if (error.IsOK()) {
+        State.FinishOperation();
+    } else {
+        State.Fail(error);
+    }
 }
 
 TAsyncError TChunkReader::DoNextRow()
@@ -660,7 +649,7 @@ void TChunkReader::MakeCurrentRow()
 {
     TLexer lexer;
 
-    FOREACH (auto& reader, ChannelReaders) {
+    FOREACH (const auto& reader, ChannelReaders) {
         while (reader->NextColumn()) {
             auto column = reader->GetColumn();
             auto it = FixedColumns.find(column);
@@ -675,7 +664,7 @@ void TChunkReader::MakeCurrentRow()
                         YVERIFY(lexer.Read(reader->GetValue()) > 0);
                         YASSERT(lexer.GetState() == TLexer::EState::Terminal);
 
-                        auto& token = lexer.GetToken();
+                        const auto& token = lexer.GetToken();
                         switch (token.GetType()) {
                             case ETokenType::Integer:
                                 CurrentKey.AddValue(columnInfo.KeyIndex, token.GetIntegerValue());
@@ -730,7 +719,7 @@ TKey& TChunkReader::GetKey()
 
 bool TChunkReader::IsValid() const
 {
-    if (CurrentRowIndex < EndRowIndex)
+    if (~EndValidator && CurrentRowIndex < EndRowIndex)
         return EndValidator->IsValid(CurrentKey);
     else
         return false;

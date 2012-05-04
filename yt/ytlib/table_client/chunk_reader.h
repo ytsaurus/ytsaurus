@@ -23,8 +23,6 @@ class TChunkReader
     : public IAsyncReader
 {
 public:
-    struct IValidator;
-
     struct TOptions
     {
         bool ReadKey;
@@ -58,7 +56,19 @@ public:
     const NYTree::TYson& GetRowAttributes() const;
 
 private:
+    struct IValidator;
+    template <template <typename T> class TComparator>
+    class TGenericValidator;
+
+    ICodec* Codec;
+    NChunkClient::TSequentialReaderPtr SequentialReader;
+    TChannel Channel;
+
     TAsyncError DoNextRow();
+
+    // TODO(babenko): performance critical, use const TError&
+    void OnNextRowFetched(TError error);
+    TCallback<void(TError)> OnNextRowFetched_;
 
     TAsyncError ContinueNextRow(
         int channelIndex, 
@@ -70,11 +80,7 @@ private:
     class TInitializer;
     TIntrusivePtr<TInitializer> Initializer;
 
-    ICodec* Codec;
-    NChunkClient::TSequentialReaderPtr SequentialReader;
-
     TAsyncStreamState State;
-    TChannel Channel;
     TOptions Options;
 
     NYTree::TYson RowAttributes;
@@ -88,7 +94,7 @@ private:
         bool Used;
 
         TColumnInfo()
-            : KeyIndex(-1)
+            : KeyIndex(-1)  
             , InChannel(false)
             , Used(false)
         { }

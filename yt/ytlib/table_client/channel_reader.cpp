@@ -72,14 +72,14 @@ bool TChannelReader::NextColumn()
         } else if (CurrentColumnIndex == ColumnBuffersSize - 1) {
             YASSERT(ColumnBuffers.back().Avail() > 0);
             // Processing range column.
-            auto& RangeBuffer = ColumnBuffers[CurrentColumnIndex];
-            auto value = TValue::Load(&RangeBuffer);
+            auto& rangeBuffer = ColumnBuffers[CurrentColumnIndex];
+            auto value = TValue::Load(&rangeBuffer);
             if (value.IsNull()) {
                 ++CurrentColumnIndex;
                 return false;
             }
             CurrentColumn = value.ToStringBuf();
-            CurrentValue = TValue::Load(&RangeBuffer).ToStringBuf();
+            CurrentValue = TValue::Load(&rangeBuffer).ToStringBuf();
             return true;
         } 
 
@@ -88,7 +88,8 @@ bool TChannelReader::NextColumn()
 
         if (CurrentColumnIndex < ColumnBuffersSize - 1) {
             // Processing fixed column.
-            auto value = TValue::Load(&ColumnBuffers[CurrentColumnIndex]);
+            auto& rangeBuffer = ColumnBuffers[CurrentColumnIndex];
+            auto value = TValue::Load(&rangeBuffer);
             if (!value.IsNull()) {
                 CurrentValue = value.ToStringBuf();
                 return true;

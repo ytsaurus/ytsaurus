@@ -15,7 +15,7 @@ class TChannelReader
     : public virtual TRefCounted
 {
 public:
-    TChannelReader(const TChannel& channel);
+    explicit TChannelReader(const TChannel& channel);
     void SetBlock(TSharedRef&& block);
 
     bool NextRow();
