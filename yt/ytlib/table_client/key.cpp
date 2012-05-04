@@ -105,6 +105,7 @@ NProto::TKeyPart TKeyPart::ToProto(size_t maxSize) const
             break;
 
         case EKeyType::Null:
+        case EKeyType::Composite:
             break;
 
         default:
