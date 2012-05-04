@@ -15,7 +15,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NTableServer;
@@ -585,7 +585,7 @@ private:
         }
     }
 
-    virtual void OnCustomInputsRecieved(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
     {
         UNUSED(batchRsp);
 
@@ -760,7 +760,7 @@ private:
     }
 
 
-    virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
     {
         UNUSED(batchRsp);
 

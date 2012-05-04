@@ -3,7 +3,7 @@
 #include "common.h"
 
 #include <ytlib/file_client/file_reader_base.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 
 namespace NYT {
 namespace NFileClient {

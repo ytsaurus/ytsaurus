@@ -2,6 +2,7 @@
 #include "table_reader.h"
 
 #include <ytlib/misc/sync.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {

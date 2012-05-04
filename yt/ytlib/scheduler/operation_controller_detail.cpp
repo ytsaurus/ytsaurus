@@ -5,6 +5,7 @@
 
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/object_server/object_ypath_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 
 #include <cmath>
@@ -30,7 +31,7 @@ TOperationControllerBase::TOperationControllerBase(
     : Config(config)
     , Host(host)
     , Operation(operation)
-    , CypressProxy(host->GetMasterChannel())
+    , ObjectProxy(host->GetMasterChannel())
     , Logger(OperationsLogger)
     , Active(false)
     , Running(false)
@@ -307,13 +308,13 @@ void TOperationControllerBase::FinalizeOperation()
     }));
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
     LOG_INFO("Committing outputs");
 
-    auto batchReq = CypressProxy.ExecuteBatch();
+    auto batchReq = ObjectProxy.ExecuteBatch();
 
     FOREACH (const auto& table, OutputTables) {
         auto ypath = FromObjectId(table.ObjectId);
@@ -356,7 +357,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -389,23 +390,23 @@ void TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExec
     LOG_INFO("Outputs committed");
 }
 
-void TOperationControllerBase::CommitCustomOutputs(TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
+void TOperationControllerBase::CommitCustomOutputs(TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq)
 {
     UNUSED(batchReq);
 }
 
-void TOperationControllerBase::OnCustomOutputsCommitted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnCustomOutputsCommitted(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     UNUSED(batchRsp);
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction()
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
     LOG_INFO("Starting primary transaction");
 
-    auto batchReq = CypressProxy.ExecuteBatch();
+    auto batchReq = ObjectProxy.ExecuteBatch();
 
     {
         auto req = TTransactionYPathProxy::CreateObject(
@@ -419,7 +420,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTra
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnPrimaryTransactionStarted(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -434,13 +435,13 @@ void TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy:
     }
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTransactions()
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTransactions()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
     LOG_INFO("Starting secondary transactions");
 
-    auto batchReq = CypressProxy.ExecuteBatch();
+    auto batchReq = ObjectProxy.ExecuteBatch();
 
     {
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
@@ -457,7 +458,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTr
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnSecondaryTransactionsStarted(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -480,13 +481,13 @@ void TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServicePro
     }
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
     LOG_INFO("Getting object ids");
 
-    auto batchReq = CypressProxy.ExecuteBatch();
+    auto batchReq = ObjectProxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path, InputTransaction->GetId()));
@@ -503,7 +504,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnObjectIdsReceived(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -540,13 +541,13 @@ void TOperationControllerBase::OnObjectIdsReceived(TCypressServiceProxy::TRspExe
     LOG_INFO("Object ids received");
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
     LOG_INFO("Requesting inputs");
 
-    auto batchReq = CypressProxy.ExecuteBatch();
+    auto batchReq = ObjectProxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
         auto ypath = FromObjectId(table.ObjectId);
@@ -607,7 +608,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -713,12 +714,12 @@ void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecut
     LOG_INFO("Inputs received");
 }
 
-void TOperationControllerBase::CustomRequestInputs(TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
+void TOperationControllerBase::CustomRequestInputs(TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq)
 {
     UNUSED(batchReq);
 }
 
-void TOperationControllerBase::OnCustomInputsRecieved(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     UNUSED(batchRsp);
 }
@@ -758,7 +759,7 @@ void TOperationControllerBase::ReleaseChunkList(const TChunkListId& id)
 
 void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids)
 {
-    auto batchReq = CypressProxy.ExecuteBatch();
+    auto batchReq = ObjectProxy.ExecuteBatch();
     FOREACH (const auto& id, ids) {
         auto req = TTransactionYPathProxy::ReleaseObject();
         *req->mutable_object_id() = id.ToProto();
@@ -771,7 +772,7 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
         BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
 }
 
-void TOperationControllerBase::OnChunkListsReleased(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     if (batchRsp->IsOK()) {
         LOG_INFO("Chunk lists released successfully");

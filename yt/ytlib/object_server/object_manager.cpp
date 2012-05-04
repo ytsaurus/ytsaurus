@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "object_manager.h"
 #include "config.h"
+#include "object_service_proxy.h"
 
 #include <ytlib/ytree/tokenizer.h>
 
@@ -10,7 +11,6 @@
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/rpc/message.h>
 #include <ytlib/cypress/cypress_manager.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/profiling/profiler.h>
 

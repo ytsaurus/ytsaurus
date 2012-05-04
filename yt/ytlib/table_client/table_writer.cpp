@@ -34,7 +34,7 @@ TTableWriter::TTableWriter(
     , Path(path)
     , IsOpen(false)
     , IsClosed(false)
-    , CypressProxy(masterChannel)
+    , ObjectProxy(masterChannel)
     , Logger(TableClientLogger)
 {
     YASSERT(config);
@@ -68,7 +68,7 @@ void TTableWriter::Open()
     TChunkListId chunkListId;
     auto schema = TSchema::CreateDefault();
     {
-        auto batchReq = CypressProxy.ExecuteBatch();
+        auto batchReq = ObjectProxy.ExecuteBatch();
         if (Options.Sorted) {
             {
                 auto req = TCypressYPathProxy::Lock(WithTransaction(Path, UploadTransaction->GetId()));
@@ -204,7 +204,7 @@ void TTableWriter::Close()
         LOG_INFO("Marking table as sorted");
         auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
         // TODO(babenko): fill key columns
-        auto rsp = CypressProxy.Execute(req).Get();
+        auto rsp = ObjectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",
                 ~rsp->GetError().ToString());

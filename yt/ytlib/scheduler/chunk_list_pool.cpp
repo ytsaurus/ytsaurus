@@ -4,11 +4,13 @@
 
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_list.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NCypress;
+using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NChunkServer;
 
@@ -56,8 +58,8 @@ void TChunkListPool::Allocate(int count)
 
     LOG_INFO("Allocating %d chunk lists for pool", count);
 
-    TCypressServiceProxy cypressProxy(MasterChannel);
-    auto batchReq = cypressProxy.ExecuteBatch();
+    TObjectServiceProxy objectProxy(MasterChannel);
+    auto batchReq = objectProxy.ExecuteBatch();
 
     for (int index = 0; index < count; ++index) {
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
@@ -72,7 +74,7 @@ void TChunkListPool::Allocate(int count)
     RequestInProgress = true;
 }
 
-void TChunkListPool::OnChunkListsCreated(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TChunkListPool::OnChunkListsCreated(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     YASSERT(RequestInProgress);
     RequestInProgress = false;

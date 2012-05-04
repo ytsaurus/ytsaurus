@@ -15,7 +15,7 @@
 
 #include <ytlib/logging/log_manager.h>
 
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/helpers.h>
@@ -27,7 +27,7 @@ namespace NYT {
 using namespace NYTree;
 using namespace NScheduler;
 using namespace NDriver;
-using namespace NCypress;
+using namespace NObjectServer;
 using namespace NRpc;
 
 static const char* UserConfigFileName = ".ytdriver.conf";
@@ -618,7 +618,7 @@ private:
     {
         auto operationPath = GetOperationPath(OperationId);
 
-        TCypressServiceProxy proxy(Driver->GetCommandHost()->GetMasterChannel());
+        TObjectServiceProxy proxy(Driver->GetCommandHost()->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
         {
@@ -666,7 +666,7 @@ private:
     {
         auto operationPath = GetOperationPath(OperationId);
 
-        TCypressServiceProxy proxy(Driver->GetCommandHost()->GetMasterChannel());
+        TObjectServiceProxy proxy(Driver->GetCommandHost()->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
         {

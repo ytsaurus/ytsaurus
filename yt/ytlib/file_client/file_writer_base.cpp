@@ -5,9 +5,10 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/serialize.h>
-#include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
@@ -18,6 +19,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NTransactionServer;
 using namespace NCypress;
+using namespace NObjectServer;
 using namespace NFileClient::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer::NProto;
@@ -53,13 +55,13 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
     LOG_INFO("Creating chunk");
     yvector<Stroka> holderAddresses;
     {
-        TCypressServiceProxy cypressProxy(MasterChannel);
+        TObjectServiceProxy objectProxy(MasterChannel);
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
         req->set_type(EObjectType::Chunk);
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Config->ReplicationFactor);
-        auto rsp = cypressProxy.Execute(req).Get();
+        auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
                 ~rsp->GetError().ToString());
@@ -174,9 +176,9 @@ void TFileWriterBase::Close()
 
     LOG_INFO("Confirming chunk");
     {
-        TCypressServiceProxy cypressProxy(MasterChannel);
+        TObjectServiceProxy objectProxy(MasterChannel);
         auto req = Writer->GetConfirmRequest();
-        auto rsp = cypressProxy.Execute(req).Get();
+        auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
                 ~rsp->GetError().ToString());

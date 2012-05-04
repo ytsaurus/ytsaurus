@@ -8,7 +8,8 @@
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 #include <util/random/random.h>
 #include <util/generic/yexception.h>
@@ -24,10 +25,10 @@ namespace NChunkClient {
 using namespace NRpc;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
+using namespace NObjectServer;
 using namespace NCypress;
 
 using namespace google::protobuf;
-
 
 ///////////////////////////////////////////////////////////////////////////////
 

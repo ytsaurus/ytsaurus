@@ -2,6 +2,7 @@
 #include "file_writer.h"
 #include <ytlib/file_client/file_chunk_meta.pb.h>
 
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
@@ -11,6 +12,7 @@ namespace NFileClient {
 
 using namespace NYTree;
 using namespace NCypress;
+using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NFileServer;
@@ -67,14 +69,14 @@ void TFileWriter::DoClose(const NChunkServer::TChunkId& chunkId)
 {
     LOG_INFO("Creating file node");
     {
-        TCypressServiceProxy cypressProxy(MasterChannel);
+        TObjectServiceProxy objectProxy(MasterChannel);
         auto req = TCypressYPathProxy::Create(WithTransaction(
             Path,
             Transaction ? Transaction->GetId() : NullTransactionId ));
         req->set_type(EObjectType::File);
         // TODO(babenko): use extensions
         req->Attributes().Set("chunk_id", chunkId.ToString());
-        auto rsp = cypressProxy.Execute(req).Get();
+        auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
                 ~rsp->GetError().ToString());

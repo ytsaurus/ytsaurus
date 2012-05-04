@@ -2,7 +2,6 @@
 #include "cypress_manager.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
-#include "cypress_service_proxy.h"
 #include "cypress_ypath_proxy.h"
 #include <ytlib/cypress/cypress_ypath.pb.h>
 
@@ -14,6 +13,7 @@
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/object_server/type_handler_detail.h>
+#include <ytlib/object_server/object_service_proxy.h>
 
 namespace NYT {
 namespace NCypress {

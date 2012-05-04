@@ -9,7 +9,7 @@
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/chunk_client/remote_writer.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
@@ -96,7 +96,7 @@ private:
     void OnChunkRegistered(
         NChunkClient::TChunkId chunkId,
         TAsyncErrorPromise finishResult,
-        NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+        NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     void OnChunkFinished(
         NChunkClient::TChunkId chunkId,

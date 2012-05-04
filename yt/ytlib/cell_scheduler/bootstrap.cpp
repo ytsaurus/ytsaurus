@@ -40,7 +40,7 @@ using namespace NYTree;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NProfiling;
-using namespace NCypress;
+using namespace NObjectServer;
 using namespace NScheduler;
 using namespace NTransactionClient;
 

@@ -2,8 +2,9 @@
 #include "transaction_commands.h"
 
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NDriver {
@@ -12,6 +13,7 @@ using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NCypress;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +43,7 @@ TCommandDescriptor TRenewTransactionCommand::GetDescriptor()
 
 void TRenewTransactionCommand::DoExecute(TRenewRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(request->TransactionId));
     auto response = proxy.Execute(req).Get();
 

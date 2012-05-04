@@ -11,7 +11,7 @@
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 
 namespace NYT {
@@ -91,7 +91,7 @@ private:
 
     bool IsOpen;
     bool IsClosed;
-    NCypress::TCypressServiceProxy CypressProxy;
+    NObjectServer::TObjectServiceProxy ObjectProxy;
     NLog::TTaggedLogger Logger;
 
     NTransactionClient::ITransaction::TPtr UploadTransaction;

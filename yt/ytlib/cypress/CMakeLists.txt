@@ -3,8 +3,6 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress )
 set( SRCS
   ${BASE}/cypress_integration.cpp
   ${BASE}/cypress_manager.cpp
-  ${BASE}/cypress_service.cpp
-  ${BASE}/cypress_service_proxy.cpp
   ${BASE}/cypress_ypath_proxy.cpp
   ${BASE}/id.cpp
   ${BASE}/lock.cpp
@@ -17,9 +15,6 @@ set( SRCS
 set( HDRS
   ${BASE}/cypress_integration.h
   ${BASE}/cypress_manager.h
-  ${BASE}/cypress_service.h
-  ${BASE}/cypress_service_proxy-inl.h
-  ${BASE}/cypress_service_proxy.h
   ${BASE}/cypress_ypath_proxy.h
   ${BASE}/id.h
   ${BASE}/lock.h
@@ -38,4 +33,3 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/cypress_ypath.proto YT_SOURCE_FILES )
-protoc( ${BASE}/cypress_service.proto YT_SOURCE_FILES )

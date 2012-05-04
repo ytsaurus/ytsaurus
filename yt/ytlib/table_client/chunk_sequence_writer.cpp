@@ -6,6 +6,8 @@
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -13,6 +15,7 @@ namespace NTableClient {
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NCypress;
+using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NChunkServer::NProto;
 
@@ -59,13 +62,13 @@ void TChunkSequenceWriter::CreateNextChunk()
         Config->ReplicationFactor,
         Config->UploadReplicationFactor);
 
-    TCypressServiceProxy cypressProxy(MasterChannel);
+    TObjectServiceProxy objectProxy(MasterChannel);
     auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
     req->set_type(EObjectType::Chunk);
     auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
-    cypressProxy.Execute(req).Subscribe(
+    objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
         .Via(WriterThread->GetInvoker()));
 }
@@ -237,8 +240,8 @@ void TChunkSequenceWriter::OnChunkClosed(
     LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
         ~currentChunk->GetChunkId().ToString());
 
-    TCypressServiceProxy cypressProxy(MasterChannel);
-    auto batchReq = cypressProxy.ExecuteBatch();
+    TObjectServiceProxy objectProxy(MasterChannel);
+    auto batchReq = objectProxy.ExecuteBatch();
     batchReq->AddRequest(~currentChunk->GetConfirmRequest());
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkList));
@@ -263,7 +266,7 @@ void TChunkSequenceWriter::OnChunkClosed(
 void TChunkSequenceWriter::OnChunkRegistered(
     TChunkId chunkId,
     TAsyncErrorPromise finishResult,
-    TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

@@ -5,6 +5,8 @@ set( SRCS
   ${BASE}/id.cpp
   ${BASE}/object_detail.cpp
   ${BASE}/object_manager.cpp
+  ${BASE}/object_service.cpp
+  ${BASE}/object_service_proxy.cpp
 )
 set( HDRS
   ${BASE}/attribute_set.h
@@ -13,6 +15,9 @@ set( HDRS
   ${BASE}/object_detail.h
   ${BASE}/object_manager.h
   ${BASE}/object_proxy.h
+  ${BASE}/object_service.h
+  ${BASE}/object_service_proxy-inl.h
+  ${BASE}/object_service_proxy.h
   ${BASE}/object_ypath_proxy.h
   ${BASE}/public.h
   ${BASE}/type_handler.h
@@ -26,3 +31,4 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/object_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/object_manager.proto YT_SOURCE_FILES )
+protoc( ${BASE}/object_service.proto YT_SOURCE_FILES )
