@@ -10,10 +10,15 @@ static NLog::TLogger& Logger = BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define yt_offset_of(type, member) \
+    ( (size_t) ( (char*) &( ((type*)8) -> member ) - 8) )
+#define yt_container_of(ptr, type, member) \
+    ( (type*) ( (char*)(ptr) - yt_offset_of(type, member) ) )
+
 const int THeaderTraits<TPacketHeader>::FixedSize =
     sizeof (TPacketHeader);
 const int THeaderTraits<TMultipartPacketHeader>::FixedSize =
-    (size_t) &(((TMultipartPacketHeader*)0)->PartSizes);
+    yt_offset_of(TMultipartPacketHeader, PartSizes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,6 +6,8 @@ from yt_env_util import *
 import yson_parser
 import yson
 
+import time
+
 def expect_error(result):
     stdout, stderr, exitcode = result
     assert exitcode != 0
@@ -34,6 +36,7 @@ def start_transaction(**kw):
     return tx_id
 
 def commit_transaction(**kw): return command('commit_tx', **kw)
+def renew_transaction(**kw): return command('renew_tx', **kw)
 def abort_transaction(**kw): return command('abort_tx', **kw)
 
 #########################################
@@ -141,7 +144,6 @@ class TestTxCommands(YTEnvSetup):
         assert_eq( get('//value'), '100')
 
     def test_timeout(self):
-        import time
         tx_id = start_transaction(opts = 'timeout=4000')
 
         # check that transaction is still alive after 2 seconds
@@ -151,6 +153,19 @@ class TestTxCommands(YTEnvSetup):
         # check that transaction is expired after 4 seconds
         time.sleep(2)
         assert get_transactions() == {}
+
+    def test_renew(self):
+        tx_id = start_transaction(opts = 'timeout=4000')
+
+        time.sleep(2)
+        assert get_transactions() == {tx_id: None}
+        expect_ok( renew_transaction(tx = tx_id))
+
+        time.sleep(2)
+        assert get_transactions() == {tx_id: None}
+        
+        abort_transaction(tx = tx_id)
+
 
 class TestLockCommands(YTEnvSetup):
     NUM_MASTERS = 1

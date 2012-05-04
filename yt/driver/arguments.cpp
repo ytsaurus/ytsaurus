@@ -396,6 +396,13 @@ Stroka TStartTxArgsParser::GetDriverCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka TRenewTxArgsParser::GetDriverCommandName() const
+{
+    return "renew_tx";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Stroka TCommitTxArgsParser::GetDriverCommandName() const
 {
     return "commit_tx";

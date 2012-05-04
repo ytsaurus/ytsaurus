@@ -2,12 +2,16 @@
 #include "transaction_commands.h"
 
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
 using namespace NTransactionClient;
+using namespace NTransactionServer;
+using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +30,26 @@ void TStartTransactionCommand::DoExecute(TStartRequestPtr request)
 
     BuildYsonFluently(~Host->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TRenewTransactionCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Null);
+}
+
+void TRenewTransactionCommand::DoExecute(TRenewRequestPtr request)
+{
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(request->TransactionId));
+    auto response = proxy.Execute(req).Get();
+
+    if (response->IsOK()) {
+        Host->ReplySuccess();
+    } else {
+        Host->ReplyError(response->GetError());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
