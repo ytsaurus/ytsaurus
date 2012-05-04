@@ -31,32 +31,28 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReader::IValidator
-{
-    virtual bool IsValid(const TKey& key) = 0;
-    virtual ~IValidator() { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <template <typename T> class TComparator>
-class TChunkReader::TGenericValidator
-    : public TChunkReader::IValidator
+class TChunkReader::TKeyValidator
 {
 public:
-    explicit TGenericValidator(const NProto::TKey& protoKey)
+    TKeyValidator(const NProto::TKey& pivot, bool leftBoundary)
+        : LeftBoundary(leftBoundary)
     {
-        Key.FromProto(protoKey);
+        Pivot.FromProto(pivot);
     }
 
-    virtual bool IsValid(const TKey& key)
+    bool IsValid(const TKey& key)
     {
-        return Comparator(TKey::Compare(key, Key), 0);
+        if (LeftBoundary) {
+            return TKey::Compare(key, Pivot) >= 0;
+        } else {
+            return TKey::Compare(key, Pivot) < 0;
+        }
     }
 
 private:
-    TKey Key;
-    TComparator<int> Comparator;
+    bool LeftBoundary;
+    TKey Pivot;
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,8 +210,7 @@ private:
                     columnInfo.InChannel = true;
             }
 
-            chunkReader->CurrentKey.Reset(
-                chunkReader->KeyColumns->values_size());
+            chunkReader->CurrentKey.Reset(chunkReader->KeyColumns->values_size());
         }
 
         if (HasRangeRequest) {
@@ -223,7 +218,7 @@ private:
                 result.Value().extensions());
 
             if (StartLimit.has_key() && StartLimit.key().parts_size() > 0) {
-                StartValidator.Reset(new TGenericValidator<std::greater_equal>(StartLimit.key()));
+                StartValidator.Reset(new TKeyValidator(StartLimit.key(), true));
 
                 typedef decltype(index->index_rows().begin()) TSampleIter;
                 std::reverse_iterator<TSampleIter> rbegin(index->index_rows().end());
@@ -240,7 +235,7 @@ private:
             }
 
             if (EndLimit.has_key() && EndLimit.key().parts_size() > 0) {
-                chunkReader->EndValidator.Reset(new TGenericValidator<std::less>(EndLimit.key()));
+                chunkReader->EndValidator.Reset(new TKeyValidator(EndLimit.key(), false));
 
                 auto it = std::upper_bound(
                     index->index_rows().begin(), 
@@ -256,8 +251,7 @@ private:
             }
         }
 
-        LOG_DEBUG(
-            "Defined row limits (StartRowIndex: %" PRId64 ", EndRowIndex: %" PRId64 ")",
+        LOG_DEBUG("Defined row limits (StartRowIndex: %" PRId64 ", EndRowIndex: %" PRId64 ")",
             StartRowIndex,
             chunkReader->EndRowIndex);
 
@@ -505,7 +499,7 @@ private:
 
     i64 StartRowIndex;
 
-    THolder<IValidator> StartValidator;
+    THolder<TKeyValidator> StartValidator;
 
     TAutoPtr<NProto::TChannels> ProtoChannels;
     std::vector<TChannel> ChunkChannels;

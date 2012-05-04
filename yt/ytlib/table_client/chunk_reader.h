@@ -56,9 +56,7 @@ public:
     const NYTree::TYson& GetRowAttributes() const;
 
 private:
-    struct IValidator;
-    template <template <typename T> class TComparator>
-    class TGenericValidator;
+    class TKeyValidator;
 
     ICodec* Codec;
     NChunkClient::TSequentialReaderPtr SequentialReader;
@@ -106,7 +104,7 @@ private:
     i64 CurrentRowIndex;
     i64 EndRowIndex;
 
-    THolder<IValidator> EndValidator;
+    THolder<TKeyValidator> EndValidator;
 
     TAutoPtr<NProto::TKeyColumns> KeyColumns;
 
