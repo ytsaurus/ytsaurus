@@ -28,22 +28,26 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
     return new TYsonWriter(output, format, type, formatRaw);
 }
 
-TAutoPtr<IYsonConsumer> CreateConsumerForFormat(TFormat format, TOutputStream* output)
+TAutoPtr<IYsonConsumer> CreateConsumerForFormat(TFormat format, EDataType dataType, TOutputStream *output)
 {
-    if (format.Type == EFormat::Yson) {
-        return CreateConsumerForYson(~format.Attributes, output);
+    switch (format.Type) {
+        case EFormatType:
+            return CreateConsumerForYson(~format.Attributes, output);
+        default:
+            YUNIMPLEMENTED();
     }
-    YUNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonProducer CreateProducerForFormat(TFormat format, TInputStream* input)
+TYsonProducer CreateProducerForFormat(TFormat format, EDataType dataType, TInputStream *input)
 {
-    if (format.Type == EFormat::Yson) {
-        return ProducerFromYson(input);
+    switch (format.Type) {
+        case EFormatType:
+            return ProducerFromYson(input);
+        default:
+            YUNIMPLEMENTED();
     }
-    YUNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

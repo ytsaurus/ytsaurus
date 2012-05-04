@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "command.h"
 
 #include <ytlib/ytree/attributes.h>
 
@@ -22,8 +23,15 @@ struct TFormat
     TSharedPtr<NYTree::IAttributeDictionary> Attributes;
 };
 
-TAutoPtr<NYTree::IYsonConsumer> CreateConsumerForFormat(TFormat format, TOutputStream* output);
-NYTree::TYsonProducer CreateProducerForFormat(TFormat format, TInputStream* input);
+TAutoPtr<NYTree::IYsonConsumer> CreateConsumerForFormat(
+    TFormat format,
+    EDataType dataType,
+    TOutputStream* output);
+
+NYTree::TYsonProducer CreateProducerForFormat(
+    TFormat format,
+    EDataType dataType,
+    TInputStream* input);
 
 ////////////////////////////////////////////////////////////////////////////////
             
