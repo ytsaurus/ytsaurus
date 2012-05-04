@@ -817,12 +817,12 @@ private:
         switch (operation->GetType()) {
             case EOperationType::Map:
                 return CreateMapController(Config, this, operation);
-  /*          case EOperationType::Merge:
+            case EOperationType::Merge:
                 return CreateMergeController(Config, this, operation);
             case EOperationType::Erase:
                 return CreateEraseController(Config, this, operation);
             case EOperationType::Sort:
-                return CreateSortController(Config, this, operation); */
+                return CreateSortController(Config, this, operation);
             default:
                 YUNREACHABLE();
         }

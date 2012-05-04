@@ -246,10 +246,12 @@ int Main(int argc, const char* argv[])
 {
     NYT::SetupErrorHandler();
 
+#ifdef _unix_
     sigset_t sigset;
     SigEmptySet(&sigset);
     SigAddSet(&sigset, SIGHUP);
     SigProcMask(SIG_BLOCK, &sigset, NULL);
+#endif
 
     NProfiling::TProfilingManager::Get()->Start();
 

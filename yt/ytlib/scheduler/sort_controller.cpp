@@ -8,6 +8,8 @@
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/schema.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
 #include <ytlib/job_proxy/config.h>
 
 #include <cmath>
@@ -192,8 +194,9 @@ private:
 
             auto fetchRsp = table.FetchResponse;
             FOREACH (const auto& chunk, *fetchRsp->mutable_chunks()) {
-                i64 rowCount = chunk.approximate_row_count();
-                i64 dataSize = chunk.approximate_data_size();
+                auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+                i64 rowCount = misc->row_count();
+                i64 dataSize = misc->uncompressed_size();
 
                 totalRowCount += rowCount;
                 totalDataSize += dataSize;

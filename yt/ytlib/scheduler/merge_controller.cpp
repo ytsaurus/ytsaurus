@@ -7,7 +7,9 @@
 #include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/table_client/value.h>
+#include <ytlib/table_client/key.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 #include <cmath>
 
@@ -143,8 +145,12 @@ protected:
         YASSERT(CurrentGroup);
 
         auto chunkId = TChunkId::FromProto(chunk->InputChunk.slice().chunk_id());
-        RowCounter.Increment(chunk->InputChunk.has_approximate_row_count());
-        WeightCounter.Increment(chunk->InputChunk.approximate_data_size());
+
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(
+            chunk->InputChunk.extensions());
+
+        RowCounter.Increment(misc->row_count());
+        WeightCounter.Increment(misc->uncompressed_size());
         ChunkCounter.Increment(1);
         CurrentGroup->ChunkPool->Add(chunk);
         RegisterPendingChunk(CurrentGroup, chunk);
@@ -364,8 +370,9 @@ protected:
                 auto fetchRsp = table.FetchResponse;
                 FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    i64 dataSize = chunk.approximate_data_size();
-                    i64 rowCount = chunk.approximate_row_count();
+                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+                    i64 dataSize = misc->uncompressed_size();
+                    i64 rowCount = misc->row_count();
                     LOG_DEBUG("Processing chunk %s (DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
                         dataSize,
@@ -475,7 +482,9 @@ protected:
             return true;
         }
 
-        if (chunk.approximate_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        // ToDo(psushin): mind that desired chunk size is for compressed chunk.
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+        if (misc->uncompressed_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -496,7 +505,7 @@ protected:
         TMergeJobSpec mergeJobSpec;
         *mergeJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        mergeJobSpec.mutable_output_spec()->set_schema(OutputTables[0].Schema);
+        mergeJobSpec.mutable_output_spec()->set_channels(OutputTables[0].Channels);
         *JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec) = mergeJobSpec;
 
         JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
@@ -537,9 +546,10 @@ private:
         }
 
         // Merge is IO-bound, use data size as weight.
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
         auto pooledChunk = New<TPooledChunk>(
             chunk,
-            chunk.approximate_data_size());
+            misc->uncompressed_size());
         AddPooledChunk(pooledChunk);
     }
 
@@ -621,9 +631,10 @@ private:
         }
 
         // Merge is IO-bound, use data size as weight.
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
         auto pooledChunk = New<TPooledChunk>(
             chunk,
-            chunk.approximate_data_size());
+            misc->uncompressed_size());
         AddPooledChunk(pooledChunk);
 
         EndGroupIfLarge();
@@ -656,7 +667,7 @@ private:
     struct TKeyEndpoint
     {
         bool Left;
-        NTableClient::TKey Key;
+        NTableClient::NProto::TKey Key;
         const TInputChunk* InputChunk;
     };
 
@@ -664,25 +675,22 @@ private:
 
     virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
-        // Deserialize attributes.
-        TChunkAttributes chunkAttributes;
-        YVERIFY(DeserializeFromProto(&chunkAttributes, TRef::FromString(chunk.chunk_attributes())));
-        const auto& tableAttributes = chunkAttributes.GetExtension(TTableChunkAttributes::table_attributes);
-        YASSERT(tableAttributes.sorted());
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+        YASSERT(misc->sorted());
 
         // Construct endpoints and place it into the list.
-        const auto& samples = tableAttributes.key_samples();
+        auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeys>(chunk.extensions());
         {
             TKeyEndpoint endpoint;
             endpoint.Left = true;
-            endpoint.Key = FromProto<Stroka>(samples.Get(0).key().values());
+            endpoint.Key = boundaryKeys->left();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }
         {
             TKeyEndpoint endpoint;
             endpoint.Left = false;
-            endpoint.Key = FromProto<Stroka>(samples.Get(samples.size() - 1).key().values());
+            endpoint.Key = boundaryKeys->right();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }
@@ -697,7 +705,7 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                auto keysResult = CompareKeys(lhs.Key, rhs.Key);
+                auto keysResult = CompareProtoKeys(lhs.Key, rhs.Key);
                 if (keysResult != 0) {
                     return keysResult < 0;
                 }
@@ -749,10 +757,11 @@ private:
         }
 
         FOREACH (auto chunk, chunks) {
+            auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk->extensions());
             // Merge is IO-bound, use data size as weight.
             auto pooledChunk = New<TPooledChunk>(
                 *chunk,
-                chunk->approximate_data_size());
+                misc->uncompressed_size());
             AddPooledChunk(pooledChunk);
         }
 

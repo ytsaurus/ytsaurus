@@ -141,7 +141,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
 
     if (KeyColumns) {
         if (ProtoMisc.row_count() == 1) {
-            *ProtoBoundaryKeys.mutable_first() = key.ToProto();
+            *ProtoBoundaryKeys.mutable_left() = key.ToProto();
         }
 
         if (IndexSize < Config->IndexRate * CurrentSize) {
@@ -229,7 +229,7 @@ TAsyncError TChunkWriter::AsyncClose()
     SetProtoExtension(chunkMeta.mutable_extensions(), ProtoChannels);
 
     if (KeyColumns) {
-        *ProtoBoundaryKeys.mutable_last() = LastKey.ToProto();
+        *ProtoBoundaryKeys.mutable_right() = LastKey.ToProto();
 
         const auto lastIndexRow = --ProtoIndex.index_rows().end();
         if (ProtoMisc.row_count() > lastIndexRow->row_index() + 1) {
