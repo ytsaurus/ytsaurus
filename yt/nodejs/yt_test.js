@@ -1,47 +1,51 @@
 var yt = require('./build/Release/yt_test');
 
-if (1) {
-    var x = new yt.DriverHost();
-    x.write_to_input(new Buffer("foo"), 0, 3);
-    x.write_to_input(new Buffer("bar"), 0, 3);
+var expect = require('chai').expect;
+var assert = require('chai').assert;
 
-    x.test(1);
-    x.test(1);
-    x.test(1);
-    x.test(1);
-    x.test(1);
-    x.test(1);
-}
+describe("interface to streams", function() {
+    before(function() {
+        this.topic = new yt.DriverHost();
+    })
+    it("should work in case 1", function() {
+        this.topic.write_to_input(new Buffer("foo"), 0, 3);
+        this.topic.write_to_input(new Buffer("bar"), 0, 3);
 
-if (1) {
-    var x = new yt.DriverHost();
-    var y = x;
+        this.topic.test(1);
+        this.topic.test(1);
+        this.topic.test(1);
+        this.topic.test(1);
+        this.topic.test(1);
+        this.topic.test(1);
+    });
 
-    x.write_to_input(new Buffer("foo"), 0, 3);
-    x.write_to_input(new Buffer("bar"), 0, 3);
+    it("should work in case 2", function() {
+        this.topic.write_to_input(new Buffer("foo"), 0, 3);
+        this.topic.write_to_input(new Buffer("bar"), 0, 3);
 
-    setTimeout(function() { y.write_to_input(new Buffer("12345"), 0, 5); }, 100);
-    setTimeout(function() { y.close_input(); }, 200);
+        setTimeout(function() {
+            this.topic.write_to_input(new Buffer("12345"), 0, 5);
+        }, 100);
+        setTimeout(function() {
+            this.topic.close_input();
+        }, 200);
 
-    x.test(3);
-    x.test(3);
+        this.topic.test(3);
+        this.topic.test(3);
 
-    x.test(4);
-    x.test(4);
-    x.test(4);
-    x.test(4);
-    x.test(4);
-}
+        this.topic.test(4);
+        this.topic.test(4);
+        this.topic.test(4);
+        this.topic.test(4);
+        this.topic.test(4);
+    });
 
-if (1) {
-    var x = new yt.DriverHost();
+    it("should work in case 3", function() {
+        this.topic.write_to_input(new Buffer("12345"), 0, 5);
+        this.topic.close_input();
 
-    x.write_to_input(new Buffer("12345"), 0, 5);
-    x.close_input();
-
-    x.test(5);
-    x.test(5);
-    x.test(5);
-}
-
-//x.foo();
+        this.topic.test(3);
+        this.topic.test(3);
+        this.topic.test(3);
+    });
+});
