@@ -175,12 +175,12 @@ void TYsonWriter::CollectionItem()
 void TYsonWriter::EndCollection(char closeBracket)
 {
     --Depth;
-    BeforeFirstItem = false;
     if (Format == EYsonFormat::Pretty && !BeforeFirstItem) {
         Stream->Write('\n');
         WriteIndent();
     }
     Stream->Write(closeBracket);
+    BeforeFirstItem = false;
 }
 
 void TYsonWriter::WriteStringScalar(const TStringBuf& value)

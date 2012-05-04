@@ -6,6 +6,7 @@
 #include "chunk_registry.h"
 #include "reader_cache.h"
 #include "location.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/chunk_client/file_reader.h>

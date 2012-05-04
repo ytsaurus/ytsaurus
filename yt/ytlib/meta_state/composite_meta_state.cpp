@@ -30,11 +30,33 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->SubscribeStartLeading(BIND(
         &TThis::OnStartLeading,
         MakeWeak(this)));
+    metaStateManager->SubscribeStartLeading(BIND(
+        &TThis::OnStartRecovery,
+        MakeWeak(this)));
     metaStateManager->SubscribeLeaderRecoveryComplete(BIND(
         &TThis::OnLeaderRecoveryComplete,
         MakeWeak(this)));
+    metaStateManager->UnsubscribeLeaderRecoveryComplete(BIND(
+        &TThis::OnStopRecovery,
+        MakeWeak(this)));
     metaStateManager->SubscribeStopLeading(BIND(
         &TThis::OnStopLeading,
+        MakeWeak(this)));
+
+    metaStateManager->SubscribeStartFollowing(BIND(
+        &TThis::OnStartFollowing,
+        MakeWeak(this)));
+    metaStateManager->SubscribeStartFollowing(BIND(
+        &TThis::OnStartRecovery,
+        MakeWeak(this)));
+    metaStateManager->SubscribeFollowerRecoveryComplete(BIND(
+        &TThis::OnFollowerRecoveryComplete,
+        MakeWeak(this)));
+    metaStateManager->UnsubscribeFollowerRecoveryComplete(BIND(
+        &TThis::OnStopRecovery,
+        MakeWeak(this)));
+    metaStateManager->SubscribeStopFollowing(BIND(
+        &TThis::OnStopFollowing,
         MakeWeak(this)));
 }
 
@@ -68,6 +90,32 @@ void TMetaStatePart::OnLeaderRecoveryComplete()
 void TMetaStatePart::OnStopLeading()
 { }
 
+void TMetaStatePart::OnStartFollowing()
+{ }
+
+void TMetaStatePart::OnFollowerRecoveryComplete()
+{ }
+
+void TMetaStatePart::OnStopFollowing()
+{ }
+
+void TMetaStatePart::OnStartRecovery()
+{ }
+
+void TMetaStatePart::OnStopRecovery()
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompositeMetaState::TSaverInfo::TSaverInfo(
+    const Stroka& name,
+    TSaver saver,
+    ESavePhase phase)
+    : Name(name)
+    , Saver(saver)
+    , Phase(phase)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCompositeMetaState::RegisterPart(TMetaStatePartPtr part)
@@ -82,25 +130,22 @@ void TCompositeMetaState::Save(TOutputStream* output)
     i32 size = Savers.size();
     ::Save(output, size);
     
-    // XXX(sandello): :7
-    typedef TPair<TPair<ESavePhase, Stroka>, TSaver> TElement;
-    yvector<TElement> savers;
+    yvector<TSaverInfo> saverInfos;
     FOREACH (const auto& pair, Savers) {
-        savers.push_back(
-            MakePair(MakePair(pair.second.second, pair.first), pair.second.first));
+        saverInfos.push_back(pair.second);
     }
     std::sort(
-        savers.begin(), savers.end(),
-        [] (const TElement& lhs, const TElement& rhs)
-            {
-                return lhs.first.first < rhs.first.first;
-            });
+        saverInfos.begin(),
+        saverInfos.end(),
+        [] (const TSaverInfo& lhs, const TSaverInfo& rhs) {
+            return lhs.Phase < rhs.Phase ||
+                   lhs.Phase == rhs.Phase &&
+                   lhs.Name < rhs.Name;
+        });
 
-    FOREACH (auto pair, savers) {
-        Stroka name = pair.first.second;
-        ::Save(output, name);
-        auto saver = pair.second;
-        saver.Run(output);
+    FOREACH (const auto& info, saverInfos) {
+        ::Save(output, info.Name);
+        info.Saver.Run(output);
     }
 }
 
@@ -114,8 +159,7 @@ void TCompositeMetaState::Load(TInputStream* input)
         ::Load(input, name);
         auto it = Loaders.find(name);
         if (it == Loaders.end()) {
-            LOG_FATAL("No appropriate loader is registered (PartName: %s)",
-                ~name);
+            LOG_FATAL("No appropriate loader is registered for part %s", ~name.Quote());
         }
         auto loader = it->second;
         loader.Run(input);
@@ -160,7 +204,8 @@ void TCompositeMetaState::RegisterSaver(
 {
     YASSERT(!saver.IsNull());
 
-    YVERIFY(Savers.insert(MakePair(name, MakePair(MoveRV(saver), phase))).second);
+    TSaverInfo info(name, MoveRV(saver), phase);
+    YVERIFY(Savers.insert(MakePair(name, info)).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

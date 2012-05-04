@@ -8,56 +8,38 @@ namespace NYTree {
 
 TTokenizer::TTokenizer(const TStringBuf& input)
     : Input(input)
+    , Parsed(0)
 { }
 
-const TToken& TTokenizer::operator[](size_t index)
+bool TTokenizer::ParseNext()
 {
-    ChopTo(index);
-    YASSERT(Tokens.size() > index);
-    return Tokens[index];
-}
-
-TStringBuf TTokenizer::GetSuffix(size_t index)
-{
-    ChopTo(index);
-    YASSERT(SuffixPositions.size() > index);
-    return Input.SubStr(SuffixPositions[index]);
-}
-
-void TTokenizer::ChopTo(size_t index)
-{
-    if (Tokens.empty()) {
-        ChopToken(0);
-    }
-    while (Tokens.size() <= index) {
-        YASSERT(!Tokens.back().IsEmpty());
-        ChopToken(SuffixPositions.back());
-    }
-}
-
-void TTokenizer::ChopToken(size_t position)
-{
-    while (Lexer.GetState() != TLexer::EState::Terminal && position <  Input.length()) {
-        if (Lexer.Consume(Input[position])) {
-            ++position;
-        }
-    }
-    Lexer.Finish();
-
-    if (Lexer.GetState() == TLexer::EState::Terminal) {
-        auto token = Lexer.GetToken();
-        if (token.GetType() == ETokenType::String) {
-            StringBuffers.push_back(Stroka(token.GetStringValue()));
-            token = TToken(StringBuffers.back());
-        }
-        Tokens.push_back(token);
-    } else {
-        Tokens.push_back(TToken::EndOfStream);
-    }
+    Input = Input.Tail(Parsed);
     Lexer.Reset();
+    Parsed = Lexer.Read(Input);
+    Lexer.Finish();
+    return !Current().IsEmpty();
+}
 
-    SuffixPositions.push_back(position);
-    YASSERT(Tokens.size() == SuffixPositions.size());
+const TToken& TTokenizer::Current() const
+{
+    return Lexer.GetState() == TLexer::EState::Terminal
+        ? Lexer.GetToken()
+        : TToken::EndOfStream;
+}
+
+ETokenType TTokenizer::GetCurrentType() const
+{
+    return Current().GetType();
+}
+
+TStringBuf TTokenizer::GetCurrentSuffix() const
+{
+    return Input.Tail(Parsed);
+}
+
+const TStringBuf& TTokenizer::GetCurrentInput() const
+{
+    return Input;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

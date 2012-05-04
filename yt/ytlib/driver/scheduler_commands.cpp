@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "scheduler_commands.h"
+#include "config.h"
+#include "driver.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -31,7 +33,7 @@ void TSchedulerCommandBase::StartOperation(
     EOperationType type,
     const NYTree::TYson& spec)
 {
-    auto transaction = Host->GetTransaction(request, true);
+    auto transaction = Host->GetTransaction(request);
 
     TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
 
@@ -39,7 +41,7 @@ void TSchedulerCommandBase::StartOperation(
     {
         auto startOpReq = proxy.StartOperation();
         startOpReq->set_type(type);
-        *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
+        *startOpReq->mutable_transaction_id() = (transaction ? transaction->GetId() : NullTransactionId).ToProto();
         startOpReq->set_spec(spec);
 
         auto startOpRsp = startOpReq->Invoke().Get();
@@ -51,130 +53,6 @@ void TSchedulerCommandBase::StartOperation(
     }
 
     Host->ReplySuccess(BuildYsonFluently().Scalar(operationId.ToString()));
-
-    // TODO: move the rest to the console wrapper
-    WaitForOperation(operationId);
-    DumpOperationResult(operationId);
-}
-
-void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
-{
-    auto config = Host->GetConfig();
-
-    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
-
-    while (true)  {
-        auto waitOpReq = proxy.WaitForOperation();
-        *waitOpReq->mutable_operation_id() = operationId.ToProto();
-        waitOpReq->set_timeout(config->OperationWaitTimeout.GetValue());
-
-        // Override default timeout.
-        waitOpReq->SetTimeout(config->OperationWaitTimeout * 2);
-        auto waitOpRsp = waitOpReq->Invoke().Get();
-
-        if (!waitOpRsp->IsOK()) {
-            ythrow yexception() << waitOpRsp->GetError().ToString();
-        }
-
-        if (waitOpRsp->finished())
-            break;
-
-        DumpOperationProgress(operationId);
-    } 
-}
-
-// TODO(babenko): refactor
-static NYTree::TYPath GetOperationPath(const TOperationId& id)
-{
-    return "//sys/operations/" + EscapeYPath(id.ToString());
-}
-
-// TODO(babenko): refactor
-// TODO(babenko): YPath and RPC responses currently share no base class.
-template <class TResponse>
-static void CheckResponse(TResponse response, const Stroka& failureMessage) 
-{
-    if (response->IsOK())
-        return;
-
-    ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
-}
-
-void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationId)
-{
-    auto operationPath = GetOperationPath(operationId);
-    
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
-    auto batchReq = proxy.ExecuteBatch();
-
-    {
-        auto req = TYPathProxy::Get(operationPath + "/@state");
-        batchReq->AddRequest(req, "get_state");
-    }
-
-    {
-        auto req = TYPathProxy::Get(operationPath + "/@progress");
-        batchReq->AddRequest(req, "get_progress");
-    }
-
-    auto batchRsp = batchReq->Invoke().Get();
-    CheckResponse(batchRsp, "Error getting operation progress");
-
-    EOperationState state;
-    {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
-        CheckResponse(rsp, "Error getting operation state");
-        state = DeserializeFromYson<EOperationState>(rsp->value());
-    }
-
-    TYson progress;
-    {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
-        CheckResponse(rsp, "Error getting operation progress");
-        progress = rsp->value();
-    }
-
-    if (state == EOperationState::Running) {
-        i64 jobsTotal = DeserializeFromYson<i64>(progress, "/jobs/total");
-        i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/jobs/completed");
-        int donePercentage  = (jobsCompleted * 100) / jobsTotal;
-        printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
-            ~state.ToString(),
-            donePercentage,
-            jobsCompleted,
-            jobsTotal);
-    } else {
-        printf("%s\n", ~state.ToString());
-    }
-}
-
-void TSchedulerCommandBase::DumpOperationResult(const TOperationId& operationId)
-{
-    auto operationPath = GetOperationPath(operationId);
-
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
-    auto batchReq = proxy.ExecuteBatch();
-
-    {
-        auto req = TYPathProxy::Get(operationPath + "/@result");
-        batchReq->AddRequest(req, "get_result");
-    }
-
-    auto batchRsp = batchReq->Invoke().Get();
-    CheckResponse(batchRsp, "Error getting operation result");
-
-    TError error;
-
-    {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_result");
-        CheckResponse(rsp, "Error getting operation result");
-        // TODO(babenko): refactor!
-        auto errorNode = DeserializeFromYson<INodePtr>(rsp->value(), "/error");
-        error = TError::FromYson(errorNode);
-    }
-
-    // TODO(babenko): refactor!
-    printf("%s\n", ~error.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,7 +63,12 @@ TMapCommand::TMapCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
-void TMapCommand::DoExecute(TMapRequestPtr request)
+TCommandDescriptor TMapCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
+void TMapCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
         request,
@@ -202,12 +85,79 @@ TMergeCommand::TMergeCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
-void TMergeCommand::DoExecute(TMergeRequestPtr request)
+TCommandDescriptor TMergeCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
+void TMergeCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
         request,
         EOperationType::Merge,
         SerializeToYson(request->Spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSortCommand::TSortCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+TCommandDescriptor TSortCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
+void TSortCommand::DoExecute(TSchedulerRequestPtr request)
+{
+    StartOperation(
+        request,
+        EOperationType::Sort,
+        SerializeToYson(request->Spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEraseCommand::TEraseCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+TCommandDescriptor TEraseCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
+void TEraseCommand::DoExecute(TSchedulerRequestPtr request)
+{
+    StartOperation(
+        request,
+        EOperationType::Erase,
+        SerializeToYson(request->Spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAbortOperationCommand::TAbortOperationCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+{ }
+
+TCommandDescriptor TAbortOperationCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Null);
+}
+
+void TAbortOperationCommand::DoExecute(TAbortOperationRequestPtr request)
+{
+    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
+    auto abortOpReq = proxy.AbortOperation();
+    *abortOpReq->mutable_operation_id() = request->OperationId.ToProto();
+    abortOpReq->Invoke().Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

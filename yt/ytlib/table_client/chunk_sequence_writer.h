@@ -27,7 +27,7 @@ class TChunkSequenceWriter
 public:
     TChunkSequenceWriter(
         TChunkSequenceWriterConfigPtr config,
-        NRpc::IChannel::TPtr masterChannel,
+        NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList,
         const std::vector<TChannel>& channels,
@@ -63,7 +63,7 @@ private:
 
         bool IsNull() const
         {
-            return bool(ChunkWriter);
+            return !bool(ChunkWriter);
         }
 
         void Reset()
@@ -99,9 +99,9 @@ private:
     void OnClose();
 
     TChunkSequenceWriterConfigPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
-    const std::vector<TChannel>& Channels;
-    const TNullable<TKeyColumns>& KeyColumns;
+    NRpc::IChannelPtr MasterChannel;
+    const std::vector<TChannel> Channels;
+    const TNullable<TKeyColumns> KeyColumns;
 
     volatile double Progress;
 

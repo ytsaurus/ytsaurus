@@ -27,7 +27,7 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 TChunkSequenceWriter::TChunkSequenceWriter(
     TChunkSequenceWriterConfigPtr config,
-    NRpc::IChannel::TPtr masterChannel,
+    NRpc::IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkList,
     const std::vector<TChannel>& channels,
@@ -60,15 +60,17 @@ void TChunkSequenceWriter::CreateNextSession()
 
     NextSession = NewPromise<TSession>();
 
-    LOG_DEBUG("Creating chunk (TransactionId: %s; UploadReplicaCount: %d)",
+    LOG_DEBUG("Creating chunk (TransactionId: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
         ~TransactionId.ToString(),
-        Config->UploadReplicaCount);
+        Config->ReplicationFactor,
+        Config->UploadReplicationFactor);
 
     TCypressServiceProxy cypressProxy(MasterChannel);
     auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
     req->set_type(EObjectType::Chunk);
     auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
-    reqExt->set_holder_count(Config->UploadReplicaCount);
+    reqExt->set_replication_factor(Config->ReplicationFactor);
+    reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
     cypressProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriter::OnSessionCreated, MakeWeak(this))
         .Via(WriterThread->GetInvoker()));
@@ -92,12 +94,12 @@ void TChunkSequenceWriter::OnSessionCreated(TTransactionYPathProxy::TRspCreateOb
     const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
     auto holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
 
-    if (holderAddresses.size() < Config->UploadReplicaCount) {
+    if (holderAddresses.size() < Config->UploadReplicationFactor) {
         State.Fail(TError("Not enough holders available"));
         return;
     }
 
-    LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
+    LOG_DEBUG("Chunk created (Addresses: [%s], ChunkId: %s)",
         ~JoinToString(holderAddresses),
         ~chunkId.ToString());
 
@@ -145,8 +147,10 @@ void TChunkSequenceWriter::InitCurrentSession(TSession nextSession)
     VERIFY_THREAD_AFFINITY_ANY();
 
     // We swap the last key of the previous chunk to the last key of the new chunk.
-    nextSession.ChunkWriter->LastKey.Swap(
-        CurrentSession.ChunkWriter->GetLastKey());
+    if (!CurrentSession.IsNull()) {
+        nextSession.ChunkWriter->LastKey.Swap(
+            CurrentSession.ChunkWriter->GetLastKey());
+    }
     CurrentSession = nextSession;
 
     NextSession.Reset();
@@ -180,7 +184,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
 
         if (expectedInputSize > Config->DesiredChunkSize) {
             LOG_DEBUG(
-                "Switching to next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ", ExpectedInputSize %f)",
+                "Switching to next chunk (TransactionId: %s, CurrentChunkSize: %" PRId64 ", ExpectedInputSize: %lf)",
                 ~TransactionId.ToString(),
                 CurrentSession.ChunkWriter->GetCurrentSize(),
                 expectedInputSize);
@@ -200,7 +204,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
 
 void TChunkSequenceWriter::FinishCurrentChunk()
 {
-    if (!CurrentSession.IsNull())
+    if (CurrentSession.IsNull())
         return;
 
     if (CurrentSession.ChunkWriter->GetCurrentSize() > 0) {
@@ -239,13 +243,13 @@ void TChunkSequenceWriter::OnChunkClosed(
         return;
     }
 
-    LOG_DEBUG("Chunk successfully closed (ChunkId: %s).",
+    LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
         ~currentSession.RemoteWriter->GetChunkId().ToString());
 
     TCypressServiceProxy cypressProxy(MasterChannel);
     auto batchReq = cypressProxy.ExecuteBatch();
     {
-        auto req = TChunkYPathProxy::Confirm();
+        auto req = TChunkYPathProxy::Confirm(FromObjectId(currentSession.RemoteWriter->GetChunkId()));
         *req->mutable_chunk_info() = currentSession.RemoteWriter->GetChunkInfo();
         ToProto(req->mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
         *req->mutable_chunk_meta() = currentSession.ChunkWriter->GetMasterMeta();
@@ -284,7 +288,7 @@ void TChunkSequenceWriter::OnChunkRegistered(
         return;
     }
 
-    LOG_DEBUG("Batch chunk registration request succeeded (ChunkId: %s).",
+    LOG_DEBUG("Chunk registered successfully (ChunkId: %s)",
         ~chunkId.ToString());
 
     for (int i = 0; i < batchRsp->GetSize(); ++i) {
@@ -309,7 +313,7 @@ void TChunkSequenceWriter::OnChunkFinished(
         return;
     }
 
-    LOG_DEBUG("Chunk successfully closed and registered (ChunkId: %s).",
+    LOG_DEBUG("Chunk successfully closed and registered (ChunkId: %s)",
         ~chunkId.ToString());
 }
 

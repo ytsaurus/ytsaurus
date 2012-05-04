@@ -113,7 +113,7 @@ protected:
 
 private:
     TFileWriterBase::TPtr FileWriter;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     TTransactionId TransactionId;
     TObjectId ChunkListId;
 };
@@ -162,11 +162,11 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
         MasterChannel,
         blockCache,
         chunks);
+    auto syncReader = New<TSyncReaderAdapter>(reader);
+    syncReader->Open();
 
     // ToDo(psushin): extract format from operation spec.
-    return new TTableProducer(
-        New<TSyncReaderAdapter>(reader), 
-        consumer);
+    return new TTableProducer(syncReader, consumer);
 }
 
 TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
@@ -183,6 +183,16 @@ TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
         ChannelsFromYson(channels));
 
     return new TTableOutput(New<TSyncWriterAdapter>(chunkSequenceWriter));
+}
+
+void TMapJobIO::UpdateProgress()
+{
+    YUNIMPLEMENTED();
+}
+
+double TMapJobIO::GetProgress() const
+{
+    YUNIMPLEMENTED();
 }
 
 TAutoPtr<TOutputStream> TMapJobIO::CreateErrorOutput() const

@@ -452,5 +452,5 @@ TEST(TIntrusivePtrTest, ExtrinsicRCBehaviour)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace <anonymous>
+} // namespace
 } // namespace NYT

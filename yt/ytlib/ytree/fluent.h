@@ -50,6 +50,16 @@ private:
         WriteScalar(consumer, value.ToString());
     }
 
+    static void WriteScalar(IYsonConsumer* consumer, const TDuration& value)
+    {
+        WriteScalar(consumer, static_cast<i64>(value.MilliSeconds()));
+    }
+    
+    static void WriteScalar(IYsonConsumer* consumer, const TInstant& value)
+    {
+        WriteScalar(consumer, static_cast<i64>(value.MilliSeconds()));
+    }
+
     static void WriteScalar(IYsonConsumer* consumer, const Stroka& value)
     {
         consumer->OnStringScalar(value);

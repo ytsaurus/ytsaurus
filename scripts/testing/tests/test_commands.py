@@ -6,6 +6,7 @@ from yt_env_util import *
 import yson_parser
 import yson
 
+import time
 
 def expect_error(result):
     stdout, stderr, exitcode = result
@@ -29,12 +30,13 @@ def create(object_type, path, **kw): return command('create', object_type, path,
 def read(path, **kw): return command('read', path, **kw)
 def write(path, value, **kw): return command('write', path, value, **kw)
 
-def start_transaction():
-    raw_tx = expect_ok(command('start_tx'))
+def start_transaction(**kw):
+    raw_tx = expect_ok(command('start_tx', **kw))
     tx_id = raw_tx.replace('"', '').strip('\n')
     return tx_id
 
 def commit_transaction(**kw): return command('commit_tx', **kw)
+def renew_transaction(**kw): return command('renew_tx', **kw)
 def abort_transaction(**kw): return command('abort_tx', **kw)
 
 #########################################
@@ -141,6 +143,30 @@ class TestTxCommands(YTEnvSetup):
         abort_transaction(tx = tx_id)
         assert_eq( get('//value'), '100')
 
+    def test_timeout(self):
+        tx_id = start_transaction(opts = 'timeout=4000')
+
+        # check that transaction is still alive after 2 seconds
+        time.sleep(2)
+        assert get_transactions() == {tx_id: None}
+
+        # check that transaction is expired after 4 seconds
+        time.sleep(2)
+        assert get_transactions() == {}
+
+    def test_renew(self):
+        tx_id = start_transaction(opts = 'timeout=4000')
+
+        time.sleep(2)
+        assert get_transactions() == {tx_id: None}
+        expect_ok( renew_transaction(tx = tx_id))
+
+        time.sleep(2)
+        assert get_transactions() == {tx_id: None}
+        
+        abort_transaction(tx = tx_id)
+
+
 class TestLockCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
@@ -161,7 +187,7 @@ class TestLockCommands(YTEnvSetup):
         expect_error( lock('/', mode = 'None', tx = tx_id))
 
         # attributes do not have @lock_mode
-        expect_ok( set('//value', '42<attr=some>', tx = tx_id))
+        expect_ok( set('//value', '<attr=some> 42', tx = tx_id))
         expect_error( lock('//value/@attr/@lock_mode', tx = tx_id))
        
         expect_ok( abort_transaction(tx = tx_id))
@@ -169,7 +195,7 @@ class TestLockCommands(YTEnvSetup):
     def test_display_locks(self):
         tx_id = start_transaction()
         
-        expect_ok( set('//map', '{list = [1; 2; 3] <attr=some>}', tx = tx_id))
+        expect_ok( set('//map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id))
 
         # check that lock is set on nested nodes
         assert_eq( get('//map/@lock_mode',        tx = tx_id), '"exclusive"')
@@ -179,7 +205,6 @@ class TestLockCommands(YTEnvSetup):
         abort_transaction(tx = tx_id)
 
 
-    @pytest.mark.xfail(run = False, reason = 'file cannot be created')
     def test_shared_locks(self):
 
         types_to_check = """
@@ -204,15 +229,24 @@ class TestLockCommands(YTEnvSetup):
         orchid
         """.split()
 
-        # shared locks are available only on tables (as well as creation of different types)
+        # check creation of different types and shared locks on them
         for object_type in types_to_check:
-            print object_type
             tx_id = start_transaction()
-            expect_ok( create(object_type, '//some', tx = tx_id))
-            expect_error( lock('//some', mode = 'shared', tx = tx_id))
+            if object_type != "file":
+                expect_ok( create(object_type, '//some', tx = tx_id))
+            else:
+                #file can't be created via create
+                expect_error( create(object_type, '//some', tx = tx_id))
+            
+            if object_type != "table":
+                expect_error( lock('//some', mode = 'shared', tx = tx_id))
+            else:
+                # shared locks are available only on tables 
+                expect_ok( lock('//some', mode = 'shared', tx = tx_id))
+
             expect_ok( abort_transaction(tx = tx_id))
 
-
+    @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
 
         expect_ok( set('//a', '{}'))
@@ -246,11 +280,11 @@ class TestTableCommands(YTEnvSetup):
         assert_eq( get('//table/@row_count'), '0')
 
         expect_ok( write('//table', '[{b="hello"}]'))
-        assert_eq( read('//table'), '{"b"="hello"}')
+        assert_eq( read('//table'), '{"b"="hello"};')
         assert_eq( get('//table/@row_count'), '1')
 
         expect_ok( write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
-        assert_eq( read('//table'), '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"}')
+        assert_eq( read('//table'), '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"};')
         assert_eq( get('//table/@row_count'), '3')
 
         expect_ok( remove('//table'))
@@ -267,6 +301,7 @@ class TestTableCommands(YTEnvSetup):
         expect_ok( remove('//table'))
 
 
+#TODO(panin): tests of scheduler
 class TestOrchid(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
@@ -278,7 +313,11 @@ class TestOrchid(YTEnvSetup):
 
         q = '"'
         for master in masters:
-            path = '//sys/masters/'  + q + master + q + '/orchid/value'
+            path_to_orchid = '//sys/masters/'  + q + master + q + '/orchid'
+            path = path_to_orchid + '/value'
+
+            assert_eq( get(path_to_orchid + '/@service_name'), '"master"')
+
             some_map = '{"a"=1;"b"=2}'
 
             expect_ok( set(path, some_map))
@@ -296,7 +335,11 @@ class TestOrchid(YTEnvSetup):
 
         q = '"'
         for holder in holders:
-            path = '//sys/holders/'  + q + holder + q + '/orchid/value'
+            path_to_orchid = '//sys/holders/'  + q + holder + q + '/orchid'
+            path = path_to_orchid + '/value'
+
+            assert_eq( get(path_to_orchid + '/@service_name'), '"node"')
+
             some_map = '{"a"=1;"b"=2}'
 
             expect_ok( set(path, some_map))

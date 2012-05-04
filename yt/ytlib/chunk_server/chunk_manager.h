@@ -9,6 +9,7 @@
 #include <ytlib/meta_state/meta_change.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
+#include <ytlib/rpc/service.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -70,7 +71,7 @@ public:
     THolder* FindHolder(const Stroka& address);
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
-    yvector<THolderId> AllocateUploadTargets(int replicaCount);
+    yvector<THolder*> AllocateUploadTargets(int replicaCount);
 
     TChunk& CreateChunk();
     TChunkList& CreateChunkList();
@@ -79,7 +80,7 @@ public:
     void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children);
 
     void ScheduleJobs(
-        const THolder& holder,
+        THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart,
         yvector<NProto::TJobStopInfo>* jobsToStop);

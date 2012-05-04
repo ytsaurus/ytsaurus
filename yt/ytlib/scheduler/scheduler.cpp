@@ -7,7 +7,9 @@
 #include "operation_controller.h"
 #include "map_controller.h"
 #include "merge_controller.h"
+#include "sort_controller.h"
 #include "scheduler_proxy.h"
+#include "helpers.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -48,8 +50,8 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-NLog::TLogger& Logger = SchedulerLogger;
-NProfiling::TProfiler& Profiler = SchedulerProfiler;
+static NLog::TLogger& Logger = SchedulerLogger;
+static NProfiling::TProfiler& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -142,9 +144,9 @@ private:
             spec,
             TInstant::Now());
 
-        LOG_INFO("Starting operation %s (Type: %s, TransactionId: %s)",
+        LOG_INFO("Starting %s operation %s (TransactionId: %s)",
+            ~FormatEnum(type).Quote(),
             ~operationId.ToString(),
-            ~type.ToString(),
             ~transactionId.ToString());
 
         try {
@@ -245,14 +247,12 @@ private:
 
         RegisterOperation(operation);
 
-        YASSERT(operation->GetState() == EOperationState::Initializing);
         operation->SetState(EOperationState::Reviving);
 
         // Run async revival.
         LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
-        operation ->GetController()->Revive()
-            .Subscribe(
-                BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
+        operation ->GetController()->Revive().Subscribe(
+            BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -492,11 +492,9 @@ private:
             }
             LOG_INFO("Lock taken");
 
-            // TODO(babenko): listen to bootstrap transaction to make it is alive
-
             LOG_INFO("Publishing scheduler address");
             {
-                auto req = TYPathProxy::Set("//sys/scheduler/runtime/@address");
+                auto req = TYPathProxy::Set("//sys/scheduler/@address");
                 req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
                 auto rsp = CypressProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
@@ -505,6 +503,18 @@ private:
                 }
             }
             LOG_INFO("Scheduler address published");
+
+            //LOG_INFO("Registering at orchid");
+            //{
+            //    auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_address");
+            //    req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
+            //    auto rsp = CypressProxy.Execute(req).Get();
+            //    if (!rsp->IsOK()) {
+            //        ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
+            //            ~rsp->GetError().ToString());
+            //    }
+            //}
+            //LOG_INFO("Registered at orchid");
         } catch (...) {
             // Abort the bootstrap transaction (will need a new one anyway).
             BootstrapTransaction->Abort();
@@ -544,18 +554,25 @@ private:
             }
 
             for (int index = 0; index < batchRsp->GetSize(); ++index) {
+                const auto& operationId = operationIds[index];
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(index);
                 if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to get operation info\n%s",
+                    ythrow yexception() << Sprintf("Failed to get operation %s info\n%s",
+                        ~operationId.ToString(),
                         ~rsp->GetError().ToString());
                 }
 
-                auto operation = ParseOperationYson(operationIds[index], rsp->value());
-                operation->SetController(CreateController(operation.Get()));
-                Bootstrap->GetControlInvoker()->Invoke(BIND(
-                    &TThis::ReviveOperation,
-                    MakeStrong(this),
-                    operation));
+                auto operation = ParseOperationYson(operationId, rsp->value());
+                if (operation->GetState() != EOperationState::Completed &&
+                    operation->GetState() != EOperationState::Aborted &&
+                    operation->GetState() != EOperationState::Failed)
+                {
+                    operation->SetController(CreateController(operation.Get()));
+                    Bootstrap->GetControlInvoker()->Invoke(BIND(
+                        &TThis::ReviveOperation,
+                        MakeStrong(this),
+                        operation));
+                }
             }
         }
         LOG_INFO("Operations loaded successfully")
@@ -590,7 +607,11 @@ private:
         // Collect all transactions that are used by currently running operations.
         yhash_set<TTransactionId> transactionIds;
         FOREACH (const auto& pair, Operations) {
-            transactionIds.insert(pair.second->GetTransactionId());
+            auto operation = pair.second;
+            auto transactionId = operation->GetTransactionId();
+            if (transactionId != NullTransactionId) {
+                transactionIds.insert(transactionId);
+            }
         }
 
         // Invoke GetId verbs for these transactions to see if they are alive.
@@ -791,20 +812,17 @@ private:
     }
 
 
-    static NYTree::TYPath GetOperationPath(const TOperationId& id)
-    {
-        return "//sys/operations/" + EscapeYPath(id.ToString());
-    }
-
     IOperationControllerPtr CreateController(TOperation* operation)
     {
         switch (operation->GetType()) {
             case EOperationType::Map:
                 return CreateMapController(Config, this, operation);
-                break;
             case EOperationType::Merge:
                 return CreateMergeController(Config, this, operation);
-                break;
+            case EOperationType::Erase:
+                return CreateEraseController(Config, this, operation);
+            case EOperationType::Sort:
+                return CreateSortController(Config, this, operation);
             default:
                 YUNREACHABLE();
         }
@@ -812,7 +830,7 @@ private:
     
 
     // IOperationHost methods
-    virtual NRpc::IChannel::TPtr GetMasterChannel()
+    virtual NRpc::IChannelPtr GetMasterChannel()
     {
         return Bootstrap->GetMasterChannel();
     }
@@ -970,7 +988,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto state = operation->GetState();
-        if (state != EOperationState::Preparing && state != EOperationState::Running) {
+        if (state != EOperationState::Preparing &&
+            state != EOperationState::Running &&
+            state != EOperationState::Reviving)
+        {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }
@@ -1016,10 +1037,9 @@ private:
                 .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
                 .Item("state").Scalar(FormatEnum(operation->GetState()))
-                .Item("progress").BeginMap()
-                .EndMap()
+                .Item("start_time").Scalar(operation->GetStartTime())
+                .Item("progress").BeginMap().EndMap()
                 .Item("spec").Node(operation->GetSpec())
-                // TODO(babenko): serialize start time
             .EndAttributes()
             .BeginMap()
             .EndMap();
@@ -1037,8 +1057,8 @@ private:
             attributes->Get<EOperationType>("operation_type"),
             attributes->Get<TTransactionId>("transaction_id"),
             attributes->Get<INode>("spec")->AsMap(),
-            // TODO(babenko): parse start time
-            TInstant::Now());
+            attributes->Get<TInstant>("start_time"),
+            attributes->Get<EOperationState>("state"));
     }
 
     void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)
@@ -1076,7 +1096,10 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
         auto type = EOperationType(request->type());
-        auto transactionId = TTransactionId::FromProto(request->transaction_id());
+        auto transactionId =
+            request->has_transaction_id()
+            ? TTransactionId::FromProto(request->transaction_id())
+            : NullTransactionId;
 
         IMapNodePtr spec;
         try {
@@ -1316,7 +1339,7 @@ void TScheduler::Start()
     Impl->Start();
 }
 
-NRpc::IService::TPtr TScheduler::GetService()
+NRpc::IServicePtr TScheduler::GetService()
 {
     return Impl;
 }

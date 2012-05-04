@@ -23,9 +23,10 @@ message TJobSpec
 // Describes the outcome of the job, in particular if it has finished successfully.
 message TJobResult
 {
-    required NYT.NProto.TError Error = 1;
+    required NYT.NProto.TError error = 1;
+
     // List of chunks the job was unable to read.
-    repeated NYT.NProto.TGuid failedChunkIds = 2;
+    repeated NYT.NProto.TGuid failed_chunk_ids = 2;
 
     extensions 100 to max;
 }
@@ -40,8 +41,8 @@ message TTableInputSpec
 // Defines how to store output from a job into a table.
 message TTableOutputSpec
 {
-    // The schema that must be used for writing the table.
-    // Upon receiving an operation spec, the scheduler requests this schema from the master.
+    // The channels that must be used for writing the table.
+    // Upon receiving an operation spec, the scheduler requests these channels from the master.
     required bytes channels = 1;
     // Chunk list where new chunks must be attached to.
     required NYT.NProto.TGuid chunk_list_id = 2;
@@ -72,7 +73,7 @@ message TUserJobSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Below one can find the "map" job specs.
+// Map jobs.
 /*
  * Conceptually map is the simplest operation.
  * Input consists of a number of tables (or parts thereof).
@@ -82,7 +83,6 @@ message TUserJobSpec
  * The outputs of jobs are collected thus forming a number
  * of output tables.
  */
-
 message TMapJobSpec
 {
     extend TJobSpec
@@ -105,6 +105,11 @@ message TMapJobSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Merge jobs.
+/*
+ * Merge job takes a number of chunks sequences (each containing sorted data)
+ * and merges them. The result is split into chunks again.
+ */
 message TMergeJobSpec
 {
     extend TJobSpec
@@ -112,6 +117,7 @@ message TMergeJobSpec
         optional TMergeJobSpec merge_job_spec = 102;
     }
 
+    // TODO(babenko): must be "repeated"
     required TTableInputSpec input_spec = 1;
     required TTableOutputSpec output_spec = 2;
     required NYT.NProto.TGuid output_transaction_id = 3;
@@ -124,8 +130,7 @@ message TMergeJobResult
         optional TMergeJobResult merge_job_result = 101;
     }
 
-    // XXX(psushin): I didn't understand what is this?
-    // repeated NYT.NChunkHolder.NProto.TChunkInfo chunks = 1;
+    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

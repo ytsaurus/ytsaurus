@@ -11,6 +11,9 @@ namespace NTransactionServer {
 class TTransactionManager;
 typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
 
+struct TTransactionManagerConfig;
+typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
+
 class TTransaction;
 
 using NObjectServer::TTransactionId;

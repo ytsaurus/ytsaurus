@@ -1,6 +1,8 @@
 #pragma once
 
 #include "common.h"
+#include "public.h"
+#include "private.h"
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/property.h>
@@ -11,17 +13,12 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IClientRequest;
-struct IClientResponseHandler;
-
 /*!
  * \note Thread affinity: any.
  */
 struct IChannel
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IChannel> TPtr;
-
     //! Gets default timeout.
     virtual TNullable<TDuration> GetDefaultTimeout() const = 0;
 
@@ -45,12 +42,12 @@ struct IChannel
 };
 
 //! Creates a channel implemented via NBus.
-IChannel::TPtr CreateBusChannel(
+IChannelPtr CreateBusChannel(
     NBus::IBusClient* client,
     TNullable<TDuration> defaultTimeout = Null);
 
 //! Creates a channel implemented via NBus.
-IChannel::TPtr CreateBusChannel(
+IChannelPtr CreateBusChannel(
     const Stroka& address,
     TNullable<TDuration> defaultTimeout = Null);
 

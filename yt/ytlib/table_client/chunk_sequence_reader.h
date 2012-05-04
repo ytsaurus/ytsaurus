@@ -20,7 +20,7 @@ class TChunkSequenceReader
 public:
     TChunkSequenceReader(
         TChunkSequenceReaderConfigPtr config,
-        NRpc::IChannel::TPtr masterChannel,
+        NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         const std::vector<NProto::TInputChunk>& inputChunks);
 
@@ -45,8 +45,7 @@ private:
     NChunkClient::IBlockCachePtr BlockCache;
     std::vector<NProto::TInputChunk> InputChunks;
 
-    NRpc::IChannel::TPtr MasterChannel;
-
+    NRpc::IChannelPtr MasterChannel;
     TAsyncStreamState State;
 
     int NextChunkIndex;

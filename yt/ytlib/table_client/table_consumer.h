@@ -7,6 +7,7 @@
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/blob_range.h>
 #include <ytlib/misc/nullable.h>
 
 namespace NYT {
@@ -18,7 +19,7 @@ class TTableConsumer
     : public NYTree::TForwardingYsonConsumer
 {
 public:
-    TTableConsumer(const ISyncWriterPtr& writer);
+    explicit TTableConsumer(const ISyncWriterPtr& writer);
 
 private:
     void OnMyStringScalar(const TStringBuf& value);
@@ -28,7 +29,7 @@ private:
     void OnMyBeginList();
     void OnMyListItem();
     void OnMyBeginMap();
-    void OnMyMapItem(const TStringBuf& name);
+    void OnMyKeyedItem(const TStringBuf& name);
     void OnMyEndMap();
 
     // We currently ignore user attributes.
@@ -36,23 +37,19 @@ private:
 
     void OnValueEnded();
 
-    void OnColumn();
-
     ISyncWriterPtr Writer;
     TNullable<TKeyColumns> KeyColumns;
 
     bool InsideRow;
 
-    size_t ValueOffset;
-    TStringBuf CurrentColumn;
-
     TKey CurrentKey;
 
-    yhash_set<TStringBuf> UsedColumns;
+    yhash_set<TBlobRange> UsedColumns;
 
-    TRow Row;
+    std::vector<size_t> Offsets;
     TBlobOutput RowBuffer;
     TValueConsumer ValueConsumer;
+    TClosure OnValueFinished;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

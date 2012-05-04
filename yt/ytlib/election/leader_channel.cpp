@@ -12,7 +12,7 @@ using namespace NRpc;
 
 namespace {
 
-TValueOrError<IChannel::TPtr> OnLeaderFound(TLeaderLookup::TResult result)
+TValueOrError<IChannelPtr> OnLeaderFound(TLeaderLookup::TResult result)
 {
     if (result.Id == NElection::InvalidPeerId) {
         return TError("Unable to determine the leader");
@@ -21,14 +21,14 @@ TValueOrError<IChannel::TPtr> OnLeaderFound(TLeaderLookup::TResult result)
     return CreateBusChannel(result.Address);
 }
 
-} // namespace <anonymous>
+} // namespace
 
-IChannel::TPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config)
+IChannelPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config)
 {
     auto leaderLookup = New<TLeaderLookup>(config);
     return CreateRoamingChannel(
         config->RpcTimeout,
-        BIND([=] () -> TFuture< TValueOrError<IChannel::TPtr> > {
+        BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
             return leaderLookup->GetLeader().Apply(BIND(&OnLeaderFound));
         }));
 }

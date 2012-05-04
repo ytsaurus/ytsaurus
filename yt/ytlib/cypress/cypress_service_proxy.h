@@ -21,7 +21,7 @@ public:
         return "CypressService";
     }
 
-    TCypressServiceProxy(NRpc::IChannel::TPtr channel)
+    TCypressServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
@@ -44,7 +44,7 @@ public:
         typedef TIntrusivePtr<TReqExecuteBatch> TPtr;
 
         TReqExecuteBatch(
-            NRpc::IChannel::TPtr channel,
+            NRpc::IChannelPtr channel,
             const Stroka& path,
             const Stroka& verb);
 

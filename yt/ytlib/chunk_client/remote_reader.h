@@ -3,7 +3,7 @@
 #include "public.h"
 #include "private.h"
 
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -24,6 +24,8 @@
 
 #include <build.h>
 
+#include <util/system/sigset.h>
+
 namespace NYT {
 
 using namespace NYTree;
@@ -77,7 +79,6 @@ public:
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
 };
-
 
 EExitCode GuardedMain(int argc, const char* argv[])
 {
@@ -244,6 +245,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
 int Main(int argc, const char* argv[])
 {
     NYT::SetupErrorHandler();
+
+#ifdef _unix_
+    sigset_t sigset;
+    SigEmptySet(&sigset);
+    SigAddSet(&sigset, SIGHUP);
+    SigProcMask(SIG_BLOCK, &sigset, NULL);
+#endif
+
     NProfiling::TProfilingManager::Get()->Start();
 
     int exitCode;

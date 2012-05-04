@@ -49,7 +49,7 @@ struct TLogEvent
     TInstant DateTime;
     const char* FileName;
     i32 Line;
-    NThread::TThreadId ThreadId;
+    ::NYT::NThread::TThreadId ThreadId;
     const char* Function;
 
 };

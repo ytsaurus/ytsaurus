@@ -18,6 +18,8 @@ typedef TGuid TOperationId;
 DECLARE_ENUM(EOperationType,
     ((Map)(0))
     ((Merge)(1))
+    ((Erase)(2))
+    ((Sort)(3))
 );
 
 DECLARE_ENUM(EJobType,
@@ -101,6 +103,9 @@ typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 
 struct TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
+
+struct TSortOperationSpec;
+typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

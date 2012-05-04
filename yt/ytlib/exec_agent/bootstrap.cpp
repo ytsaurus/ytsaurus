@@ -17,6 +17,7 @@
 #include <ytlib/chunk_holder/bootstrap.h>
 #include <ytlib/chunk_holder/config.h>
 #include <ytlib/chunk_holder/chunk_cache.h>
+#include <ytlib/rpc/server.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -69,12 +70,12 @@ IInvoker::TPtr TBootstrap::GetControlInvoker() const
     return NodeBootstrap->GetControlInvoker();
 }
 
-IChannel::TPtr TBootstrap::GetMasterChannel() const
+IChannelPtr TBootstrap::GetMasterChannel() const
 {
     return NodeBootstrap->GetMasterChannel();
 }
 
-IChannel::TPtr TBootstrap::GetSchedulerChannel() const
+IChannelPtr TBootstrap::GetSchedulerChannel() const
 {
     return NodeBootstrap->GetSchedulerChannel();
 }

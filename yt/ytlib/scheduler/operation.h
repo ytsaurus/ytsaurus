@@ -37,16 +37,10 @@ class TOperation
     DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
 
     //! Gets set when the operation is finished.
-    TFuture<void> GetFinished()
-    {
-        return FinishedPromise;
-    }
+    TFuture<void> GetFinished();
 
     //! Marks the operation as finished.
-    void SetFinished()
-    {
-        FinishedPromise.Set();
-    }
+    void SetFinished();
 
 public:
     TOperation(
@@ -54,7 +48,8 @@ public:
         EOperationType type,
         const TTransactionId& transactionId,
         NYTree::IMapNodePtr spec,
-        TInstant startTime);
+        TInstant startTime,
+        EOperationState state = EOperationState::Initializing);
 
     TPromise<void> FinishedPromise;
 };

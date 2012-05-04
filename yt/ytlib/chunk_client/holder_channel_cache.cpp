@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "holder_channel_cache.h"
 
+#include <ytlib/rpc/channel.h>
+
 namespace NYT {
 namespace NChunkClient {
 

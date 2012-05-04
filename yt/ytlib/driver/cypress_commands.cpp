@@ -14,6 +14,11 @@ using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCommandDescriptor TGetCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
 void TGetCommand::DoExecute(TGetRequestPtr request)
 {
     TCypressServiceProxy proxy(Host->GetMasterChannel());
@@ -33,6 +38,11 @@ void TGetCommand::DoExecute(TGetRequestPtr request)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TSetCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Node, EDataType::Null);
+}
 
 void TSetCommand::DoExecute(TSetRequestPtr request)
 {
@@ -62,6 +72,11 @@ void TSetCommand::DoExecute(TSetRequestPtr request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCommandDescriptor TRemoveCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Null);
+}
+
 void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 {
     TCypressServiceProxy proxy(Host->GetMasterChannel());
@@ -80,6 +95,11 @@ void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TListCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
 
 void TListCommand::DoExecute(TListRequestPtr request)
 {
@@ -101,6 +121,11 @@ void TListCommand::DoExecute(TListRequestPtr request)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TCreateCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
 
 void TCreateCommand::DoExecute(TCreateRequestPtr request)
 {
@@ -125,6 +150,11 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TLockCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
 
 void TLockCommand::DoExecute(TLockRequestPtr request)
 {

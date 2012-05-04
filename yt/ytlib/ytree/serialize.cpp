@@ -136,6 +136,12 @@ void Read(TDuration& parameter, INode* node)
     parameter = TDuration::MilliSeconds(node->AsInteger()->GetValue());
 }
 
+// TInstant
+void Read(TInstant& parameter, INode* node)
+{
+    parameter = TInstant::MilliSeconds(node->AsInteger()->GetValue());
+}
+
 // TGuid
 void Read(TGuid& parameter, INode* node)
 {
@@ -196,6 +202,12 @@ void Write(bool parameter, IYsonConsumer* consumer)
 
 // TDuration
 void Write(TDuration parameter, IYsonConsumer* consumer)
+{
+    consumer->OnIntegerScalar(parameter.MilliSeconds());
+}
+
+// TInstant
+void Write(TInstant parameter, IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(parameter.MilliSeconds());
 }

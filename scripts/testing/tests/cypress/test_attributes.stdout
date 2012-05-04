@@ -1,14 +1,14 @@
-{"count"=1;"parent_id"="ffffffff-ffffffff-12f-140a8383";"lock_mode"="none";"lock_ids"=[];"subtree_lock_ids"=[];"id"="0-c-12f-3d94359f";"type"="map_node";"ref_counter"=1;"attr"=100;"mode"="rw"}
+{"count"=1;"parent_id"="ffffffff-ffffffff-12f-140a8383";"lock_ids"=[];"id"="0-b-12f-7aca76c6";"type"="map_node";"ref_counter"=1;"attr"=100;"mode"="rw"}
 100
-{"count"=1;"parent_id"="ffffffff-ffffffff-12f-140a8383";"lock_mode"="none";"lock_ids"=[];"subtree_lock_ids"=[];"id"="0-c-12f-3d94359f";"type"="map_node";"ref_counter"=1}
+{"count"=1;"parent_id"="ffffffff-ffffffff-12f-140a8383";"lock_ids"=[];"id"="0-b-12f-7aca76c6";"type"="map_node";"ref_counter"=1}
 {}
 changing attributes
 []
-{"count"=0;"parent_id"="0-c-12f-3d94359f";"lock_mode"="none";"lock_ids"=[];"subtree_lock_ids"=[];"id"="0-2-130-6cadc45e";"type"="list_node";"ref_counter"=1;"author"="ignat"}
+{"count"=0;"parent_id"="0-b-12f-7aca76c6";"lock_ids"=[];"id"="0-2-130-6cadc45e";"type"="list_node";"ref_counter"=1;"author"="ignat"}
 "ignat"
 "not_ignat"
 nested attributes
-{"count"=0;"parent_id"="0-c-12f-3d94359f";"lock_mode"="none";"lock_ids"=[];"subtree_lock_ids"=[];"id"="0-3-130-9d7bb2ee";"type"="list_node";"ref_counter"=1;"dir"=<"file"=<>-100>#}
+{"count"=0;"parent_id"="0-b-12f-7aca76c6";"lock_ids"=[];"id"="0-3-130-9d7bb2ee";"type"="list_node";"ref_counter"=1;"dir"=<"file"=<>-100>#}
 {"file"=<>-100}
 <>-100
 {}

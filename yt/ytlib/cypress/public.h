@@ -12,6 +12,9 @@ typedef TIntrusivePtr<TCypressManager> TCypressManagerPtr;
 
 class TLock;
 
+struct ICypressNode;
+struct ICypressNodeProxy;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NCypress

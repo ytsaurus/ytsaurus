@@ -49,12 +49,15 @@ protected:
 
 protected:
   SmallVectorBase(size_t Size)
-    : BeginX(&FirstEl), EndX(&FirstEl), CapacityX((char*)&FirstEl+Size) {}
+    : BeginX(&CapacityX + 1), EndX(BeginX), CapacityX((char*)BeginX+Size) {}
 
   /// isSmall - Return true if this is a smallvector which has not had dynamic
   /// memory allocated for it.
   bool isSmall() const {
-    return BeginX == static_cast<const void*>(&FirstEl);
+    // here we have dirty hack to get rid of FirstEl (in llvm no such dirty hack)
+    return BeginX == static_cast<const void*>(&CapacityX + 1);
+    // originally was:
+    //return BeginX == static_cast<const void*>(&FirstEl);
   }
 
   /// grow_pod - This is an implementation of the grow() method which only works
@@ -662,7 +665,8 @@ class TSmallVector : public SmallVectorImpl<T> {
     // NumInlineEltsElts - The number of elements actually in this array.  There
     // is already one in the parent class, and we have to round up to avoid
     // having a zero-element array.
-    NumInlineEltsElts = MinUs > 1 ? (MinUs - 1) : 1,
+    //NumInlineEltsElts = MinUs > 1 ? (MinUs - 1) : 1,
+    NumInlineEltsElts = MinUs,
 
     // NumTsAvailable - The number of T's we actually have space for, which may
     // be more than N due to rounding.

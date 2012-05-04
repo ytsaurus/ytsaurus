@@ -227,8 +227,7 @@ public:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                // TODO(babenko): fixme, use FormatEnum
-                .Item("state").Scalar(ControlStatus.ToString())
+                .Item("status").Scalar(FormatEnum(ControlStatus))
                 .Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
                 .Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
                 .Item("elections").Do(BIND(&TElectionManager::GetMonitoringInfo, ElectionManager))
@@ -573,26 +572,26 @@ public:
         auto& response = context->Response();
 
         switch (result) {
-        case TCommitter::EResult::Committed:
-            response.set_committed(true);
-            context->Reply();
-            break;
+            case TCommitter::EResult::Committed:
+                response.set_committed(true);
+                context->Reply();
+                break;
 
-        case TCommitter::EResult::LateChanges:
-            context->Reply(
-                TProxy::EErrorCode::InvalidVersion,
-                "Changes are late");
-            break;
+            case TCommitter::EResult::LateChanges:
+                context->Reply(
+                    TProxy::EErrorCode::InvalidVersion,
+                    "Changes are late");
+                break;
 
-        case TCommitter::EResult::OutOfOrderChanges:
-            context->Reply(
-                TProxy::EErrorCode::InvalidVersion,
-                "Changes are out of order");
-            Restart();
-            break;
+            case TCommitter::EResult::OutOfOrderChanges:
+                context->Reply(
+                    TProxy::EErrorCode::InvalidVersion,
+                    "Changes are out of order");
+                Restart();
+                break;
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
     }
 

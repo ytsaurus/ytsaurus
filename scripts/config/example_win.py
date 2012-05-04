@@ -4,7 +4,7 @@ from cfglib.ytwin import *
 import cfglib.opts as opts
 import socket
 
-build_dir = r'c:\Users\Max\Work\Yandex\YT\build'
+build_dir = r'C:\Projects\yt-new-build\build'
 
 
 Logging = {
@@ -41,7 +41,7 @@ Logging = {
 }
 
 MasterAddresses = opts.limit_iter('--masters',
-        ['%s:%d' % (socket.getfqdn(), port) for port in xrange(8001, 8004)])
+        ['%s:%d' % ('psushin-nb-w7', port) for port in xrange(8001, 8004)])
 
 class Base(AggrBase):
         path = opts.get_string('--name', 'control')
@@ -55,8 +55,9 @@ class Master(WinNode, Server):
 
         config = Template({
                 'meta_state' : {
-                                'cell' : {
-                                'addresses' : MasterAddresses
+                        'cell' : {
+                                'addresses' : MasterAddresses,
+                                'rpc_port' : 8001
                         },
                         'snapshots' : {
                             'path' : r'%(work_dir)s\snapshots'

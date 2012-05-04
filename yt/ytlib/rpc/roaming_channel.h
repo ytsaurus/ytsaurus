@@ -1,6 +1,6 @@
 #pragma once
 
-#include "channel.h"
+#include "public.h"
 
 #include <ytlib/misc/error.h>
 
@@ -9,7 +9,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback< TFuture< TValueOrError<IChannel::TPtr> >()> TChannelProducer;
+typedef TCallback< TFuture< TValueOrError<IChannelPtr> >()> TChannelProducer;
 
 //! Creates a channel with a dynamically discovered endpoint.
 /*!
@@ -18,7 +18,7 @@ typedef TCallback< TFuture< TValueOrError<IChannel::TPtr> >()> TChannelProducer;
  *  This endpoint is cached and reused until some request fails with RPC error code.
  *  In the latter case the endpoint is rediscovered.
  */
-IChannel::TPtr CreateRoamingChannel(
+IChannelPtr CreateRoamingChannel(
     TNullable<TDuration> defaultTimeout,
     TChannelProducer producer);
 

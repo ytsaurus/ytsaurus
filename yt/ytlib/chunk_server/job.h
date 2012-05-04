@@ -4,19 +4,19 @@
 
 #include <ytlib/misc/property.h>
 #include <ytlib/cell_master/public.h>
+#include <ytlib/object_server/object_detail.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): consider making it a full-fledged object
 class TJob
+    : public NObjectServer::TObjectWithIdBase
 {
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
-    DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
     // Don't try making it TChunk*.
-    // Removal jobs may refer nonexistent chunks.
+    // Removal jobs may refer to nonexistent chunks.
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
     DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
@@ -42,3 +42,5 @@ public:
 
 } // namespace NChunkServer
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////

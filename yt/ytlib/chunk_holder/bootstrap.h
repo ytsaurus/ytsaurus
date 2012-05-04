@@ -6,8 +6,7 @@
 #include <ytlib/cell_node/public.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -35,7 +34,7 @@ public:
     NBus::IBusServer::TPtr GetBusServer() const;
     TPeerBlockTablePtr GetPeerBlockTable() const;
     TReaderCachePtr GetReaderCache() const;
-    NRpc::IChannel::TPtr GetMasterChannel() const;
+    NRpc::IChannelPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
 
 private:

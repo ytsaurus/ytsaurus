@@ -33,7 +33,7 @@
     "writers" = {
       "file" = {
         "file_name" = "master-0.log";
-        "type" = "file";
+        "type" = "raw";
         "pattern" = "$(datetime) $(level) $(category) $(message)";
       };
     };

@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <ytlib/scheduler/job.pb.h>
-#include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/ytree/public.h>
 
@@ -21,7 +20,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NRpc::IChannel::TPtr GetMasterChannel() = 0;
+    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
 
     /*!
      *  \note Thread affinity: any

@@ -17,7 +17,6 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace std;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NYTree;
@@ -41,8 +40,11 @@ TChunkWriter::TChunkWriter(
     , IsClosed(false)
     , CurrentBlockIndex(0)
     , CurrentSize(0)
+    , SentSize(0)
     , UncompressedSize(0)
     , LastKey()
+    , SamplesSize(0)
+    , IndexSize(0)
 {
     YASSERT(chunkWriter);
     Codec = GetCodec(ECodecId(Config->CodecId));
@@ -133,19 +135,20 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
 
     LastKey.Swap(key);
 
-    if (ProtoSamples.ByteSize() < Config->SampleRate * CurrentSize) {
+    if (SamplesSize < Config->SampleRate * CurrentSize) {
         *ProtoSamples.add_items() = MakeSample(row);
     }
 
     if (KeyColumns) {
         if (ProtoMisc.row_count() == 1) {
-            *ProtoBoundaryKeys.mutable_first() = key.ToProto();
+            *ProtoBoundaryKeys.mutable_left() = key.ToProto();
         }
 
-        if (ProtoIndex.ByteSize() < Config->IndexRate * CurrentSize) {
+        if (IndexSize < Config->IndexRate * CurrentSize) {
             auto* indexRow = ProtoIndex.add_index_rows();
             *indexRow->mutable_key() = key.ToProto();
             indexRow->set_row_index(ProtoMisc.row_count() - 1);
+            IndexSize += key.GetSize();
         }
     }
 
@@ -226,7 +229,7 @@ TAsyncError TChunkWriter::AsyncClose()
     SetProtoExtension(chunkMeta.mutable_extensions(), ProtoChannels);
 
     if (KeyColumns) {
-        *ProtoBoundaryKeys.mutable_last() = LastKey.ToProto();
+        *ProtoBoundaryKeys.mutable_right() = LastKey.ToProto();
 
         const auto lastIndexRow = --ProtoIndex.index_rows().end();
         if (ProtoMisc.row_count() > lastIndexRow->row_index() + 1) {
@@ -250,28 +253,45 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
 {
     std::sort(row.begin(), row.end());
 
+    TLexer lexer;
+
     NProto::TSample sample;
     FOREACH(const auto& pair, row) {
         auto* part = sample.add_parts();
         part->set_column(pair.first.begin(), pair.first.size());
 
-        TTokenizer tokenizer(pair.second);
-        auto& token = tokenizer[0];
+        lexer.Reset();
+        YVERIFY(lexer.Read(pair.second));
+        YASSERT(lexer.GetState() == TLexer::EState::Terminal);
+        auto& token = lexer.GetToken();
         switch (token.GetType()) {
         case ETokenType::Integer:
             *(part->mutable_key_part()) = TKeyPart(token.GetIntegerValue()).ToProto();
+            // sizeof(int) for type field.
+            SamplesSize += sizeof(i64) + sizeof(int);
             break;
 
-        case ETokenType::String:
-            *(part->mutable_key_part()) = TKeyPart(token.GetStringValue()).ToProto();
+        case ETokenType::String: {
+            auto *keyPart = part->mutable_key_part();
+            keyPart->set_type(EKeyType::String);
+            auto length = std::min(
+                token.GetStringValue().size(), 
+                static_cast<size_t>(Config->MaxSampleSize));
+            keyPart->set_str_value(token.GetStringValue().begin(), length);
+            // sizeof(int) for type field.
+            SamplesSize += length + sizeof(int);
             break;
+        }
 
         case ETokenType::Double:
             *(part->mutable_key_part()) = TKeyPart(token.GetDoubleValue()).ToProto();
+            SamplesSize += sizeof(double) + sizeof(int);
             break;
 
         default:
             *(part->mutable_key_part()) = TKeyPart::CreateComposite().ToProto();
+            // sizeof(int) for type field.
+            SamplesSize += sizeof(int);
             break;
 
         }

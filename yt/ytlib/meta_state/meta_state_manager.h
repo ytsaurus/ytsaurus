@@ -101,7 +101,7 @@ struct IMetaStateManager
     virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
 
     //! Raised within the state thread when the state has started leading
-    //! and now enters recovery.
+    //! and enters recovery.
     DECLARE_INTERFACE_SIGNAL(void(), StartLeading);
     //! Raised within the state thread when the leader recovery is complete.
     DECLARE_INTERFACE_SIGNAL(void(), LeaderRecoveryComplete);
@@ -109,7 +109,7 @@ struct IMetaStateManager
     DECLARE_INTERFACE_SIGNAL(void(), StopLeading);
 
     //! Raised within the state thread when the state has started following
-    //! and now enters recovery.
+    //! and enters recovery.
     DECLARE_INTERFACE_SIGNAL(void(), StartFollowing);
     //! Raised within the state thread when the follower recovery is complete.
     DECLARE_INTERFACE_SIGNAL(void(), FollowerRecoveryComplete);

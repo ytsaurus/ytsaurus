@@ -61,7 +61,6 @@ using namespace NChunkHolder::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkServer");
-static NProfiling::TProfiler Profiler("/chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,7 +82,7 @@ public:
 
     virtual IObjectProxy::TPtr GetProxy(
         const TObjectId& id,
-        NTransactionServer::TTransaction* transaction);
+        TTransaction* transaction);
 
 private:
     TImpl* Owner;
@@ -112,7 +111,7 @@ public:
 
     virtual IObjectProxy::TPtr GetProxy(
         const TObjectId& id,
-        NTransactionServer::TTransaction* transaction);
+        TTransaction* transaction);
 
 private:
     TImpl* Owner;
@@ -137,6 +136,7 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , ChunkReplicaCount(0)
+        , Profiler("/chunk_server")
         , AddChunkCounter("/add_chunk_rate")
         , RemoveChunkCounter("/remove_chunk_rate")
         , AddChunkReplicaCounter("/add_chunk_replica_rate")
@@ -253,16 +253,14 @@ public:
         return it == ReplicationSinkMap.end() ? NULL : &it->second;
     }
 
-    yvector<THolderId> AllocateUploadTargets(int replicaCount)
+    yvector<THolder*> AllocateUploadTargets(int replicaCount)
     {
-        auto holderIds = ChunkPlacement->GetUploadTargets(replicaCount);
-        FOREACH (auto holderId, holderIds) {
-            const auto& holder = GetHolder(holderId);
-            ChunkPlacement->OnSessionHinted(holder);
+        auto holders = ChunkPlacement->GetUploadTargets(replicaCount);
+        FOREACH (auto holder, holders) {
+            ChunkPlacement->OnSessionHinted(*holder);
         }
-        return holderIds;
+        return holders;
     }
-
 
     TChunk& CreateChunk()
     {
@@ -286,6 +284,9 @@ public:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (const auto& childRef, children) {
+            if (!chunkList.Children().empty()) {
+                chunkList.RowCountSums().push_back(chunkList.Statistics().RowCount);
+            }
             chunkList.Children().push_back(childRef);
             SetChunkTreeParent(chunkList, childRef);
             objectManager->RefObject(childRef.GetId());
@@ -312,7 +313,7 @@ public:
 
 
     void ScheduleJobs(
-        const THolder& holder,
+        THolder& holder,
         const yvector<TJobInfo>& runningJobs,
         yvector<TJobStartInfo>* jobsToStart,
         yvector<TJobStopInfo>* jobsToStop)
@@ -408,6 +409,8 @@ private:
     TBootstrap* Bootstrap;
     
     i32 ChunkReplicaCount;
+
+    NProfiling::TProfiler Profiler;
     NProfiling::TRateCounter AddChunkCounter;
     NProfiling::TRateCounter RemoveChunkCounter;
     NProfiling::TRateCounter AddChunkReplicaCounter;
@@ -432,29 +435,13 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-
-    TChunkTreeStatistics GetChunkTreeStatistics(const TChunk& chunk)
-    {
-        TChunkTreeStatistics result;
-
-        YASSERT(chunk.ChunkInfo().size() != TChunk::UnknownSize);
-        result.CompressedSize = chunk.ChunkInfo().size();
-        result.ChunkCount = 1;
-
-        // Every chunk must have TMisc extension in meta.
-        auto misc = GetProtoExtension<TMisc>(chunk.ChunkMeta().extensions());
-        result.UncompressedSize = misc->uncompressed_size();
-        result.RowCount = misc->row_count();
-        return result;
-    }
-
     void UpdateStatistics(TChunkList& chunkList, const TChunkTreeRef& childRef, bool negate)
     {
         // Compute delta.
         TChunkTreeStatistics delta;
         switch (childRef.GetType()) {
             case EObjectType::Chunk:
-                delta = GetChunkTreeStatistics(*childRef.AsChunk());
+                delta = childRef.AsChunk()->GetStatistics();
                 break;
             case EObjectType::ChunkList:
                 delta = childRef.AsChunkList()->Statistics();
@@ -790,6 +777,16 @@ private:
     }
 
 
+    virtual void OnStartRecovery()
+    {
+        Profiler.SetEnabled(false);
+    }
+
+    virtual void OnStopRecovery()
+    {
+        Profiler.SetEnabled(true);
+    }
+
     virtual void OnLeaderRecoveryComplete()
     {
         ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
@@ -819,7 +816,7 @@ private:
     }
 
 
-    void StartHolderTracking(const THolder& holder, bool recovery)
+    void StartHolderTracking(THolder& holder, bool recovery)
     {
         HolderLeaseTracker->OnHolderRegistered(holder, recovery);
         if (holder.GetState() == EHolderState::Online) {
@@ -833,7 +830,7 @@ private:
         HolderRegistered_.Fire(holder);
     }
 
-    void StopHolderTracking(const THolder& holder)
+    void StopHolderTracking(THolder& holder)
     {
         HolderLeaseTracker->OnHolderUnregistered(holder);
         ChunkPlacement->OnHolderUnregistered(holder);
@@ -1231,9 +1228,10 @@ class TChunkManager::TChunkProxy
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
         : TBase(owner->Bootstrap, id, &owner->ChunkMap)
-        , TYPathServiceBase(ChunkServerLogger.GetCategory())
         , Owner(owner)
-    { }
+    {
+        Logger = ChunkServerLogger;
+    }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
@@ -1252,12 +1250,13 @@ private:
         attributes->push_back("confirmed");
         attributes->push_back("cached_locations");
         attributes->push_back("stored_locations");
+        attributes->push_back("replication_factor");
         attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
         TBase::GetSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
         const auto& chunk = GetTypedImpl();
 
@@ -1270,11 +1269,10 @@ private:
         if (name == "cached_locations") {
             if (~chunk.CachedLocations()) {
                 BuildYsonFluently(consumer)
-                    .DoListFor(*chunk.CachedLocations(), [=] (TFluentList fluent, THolderId holderId)
-                        {
-                            const auto& holder = Owner->GetHolder(holderId);
-                            fluent.Item().Scalar(holder.GetAddress());
-                        });
+                    .DoListFor(*chunk.CachedLocations(), [=] (TFluentList fluent, THolderId holderId) {
+                        const auto& holder = Owner->GetHolder(holderId);
+                        fluent.Item().Scalar(holder.GetAddress());
+                    });
             } else {
                 BuildYsonFluently(consumer)
                     .BeginList()
@@ -1285,11 +1283,16 @@ private:
 
         if (name == "stored_locations") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunk.StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
-                    {
-                        const auto& holder = Owner->GetHolder(holderId);
-                        fluent.Item().Scalar(holder.GetAddress());
-                    });
+                .DoListFor(chunk.StoredLocations(), [=] (TFluentList fluent, THolderId holderId) {
+                    const auto& holder = Owner->GetHolder(holderId);
+                    fluent.Item().Scalar(holder.GetAddress());
+                });
+            return true;
+        }
+
+        if (name == "replication_factor") {
+            BuildYsonFluently(consumer)
+                .Scalar(chunk.GetReplicationFactor());
             return true;
         }
 
@@ -1403,7 +1406,7 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
 
 IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(
     const TObjectId& id,
-    NTransactionServer::TTransaction* transaction)
+    TTransaction* transaction)
 {
     UNUSED(transaction);
     return New<TChunkProxy>(Owner, id);
@@ -1416,18 +1419,17 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 {
     UNUSED(transaction);
 
+    const auto* requestExt = &request->GetExtension(TReqCreateChunk::create_chunk);
+    auto* responseExt = response->MutableExtension(TRspCreateChunk::create_chunk);
+
     auto& chunk = Owner->CreateChunk();
+    chunk.SetReplicationFactor(requestExt->replication_factor());
 
-    if (Owner->IsLeader() && request->HasExtension(TReqCreateChunk::create_chunk)) {
-        const auto* requestExt = &request->GetExtension(TReqCreateChunk::create_chunk);
-        auto* responseExt = response->MutableExtension(TRspCreateChunk::create_chunk);
-
-        int holderCount = requestExt->holder_count();
-        auto holderIds = Owner->AllocateUploadTargets(holderCount);
-
-        FOREACH (auto holderId, holderIds) {
-            const THolder& holder = Owner->GetHolder(holderId);
-            responseExt->add_holder_addresses(holder.GetAddress());
+    if (Owner->IsLeader()) {
+        int holderCount = requestExt->upload_replication_factor();
+        auto holders = Owner->AllocateUploadTargets(holderCount);
+        FOREACH (auto holder, holders) {
+            responseExt->add_holder_addresses(holder->GetAddress());
         }
 
         LOG_INFO_IF(!Owner->IsRecovery(), "Allocated holders [%s] for chunk %s",
@@ -1451,9 +1453,10 @@ class TChunkManager::TChunkListProxy
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
         : TBase(owner->Bootstrap, id, &owner->ChunkListMap)
-        , TYPathServiceBase(ChunkServerLogger.GetCategory())
         , Owner(owner)
-    { }
+    {
+        Logger = ChunkServerLogger;
+    }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
@@ -1478,7 +1481,7 @@ private:
         TBase::GetSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
         const auto& chunkList = GetTypedImpl();
 
@@ -1530,7 +1533,7 @@ private:
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Attach);
-        DISPATCH_YPATH_SERVICE_METHOD(Detach);
+        //DISPATCH_YPATH_SERVICE_METHOD(Detach);
         TBase::DoInvoke(context);
     }
 
@@ -1558,29 +1561,29 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Detach)
-    {
-        UNUSED(response);
+//    DECLARE_RPC_SERVICE_METHOD(NProto, Detach)
+//    {
+//        UNUSED(response);
 
-        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
+//        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
 
-        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
+//        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        yvector<TChunkTreeRef> children;
-        FOREACH (const auto& childId, childrenIds) {
-            if (!objectManager->ObjectExists(childId)) {
-                ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
-            }
-            auto chunkRef = Owner->GetChunkTree(childId);
-            children.push_back(chunkRef);
-        }
+//        auto objectManager = Bootstrap->GetObjectManager();
+//        yvector<TChunkTreeRef> children;
+//        FOREACH (const auto& childId, childrenIds) {
+//            if (!objectManager->ObjectExists(childId)) {
+//                ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
+//            }
+//            auto chunkRef = Owner->GetChunkTree(childId);
+//            children.push_back(chunkRef);
+//        }
 
-        auto& chunkList = GetTypedImpl();
-        Owner->DetachFromChunkList(chunkList, children);
+//        auto& chunkList = GetTypedImpl();
+//        Owner->DetachFromChunkList(chunkList, children);
 
-        context->Reply();
-    }
+//        context->Reply();
+//    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1592,7 +1595,7 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
 
 IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(
     const TObjectId& id,
-    NTransactionServer::TTransaction* transaction)
+    TTransaction* transaction)
 {
     UNUSED(transaction);
     return New<TChunkListProxy>(Owner, id);
@@ -1642,7 +1645,7 @@ const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address
     return Impl->FindReplicationSink(address);
 }
 
-yvector<THolderId> TChunkManager::AllocateUploadTargets(int replicaCount)
+yvector<THolder*> TChunkManager::AllocateUploadTargets(int replicaCount)
 {
     return Impl->AllocateUploadTargets(replicaCount);
 }
@@ -1698,7 +1701,7 @@ void TChunkManager::DetachFromChunkList(TChunkList& chunkList, const yvector<TCh
 }
 
 void TChunkManager::ScheduleJobs(
-    const THolder& holder,
+    THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStartInfo>* jobsToStart,
     yvector<TJobStopInfo>* jobsToStop)

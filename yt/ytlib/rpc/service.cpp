@@ -61,7 +61,7 @@ TServiceBase::TServiceBase(
     : DefaultInvoker(defaultInvoker)
     , ServiceName(serviceName)
     , LoggingCategory(loggingCategory)
-    , RequestCounter("/" + ServiceName + "/request_rate")
+    , RequestCounter("/services/" + ServiceName + "/request_rate")
 {
     YASSERT(defaultInvoker);
 }

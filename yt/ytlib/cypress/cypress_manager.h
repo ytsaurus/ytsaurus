@@ -33,7 +33,7 @@ public:
     typedef TCypressManager TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
-    TCypressManager(NCellMaster::TBootstrap* bootstrap);
+    explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
 
     void RegisterHandler(INodeTypeHandler::TPtr handler);
     INodeTypeHandler::TPtr FindHandler(EObjectType type);
@@ -94,6 +94,7 @@ public:
 
 private:
     class TLockTypeHandler;
+    class TLockProxy;
     class TNodeTypeHandler;
     class TYPathProcessor;
     class TRootProxy;
@@ -135,12 +136,14 @@ private:
     void OnTransactionAborted(NTransactionServer::TTransaction& transaction);
 
     void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
-    void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void MergeBranchedNodes(NTransactionServer::TTransaction& transaction);
     void MergeBranchedNode(
-        const NTransactionServer::TTransaction& transaction,
-        const TNodeId& nodeId);
+        NTransactionServer::TTransaction& transaction,
+        ICypressNode* branchedNode);
     void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
-    void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
+    void PromoteCreatedNodes(NTransactionServer::TTransaction& transaction);
+    void ReleaseCreatedNodes(NTransactionServer::TTransaction& transaction);
+    void PromoteLocks(NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetHandler(const ICypressNode& node);
 
@@ -151,20 +154,19 @@ private:
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode,
-        bool* isMandatory = NULL);
+        bool* isMandatory);
+    void ValidateLock(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction,
+        ELockMode requestedMode);
 
     static bool IsParentTransaction(NTransactionServer::TTransaction* transaction, NTransactionServer::TTransaction* parent);
-    static bool AreCompetingLocksCompatible(ELockMode upwardMode, ELockMode downwardMode);
-    static bool AreConcurrentLocksCompatible(ELockMode upwardMode, ELockMode downwardMode);
 
-    static bool IsLockRecursive(ELockMode mode);
-   
     TLockId AcquireLock(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
-
-    void ReleaseLock(TLock *lock);
+    void ReleaseLock(TLock* lock);
 
    ICypressNode& BranchNode(
        ICypressNode& node,

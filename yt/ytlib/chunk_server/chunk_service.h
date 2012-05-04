@@ -4,7 +4,6 @@
 #include "chunk_service_proxy.h"
 
 #include <ytlib/cell_master/meta_state_service.h>
-#include <ytlib/rpc/server.h>
 
 namespace NYT {
 namespace NChunkServer {

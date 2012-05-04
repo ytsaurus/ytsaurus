@@ -22,8 +22,33 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TStartRequestPtr request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRenewTransactionRequest
+    : public TTransactedRequest
+{ };
+
+typedef TIntrusivePtr<TRenewTransactionRequest> TRenewRequestPtr;
+
+class TRenewTransactionCommand
+    : public TTypedCommandBase<TRenewTransactionRequest>
+{
+public:
+    explicit TRenewTransactionCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
+    { }
+
+    virtual TCommandDescriptor GetDescriptor();
+
+private:
+    virtual void DoExecute(TRenewRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +68,8 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TCommitRequestPtr request);
 };
@@ -53,7 +80,7 @@ struct TAbortTransactionRequest
     : public TTransactedRequest
 { };
 
-typedef TIntrusivePtr<TAbortTransactionRequest> TAbortRequestPtr;
+typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;
 
 class TAbortTransactionCommand
     : public TTypedCommandBase<TAbortTransactionRequest>
@@ -64,8 +91,10 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
-    virtual void DoExecute(TAbortRequestPtr request);
+    virtual void DoExecute(TAbortTransactionRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

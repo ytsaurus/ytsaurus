@@ -1,5 +1,6 @@
 #pragma once
 
+#include "private.h"
 #include "channel.h"
 
 #include <ytlib/misc/property.h>
@@ -15,20 +16,6 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClientRequest;
-
-template <class TRequestMessage, class TResponse>
-class TTypedClientRequest;
-
-class TClientResponse;
-
-template <class TResponseMessage>
-class TTypedClientResponse;
-
-class TOneWayClientResponse;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TProxyBase
 {
 protected:
@@ -40,11 +27,11 @@ protected:
      */
     typedef NRpc::EErrorCode EErrorCode;
 
-    TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
+    TProxyBase(IChannelPtr channel, const Stroka& serviceName);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
 
-    IChannel::TPtr Channel;
+    IChannelPtr Channel;
     Stroka ServiceName;
 };          
 
@@ -75,8 +62,6 @@ class TClientRequest
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
 public:
-    typedef TIntrusivePtr<TClientRequest> TPtr;
-
     virtual NBus::IMessage::TPtr Serialize() const;
 
     virtual const TRequestId& GetRequestId() const;
@@ -87,14 +72,14 @@ public:
     virtual const NYTree::IAttributeDictionary& Attributes() const;
 
 protected:
-    IChannel::TPtr Channel;
+    IChannelPtr Channel;
     Stroka Path;
     Stroka Verb;
     TRequestId RequestId;
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(
-        IChannel::TPtr channel,
+        IChannelPtr channel,
         const Stroka& path,
         const Stroka& verb,
         bool oneWay);
@@ -117,7 +102,7 @@ public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
 
     TTypedClientRequest(
-        IChannel::TPtr channel,
+        IChannelPtr channel,
         const Stroka& path,
         const Stroka& verb,
         bool oneWay)

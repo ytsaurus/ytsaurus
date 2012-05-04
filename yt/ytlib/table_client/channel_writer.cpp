@@ -109,7 +109,7 @@ TSharedRef TChannelWriter::FlushBlock()
     CurrentSize = GetEmptySize();
     CurrentRowCount = 0;
 
-    return blockStream.Flush();
+    return blockStream.Flush(0);
 }
 
 int TChannelWriter::GetCurrentRowCount() const

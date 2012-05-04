@@ -6,6 +6,7 @@
 #include "chunk.h"
 #include "config.h"
 #include "location.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/chunk_client/remote_writer.h>

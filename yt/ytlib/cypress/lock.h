@@ -28,6 +28,9 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
 
+    //! Replaces transaction.
+    void PromoteToTransaction(NTransactionServer::TTransaction* transaction);
+
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 };

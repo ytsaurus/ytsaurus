@@ -753,7 +753,8 @@ TRemoteWriter::FinishChunk(THolderPtr holder)
     LOG_DEBUG("Finishing chunk at %s", ~holder->Address);
 
     auto req = holder->Proxy.FinishChunk();
-    req->mutable_chunk_meta()->CopyFrom(ChunkMeta);
+    *req->mutable_chunk_id() = ChunkId.ToProto();
+    *req->mutable_chunk_meta() = ChunkMeta;
     return req->Invoke();
 }
 
@@ -911,7 +912,7 @@ TAsyncError TRemoteWriter::AsyncClose(
         sumSize += block.Size();
     }
 
-    ChunkMeta.CopyFrom(chunkMeta);
+    ChunkMeta = chunkMeta;
 
     LOG_DEBUG("Requesting writer to close.");
     State.StartOperation();

@@ -9,14 +9,14 @@
 
 namespace NYT {
 
-// TODO(sandello): Add specialization for void
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
-    //! Internal state holding the value.
-    template <class T>
-    class TPromiseState;
+
+//! Internal state holding the value.
+template <class T>
+class TPromiseState;
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////

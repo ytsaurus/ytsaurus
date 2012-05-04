@@ -5,7 +5,6 @@
 
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/cypress/id.h>
@@ -37,7 +36,7 @@ public:
     //! Initializes an instance.
     TTableReader(
         TChunkSequenceReaderConfigPtr config,
-        NRpc::IChannel::TPtr masterChannel,
+        NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
         NChunkClient::IBlockCachePtr blockCache,
         const NYTree::TYPath& path);
@@ -57,7 +56,7 @@ public:
 
 private:
     TChunkSequenceReaderConfigPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCachePtr BlockCache;

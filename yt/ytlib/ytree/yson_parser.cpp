@@ -68,42 +68,20 @@ public:
         }
     }
 
-    void Consume(char ch)
-    {
-        bool consumed = false;
-        while (!consumed) {
-            try {
-                consumed = Lexer.Consume(ch);
-            } catch (const std::exception& ex) {
-                ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
-                    ~Stroka(ch).Quote(),
-                    ~GetPositionInfo(),
-                    ~CurrentExceptionMessage());
-            }
-
-            if (Lexer.GetState() == TLexer::EState::Terminal) {
-                ConsumeToken(Lexer.GetToken());
-                Lexer.Reset();
-            }
-        }
-
-        OnCharConsumed(ch);
-    }
-
-    void Consume(const TStringBuf& data)
+    void Read(const TStringBuf& data)
     {
         auto begin = data.begin();
         auto end = data.end();
         auto current = begin;
         try {
             while (current != end) {
-                auto firstUnconsumed = Lexer.Consume(TStringBuf(current, end));
+                auto consumed = Lexer.Read(TStringBuf(current, end));
                 if (Lexer.GetState() == TLexer::EState::Terminal) {
                     ConsumeToken(Lexer.GetToken());
                     Lexer.Reset();
                 }
-                OnRangeConsumed(current, firstUnconsumed);
-                current = firstUnconsumed;
+                OnRangeConsumed(current, current + consumed);
+                current += consumed;
             }
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
@@ -201,7 +179,7 @@ private:
     void ConsumeAny(const TToken& token, bool allowAttributes)
     {
         switch (token.GetType()) {        
-            case ETokenType::None:
+            case ETokenType::EndOfStream:
                 break;
 
             case ETokenType::String:
@@ -257,7 +235,7 @@ private:
         bool inFragment = Type == EYsonType::ListFragment && StateStack.size() == 1;
         auto tokenType = token.GetType();
         switch (tokenType) {
-            case ETokenType::None:
+            case ETokenType::EndOfStream:
                 if (inFragment) {
                     StateStack.top() = EState::Parsed;
                 }
@@ -305,7 +283,7 @@ private:
         if (Type == EYsonType::KeyedFragment && StateStack.size() == 1 &&
             (currentState == EState::MapBeforeKey || currentState == EState::MapAfterValue))
         {
-            if (tokenType == ETokenType::None) {
+            if (tokenType == ETokenType::EndOfStream) {
                 StateStack.top() = EState::Parsed;
             } else if (tokenType == ETokenType::RightBrace) {
                 ythrow yexception() << Sprintf("Unexpected end of map in map fragment (%s)",
@@ -313,7 +291,7 @@ private:
             }
         }
 
-        if (tokenType == ETokenType::None) {
+        if (tokenType == ETokenType::EndOfStream) {
             return;
         }
 
@@ -374,7 +352,7 @@ private:
         auto tokenType = token.GetType();
         auto currentState = CurrentState();
 
-        if (tokenType == ETokenType::None) {
+        if (tokenType == ETokenType::EndOfStream) {
             return;
         }
 
@@ -435,7 +413,7 @@ private:
         YASSERT(StateStack.top() == EState::Parsed);
 
         auto tokenType = token.GetType();
-        if (tokenType != ETokenType::None) {
+        if (tokenType != ETokenType::EndOfStream) {
             ythrow yexception() << Sprintf("Node is already parsed, but unexpected token %s of type %s found (%s)",
                 ~token.ToString().Quote(),
                 ~tokenType.ToString(),
@@ -500,14 +478,9 @@ TYsonParser::TYsonParser(IYsonConsumer *consumer, EYsonType type)
 TYsonParser::~TYsonParser()
 { }
 
-void TYsonParser::Consume(char ch)
+void TYsonParser::Read(const TStringBuf& data)
 {
-    Impl->Consume(ch);
-}
-
-void TYsonParser::Consume(const TStringBuf& data)
-{
-    Impl->Consume(data);
+    Impl->Read(data);
 }
 
 void TYsonParser::Finish()
@@ -522,10 +495,6 @@ const size_t ParseChunkSize = 1024;
 void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 {
     TYsonParser parser(consumer, type);
-    //char ch;
-    //while (input->ReadChar(ch)) {
-    //    parser.Consume(ch);
-    //}
     char chunk[ParseChunkSize];
     while (true) {
         // Read a chunk.
@@ -534,7 +503,7 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
             break;
         }
         // Parse the chunk.
-        parser.Consume(TStringBuf(chunk, bytesRead));
+        parser.Read(TStringBuf(chunk, bytesRead));
     }
     parser.Finish();
 }
@@ -542,7 +511,7 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
 {
     TYsonParser parser(consumer, type);
-    parser.Consume(yson);
+    parser.Read(yson);
     parser.Finish();
 }
 

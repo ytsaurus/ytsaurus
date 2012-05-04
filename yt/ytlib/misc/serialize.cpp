@@ -10,7 +10,7 @@ namespace {
 
 const ui8 Padding[YTAlignment] = { 0 };
 
-} // namespace <anonymous>
+} // namespace
 
 int GetPaddingSize(i64 size)
 {

@@ -2,6 +2,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/blob_range.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/property.h>
 
@@ -20,6 +21,8 @@ DECLARE_ENUM(EKeyType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TKey;
+
 class TKeyPart
 {
     DEFINE_BYVAL_RO_PROPERTY(EKeyType, Type);
@@ -28,7 +31,7 @@ public:
     // TODO(babenko): create all types with CreateXXX
     //! Creates null key part.
     TKeyPart();
-    TKeyPart(const TStringBuf& value);
+    TKeyPart(const TBlobRange& value);
     TKeyPart(i64 value);
     TKeyPart(double value);
 
@@ -36,20 +39,22 @@ public:
 
     i64 GetInteger() const;
     double GetDouble() const;
-    const TStringBuf& GetString() const;
+    TStringBuf GetString() const;
+
+    size_t GetSize() const;
 
     Stroka ToString() const;
 
-    NProto::TKeyPart ToProto() const;
+    // Makes protobuf representation. Strips string part length to maxSize if exceeds.
+    NProto::TKeyPart ToProto(size_t maxSize = 0) const;
     //FromProto();
 
 private:
     // Keeps the actual value. 
     i64 IntValue;
     double DoubleValue;
-
-    // Points to the internal buffer inside key (see |TKey::Buffer|).
-    TStringBuf StrValue;
+    // Points to the internal buffer inside the key.
+    TBlobRange StrValue;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,15 +63,22 @@ class TKey
     : public TNonCopyable
 {
 public:
-    //! Creates an empty key.
-    TKey(int columnCount = 0, int maxSize = 4096);
+    //! Creates empty key.
+    /* 
+     *  \param size maximum key size.
+     */
+    TKey(int columnCount = 0, size_t size = 4096);
 
-    template <class T>
-    void AddValue(int index, const T& value);
+    void AddValue(int index, i64 value);
+    void AddValue(int index, double value);
+    void AddValue(int index, const TStringBuf& value);
+
     void AddComposite(int index);
 
     void Reset(int columnCount = -1);
     void Swap(TKey& other);
+
+    size_t GetSize() const;
 
     Stroka ToString() const;
 
@@ -77,18 +89,23 @@ public:
     static int Compare(const TKey& lhs, const TKey& rhs);
 
 private:
-    const int MaxSize;
+    const size_t MaxSize;
     int ColumnCount;
 
-    int CurrentSize;
     std::vector<TKeyPart> Parts;
-    TBlobOutput Buffer;
+    TAutoPtr<TBlobOutput> Buffer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(babenko): -> CompareKeys
 int CompareProtoKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
+
+bool operator>(const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator>=(const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator<(const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator<=(const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

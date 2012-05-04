@@ -43,7 +43,7 @@ TError StatusToError(int status)
     }
 }
 
-} // namespace <anonymous>
+} // namespace
 
 class TUnsafeProxyController
     : public IProxyController

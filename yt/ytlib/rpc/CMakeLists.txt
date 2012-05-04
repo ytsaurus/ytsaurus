@@ -21,6 +21,8 @@ set( HDRS
   ${BASE}/common.h
   ${BASE}/error.h
   ${BASE}/message.h
+  ${BASE}/private.h
+  ${BASE}/public.h
   ${BASE}/redirector_service.h
   ${BASE}/retriable_channel.h
   ${BASE}/roaming_channel.h

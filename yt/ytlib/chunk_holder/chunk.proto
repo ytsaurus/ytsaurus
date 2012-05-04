@@ -22,7 +22,9 @@ message TBlocks
 message TChunkInfo
 {
     required int64 size = 1;
-    required uint64 meta_checksum = 2;
+
+    // Is not set in full heartbeats.
+    optional uint64 meta_checksum = 2;
 }
 
 // Chunk meta extension.

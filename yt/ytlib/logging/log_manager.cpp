@@ -10,6 +10,8 @@
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/profiling/profiler.h>
 
+#include <util/system/sigset.h>
+
 namespace NYT {
 namespace NLog {
 
@@ -141,12 +143,18 @@ public:
         return level;
     }
 
-    TVoid FlushWriters()
+    void FlushWriters()
     {
         FOREACH (auto& pair, Writers) {
             pair.second->Flush();
         }
-        return TVoid();
+    }
+
+    void ReloadWriters()
+    {
+        FOREACH (auto& pair, Writers) {
+            pair.second->Reload();
+        }
     }
 
     static TPtr CreateDefault()
@@ -236,6 +244,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void LogReloadHandler(int signum)
+{
+    NLog::TLogManager::Get()->NeedReload = true;
+}
+
 class TLogManager::TImpl
     : public TActionQueueBase
 {
@@ -283,6 +296,21 @@ public:
     void Shutdown()
     {
         TActionQueueBase::Shutdown();
+    }
+
+    virtual void OnThreadStart()
+    {
+#ifdef _unix_
+        sigset_t sigset;
+        SigEmptySet(&sigset);
+        SigAddSet(&sigset, SIGHUP);
+        SigProcMask(SIG_UNBLOCK, &sigset, NULL);
+
+        // set handler
+        struct sigaction new_action;
+        new_action.sa_handler = LogReloadHandler;
+        sigaction(SIGHUP, &new_action, NULL);
+#endif
     }
 
     /*! 
@@ -338,6 +366,11 @@ public:
                 DoUpdateConfig(config);
             }
 
+            if (TLogManager::Get()->NeedReload) {
+                TLogManager::Get()->NeedReload = false;
+                Config->ReloadWriters();
+            }
+
             Write(event);
             result = true;
         }
@@ -391,6 +424,7 @@ private:
 
 TLogManager::TLogManager()
     : Impl(new TImpl())
+    , NeedReload(false)
 { }
 
 TLogManager* TLogManager::Get()
@@ -430,6 +464,7 @@ void TLogManager::Enqueue(const TLogEvent& event)
 {
     Impl->Enqueue(event);
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

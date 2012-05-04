@@ -1,10 +1,10 @@
 #pragma once
 
 #include "common.h"
+#include "public.h"
 #include "transaction.h"
 
 #include <ytlib/misc/configurable.h>
-#include <ytlib/rpc/channel.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/ytree/public.h>
@@ -25,29 +25,14 @@ class TTransactionManager
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        //! An internal between successive transaction pings.
-        TDuration PingPeriod;
-
-        TConfig()
-        {
-            Register("ping_period", PingPeriod)
-                .Default(TDuration::Seconds(5));
-        }
-    };
-
     //! Initializes an instance.
     /*!
      * \param config A configuration.
      * \param channel A channel used for communicating with masters.
      */
     TTransactionManager(
-        TConfig::TPtr config,
-        NRpc::IChannel::TPtr channel);
+        TTransactionManagerConfigPtr config,
+        NRpc::IChannelPtr channel);
 
     //! Starts a new transaction.
     /*!
@@ -77,8 +62,8 @@ private:
         const TTransactionId& id,
         NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp);
 
-    TConfig::TPtr Config;
-    NRpc::IChannel::TPtr Channel;
+    TTransactionManagerConfigPtr Config;
+    NRpc::IChannelPtr Channel;
     NCypress::TCypressServiceProxy CypressProxy;
 
     TSpinLock SpinLock;

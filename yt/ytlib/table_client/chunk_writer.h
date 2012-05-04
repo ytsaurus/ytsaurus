@@ -48,7 +48,7 @@ private:
     friend class TChunkSequenceWriter;
 
     TSharedRef PrepareBlock(int channelIndex);
-    static NProto::TSample MakeSample(TRow& row);
+    NProto::TSample MakeSample(TRow& row);
 
 private:
     TChunkWriterConfigPtr Config;
@@ -90,11 +90,18 @@ private:
     // Different chunk meta extensions.
     NChunkHolder::NProto::TMisc ProtoMisc;
     NProto::TSamples ProtoSamples;
+
+    //! Approximate size of collected samples.
+    size_t SamplesSize;
+
     NProto::TChannels ProtoChannels;
 
     // These are used only for sorted.
     NProto::TBoundaryKeys ProtoBoundaryKeys;
+
     NProto::TIndex ProtoIndex;
+    //! Approximate size of collected index.
+    size_t IndexSize;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

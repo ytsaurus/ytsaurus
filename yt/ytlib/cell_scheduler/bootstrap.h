@@ -5,9 +5,7 @@
 #include <ytlib/actions/invoker.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/rpc/channel.h>
-// TODO(babenko): replace with public.h
+#include <ytlib/rpc/public.h>
 #include <ytlib/scheduler/public.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -26,7 +24,7 @@ public:
     ~TBootstrap();
 
     TCellSchedulerConfigPtr GetConfig() const;
-    NRpc::IChannel::TPtr GetMasterChannel() const;
+    NRpc::IChannelPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
     IInvoker::TPtr GetControlInvoker() const;
     NTransactionClient::TTransactionManager::TPtr GetTransactionManager() const;
@@ -40,7 +38,7 @@ private:
 
     IInvoker::TPtr ControlInvoker;
     NBus::IBusServer::TPtr BusServer;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     Stroka PeerAddress;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NScheduler::TSchedulerPtr Scheduler;

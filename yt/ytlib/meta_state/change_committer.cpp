@@ -123,7 +123,7 @@ private:
 
             Awaiter->Await(
                 LogResult,
-                EscapeYPath(cellManager->GetSelfAddress()),
+                EscapeYPathToken(cellManager->GetSelfAddress()),
                 BIND(&TBatch::OnLocalCommit, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched changes to followers");
@@ -144,7 +144,7 @@ private:
                 }
                 Awaiter->Await(
                     request->Invoke(),
-                    EscapeYPath(cellManager->GetPeerAddress(id)),
+                    EscapeYPathToken(cellManager->GetPeerAddress(id)),
                     BIND(&TBatch::OnRemoteCommit, MakeStrong(this), id));
             }
             LOG_DEBUG("Batched changes sent");

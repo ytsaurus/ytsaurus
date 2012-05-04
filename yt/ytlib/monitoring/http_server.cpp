@@ -49,7 +49,7 @@ static inline double SecondsSince(i64 start) {
     return NHPTimer::GetSeconds(GetCycleCount() - start);
 }
 
-} // namespace <anonymous>
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

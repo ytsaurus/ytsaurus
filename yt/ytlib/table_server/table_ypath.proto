@@ -25,6 +25,10 @@ message TReqFetch
 
     // Not yet supported.
     repeated int32 extension_tags = 3;
+
+    // Indicates if the negated (i.e. not matching the filters) part
+    // of the row set must be returned.
+    optional bool negate = 4 [default = false];
 }
 
 message TRspFetch
@@ -34,10 +38,12 @@ message TRspFetch
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Raises Sets "Sorted" flag for the root chunk list of the table.
-// No checks are done, it's caller's responsibility to ensure proper row order.
+// Raises "sorted" flag for the root chunk list of the table.
+// No checks are performed, it's caller's responsibility to ensure proper row order.
 message TReqSetSorted
-{ }
+{
+    repeated string key_columns = 1;
+}
 
 message TRspSetSorted
 { }

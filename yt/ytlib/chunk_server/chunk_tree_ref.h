@@ -49,17 +49,25 @@ struct hash<NYT::NChunkServer::TChunkTreeRef>
     }
 };
 
-// GetObjectId specialization.
+////////////////////////////////////////////////////////////////////////////////
+
+// TObjectIdTraits and GetObjectId specializations.
 
 namespace NYT {
 namespace NObjectServer {
 
-inline NObjectServer::TObjectId GetObjectId(const NChunkServer::TChunkTreeRef& object)
+template <>
+struct TObjectIdTraits<NChunkServer::TChunkTreeRef, void>
+{
+    typedef TObjectId TId;
+};
+
+inline TObjectId GetObjectId(const NChunkServer::TChunkTreeRef& object)
 {
     return object.GetId();
 }
 
-} // namespace NChunkServer
+} // namespace NObjectServer
 } // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////

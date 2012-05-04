@@ -32,11 +32,10 @@ struct TJobSchedulerConfig
 
     TJobSchedulerConfig()
     {
-        // TODO(babenko): validators are not currently supported for nullables
-        Register("min_online_holder_count", MinOnlineHolderCount);
-//            .GreaterThan(0);
-        Register("max_lost_chunk_fraction", MaxLostChunkFraction);
-//            .InRange(0.0, 1.0);
+        Register("min_online_holder_count", MinOnlineHolderCount)
+            .GreaterThan(0);
+        Register("max_lost_chunk_fraction", MaxLostChunkFraction)
+            .InRange(0.0, 1.0);
         Register("max_replication_fan_out", MaxReplicationFanOut)
             .Default(4);
         Register("max_replication_fan_in", MaxReplicationFanIn)

@@ -71,8 +71,8 @@ message TKeyColumns
 // TODO(babenko): Ext
 message TBoundaryKeys
 {
-    required TKey first = 1;
-    required TKey last = 2;
+    required TKey left = 1;
+    required TKey right = 2;
 }
 
 message TBlockInfo

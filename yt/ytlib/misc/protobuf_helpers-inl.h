@@ -52,6 +52,7 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
     Stroka str(size);
     YVERIFY(value.SerializeToArray(str.begin(), size));
     extension->set_data(str);
+    extension->set_tag(tag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

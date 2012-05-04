@@ -36,7 +36,8 @@ message TReqCreateChunk
         optional TReqCreateChunk create_chunk = 100;
     }
 
-    required int32 holder_count = 1;
+    required int32 upload_replication_factor = 1;
+    required int32 replication_factor = 2;
 }
 
 message TRspCreateChunk

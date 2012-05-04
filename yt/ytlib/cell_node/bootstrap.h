@@ -6,9 +6,7 @@
 //#include <ytlib/misc/guid.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/rpc/channel.h>
-#include <ytlib/rpc/server.h>
+#include <ytlib/rpc/public.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/chunk_holder/public.h>
@@ -31,9 +29,9 @@ public:
     NChunkServer::TIncarnationId GetIncarnationId() const;
     IInvoker::TPtr GetControlInvoker() const;
     NBus::IBusServer::TPtr GetBusServer() const;
-    NRpc::IChannel::TPtr GetMasterChannel() const;
-    NRpc::IChannel::TPtr GetSchedulerChannel() const;
-    NRpc::IServer::TPtr GetRpcServer() const;
+    NRpc::IChannelPtr GetMasterChannel() const;
+    NRpc::IChannelPtr GetSchedulerChannel() const;
+    NRpc::IServerPtr GetRpcServer() const;
     Stroka GetPeerAddress() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
 
@@ -49,9 +47,9 @@ private:
     NChunkServer::TIncarnationId IncarnationId;
     IInvoker::TPtr ControlInvoker;
     NBus::IBusServer::TPtr BusServer;
-    NRpc::IServer::TPtr RpcServer;
-    NRpc::IChannel::TPtr MasterChannel;
-    NRpc::IChannel::TPtr SchedulerChannel;
+    NRpc::IServerPtr RpcServer;
+    NRpc::IChannelPtr MasterChannel;
+    NRpc::IChannelPtr SchedulerChannel;
     Stroka PeerAddress;
     NYTree::IMapNodePtr OrchidRoot;
 

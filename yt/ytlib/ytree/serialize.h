@@ -120,6 +120,9 @@ void Read(bool& parameter, INode* node);
 // TDuration
 void Read(TDuration& parameter, INode* node);
 
+// TInstant
+void Read(TInstant& parameter, INode* node);
+
 // TGuid
 void Read(TGuid& parameter, INode* node);
 
@@ -189,6 +192,9 @@ void Write(bool parameter, IYsonConsumer* consumer);
 
 // TDuration
 void Write(TDuration parameter, IYsonConsumer* consumer);
+
+// TInstant
+void Write(TInstant parameter, IYsonConsumer* consumer);
 
 // TGuid
 void Write(const TGuid& parameter, IYsonConsumer* consumer);

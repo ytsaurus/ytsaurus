@@ -3,10 +3,12 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
+#include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/job_proxy/config.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 #include <cmath>
 
@@ -32,17 +34,18 @@ class TMapController
 public:
     TMapController(
         TSchedulerConfigPtr config,
+        TMapOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : Config(config)
-        , TOperationControllerBase(config, host, operation)
+        : TOperationControllerBase(config, host, operation)
+        , Config(config)
+        , Spec(spec)
     { }
 
 private:
     typedef TMapController TThis;
 
     TSchedulerConfigPtr Config;
-
     TMapOperationSpecPtr Spec;
 
     // Running counters.
@@ -55,16 +58,6 @@ private:
     TJobSpec JobSpecTemplate;
 
     // Init/finish.
-
-    virtual void DoInitialize()
-    {
-        Spec = New<TMapOperationSpec>();
-        try {
-            Spec->Load(~Operation->GetSpec());
-        } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
-        }
-    }
 
     virtual bool HasPendingJobs()
     {
@@ -175,7 +168,12 @@ private:
         return Spec->FilePaths;
     }
 
-    virtual void DoCompletePreparation()
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+    {
+        return pipeline->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
+    }
+
+    void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
@@ -208,11 +206,14 @@ private:
                         chunk.set_row_attributes(rowAttributes.Get());
                     }
 
-                    i64 rowCount = chunk.approximate_row_count();
-                    i64 dataSize = chunk.approximate_data_size();
+                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+
+                    i64 rowCount = misc->row_count();
+                    i64 dataSize = misc->uncompressed_size();
+
                     // TODO(babenko): make customizable
                     // Plus one is to ensure that weights are positive.
-                    i64 weight = chunk.approximate_data_size() + 1;
+                    i64 weight = dataSize + 1;
 
                     totalRowCount += rowCount;
                     totalDataSize += dataSize;
@@ -298,7 +299,7 @@ private:
         *mapJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
         FOREACH (const auto& table, OutputTables) {
             auto* outputSpec = mapJobSpec.add_output_specs();
-            outputSpec->set_schema(table.Schema);
+            outputSpec->set_channels(table.Channels);
         }
         *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
 
@@ -313,7 +314,14 @@ IOperationControllerPtr CreateMapController(
     IOperationHost* host,
     TOperation* operation)
 {
-    return New<TMapController>(config, host, operation);
+    auto spec = New<TMapOperationSpec>();
+    try {
+        spec->Load(~operation->GetSpec());
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+    }
+
+    return New<TMapController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

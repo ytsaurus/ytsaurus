@@ -26,7 +26,7 @@ using namespace NChunkServer;
 
 TTableWriter::TTableWriter(
     TChunkSequenceWriterConfigPtr config,
-    NRpc::IChannel::TPtr masterChannel,
+    NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransaction::TPtr transaction,
     NTransactionClient::TTransactionManager::TPtr transactionManager,
     const NYTree::TYPath& path,
@@ -197,6 +197,7 @@ void TTableWriter::Close()
     if (KeyColumns.IsInitialized()) {
         LOG_INFO("Marking table as sorted");
         auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
+        // TODO(babenko): fill key columns
         auto rsp = CypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",

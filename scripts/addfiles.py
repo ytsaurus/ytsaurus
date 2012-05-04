@@ -6,6 +6,7 @@ import sys;
 
 UNITTEST_PREFIX = 'unittest'
 MISC_PROJECT = 'misc'
+ACTIONS_PROJECT = 'actions'
 HEADER_EXTENSION = '.h'
 SOURCE_EXTENSION = '.cpp'
 INLINE_EXTENSION = '-inl.h'
@@ -84,7 +85,7 @@ def get_common_data(project_name):
 ////////////////////////////////////////////////////////////////////////////////
 '''
     
-    if project_name != MISC_PROJECT:
+    if project_name not in  [MISC_PROJECT, ACTIONS_PROJECT]:
         data = '''namespace {0} {{
 {1}            
 }} // namespace {0}'''.format(get_namespace(project_name), data)

@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "file_commands.h"
+#include "config.h"
+#include "driver.h"
 
 #include <ytlib/file_client/file_reader.h>
 #include <ytlib/file_client/file_writer.h>
@@ -10,6 +12,12 @@ namespace NDriver {
 using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+TCommandDescriptor TDownloadCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Binary);
+}
 
 void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 {
@@ -25,7 +33,7 @@ void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 
     // TODO(babenko): use FileName and Executable values
 
-    auto output = Host->CreateOutputStream();
+    auto output = Host->GetOutputStream();
 
     while (true) {
         auto block = reader->Read();
@@ -37,6 +45,11 @@ void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TUploadCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Binary, EDataType::Null);
+}
 
 void TUploadCommand::DoExecute(TUploadRequestPtr request)
 {
@@ -50,7 +63,7 @@ void TUploadCommand::DoExecute(TUploadRequestPtr request)
         request->Path);
     writer->Open();
 
-    auto input = Host->CreateInputStream();
+    auto input = Host->GetInputStream();
     
     TBlob buffer(config->BlockSize);
     while (true) {

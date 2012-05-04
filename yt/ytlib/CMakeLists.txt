@@ -3,7 +3,7 @@ set( DIRS
   election
   cell_master
   cell_node
-#  cell_scheduler
+  cell_scheduler
   chunk_holder
   chunk_client
   chunk_server

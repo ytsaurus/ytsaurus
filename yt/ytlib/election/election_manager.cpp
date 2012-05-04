@@ -691,7 +691,7 @@ void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 {
     auto current = BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("state").Scalar(State.ToString())
+            .Item("state").Scalar(FormatEnum(State))
             .Item("peers").BeginList()
                 .DoFor(0, CellManager->GetPeerCount(), [=] (TFluentList fluent, TPeerId id) {
                     fluent.Item().Scalar(CellManager->GetPeerAddress(id));

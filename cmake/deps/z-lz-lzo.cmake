@@ -6,23 +6,25 @@ if (WIN32)
   set( LTYPE STATIC )
 endif()
 
-set( BASE ${CMAKE_SOURCE_DIR}/contrib/libs )
+set( BASE ${CMAKE_SOURCE_DIR}/contrib/z-lz-lzo )
 
 add_library( ytext-fastlz ${LTYPE}
-  ${BASE}/fastlz/fastlz.c
+  ${BASE}/fastlz.c
 )
 
 add_library( ytext-lz4 ${LTYPE}
-  ${BASE}/lz4/lz4.c
+  ${BASE}/lz4.c
 )
 
 add_library( ytext-minilzo ${LTYPE}
-  ${BASE}/minilzo/minilzo.c
+  ${BASE}/minilzo.c
 )
 
 add_library( ytext-quicklz ${LTYPE}
-  ${BASE}/quicklz/quicklz.c
+  ${BASE}/quicklz.c
 )
+
+set ( BASE ${CMAKE_SOURCE_DIR}/contrib/libs )
 
 add_library( ytext-snappy ${LTYPE}
   ${BASE}/snappy/snappy.cc
@@ -36,7 +38,10 @@ add_library( ytext-zlib ${LTYPE}
   ${BASE}/zlib/compress.c
   ${BASE}/zlib/crc32.c
   ${BASE}/zlib/deflate.c
-  ${BASE}/zlib/gzio.c
+  ${BASE}/zlib/gzclose.c
+  ${BASE}/zlib/gzlib.c
+  ${BASE}/zlib/gzread.c
+  ${BASE}/zlib/gzwrite.c
   ${BASE}/zlib/infback.c
   ${BASE}/zlib/inffast.c
   ${BASE}/zlib/inflate.c
@@ -49,6 +54,8 @@ add_library( ytext-zlib ${LTYPE}
 include_directories(
   ${CMAKE_SOURCE_DIR}
 )
+
+target_link_libraries( ytext-snappy ytext-arcadia-util )
 
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( ytext-snappy stlport )
@@ -73,7 +80,7 @@ set_target_properties( ytext-minilzo PROPERTIES
 )
 
 set_target_properties( ytext-quicklz PROPERTIES
-  VERSION   1.5.0
+  VERSION   1.5.1
   SOVERSION 1.5
 )
 
@@ -101,3 +108,4 @@ install(
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
 )
+

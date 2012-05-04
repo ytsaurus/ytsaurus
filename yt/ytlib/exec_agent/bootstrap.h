@@ -6,8 +6,7 @@
 #include <ytlib/cell_node/public.h>
 #include <ytlib/chunk_holder/public.h>
 #include <ytlib/job_proxy/public.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -26,8 +25,8 @@ public:
 
     TExecAgentConfigPtr GetConfig() const;
     IInvoker::TPtr GetControlInvoker() const;
-    NRpc::IChannel::TPtr GetMasterChannel() const;
-    NRpc::IChannel::TPtr GetSchedulerChannel() const;
+    NRpc::IChannelPtr GetMasterChannel() const;
+    NRpc::IChannelPtr GetSchedulerChannel() const;
     Stroka GetPeerAddress() const;
     TJobManagerPtr GetJobManager() const;
     TEnvironmentManagerPtr GetEnvironmentManager() const;

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
+#include "config.h"
 
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/property.h>
@@ -25,7 +26,7 @@ class TTransactionManager::TTransaction
 {
 public:
     TTransaction(
-        NRpc::IChannel::TPtr cellChannel,
+        NRpc::IChannelPtr cellChannel,
         const TTransactionId& parentId,
         TTransactionManager::TPtr owner)
         : Owner(owner)
@@ -38,7 +39,7 @@ public:
     }
 
     TTransaction(
-        NRpc::IChannel::TPtr cellChannel,
+        NRpc::IChannelPtr cellChannel,
         TTransactionManager::TPtr owner,
         const TTransactionId& id)
         : Owner(owner)
@@ -266,8 +267,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    TConfig::TPtr config, 
-    NRpc::IChannel::TPtr channel)
+    TTransactionManagerConfigPtr config,
+    NRpc::IChannelPtr channel)
     : Config(config)
     , Channel(channel)
     , CypressProxy(channel)

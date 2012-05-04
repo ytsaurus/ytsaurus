@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "channel.h"
+#include "public.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -13,8 +13,6 @@ namespace NRpc {
 struct TRetryConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TRetryConfig> TPtr;
-    
     TDuration BackoffTime;
     int RetryCount;
 
@@ -42,7 +40,7 @@ struct TRetryConfig
  *  \param retryCount Maximum number of retry attempts.
  *  \returns A retriable channel.
  */ 
-IChannel::TPtr CreateRetriableChannel(
+IChannelPtr CreateRetriableChannel(
     TRetryConfig* config,
     IChannel* underlyingChannel);
 

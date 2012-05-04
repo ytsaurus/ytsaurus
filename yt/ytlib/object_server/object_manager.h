@@ -121,6 +121,8 @@ public:
     DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
+    typedef TObjectManager TThis;
+
     class TServiceContextWrapper;
     class TRootService;
 
@@ -140,6 +142,11 @@ private:
     virtual void Clear();
 
     TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);
+
+    void OnTransactionCommitted(NTransactionServer::TTransaction& transaction);
+    void OnTransactionAborted(NTransactionServer::TTransaction& transaction);
+    void PromoteCreatedObjects(NTransactionServer::TTransaction& transaction);
+    void ReleaseCreatedObjects(NTransactionServer::TTransaction& transaction);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };

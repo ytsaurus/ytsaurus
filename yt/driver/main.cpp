@@ -7,6 +7,7 @@
 #include <ytlib/misc/delayed_invoker.h>
 
 #include <ytlib/driver/driver.h>
+#include <ytlib/driver/config.h>
 
 #include <ytlib/rpc/rpc_manager.h>
 
@@ -43,116 +44,16 @@ static const char* SystemConfigFileName = "ytdriver.conf";
 
 static const char* SystemConfigPath = "/etc/";
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TSystemInput
-    : public TInputStream
-{
-public:
-    TSystemInput(int handle)
-        : Handle(handle)
-    { }
-
-private:
-    int Handle;
-
-    virtual size_t DoRead(void* buf, size_t len)
-    {
-        int result;
-        do {
-            result = read(Handle, buf, len);
-        } while (result < 0 && errno == EINTR);
-        
-
-        if (result < 0) {
-            ythrow yexception() << Sprintf("Error reading from stream (Handle: %d, Error: %d)",
-                Handle,
-                errno);
-        }
-
-        return result;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSystemOutput
-    : public TOutputStream
-{
-public:
-    TSystemOutput(int handle)
-        : Handle(handle)
-    { }
-
-private:
-    int Handle;
-
-    virtual void DoWrite(const void* buf, size_t len)
-    {
-        size_t totalWritten = 0;
-        while (totalWritten < len) {
-            int result;
-            do {
-                result = write(Handle, static_cast<const char*>(buf) + totalWritten, len - totalWritten);
-            } while (result < 0 && errno == EINTR);
-
-            if (result == 0) {
-                ythrow yexception() << Sprintf("Error writing to stream (Handle: %d, Error: nothing written)",
-                    Handle);
-            }
-            if (result < 0 ) {
-                ythrow yexception() << Sprintf("Error writing to stream (Handle: %d, Error: %d)",
-                    Handle,
-                    errno);
-            }
-            
-            totalWritten += result;
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStreamProvider
-    : public IDriverStreamProvider
-{
-public:
-    virtual TAutoPtr<TInputStream> CreateInputStream()
-    {
-        return new TSystemInput(0);
-    }
-
-    virtual TAutoPtr<TOutputStream> CreateOutputStream()
-    {
-        return new TSystemOutput(1);
-    }
-
-    virtual TAutoPtr<TOutputStream> CreateErrorStream()
-    {
-        return new TSystemOutput(2);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 class TDriverProgram
 {
 public:
-    struct TConfig
-        : public TDriver::TConfig
-    {
-        INodePtr Logging;
-
-        TConfig()
-        {
-            Register("logging", Logging);
-        }
-    };
-
     TDriverProgram()
         : ExitCode(0)
     {
         RegisterParser("start_tx", New<TStartTxArgsParser>());
+        RegisterParser("renew_tx", New<TRenewTxArgsParser>());
         RegisterParser("commit_tx", New<TCommitTxArgsParser>());
         RegisterParser("abort_tx", New<TAbortTxArgsParser>());
 
@@ -171,6 +72,9 @@ public:
 
         RegisterParser("map", New<TMapArgsParser>());
         RegisterParser("merge", New<TMergeArgsParser>());
+        RegisterParser("sort", New<TSortArgsParser>());
+        RegisterParser("erase", New<TEraseArgsParser>());
+        RegisterParser("abort_op", New<TAbortOpArgsParser>());
     }
 
     int Main(int argc, const char* argv[])
@@ -198,7 +102,7 @@ public:
 
             if (commandName == "--config-template") {
                 TYsonWriter writer(&Cout, EYsonFormat::Pretty);
-                New<TConfig>()->Save(&writer);
+                New<TArgsParserBase::TConfig>()->Save(&writer);
                 return 0;
             }
 
@@ -209,9 +113,7 @@ public:
                 args.push_back(std::string(argv[i]));
             }
 
-            argsParser->Parse(args);
-
-            Stroka configFromCmd = argsParser->GetConfigName();
+            Stroka configFromCmd = argsParser->GetConfigFileName();
             Stroka configFromEnv = Stroka(getenv("YT_CONFIG"));
             Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
             Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
@@ -236,7 +138,6 @@ public:
                 }
             }
 
-            auto config = New<TConfig>();
             INodePtr configNode;
             try {
                 TIFStream configStream(configName);
@@ -245,27 +146,12 @@ public:
                 ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
             }
 
-            argsParser->ApplyConfigUpdates(~configNode);
-
-            try {
-                config->Load(~configNode);
-            } catch (const std::exception& ex) {
-                ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
+            auto error = argsParser->Execute(args, configNode);
+            if (!error.IsOK()) {
+                ExitCode = 1;
             }
-
-            NLog::TLogManager::Get()->Configure(~config->Logging);
-
-            auto outputFormatFromCmd = argsParser->GetOutputFormat();
-            if (outputFormatFromCmd) {
-                config->OutputFormat = outputFormatFromCmd.Get();
-            }
-
-            Driver = new TDriver(~config, &StreamProvider);
-
-            auto command = argsParser->GetCommand();
-            RunCommand(command);
         } catch (const std::exception& ex) {
-            Cerr << "Error occured: " << ex.what() << Endl;
+            Cerr << "ERROR: " << ex.what() << Endl;
             ExitCode = 1;
         }
 
@@ -278,6 +164,10 @@ public:
 
         return ExitCode;
     }
+
+private:
+    int ExitCode;
+    yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;
 
     void PrintAllCommands()
     {
@@ -292,38 +182,22 @@ public:
         Cout << YT_VERSION << Endl;
     }
 
-private:
-    int ExitCode;
-
-    TStreamProvider StreamProvider;
-    TAutoPtr<TDriver> Driver;
-
-    yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;
-
     void RegisterParser(const Stroka& name, TArgsBasePtr command)
     {
         YVERIFY(ArgsParsers.insert(MakePair(name, command)).second);
     }
 
-    TArgsParserBase::TPtr GetArgsParser(Stroka command) {
-        auto parserIt = ArgsParsers.find(command);
+    TArgsParserBase::TPtr GetArgsParser(const Stroka& commandName)
+    {
+        auto parserIt = ArgsParsers.find(commandName);
         if (parserIt == ArgsParsers.end()) {
-            ythrow yexception() << Sprintf("Unknown command %s", ~command.Quote());
+            ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
         }
         return parserIt->second;
-    }
-
-    void RunCommand(INodePtr command)
-    {
-        auto error = Driver->Execute(command);
-        if (!error.IsOK()) {
-            ExitCode = 1;
-        }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT
 

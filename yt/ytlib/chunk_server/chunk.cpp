@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "chunk.h"
+
 #include "common.h"
+#include "chunk_tree_statistics.h"
 
 #include <ytlib/cell_master/load_context.h>
 
@@ -19,11 +21,29 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 TChunk::TChunk(const TChunkId& id)
     : TObjectWithIdBase(id)
+    , ReplicationFactor_(1)
 {
     // We must set required proto fields to ensure successful work of #Save
-    ChunkInfo_.set_meta_checksum(0);
     ChunkInfo_.set_size(UnknownSize);
     ChunkMeta_.set_type(EChunkType::Unknown);
+}
+
+TChunk::~TChunk()
+{ }
+
+TChunkTreeStatistics TChunk::GetStatistics() const
+{
+    TChunkTreeStatistics result;
+
+    YASSERT(ChunkInfo().size() != TChunk::UnknownSize);
+    result.CompressedSize = ChunkInfo().size();
+    result.ChunkCount = 1;
+
+    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(ChunkMeta().extensions());
+    result.UncompressedSize = misc->uncompressed_size();
+    result.RowCount = misc->row_count();
+
+    return result;
 }
 
 void TChunk::Save(TOutputStream* output) const
@@ -31,6 +51,7 @@ void TChunk::Save(TOutputStream* output) const
     TObjectWithIdBase::Save(output);
     YVERIFY(ChunkInfo_.SerializeToStream(output));
     YVERIFY(ChunkMeta_.SerializeToStream(output));
+    ::Save(output, ReplicationFactor_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
 }
@@ -41,6 +62,7 @@ void TChunk::Load(const TLoadContext& context, TInputStream* input)
     TObjectWithIdBase::Load(input);
     YVERIFY(ChunkInfo_.ParseFromStream(input));
     YVERIFY(ChunkMeta_.ParseFromStream(input));
+    ::Load(input, ReplicationFactor_);
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);
 }
@@ -95,8 +117,13 @@ bool TChunk::ValidateChunkInfo(const NChunkHolder::NProto::TChunkInfo& chunkInfo
     if (ChunkInfo_.size() == UnknownSize)
         return true;
 
-    return (ChunkInfo_.size() == chunkInfo.size()) && 
-        (ChunkInfo_.meta_checksum() == chunkInfo.meta_checksum());
+    if (chunkInfo.has_meta_checksum() && ChunkInfo_.has_meta_checksum() &&
+        ChunkInfo_.meta_checksum() != chunkInfo.meta_checksum())
+    {
+        return false;
+    }
+
+    return ChunkInfo_.size() == chunkInfo.size();
 }
 
 const i64 TChunk::UnknownSize = -1;

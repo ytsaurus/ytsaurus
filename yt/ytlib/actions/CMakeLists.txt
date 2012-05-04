@@ -8,6 +8,8 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/action_queue.h
+  ${BASE}/async_pipeline-inl.h
+  ${BASE}/async_pipeline.h
   ${BASE}/bind.h
   ${BASE}/bind_helpers.h
   ${BASE}/bind_internal.h

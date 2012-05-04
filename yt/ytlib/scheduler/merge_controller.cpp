@@ -4,9 +4,12 @@
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "private.h"
+#include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/table_client/value.h>
+#include <ytlib/table_client/key.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 #include <cmath>
 
@@ -142,8 +145,12 @@ protected:
         YASSERT(CurrentGroup);
 
         auto chunkId = TChunkId::FromProto(chunk->InputChunk.slice().chunk_id());
-        RowCounter.Increment(chunk->InputChunk.has_approximate_row_count());
-        WeightCounter.Increment(chunk->InputChunk.approximate_data_size());
+
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(
+            chunk->InputChunk.extensions());
+
+        RowCounter.Increment(misc->row_count());
+        WeightCounter.Increment(misc->uncompressed_size());
         ChunkCounter.Increment(1);
         CurrentGroup->ChunkPool->Add(chunk);
         RegisterPendingChunk(CurrentGroup, chunk);
@@ -222,8 +229,14 @@ protected:
 
     // Init/finish.
 
-    virtual void DoInitialize()
-    { }
+    virtual void CustomInitialize()
+    {
+        if (InputTables.empty()) {
+            // At least one table is needed for sorted merge to figure out the key columns.
+            // To be consistent, we don't allow empty set of input tables in for any merge type.
+            ythrow yexception() << "At least more input table must be given";
+        }
+    }
 
     virtual bool HasPendingJobs()
     {
@@ -336,7 +349,12 @@ protected:
         return std::vector<TYPath>();
     }
 
-    virtual void DoCompletePreparation()
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+    {
+        return pipeline->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
+    }
+
+    void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
@@ -352,8 +370,9 @@ protected:
                 auto fetchRsp = table.FetchResponse;
                 FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    i64 dataSize = chunk.approximate_data_size();
-                    i64 rowCount = chunk.approximate_row_count();
+                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+                    i64 dataSize = misc->uncompressed_size();
+                    i64 rowCount = misc->row_count();
                     LOG_DEBUG("Processing chunk %s (DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
                         dataSize,
@@ -463,7 +482,9 @@ protected:
             return true;
         }
 
-        if (chunk.approximate_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        // ToDo(psushin): mind that desired chunk size is for compressed chunk.
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+        if (misc->uncompressed_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -476,12 +497,15 @@ protected:
 
     void InitJobSpecTemplate()
     {
-        JobSpecTemplate.set_type(Spec->Mode == EMergeMode::Sorted ? EJobType::SortedMerge : EJobType::OrderedMerge);
+        JobSpecTemplate.set_type(
+            Spec->Mode == EMergeMode::Sorted
+            ? EJobType::SortedMerge
+            : EJobType::OrderedMerge);
 
         TMergeJobSpec mergeJobSpec;
         *mergeJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        mergeJobSpec.mutable_output_spec()->set_schema(OutputTables[0].Schema);
+        mergeJobSpec.mutable_output_spec()->set_channels(OutputTables[0].Channels);
         *JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec) = mergeJobSpec;
 
         JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
@@ -491,6 +515,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////
 
+//! Handles unordered merge operation.
 class TUnorderedMergeController
     : public TMergeControllerBase
 {
@@ -521,9 +546,10 @@ private:
         }
 
         // Merge is IO-bound, use data size as weight.
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
         auto pooledChunk = New<TPooledChunk>(
             chunk,
-            chunk.approximate_data_size());
+            misc->uncompressed_size());
         AddPooledChunk(pooledChunk);
     }
 
@@ -543,19 +569,47 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+//! Handles ordered merge and (sic!) erase operations.
 class TOrderedMergeController
     : public TMergeControllerBase
 {
 public:
     TOrderedMergeController(
         TSchedulerConfigPtr config,
+        EOperationType operationType,
         TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TMergeControllerBase(config, spec, host, operation)
+        , OperationType(operationType)
     { }
 
 private:
+    EOperationType OperationType;
+
+    virtual void CustomInitialize()
+    {
+        if (OperationType == EOperationType::Erase) {
+            // For erase operation the rowset specified by the user must actually be removed.
+            InputTables[0].NegateFetch = true;
+        }
+    }
+
+    virtual void OnCustomInputsRecieved(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        UNUSED(batchRsp);
+
+        if (OperationType == EOperationType::Erase) {
+            // For erase operation:
+            // - the output must be empty
+            CheckOutputTablesEmpty();
+            // - if the input is sorted then the output is marked as sorted as well
+            if (InputTables[0].Sorted) {
+                SetOutputTablesSorted(InputTables[0].KeyColumns);
+            }
+        }
+    }
+
     virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
@@ -577,9 +631,10 @@ private:
         }
 
         // Merge is IO-bound, use data size as weight.
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
         auto pooledChunk = New<TPooledChunk>(
             chunk,
-            chunk.approximate_data_size());
+            misc->uncompressed_size());
         AddPooledChunk(pooledChunk);
 
         EndGroupIfLarge();
@@ -594,6 +649,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+//! Handles sorted merge operation.
 class TSortedMergeController
     : public TMergeControllerBase
 {
@@ -611,36 +667,30 @@ private:
     struct TKeyEndpoint
     {
         bool Left;
-        NTableClient::TKey Key;
+        NTableClient::NProto::TKey Key;
         const TInputChunk* InputChunk;
     };
 
     std::vector<TKeyEndpoint> Endpoints;
 
-    virtual void BeginInputChunks()
-    { }
-
     virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
-        // Deserialize attributes.
-        TChunkAttributes chunkAttributes;
-        YVERIFY(DeserializeFromProto(&chunkAttributes, TRef::FromString(chunk.chunk_attributes())));
-        const auto& tableAttributes = chunkAttributes.GetExtension(TTableChunkAttributes::table_attributes);
-        YASSERT(tableAttributes.sorted());
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+        YASSERT(misc->sorted());
 
         // Construct endpoints and place it into the list.
-        const auto& samples = tableAttributes.key_samples();
+        auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeys>(chunk.extensions());
         {
             TKeyEndpoint endpoint;
             endpoint.Left = true;
-            endpoint.Key = FromProto<Stroka>(samples.Get(0).key().values());
+            endpoint.Key = boundaryKeys->left();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }
         {
             TKeyEndpoint endpoint;
             endpoint.Left = false;
-            endpoint.Key = FromProto<Stroka>(samples.Get(samples.size() - 1).key().values());
+            endpoint.Key = boundaryKeys->right();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }
@@ -655,7 +705,7 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                auto keysResult = CompareKeys(lhs.Key, rhs.Key);
+                auto keysResult = CompareProtoKeys(lhs.Key, rhs.Key);
                 if (keysResult != 0) {
                     return keysResult < 0;
                 }
@@ -679,6 +729,10 @@ private:
                 }
             }
         }
+
+        // Force all output tables to be marked as sorted.
+        auto keyColumns = GetInputKeyColumns();
+        SetOutputTablesSorted(keyColumns);
     }
 
     void BuildGroupIfNeeded(const std::vector<const TInputChunk*>& chunks)
@@ -703,10 +757,11 @@ private:
         }
 
         FOREACH (auto chunk, chunks) {
+            auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk->extensions());
             // Merge is IO-bound, use data size as weight.
             auto pooledChunk = New<TPooledChunk>(
                 *chunk,
-                chunk->approximate_data_size());
+                misc->uncompressed_size());
             AddPooledChunk(pooledChunk);
         }
 
@@ -714,61 +769,12 @@ private:
     }
 
 
-    virtual void RequestCustomInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
-    {
-        // Request "sorted" attribute for input tables.
-        FOREACH (const auto& table, InputTables) {
-            auto req = TYPathProxy::Get(
-                WithTransaction(table.Path, InputTransaction->GetId()) +
-                "/@sorted");
-            batchReq->AddRequest(req, "get_input_sorted");
-        }
-        
-        // Request row counts for output tables.
-        // NB: There's only one output table.
-        FOREACH (const auto& table, OutputTables) {
-            auto req = TYPathProxy::Get(
-                WithTransaction(table.Path, OutputTransaction->GetId()) +
-                "/@row_count");
-            batchReq->AddRequest(req, "get_output_row_count");
-        }
-    }
-
     virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
     {
-        {
-            auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_input_sorted");
-            for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
-                ValidateGetSorted(rsps[index], InputTables[index].Path);
-            }
-        }
-        {
-            auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_output_row_count");
-            for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-                ValidateEmpty(rsps[index], OutputTables[index].Path);
-            }
-        }
-    }
+        UNUSED(batchRsp);
 
-
-    virtual void CommitCustomOutputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
-    {
-        // Mark output tables as sorted.
-        // NB: There's only one output table.
-        FOREACH (const auto& table, OutputTables) {
-            auto req = TTableYPathProxy::SetSorted(WithTransaction(table.Path, OutputTransaction->GetId()));
-            batchReq->AddRequest(req, "set_output_sorted");
-        }
-    }
-
-    virtual void OnCustomOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-    {
-        {
-            auto rsps = batchRsp->GetResponses<TTableYPathProxy::TRspSetSorted>("set_output_sorted");
-            for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-                ValidateSetSorted(rsps[index], OutputTables[index].Path);
-            }
-        }
+        CheckInputTablesSorted();
+        CheckOutputTablesEmpty();
     }
 
 
@@ -776,36 +782,6 @@ private:
     {
         // TODO(babenko): fixme, for now each group corresponds to a unique job.
         return Groups.size();
-    }
-
-
-    static void ValidateGetSorted(TYPathProxy::TRspGet::TPtr rsp, const TYPath& path)
-    {
-        CheckResponse(
-            rsp,
-            Sprintf("Error getting \"sorted\" attribute for table %s", ~path));
-        auto sorted = DeserializeFromYson<bool>(rsp->value());
-        if (!sorted) {
-            ythrow yexception() << Sprintf("Table %s is not sorted", ~path);
-        }
-    }
-
-    static void ValidateEmpty(TYPathProxy::TRspGet::TPtr rsp, const TYPath& path)
-    {
-        CheckResponse(
-            rsp,
-            Sprintf("Error getting row count for table %s", ~path));
-        auto rowCount = DeserializeFromYson<i64>(rsp->value());
-        if (rowCount != 0) {
-            ythrow yexception() << Sprintf("Table %s is not empty", ~path);
-        }
-    }
-
-    static void ValidateSetSorted(TTableYPathProxy::TRspSetSorted::TPtr rsp, const TYPath& path)
-    {
-        CheckResponse(
-            rsp,
-            Sprintf("Error marking table %s as sorted", ~path));
     }
 };
 
@@ -827,12 +803,33 @@ IOperationControllerPtr CreateMergeController(
         case EMergeMode::Unordered:
             return New<TUnorderedMergeController>(config, spec, host, operation);
         case EMergeMode::Ordered:
-            return New<TOrderedMergeController>(config, spec, host, operation);
+            return New<TOrderedMergeController>(config, EOperationType::Merge, spec, host, operation);
         case EMergeMode::Sorted:
             return New<TSortedMergeController>(config, spec, host, operation);
         default:
             YUNREACHABLE();
     }
+}
+
+IOperationControllerPtr CreateEraseController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto eraseSpec = New<TEraseOperationSpec>();
+    try {
+        eraseSpec->Load(~operation->GetSpec());
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+    }
+
+    // Create a fake spec for the ordered merge controller.
+    auto mergeSpec = New<TMergeOperationSpec>();
+    mergeSpec->InputTablePaths.push_back(eraseSpec->InputTablePath);
+    mergeSpec->OutputTablePath = eraseSpec->OutputTablePath;
+    mergeSpec->Mode = EMergeMode::Ordered;
+    mergeSpec->CombineChunks = eraseSpec->CombineChunks;
+    return New<TOrderedMergeController>(config, EOperationType::Erase, mergeSpec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

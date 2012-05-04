@@ -115,6 +115,10 @@ void TSequentialReader::OnGotBlocks(
         BlockWindow[sequenceIndex].Set(block);
         ++sequenceIndex;
     }
+
+    ReaderThread->GetInvoker()->Invoke(BIND(
+        &TSequentialReader::FetchNextGroup,
+        MakeWeak(this)));
 }
 
 void TSequentialReader::FetchNextGroup()

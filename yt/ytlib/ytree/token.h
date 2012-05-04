@@ -10,7 +10,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ETokenType,
-    (None) // Empty or uninitialized token (used for EndOfStream)
+    (EndOfStream) // Empty or uninitialized token
 
     (String)
     (Integer)
@@ -42,7 +42,7 @@ DECLARE_ENUM(ETokenType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ETokenType CharToTokenType(char ch); // returns ETokenType::None for non-special chars
+ETokenType CharToTokenType(char ch); // returns ETokenType::EndOfStream for non-special chars
 char TokenTypeToChar(ETokenType type); // YUNREACHABLE for non-special types
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +52,7 @@ class TToken
 public:
     static const TToken EndOfStream;
 
-    TToken(ETokenType type = ETokenType::None); // for special types
+    TToken(ETokenType type = ETokenType::EndOfStream); // for special types
     explicit TToken(const TStringBuf& stringValue); // for strings
     explicit TToken(i64 integerValue); // for integers
     explicit TToken(double doubleValue); // for doubles

@@ -246,18 +246,28 @@ template <class T>
 struct TNullableTraits
 {
     typedef TNullable<T> TNullableType;
+    typedef T TValueType;
+};
+
+template <class T>
+struct TNullableTraits< TNullable<T> >
+{
+    typedef TNullable<T> TNullableType;
+    typedef T TValueType;
 };
 
 template <class T>
 struct TNullableTraits<T*>
 {
     typedef T* TNullableType;
+    typedef T* TValueType;
 };
 
 template <class T>
 struct TNullableTraits< TIntrusivePtr<T> >
 {
     typedef TIntrusivePtr<T> TNullableType;
+    typedef TIntrusivePtr<T> TValueType;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

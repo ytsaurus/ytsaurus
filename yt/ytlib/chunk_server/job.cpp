@@ -18,7 +18,7 @@ TJob::TJob(
     const yvector<Stroka>& targetAddresses,
     TInstant startTime)
     : Type_(type)
-    , Id_(jobId)
+    , TObjectWithIdBase(jobId)
     , ChunkId_(chunkId)
     , RunnerAddress_(runnerAddress)
     , TargetAddresses_(targetAddresses)
@@ -26,7 +26,7 @@ TJob::TJob(
 { }
 
 TJob::TJob(const TJobId& jobId)
-    : Id_(jobId)
+    : TObjectWithIdBase(jobId)
 { }
 
 void TJob::Save(TOutputStream* output) const

@@ -23,8 +23,6 @@ class TYPathServiceBase
 public:
     typedef TIntrusivePtr<TYPathServiceBase> TPtr;
 
-    TYPathServiceBase(const Stroka& loggingCategory = "");
-
     virtual void Invoke(NRpc::IServiceContext* context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
     virtual Stroka GetLoggingCategory() const;

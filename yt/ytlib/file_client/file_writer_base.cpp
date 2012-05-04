@@ -9,7 +9,7 @@
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
@@ -27,7 +27,7 @@ using namespace NChunkServer::NProto;
 
 TFileWriterBase::TFileWriterBase(
     TFileWriterConfigPtr config,
-    NRpc::IChannel::TPtr masterChannel)
+    NRpc::IChannelPtr masterChannel)
     : Config(config)
     , MasterChannel(masterChannel)
     , IsOpen(false)
@@ -46,9 +46,9 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(!IsOpen);
 
-    LOG_INFO("Opening file writer (UploadReplicaCount: %d, TotalReplicaCount: %d)",
-        Config->UploadReplicaCount,
-        Config->TotalReplicaCount);
+    LOG_INFO("Opening file writer (ReplicationFactor: %d, UploadReplicationFactor: %d)",
+        Config->ReplicationFactor,
+        Config->UploadReplicationFactor);
 
 
     LOG_INFO("Creating chunk");
@@ -58,7 +58,8 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
         req->set_type(EObjectType::Chunk);
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
-        reqExt->set_holder_count(Config->UploadReplicaCount);
+        reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
+        reqExt->set_replication_factor(Config->ReplicationFactor);
         auto rsp = cypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
@@ -67,7 +68,7 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         ChunkId = TChunkId::FromProto(rsp->object_id());
         const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
         holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
-        if (holderAddresses.size() < Config->UploadReplicaCount) {
+        if (holderAddresses.size() < Config->UploadReplicationFactor) {
             ythrow yexception() << "Not enough holders available";
         }
     }
@@ -92,6 +93,10 @@ void TFileWriterBase::Write(TRef data)
     YASSERT(IsOpen);
 
     CheckAborted();
+
+    LOG_DEBUG("Writing file data (ChunkId: %s, Size: %d)",
+        ~ChunkId.ToString(),
+        static_cast<int>(data.Size()));
 
     if (data.Size() == 0)
         return;
@@ -157,6 +162,7 @@ void TFileWriterBase::Close()
         TMisc misc;
         misc.set_uncompressed_size(Size);
         misc.set_codec_id(Config->CodecId);
+
         meta.set_type(EChunkType::File);
         SetProtoExtension(meta.mutable_extensions(), misc);
 

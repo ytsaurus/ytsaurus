@@ -99,10 +99,10 @@ private:
                 WithTransaction("//sys/scheduler/lock", transactionId),
                 "{}");
 
-            SyncYPathSet(
+            SyncYPathCreate(
                 service,
-                WithTransaction("//sys/scheduler/runtime", transactionId),
-                "{}");
+                WithTransaction("//sys/scheduler/orchid", transactionId),
+                EObjectType::Orchid);
 
             SyncYPathSet(
                 service,
@@ -120,7 +120,7 @@ private:
                 "{}");
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
-                auto addressPath = "/" + EscapeYPath(address);
+                auto addressPath = "/" + EscapeYPathToken(address);
                 SyncYPathSet(
                     service,
                     WithTransaction("//sys/masters" + addressPath, transactionId),

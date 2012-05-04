@@ -14,7 +14,7 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyBase::TProxyBase(IChannel::TPtr channel, const Stroka& serviceName)
+TProxyBase::TProxyBase(IChannelPtr channel, const Stroka& serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
     , DefaultTimeout_(channel->GetDefaultTimeout())
@@ -25,7 +25,7 @@ TProxyBase::TProxyBase(IChannel::TPtr channel, const Stroka& serviceName)
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientRequest::TClientRequest(
-    IChannel::TPtr channel,
+    IChannelPtr channel,
     const Stroka& path,
     const Stroka& verb,
     bool oneWay)

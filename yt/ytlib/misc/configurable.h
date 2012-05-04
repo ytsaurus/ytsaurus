@@ -2,6 +2,7 @@
 
 #include "mpl.h"
 #include "property.h"
+#include "nullable.h"
 
 #include <ytlib/ytree/public.h>
 
@@ -36,6 +37,7 @@ public:
      * \note Must throw exception for incorrect data
      */
     typedef TCallback<void(const T&)> TValidator;
+    typedef typename TNullableTraits<T>::TValueType TValueType;
 
     explicit TParameter(T& parameter);
 
@@ -49,11 +51,11 @@ public: // for users
     TParameter& Default(T&& defaultValue);
     TParameter& DefaultNew();
     TParameter& CheckThat(TValidator validator);
-    TParameter& GreaterThan(T value);
-    TParameter& GreaterThanOrEqual(T value);
-    TParameter& LessThan(T value);
-    TParameter& LessThanOrEqual(T value);
-    TParameter& InRange(T lowerBound, T upperBound);
+    TParameter& GreaterThan(TValueType value);
+    TParameter& GreaterThanOrEqual(TValueType value);
+    TParameter& LessThan(TValueType value);
+    TParameter& LessThanOrEqual(TValueType value);
+    TParameter& InRange(TValueType lowerBound, TValueType upperBound);
     TParameter& NonEmpty();
     
 private:

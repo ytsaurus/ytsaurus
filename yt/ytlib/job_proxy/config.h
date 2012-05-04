@@ -37,8 +37,8 @@ struct TJobIOConfig
         Register("error_file_writer", ErrorFileWriter)
             .DefaultNew();
         // We do not provide much fault tolerance for stderr by default.
-        ErrorFileWriter->TotalReplicaCount = 1;
-        ErrorFileWriter->UploadReplicaCount = 1;
+        ErrorFileWriter->ReplicationFactor = 1;
+        ErrorFileWriter->UploadReplicationFactor = 1;
     }
 };
 

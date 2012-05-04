@@ -33,7 +33,7 @@ public:
         ((OutOfSpace)(10))
     );
 
-    TChunkHolderServiceProxy(NRpc::IChannel* channel)
+    TChunkHolderServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
@@ -47,6 +47,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkMeta);
     DEFINE_RPC_PROXY_METHOD(NProto, PrecacheChunk);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdatePeer);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetTableSamples);
 
 };
 

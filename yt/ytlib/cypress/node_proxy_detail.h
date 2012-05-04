@@ -66,7 +66,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
         : NObjectServer::TObjectProxyBase(bootstrap, nodeId)
-        , NYTree::TYPathServiceBase("Cypress")
         , TypeHandler(typeHandler)
         , Bootstrap(bootstrap)
         , Transaction(transaction)
@@ -74,6 +73,8 @@ public:
     {
         YASSERT(typeHandler);
         YASSERT(bootstrap);
+
+        Logger = NLog::TLogger("Cypress");
     }
 
     NYTree::INodeFactoryPtr CreateFactory() const
@@ -152,16 +153,15 @@ protected:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
-        attributes->push_back("lock_mode");
         attributes->push_back("lock_ids");
-        attributes->push_back("subtree_lock_ids");
+        attributes->push_back(TAttributeInfo("lock_mode", Transaction));
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
         const auto& node = GetImpl();
-        // NB: Locks and SubtreeLocks are only valid for originating nodes.
+        // NB: Locks are only valid for originating nodes.
         const auto& origniatingNode = Bootstrap->GetCypressManager()->GetNode(Id);
 
         if (name == "parent_id") {
@@ -170,28 +170,20 @@ protected:
             return true;
         }
 
-        if (name == "lock_mode") {
-            BuildYsonFluently(consumer)
-                .Scalar(FormatEnum(node.GetLockMode()));
-            return true;
-        }
-
         if (name == "lock_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(origniatingNode.Locks(), [=] (NYTree::TFluentList fluent, TLock* lock)
-                    {
-                        fluent.Item().Scalar(lock->GetId().ToString());
-                    });
+                .DoListFor(origniatingNode.Locks(), [=] (NYTree::TFluentList fluent, TLock* lock) {
+                    fluent.Item().Scalar(lock->GetId().ToString());
+                });
             return true;
         }
 
-        if (name == "subtree_lock_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(origniatingNode.SubtreeLocks(), [=] (NYTree::TFluentList fluent, TLock* lock)
-                    {
-                        fluent.Item().Scalar(lock->GetId().ToString());
-                    });
-            return true;
+        if (Transaction) {
+            if (name == "lock_mode") {
+                BuildYsonFluently(consumer)
+                    .Scalar(FormatEnum(node.GetLockMode()));
+                return true;
+            }
         }
 
         return NObjectServer::TObjectProxyBase::GetSystemAttribute(name, consumer);
@@ -200,6 +192,7 @@ protected:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
+        DISPATCH_YPATH_SERVICE_METHOD(GetId);
         DISPATCH_YPATH_SERVICE_METHOD(Lock);
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         TNodeBase::DoInvoke(context);
@@ -231,6 +224,11 @@ protected:
     {
         UNUSED(request);
         UNUSED(response);
+
+        NYTree::TTokenizer tokenizer(context->GetPath());
+        if (!tokenizer.ParseNext()) {
+            ythrow yexception() << "Node already exists";
+        }
 
         context->Reply(NRpc::EErrorCode::NoSuchVerb, "Verb is not supported");
     }
@@ -565,16 +563,13 @@ protected:
 
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
-        NYTree::TTokenizer tokens(context->GetPath());
-        if (tokens[0].IsEmpty()) {
+        NYTree::TTokenizer tokenizer(context->GetPath());
+        if (!tokenizer.ParseNext()) {
             ythrow yexception() << "Node already exists";
         }
+        tokenizer.Current().CheckType(NYTree::ETokenType::Slash);
 
-        tokens[0].CheckType(NYTree::ETokenType::Slash);
-
-        auto objectManager = this->Bootstrap->GetObjectManager();
         auto cypressManager = this->Bootstrap->GetCypressManager();
-        auto transactionManager = this->Bootstrap->GetTransactionManager();
 
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {
@@ -592,7 +587,7 @@ protected:
 
         proxy->Attributes().MergeFrom(request->Attributes());
 
-        CreateRecursive(NYTree::TYPath(tokens.GetSuffix(0)), ~proxy);
+        CreateRecursive(NYTree::TYPath(tokenizer.GetCurrentSuffix()), ~proxy);
 
         *response->mutable_object_id() = nodeId.ToProto();
 

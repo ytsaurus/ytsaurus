@@ -8,12 +8,12 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyPart::TKeyPart ()
+TKeyPart::TKeyPart()
     : Type_(EKeyType::Null)
 { }
 
-TKeyPart::TKeyPart(const TStringBuf& value)
-    : StrValue(value)
+TKeyPart::TKeyPart(const TBlobRange& range)
+    : StrValue(range)
     , Type_(EKeyType::String)
 { }
 
@@ -46,13 +46,13 @@ double TKeyPart::GetDouble() const
     return DoubleValue;
 }
 
-const TStringBuf& TKeyPart::GetString() const
+TStringBuf TKeyPart::GetString() const
 {
     YASSERT(Type_ == EKeyType::String);
-    return StrValue;
+    return StrValue.GetStringBuf();
 }
 
-Stroka TKeyPart::ToString() const
+Stroka ToString(const TKeyPart& keyPart)
 {
     switch (Type_) {
         case EKeyType::Null:
@@ -60,49 +60,39 @@ Stroka TKeyPart::ToString() const
         case EKeyType::Composite:
             return "<composite>";
         case EKeyType::String:
-            return StrValue.ToString();
+            return keyPart.GetString().ToString();
         case EKeyType::Integer:
-            return ::ToString(IntValue);
+            return ::ToString(keyPart.GetInteger());
         case EKeyType::Double:
-            return ::ToString(DoubleValue);
+            return ::ToString(keyPart.GetDouble);
         default:
             YUNREACHABLE();
     }
 }
 
-/*
 size_t TKeyPart::GetSize() const
 {
-    switch (Type) {
-    case EKeyType::Null:
-    case EKeyType::Composite:
-        return sizeof(Type);
+    auto typeSize = sizeof(Type_);
 
+    switch (Type_) {
     case EKeyType::String:
-        return sizeof(Type) + StrValue.Length();
-
+        return typeSize + StrValue.GetStringBuf().size();
     case EKeyType::Integer:
-        return sizeof(Type) + sizeof(IntValue);
-
+        return typeSize + sizeof(i64);
     case EKeyType::Double:
-        return sizeof(Type) + sizeof(DoubleValue);
-
+        return typeSize + sizeof(double);
     default:
-        YUNREACHABLE();
+        return typeSize;
     }
 }
-*/
 
-NProto::TKeyPart TKeyPart::ToProto() const
+NProto::TKeyPart TKeyPart::ToProto(size_t maxSize) const
 {
     NProto::TKeyPart keyPart;
     keyPart.set_type(Type_);
 
     switch (Type_) {
-        case EKeyType::Null:
-            break;
-
-        case EKeyType::String:
+	    case EKeyType::String:
             keyPart.set_str_value(StrValue.begin(), StrValue.size());
             break;
 
@@ -112,6 +102,9 @@ NProto::TKeyPart TKeyPart::ToProto() const
 
         case EKeyType::Double:
             keyPart.set_double_value(DoubleValue);
+            break;
+
+        case EKeyType::Null:
             break;
 
         default:
@@ -156,67 +149,37 @@ int CompareKeyParts(const TKeyPart& lhs, const TKeyPart& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKey::TKey(int columnCount, int maxSize)
-    : MaxSize(maxSize)
+TKey::TKey(int columnCount, size_t size)
+    : MaxSize(size)
     , ColumnCount(columnCount)
-    , CurrentSize(0)
-    , Buffer(maxSize)
+    , Buffer(new TBlobOutput(size))
     , Parts(ColumnCount)
 { }
 
 void TKey::Reset(int columnCount)
 {
-    if (columnCount >= 0) {
+    if (columnCount >= 0)
         ColumnCount = columnCount;
-    }
-    CurrentSize = 0;
-    Buffer.Clear();
+
+    Buffer->Clear();
     Parts.clear();
     Parts.resize(ColumnCount);
 }
 
-template <class T>
-void TKey::AddValue(int index, const T& value)
+size_t TKey::GetSize() const 
 {
-    YASSERT(index < ColumnCount);
-    int size = sizeof(EKeyType) + sizeof(value);
-    if (CurrentSize + size < MaxSize) {
-        Parts[index] = TKeyPart(value);
-        CurrentSize += size;
-    } else {
-        CurrentSize = MaxSize;
+    size_t result = 0;
+    FOREACH(const auto part, Parts) {
+        result += part.GetSize();
     }
-}
-
-template <>
-void TKey::AddValue(int index, const TStringBuf& value)
-{
-    YASSERT(index < ColumnCount);
-    // Trim long key values.
-    int freeSize = MaxSize - CurrentSize;
-    int length = std::min(freeSize - sizeof(EKeyType), value.size());
-
-    if (length > 0) {
-        auto begin = Buffer.Begin() + Buffer.GetSize();
-        Buffer.Write(value.begin(), length);
-
-        Parts[index] = TKeyPart(TStringBuf(begin, length));
-        CurrentSize += length + sizeof(EKeyType);
-    } else  {
-        CurrentSize = MaxSize;
-    }
+    return std::min(result, MaxSize);
 }
 
 void TKey::AddComposite(int index)
 {
     YASSERT(index < ColumnCount);
     int size = sizeof(EKeyType);
-    if (CurrentSize + size < MaxSize) {
-        Parts[index] = TKeyPart::CreateComposite();
-        CurrentSize += size;
-    } else {
-        CurrentSize = MaxSize;
-    }
+    Parts[index] = TKeyPart::CreateComposite();
 }
 
 void TKey::Swap(TKey& other)
@@ -226,8 +189,7 @@ void TKey::Swap(TKey& other)
     YASSERT(ColumnCount == other.ColumnCount);
 
     Parts.swap(other.Parts);
-    Buffer.Swap(other.Buffer);
-    std::swap(CurrentSize, other.CurrentSize);
+    std::swap(Buffer, other.Buffer);
 }
 
 Stroka TKey::ToString() const
@@ -238,8 +200,14 @@ Stroka TKey::ToString() const
 NProto::TKey TKey::ToProto() const
 {
     NProto::TKey key;
-    FOREACH (const auto& part, Parts) {
-        *key.add_parts() = part.ToProto();
+    size_t currentSize = 0;
+    FOREACH(const auto& part, Parts) {
+        if (currentSize < MaxSize) {
+            *key.add_parts() = part.ToProto(MaxSize - currentSize);
+            currentSize += part.GetSize();
+        } else {
+            *key.add_parts() = TKeyPart().ToProto();
+        }
     }
     return key;
 }
@@ -272,6 +240,31 @@ void TKey::FromProto(const NProto::TKey& protoKey)
                 YUNREACHABLE();
         }
     }
+}
+
+void TKey::AddValue(int index, i64 value)
+{
+    YASSERT(index < ColumnCount);
+    Parts[index] = TKeyPart(value);
+}
+
+void TKey::AddValue(int index, double value)
+{
+    YASSERT(index < ColumnCount);
+    Parts[index] = TKeyPart(value);
+}
+
+void TKey::AddValue(int index, const TStringBuf& value)
+{
+    YASSERT(index < ColumnCount);
+
+    // Strip long values.
+    int length = std::min(MaxSize - sizeof(EKeyType), value.size());
+
+    auto offset = Buffer->GetSize();
+    Buffer->Write(value.begin(), length);
+
+    Parts[index] = TKeyPart(TBlobRange(Buffer->GetBlob(), offset, length));
 }
 
 int TKey::Compare(const TKey& lhs, const TKey& rhs)
@@ -328,6 +321,31 @@ int CompareProtoKeys(const NProto::TKey& lhs, const NProto::TKey& rhs)
     }
 
     return static_cast<int>(lhs.parts_size()) - static_cast<int>(rhs.parts_size());
+}
+
+bool operator>(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) > 0;
+}
+
+bool operator>=(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) >= 0;
+}
+
+bool operator<(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) < 0;
+}
+
+bool operator<=(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) <= 0;
+}
+
+bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) == 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

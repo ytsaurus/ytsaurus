@@ -2,6 +2,7 @@
 #include "channel_cache.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NRpc {
@@ -12,7 +13,7 @@ TChannelCache::TChannelCache()
     : IsTerminated(false)
 { }
 
-IChannel::TPtr TChannelCache::GetChannel(const Stroka& address)
+IChannelPtr TChannelCache::GetChannel(const Stroka& address)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
