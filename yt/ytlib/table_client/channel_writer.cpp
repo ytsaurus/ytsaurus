@@ -28,10 +28,10 @@ TChannelWriter::TChannelWriter(
     }
 
     FOREACH (auto& item, chunkColumnIndexes) {
-        if ((ColumnIndexMapping[item.Second()] < 0) &&
-            Channel.ContainsInRanges(item.First()))
+        if ((ColumnIndexMapping[item.second] < 0) &&
+            Channel.ContainsInRanges(item.first))
         {
-            ColumnIndexMapping[item.Second()] = RangeIndex;
+            ColumnIndexMapping[item.second] = RangeIndex;
         }
     }
 

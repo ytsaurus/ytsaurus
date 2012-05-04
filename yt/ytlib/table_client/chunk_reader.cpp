@@ -602,7 +602,7 @@ TAsyncError TChunkReader::DoNextRow()
 
     UsedRangeColumns.clear();
     FOREACH (auto& it, FixedColumns) {
-        it.Second().Used = false;
+        it.second.Used = false;
     }
     CurrentRow.clear();
     CurrentKey.Reset();
@@ -665,7 +665,7 @@ void TChunkReader::MakeCurrentRow()
             auto column = reader->GetColumn();
             auto it = FixedColumns.find(column);
             if (it != FixedColumns.end()) {
-                auto& columnInfo = it->Second();
+                auto& columnInfo = it->second;
                 if (!columnInfo.Used) {
                     columnInfo.Used = true;
 
@@ -699,7 +699,7 @@ void TChunkReader::MakeCurrentRow()
                         CurrentRow.push_back(std::make_pair(column, reader->GetValue()));
                     }
                 }
-            } else if (UsedRangeColumns.insert(column).Second() && 
+            } else if (UsedRangeColumns.insert(column).second && 
                 Channel.ContainsInRanges(column)) 
             {
                 CurrentRow.push_back(std::make_pair(column, reader->GetValue()));

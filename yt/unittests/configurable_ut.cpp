@@ -144,10 +144,10 @@ TEST(TConfigTest, Complete)
     EXPECT_EQ(2, config->SubconfigMap.ysize());
     auto it1 = config->SubconfigMap.find("sub1");
     EXPECT_IS_FALSE(it1 == config->SubconfigMap.end());
-    TestCompleteSubconfig(~it1->Second());
+    TestCompleteSubconfig(~it1->second);
     auto it2 = config->SubconfigMap.find("sub2");
     EXPECT_IS_FALSE(it2 == config->SubconfigMap.end());
-    TestCompleteSubconfig(~it2->Second());
+    TestCompleteSubconfig(~it2->second);
 }
 
 TEST(TConfigTest, MissingParameter)
@@ -216,7 +216,7 @@ TEST(TConfigTest, Options)
     EXPECT_EQ(1, optionsNode->GetChildCount());
     FOREACH (const auto& pair, optionsNode->GetChildren()) {
         const auto& name = pair.First();
-        auto child = pair.Second();
+        auto child = pair.second;
         EXPECT_EQ("option", name);
         EXPECT_EQ(1, child->AsInteger()->GetValue());
     }

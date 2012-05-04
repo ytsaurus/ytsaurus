@@ -58,7 +58,7 @@ TChunkWriter::TChunkWriter(
 
             FOREACH(auto& column, KeyColumns.Get()) {
                 auto res = ColumnIndexes.insert(MakePair(column, columnIndex));
-                if (res.Second())
+                if (res.second)
                     ++columnIndex;
             }
         } else {
@@ -71,7 +71,7 @@ TChunkWriter::TChunkWriter(
             trashChannel -= channel;
             FOREACH(auto& column, channel.GetColumns()) {
                 auto res = ColumnIndexes.insert(MakePair(column, columnIndex));
-                if (res.Second()) {
+                if (res.second) {
                     ++columnIndex;
                 }
             }
@@ -108,7 +108,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
         auto it = ColumnIndexes.find(pair.first);
         auto columnIndex = it == ColumnIndexes.end() 
             ? TChannelWriter::UnknownIndex 
-            : it->Second();
+            : it->second;
 
         FOREACH(auto& channelWriter, ChannelWriters) {
             channelWriter->Write(columnIndex, pair.first, pair.second);
