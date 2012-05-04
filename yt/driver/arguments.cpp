@@ -183,7 +183,7 @@ TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
         ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
     }
 
-    ApplyConfigUpdates(configNode);   
+    ApplyConfigUpdates(configNode);
 
     auto config = New<TConfig>();
     try {
@@ -193,6 +193,11 @@ TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
     }
 
     NLog::TLogManager::Get()->Configure(~config->Logging);
+
+    auto outputFormat = GetOutputFormat();
+    if (outputFormat) {
+        config->OutputFormat = outputFormat.Get();
+    }
 
     return config;
 }
