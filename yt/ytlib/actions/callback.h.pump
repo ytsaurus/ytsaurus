@@ -112,7 +112,10 @@ $var MAX_ARITY = 7
 
 #include <ytlib/misc/mpl.h>
 #include <ytlib/misc/rvalue.h>
+
+#ifdef ENABLE_BIND_LOCATION_TRACKING
 #include <ytlib/misc/source_location.h>
+#endif
 
 namespace NYT {
 

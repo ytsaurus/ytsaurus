@@ -24,7 +24,9 @@ $range ARITY 0..MAX_ARITY
 #include "bind_mpl.h"
 #include "callback_internal.h"
 
+#ifdef ENABLE_BIND_LOCATION_TRACKING
 #include <ytlib/misc/source_location.h>
+#endif
 
 namespace NYT {
 namespace NDetail {
@@ -643,6 +645,7 @@ $if ARITY > 0 [[
     template<$for ARG , [[class P$(ARG)]]>
 
 ]]
+#ifdef ENABLE_BIND_LOCATION_TRACKING
 $$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
 [[    ]]TBindState(
         const ::NYT::TSourceLocation& location,
@@ -658,6 +661,22 @@ $for ARG [[
 ]]
 
     { }
+#else
+$$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
+[[    ]]TBindState(
+        const Runnable& runnable
+$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]])
+        : Runnable_(runnable)[[]]
+$if ARITY > 0 [[
+$for ARG [[
+
+        , S$(ARG)_(ForwardRV<P$(ARG)>(p$(ARG)))
+]] $$ for ARG
+]]
+
+    { }
+#endif
+
 
     virtual ~TBindState()
     { }

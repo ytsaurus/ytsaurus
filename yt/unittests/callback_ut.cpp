@@ -40,9 +40,11 @@ struct TBindState<void(), void(), void(TFakeInvoker)>
 {
 public:
     typedef TFakeInvoker TInvokerType;
+#ifdef ENABLE_BIND_LOCATION_TRACKING
     TBindState()
         : TBindStateBase(FROM_HERE)
     { }
+#endif
 };
 
 template <>
@@ -51,9 +53,11 @@ struct TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
 {
 public:
     typedef TFakeInvoker TInvokerType;
+#ifdef ENABLE_BIND_LOCATION_TRACKING
     TBindState()
         : TBindStateBase(FROM_HERE)
     { }
+#endif
 };
 
 } // namespace NDetail

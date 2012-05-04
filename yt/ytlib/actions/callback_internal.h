@@ -13,7 +13,9 @@ $$==============================================================================
 */
 
 #include <ytlib/misc/common.h>
+#ifdef ENABLE_BIND_LOCATION_TRACKING
 #include <ytlib/misc/source_location.h>
+#endif
 
 namespace NYT {
 namespace NDetail {
@@ -32,12 +34,15 @@ class TBindStateBase
     : public TIntrinsicRefCounted
 {
 protected:
+#ifdef ENABLE_BIND_LOCATION_TRACKING
     TBindStateBase(const ::NYT::TSourceLocation& location);
+#endif
 
     friend class TIntrinsicRefCounted;
     virtual ~TBindStateBase();
-
+#ifdef ENABLE_BIND_LOCATION_TRACKING
     ::NYT::TSourceLocation Location_;
+#endif
 };
 
 //! Holds the TCallback methods that don't require specialization to reduce

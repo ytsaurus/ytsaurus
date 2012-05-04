@@ -54,6 +54,9 @@ using std::string; // hack for guid.h to work
 #define ENABLE_THREAD_AFFINITY_CHECK
 #endif
 
+// This define enables tracking of bind location
+#define ENABLE_BIND_LOCATION_TRACKING
+
 #ifdef _MSC_VER
     // Someone above has defined this by including one of Windows headers.
     #undef GetMessage

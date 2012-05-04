@@ -6,9 +6,11 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef ENABLE_BIND_LOCATION_TRACKING
 TBindStateBase::TBindStateBase(const ::NYT::TSourceLocation& location)
     : Location_(location)
 { }
+#endif
 
 TBindStateBase::~TBindStateBase()
 { }
