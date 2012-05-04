@@ -11,5 +11,11 @@ def configure(conf):
 
 def build(bld):
   obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
+  obj.cxxflags = [ "-std=gnu++0x" ]
   obj.target = 'yt_test'
-  obj.source = 'yt_test.cc'
+  obj.source = [
+    'input_stream.cpp',
+    'output_stream.cpp',
+    'stream_base.cpp',
+    'yt_test.cc'
+  ]
