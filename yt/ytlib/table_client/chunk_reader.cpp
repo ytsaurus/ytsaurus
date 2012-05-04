@@ -88,7 +88,7 @@ struct TBlockInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 template <template <typename T> class TComparator>
-struct TIndexComparator
+struct TChunkReader::TIndexComparator
 {
     bool operator()(const NProto::TKey& key, const NProto::TIndexRow& row)
     {
@@ -273,7 +273,7 @@ private:
 
         LOG_DEBUG("Selected %d channels", static_cast<int>(SelectedChannels.size()));
 
-        std::vector<int> blockIndexSequence = GetBlockReadingOrder(chunkReader);
+        std::vector<int> blockIndexSequence = GetBlockReadSequence(chunkReader);
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
@@ -371,7 +371,7 @@ private:
         }
     }
 
-    std::vector<int> GetBlockReadingOrder(TChunkReaderPtr chunkReader)
+    std::vector<int> GetBlockReadSequence(TChunkReaderPtr chunkReader)
     {
         yvector<int> result;
         yvector<TBlockInfo> blockHeap;
@@ -435,12 +435,13 @@ private:
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(ChunkChannels[channelIdx]));
 
         auto& channelReader = chunkReader->ChannelReaders.back();
-        channelReader->SetBlock(chunkReader->Codec->Decompress(
-            chunkReader->SequentialReader->GetBlock()));
+        auto compressedBlock = chunkReader->SequentialReader->GetBlock();
+        auto decompressedBlock = chunkReader->Codec->Decompress(compressedBlock);
+        channelReader->SetBlock(decompressedBlock);
 
-        for (int row = StartRows[selectedChannelIndex]; 
-            row < StartRowIndex; 
-            ++row) 
+        for (int rowIndex = StartRows[selectedChannelIndex]; 
+            rowIndex < StartRowIndex; 
+            ++rowIndex) 
         {
             YVERIFY(channelReader->NextRow());
         }
@@ -560,7 +561,15 @@ TAsyncError TChunkReader::AsyncNextRow()
     YASSERT(!Initializer);
 
     State.StartOperation();
-    DoNextRow().Subscribe(OnNextRowFetched_);
+
+    // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
+    auto asyncResult = DoNextRow();
+    if (asyncResult.IsSet()) {
+        OnNextRowFetched(asyncResult.Get());
+    } else {
+        asyncResult.Subscribe(OnNextRowFetched_);
+    }
+    
     return State.GetOperationError();
 }
 

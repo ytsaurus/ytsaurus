@@ -57,6 +57,8 @@ public:
 
 private:
     class TKeyValidator;
+    template <template <typename T> class TComparator>
+    struct TIndexComparator;
 
     ICodec* Codec;
     NChunkClient::TSequentialReaderPtr SequentialReader;

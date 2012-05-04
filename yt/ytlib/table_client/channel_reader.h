@@ -16,7 +16,7 @@ class TChannelReader
 {
 public:
     explicit TChannelReader(const TChannel& channel);
-    void SetBlock(TSharedRef&& block);
+    void SetBlock(const TSharedRef& block);
 
     bool NextRow();
     bool NextColumn();
