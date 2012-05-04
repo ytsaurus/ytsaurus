@@ -660,9 +660,9 @@ void TChunkReader::MakeCurrentRow()
 {
     TLexer lexer;
 
-    FOREACH (auto& channel, ChannelReaders) {
-        while (channel->NextColumn()) {
-            auto column = channel->GetColumn();
+    FOREACH (auto& reader, ChannelReaders) {
+        while (reader->NextColumn()) {
+            auto column = reader->GetColumn();
             auto it = FixedColumns.find(column);
             if (it != FixedColumns.end()) {
                 auto& columnInfo = it->Second();
@@ -672,40 +672,37 @@ void TChunkReader::MakeCurrentRow()
                     if (columnInfo.KeyIndex >= 0) {
                         // Use first token to create key part.
                         lexer.Reset();
-                        YVERIFY(lexer.Read(channel->GetValue()) > 0);
+                        YVERIFY(lexer.Read(reader->GetValue()) > 0);
                         YASSERT(lexer.GetState() == TLexer::EState::Terminal);
 
                         auto& token = lexer.GetToken();
                         switch (token.GetType()) {
-                        case ETokenType::Integer:
-                            CurrentKey.AddValue(
-                                columnInfo.KeyIndex, 
-                                static_cast<i64>(token.GetIntegerValue()));
-                            break;
+                            case ETokenType::Integer:
+                                CurrentKey.AddValue(columnInfo.KeyIndex, token.GetIntegerValue());
+                                break;
 
-                        case ETokenType::String:
-                            CurrentKey.AddValue(columnInfo.KeyIndex, token.GetStringValue());
-                            break;
+                            case ETokenType::String:
+                                CurrentKey.AddValue(columnInfo.KeyIndex, token.GetStringValue());
+                                break;
 
-                        case ETokenType::Double:
-                            CurrentKey.AddValue(
-                                columnInfo.KeyIndex, token.GetDoubleValue());
-                            break;
+                            case ETokenType::Double:
+                                CurrentKey.AddValue(columnInfo.KeyIndex, token.GetDoubleValue());
+                                break;
 
-                        default:
-                            CurrentKey.AddComposite(columnInfo.KeyIndex);
-                            break;
+                            default:
+                                CurrentKey.AddComposite(columnInfo.KeyIndex);
+                                break;
                         }
                     }
 
                     if (columnInfo.InChannel) {
-                        CurrentRow.push_back(std::make_pair(column, channel->GetValue()));
+                        CurrentRow.push_back(std::make_pair(column, reader->GetValue()));
                     }
                 }
             } else if (UsedRangeColumns.insert(column).Second() && 
                 Channel.ContainsInRanges(column)) 
             {
-                CurrentRow.push_back(std::make_pair(column, channel->GetValue()));
+                CurrentRow.push_back(std::make_pair(column, reader->GetValue()));
             }
         }
     }
