@@ -9,6 +9,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/chunk_server/public.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 
 namespace NYT {

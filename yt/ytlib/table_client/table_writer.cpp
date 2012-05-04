@@ -74,7 +74,7 @@ void TTableWriter::Open()
     TChunkListId chunkListId;
     std::vector<TChannel> channels;
     {
-        auto batchReq = CypressProxy.ExecuteBatch();
+        auto batchReq = ObjectProxy.ExecuteBatch();
         if (KeyColumns.IsInitialized()) {
             {
                 auto req = TCypressYPathProxy::Lock(WithTransaction(Path, UploadTransaction->GetId()));

@@ -9,6 +9,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/object_server/object_service_proxy.h>
@@ -62,7 +63,7 @@ private:
 
         bool IsNull() const
         {
-            return !bool(ChunkWriter);
+            return !ChunkWriter;
         }
 
         void Reset()
@@ -74,10 +75,9 @@ private:
 
     void CreateNextSession();
     void InitCurrentSession(TSession nextSession);
-    void OnSessionCreated(
-        NTransactionServer::TTransactionYPathProxy::TRspCreateObject::TPtr rsp);
+    void OnChunkCreated(NTransactionServer::TTransactionYPathProxy::TRspCreateObject::TPtr rsp);
 
-    void FinishCurrentChunk();
+    void FinishCurrentSession();
 
     void OnChunkClosed(
         TSession currentSession,

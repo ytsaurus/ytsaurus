@@ -15,6 +15,7 @@ NYTree::TYPath FromObjectId(const TObjectId& id);
 
 //! Prepends a given YPath with transaction id marker.
 NYTree::TYPath WithTransaction(const NYTree::TYPath& path, const TTransactionId& id);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressYPathProxy

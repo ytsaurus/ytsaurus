@@ -3,8 +3,6 @@
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/chunk_client/remote_writer.h>
-#include <ytlib/chunk_client/private.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
@@ -82,7 +80,7 @@ void TChunkSequenceWriter::CreateNextSession()
 void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(!NextChunk.IsNull());
+    YASSERT(!NextSession.IsNull());
 
     if (!State.IsActive()) {
         return;
@@ -135,17 +133,17 @@ TAsyncError TChunkSequenceWriter::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
-    CreateNextChunk();
+    CreateNextSession();
 
     State.StartOperation();
-    NextChunk.Subscribe(BIND(
-        &TChunkSequenceWriter::InitCurrentChunk,
+    NextSession.Subscribe(BIND(
+        &TChunkSequenceWriter::InitCurrentSession,
         MakeWeak(this)));
 
     return State.GetOperationError();
 }
 
-void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
+void TChunkSequenceWriter::InitCurrentSession(TSession nextSession)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -187,14 +185,14 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
 
         if (expectedInputSize > Config->DesiredChunkSize) {
             LOG_DEBUG(
-                "Switching to next chunk (TransactionId: %s, CurrentChunkSize: %" PRId64 ", ExpectedInputSize: %lf)",
+                "Switching to next chunk (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
                 ~TransactionId.ToString(),
                 CurrentSession.ChunkWriter->GetCurrentSize(),
                 expectedInputSize);
 
             YASSERT(!NextSession.IsNull());
             // We're not waiting for chunk to be closed.
-            FinishCurrentChunk();
+            FinishCurrentSession();
             NextSession.Subscribe(BIND(
                 &TChunkSequenceWriter::InitCurrentSession,
                 MakeWeak(this)));
@@ -205,7 +203,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
     State.FinishOperation(error);
 }
 
-void TChunkSequenceWriter::FinishCurrentChunk()
+void TChunkSequenceWriter::FinishCurrentSession()
 {
     if (CurrentSession.IsNull())
         return;
@@ -247,7 +245,7 @@ void TChunkSequenceWriter::OnChunkClosed(
     }
 
     LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
-        ~currentChunk->GetChunkId().ToString());
+        ~currentSession.RemoteWriter->GetChunkId().ToString());
 
     TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
@@ -261,13 +259,13 @@ void TChunkSequenceWriter::OnChunkClosed(
     }
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkList));
-        *req->add_children_ids() = currentChunk.RemoteWriter->GetChunkId().ToProto();
+        *req->add_children_ids() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
     {
         auto req = TTransactionYPathProxy::ReleaseObject(FromObjectId(TransactionId));
-        *req->mutable_object_id() = currentChunk.RemoteWriter->GetChunkId().ToProto();
+        *req->mutable_object_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
@@ -275,7 +273,7 @@ void TChunkSequenceWriter::OnChunkClosed(
     batchReq->Invoke().Subscribe(BIND(
         &TChunkSequenceWriter::OnChunkRegistered,
         MakeWeak(this),
-        currentChunk.RemoteWriter->GetChunkId(),
+        currentSession.RemoteWriter->GetChunkId(),
         finishResult));
 }
 
@@ -326,7 +324,7 @@ TAsyncError TChunkSequenceWriter::AsyncClose()
     YASSERT(!State.HasRunningOperation());
 
     State.StartOperation();
-    FinishCurrentChunk();
+    FinishCurrentSession();
 
     CloseChunksAwaiter->Complete(BIND(
         &TChunkSequenceWriter::OnClose,

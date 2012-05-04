@@ -11,6 +11,7 @@
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -19,6 +20,7 @@ using namespace NYTree;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NTransactionServer;
+using namespace NObjectServer;
 using namespace NCypress;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer::NProto;
