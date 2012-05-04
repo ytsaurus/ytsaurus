@@ -13,7 +13,7 @@
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/cypress/cypress_manager.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/object_server/type_handler_detail.h>
 
 namespace NYT {

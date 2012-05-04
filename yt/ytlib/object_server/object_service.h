@@ -1,26 +1,26 @@
 #pragma once
 
-#include "cypress_service_proxy.h"
+#include "object_service_proxy.h"
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/cell_master/meta_state_service.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressService
+class TObjectService
     : public NCellMaster::TMetaStateServiceBase
 {
 public:
-    typedef TIntrusivePtr<TCypressService> TPtr;
+    typedef TIntrusivePtr<TObjectService> TPtr;
 
     //! Creates an instance.
-    TCypressService(NCellMaster::TBootstrap* bootstrap);
+    TObjectService(NCellMaster::TBootstrap* bootstrap);
 
 private:
-    typedef TCypressService TThis;
+    typedef TObjectService TThis;
     class TExecuteSession;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Execute);
@@ -29,5 +29,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NObjectServer
 } // namespace NYT

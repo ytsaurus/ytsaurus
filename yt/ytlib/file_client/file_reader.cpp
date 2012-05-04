@@ -2,13 +2,15 @@
 #include "file_reader.h"
 #include "config.h"
 
+#include <ytlib/file_server/file_ypath_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
-#include <ytlib/file_server/file_ypath_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
 
+using namespace NObjectServer;
 using namespace NCypress;
 using namespace NYTree;
 using namespace NTransactionClient;

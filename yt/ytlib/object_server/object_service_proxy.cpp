@@ -1,25 +1,25 @@
 #include "stdafx.h"
-#include "cypress_service_proxy.h"
+#include "object_service_proxy.h"
 
 #include <ytlib/misc/rvalue.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NObjectServer {
 
 using namespace NYTree;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
+TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     IChannelPtr channel,
     const Stroka& path,
     const Stroka& verb)
     : TClientRequest(channel, path, verb, false)
 { }
 
-TFuture<TCypressServiceProxy::TRspExecuteBatch::TPtr>
-TCypressServiceProxy::TReqExecuteBatch::Invoke()
+TFuture<TObjectServiceProxy::TRspExecuteBatch::TPtr>
+TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
     auto response = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
     auto asyncResult = response->GetAsyncResult();
@@ -27,8 +27,8 @@ TCypressServiceProxy::TReqExecuteBatch::Invoke()
     return asyncResult;
 }
 
-TCypressServiceProxy::TReqExecuteBatch::TPtr
-TCypressServiceProxy::TReqExecuteBatch::AddRequest(
+TObjectServiceProxy::TReqExecuteBatch::TPtr
+TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     TYPathRequestPtr innerRequest,
     const Stroka& key)
 {
@@ -46,12 +46,12 @@ TCypressServiceProxy::TReqExecuteBatch::AddRequest(
     return this;
 }
 
-int TCypressServiceProxy::TReqExecuteBatch::GetSize() const
+int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 {
     return Body.part_counts_size();
 }
 
-TBlob TCypressServiceProxy::TReqExecuteBatch::SerializeBody() const
+TBlob TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
     TBlob blob;
     YVERIFY(SerializeToProto(&Body, &blob));
@@ -60,7 +60,7 @@ TBlob TCypressServiceProxy::TReqExecuteBatch::SerializeBody() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
+TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     const TRequestId& requestId,
     const std::multimap<Stroka, int>& keyToIndexes)
     : TClientResponse(requestId)
@@ -68,19 +68,19 @@ TCypressServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     , Promise(NewPromise<TPtr>())
 { }
 
-TFuture<TCypressServiceProxy::TRspExecuteBatch::TPtr>
-TCypressServiceProxy::TRspExecuteBatch::GetAsyncResult()
+TFuture<TObjectServiceProxy::TRspExecuteBatch::TPtr>
+TObjectServiceProxy::TRspExecuteBatch::GetAsyncResult()
 {
     return Promise;
 }
 
-void TCypressServiceProxy::TRspExecuteBatch::FireCompleted()
+void TObjectServiceProxy::TRspExecuteBatch::FireCompleted()
 {
     Promise.Set(this);
     Promise.Reset();
 }
 
-void TCypressServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
+void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
     YVERIFY(DeserializeFromProto(&Body, data));
 
@@ -92,29 +92,29 @@ void TCypressServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
     }
 }
 
-int TCypressServiceProxy::TRspExecuteBatch::GetSize() const
+int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
 {
     return Body.part_counts_size();
 }
 
-TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(int index) const
+TYPathResponse::TPtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
     return GetResponse<TYPathResponse>(index);
 }
 
-TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TYPathResponse::TPtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<NYTree::TYPathResponse::TPtr> TCypressServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+std::vector<NYTree::TYPathResponse::TPtr> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressServiceProxy::TReqExecuteBatch::TPtr TCypressServiceProxy::ExecuteBatch()
+TObjectServiceProxy::TReqExecuteBatch::TPtr TObjectServiceProxy::ExecuteBatch()
 {
     // Keep this in sync with DEFINE_RPC_PROXY_METHOD.
     return
@@ -124,5 +124,5 @@ TCypressServiceProxy::TReqExecuteBatch::TPtr TCypressServiceProxy::ExecuteBatch(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NObjectServer
 } // namespace NYT

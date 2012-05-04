@@ -13,12 +13,12 @@
 #include <ytlib/meta_state/persistent_state_manager.h>
 
 #include <ytlib/object_server/object_manager.h>
+#include <ytlib/object_server/object_service.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/cypress_integration.h>
 
 #include <ytlib/cypress/cypress_manager.h>
-#include <ytlib/cypress/cypress_service.h>
 #include <ytlib/cypress/cypress_integration.h>
 
 #include <ytlib/chunk_server/chunk_manager.h>
@@ -163,8 +163,8 @@ void TBootstrap::Run()
     // TODO(babenko): refactor
     TransactionManager->Init();
 
-    auto cypressService = New<TCypressService>(this);
-    rpcServer->RegisterService(~cypressService);
+    auto objectService = New<TObjectService>(this);
+    rpcServer->RegisterService(~objectService);
 
     HolderAuthority = CreateHolderAuthority(this);
 

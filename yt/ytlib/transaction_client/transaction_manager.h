@@ -5,7 +5,7 @@
 #include "transaction.h"
 
 #include <ytlib/misc/configurable.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/ytree/public.h>
 
@@ -64,7 +64,7 @@ private:
 
     TTransactionManagerConfigPtr Config;
     NRpc::IChannelPtr Channel;
-    NCypress::TCypressServiceProxy CypressProxy;
+    NObjectServer::TObjectServiceProxy ObjectProxy;
 
     TSpinLock SpinLock;
 

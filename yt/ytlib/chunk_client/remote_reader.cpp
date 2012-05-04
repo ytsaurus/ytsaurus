@@ -14,7 +14,8 @@
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 #include <util/random/shuffle.h>
 #include <util/system/hostname.h>
@@ -27,6 +28,7 @@ using namespace NChunkHolder;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
 using namespace NChunkServer::NProto;
+using namespace NObjectServer;
 using namespace NCypress;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -70,7 +72,7 @@ public:
         }
 
         ChunkProxy = new TChunkServiceProxy(masterChannel);
-        CypressProxy = new TCypressServiceProxy(masterChannel);
+        ObjectProxy = new TObjectServiceProxy(masterChannel);
     }
 
     TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
@@ -119,7 +121,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     TAutoPtr<TChunkServiceProxy> ChunkProxy;
-    TAutoPtr<TCypressServiceProxy> CypressProxy;
+    TAutoPtr<TObjectServiceProxy> ObjectProxy;
 
     TSpinLock SpinLock;
     TAsyncGetSeedsPromise GetSeedsPromise;
@@ -132,7 +134,7 @@ private:
         LOG_INFO("Requesting chunk seeds from the master");
 
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
-        CypressProxy
+        ObjectProxy
             ->Execute(req)
             .Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
     }

@@ -4,6 +4,7 @@
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/object_server/id.h>
+#include <ytlib/cypress/id.h>
 
 namespace NYT {
 namespace NDriver {

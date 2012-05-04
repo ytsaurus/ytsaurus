@@ -1,19 +1,19 @@
-#ifndef CYPRESS_SERVICE_PROXY_INL_H_
-#error "Direct inclusion of this file is not allowed, include cypress_service_proxy.h"
+#ifndef OBJECT_SERVICE_PROXY_INL_H_
+#error "Direct inclusion of this file is not allowed, include object_service_proxy.h"
 #endif
 
-#include "cypress_ypath_proxy.h"
+//#include <ytlib/cypress_ypath_proxy.h"
 
 #include <ytlib/rpc/service.h>
 #include <ytlib/rpc/client.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedResponse>
-TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetResponse(int index) const
+TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
     YASSERT(index >= 0 && index < GetSize());
     auto innerResponse = New<TTypedResponse>();
@@ -28,7 +28,7 @@ TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetRespons
 }
 
 template <class TTypedResponse>
-TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     YASSERT(!key.empty());
     auto range = KeyToIndexes.equal_range(key);
@@ -42,7 +42,7 @@ TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetRespons
 }
 
 template <class TTypedResponse>
-std::vector< TIntrusivePtr<TTypedResponse> > TCypressServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key)    const
+std::vector< TIntrusivePtr<TTypedResponse> > TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key)    const
 {
     std::vector< TIntrusivePtr<TTypedResponse> > responses;
     if (key.empty()) {
@@ -63,7 +63,7 @@ std::vector< TIntrusivePtr<TTypedResponse> > TCypressServiceProxy::TRspExecuteBa
 
 template <class TTypedRequest>
 TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
-TCypressServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
+TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
@@ -92,5 +92,5 @@ TCypressServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NObjectServer
 } // namespace NYT

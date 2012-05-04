@@ -1,27 +1,27 @@
 #pragma once
 
 #include "id.h"
-#include <ytlib/cypress/cypress_service.pb.h>
+#include <ytlib/object_server/object_service.pb.h>
 
 #include <ytlib/ytree/ypath_client.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressServiceProxy
+class TObjectServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TCypressServiceProxy> TPtr;
+    typedef TIntrusivePtr<TObjectServiceProxy> TPtr;
 
     static Stroka GetServiceName()
     {
-        return "CypressService";
+        return "ObjectService";
     }
 
-    TCypressServiceProxy(NRpc::IChannelPtr channel)
+    TObjectServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
@@ -154,9 +154,9 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-} // namespace NCypress
+} // namespace NObjectServer
 } // namespace NYT
 
-#define CYPRESS_SERVICE_PROXY_INL_H_
-#include "cypress_service_proxy-inl.h"
-#undef CYPRESS_SERVICE_PROXY_INL_H_
+#define OBJECT_SERVICE_PROXY_INL_H_
+#include "object_service_proxy-inl.h"
+#undef OBJECT_SERVICE_PROXY_INL_H_

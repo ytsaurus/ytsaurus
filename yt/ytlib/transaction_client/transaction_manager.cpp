@@ -2,6 +2,8 @@
 #include "transaction_manager.h"
 #include "config.h"
 
+#include <ytlib/cypress/cypress_ypath_proxy.h>
+
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -12,6 +14,7 @@ namespace NYT {
 namespace NTransactionClient {
 
 using namespace NCypress;
+using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 
@@ -233,7 +236,7 @@ private:
     );
 
     TTransactionManager::TPtr Owner;
-    TCypressServiceProxy Proxy;
+    TObjectServiceProxy Proxy;
 
     //! Protects state transitions.
     TSpinLock SpinLock;
@@ -271,7 +274,7 @@ TTransactionManager::TTransactionManager(
     NRpc::IChannelPtr channel)
     : Config(config)
     , Channel(channel)
-    , CypressProxy(channel)
+    , ObjectProxy(channel)
 {
     YASSERT(channel);
 }
@@ -356,7 +359,7 @@ void TTransactionManager::SendPing(const TTransactionId& id)
     LOG_DEBUG("Renewing lease for transaction %s", ~id.ToString());
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
-    CypressProxy.Execute(req).Subscribe(BIND(
+    ObjectProxy.Execute(req).Subscribe(BIND(
         &TThis::OnPingResponse,
         MakeStrong(this),
         id));

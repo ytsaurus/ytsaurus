@@ -80,7 +80,7 @@ protected:
     {
         FileWriter->Close();
 
-        TCypressServiceProxy proxy(~MasterChannel);
+        TObjectServiceProxy proxy(~MasterChannel);
         auto batchReq = proxy.ExecuteBatch();
         {
             auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));

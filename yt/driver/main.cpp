@@ -16,13 +16,10 @@
 
 #include <ytlib/exec_agent/config.h>
 
-#include <ytlib/misc/home.h>
-#include <ytlib/misc/fs.h>
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/misc/thread.h>
 
 #include <util/stream/pipe.h>
-#include <util/folder/dirut.h>
 
 #include <build.h>
 
@@ -39,10 +36,6 @@ using namespace NDriver;
 using namespace NYTree;
 
 static NLog::TLogger& Logger = DriverLogger;
-static const char* UserConfigFileName = ".ytdriver.conf";
-static const char* SystemConfigFileName = "ytdriver.conf";
-
-static const char* SystemConfigPath = "/etc/";
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -113,40 +106,7 @@ public:
                 args.push_back(std::string(argv[i]));
             }
 
-            Stroka configFromCmd = argsParser->GetConfigFileName();
-            Stroka configFromEnv = Stroka(getenv("YT_CONFIG"));
-            Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
-            Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
-
-            auto configName = configFromCmd;
-            if (configName.empty()) {
-                configName = configFromEnv;
-                if (configName.empty()) {
-                    configName = userConfig;
-                    if (!isexist(~configName)) {
-                        configName = systemConfig;
-                        if (!isexist(~configName)) {
-                            ythrow yexception() <<
-                                Sprintf("Config wasn't found. Please specify it using on of the following:\n"
-                                "commandline option --config\n"
-                                "env YT_CONFIG\n"
-                                "user file: %s\n"
-                                "system file: %s",
-                                ~userConfig, ~systemConfig);
-                        }
-                    }
-                }
-            }
-
-            INodePtr configNode;
-            try {
-                TIFStream configStream(configName);
-                configNode = DeserializeFromYson(&configStream);
-            } catch (const std::exception& ex) {
-                ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
-            }
-
-            auto error = argsParser->Execute(args, configNode);
+            auto error = argsParser->Execute(args);
             if (!error.IsOK()) {
                 ExitCode = 1;
             }

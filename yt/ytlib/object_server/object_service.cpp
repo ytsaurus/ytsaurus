@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "cypress_service.h"
+#include "object_service.h"
 
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/ypath_client.h>
@@ -9,13 +9,13 @@
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NObjectServer {
 
 using namespace NMetaState;
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
-using namespace NObjectServer;
+using namespace NCypress;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,13 +24,13 @@ static NLog::TLogger Logger("Cypress");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressService::TExecuteSession
+class TObjectService::TExecuteSession
     : public TIntrinsicRefCounted
 {
 public:
     typedef TIntrusivePtr<TExecuteSession> TPtr;
 
-    TExecuteSession(TCypressService* owner, TCtxExecute* context)
+    TExecuteSession(TObjectService* owner, TCtxExecute* context)
         : Context(context)
         , Owner(owner)
     { }
@@ -80,7 +80,7 @@ public:
 
 private:
     TCtxExecute::TPtr Context;
-    TCypressService::TPtr Owner;
+    TObjectService::TPtr Owner;
     std::vector<IMessage::TPtr> ResponseMessages;
 
     void OnResponse(int requestIndex, IMessage::TPtr responseMessage)
@@ -115,10 +115,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressService::TCypressService(TBootstrap* bootstrap)
+TObjectService::TObjectService(TBootstrap* bootstrap)
     : TMetaStateServiceBase(
         bootstrap,
-        TCypressServiceProxy::GetServiceName(),
+        TObjectServiceProxy::GetServiceName(),
         Logger.GetCategory())
 {
     YASSERT(bootstrap);
@@ -126,7 +126,7 @@ TCypressService::TCypressService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     UNUSED(request);
     UNUSED(response);
@@ -136,5 +136,5 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NObjectServer
 } // namespace NYT

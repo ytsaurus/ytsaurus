@@ -1,20 +1,19 @@
 ﻿#pragma once
+
 #include "public.h"
 #include "schema.h"
 #include "async_writer.h"
-
 #include "chunk_writer.h"
-#include <ytlib/chunk_client/remote_writer.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_server/public.h>
-#include <ytlib/chunk_server/chunk_service_proxy.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
-#include <ytlib/transaction_client/transaction.h>
-#include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_server/public.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -88,7 +87,7 @@ private:
     void OnChunkRegistered(
         NChunkServer::TChunkId chunkId,
         TAsyncErrorPromise finishResult,
-        NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+        NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     void OnChunkFinished(
         NChunkServer::TChunkId chunkId,

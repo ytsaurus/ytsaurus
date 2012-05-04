@@ -21,7 +21,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 
 #include <ytlib/cell_scheduler/config.h>
 #include <ytlib/cell_scheduler/bootstrap.h>
@@ -69,7 +69,7 @@ public:
             SchedulerLogger.GetCategory())
         , Config(config)
         , Bootstrap(bootstrap)
-        , CypressProxy(bootstrap->GetMasterChannel())
+        , ObjectProxy(bootstrap->GetMasterChannel())
         , BackgroundQueue(New<TActionQueue>("Background"))
     {
         YASSERT(config);
@@ -106,7 +106,7 @@ private:
 
     TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* Bootstrap;
-    NCypress::TCypressServiceProxy CypressProxy;
+    NObjectServer::TObjectServiceProxy ObjectProxy;
     TActionQueue::TPtr BackgroundQueue;
 
     TAutoPtr<ISchedulerStrategy> Strategy;
@@ -170,7 +170,7 @@ private:
             MakeStrong(this),
             operation)));
 
-        return CypressProxy
+        return ObjectProxy
             .Execute(setReq)
             .Apply(BIND(
                 &TImpl::OnOperationNodeCreated,
@@ -484,7 +484,7 @@ private:
                     "//sys/scheduler/lock",
                     BootstrapTransaction->GetId()));
                 req->set_mode(ELockMode::Exclusive);
-                auto rsp = CypressProxy.Execute(req).Get();
+                auto rsp = ObjectProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
                     ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
                         ~rsp->GetError().ToString());
@@ -496,7 +496,7 @@ private:
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
                 req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-                auto rsp = CypressProxy.Execute(req).Get();
+                auto rsp = ObjectProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
                     ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
                         ~rsp->GetError().ToString());
@@ -508,7 +508,7 @@ private:
             //{
             //    auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_address");
             //    req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-            //    auto rsp = CypressProxy.Execute(req).Get();
+            //    auto rsp = ObjectProxy.Execute(req).Get();
             //    if (!rsp->IsOK()) {
             //        ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
             //            ~rsp->GetError().ToString());
@@ -529,7 +529,7 @@ private:
         std::vector<TOperationId> operationIds;
         {
             auto req = TYPathProxy::List("//sys/operations");
-            auto rsp = CypressProxy.Execute(req).Get();
+            auto rsp = ObjectProxy.Execute(req).Get();
             if (!rsp->IsOK()) {
                 ythrow yexception() << Sprintf("Failed to get operations list\n%s",
                     ~rsp->GetError().ToString());
@@ -542,7 +542,7 @@ private:
 
         LOG_INFO("Requesting operations info");
         {
-            auto batchReq = CypressProxy.ExecuteBatch();
+            auto batchReq = ObjectProxy.ExecuteBatch();
             FOREACH (const auto& operationId, operationIds) {
                 auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
                 batchReq->AddRequest(req);
@@ -616,7 +616,7 @@ private:
 
         // Invoke GetId verbs for these transactions to see if they are alive.
         std::vector<TTransactionId> transactionIdsList;
-        auto batchReq = CypressProxy.ExecuteBatch();
+        auto batchReq = ObjectProxy.ExecuteBatch();
         FOREACH (const auto& id, transactionIds) {
             auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
             transactionIdsList.push_back(id);
@@ -633,7 +633,7 @@ private:
 
     void OnTransactionsRefreshed(
         const std::vector<TTransactionId>& transactionIds,
-        NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr rsp)
+        NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -698,7 +698,7 @@ private:
         // Get the list of online nodes from the master.
         LOG_INFO("Refreshing exec nodes");
         auto req = TYPathProxy::Get("//sys/holders/@online");
-        CypressProxy.Execute(req).Subscribe(
+        ObjectProxy.Execute(req).Subscribe(
             BIND(&TImpl::OnExecNodesRefreshed, MakeStrong(this))
             .Via(GetControlInvoker()));
     }
@@ -751,7 +751,7 @@ private:
         LOG_INFO("Updating operation nodes");
 
         // Create a batch update for all operations.
-        auto batchReq = CypressProxy.ExecuteBatch();
+        auto batchReq = ObjectProxy.ExecuteBatch();
         FOREACH (const auto& pair, Operations) {
             AddOperationUpdateRequests(pair.second, batchReq);
         }
@@ -762,7 +762,7 @@ private:
 
     void AddOperationUpdateRequests(
         TOperationPtr operation,
-        TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
+        TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq)
     {
         auto operationPath = GetOperationPath(operation->GetOperationId());
         
@@ -790,7 +790,7 @@ private:
         }
     }
 
-    void OnOperationNodesUpdated(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    void OnOperationNodesUpdated(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -881,7 +881,7 @@ private:
         auto id = operation->GetOperationId();
         LOG_INFO("Removing operation node %s", ~id.ToString());
         auto req = TYPathProxy::Remove(GetOperationPath(id));
-        CypressProxy.Execute(req).Subscribe(
+        ObjectProxy.Execute(req).Subscribe(
             BIND(&TImpl::OnOperationNodeRemoved, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
@@ -909,7 +909,7 @@ private:
     {
         LOG_INFO("Finalizing operation node %s", ~operation->GetOperationId().ToString());
 
-        auto batchReq = CypressProxy.ExecuteBatch();
+        auto batchReq = ObjectProxy.ExecuteBatch();
         AddOperationUpdateRequests(operation, batchReq);
 
         return batchReq->Invoke().Subscribe(BIND(
@@ -920,7 +920,7 @@ private:
 
     void OnOperationNodeFinalized(
         TOperationPtr operation,
-        TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+        TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
     {
         // TODO(babenko): add retries
         if (!batchRsp->IsOK()) {

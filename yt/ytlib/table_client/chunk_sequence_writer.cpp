@@ -9,6 +9,8 @@
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -16,6 +18,7 @@ namespace NTableClient {
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NCypress;
+using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NChunkServer::NProto;
 
@@ -65,21 +68,21 @@ void TChunkSequenceWriter::CreateNextSession()
         Config->ReplicationFactor,
         Config->UploadReplicationFactor);
 
-    TCypressServiceProxy cypressProxy(MasterChannel);
+    TObjectServiceProxy objectProxy(MasterChannel);
     auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
     req->set_type(EObjectType::Chunk);
     auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
-    cypressProxy.Execute(req).Subscribe(
-        BIND(&TChunkSequenceWriter::OnSessionCreated, MakeWeak(this))
+    objectProxy.Execute(req).Subscribe(
+        BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
         .Via(WriterThread->GetInvoker()));
 }
 
-void TChunkSequenceWriter::OnSessionCreated(TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
+void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(!NextSession.IsNull());
+    YASSERT(!NextChunk.IsNull());
 
     if (!State.IsActive()) {
         return;
@@ -132,17 +135,17 @@ TAsyncError TChunkSequenceWriter::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
-    CreateNextSession();
+    CreateNextChunk();
 
     State.StartOperation();
-    NextSession.Subscribe(BIND(
-        &TChunkSequenceWriter::InitCurrentSession,
+    NextChunk.Subscribe(BIND(
+        &TChunkSequenceWriter::InitCurrentChunk,
         MakeWeak(this)));
 
     return State.GetOperationError();
 }
 
-void TChunkSequenceWriter::InitCurrentSession(TSession nextSession)
+void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -244,27 +247,27 @@ void TChunkSequenceWriter::OnChunkClosed(
     }
 
     LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
-        ~currentSession.RemoteWriter->GetChunkId().ToString());
+        ~currentChunk->GetChunkId().ToString());
 
-    TCypressServiceProxy cypressProxy(MasterChannel);
-    auto batchReq = cypressProxy.ExecuteBatch();
+    TObjectServiceProxy objectProxy(MasterChannel);
+    auto batchReq = objectProxy.ExecuteBatch();
     {
         auto req = TChunkYPathProxy::Confirm(FromObjectId(currentSession.RemoteWriter->GetChunkId()));
         *req->mutable_chunk_info() = currentSession.RemoteWriter->GetChunkInfo();
         ToProto(req->mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
         *req->mutable_chunk_meta() = currentSession.ChunkWriter->GetMasterMeta();
 
-        batchReq->AddRequest(~req);
+        batchReq->AddRequest(req);
     }
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkList));
-        *req->add_children_ids() = currentSession.RemoteWriter->GetChunkId().ToProto();
+        *req->add_children_ids() = currentChunk.RemoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
     {
         auto req = TTransactionYPathProxy::ReleaseObject(FromObjectId(TransactionId));
-        *req->mutable_object_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
+        *req->mutable_object_id() = currentChunk.RemoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
@@ -272,14 +275,14 @@ void TChunkSequenceWriter::OnChunkClosed(
     batchReq->Invoke().Subscribe(BIND(
         &TChunkSequenceWriter::OnChunkRegistered,
         MakeWeak(this),
-        currentSession.RemoteWriter->GetChunkId(),
+        currentChunk.RemoteWriter->GetChunkId(),
         finishResult));
 }
 
 void TChunkSequenceWriter::OnChunkRegistered(
     TChunkId chunkId,
     TAsyncErrorPromise finishResult,
-    TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

@@ -4,7 +4,7 @@
 #include "file_writer_base.h"
 
 #include <ytlib/file_client/file_writer_base.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/cypress/id.h>
 
 namespace NYT {

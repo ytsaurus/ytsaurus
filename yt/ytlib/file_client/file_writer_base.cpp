@@ -54,13 +54,13 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
     LOG_INFO("Creating chunk");
     yvector<Stroka> holderAddresses;
     {
-        TCypressServiceProxy cypressProxy(MasterChannel);
+        TObjectServiceProxy objectProxy(MasterChannel);
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
         req->set_type(EObjectType::Chunk);
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Config->ReplicationFactor);
-        auto rsp = cypressProxy.Execute(req).Get();
+        auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
                 ~rsp->GetError().ToString());
@@ -181,13 +181,13 @@ void TFileWriterBase::Close()
 
     LOG_INFO("Confirming chunk");
     {
-        TCypressServiceProxy cypressProxy(MasterChannel);
+        TObjectServiceProxy proxy(MasterChannel);
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = Writer->GetChunkInfo();
         ToProto(req->mutable_holder_addresses(), Writer->GetHolders());
         *req->mutable_chunk_meta() = meta;
 
-        auto rsp = cypressProxy.Execute(req).Get();
+        auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
                 ~rsp->GetError().ToString());

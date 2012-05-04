@@ -7,6 +7,7 @@
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/misc/sync.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {

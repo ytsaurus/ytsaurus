@@ -50,7 +50,7 @@ protected:
     IOperationHost* Host;
     TOperation* Operation;
 
-    NCypress::TCypressServiceProxy CypressProxy;
+    NObjectServer::TObjectServiceProxy ObjectProxy;
     NLog::TTaggedLogger Logger;
 
     // Remains True as long as the operation is not failed, completed, or aborted.
@@ -175,24 +175,24 @@ protected:
     // Round 1:
     // - Start primary transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch StartPrimaryTransaction();
+    NObjectServer::TObjectServiceProxy::TInvExecuteBatch StartPrimaryTransaction();
 
-    void OnPrimaryTransactionStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnPrimaryTransactionStarted(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Round 2:
     // - Start input transaction.
     // - Start output transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch StartSeconaryTransactions();
+    NObjectServer::TObjectServiceProxy::TInvExecuteBatch StartSeconaryTransactions();
 
-    void OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnSecondaryTransactionsStarted(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Round 3:
     // - Get input table ids
     // - Get output table ids
-    NCypress::TCypressServiceProxy::TInvExecuteBatch GetObjectIds();
+    NObjectServer::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
 
-    void OnObjectIdsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnObjectIdsReceived(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Round 4:
     // - Fetch input tables.
@@ -203,14 +203,14 @@ protected:
     // - Get output chunk lists.
     // - (Custom)
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch RequestInputs();
-    void OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    NObjectServer::TObjectServiceProxy::TInvExecuteBatch RequestInputs();
+    void OnInputsReceived(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
-    virtual void CustomRequestInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    virtual void CustomRequestInputs(NObjectServer::TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq);
 
     //! Extensibility point for handling additional info from master.
-    virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
 
     // Round 4.
@@ -233,14 +233,14 @@ protected:
     // - Commit output transaction.
     // - Commit primary transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch CommitOutputs();
-    void OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    NObjectServer::TObjectServiceProxy::TInvExecuteBatch CommitOutputs();
+    void OnOutputsCommitted(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     //! Extensibility point for additional finalization logic.
-    virtual void CommitCustomOutputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    virtual void CommitCustomOutputs(NObjectServer::TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq);
 
     //! Extensibility point for handling additional finalization outcome.
-    virtual void OnCustomOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    virtual void OnCustomOutputsCommitted(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
 
     virtual void CustomInitialize();
@@ -289,7 +289,7 @@ protected:
     bool CheckChunkListsPoolSize(int minSize);
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
-    void OnChunkListsReleased(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
     static i64 GetJobWeightThreshold(i64 pendingJobs, i64 pendingWeight);
 
 };

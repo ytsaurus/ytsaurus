@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_commands.h"
 
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
@@ -11,6 +11,7 @@ namespace NDriver {
 
 using namespace NYTree;
 using namespace NCypress;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +22,7 @@ TCommandDescriptor TGetCommand::GetDescriptor()
 
 void TGetCommand::DoExecute(TGetRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
@@ -46,7 +47,7 @@ TCommandDescriptor TSetCommand::GetDescriptor()
 
 void TSetCommand::DoExecute(TSetRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
@@ -79,7 +80,7 @@ TCommandDescriptor TRemoveCommand::GetDescriptor()
 
 void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
@@ -103,7 +104,7 @@ TCommandDescriptor TListCommand::GetDescriptor()
 
 void TListCommand::DoExecute(TListRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
@@ -129,7 +130,7 @@ TCommandDescriptor TCreateCommand::GetDescriptor()
 
 void TCreateCommand::DoExecute(TCreateRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
@@ -158,7 +159,7 @@ TCommandDescriptor TLockCommand::GetDescriptor()
 
 void TLockCommand::DoExecute(TLockRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));

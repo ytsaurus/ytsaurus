@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_server/public.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
@@ -37,7 +37,7 @@ private:
     bool RequestInProgress;
     std::vector<NChunkServer::TChunkListId> Ids;
 
-    void OnChunkListsCreated(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnChunkListsCreated(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
