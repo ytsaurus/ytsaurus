@@ -3,6 +3,9 @@
 
 #include <build.h>
 
+#include <ytlib/misc/home.h>
+#include <ytlib/misc/fs.h>
+
 #include <ytlib/ytree/tokenizer.h>
 
 #include <ytlib/job_proxy/config.h>
@@ -17,6 +20,8 @@
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/helpers.h>
 
+#include <util/folder/dirut.h>
+
 namespace NYT {
 
 using namespace NYTree;
@@ -24,6 +29,10 @@ using namespace NScheduler;
 using namespace NDriver;
 using namespace NCypress;
 using namespace NRpc;
+
+static const char* UserConfigFileName = ".ytdriver.conf";
+static const char* SystemConfigFileName = "ytdriver.conf";
+static const char* SystemConfigPath = "/etc/";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,8 +148,41 @@ INodePtr TArgsParserBase::ParseArgs(const std::vector<std::string>& args)
     return builder->EndTree();
 }
 
-TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig(INodePtr configNode)
+TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
 {
+    Stroka configFromCmd = ConfigArg.getValue();;
+    Stroka configFromEnv = Stroka(getenv("YT_CONFIG"));
+    Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
+    Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
+
+    auto configName = configFromCmd;
+    if (configName.empty()) {
+        configName = configFromEnv;
+        if (configName.empty()) {
+            configName = userConfig;
+            if (!isexist(~configName)) {
+                configName = systemConfig;
+                if (!isexist(~configName)) {
+                    ythrow yexception() <<
+                        Sprintf("Config wasn't found. Please specify it using on of the following:\n"
+                        "commandline option --config\n"
+                        "env YT_CONFIG\n"
+                        "user file: %s\n"
+                        "system file: %s",
+                        ~userConfig, ~systemConfig);
+                }
+            }
+        }
+    }
+
+    INodePtr configNode;
+    try {
+        TIFStream configStream(configName);
+        configNode = DeserializeFromYson(&configStream);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
+    }
+
     ApplyConfigUpdates(configNode);   
 
     auto config = New<TConfig>();
@@ -155,20 +197,13 @@ TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig(INodePtr configNode)
     return config;
 }
 
-TError TArgsParserBase::Execute(
-    const std::vector<std::string>& args,
-    NYTree::INodePtr configNode)
+TError TArgsParserBase::Execute(const std::vector<std::string>& args)
 {
     auto request = ParseArgs(args);
-    auto config = ParseConfig(configNode);
+    auto config = ParseConfig();
     TPassthroughDriverHost driverHost;
     auto driver = CreateDriver(config, &driverHost);
     return driver->Execute(GetDriverCommandName(), request);
-}
-
-Stroka TArgsParserBase::GetConfigFileName()
-{
-    return ConfigArg.getValue();
 }
 
 TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
@@ -665,16 +700,14 @@ TStartOpArgsParser::TStartOpArgsParser()
     CmdLine.add(NoTrackArg);
 }
 
-TError TStartOpArgsParser::Execute(
-    const std::vector<std::string>& args,
-    INodePtr configNode)
+TError TStartOpArgsParser::Execute(const std::vector<std::string>& args)
 {
     if (NoTrackArg.getValue()) {
-        return TArgsParserBase::Execute(args, configNode);
+        return TArgsParserBase::Execute(args);
     }
 
     auto request = ParseArgs(args);
-    auto config = ParseConfig(configNode);
+    auto config = ParseConfig();
 
     printf("Starting %s operation... ", ~GetDriverCommandName().Quote());
 

@@ -42,11 +42,7 @@ public:
 
     TArgsParserBase();
 
-    virtual TError Execute(
-        const std::vector<std::string>& args,
-        NYTree::INodePtr configNode);
-
-    Stroka GetConfigFileName();
+    virtual TError Execute(const std::vector<std::string>& args);
 
     typedef TNullable<NYTree::EYsonFormat> TFormat;
     TFormat GetOutputFormat();
@@ -73,7 +69,7 @@ protected:
     TCLAP::MultiArg<Stroka> OptsArg;
 
     NYTree::INodePtr ParseArgs(const std::vector<std::string>& args);
-    TConfig::TPtr ParseConfig(NYTree::INodePtr configNode);
+    TConfig::TPtr ParseConfig();
 
     void BuildOptions(NYTree::IYsonConsumer* consumer);
 
@@ -301,9 +297,7 @@ class TStartOpArgsParser
 public:
     TStartOpArgsParser();
 
-    virtual TError Execute(
-        const std::vector<std::string>& args,
-        NYTree::INodePtr configNode);
+    virtual TError Execute(const std::vector<std::string>& args);
 
 private:
     class TOperationTracker;
