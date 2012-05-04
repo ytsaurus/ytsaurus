@@ -180,9 +180,6 @@ private:
             columnInfo.InChannel = true;
         }
 
-        StartValidator.Destroy();
-        chunkReader->EndValidator.Destroy();
-
         auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(
             result.Value().extensions());
 
@@ -529,7 +526,7 @@ TChunkReader::TChunkReader(
     const TChannel& channel,
     NChunkClient::IAsyncReaderPtr chunkReader,
     const NProto::TReadLimit& startLimit,
-    const NProto::TReadLimit& endLimit, 
+    const NProto::TReadLimit& endLimit,
     const NYTree::TYson& rowAttributes,
     TOptions options)
     : Codec(NULL)
@@ -719,10 +716,11 @@ TKey& TChunkReader::GetKey()
 
 bool TChunkReader::IsValid() const
 {
-    if (~EndValidator && CurrentRowIndex < EndRowIndex)
-        return EndValidator->IsValid(CurrentKey);
-    else
+    if (CurrentRowIndex >= EndRowIndex)
         return false;
+    if (!EndValidator)
+        return true;
+    return EndValidator->IsValid(CurrentKey);
 }
 
 const TYson& TChunkReader::GetRowAttributes() const
