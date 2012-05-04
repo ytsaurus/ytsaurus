@@ -106,7 +106,7 @@ void TSequentialReader::OnGotBlocks(
     }
 
     LOG_DEBUG(
-        "Got block group (FirtsIndex: %d, BlockCount: %d)", 
+        "Got block group (FirstIndex: %d, BlockCount: %d)", 
         firstSequenceIndex, 
         static_cast<int>(readResult.Value().size()));
 
