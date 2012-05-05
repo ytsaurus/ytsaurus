@@ -36,7 +36,7 @@ void TSamplesFetcher::AddChunk(const TInputChunk& chunk)
     Chunks.push_back(chunk);
 }
 
-const std::vector<TKey>& TSamplesFetcher::GetSamples() const
+const std::vector<TKeySample>& TSamplesFetcher::GetSamples() const
 {
     return Samples;
 }
@@ -152,9 +152,9 @@ void TSamplesFetcher::OnResponse(
                 YVERIFY(DeadChunks.insert(std::make_pair(address, chunkId)).second);
             } else {
                 LOG_TRACE("Received %d samples for chunk %s",
-                    chunkSamples.samples_size(),
+                    chunkSamples.items_size(),
                     ~chunkId.ToString());
-                FOREACH (const auto& keySamples, chunkSamples.samples()) {
+                FOREACH (const auto& keySamples, chunkSamples.items()) {
                     Samples.push_back(keySamples);
                     ++samplesAdded;
                 }

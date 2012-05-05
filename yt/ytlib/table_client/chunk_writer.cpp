@@ -111,6 +111,8 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
             ? TChannelWriter::UnknownIndex 
             : it->second;
 
+        DataOffset += pair.first.size() + pair.second.size();
+
         FOREACH(auto& channelWriter, ChannelWriters) {
             channelWriter->Write(columnIndex, pair.first, pair.second);
         }
@@ -299,7 +301,7 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
     }
 
     sample.set_row_index(ProtoMisc.row_count() - 1);
-    sample.set_data_offset();
+    sample.set_data_offset(DataOffset);
 
     return sample;
 }

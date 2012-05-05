@@ -414,6 +414,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
     std::vector<int> tags(1, GetProtoExtensionTag<NTableClient::NProto::TSamples>());
 
     FOREACH (const auto& chunkId, chunkIds) {
+        /*
         auto* chunkSamples = response->add_samples();
         auto asyncMeta = GetChunk(chunkId)->GetMeta(tags);
 
@@ -425,10 +426,12 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                 *chunkSamples->mutable_error() = result.ToProto();
             } else {
                 auto samples = GetProtoExtension<NTableClient::NProto::TSamples>(
-                    result.Value().extensions())
+                    result.Value().extensions());
+
+                FOREACH (const auto& column, )
             }
         });
-
+        */
 
         auto* chunkSamples = response->add_samples();
         // TODO(babenko): implement this

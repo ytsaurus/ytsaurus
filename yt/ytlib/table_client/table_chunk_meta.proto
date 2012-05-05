@@ -97,5 +97,12 @@ message TChannels
     repeated TChunkChannel items = 1;
 }
 
+message TKeySample
+{
+    required NYT.NTableClient.NProto.TKey key = 1;
+    required int64 data_offset = 2;
+    required int64 row_index = 3;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
