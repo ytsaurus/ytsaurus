@@ -50,7 +50,11 @@ private:
 
     void ExecuteRequest(NRpc::IServiceContext::TPtr context)
     {
-        ExecuteVerb(~UnderlyingService, ~context);
+        try {
+            ExecuteVerb(UnderlyingService, ~context);
+        } catch (const std::exception& ex) {
+            context->Reply(TError(ex.what()));
+        }
     }
 };
 
