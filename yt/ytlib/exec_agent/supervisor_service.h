@@ -24,7 +24,7 @@ private:
     TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnJobFinished);
+    DECLARE_RPC_SERVICE_METHOD(NProto, OnJobFinished);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnProgress);
 
 };

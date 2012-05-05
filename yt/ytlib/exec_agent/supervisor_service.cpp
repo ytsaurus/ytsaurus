@@ -37,7 +37,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
     context->Reply();
 }
 
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
+DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 {
     auto jobId = TJobId::FromProto(request->job_id());
     auto error = TError::FromProto(request->result().error());
@@ -47,6 +47,8 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 
     auto job = Bootstrap->GetJobManager()->GetJob(jobId);
     job->SetResult(request->result());
+
+    context->Reply();
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnProgress)
