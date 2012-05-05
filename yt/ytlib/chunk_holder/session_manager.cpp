@@ -383,6 +383,16 @@ void TSession::VerifyInWindow(i32 blockIndex)
 TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
     YASSERT(IsInWindow(blockIndex));
+    if (Window.size() <= blockIndex())
+        Window.reserve(blockIndex + 1);
+
+    while (Window.size() <= blockIndex) {
+        // NB: do not use resize here! 
+        // Newly added slots must get a fresh copy of IsWritten promise.
+        // Using resize would cause all of these slots to share a single promise.
+        Window.push_back(TSlot());
+    }
+
     if (Window.size() <= blockIndex) {
         Window.resize(1 + blockIndex);
     }
