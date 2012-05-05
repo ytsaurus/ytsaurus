@@ -52,15 +52,18 @@ TCommandDescriptor TWriteCommand::GetDescriptor()
 
 void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
+    TNullable<TKeyColumns> keyColumns;
+    if (request->Sorted)
+        keyColumns.Assign(request->KeyColumns);
+
     auto writer = New<TTableWriter>(
         Host->GetConfig()->ChunkSequenceWriter,
         Host->GetMasterChannel(),
         Host->GetTransaction(request),
         Host->GetTransactionManager(),
         request->Path,
-        Null);
+        keyColumns);
 
-    //ToDo: write sorted data.
     writer->Open();
     TTableConsumer consumer(writer);
 
