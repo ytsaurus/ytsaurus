@@ -49,8 +49,8 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 void TChunk::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
-    YVERIFY(ChunkInfo_.SerializeToStream(output));
-    YVERIFY(ChunkMeta_.SerializeToStream(output));
+    SaveProto(output, ChunkInfo_);
+    SaveProto(output, ChunkMeta_);
     ::Save(output, ReplicationFactor_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
@@ -60,8 +60,8 @@ void TChunk::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectWithIdBase::Load(input);
-    YVERIFY(ChunkInfo_.ParseFromStream(input));
-    YVERIFY(ChunkMeta_.ParseFromStream(input));
+    LoadProto(input, ChunkInfo_);
+    LoadProto(input, ChunkMeta_);
     ::Load(input, ReplicationFactor_);
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);
