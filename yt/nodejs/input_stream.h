@@ -6,24 +6,32 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This class adheres to TInputStream interface as a C++ object and
+//! simultaneously provides 'writable stream' interface stubs as a JS object
+//! thus effectively acting as a bridge from JS to C++.
 class TNodeJSInputStream
     : public TNodeJSStreamBase
 {
-public:
+protected:
     TNodeJSInputStream();
     ~TNodeJSInputStream();
 
 public:
     // Synchronous JS API.
-    void Push(v8::Handle<v8::Value> buffer, char *data, size_t offset, size_t length);
+    static v8::Handle<v8::Value> New(const v8::Arguments& args);
+
+    static v8::Handle<v8::Value> Push(const v8::Arguments& args);
+    void DoPush(v8::Handle<v8::Value> buffer, char *data, size_t offset, size_t length);
 
     // Asynchronous JS API.
-    void AsyncSweep();
-    static void Sweep(uv_work_t *request);
+    static v8::Handle<v8::Value> Sweep(const v8::Arguments& args);
+    static void AsyncSweep(uv_work_t *request);
+    void EnqueueSweep();
     void DoSweep();
 
-    void AsyncClose();
-    static void Close(uv_work_t *request);
+    static v8::Handle<v8::Value> Close(const v8::Arguments& args);
+    static void AsyncClose(uv_work_t *request);
+    void EnqueueClose();
     void DoClose();
 
     // C++ API.
@@ -41,20 +49,20 @@ private:
     uv_work_t CloseRequest;
 };
 
-inline void TNodeJSInputStream::AsyncSweep()
+inline void TNodeJSInputStream::EnqueueSweep()
 {
     // Post to V8 thread.
     uv_queue_work(
         uv_default_loop(), &SweepRequest,
-        DoNothing, TNodeJSInputStream::Sweep);
+        DoNothing, TNodeJSInputStream::AsyncSweep);
 }
 
-inline void TNodeJSInputStream::AsyncClose()
+inline void TNodeJSInputStream::EnqueueClose()
 {
-    // Post to any thread.
+    // Post to any worker thread.
     uv_queue_work(
         uv_default_loop(), &CloseRequest,
-        TNodeJSInputStream::Close, DoNothing);
+        TNodeJSInputStream::AsyncClose, DoNothing);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,10 +9,15 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeJSStreamBase
+    : public node::ObjectWrap
 {
-public:
+protected:
     TNodeJSStreamBase();
-    virtual ~TNodeJSStreamBase();
+    ~TNodeJSStreamBase();
+
+public:
+    using node::ObjectWrap::Ref;
+    using node::ObjectWrap::Unref;
 
     struct TPart
     {

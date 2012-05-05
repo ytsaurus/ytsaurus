@@ -10,9 +10,10 @@ COMMON_V8_USES
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeJSInputStream::TNodeJSInputStream()
+    : TNodeJSStreamBase()
+    , IsAlive(false)
 {
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    T_THREAD_AFFINITY_IS_V8();
 
     CHECK_RETURN_VALUE(pthread_mutex_init(&Mutex, NULL));
     CHECK_RETURN_VALUE(pthread_cond_init(&Conditional, NULL));
@@ -23,7 +24,7 @@ TNodeJSInputStream::TNodeJSInputStream()
 TNodeJSInputStream::~TNodeJSInputStream()
 {
     // Affinity: any?
-    TRACE_CURRENT_THREAD();
+    TRACE_CURRENT_THREAD("??");
 
     {
         TGuard guard(&Mutex);
@@ -34,9 +35,51 @@ TNodeJSInputStream::~TNodeJSInputStream()
     CHECK_RETURN_VALUE(pthread_cond_destroy(&Conditional));
 }
 
-void TNodeJSInputStream::Push(Handle<Value> buffer, char *data, size_t offset, size_t length)
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSInputStream::New(const Arguments& args)
 {
-    // Affinity: V8
+    T_THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    TNodeJSInputStream* stream = new TNodeJSInputStream();
+    stream->Wrap(args.This());
+    return scope.Close(args.This());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
+{
+    T_THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSInputStream* stream =
+        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+
+    // Validate arguments.
+    assert(args.Length() == 3);
+
+    assert(node::Buffer::HasInstance(args[0]));
+    assert(args[1]->IsUint32());
+    assert(args[2]->IsUint32());
+
+    // Do the work.
+    assert(stream);
+    stream->DoPush(
+        /* buffer */ args[0],
+        /* data   */ node::Buffer::Data(Local<Object>::Cast(args[0])),
+        /* offset */ args[1]->Uint32Value(),
+        /* length */ args[2]->Uint32Value());
+
+    // TODO(sandello): Think about OnSuccess & OnError callbacks.
+    return Undefined();
+}
+
+void TNodeJSInputStream::DoPush(Handle<Value> buffer, char *data, size_t offset, size_t length)
+{
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     TPart part;
@@ -45,9 +88,6 @@ void TNodeJSInputStream::Push(Handle<Value> buffer, char *data, size_t offset, s
     part.Offset = offset;
     part.Length = length;
 
-    fprintf(stderr, "(PUSH) buffer = %p, offset = %lu, length = %lu\n",
-        part.Data, part.Offset, part.Length);
-
     {
         TGuard guard(&Mutex);
         Queue.push_back(part);
@@ -55,9 +95,32 @@ void TNodeJSInputStream::Push(Handle<Value> buffer, char *data, size_t offset, s
     }
 }
 
-void TNodeJSInputStream::Sweep(uv_work_t *request)
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
 {
-    // Affinity: V8
+    T_THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSInputStream* stream =
+        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+
+    // Validate arguments.
+    assert(args.Length() == 0);
+
+    // Do the work.
+    assert(stream);
+    stream->EnqueueSweep();
+
+    // TODO(sandello): Think about OnSuccess & OnError callbacks.
+    return Undefined();
+}
+
+
+void TNodeJSInputStream::AsyncSweep(uv_work_t *request)
+{
+    THREAD_AFFINITY_IS_V8();
     TNodeJSInputStream* stream =
         container_of(request, TNodeJSInputStream, SweepRequest);
     stream->DoSweep();
@@ -65,8 +128,7 @@ void TNodeJSInputStream::Sweep(uv_work_t *request)
 
 void TNodeJSInputStream::DoSweep()
 {
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Since this function is invoked from V8, we are trying to avoid
@@ -75,7 +137,7 @@ void TNodeJSInputStream::DoSweep()
     {
         int rv  = pthread_mutex_trylock(&Mutex);
         if (rv != 0) {
-            AsyncSweep();
+            EnqueueSweep();
             return;
         }
     }
@@ -101,9 +163,30 @@ void TNodeJSInputStream::DoSweep()
     Queue.erase(Queue.begin(), it);
 }
 
-void TNodeJSInputStream::Close(uv_work_t *request)
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
 {
-    // Affinity: any
+    T_THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSInputStream* stream =
+        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+
+    // Validate arguments.
+    assert(args.Length() == 0);
+
+    // Do the work.
+    assert(stream);
+    stream->EnqueueClose();
+
+    return Undefined();
+}
+
+void TNodeJSInputStream::AsyncClose(uv_work_t *request)
+{
+    THREAD_AFFINITY_IS_UV();
     TNodeJSInputStream* stream =
         container_of(request, TNodeJSInputStream, CloseRequest);
     stream->DoClose();
@@ -111,10 +194,9 @@ void TNodeJSInputStream::Close(uv_work_t *request)
 
 void TNodeJSInputStream::DoClose()
 {
-    // Affinity: any
-    TRACE_CURRENT_THREAD();
+    THREAD_AFFINITY_IS_UV();
 
-    TGuard guard(&Mutex, false);
+    TGuard guard(&Mutex);
 
     IsAlive = false;
     pthread_cond_broadcast(&Conditional);
@@ -122,8 +204,7 @@ void TNodeJSInputStream::DoClose()
 
 size_t TNodeJSInputStream::Read(void* buffer, size_t length)
 {
-    // Affinity: Any thread.
-    TRACE_CURRENT_THREAD();
+    THREAD_AFFINITY_IS_UV();
 
     TGuard guard(&Mutex);
 
@@ -168,7 +249,7 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
         }
     };
 
-    AsyncSweep();
+    EnqueueSweep();
 
     return result;
 }

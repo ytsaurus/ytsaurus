@@ -2,9 +2,6 @@
 #include "input_stream.h"
 #include "output_stream.h"
 
-#include <node.h>
-#include <node_buffer.h>
-
 #ifndef _GLIBCXX_PURE
 #define _GLIBCXX_PURE inline
 #endif
@@ -18,245 +15,275 @@ namespace NYT {
 
 COMMON_V8_USES
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TNodeJSStreamBase;
-
-//! This class adheres to TInputStream interface as a C++ object and
-//! simultaneously provides 'writable stream' interface stubs as a JS object
-//! thus effectively acting as a bridge from JS to C++.
-class TNodeJSInputStream;
-
-//! This class adheres to TOutputStream interface as a C++ object and
-//! simultaneously provides 'readable stream' interface stubs as a JS object
-//! thus effectively acting as a bridge from C++ to JS.
-class TNodeJSOutputStream;
-
-//! A NodeJS driver host.
-class TNodeJSDriverHost;
+using v8::Context;
+using v8::Exception;
+using v8::ThrowException;
+using v8::TryCatch;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(sandello): Extract this method to a separate file.
 void DoNothing(uv_work_t*)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeJSDriverHost
+class TTestInputStream
     : public node::ObjectWrap
 {
-public:
-    ~TNodeJSDriverHost();
+protected:
+    TTestInputStream(TNodeJSInputStream* slave);
+    ~TTestInputStream();
 
+public:
     using node::ObjectWrap::Ref;
     using node::ObjectWrap::Unref;
 
     // Synchronous JS API.
     static Handle<Value> New(const Arguments& args);
-    static Handle<Value> WriteToInputStream(const Arguments& args);
-    static Handle<Value> ReadFromOutputStream(const Arguments& args);
-    static Handle<Value> ReadFromErrorStream(const Arguments& args);
-    static Handle<Value> CloseInputStream(const Arguments& args);
-    static Handle<Value> CloseOutputStream(const Arguments& args);
-    static Handle<Value> CloseErrorStream(const Arguments& args);
+
+    static Handle<Value> ReadSynchronously(const Arguments& args);
 
     // Asynchronous JS API.
-    static Handle<Value> Test(const Arguments& args);
-    static void TestWork(uv_work_t* workRequest);
-    static void TestAfter(uv_work_t* workRequest);
+    static Handle<Value> Read(const Arguments& args);
+    static void ReadWork(uv_work_t* workRequest);
+    static void ReadAfter(uv_work_t* workRequest);
 
 private:
-    std::shared_ptr<TNodeJSInputStream> InputStream;
-//    std::list<> OutputStreamParts;
-//    std::list<> ErrorStreamParts;
+    // XXX(sandello): Store by intrusive ptr afterwards.
+    TNodeJSInputStream* Slave;
 
-    uv_work_t TestRequest;
+    class TReadString
+        : public String::ExternalAsciiStringResource
+    {
+    public:
+        TReadString(size_t requiredLength)
+            : Buffer(new char[requiredLength])
+            , Length(requiredLength)
+        { }
+
+        ~TReadString()
+        {
+            if (Buffer) {
+                delete[] Buffer;
+            }
+        }
+
+        const char* data() const
+        {
+            return Buffer;
+        }
+
+        char* mutable_data()
+        {
+            return Buffer;
+        }
+
+        size_t length() const
+        {
+            return Length;
+        }
+
+        size_t& mutable_length()
+        {
+            return Length;
+        }
+
+    private:
+        char*  Buffer;
+        size_t Length;           
+    };
+
+    struct TReadRequest
+    {
+        uv_work_t Request;
+        TTestInputStream* Stream;
+
+        Persistent<Function> Callback;
+
+        char*  Buffer;
+        size_t Length;
+    };
 
 private:
-    static TNodeJSDriverHost* Create();
-    TNodeJSDriverHost();
-    TNodeJSDriverHost(const TNodeJSDriverHost&);
+    TTestInputStream(const TTestInputStream&);
+    TTestInputStream& operator=(const TTestInputStream&);
 };
 
-Handle<Value> TNodeJSDriverHost::New(const Arguments& args)
+////////////////////////////////////////////////////////////////////////////////
+
+TTestInputStream::TTestInputStream(TNodeJSInputStream* slave)
+    : node::ObjectWrap()
+    , Slave(slave)
 {
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    T_THREAD_AFFINITY_IS_V8();
+}
+
+TTestInputStream::~TTestInputStream()
+{
+    // Affinity: any?
+    TRACE_CURRENT_THREAD("??");
+}
+
+Handle<Value> TTestInputStream::New(const Arguments& args)
+{
+    T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TNodeJSDriverHost* host = new TNodeJSDriverHost();
+    assert(args.Length() == 1);
+
+    TTestInputStream* host = new TTestInputStream(
+        ObjectWrap::Unwrap<TNodeJSInputStream>(Local<Object>::Cast(args[0])));
     host->Wrap(args.This());
     return args.This();
 }
 
-Handle<Value> TNodeJSDriverHost::WriteToInputStream(const Arguments& args)
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TTestInputStream::ReadSynchronously(const Arguments& args)
 {
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TNodeJSDriverHost* host =
-        ObjectWrap::Unwrap<TNodeJSDriverHost>(args.This());
+    // Unwrap.
+    TTestInputStream* host =
+        ObjectWrap::Unwrap<TTestInputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 3);
+    assert(args.Length() == 1);
 
-    assert(node::Buffer::HasInstance(args[0]));
-    assert(args[1]->IsUint32());
-    assert(args[2]->IsUint32());
+    if (!args[0]->IsUint32()) {
+        return ThrowException(Exception::TypeError(
+            String::New("Expected first argument to be an Uint32")));
+    }
 
     // Do the work.
-    host->InputStream->Push(
-        /* buffer */ args[0],
-        /* data   */ node::Buffer::Data(Local<Object>::Cast(args[0])),
-        /* offset */ args[1]->Uint32Value(),
-        /* length */ args[2]->Uint32Value());
+    size_t length;
+    TReadString* string;
 
-    // TODO(sandello): Think about OnSuccess & OnError callbacks.
-    return Undefined();
+    length = args[0]->Uint32Value();
+    string = new TTestInputStream::TReadString(length);
+    length = host->Slave->Read(string->mutable_data(), length);
+    string->mutable_length() = length;
+
+    return scope.Close(String::NewExternal(string));
 }
 
-Handle<Value> TNodeJSDriverHost::ReadFromOutputStream(const Arguments& args)
+Handle<Value> TTestInputStream::Read(const Arguments &args)
 {
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    return Undefined();
-}
+    // Validate arguments.
+    assert(args.Length() == 2);
 
-Handle<Value> TNodeJSDriverHost::ReadFromErrorStream(const Arguments& args)
-{
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
-    HandleScope scope;
+    if (!args[0]->IsUint32()) {
+        return ThrowException(Exception::TypeError(
+            String::New("Expected first argument to be an Uint32")));
+    }
+    if (!args[1]->IsFunction()) {
+        return ThrowException(Exception::TypeError(
+            String::New("Expected second argument to be a Function")));
+    }
 
-    return Undefined();
-}
+    // Do the work.
+    TReadRequest* request = new TReadRequest();
 
-Handle<Value> TNodeJSDriverHost::CloseInputStream(const Arguments& args)
-{
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
-    HandleScope scope;
-
-    TNodeJSDriverHost* host =
-        ObjectWrap::Unwrap<TNodeJSDriverHost>(args.This());
-
-    host->InputStream->AsyncClose();
-    return Undefined();
-}
-
-Handle<Value> TNodeJSDriverHost::CloseOutputStream(const Arguments& args)
-{
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
-    HandleScope scope;
-
-    return Undefined();
-}
-
-Handle<Value> TNodeJSDriverHost::CloseErrorStream(const Arguments& args)
-{
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
-    HandleScope scope;
-
-    return Undefined();
-}
-
-struct TTestRequest
-{
-    uv_work_t TestRequest;
-    TNodeJSDriverHost* Host;
-    size_t HowMuch;
-    char* WhereToRead;
-};
-
-Handle<Value> TNodeJSDriverHost::Test(const Arguments &args)
-{
-    //TRACE_CURRENT_THREAD();
-    assert(args.Length() == 1);
-    assert(args[0]->IsUint32());
-
-    TTestRequest* request = new TTestRequest();
-
-    request->Host = ObjectWrap::Unwrap<TNodeJSDriverHost>(args.This());
-    request->HowMuch = args[0]->ToUint32()->Value();
-    request->WhereToRead = new char[request->HowMuch];
+    request->Callback = Persistent<Function>::New(Local<Function>::Cast(args[1])); 
+    request->Stream = ObjectWrap::Unwrap<TTestInputStream>(args.This());
+    request->Length = args[0]->Uint32Value();
+    request->Buffer = new char[request->Length];
 
     uv_queue_work(
-        uv_default_loop(), &request->TestRequest,
-        TNodeJSDriverHost::TestWork, TNodeJSDriverHost::TestAfter);
+        uv_default_loop(), &request->Request,
+        TTestInputStream::ReadWork, TTestInputStream::ReadAfter);
 
-    request->Host->Ref();
+    request->Stream->Ref();
+    request->Stream->Slave->Ref();
+
     return Undefined();
 }
 
-void TNodeJSDriverHost::TestWork(uv_work_t *workRequest)
+void TTestInputStream::ReadWork(uv_work_t *workRequest)
 {
-    //TRACE_CURRENT_THREAD();
-    TTestRequest* request = container_of(workRequest, TTestRequest, TestRequest);
+    THREAD_AFFINITY_IS_UV();
+    TReadRequest* request =
+        container_of(workRequest, TReadRequest, Request);
 
-    size_t x = request->Host->InputStream->Read(request->WhereToRead, request->HowMuch);
-    request->HowMuch = x;
+    request->Length = request->Stream->Slave->Read(request->Buffer, request->Length);
 }
 
-void TNodeJSDriverHost::TestAfter(uv_work_t *workRequest)
+void TTestInputStream::ReadAfter(uv_work_t *workRequest)
 {
-    //TRACE_CURRENT_THREAD();
-    TTestRequest* request = container_of(workRequest, TTestRequest, TestRequest);
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
 
-    fprintf(stderr, ">>>READ>>>");
-    fwrite(request->WhereToRead, 1, request->HowMuch, stderr);
-    fprintf(stderr, "<<< (len=%lu)\n", request->HowMuch);
+    TReadRequest* request =
+        container_of(workRequest, TReadRequest, Request);
 
-    request->Host->Unref();
+    {
+        TryCatch block;
 
-    delete[] request->WhereToRead;
-    delete request;
-}
+        Local<Value> args[] = {
+            Local<Value>::New(Integer::New(request->Length)),
+            Local<Value>::New(String::New(request->Buffer, request->Length))
+        };
 
-TNodeJSDriverHost* TNodeJSDriverHost::Create()
-{
-    TRACE_CURRENT_THREAD();
-    return new TNodeJSDriverHost();
-}
+        request->Callback->Call(Context::GetCurrent()->Global(), 2, args);
+        request->Callback.Dispose();
 
-TNodeJSDriverHost::TNodeJSDriverHost()
-    : node::ObjectWrap()
-    , InputStream(new TNodeJSInputStream())
-{
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
-}
+        if (block.HasCaught()) {
+            node::FatalException(block);
+        }
+    }
 
-TNodeJSDriverHost::~TNodeJSDriverHost()
-{
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    request->Stream->Slave->Unref();
+    request->Stream->Unref();
+
+    delete[] request->Buffer;
+    delete   request;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InitYT(Handle<Object> target)
+void InitInputStream(Handle<Object> target)
 {
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSDriverHost::New);
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSInputStream::New);
 
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Push", TNodeJSInputStream::Push);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Sweep", TNodeJSInputStream::Sweep);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Close", TNodeJSInputStream::Close);
 
-    NODE_SET_PROTOTYPE_METHOD(tpl, "write_to_input", TNodeJSDriverHost::WriteToInputStream);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "read_from_output", TNodeJSDriverHost::ReadFromOutputStream);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "read_from_error", TNodeJSDriverHost::ReadFromErrorStream);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "close_input", TNodeJSDriverHost::CloseInputStream);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "test", TNodeJSDriverHost::Test);
+    tpl->SetClassName(String::NewSymbol("TNodeJSInputStream"));
+    target->Set(String::NewSymbol("TNodeJSInputStream"), tpl->GetFunction());
+}
 
-    tpl->SetClassName(String::NewSymbol("DriverHost"));
-    target->Set(String::NewSymbol("DriverHost"), tpl->GetFunction());
+void InitTestInputStream(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TTestInputStream::New);
+
+    tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Read", TTestInputStream::Read);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "ReadSynchronously", TTestInputStream::ReadSynchronously);
+
+    tpl->SetClassName(String::NewSymbol("TTestInputStream"));
+    target->Set(String::NewSymbol("TTestInputStream"), tpl->GetFunction());
+}
+
+void InitYT(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    InitInputStream(target);
+    InitTestInputStream(target);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

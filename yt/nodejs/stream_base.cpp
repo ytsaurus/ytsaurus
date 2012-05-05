@@ -5,6 +5,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeJSStreamBase::TNodeJSStreamBase()
+    : node::ObjectWrap()
 { }
 
 TNodeJSStreamBase::~TNodeJSStreamBase()
