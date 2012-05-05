@@ -85,6 +85,9 @@ private:
     //! Uncompressed size of completed blocks.
     i64 UncompressedSize;
 
+    //! Approximate size of written data, monotonically increases.
+    i64 DataOffset;
+
     TKey LastKey;
 
     // Different chunk meta extensions.

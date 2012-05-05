@@ -45,6 +45,7 @@ TChunkWriter::TChunkWriter(
     , LastKey()
     , SamplesSize(0)
     , IndexSize(0)
+    , DataOffset(0)
 {
     YASSERT(chunkWriter);
     Codec = GetCodec(ECodecId(Config->CodecId));
@@ -296,6 +297,9 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
 
         }
     }
+
+    sample.set_row_index(ProtoMisc.row_count() - 1);
+    sample.set_data_offset();
 
     return sample;
 }

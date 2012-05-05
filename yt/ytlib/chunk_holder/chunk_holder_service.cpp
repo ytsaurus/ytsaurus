@@ -15,6 +15,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -407,8 +408,28 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
         request->key_columns_size(),
         request->chunk_ids_size());
 
+    auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
+    auto keyColumns = FromProto<Stroka>(request->key_columns());
     auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
+    std::vector<int> tags(1, GetProtoExtensionTag<NTableClient::NProto::TSamples>());
+
     FOREACH (const auto& chunkId, chunkIds) {
+        auto* chunkSamples = response->add_samples();
+        auto asyncMeta = GetChunk(chunkId)->GetMeta(tags);
+
+        awaiter->Await(asyncMeta, BIND([=] (TChunk::TGetMetaResult result) {
+            if (!result.IsOK()) {
+                LOG_WARNING("Failed to retreive chunk meta (ChunkId: %s, Error: %s)", 
+                    ~chunkId.ToString(),
+                    ~result.ToString());
+                *chunkSamples->mutable_error() = result.ToProto();
+            } else {
+                auto samples = GetProtoExtension<NTableClient::NProto::TSamples>(
+                    result.Value().extensions())
+            }
+        });
+
+
         auto* chunkSamples = response->add_samples();
         // TODO(babenko): implement this
         *chunkSamples->mutable_error() = TError("Not implemented :)").ToProto();

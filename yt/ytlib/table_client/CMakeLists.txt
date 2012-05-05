@@ -17,9 +17,8 @@ set( SRCS
   ${BASE}/value.cpp
   ${BASE}/key.cpp
   ${BASE}/value_consumer.cpp
-#  ${BASE}/yson_table_input.cpp
-#  ${BASE}/yson_table_output.cpp
   ${BASE}/table_producer.cpp
+  ${BASE}/limits.cpp
 )
 
 set( HDRS
@@ -43,10 +42,9 @@ set( HDRS
   ${BASE}/value.h
   ${BASE}/key.h
   ${BASE}/value_consumer.h
-#  ${BASE}/yson_table_input.h
-#  ${BASE}/yson_table_output.h
   ${BASE}/table_producer.h
   ${BASE}/chunk_meta_extensions.h
+  ${BASE}/limits.h
 )
 
 list(APPEND YT_SOURCE_FILES
