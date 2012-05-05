@@ -57,7 +57,7 @@ message TIndexRow
 
 // Chunk meta extension.
 // TODO(babenko): Ext
-message TIndex 
+message TIndex
 {
     repeated TIndexRow index_rows = 2;
 }
@@ -81,6 +81,7 @@ message TBlockInfo
 {
     required int32 block_index = 1;
     required int32 row_count = 2;
+    optional int32 partition_tag = 3 [default = -1];
 }
 
 message TChunkChannel

@@ -2,6 +2,7 @@ package NYT.NScheduler.NProto;
 
 import "yt/ytlib/chunk_holder/chunk.proto";
 import "yt/ytlib/table_client/table_reader.proto";
+import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/file_server/file_ypath.proto";
 import "yt/ytlib/misc/error.proto";
 import "yt/ytlib/misc/guid.proto";
@@ -128,6 +129,57 @@ message TMergeJobResult
     extend TJobResult
     {
         optional TMergeJobResult merge_job_result = 101;
+    }
+
+    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPartitionJobSpec
+{
+    extend TJobSpec
+    {
+        optional TPartitionJobSpec partition_job_spec = 103;
+    }
+
+    required TTableInputSpec input_spec = 1;
+    repeated NYT.NTableClient.NProto.TKey partition_keys = 2;
+    required NYT.NProto.TGuid output_chunk_list_id = 3;
+    required NYT.NProto.TGuid output_transaction_id = 4;
+}
+
+message TPartitionJobResult
+{
+    extend TJobResult
+    {
+        optional TMergeJobResult partition_job_result = 102;
+    }
+
+    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+    repeated int64 partition_sizes = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSortJobSpec
+{
+    extend TJobSpec
+    {
+        optional TPartitionJobSpec sort_job_spec = 104;
+    }
+
+    required TTableInputSpec input_spec = 1;
+    required TTableOutputSpec output_spec = 2;
+    required int32 partition_tag = 3;
+    required NYT.NProto.TGuid output_transaction_id = 4;
+}
+
+message TSortJobResult
+{
+    extend TJobResult
+    {
+        optional TSortJobResult sort_job_result = 103;
     }
 
     repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
