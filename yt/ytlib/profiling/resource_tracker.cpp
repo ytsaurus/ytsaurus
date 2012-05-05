@@ -52,14 +52,18 @@ void TResourceTracker::EnqueueUsage()
     dirsList.Fill(path);
     i32 size = dirsList.Size();
     for (i32 i = 0; i < size; ++i) {
-        Stroka pathToThreadStat = NFS::CombinePaths(path, dirsList.Next());
-
-        Stroka cpuStat = NFS::CombinePaths(pathToThreadStat, "stat");
-        TIFStream cpuStatFile(cpuStat);
-        auto fields = splitStroku(cpuStatFile.ReadLine(), " ");
+        Stroka threadStatPath = NFS::CombinePaths(path, dirsList.Next());
+        Stroka cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
+        VectorStrok fields;
+        try {
+            TIFStream cpuStatFile(cpuStatPath);
+            fields = splitStroku(cpuStatFile.ReadLine(), " ");
+        } catch (const TIoException&) {
+            // Ignore all IO exceptions.
+        }
 
         Stroka threadName = fields[1].substr(1, fields[1].size() - 2);
-        Stroka baseProfilingPath = "/resource_usage/" + EscapeYPathToken(threadName);
+        TYPath baseProfilingPath = "/resource_usage/" + EscapeYPathToken(threadName);
 
         i64 userTicks = FromString<i64>(fields[13]); // utime
         i64 kernelTicks = FromString<i64>(fields[14]); // stime
@@ -85,7 +89,7 @@ void TResourceTracker::EnqueueUsage()
         PreviousUserTicks[threadName] = userTicks;
         PreviousKernelTicks[threadName] = kernelTicks;
 
-        Stroka memoryStat = NFS::CombinePaths(pathToThreadStat, "statm");
+        Stroka memoryStat = NFS::CombinePaths(threadStatPath, "statm");
         TIFStream memoryStatFile(memoryStat);
         auto memoryFields = splitStroku(memoryStatFile.ReadLine(), " ");
 
