@@ -146,10 +146,17 @@ message TReqGetTableSamples
 
 message TRspGetTableSamples
 {
+    message TKeySample
+    {
+        required NYT.NTableClient.NProto.TKey key = 1;
+        required int64 data_offset = 2;
+        required int64 row_index = 3;
+    }
+
     message TChunkSamples
     {
         optional NYT.NProto.TError error = 1;
-        repeated NYT.NTableClient.NProto.TKey samples = 2;
+        repeated TKeySample items = 2;
     }
 
     repeated TChunkSamples samples = 1;

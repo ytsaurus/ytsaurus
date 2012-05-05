@@ -38,6 +38,8 @@ message TSamplePart
 message TSample
 {
     repeated TSamplePart parts = 1;
+    required int64 data_offset = 2;
+    required int64 row_index = 3;
 }
 
 // Chunk meta extension.
