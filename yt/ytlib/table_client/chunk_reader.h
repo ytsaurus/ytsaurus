@@ -32,11 +32,6 @@ public:
         { }
     };
 
-    /*! 
-     *  \param EndRow - if given value exceeds row count of the chunk,
-     *  chunk is processed to the end without error. To guarantee reading
-     *  chunk to the end, set it to numerical_limits<int>::max().
-     */
     TChunkReader(
         NChunkClient::TSequentialReaderConfigPtr config,
         const TChannel& channel,

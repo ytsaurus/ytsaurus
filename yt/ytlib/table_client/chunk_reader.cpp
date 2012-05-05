@@ -64,7 +64,7 @@ struct TBlockInfo
     int ChunkBlockIndex;
     int ChannelBlockIndex;
     int ChannelIndex;
-    int LastRow;
+    i64 LastRow;
 
     bool operator< (const TBlockInfo& rhs)
     {
@@ -77,7 +77,7 @@ struct TBlockInfo
         int chunkBlockIndex, 
         int channelBlockIndex, 
         int channelIdx, 
-        int lastRow)
+        i64 lastRow)
         : ChunkBlockIndex(chunkBlockIndex)
         , ChannelBlockIndex(channelBlockIndex)
         , ChannelIndex(channelIdx)
@@ -87,6 +87,7 @@ struct TBlockInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): eliminate
 template <template <typename T> class TComparator>
 struct TChunkReader::TIndexComparator
 {
@@ -273,7 +274,7 @@ private:
 
         LOG_DEBUG("Selected %d channels", static_cast<int>(SelectedChannels.size()));
 
-        std::vector<int> blockIndexSequence = GetBlockReadSequence(chunkReader);
+        auto blockIndexSequence = GetBlockReadSequence(chunkReader);
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
@@ -347,8 +348,8 @@ private:
         FOREACH (auto channelIdx, SelectedChannels) {
             const auto& protoChannel = ProtoChannels->items(channelIdx);
             int blockIndex = -1;
-            int startRow = 0;
-            int lastRow = 0;
+            i64 startRow = 0;
+            i64 lastRow = 0;
             while (true) {
                 ++blockIndex;
                 YASSERT(blockIndex < static_cast<int>(protoChannel.blocks_size()));
@@ -439,7 +440,7 @@ private:
         auto decompressedBlock = chunkReader->Codec->Decompress(compressedBlock);
         channelReader->SetBlock(decompressedBlock);
 
-        for (int rowIndex = StartRows[selectedChannelIndex]; 
+        for (i64 rowIndex = StartRows[selectedChannelIndex]; 
             rowIndex < StartRowIndex; 
             ++rowIndex) 
         {
@@ -510,7 +511,7 @@ private:
     /*!
      *  Is used to set channel readers to ChunkReader's StartRow during initialization.
      */
-    std::vector<int> StartRows;
+    std::vector<i64> StartRows;
     bool HasRangeRequest;
 };
 
