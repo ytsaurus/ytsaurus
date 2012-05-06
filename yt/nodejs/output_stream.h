@@ -12,13 +12,16 @@ namespace NYT {
 class TNodeJSOutputStream
     : public TNodeJSStreamBase
 {
-public:
+protected:
     TNodeJSOutputStream();
     ~TNodeJSOutputStream();
 
 public:
     // Synchronous JS API.
-    v8::Handle<v8::Value> Pull();
+    static v8::Handle<v8::Value> New(const v8::Arguments& args);
+
+    static v8::Handle<v8::Value> Pull(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoPull();
 
     // Asynchronous JS API.
 

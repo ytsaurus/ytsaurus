@@ -268,6 +268,169 @@ void TTestInputStream::ReadAfter(uv_work_t *workRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestOutputStream
+    : public node::ObjectWrap
+{
+protected:
+    TTestOutputStream(TNodeJSOutputStream* slave);
+    ~TTestOutputStream();
+
+public:
+    using node::ObjectWrap::Ref;
+    using node::ObjectWrap::Unref;
+
+    // Synchronous JS API.
+    static Handle<Value> New(const Arguments& args);
+
+    static Handle<Value> WriteSynchronously(const Arguments& args);
+
+    // Asynchronous JS API.
+    static Handle<Value> Write(const Arguments& args);
+    static void WriteWork(uv_work_t* workRequest);
+    static void WriteAfter(uv_work_t* workRequest);
+
+private:
+    // XXX(sandello): See comments for TTestInputStream
+    TNodeJSOutputStream* Slave;
+
+    struct TWriteRequest
+    {
+        uv_work_t Request;
+        TTestOutputStream* Stream;
+
+        Persistent<Function> Callback;
+        String::Utf8Value ValueToBeWritten;
+
+        char*  Buffer;
+        size_t Length;
+
+        TWriteRequest(Handle<String> string, Handle<Function> callback)
+            : Callback(Persistent<Function>::New(callback))
+            , ValueToBeWritten(string)
+        {
+            Buffer = *ValueToBeWritten;
+            Length = ValueToBeWritten.length();
+        }
+
+        ~TWriteRequest()
+        {
+            Callback.Dispose();
+            Callback.Clear();
+        }
+    };
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTestOutputStream::TTestOutputStream(TNodeJSOutputStream* slave)
+    : node::ObjectWrap()
+    , Slave(slave)
+{
+    T_THREAD_AFFINITY_IS_V8();
+}
+
+TTestOutputStream::~TTestOutputStream()
+{
+    // Affinity: any?
+    TRACE_CURRENT_THREAD("??");
+}
+
+Handle<Value> TTestOutputStream::New(const Arguments& args)
+{
+    T_THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    assert(args.Length() == 1);
+
+    TTestOutputStream* host = new TTestOutputStream(
+        ObjectWrap::Unwrap<TNodeJSOutputStream>(Local<Object>::Cast(args[0])));
+    host->Wrap(args.This());
+    return args.This();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TTestOutputStream::WriteSynchronously(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TTestOutputStream* host =
+        ObjectWrap::Unwrap<TTestOutputStream>(args.This());
+
+    // Validate arguments.
+    assert(args.Length() == 1);
+
+    if (!args[0]->IsString()) {
+        return ThrowException(Exception::TypeError(
+            String::New("Expected first argument to be a String")));
+    }
+
+    // Do the work.
+    String::Utf8Value value(args[0]);
+    host->Slave->Write(*value, value.length());
+
+    return Undefined();
+}
+
+// XXX fix me
+Handle<Value> TTestOutputStream::Write(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Validate arguments.
+    assert(args.Length() == 2);
+
+    if (!args[0]->IsString()) {
+        return ThrowException(Exception::TypeError(
+            String::New("Expected first argument to be an Uint32")));
+    }
+    if (!args[1]->IsFunction()) {
+        return ThrowException(Exception::TypeError(
+            String::New("Expected second argument to be a Function")));
+    }
+
+    // Do the work.
+    TWriteRequest* request = new TWriteRequest(
+        Local<String>::Cast(args[0]),
+        Local<Function>::Cast(args[1]));
+
+    request->Stream = ObjectWrap::Unwrap<TTestOutputStream>(args.This());
+
+    uv_queue_work(
+        uv_default_loop(), &request->Request,
+        TTestOutputStream::WriteWork, TTestOutputStream::WriteAfter);
+
+    request->Stream->Ref();
+    request->Stream->Slave->Ref();
+
+    return Undefined();
+}
+
+void TTestOutputStream::WriteWork(uv_work_t *workRequest)
+{
+    THREAD_AFFINITY_IS_UV();
+    TWriteRequest* request =
+        container_of(workRequest, TWriteRequest, Request);
+
+    assert(0);
+}
+
+void TTestOutputStream::WriteAfter(uv_work_t *workRequest)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    TWriteRequest* request =
+        container_of(workRequest, TWriteRequest, Request);
+
+    assert(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void InitInputStream(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
@@ -282,6 +445,20 @@ void InitInputStream(Handle<Object> target)
 
     tpl->SetClassName(String::NewSymbol("TNodeJSInputStream"));
     target->Set(String::NewSymbol("TNodeJSInputStream"), tpl->GetFunction());
+}
+
+void InitOutputStream(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSOutputStream::New);
+
+    tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Pull", TNodeJSOutputStream::Pull);
+
+    tpl->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
+    target->Set(String::NewSymbol("TNodeJSOutputStream"), tpl->GetFunction());
 }
 
 void InitTestInputStream(Handle<Object> target)
@@ -299,13 +476,30 @@ void InitTestInputStream(Handle<Object> target)
     target->Set(String::NewSymbol("TTestInputStream"), tpl->GetFunction());
 }
 
+void InitTestOutputStream(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TTestOutputStream::New);
+
+    tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Write", TTestOutputStream::Write);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "WriteSynchronously", TTestOutputStream::WriteSynchronously);
+
+    tpl->SetClassName(String::NewSymbol("TTestOutputStream"));
+    target->Set(String::NewSymbol("TTestOutputStream"), tpl->GetFunction());
+}
+
 void InitYT(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     InitInputStream(target);
+    InitOutputStream(target);
     InitTestInputStream(target);
+    InitTestOutputStream(target);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

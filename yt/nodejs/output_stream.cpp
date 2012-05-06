@@ -11,8 +11,7 @@ COMMON_V8_USES
 
 TNodeJSOutputStream::TNodeJSOutputStream()
 {
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    T_THREAD_AFFINITY_IS_V8();
 
     CHECK_RETURN_VALUE(pthread_mutex_init(&Mutex, NULL));
 }
@@ -37,10 +36,40 @@ TNodeJSOutputStream::~TNodeJSOutputStream()
     }
 }
 
-Handle<Value> TNodeJSOutputStream::Pull()
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
 {
-    // Affinity: V8
-    TRACE_CURRENT_THREAD();
+    T_THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    TNodeJSOutputStream* stream = new TNodeJSOutputStream();
+    stream->Wrap(args.This());
+    return scope.Close(args.This());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSOutputStream::Pull(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSOutputStream* stream = 
+        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+
+    // Validate arguments.
+    assert(args.Length() == 0);
+
+    // Do the work.
+    assert(stream);
+    return stream->DoPull();
+}
+
+Handle<Value> TNodeJSOutputStream::DoPull()
+{
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     TGuard guard(&Mutex);
@@ -57,7 +86,6 @@ Handle<Value> TNodeJSOutputStream::Pull()
         return scope.Close(buffer->handle_);
     }
 }
-
 /*
 
 TODO
@@ -66,6 +94,8 @@ TODO
 - pull data from JS and test in that way
 
 */
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TNodeJSOutputStream::Write(const void *buffer, size_t length)
 {
