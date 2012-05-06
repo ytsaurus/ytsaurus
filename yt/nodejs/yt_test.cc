@@ -106,25 +106,36 @@ private:
         char*  Buffer;
         size_t Length;
 
-        TReadRequest(Handle<Integer> length, Handle<Function> callback)
-            : Callback(Persistent<Function>::New(callback))
+        TReadRequest(TTestInputStream* stream, Handle<Integer> length, Handle<Function> callback)
+            : Stream(stream)
+            , Callback(Persistent<Function>::New(callback))
             , Length(length->Uint32Value())
         {
+            THREAD_AFFINITY_IS_V8();
+
             if (Length) {
                 Buffer = new char[Length];
             }
 
             assert(Buffer || !Length);
+
+            Stream->Ref();
+            Stream->Slave->Ref();
         }
 
         ~TReadRequest()
         {
+            THREAD_AFFINITY_IS_V8();
+
             if (Buffer) {
                 delete[] Buffer;
             }
 
             Callback.Dispose();
             Callback.Clear();
+
+            Stream->Slave->Unref();
+            Stream->Unref();
         }
     };
 
@@ -211,17 +222,13 @@ Handle<Value> TTestInputStream::Read(const Arguments& args)
 
     // Do the work.
     TReadRequest* request = new TReadRequest(
+        ObjectWrap::Unwrap<TTestInputStream>(args.This()),
         Local<Integer>::Cast(args[0]),
         Local<Function>::Cast(args[1]));
-
-    request->Stream = ObjectWrap::Unwrap<TTestInputStream>(args.This());
 
     uv_queue_work(
         uv_default_loop(), &request->Request,
         TTestInputStream::ReadWork, TTestInputStream::ReadAfter);
-
-    request->Stream->Ref();
-    request->Stream->Slave->Ref();
 
     return Undefined();
 }
@@ -252,18 +259,13 @@ void TTestInputStream::ReadAfter(uv_work_t *workRequest)
         };
 
         request->Callback->Call(Context::GetCurrent()->Global(), 2, args);
-        request->Callback.Dispose();
 
         if (block.HasCaught()) {
             node::FatalException(block);
         }
     }
 
-    request->Stream->Slave->Unref();
-    request->Stream->Unref();
-
-    delete[] request->Buffer;
-    delete   request;
+    delete request;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,18 +306,29 @@ private:
         char*  Buffer;
         size_t Length;
 
-        TWriteRequest(Handle<String> string, Handle<Function> callback)
-            : Callback(Persistent<Function>::New(callback))
+        TWriteRequest(TTestOutputStream* stream, Handle<String> string, Handle<Function> callback)
+            : Stream(stream)
+            , Callback(Persistent<Function>::New(callback))
             , ValueToBeWritten(string)
         {
+            THREAD_AFFINITY_IS_V8();
+
             Buffer = *ValueToBeWritten;
             Length = ValueToBeWritten.length();
+
+            Stream->Ref();
+            Stream->Slave->Ref();
         }
 
         ~TWriteRequest()
         {
+            THREAD_AFFINITY_IS_V8();
+
             Callback.Dispose();
             Callback.Clear();
+
+            Stream->Slave->Unref();
+            Stream->Unref();
         }
     };
 };
@@ -394,17 +407,13 @@ Handle<Value> TTestOutputStream::Write(const Arguments& args)
 
     // Do the work.
     TWriteRequest* request = new TWriteRequest(
+        ObjectWrap::Unwrap<TTestOutputStream>(args.This()),
         Local<String>::Cast(args[0]),
         Local<Function>::Cast(args[1]));
-
-    request->Stream = ObjectWrap::Unwrap<TTestOutputStream>(args.This());
 
     uv_queue_work(
         uv_default_loop(), &request->Request,
         TTestOutputStream::WriteWork, TTestOutputStream::WriteAfter);
-
-    request->Stream->Ref();
-    request->Stream->Slave->Ref();
 
     return Undefined();
 }
@@ -427,6 +436,8 @@ void TTestOutputStream::WriteAfter(uv_work_t *workRequest)
         container_of(workRequest, TWriteRequest, Request);
 
     assert(0);
+
+    delete request;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

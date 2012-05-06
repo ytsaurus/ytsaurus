@@ -21,7 +21,7 @@ describe("input stream interface", function() {
         expect(this.reader.ReadSynchronously(1)).to.be.a("string").and.to.eql("r");
     });
 
-    it("should be able to read whole input one-at-a-time", function() {
+    it("should be able to read whole input at-a-time", function() {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
 
@@ -58,24 +58,21 @@ describe("input stream interface", function() {
         expect(this.reader.ReadSynchronously(3)).to.be.a("string").and.to.eql("foo");
         expect(this.reader.ReadSynchronously(3)).to.be.a("string").and.to.eql("bar");
 
-        this.counter = 0;
         this.reader.Read(3, (function(length, buffer) {
             expect(length).to.be.eql(3);
             expect(buffer).to.be.equal("123");
-            ++this.counter;
-            if (this.counter == 3) { done(); }
-        }).bind(this));
-        this.reader.Read(3, (function(length, buffer) {
-            expect(length).to.be.eql(2);
-            expect(buffer).to.be.equal("45");
-            ++this.counter;
-            if (this.counter == 3) { done(); }
-        }).bind(this));
-        this.reader.Read(3, (function(length, buffer) {
-            expect(length).to.be.eql(0);
-            expect(buffer).to.be.empty;
-            ++this.counter;
-            if (this.counter == 3) { done(); }
+
+            this.reader.Read(3, (function(length, buffer) {
+                expect(length).to.be.eql(2);
+                expect(buffer).to.be.equal("45");
+
+                this.reader.Read(3, (function(length, buffer) {
+                    expect(length).to.be.eql(0);
+                    expect(buffer).to.be.empty;
+
+                    done();
+                }).bind(this));
+            }).bind(this));
         }).bind(this));
     });
 
@@ -99,5 +96,29 @@ describe("input stream interface", function() {
             expect(buffer).to.be.empty;
             done();
         }).bind(this));
+    });
+});
+
+describe("output stream interface", function() {
+    before(function() {
+        this.stream = new yt.TNodeJSOutputStream();
+        this.writer = new yt.TTestOutputStream(this.stream);
+    });
+
+    it("should be able to write one chunk", function() {
+        this.writer.WriteSynchronously("hello");
+
+        expect(this.stream.Pull().toString())
+            .to.be.equal("hello");
+    });
+
+    it("should be able to write two chunks", function() {
+        this.writer.WriteSynchronously("hello");
+        this.writer.WriteSynchronously("dolly");
+
+        expect(this.stream.Pull().toString())
+            .to.be.equal("hello");
+        expect(this.stream.Pull().toString())
+            .to.be.equal("dolly");
     });
 });
