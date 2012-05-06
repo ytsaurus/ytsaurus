@@ -67,17 +67,14 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
 
     // Do the work.
     assert(stream);
-    stream->DoPush(
+    return stream->DoPush(
         /* buffer */ args[0],
         /* data   */ node::Buffer::Data(Local<Object>::Cast(args[0])),
         /* offset */ args[1]->Uint32Value(),
         /* length */ args[2]->Uint32Value());
-
-    // TODO(sandello): Think about OnSuccess & OnError callbacks.
-    return Undefined();
 }
 
-void TNodeJSInputStream::DoPush(Handle<Value> buffer, char *data, size_t offset, size_t length)
+Handle<Value> TNodeJSInputStream::DoPush(Handle<Value> buffer, char *data, size_t offset, size_t length)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -93,6 +90,9 @@ void TNodeJSInputStream::DoPush(Handle<Value> buffer, char *data, size_t offset,
         Queue.push_back(part);
         pthread_cond_broadcast(&Conditional);
     }
+
+    // TODO(sandello): Think about OnSuccess & OnError callbacks.
+    return Undefined();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
