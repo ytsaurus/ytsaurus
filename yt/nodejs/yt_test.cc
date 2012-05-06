@@ -51,6 +51,8 @@ public:
 
 private:
     // XXX(sandello): Store by intrusive ptr afterwards.
+    // XXX(sandello): Investigate whether it is safe to call Ref() and Unref() on an V8 object
+    // from other threads.
     TNodeJSInputStream* Slave;
 
     class TReadString
@@ -103,6 +105,27 @@ private:
 
         char*  Buffer;
         size_t Length;
+
+        TReadRequest(Handle<Integer> length, Handle<Function> callback)
+            : Callback(Persistent<Function>::New(callback))
+            , Length(length->Uint32Value())
+        {
+            if (Length) {
+                Buffer = new char[Length];
+            }
+
+            assert(Buffer || !Length);
+        }
+
+        ~TReadRequest()
+        {
+            if (Buffer) {
+                delete[] Buffer;
+            }
+
+            Callback.Dispose();
+            Callback.Clear();
+        }
     };
 
 private:
@@ -169,7 +192,7 @@ Handle<Value> TTestInputStream::ReadSynchronously(const Arguments& args)
     return scope.Close(String::NewExternal(string));
 }
 
-Handle<Value> TTestInputStream::Read(const Arguments &args)
+Handle<Value> TTestInputStream::Read(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -187,12 +210,11 @@ Handle<Value> TTestInputStream::Read(const Arguments &args)
     }
 
     // Do the work.
-    TReadRequest* request = new TReadRequest();
+    TReadRequest* request = new TReadRequest(
+        Local<Integer>::Cast(args[0]),
+        Local<Function>::Cast(args[1]));
 
-    request->Callback = Persistent<Function>::New(Local<Function>::Cast(args[1])); 
     request->Stream = ObjectWrap::Unwrap<TTestInputStream>(args.This());
-    request->Length = args[0]->Uint32Value();
-    request->Buffer = new char[request->Length];
 
     uv_queue_work(
         uv_default_loop(), &request->Request,
