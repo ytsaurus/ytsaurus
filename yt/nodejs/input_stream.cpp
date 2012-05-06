@@ -13,7 +13,7 @@ TNodeJSInputStream::TNodeJSInputStream()
     : TNodeJSStreamBase()
     , IsAlive(false)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 
     CHECK_RETURN_VALUE(pthread_mutex_init(&Mutex, NULL));
     CHECK_RETURN_VALUE(pthread_cond_init(&Conditional, NULL));
@@ -39,7 +39,7 @@ TNodeJSInputStream::~TNodeJSInputStream()
 
 Handle<Value> TNodeJSInputStream::New(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     TNodeJSInputStream* stream = new TNodeJSInputStream();
@@ -51,7 +51,7 @@ Handle<Value> TNodeJSInputStream::New(const Arguments& args)
 
 Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
@@ -99,7 +99,7 @@ void TNodeJSInputStream::DoPush(Handle<Value> buffer, char *data, size_t offset,
 
 Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
@@ -167,7 +167,7 @@ void TNodeJSInputStream::DoSweep()
 
 Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
@@ -201,6 +201,8 @@ void TNodeJSInputStream::DoClose()
     IsAlive = false;
     pthread_cond_broadcast(&Conditional);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 size_t TNodeJSInputStream::Read(void* buffer, size_t length)
 {
