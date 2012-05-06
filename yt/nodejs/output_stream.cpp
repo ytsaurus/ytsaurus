@@ -86,14 +86,6 @@ Handle<Value> TNodeJSOutputStream::DoPull()
         return scope.Close(buffer->handle_);
     }
 }
-/*
-
-TODO
-
-- implement a test callback , which writes some data to output stream
-- pull data from JS and test in that way
-
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
