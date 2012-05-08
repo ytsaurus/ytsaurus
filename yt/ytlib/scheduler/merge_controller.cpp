@@ -43,6 +43,13 @@ public:
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
         , Spec(spec)
+        , TotalJobCount(0)
+        , TotalWeight(0)
+        , PendingWeight(0)
+        , CompletedWeight(0)
+        , TotalChunkCount(0)
+        , PendingChunkCount(0)
+        , CompletedChunkCount(0)
     { }
 
 private:
@@ -51,12 +58,14 @@ private:
 protected:
     TMergeOperationSpecPtr Spec;
 
-    // Running counters.
-    TProgressCounter ChunkCounter;
-    TProgressCounter WeightCounter;
-    // XXX(babenko): currently this is only initialized but not updated during operation lifetime.
-    TProgressCounter RowCounter;
-
+    // Counters.
+    int TotalJobCount;
+    i64 TotalWeight;
+    i64 PendingWeight;
+    i64 CompletedWeight;
+    int TotalChunkCount;
+    int PendingChunkCount;
+    int CompletedChunkCount;
 
     // The template for starting new jobs.
     TJobSpec JobSpecTemplate;
@@ -149,9 +158,8 @@ protected:
         auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(
             chunk->InputChunk.extensions());
 
-        RowCounter.Increment(misc->row_count());
-        WeightCounter.Increment(misc->uncompressed_size());
-        ChunkCounter.Increment(1);
+        TotalWeight += misc->uncompressed_size();
+        ++TotalChunkCount;
         CurrentGroup->ChunkPool->Add(chunk);
         RegisterPendingChunk(CurrentGroup, chunk);
 
@@ -238,10 +246,11 @@ protected:
         }
     }
 
-    virtual bool HasPendingJobs()
+    virtual int GetPendingJobCount()
     {
-        // Use the chunk counter, not the job counter! The latter may be inaccurate.
-        return ChunkCounter.GetPending() > 0;
+        return PendingWeight == 0
+            ? 0
+            : TotalJobCount - CompletedJobCount;
     }
 
 
@@ -268,7 +277,7 @@ protected:
 
         // Allocate chunks for the job.
         auto group = GetGroupFor(node->GetAddress());
-        i64 weightThreshold = GetJobWeightThreshold(JobCounter.GetPending(), WeightCounter.GetPending());
+        i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
         auto jip = New<TJobInProgress>();
         jip->Group = group;
         jip->ExtractResult = ExtractChunksFromPool(
@@ -295,9 +304,9 @@ protected:
         jip->ChunkListId = ChunkListPool->Extract();
         *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
 
-        // Update running counters.
-        ChunkCounter.Start(jip->ExtractResult->Chunks.size());
-        WeightCounter.Start(jip->ExtractResult->Weight);
+        // Update counters.
+        PendingChunkCount -= jip->ExtractResult->Chunks.size();
+        PendingWeight -= jip->ExtractResult->Weight;
 
         return CreateJob(
             Operation,
@@ -314,17 +323,14 @@ protected:
         auto& table = OutputTables[0];
         table.PartitionTreeIds[group->PartitionIndex] = jip->ChunkListId;
 
-        ChunkCounter.Completed(jip->ExtractResult->Chunks.size());
-        WeightCounter.Completed(jip->ExtractResult->Weight);
+        CompletedChunkCount += jip->ExtractResult->Chunks.size();
+        CompletedWeight += jip->ExtractResult->Weight;
     }
 
     virtual void OnJobFailed(TJobInProgressPtr jip)
     {
         LOG_DEBUG("Returned %d chunks back into the pool", static_cast<int>(jip->ExtractResult->Chunks.size()));
         PutChunksBackToPool(jip->Group, jip->ExtractResult);
-
-        ChunkCounter.Failed(jip->ExtractResult->Chunks.size());
-        WeightCounter.Failed(jip->ExtractResult->Weight);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -359,10 +365,6 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            i64 totalRowCount = 0;
-            i64 totalDataSize = 0;
-            i64 totalChunkCount = 0;
-
             BeginInputChunks();
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
@@ -377,44 +379,33 @@ protected:
                         ~chunkId.ToString(),
                         dataSize,
                         rowCount);
-                    totalRowCount += rowCount;
-                    totalDataSize += dataSize;
-                    totalChunkCount += 1;
                     ProcessInputChunk(chunk);
                 }
             }
 
             EndInputChunks();
 
-            // Check for empty and trivial inputs.
-            if (totalRowCount == 0) {
-                LOG_INFO("Empty input");
-                FinalizeOperation();
-                return;
-            }
-
-            if (ChunkCounter.GetPending() == 0) {
+            // Check for trivial inputs.
+            if (TotalChunkCount == 0) {
                 LOG_INFO("Trivial merge");
                 FinalizeOperation();
                 return;
             }
 
             // Init counters.
-            JobCounter.Set(ComputeJobCount());
+            ChooseJobCount();
+            PendingWeight = TotalWeight;
+            PendingChunkCount = TotalChunkCount;
 
             // Allocate some initial chunk lists.
-            ChunkListPool->Allocate(JobCounter.GetPending() + Config->SpareChunkListCount);
+            ChunkListPool->Allocate(TotalJobCount + Config->SpareChunkListCount);
 
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (TotalRowCount: %" PRId64 ", MergeRowCount: %" PRId64 ", TotalDataSize: %" PRId64 ", MergeDataSize: %" PRId64 ", TotalChunkCount: %" PRId64 ", MergeChunkCount: %" PRId64 ", JobCount: %" PRId64 ")",
-                totalRowCount,
-                RowCounter.GetPending(),
-                totalDataSize,
-                WeightCounter.GetPending(),
-                totalChunkCount,
-                ChunkCounter.GetPending(),
-                JobCounter.GetPending());
+            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %d, ChunkCount: %d, JobCount: %d",
+                TotalWeight,
+                TotalChunkCount,
+                TotalJobCount);
         }
     }
 
@@ -438,30 +429,47 @@ protected:
 
     // Job count selection.
 
-    virtual i64 ComputeJobCount() = 0;
+    virtual void ChooseJobCount() = 0;
 
 
     // Progress reporting.
 
     virtual void LogProgress()
     {
-        LOG_DEBUG("Progress: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
-            ~ToString(JobCounter),
-            ~ToString(ChunkCounter),
-            ~ToString(WeightCounter));
+        LOG_DEBUG("Progress: "
+            "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
+            "Chunks = {T: %d, C: %d, P: %d}, "
+            "Weight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}",
+            TotalJobCount,
+            RunningJobCount,
+            CompletedJobCount,
+            GetPendingJobCount(),
+            FailedJobCount,
+            TotalChunkCount,
+            CompletedChunkCount,
+            PendingChunkCount,
+            TotalWeight,
+            CompletedWeight,
+            PendingWeight);
     }
 
     virtual void DoGetProgress(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &ChunkCounter))
-            .Item("weight").Do(BIND(&TProgressCounter::ToYson, &WeightCounter));
+            .Item("chunks").BeginMap()
+                .Item("total").Scalar(TotalChunkCount)
+                .Item("completed").Scalar(CompletedChunkCount)
+                .Item("pending").Scalar(PendingChunkCount)
+            .EndMap()
+            .Item("weight").BeginMap()
+                .Item("total").Scalar(TotalWeight)
+                .Item("completed").Scalar(CompletedWeight)
+                .Item("pending").Scalar(PendingWeight)
+            .EndMap();
     }
 
 
     // Unsorted helpers.
-
-    //! Increments the counters.
 
     //! Returns True iff the chunk has nontrivial limits.
     //! Such chunks are always pooled.
@@ -553,17 +561,17 @@ private:
         AddPooledChunk(pooledChunk);
     }
 
-    virtual i64 ComputeJobCount()
+    virtual void ChooseJobCount()
     {
         // Choose job count.
         // TODO(babenko): refactor, generalize, and improve.
-        i64 jobCount = (i64) std::ceil((double) WeightCounter.GetPending() / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
         if (Spec->JobCount) {
-            jobCount = Spec->JobCount.Get();
+            TotalJobCount = Spec->JobCount.Get();
+        } else {
+            TotalJobCount = static_cast<int>(std::ceil((double) PendingWeight / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize));
         }
-        jobCount = std::min(jobCount, ChunkCounter.GetPending());
-        YASSERT(jobCount > 0);
-        return jobCount;
+        TotalJobCount = std::min(TotalJobCount, TotalJobCount);
+        YASSERT(TotalJobCount > 0);
     }
 };
 
@@ -640,10 +648,10 @@ private:
         EndGroupIfLarge();
     }
 
-    virtual i64 ComputeJobCount()
+    virtual void ChooseJobCount()
     {
         // Each group corresponds to a unique job.
-        return Groups.size();
+        TotalJobCount = Groups.size();
     }
 };
 
@@ -778,10 +786,10 @@ private:
     }
 
 
-    virtual i64 ComputeJobCount()
+    virtual void ChooseJobCount()
     {
         // TODO(babenko): fixme, for now each group corresponds to a unique job.
-        return Groups.size();
+        TotalJobCount = Groups.size();
     }
 };
 

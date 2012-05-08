@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "operation_controller.h"
-#include "progress_counter.h"
 #include "private.h"
 
 #include <ytlib/logging/tagged_logger.h>
@@ -37,7 +36,6 @@ public:
     virtual void OnOperationAborted();
 
     virtual TJobPtr ScheduleJob(TExecNodePtr node);
-    virtual i64 GetPendingJobCount();
 
     virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer);
     virtual void BuildResultYson(NYTree::IYsonConsumer* consumer);
@@ -62,7 +60,11 @@ protected:
     // Fixed during init time, used to compute job count.
     int ExecNodeCount;
 
-    TProgressCounter JobCounter;
+    // Job counters.
+    int RunningJobCount;
+    int CompletedJobCount;
+    int FailedJobCount;
+
     TChunkListPoolPtr ChunkListPool;
 
     // The primary transaction for the whole operation (nested inside operation's transaction).
@@ -244,7 +246,6 @@ protected:
 
 
     virtual void CustomInitialize();
-    virtual bool HasPendingJobs() = 0;
     virtual void LogProgress() = 0;
     virtual void DoGetProgress(NYTree::IYsonConsumer* consumer) = 0;
 
@@ -290,7 +291,7 @@ protected:
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
     void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-    static i64 GetJobWeightThreshold(i64 pendingJobs, i64 pendingWeight);
+    static i64 GetJobWeightThreshold(int pendingJobCount, i64 pendingWeight);
 
 };
 

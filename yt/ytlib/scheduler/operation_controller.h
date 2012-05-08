@@ -112,8 +112,8 @@ struct IOperationController
      */
     virtual TFuture<void> Revive() = 0;
 
-    //! Returns the number of jobs still the controller still needs to start.
-    virtual i64 GetPendingJobCount() = 0;
+    //! Returns the number of jobs still the controller needs to start right away.
+    virtual int GetPendingJobCount() = 0;
     
     //! Called during heartbeat processing to notify the controller that a job is running.
     virtual void OnJobRunning(TJobPtr job) = 0;

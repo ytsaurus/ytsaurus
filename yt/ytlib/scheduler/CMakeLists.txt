@@ -15,7 +15,6 @@ set( SRCS
   ${BASE}/operation.cpp
   ${BASE}/operation_controller_detail.cpp
   ${BASE}/private.cpp
-  ${BASE}/progress_counter.cpp
   ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_channel.cpp
@@ -36,7 +35,6 @@ set( HDRS
   ${BASE}/operation_controller.h
   ${BASE}/operation_controller_detail.h
   ${BASE}/private.h
-  ${BASE}/progress_counter.h
   ${BASE}/public.h
   ${BASE}/samples_fetcher.h
   ${BASE}/scheduler.h

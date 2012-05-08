@@ -50,7 +50,7 @@ private:
     TSchedulerConfigPtr Config;
     TSortOperationSpecPtr Spec;
 
-    //// Running counters.
+    // Counters.
     //TProgressCounter ChunkCounter;
     //TProgressCounter WeightCounter;
 
@@ -59,15 +59,12 @@ private:
     //// The template for starting new jobs.
     //TJobSpec JobSpecTemplate;
 
-    //// Init/finish.
+    // Init/finish.
 
-    virtual bool HasPendingJobs()
+    virtual int GetPendingJobCount()
     {
-        return false;
-        // Use chunk counter not job counter since the latter one may be inaccurate.
-        //return ChunkCounter.GetPending() > 0;
+        return 0;
     }
-
 
     //// Job scheduling and outcome handling.
 

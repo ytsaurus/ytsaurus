@@ -35,6 +35,10 @@ TOperationControllerBase::TOperationControllerBase(
     , Logger(OperationsLogger)
     , Active(false)
     , Running(false)
+    , ExecNodeCount(-1)
+    , RunningJobCount(0)
+    , CompletedJobCount(0)
+    , FailedJobCount(0)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
@@ -141,7 +145,8 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
         ~job->GetId().ToString(),
         ~TError::FromProto(job->Result().error()).ToString());
 
-    JobCounter.Completed(1);
+    --RunningJobCount;
+    ++CompletedJobCount;
 
     auto jobInProgress = GetJobHandlers(job);
     jobInProgress->OnCompleted.Run();
@@ -150,7 +155,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     LogProgress();
 
-    if (JobCounter.GetRunning() == 0 && !HasPendingJobs()) {
+    if (RunningJobCount == 0 && GetPendingJobCount() == 0) {
         FinalizeOperation();
     }
 }
@@ -163,7 +168,8 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
         ~job->GetId().ToString(),
         ~TError::FromProto(job->Result().error()).ToString());
 
-    JobCounter.Failed(1);
+    --RunningJobCount;
+    ++FailedJobCount;
 
     auto jobInProgress = GetJobHandlers(job);
     jobInProgress->OnFailed.Run();
@@ -172,7 +178,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     LogProgress();
 
-    if (JobCounter.GetFailed() >= Config->FailedJobsLimit) {
+    if (FailedJobCount >= Config->FailedJobsLimit) {
         FailOperation(TError("Failed jobs limit %d has been reached",
             Config->FailedJobsLimit));
     }
@@ -220,7 +226,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
         return NULL;
     }
 
-    if (!HasPendingJobs()) {
+    if (GetPendingJobCount() == 0) {
         LOG_DEBUG("No pending jobs left, scheduling request ignored");
         return NULL;
     }
@@ -228,18 +234,11 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
     auto job = DoScheduleJob(node);
     if (job) {
         LOG_INFO("Scheduled job %s", ~job->GetId().ToString());
-        JobCounter.Start(1);
+        ++RunningJobCount;
         LogProgress();
     }
 
     return job;
-}
-
-i64 TOperationControllerBase::GetPendingJobCount()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return JobCounter.GetPending();
 }
 
 void TOperationControllerBase::FailOperation(const TError& error)
@@ -833,11 +832,11 @@ bool TOperationControllerBase::CheckChunkListsPoolSize(int minSize)
     return false;
 }
 
-i64 TOperationControllerBase::GetJobWeightThreshold(i64 pendingJobs, i64 pendingWeight)
+i64 TOperationControllerBase::GetJobWeightThreshold(int pendingJobCount, i64 pendingWeight)
 {
-    YASSERT(pendingJobs > 0);
+    YASSERT(pendingJobCount > 0);
     YASSERT(pendingWeight > 0);
-    return (i64) std::ceil((double) pendingWeight / pendingJobs);
+    return static_cast<i64>(std::ceil((double) pendingWeight / pendingJobCount));
 }
 
 TJobPtr TOperationControllerBase::CreateJob(
@@ -871,7 +870,12 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("jobs").Do(BIND(&TProgressCounter::ToYson, &JobCounter))
+            .Item("jobs").BeginMap()
+                .Item("pending").Scalar(GetPendingJobCount())
+                .Item("running").Scalar(RunningJobCount)
+                .Item("completed").Scalar(CompletedJobCount)
+                .Item("failed").Scalar(FailedJobCount)
+            .EndMap()
             .Do(BIND(&TThis::DoGetProgress, Unretained(this)))
         .EndMap();
 }
