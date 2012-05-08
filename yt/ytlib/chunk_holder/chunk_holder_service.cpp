@@ -16,6 +16,8 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/key.h>
+#include <ytlib/table_client/limits.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -23,6 +25,7 @@ namespace NChunkHolder {
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NProto;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -402,6 +405,14 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
     }
 }
 
+struct TSampleColumnCmp
+{
+    bool operator()(const NTableClient::NProto::TSamplePart& part, const Stroka& column)
+    {
+        return part.column() < column;
+    }
+};
+
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
 {
     context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
@@ -414,7 +425,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
     std::vector<int> tags(1, GetProtoExtensionTag<NTableClient::NProto::TSamples>());
 
     FOREACH (const auto& chunkId, chunkIds) {
-        /*
         auto* chunkSamples = response->add_samples();
         auto asyncMeta = GetChunk(chunkId)->GetMeta(tags);
 
@@ -428,17 +438,59 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                 auto samples = GetProtoExtension<NTableClient::NProto::TSamples>(
                     result.Value().extensions());
 
-                FOREACH (const auto& column, )
-            }
-        });
-        */
+                FOREACH (const auto& sample, samples->items()) {
+                    auto* keySample = chunkSamples->add_items();
+                    keySample->set_data_offset(sample.data_offset());
+                    keySample->set_row_index(sample.row_index());
 
-        auto* chunkSamples = response->add_samples();
-        // TODO(babenko): implement this
-        *chunkSamples->mutable_error() = TError("Not implemented :)").ToProto();
+                    size_t size = 0;
+                    FOREACH (const auto& column, keyColumns) {
+                        if (size > NTableClient::MaxKeySize)
+                            break;
+
+                        auto* keyPart = keySample->mutable_key()->add_parts();
+                        auto it = lower_bound(sample.parts().begin(), sample.parts().end(), column, TSampleColumnCmp());
+                        if (it->column() == column) {
+                            size += sizeof(EKeyType::Null);
+                            keyPart->set_type(it->key_part().type());
+
+                            switch (it->key_part().type()) {
+                                case EKeyType::Composite:
+                                    break;
+
+                                case EKeyType::Integer:
+                                    keyPart->set_int_value(it->key_part().int_value());
+                                    size += sizeof(keyPart->int_value());
+                                    break;
+                                case EKeyType::Double:
+                                    keyPart->set_double_value(it->key_part().double_value());
+                                    size += sizeof(keyPart->double_value());
+                                    break;
+
+                                case EKeyType::String: {
+                                    auto len = std::min(it->key_part().str_value().size(), MaxKeySize - size);
+                                    keyPart->set_str_value(it->key_part().str_value().begin(), len);
+                                    size += sizeof(len);
+                                    break;
+                                }
+
+                                default:
+                                    YUNREACHABLE();
+                            }
+                        } else {
+                            size += sizeof(EKeyType::Null);
+                            keyPart->set_type(EKeyType::Null);
+                        }
+                    }
+
+                }
+            }
+        }));
     }
 
-    context->Reply();
+    awaiter->Complete(BIND([=] () {
+        context->Reply();
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
