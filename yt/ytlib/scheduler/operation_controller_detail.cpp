@@ -49,8 +49,10 @@ void TOperationControllerBase::Initialize()
     
     LOG_INFO("Initializing operation");
 
-    Active = true;
     ExecNodeCount = Host->GetExecNodeCount();
+    if (ExecNodeCount == 0) {
+        ythrow yexception() << "No online exec nodes";
+    }
 
     FOREACH (const auto& path, GetInputTablePaths()) {
         TInputTable table;
@@ -77,6 +79,8 @@ void TOperationControllerBase::Initialize()
         Active = false;
         throw;
     }
+
+    Active = true;
 
     LOG_INFO("Operation initialized");
 }
@@ -201,13 +205,12 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 
 void TOperationControllerBase::OnInputChunkFailed(const TChunkId& chunkId)
 {
-    FailOperation(TError("Job is unable to read input chunk %s", ~chunkId.ToString()));
+    FailOperation(TError("Unable to read input chunk %s", ~chunkId.ToString()));
 }
 
 void TOperationControllerBase::OnIntermediateChunkFailed(const TChunkId& chunkId)
 {
-    UNUSED(chunkId);
-    YUNREACHABLE();
+    FailOperation(TError("Unable to read intermediate chunk %s", ~chunkId.ToString()));
 }
 
 void TOperationControllerBase::OnOperationAborted()
@@ -893,6 +896,20 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
 std::vector<TYPath> TOperationControllerBase::GetFilePaths()
 {
     return std::vector<TYPath>();
+}
+
+int TOperationControllerBase::GetJobCount(
+    i64 totalWeight,
+    i64 weightPerJob,
+    TNullable<int> configJobCount,
+    int chunkCount)
+{
+    int result = configJobCount
+        ? configJobCount.Get()
+        : static_cast<int>(std::ceil((double) totalWeight / weightPerJob));
+    result = std::min(result, chunkCount);
+    YASSERT(result > 0);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

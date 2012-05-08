@@ -264,16 +264,11 @@ private:
 
     void ChooseJobCount()
     {
-        // Choose job count.
-        // TODO(babenko): refactor, generalize, and improve.
-        // TODO(babenko): this currently assumes that weight is just size
-        if (Spec->JobCount) {
-            TotalJobCount = Spec->JobCount.Get();
-        } else {
-            TotalJobCount = static_cast<int>(std::ceil((double) TotalWeight / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize));
-        }
-        TotalJobCount = std::min(TotalJobCount, PendingChunkCount);
-        YASSERT(TotalJobCount > 0);
+        TotalJobCount = GetJobCount(
+            TotalWeight,
+            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
+            Spec->JobCount,
+            TotalChunkCount);
     }
 
     // Progress reporting.

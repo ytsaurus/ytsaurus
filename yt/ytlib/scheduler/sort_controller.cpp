@@ -43,6 +43,14 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Config(config)
         , Spec(spec)
+        , TotalPartitionJobCount(0)
+        , CompletedPartitionJobCount(0)
+        , TotalPartitionWeight(0)
+        , PendingPartitionWeight(0)
+        , CompletedPartitionWeight(0)
+        , TotalPartitionChunkCount(0)
+        , PendingPartitionChunkCount(0)
+        , CompletedPartitionChunkCount(0)
         , SamplesFetcher(New<TSamplesFetcher>(
             Config,
             Spec,
@@ -55,112 +63,128 @@ private:
 
     TSchedulerConfigPtr Config;
     TSortOperationSpecPtr Spec;
-    TSamplesFetcherPtr SamplesFetcher;
-    std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
 
     // Counters.
-    //TProgressCounter ChunkCounter;
-    //TProgressCounter WeightCounter;
+    int TotalPartitionJobCount;
+    int CompletedPartitionJobCount;
+    i64 TotalPartitionWeight;
+    i64 PendingPartitionWeight;
+    i64 CompletedPartitionWeight;
+    int TotalPartitionChunkCount;
+    int PendingPartitionChunkCount;
+    int CompletedPartitionChunkCount;
 
-    //TAutoPtr<IChunkPool> ChunkPool;
+    // Samples and partitions.
+    TSamplesFetcherPtr SamplesFetcher;
+    std::vector<const NTableClient::NProto::TKeySample*> SortedSamples;
+    int PartitionCount;
+    // |PartitionCount - 1| separating keys.
+    std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
+    TAutoPtr<IChunkPool> PartitionChunkPool;
 
-    //// The template for starting new jobs.
-    //TJobSpec JobSpecTemplate;
+    // Templates for starting new jobs.
+    TJobSpec PartitionJobSpecTemplate;
 
     // Init/finish.
 
     virtual int GetPendingJobCount()
     {
-        return 0;
+        return GetPendingPartitionJobCount();
     }
 
-    //// Job scheduling and outcome handling.
+    int GetPendingPartitionJobCount()
+    {
+        return PendingPartitionWeight == 0
+            ? 0
+            : TotalPartitionJobCount - CompletedPartitionJobCount;
+    }
 
-    //struct TJobInProgress
-    //    : public TIntrinsicRefCounted
-    //{
-    //    IChunkPool::TExtractResultPtr ExtractResult;
-    //    std::vector<TChunkListId> ChunkListIds;
-    //};
 
-    //typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
+    // Job scheduling and outcome handling.
+
+    struct TPartitionJobInProgress
+        : public TIntrinsicRefCounted
+    {
+        IChunkPool::TExtractResultPtr ExtractResult;
+        TChunkListId ChunkListId;
+    };
+
+    typedef TIntrusivePtr<TPartitionJobInProgress> TPartitionJobInProgressPtr;
 
     virtual TJobPtr DoScheduleJob(TExecNodePtr node)
     {
-        return NULL;
-    //    // Check if we have enough chunk lists in the pool.
-    //    if (!CheckChunkListsPoolSize(OutputTables.size())) {
-    //        return NULL;
-    //    }
+        // Check if we have enough chunk lists in the pool.
+        if (!CheckChunkListsPoolSize(OutputTables.size())) {
+            return NULL;
+        }
 
-    //    // We've got a job to do! :)
+        // We've got a job to do! :)
+        if (GetPendingPartitionJobCount() > 0) {
+            return SchedulePartitionJob(node);
+        }
 
-    //    // Allocate chunks for the job.
-    //    auto jip = New<TJobInProgress>();
-    //    i64 weightThreshold = GetJobWeightThreshold(JobCounter.GetPending(), WeightCounter.GetPending());
-    //    jip->ExtractResult = ChunkPool->Extract(
-    //        node->GetAddress(),
-    //        weightThreshold,
-    //        std::numeric_limits<int>::max(),
-    //        false);
-    //    YASSERT(jip->ExtractResult);
-
-    //    LOG_DEBUG("Extracted %d chunks, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-    //        static_cast<int>(jip->ExtractResult->Chunks.size()),
-    //        jip->ExtractResult->LocalCount,
-    //        ~node->GetAddress(),
-    //        jip->ExtractResult->Weight,
-    //        weightThreshold);
-
-    //    // Make a copy of the generic spec and customize it.
-    //    auto jobSpec = JobSpecTemplate;
-    //    auto* mapJobSpec = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
-    //    FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
-    //        *mapJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
-    //    }
-    //    FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
-    //        auto chunkListId = ChunkListPool->Extract();
-    //        jip->ChunkListIds.push_back(chunkListId);
-    //        *outputSpec.mutable_chunk_list_id() = chunkListId.ToProto();
-    //    }
-
-    //    // Update running counters.
-    //    ChunkCounter.Start(jip->ExtractResult->Chunks.size());
-    //    WeightCounter.Start(jip->ExtractResult->Weight);
-
-    //    return CreateJob(
-    //        Operation,
-    //        node,
-    //        jobSpec,
-    //        BIND(&TThis::OnJobCompleted, MakeWeak(this), jip),
-    //        BIND(&TThis::OnJobFailed, MakeWeak(this), jip));
+        YUNREACHABLE();
     }
 
-    //void OnJobCompleted(TJobInProgressPtr jip)
-    //{
-    //    for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-    //        auto chunkListId = jip->ChunkListIds[index];
-    //        OutputTables[index].PartitionTreeIds.push_back(chunkListId);
-    //    }
+    TJobPtr SchedulePartitionJob(TExecNodePtr node)
+    {
+        // Allocate chunks for the job.
+        auto jip = New<TPartitionJobInProgress>();
+        i64 weightThreshold = GetJobWeightThreshold(GetPendingPartitionJobCount(), PendingPartitionWeight);
+        jip->ExtractResult = PartitionChunkPool->Extract(
+            node->GetAddress(),
+            weightThreshold,
+            std::numeric_limits<int>::max(),
+            false);
+        YASSERT(jip->ExtractResult);
 
-    //    ChunkCounter.Completed(jip->ExtractResult->Chunks.size());
-    //    WeightCounter.Completed(jip->ExtractResult->Weight);
-    //}
+        LOG_DEBUG("Extracted %d chunks for partition, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+            static_cast<int>(jip->ExtractResult->Chunks.size()),
+            jip->ExtractResult->LocalCount,
+            ~node->GetAddress(),
+            jip->ExtractResult->Weight,
+            weightThreshold);
 
-    //void OnJobFailed(TJobInProgressPtr jip)
-    //{
-    //    ChunkCounter.Failed(jip->ExtractResult->Chunks.size());
-    //    WeightCounter.Failed(jip->ExtractResult->Weight);
+        // Make a copy of the generic spec and customize it.
+        auto jobSpec = PartitionJobSpecTemplate;
+        auto* partitionJobSpec = jobSpec.MutableExtension(TPartitionJobSpec::partition_job_spec);
+        FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
+            *partitionJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
+        }
+        jip->ChunkListId = ChunkListPool->Extract();
+        *partitionJobSpec->mutable_output_chunk_list_id() = jip->ChunkListId.ToProto();
 
-    //    LOG_DEBUG("Returned %d chunks into the pool",
-    //        static_cast<int>(jip->ExtractResult->Chunks.size()));
-    //    ChunkPool->PutBack(jip->ExtractResult);
+        // Update counters.
+        PendingPartitionChunkCount -= jip->ExtractResult->Chunks.size();
+        PendingPartitionWeight -= jip->ExtractResult->Weight;
 
-    //    ReleaseChunkLists(jip->ChunkListIds);
-    //}
+        return CreateJob(
+            Operation,
+            node,
+            jobSpec,
+            BIND(&TThis::OnPartitionJobCompleted, MakeWeak(this), jip),
+            BIND(&TThis::OnPartitionJobFailed, MakeWeak(this), jip));
+    }
+
+    void OnPartitionJobCompleted(TPartitionJobInProgressPtr jip)
+    {
+        // TODO(babenko): handle partition success
+    }
+
+    void OnPartitionJobFailed(TPartitionJobInProgressPtr jip)
+    {
+        PendingPartitionChunkCount += jip->ExtractResult->Chunks.size();
+        PendingPartitionWeight  += jip->ExtractResult->Weight;
+
+        LOG_DEBUG("Returned %d chunks into the partition pool",
+            static_cast<int>(jip->ExtractResult->Chunks.size()));
+        PartitionChunkPool->PutBack(jip->ExtractResult);
+
+        ReleaseChunkList(jip->ChunkListId);
+    }
 
 
-    //// Custom bits of preparation pipeline.
+    // Custom bits of preparation pipeline.
 
     virtual std::vector<TYPath> GetInputTablePaths()
     {
@@ -177,53 +201,51 @@ private:
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
     {
         return pipeline
-            ->Add(BIND(&TThis::FetchSamples, MakeStrong(this)))
-            ->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
+            ->Add(BIND(&TThis::RequestSamples, MakeStrong(this)))
+            ->Add(BIND(&TThis::OnSamplesReceived, MakeStrong(this)));
     }
 
-    TFuture< TValueOrError<void> > FetchSamples()
+    TFuture< TValueOrError<void> > RequestSamples()
     {
-        auto samplesFetcher = New<TSamplesFetcher>(
-            Config,
-            Spec,
-            Host->GetBackgroundInvoker(),
-            Operation->GetOperationId());
+        PROFILE_TIMING ("/input_processing_time") {
+            LOG_INFO("Processing inputs");
 
-        // Compute statistics and prepare the fetcher.
-        i64 totalRowCount = 0;
-        i64 totalDataSize = 0;
-        i64 totalChunkCount = 0;
+            auto samplesFetcher = New<TSamplesFetcher>(
+                Config,
+                Spec,
+                Host->GetBackgroundInvoker(),
+                Operation->GetOperationId());
 
-        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
-            const auto& table = InputTables[tableIndex];
+            // Compute statistics and prepare the fetcher.
+            for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
+                const auto& table = InputTables[tableIndex];
 
-            auto fetchRsp = table.FetchResponse;
-            FOREACH (const auto& chunk, *fetchRsp->mutable_chunks()) {
-                auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
-                i64 rowCount = misc->row_count();
-                i64 dataSize = misc->uncompressed_size();
+                auto fetchRsp = table.FetchResponse;
+                FOREACH (const auto& chunk, *fetchRsp->mutable_chunks()) {
+                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+                    i64 rowCount = misc->row_count();
+                    i64 dataSize = misc->uncompressed_size();
 
-                totalRowCount += rowCount;
-                totalDataSize += dataSize;
-                totalChunkCount += 1;
+                    TotalPartitionWeight += dataSize;
+                    ++TotalPartitionChunkCount;
 
-                samplesFetcher->AddChunk(chunk);
+                    samplesFetcher->AddChunk(chunk);
+                }
             }
+
+            // Check for empty inputs.
+            if (TotalPartitionChunkCount == 0) {
+                LOG_INFO("Empty input");
+                FinalizeOperation();
+                return MakeFuture(TValueOrError<void>());
+            }
+
+            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ")",
+                TotalPartitionWeight,
+                TotalPartitionChunkCount);
+
+            return samplesFetcher->Run();
         }
-
-        // Check for empty inputs.
-        if (totalChunkCount == 0) {
-            LOG_INFO("Empty input");
-            FinalizeOperation();
-            return MakeFuture(TValueOrError<void>());
-        }
-
-        LOG_INFO("Inputs processed (RowCount: %" PRId64 ", DataSize: %" PRId64 ", ChunkCount: %" PRId64 ")",
-            totalRowCount,
-            totalDataSize,
-            totalChunkCount);
-
-        return samplesFetcher->Run();
     }
 
     void SortSamples()
@@ -232,126 +254,115 @@ private:
         int sampleCount = static_cast<int>(samples.size());
         LOG_INFO("Sorting %d samples", sampleCount);
 
-        std::vector<const NTableClient::NProto::TKey*> sortedSamples(sampleCount);
+        SortedSamples.resize(sampleCount);
         for (int index = 0; index < sampleCount; ++index) {
-            sortedSamples[index] = &samples[index];
+            SortedSamples[index] = &samples[index];
         }
 
         std::sort(
-            sortedSamples.begin(),
-            sortedSamples.end(),
-            [] (const NTableClient::NProto::TKey* lhs, const NTableClient::NProto::TKey* rhs) {
-                return CompareProtoKeys(*lhs, *rhs) < 0;
+            SortedSamples.begin(),
+            SortedSamples.end(),
+            [] (const NTableClient::NProto::TKeySample* lhs, const NTableClient::NProto::TKeySample* rhs) {
+                return CompareProtoKeys(lhs->key(), rhs->key()) < 0;
             });
     }
 
     void BuildPartitions()
     {
+        i64 totalSize = 0;
+        FOREACH (const auto* sample, SortedSamples) {
+            totalSize += sample->data_size();
+        }
 
+        // Use partition count provided by the user, if given.
+        // Otherwise use size estimates.
+        if (Spec->PartitionCount) {
+            PartitionCount = Spec->PartitionCount.Get();
+        } else {
+            PartitionCount = static_cast<int>(totalSize / Config->MinSortPartitionSize);
+        }
+
+        // Don't create more partitions that we have nodes.
+        PartitionCount = std::min(PartitionCount, ExecNodeCount);
+        // Don't create more partitions than we have samples.
+        PartitionCount = std::min(PartitionCount, static_cast<int>(SortedSamples.size()) + 1);
+
+        YASSERT(PartitionCount > 0);
+
+        if (PartitionCount == 1) {
+            LOG_INFO("Sorting without partitioning");
+            return;
+        }
+
+        // Take partition keys evenly.
+        int samplesRemaining = PartitionCount - 1;
+        i64 sizeRemaining = totalSize;
+        i64 sizeTaken = 0;
+        FOREACH (const auto* sample, SortedSamples) {
+            if (sizeTaken >= sizeRemaining / samplesRemaining) {
+                PartitionKeys.push_back(&sample->key());
+                sizeRemaining -= sizeTaken;
+                sizeTaken = 0;
+                --samplesRemaining;
+            }
+            sizeTaken += sample->data_size();
+        }
+
+        // Do the final adjustments.
+        PartitionCount = static_cast<int>(PartitionKeys.size()) + 1;
+        LOG_INFO("Using %d partitions", PartitionCount);
     }
 
-    void ProcessInputs()
+    void OnSamplesReceived()
     {
-        PROFILE_TIMING ("/input_processing_time") {
+        PROFILE_TIMING ("/samples_processing_time") {
             SortSamples();
-            PROFILE_TIMING_CHECKPOINT("sort");
+            BuildPartitions();
+           
+            ChooseJobCount();
 
+            // Allocate some initial chunk lists.
+            ChunkListPool->Allocate(TotalPartitionJobCount + Config->SpareChunkListCount);
 
+            InitJobSpecTemplates();
 
-            //LOG_INFO("Processing inputs");
-    //        
-    //        // Compute statistics and populate the pool.
-    //        i64 totalRowCount = 0;
-    //        i64 totalDataSize = 0;
-    //        i64 totalWeight = 0;
-    //        i64 totalChunkCount = 0;
-
-    //        ChunkPool = CreateUnorderedChunkPool();
-
-    //        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
-    //            const auto& table = InputTables[tableIndex];
-
-    //            TNullable<TYson> rowAttributes;
-    //            if (InputTables.size() > 1) {
-    //                rowAttributes = BuildYsonFluently()
-    //                    .BeginMap()
-    //                        .Item("table_index").Scalar(tableIndex)
-    //                    .EndMap();
-    //            }
-
-    //            auto fetchRsp = table.FetchResponse;
-    //            FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
-    //                // Currently fetch never returns row attributes.
-    //                YASSERT(!chunk.has_row_attributes());
-
-    //                if (rowAttributes) {
-    //                    chunk.set_row_attributes(rowAttributes.Get());
-    //                }
-
-    //                i64 rowCount = chunk.approximate_row_count();
-    //                i64 dataSize = chunk.approximate_data_size();
-    //                // TODO(babenko): make customizable
-    //                // Plus one is to ensure that weights are positive.
-    //                i64 weight = chunk.approximate_data_size() + 1;
-
-    //                totalRowCount += rowCount;
-    //                totalDataSize += dataSize;
-    //                totalChunkCount += 1;
-    //                totalWeight += weight;
-
-    //                auto pooledChunk = New<TPooledChunk>(chunk, weight);
-    //                ChunkPool->Add(pooledChunk);
-    //            }
-    //        }
-
-    //        // Check for empty inputs.
-    //        if (totalRowCount == 0) {
-    //            LOG_INFO("Empty input");
-    //            FinalizeOperation();
-    //            return;
-    //        }
-
-    //        // Init counters.
-    //        ChunkCounter.Set(totalChunkCount);
-    //        WeightCounter.Set(totalWeight);
-    //        ChooseJobCount();
-
-    //        // Allocate some initial chunk lists.
-    //        ChunkListPool->Allocate(OutputTables.size() * JobCounter.GetPending() + Config->SpareChunkListCount);
-
-    //        InitJobSpecTemplate();
-
-    //        LOG_INFO("Inputs processed (TotalRowCount: %" PRId64 ", TotalDataSize: %" PRId64 ", TotalWeight: %" PRId64 ", TotalChunkCount: %" PRId64 ", JobCount: %" PRId64 ")",
-    //            totalRowCount,
-    //            totalDataSize,
-    //            totalWeight,
-    //            totalChunkCount,
-    //            JobCounter.GetPending());
+            LOG_INFO("Samples processed (PartitionJobCount: %d)",
+                TotalPartitionJobCount);
         }
     }
 
-    //void ChooseJobCount()
-    //{
-    //    // Choose job count.
-    //    // TODO(babenko): refactor, generalize, and improve.
-    //    // TODO(babenko): this currently assumes that weight is just size
-    //    i64 jobCount = (i64) std::ceil((double) WeightCounter.GetPending() / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
-    //    if (Spec->JobCount) {
-    //        jobCount = Spec->JobCount.Get();
-    //    }
-    //    jobCount = std::min(jobCount, ChunkCounter.GetPending());
-    //    YASSERT(jobCount > 0);
-    //    JobCounter.Set(jobCount);
-    //}
+    void ChooseJobCount()
+    {
+        TotalPartitionJobCount = GetJobCount(
+            TotalPartitionWeight,
+            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
+            Spec->PartitionJobCount,
+            TotalPartitionChunkCount);
+    }
 
-    //// Progress reporting.
+    // Progress reporting.
 
     virtual void LogProgress()
     {
-    //    LOG_DEBUG("Progress: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
-    //        ~ToString(JobCounter),
-    //        ~ToString(ChunkCounter),
-    //        ~ToString(WeightCounter));
+        //LOG_DEBUG("Progress: "
+        //    "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
+        //    "PartitionJobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
+        //    "PartitionChunks = {T: %d, C: %d, P: %d}, "
+        //    "PartitionWeight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}",
+        //    TotalJobCount,
+        //    RunningJobCount,
+        //    CompletedJobCount,
+        //    GetPendingJobCount(),
+        //    FailedJobCount,
+        //    TotalPartitionJobCount,
+
+
+        //    TotalPartitionChunkCount,
+        //    CompletedPartitionChunkCount,
+        //    PendingPartitionChunkCount,
+        //    TotalPartitionWeight,
+        //    CompletedPartitionWeight,
+        //    PendingPartitionWeight);
     }
 
     virtual void DoGetProgress(IYsonConsumer* consumer)
@@ -361,31 +372,23 @@ private:
     //        .Item("weight").Do(BIND(&TProgressCounter::ToYson, &WeightCounter));
     }
 
-    //// Unsorted helpers.
+    // Unsorted helpers.
 
-    //void InitJobSpecTemplate()
-    //{
-    //    JobSpecTemplate.set_type(EJobType::Map);
+    void InitJobSpecTemplates()
+    {
+        {
+            PartitionJobSpecTemplate.set_type(EJobType::Partition);
 
-    //    TUserJobSpec userJobSpec;
-    //    userJobSpec.set_shell_command(Spec->Mapper);
-    //    FOREACH (const auto& file, Files) {
-    //        *userJobSpec.add_files() = *file.FetchResponse;
-    //    }
-    //    *JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
+            TPartitionJobSpec partitionJobSpec;
+            FOREACH (const auto* key, PartitionKeys) {
+                *partitionJobSpec.add_partition_keys() = *key;
+            }
+            *partitionJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = partitionJobSpec;
 
-    //    TMapJobSpec mapJobSpec;
-    //    *mapJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-    //    FOREACH (const auto& table, OutputTables) {
-    //        auto* outputSpec = mapJobSpec.add_output_specs();
-    //        outputSpec->set_schema(table.Schema);
-    //    }
-    //    *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
-
-    //    JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
-
-    //    // TODO(babenko): stderr
-    //}
+            PartitionJobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
+        }
+    }
 };
 
 IOperationControllerPtr CreateSortController(

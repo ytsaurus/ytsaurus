@@ -292,6 +292,11 @@ protected:
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
     void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
     static i64 GetJobWeightThreshold(int pendingJobCount, i64 pendingWeight);
+    static int GetJobCount(
+        i64 totalWeight,
+        i64 weightPerJob,
+        TNullable<int> configJobCount,
+        int chunkCount);
 
 };
 

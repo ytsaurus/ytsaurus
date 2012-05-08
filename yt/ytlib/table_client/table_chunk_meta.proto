@@ -100,8 +100,10 @@ message TChannels
 message TKeySample
 {
     required NYT.NTableClient.NProto.TKey key = 1;
-    required int64 data_offset = 2;
-    required int64 row_index = 3;
+    // Number of rows from the last sample (inclusive) to this one (exclusive).
+    required int32 row_count = 2;
+    // Similar to |row_count| but measures approximate data size instead.
+    required int32 data_size = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

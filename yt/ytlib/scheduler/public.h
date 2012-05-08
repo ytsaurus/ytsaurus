@@ -26,6 +26,8 @@ DECLARE_ENUM(EJobType,
     ((Map)(0))
     ((SortedMerge)(1))
     ((OrderedMerge)(2))
+    ((Partition)(3))
+    ((Sort)(4))
 );
 
 DECLARE_ENUM(EOperationState,

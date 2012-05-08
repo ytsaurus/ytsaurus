@@ -37,6 +37,11 @@ struct TSchedulerConfig
     //! job scheduling gets suspended until |count * ChunkListAllocationMultiplier| chunk lists are allocated.
     int ChunkListAllocationMultiplier;
 
+    //! Controls the minimum data size of a partition during sort.
+    //! This is only a hint, the controller may still produce smaller partitions, e.g.
+    //! when the user sets the number of partitions explicitly.
+    i64 MinSortPartitionSize;
+
     TSchedulerConfig()
     {
         Register("startup_retry_period", StartupRetryPeriod)
@@ -59,6 +64,9 @@ struct TSchedulerConfig
             .GreaterThanOrEqual(0);
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
             .Default(3)
+            .GreaterThan(0);
+        Register("min_sort_partition_size", MinSortPartitionSize)
+            .Default(4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
@@ -155,6 +163,8 @@ struct TSortOperationSpec
     yvector<NYTree::TYPath> InputTablePaths;
     NYTree::TYPath OutputTablePath;
     yvector<Stroka> KeyColumns;
+    TNullable<int> PartitionCount;
+    TNullable<int> PartitionJobCount;
 
     TSortOperationSpec()
     {
@@ -162,6 +172,10 @@ struct TSortOperationSpec
         Register("output_table_path", OutputTablePath);
         Register("key_columns", KeyColumns)
             .NonEmpty();
+        Register("partition_count", PartitionCount)
+            .GreaterThan(0);
+        Register("partition_job_count", PartitionJobCount)
+            .GreaterThan(0);
     }
 };
 
