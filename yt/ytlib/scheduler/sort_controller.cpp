@@ -8,6 +8,7 @@
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/key.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 #include <ytlib/job_proxy/config.h>
@@ -19,9 +20,9 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NChunkServer;
+using namespace NTableClient;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
-using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -42,6 +43,11 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Config(config)
         , Spec(spec)
+        , SamplesFetcher(New<TSamplesFetcher>(
+            Config,
+            Spec,
+            Host->GetBackgroundInvoker(),
+            Operation->GetOperationId()))
     { }
 
 private:
@@ -49,6 +55,8 @@ private:
 
     TSchedulerConfigPtr Config;
     TSortOperationSpecPtr Spec;
+    TSamplesFetcherPtr SamplesFetcher;
+    std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
 
     // Counters.
     //TProgressCounter ChunkCounter;
@@ -204,13 +212,13 @@ private:
         }
 
         // Check for empty inputs.
-        if (totalRowCount == 0) {
+        if (totalChunkCount == 0) {
             LOG_INFO("Empty input");
             FinalizeOperation();
             return MakeFuture(TValueOrError<void>());
         }
 
-        LOG_INFO("Inputs processed (TotalRowCount: %" PRId64 ", TotalDataSize: %" PRId64 ", TotalChunkCount: %" PRId64 ")",
+        LOG_INFO("Inputs processed (RowCount: %" PRId64 ", DataSize: %" PRId64 ", ChunkCount: %" PRId64 ")",
             totalRowCount,
             totalDataSize,
             totalChunkCount);
@@ -218,9 +226,38 @@ private:
         return samplesFetcher->Run();
     }
 
+    void SortSamples()
+    {
+        const auto& samples = SamplesFetcher->GetSamples();
+        int sampleCount = static_cast<int>(samples.size());
+        LOG_INFO("Sorting %d samples", sampleCount);
+
+        std::vector<const NTableClient::NProto::TKey*> sortedSamples(sampleCount);
+        for (int index = 0; index < sampleCount; ++index) {
+            sortedSamples[index] = &samples[index];
+        }
+
+        std::sort(
+            sortedSamples.begin(),
+            sortedSamples.end(),
+            [] (const NTableClient::NProto::TKey* lhs, const NTableClient::NProto::TKey* rhs) {
+                return CompareProtoKeys(*lhs, *rhs) < 0;
+            });
+    }
+
+    void BuildPartitions()
+    {
+
+    }
+
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
+            SortSamples();
+            PROFILE_TIMING_CHECKPOINT("sort");
+
+
+
             //LOG_INFO("Processing inputs");
     //        
     //        // Compute statistics and populate the pool.
