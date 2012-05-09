@@ -84,6 +84,17 @@ inline yvector<TArrayItem> FromProto(
     return array;
 }
 
+template <class TArrayItem, class TProtoItem>
+inline yvector<TArrayItem> FromProto(
+    const ::google::protobuf::RepeatedField<TProtoItem>& proto)
+{
+    yvector<TArrayItem> array(proto.size());
+    for (int i = 0; i < proto.size(); ++i) {
+        array[i] = proto.Get(i);
+    }
+    return array;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Serializes a given protobuf message into a given blob.
@@ -139,10 +150,15 @@ TAutoPtr<T> GetProtoExtension(const NProto::TExtensionSet& extensions);
 template <class T>
 TAutoPtr<T> FindProtoExtension(const NProto::TExtensionSet& extensions);
 
-//! Serializes and stores an extension. Overrides any preexisting extension with
-//! the same tag, if any.
+//! Serializes and stores an extension.
+//! Fails if extension with the same tag already exists.
 template <class T>
 void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value);
+
+//! Serializes and stores an extension.
+//! Overwrites any extension with the same tag (if exists).
+template <class T>
+void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -23,7 +23,7 @@ struct TChunkDescriptor
 class TChunk
     : public virtual TRefCounted
 {
-    //! Chunk id.`
+    //! Chunk id.
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, Id);
     //! Chunk location.
     DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TLocation>, Location);
@@ -51,12 +51,14 @@ public:
     typedef TValueOrError<NProto::TChunkMeta> TGetMetaResult;
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
 
-    //! Returns chunk info.
+    //! Returns chunk meta.
     /*!
-     *  The info is fetched asynchronously and is cached.
+     *  \param tags The list of extension tags to return. If NULL
+     *  then all extensions are returned.
+     *  
+     *  \note The meta is fetched asynchronously and is cached.
      */
-    TAsyncGetMetaResult GetMeta(const std::vector<int>& extensionTags);
-    TAsyncGetMetaResult GetMeta();
+    TAsyncGetMetaResult GetMeta(const std::vector<int>* tags = NULL);
 
 private:
     TFuture<TError> ReadMeta();

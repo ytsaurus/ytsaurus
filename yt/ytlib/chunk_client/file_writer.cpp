@@ -45,7 +45,7 @@ TAsyncError TFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
 
     try {
         FOREACH (auto& data, blocks) {
-            auto* blockInfo = Blocks.add_blocks();
+            auto* blockInfo = BlocksExt.add_blocks();
             blockInfo->set_offset(DataFile->GetPosition());
             blockInfo->set_size(static_cast<int>(data.Size()));
             blockInfo->set_checksum(GetChecksum(data));
@@ -82,21 +82,19 @@ TAsyncError TFileWriter::AsyncClose(
     try {
         DataFile->Close();
         DataFile.Destroy();
-    } catch (yexception& e) {
+    } catch (const std::exception& ex) {
         return MakeFuture(TError(
-            "Failed to close file: %s",
-            e.what()));
+            "Failed to close chunk data file %s\n%s",
+            FileName,
+            ex.what()));
     }
 
     // Write meta.
     ChunkMeta.CopyFrom(chunkMeta);
-    SetProtoExtension(ChunkMeta.mutable_extensions(), Blocks);
+    SetProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
     
-    TBlob metaBlob(ChunkMeta.ByteSize());
-    if (!ChunkMeta.SerializeToArray(metaBlob.begin(), metaBlob.ysize())) {
-        LOG_FATAL("Failed to serialize chunk meta (FileName: %s)",
-            ~FileName);
-    }
+    TBlob metaBlob;
+    YVERIFY(SerializeToProto(&ChunkMeta, &metaBlob));
 
     TChunkMetaHeader header;
     header.Signature = header.ExpectedSignature;
@@ -111,10 +109,11 @@ TAsyncError TFileWriter::AsyncClose(
         Write(chunkMetaFile, header);
         chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
         chunkMetaFile.Close();
-    } catch (yexception& e) {
+    } catch (const std::exception& ex) {
         return MakeFuture(TError(
-            "Failed to write chunk meta to file: %s",
-            e.what()));
+            "Failed to write chunk meta to %s\n%s",
+            ~chunkMetaFileName.Quote(),
+            ex.what()));
     }
 
     if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {

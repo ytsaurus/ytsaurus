@@ -141,7 +141,7 @@ public:
             tags.push_back(GetProtoExtensionTag<NProto::TKeyColumns>());
         }
 
-        AsyncReader->AsyncGetChunkMeta(tags).Subscribe(BIND(
+        AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(BIND(
             &TInitializer::OnGotMeta, 
             MakeStrong(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
     }

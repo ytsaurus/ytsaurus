@@ -19,7 +19,7 @@ public:
     typedef TIntrusivePtr<TFileWriter> TPtr;
 
     //! Creates a new writer.
-    TFileWriter(const Stroka& fileName);
+    explicit TFileWriter(const Stroka& fileName);
 
     virtual void Open();
 
@@ -31,6 +31,8 @@ public:
 
     //! Returns chunk info. The writer must be already closed.
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+
+    //! Returns chunk meta. The writer must be already closed.
     const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const;
 
 private:
@@ -40,7 +42,7 @@ private:
     i64 DataSize;
     THolder<TFile> DataFile;
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
-    NChunkHolder::NProto::TBlocks Blocks;
+    NChunkHolder::NProto::TBlocks BlocksExt;
     NChunkHolder::NProto::TChunkMeta ChunkMeta;
 
     bool EnsureOpen();

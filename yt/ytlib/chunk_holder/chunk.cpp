@@ -50,13 +50,15 @@ Stroka TChunk::GetFileName() const
     return Location_->GetChunkFileName(Id_);
 }
 
-TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>& extensionTags)
+TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (HasMeta) {
             return MakeFuture(TGetMetaResult(
-                ExtractExtensions(Meta, extensionTags)));
+                tags ?
+                ExtractChunkMetaExtensions(Meta, *tags)
+                : Meta));
         }
     }
 
@@ -64,32 +66,13 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>& extensionTag
     auto invoker = Location_->GetInvoker();
     return ReadMeta().Apply(
         BIND([=] (TError error) -> TGetMetaResult {
-            if (error.IsOK()) {
-                YASSERT(HasMeta);
-                return ExtractExtensions(Meta, extensionTags);
-            } else 
+            if (!error.IsOK()) {
                 return error;
-        }).AsyncVia(invoker));
-}
-
-TChunk::TAsyncGetMetaResult TChunk::GetMeta()
-{
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (HasMeta) {
-            return MakeFuture(TGetMetaResult(Meta));
-        }
-    }
-
-    auto this_ = MakeStrong(this);
-    auto invoker = Location_->GetInvoker();
-    return ReadMeta().Apply(
-        BIND([=] (TError error) -> TGetMetaResult {
-            if (error.IsOK()) {
-                YASSERT(HasMeta);
-                return Meta;
-            } else 
-                return error;
+            }
+            YASSERT(HasMeta);
+            return tags
+                ? ExtractChunkMetaExtensions(Meta, *tags)
+                : Meta;
         }).AsyncVia(invoker));
 }
 
@@ -107,11 +90,13 @@ TFuture<TError> TChunk::ReadMeta()
 
             auto reader = result.Value();
 
-            TGuard<TSpinLock> guard(SpinLock);
-            // These are very quick getters.
-            Meta = reader->GetChunkMeta();
-            Info_ = reader->GetChunkInfo();
-            HasMeta = true;
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                // These are very quick getters.
+                Meta = reader->GetChunkMeta();
+                Info_ = reader->GetChunkInfo();
+                HasMeta = true;
+            }
 
             return TError();
         })

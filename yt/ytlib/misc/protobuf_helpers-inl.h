@@ -37,6 +37,22 @@ template <class T>
 void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 {
     i32 tag = GetProtoExtensionTag<T>();
+    FOREACH (const auto& currentExtension, extensions->extensions()) {
+        YASSERT(currentExtension.tag() != tag);
+    }
+
+    auto extension = extensions->add_extensions();
+    int size = value.ByteSize();
+    Stroka str(size);
+    YVERIFY(value.SerializeToArray(str.begin(), size));
+    extension->set_data(str);
+    extension->set_tag(tag);
+}
+
+template <class T>
+void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value)
+{
+    i32 tag = GetProtoExtensionTag<T>();
     NYT::NProto::TExtension* extension = NULL;
     FOREACH (auto& currentExtension, *extensions->mutable_extensions()) {
         if (currentExtension.tag() == tag) {

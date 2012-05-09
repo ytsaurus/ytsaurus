@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "chunk_writer.h"
-
 #include "private.h"
 #include "config.h"
 #include "channel_writer.h"
 #include "chunk_meta_extensions.h"
+#include "limits.h"
 
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/chunk_client/async_writer.h>
@@ -28,7 +28,7 @@ static NLog::TLogger& Logger = TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkWriter::TChunkWriter(
-    const TChunkWriterConfigPtr& config,
+    TChunkWriterConfigPtr config,
     NChunkClient::IAsyncWriterPtr chunkWriter,
     const std::vector<TChannel>& channels,
     const TNullable<TKeyColumns>& keyColumns)
@@ -49,30 +49,28 @@ TChunkWriter::TChunkWriter(
 {
     YASSERT(chunkWriter);
     Codec = GetCodec(ECodecId(Config->CodecId));
-    ProtoMisc.set_codec_id(Config->CodecId);
+    MiscExt.set_codec_id(Config->CodecId);
 
     {
         int columnIndex = 0;
 
         if (KeyColumns) {
-            ProtoMisc.set_sorted(true);
-
-            FOREACH(auto& column, KeyColumns.Get()) {
-                auto res = ColumnIndexes.insert(MakePair(column, columnIndex));
-                if (res.second)
+            MiscExt.set_sorted(true);
+            FOREACH (const auto& column, KeyColumns.Get()) {
+                if (ColumnIndexes.insert(MakePair(column, columnIndex)).second) {
                     ++columnIndex;
+                }
             }
         } else {
-            ProtoMisc.set_sorted(false);
+            MiscExt.set_sorted(false);
         }
 
         auto trashChannel = TChannel::CreateUniversal();
 
-        FOREACH(auto& channel, Channels) {
+        FOREACH (const auto& channel, Channels) {
             trashChannel -= channel;
-            FOREACH(auto& column, channel.GetColumns()) {
-                auto res = ColumnIndexes.insert(MakePair(column, columnIndex));
-                if (res.second) {
+            FOREACH (const auto& column, channel.GetColumns()) {
+                if (ColumnIndexes.insert(MakePair(column, columnIndex)).second) {
                     ++columnIndex;
                 }
             }
@@ -82,8 +80,8 @@ TChunkWriter::TChunkWriter(
     }
 
     // Fill protobuf chunk meta.
-    FOREACH(auto channel, Channels) {
-        *ProtoChannels.add_items()->mutable_channel() = channel.ToProto();
+    FOREACH (const auto& channel, Channels) {
+        *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel, ColumnIndexes));
     }
 }
@@ -105,7 +103,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
 
-    FOREACH(const auto& pair, row) {
+    FOREACH (const auto& pair, row) {
         auto it = ColumnIndexes.find(pair.first);
         auto columnIndex = it == ColumnIndexes.end() 
             ? TChannelWriter::UnknownIndex 
@@ -113,17 +111,17 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
 
         DataOffset += pair.first.size() + pair.second.size();
 
-        FOREACH(auto& channelWriter, ChannelWriters) {
-            channelWriter->Write(columnIndex, pair.first, pair.second);
+        FOREACH (const auto& writer, ChannelWriters) {
+            writer->Write(columnIndex, pair.first, pair.second);
         }
     }
 
-    FOREACH(auto& channelWriter, ChannelWriters) {
-        channelWriter->EndRow();
+    FOREACH (const auto& writer, ChannelWriters) {
+        writer->EndRow();
     }
 
     CurrentSize = SentSize;
-    ProtoMisc.set_row_count(ProtoMisc.row_count() + 1);
+    MiscExt.set_row_count(MiscExt.row_count() + 1);
 
     std::vector<TSharedRef> completedBlocks;
     for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++channelIndex) {
@@ -139,18 +137,18 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
     LastKey.Swap(key);
 
     if (SamplesSize < Config->SampleRate * CurrentSize) {
-        *ProtoSamples.add_items() = MakeSample(row);
+        *SamplesExt.add_items() = MakeSample(row);
     }
 
     if (KeyColumns) {
-        if (ProtoMisc.row_count() == 1) {
-            *ProtoBoundaryKeys.mutable_left() = key.ToProto();
+        if (MiscExt.row_count() == 1) {
+            *BoundaryKeysExt.mutable_left() = key.ToProto();
         }
 
         if (IndexSize < Config->IndexRate * CurrentSize) {
-            auto* indexRow = ProtoIndex.add_index_rows();
+            auto* indexRow = IndexExt.add_index_rows();
             *indexRow->mutable_key() = key.ToProto();
-            indexRow->set_row_index(ProtoMisc.row_count() - 1);
+            indexRow->set_row_index(MiscExt.row_count() - 1);
             IndexSize += key.GetSize();
         }
     }
@@ -164,7 +162,7 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
     auto channel = ChannelWriters[channelIndex];
 
-    auto* blockInfo = ProtoChannels.mutable_items(channelIndex)->add_blocks();
+    auto* blockInfo = ChannelsExt.mutable_items(channelIndex)->add_blocks();
     blockInfo->set_block_index(CurrentBlockIndex);
     blockInfo->set_row_count(channel->GetCurrentRowCount());
 
@@ -199,7 +197,7 @@ const TNullable<TKeyColumns>& TChunkWriter::GetKeyColumns() const
 
 i64 TChunkWriter::GetRowCount() const
 {
-    return ProtoMisc.row_count();
+    return MiscExt.row_count();
 }
 
 TAsyncError TChunkWriter::AsyncClose()
@@ -225,28 +223,29 @@ TAsyncError TChunkWriter::AsyncClose()
     NChunkHolder::NProto::TChunkMeta chunkMeta;
     chunkMeta.set_type(EChunkType::Table);
 
-    ProtoMisc.set_uncompressed_size(UncompressedSize);
+    MiscExt.set_uncompressed_size(UncompressedSize);
 
-    SetProtoExtension(chunkMeta.mutable_extensions(), ProtoMisc);
-    SetProtoExtension(chunkMeta.mutable_extensions(), ProtoSamples);
-    SetProtoExtension(chunkMeta.mutable_extensions(), ProtoChannels);
+    SetProtoExtension(chunkMeta.mutable_extensions(), MiscExt);
+    SetProtoExtension(chunkMeta.mutable_extensions(), SamplesExt);
+    SetProtoExtension(chunkMeta.mutable_extensions(), ChannelsExt);
 
     if (KeyColumns) {
-        *ProtoBoundaryKeys.mutable_right() = LastKey.ToProto();
+        *BoundaryKeysExt.mutable_right() = LastKey.ToProto();
 
-        const auto lastIndexRow = --ProtoIndex.index_rows().end();
-        if (ProtoMisc.row_count() > lastIndexRow->row_index() + 1) {
-            auto* indexRow = ProtoIndex.add_index_rows();
+        const auto lastIndexRow = --IndexExt.index_rows().end();
+        if (MiscExt.row_count() > lastIndexRow->row_index() + 1) {
+            auto* indexRow = IndexExt.add_index_rows();
             *indexRow->mutable_key() = LastKey.ToProto();
-            indexRow->set_row_index(ProtoMisc.row_count() - 1);
+            indexRow->set_row_index(MiscExt.row_count() - 1);
         }
 
-        SetProtoExtension(chunkMeta.mutable_extensions(), ProtoIndex);
-        SetProtoExtension(chunkMeta.mutable_extensions(), ProtoBoundaryKeys);
-
-        NProto::TKeyColumns protoKeyColumns;
-        ToProto(protoKeyColumns.mutable_values(), KeyColumns.Get());
-        SetProtoExtension(chunkMeta.mutable_extensions(), protoKeyColumns);
+        SetProtoExtension(chunkMeta.mutable_extensions(), IndexExt);
+        SetProtoExtension(chunkMeta.mutable_extensions(), BoundaryKeysExt);
+        {
+            NProto::TKeyColumns protoKeyColumnsExt;
+            ToProto(protoKeyColumnsExt.mutable_values(), KeyColumns.Get());
+            SetProtoExtension(chunkMeta.mutable_extensions(), protoKeyColumnsExt);
+        }
     }
 
     return ChunkWriter->AsyncClose(MoveRV(completedBlocks), chunkMeta);
@@ -257,50 +256,44 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
     std::sort(row.begin(), row.end());
 
     TLexer lexer;
-
     NProto::TSample sample;
-    FOREACH(const auto& pair, row) {
+    FOREACH (const auto& pair, row) {
         auto* part = sample.add_parts();
         part->set_column(pair.first.begin(), pair.first.size());
+        // sizeof(i32) for type field.
+        SamplesSize += sizeof(i32);
 
         lexer.Reset();
         YVERIFY(lexer.Read(pair.second));
         YASSERT(lexer.GetState() == TLexer::EState::Terminal);
         auto& token = lexer.GetToken();
         switch (token.GetType()) {
-        case ETokenType::Integer:
-            *(part->mutable_key_part()) = TKeyPart(token.GetIntegerValue()).ToProto();
-            // sizeof(int) for type field.
-            SamplesSize += sizeof(i64) + sizeof(int);
-            break;
+            case ETokenType::Integer:
+                *part->mutable_key_part() = TKeyPart(token.GetIntegerValue()).ToProto();
+                SamplesSize += sizeof(i64);
+                break;
 
-        case ETokenType::String: {
-            auto *keyPart = part->mutable_key_part();
-            keyPart->set_type(EKeyType::String);
-            auto length = std::min(
-                token.GetStringValue().size(), 
-                static_cast<size_t>(Config->MaxSampleSize));
-            keyPart->set_str_value(token.GetStringValue().begin(), length);
-            // sizeof(int) for type field.
-            SamplesSize += length + sizeof(int);
-            break;
-        }
+            case ETokenType::String: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyType::String);
+                auto partSize = std::min(token.GetStringValue().size(), MaxKeySize);
+                keyPart->set_str_value(token.GetStringValue().begin(), partSize);
+                SamplesSize += partSize;
+                break;
+            }
 
-        case ETokenType::Double:
-            *(part->mutable_key_part()) = TKeyPart(token.GetDoubleValue()).ToProto();
-            SamplesSize += sizeof(double) + sizeof(int);
-            break;
+            case ETokenType::Double:
+                *part->mutable_key_part() = TKeyPart(token.GetDoubleValue()).ToProto();
+                SamplesSize += sizeof(double);
+                break;
 
-        default:
-            *(part->mutable_key_part()) = TKeyPart::CreateComposite().ToProto();
-            // sizeof(int) for type field.
-            SamplesSize += sizeof(int);
-            break;
-
+            default:
+                *part->mutable_key_part() = TKeyPart::CreateComposite().ToProto();
+                break;
         }
     }
 
-    sample.set_row_index(ProtoMisc.row_count() - 1);
+    sample.set_row_index(MiscExt.row_count() - 1);
     sample.set_data_offset(DataOffset);
 
     return sample;
@@ -311,9 +304,9 @@ NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const
     YASSERT(IsClosed);
     NChunkHolder::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
-    SetProtoExtension(meta.mutable_extensions(), ProtoMisc);
+    SetProtoExtension(meta.mutable_extensions(), MiscExt);
     if (KeyColumns) {
-        SetProtoExtension(meta.mutable_extensions(), ProtoBoundaryKeys);
+        SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt);
     }
 
     return meta;

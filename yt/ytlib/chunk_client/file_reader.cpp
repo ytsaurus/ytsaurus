@@ -9,6 +9,7 @@
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NChunkHolder;
 using namespace NChunkHolder::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -141,21 +142,10 @@ i64 TFileReader::GetFullSize() const
     return InfoSize + DataSize;
 }
 
-const NChunkHolder::NProto::TChunkMeta& TFileReader::GetChunkMeta() const
+TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* tags) const
 {
     YASSERT(Opened);
-    return ChunkMeta;
-}
-
-IAsyncReader::TAsyncGetMetaResult TFileReader::AsyncGetChunkMeta()
-{
-    return MakeFuture(TGetMetaResult(GetChunkMeta()));
-}
-
-TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>& extensionTags) const
-{
-    YASSERT(Opened);
-    return ExtractExtensions(ChunkMeta, extensionTags);
+    return tags ? ExtractChunkMetaExtensions(ChunkMeta, *tags) : ChunkMeta;
 }
 
 const TChunkInfo& TFileReader::GetChunkInfo() const
@@ -165,9 +155,9 @@ const TChunkInfo& TFileReader::GetChunkInfo() const
 }
 
 IAsyncReader::TAsyncGetMetaResult
-TFileReader::AsyncGetChunkMeta(const std::vector<int>& extensionTags)
+TFileReader::AsyncGetChunkMeta(const std::vector<int>* tags)
 {
-    return MakeFuture(TGetMetaResult(GetChunkMeta(extensionTags)));
+    return MakeFuture(TGetMetaResult(GetChunkMeta(tags)));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

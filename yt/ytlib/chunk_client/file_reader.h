@@ -17,7 +17,7 @@ class TFileReader
 {
 public:
     //! Creates a new reader.
-    TFileReader(const Stroka& fileName);
+    explicit TFileReader(const Stroka& fileName);
 
     //! Opens the files, reads chunk meta. Must be called before reading blocks.
     void Open();
@@ -31,8 +31,7 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const;
-    NChunkHolder::NProto::TChunkMeta GetChunkMeta(const std::vector<int>& extensionTags) const;
+    NChunkHolder::NProto::TChunkMeta GetChunkMeta(const std::vector<int>* tags = NULL) const;
 
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
 
@@ -40,8 +39,7 @@ public:
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
 
     //! Implements IChunkReader and calls #GetChunkMeta.
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<int>& extensionTags);
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta();
+    virtual TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<int>* tags = NULL);
 
     //! Synchronously reads a given block from the file.
     /*!

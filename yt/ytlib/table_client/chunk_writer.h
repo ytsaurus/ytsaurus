@@ -24,7 +24,7 @@ class  TChunkWriter
 {
 public:
     TChunkWriter(
-        const TChunkWriterConfigPtr& config,
+        TChunkWriterConfigPtr config,
         NChunkClient::IAsyncWriterPtr chunkWriter,
         const std::vector<TChannel>& channels,
         const TNullable<TKeyColumns>& keyColumns);
@@ -91,18 +91,18 @@ private:
     TKey LastKey;
 
     // Different chunk meta extensions.
-    NChunkHolder::NProto::TMisc ProtoMisc;
-    NProto::TSamples ProtoSamples;
+    NChunkHolder::NProto::TMisc MiscExt;
+    NProto::TSamples SamplesExt;
 
     //! Approximate size of collected samples.
     size_t SamplesSize;
 
-    NProto::TChannels ProtoChannels;
+    NProto::TChannels ChannelsExt;
 
     // These are used only for sorted.
-    NProto::TBoundaryKeys ProtoBoundaryKeys;
+    NProto::TBoundaryKeys BoundaryKeysExt;
 
-    NProto::TIndex ProtoIndex;
+    NProto::TIndex IndexExt;
     //! Approximate size of collected index.
     size_t IndexSize;
 

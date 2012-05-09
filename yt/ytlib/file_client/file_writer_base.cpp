@@ -161,12 +161,12 @@ void TFileWriterBase::Close()
     LOG_INFO("Closing chunk");
     TChunkMeta meta;
     {
-        TMisc misc;
-        misc.set_uncompressed_size(Size);
-        misc.set_codec_id(Config->CodecId);
+        TMisc miscExt;
+        miscExt.set_uncompressed_size(Size);
+        miscExt.set_codec_id(Config->CodecId);
 
         meta.set_type(EChunkType::File);
-        SetProtoExtension(meta.mutable_extensions(), misc);
+        SetProtoExtension(meta.mutable_extensions(), miscExt);
 
         try {
             Sync(

@@ -13,6 +13,7 @@
 
 #include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -80,7 +81,7 @@ TSessionPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
     auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
     if (!session) {
         ythrow TServiceException(EErrorCode::NoSuchSession) <<
-            Sprintf("Session is invalid or expired (ChunkId: %s)", ~chunkId.ToString());
+            Sprintf("Session %s is invalid or expired", ~chunkId.ToString());
     }
     return session;
 }
@@ -90,7 +91,7 @@ TChunkPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
     auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
     if (!chunk) {
         ythrow TServiceException(EErrorCode::NoSuchChunk) <<
-            Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
+            Sprintf("No such chunk %s", ~chunkId.ToString());
     }
     return chunk;
 }
@@ -207,12 +208,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
             if (putResponse->IsOK()) {
                 context->Reply();
             } else {
-                Stroka message = Sprintf("SendBlocks: Cannot put blocks on the remote chunk holder (Address: %s)\n%s",
+                context->Reply(TError(
+                    TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed,
+                    "Error putting blocks to %s\n%s",
                     ~address,
-                    ~putResponse->GetError().ToString());
-
-                LOG_WARNING("%s", ~message);
-                context->Reply(TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed, message);
+                    ~putResponse->GetError().ToString()));
             }
         }));
 }
@@ -345,17 +345,17 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
-    std::vector<int> extensionTags(
-        request->extension_tags().begin(), 
-        request->extension_tags().end());
+    auto extensionTags = FromProto<i32>(request->extension_tags());
 
-    context->SetRequestInfo("ChunkId: %s, ExtensionTags: %s", 
+    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: %s", 
         ~chunkId.ToString(),
+        ~FormatBool(request->all_extension_tags()),
         ~JoinToString(extensionTags));
 
-    auto asyncChunkMeta = request->full_meta() 
-        ? GetChunk(chunkId)->GetMeta() 
-        : GetChunk(chunkId)->GetMeta(extensionTags);
+    auto chunk = GetChunk(chunkId);
+    auto asyncChunkMeta = chunk->GetMeta(request->all_extension_tags() 
+        ? NULL
+        : &extensionTags);
 
     asyncChunkMeta.Subscribe(BIND([=] (TChunk::TGetMetaResult result) {
             if (result.IsOK()) {
@@ -382,7 +382,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
             } else {
                 context->Reply(
                     TChunkHolderServiceProxy::EErrorCode::ChunkPrecachingFailed,
-                    Sprintf("Error precaching the chunk (ChunkId: %s)\n%s",
+                    Sprintf("Error precaching chunk %s\n%s",
                         ~chunkId.ToString(),
                         ~result.ToString()));
             }
@@ -405,14 +405,6 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
     }
 }
 
-struct TSampleColumnCmp
-{
-    bool operator()(const NTableClient::NProto::TSamplePart& part, const Stroka& column)
-    {
-        return part.column() < column;
-    }
-};
-
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
 {
     context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
@@ -422,42 +414,46 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
     auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
-    std::vector<int> tags(1, GetProtoExtensionTag<NTableClient::NProto::TSamples>());
 
     FOREACH (const auto& chunkId, chunkIds) {
         auto* chunkSamples = response->add_samples();
-        auto asyncMeta = GetChunk(chunkId)->GetMeta(tags);
+        awaiter->Await(
+            GetChunk(chunkId)->GetMeta(),
+            BIND([=] (TChunk::TGetMetaResult result) {
+                if (!result.IsOK()) {
+                    LOG_WARNING("GetTableSamples: Error getting meta of chunk %s\n", 
+                        ~chunkId.ToString(),
+                        ~result.ToString());
+                    *chunkSamples->mutable_error() = result.ToProto();
+                    return;
+                }
 
-        awaiter->Await(asyncMeta, BIND([=] (TChunk::TGetMetaResult result) {
-            if (!result.IsOK()) {
-                LOG_WARNING("Failed to retreive chunk meta (ChunkId: %s, Error: %s)", 
-                    ~chunkId.ToString(),
-                    ~result.ToString());
-                *chunkSamples->mutable_error() = result.ToProto();
-            } else {
-                auto samples = GetProtoExtension<NTableClient::NProto::TSamples>(
-                    result.Value().extensions());
-
+                auto samples = GetProtoExtension<NTableClient::NProto::TSamples>(result.Value().extensions());
                 FOREACH (const auto& sample, samples->items()) {
                     auto* keySample = chunkSamples->add_items();
-                    keySample->set_data_offset(sample.data_offset());
-                    keySample->set_row_index(sample.row_index());
+                    //keySample->set_data_offset(sample.data_offset());
+                    //keySample->set_row_index(sample.row_index());
 
                     size_t size = 0;
                     FOREACH (const auto& column, keyColumns) {
-                        if (size > NTableClient::MaxKeySize)
+                        if (size >= NTableClient::MaxKeySize)
                             break;
 
                         auto* keyPart = keySample->mutable_key()->add_parts();
-                        auto it = lower_bound(sample.parts().begin(), sample.parts().end(), column, TSampleColumnCmp());
-                        if (it->column() == column) {
-                            size += sizeof(EKeyType::Null);
-                            keyPart->set_type(it->key_part().type());
+                        auto it = std::lower_bound(
+                            sample.parts().begin(),
+                            sample.parts().end(),
+                            column,
+                            [] (const NTableClient::NProto::TSamplePart& part, const Stroka& column) {
+                                return part.column() < column;
+                            });
 
+                        size += sizeof(i32); // part type
+                        if (it != sample.parts().end() && it->column() == column) {
+                            keyPart->set_type(it->key_part().type());
                             switch (it->key_part().type()) {
                                 case EKeyType::Composite:
                                     break;
-
                                 case EKeyType::Integer:
                                     keyPart->set_int_value(it->key_part().int_value());
                                     size += sizeof(keyPart->int_value());
@@ -466,26 +462,21 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                                     keyPart->set_double_value(it->key_part().double_value());
                                     size += sizeof(keyPart->double_value());
                                     break;
-
                                 case EKeyType::String: {
-                                    auto len = std::min(it->key_part().str_value().size(), MaxKeySize - size);
-                                    keyPart->set_str_value(it->key_part().str_value().begin(), len);
-                                    size += sizeof(len);
+                                    auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
+                                    keyPart->set_str_value(it->key_part().str_value().begin(), partSize);
+                                    size += partSize;
                                     break;
                                 }
-
                                 default:
                                     YUNREACHABLE();
                             }
                         } else {
-                            size += sizeof(EKeyType::Null);
                             keyPart->set_type(EKeyType::Null);
                         }
                     }
-
                 }
-            }
-        }));
+            }));
     }
 
     awaiter->Complete(BIND([=] () {

@@ -12,9 +12,13 @@ DECLARE_PROTO_EXTENSION(NChunkHolder::NProto::TBlocks, 1)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-NChunkHolder::NProto::TChunkMeta ExtractExtensions(
-    const NChunkHolder::NProto::TChunkMeta& tags,
-    const std::vector<int>& extensionTags);
+namespace NChunkHolder {
+
+NChunkHolder::NProto::TChunkMeta ExtractChunkMetaExtensions(
+    const NChunkHolder::NProto::TChunkMeta& chunkMeta,
+    const std::vector<int>& tags);
+
+} // namespace NChunkHolder
 
 ///////////////////////////////////////////////////////////////////////////////
 

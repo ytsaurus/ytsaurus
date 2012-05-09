@@ -76,8 +76,7 @@ public:
     }
 
     TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
-    TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<int>& extensionTags);
-    TAsyncGetMetaResult AsyncGetChunkMeta();
+    TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<i32>* tags = NULL);
 
     TAsyncGetSeedsResult AsyncGetSeeds()
     {
@@ -601,23 +600,19 @@ public:
 
     TGetMetaSession(
         TRemoteReader* reader,
-        const std::vector<int>& extensionTags)
+        const std::vector<int>* extensionTags)
         : TSessionBase(reader)
         , Promise(NewPromise<IAsyncReader::TGetMetaResult>())
         , SeedIndex(0)
-        , ExtensionTags(extensionTags)
-        , FullMeta(false)
     {
-        Init();
-    }
-
-    TGetMetaSession(TRemoteReader* reader)
-        : TSessionBase(reader)
-        , Promise(NewPromise<IAsyncReader::TGetMetaResult>())
-        , SeedIndex(0)
-        , FullMeta(true)
-    {
-        Init();
+        if (extensionTags) {
+            ExtensionTags = *extensionTags;
+            AllExtensionTags = false;
+        } else {
+            AllExtensionTags = true;
+        }
+        Logger.AddTag(Sprintf("GetInfoSession: %p", this));
+        NewRetry();
     }
 
     IAsyncReader::TAsyncGetMetaResult GetAsyncResult() const
@@ -633,13 +628,7 @@ private:
     int SeedIndex;
 
     std::vector<int> ExtensionTags;
-    bool FullMeta;
-
-    void Init()
-    {
-        Logger.AddTag(Sprintf("GetInfoSession: %p", this));
-        NewRetry();
-    }
+    bool AllExtensionTags;
 
     void RequestInfo()
     {
@@ -658,7 +647,7 @@ private:
 
         auto request = proxy.GetChunkMeta();
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
-        request->set_full_meta(FullMeta);
+        request->set_all_extension_tags(AllExtensionTags);
         ToProto(request->mutable_extension_tags(), ExtensionTags);
         request->Invoke().Subscribe(BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this)));
     }
@@ -702,16 +691,10 @@ private:
     }
 };
 
-TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(const std::vector<int>& extensionTags)
+TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(const std::vector<i32>* tags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return New<TGetMetaSession>(this, extensionTags)->GetAsyncResult();
-}
-
-TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    return New<TGetMetaSession>(this)->GetAsyncResult();
+    return New<TGetMetaSession>(this, tags)->GetAsyncResult();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -39,19 +39,17 @@ struct TChunkWriterConfig
     : public TConfigurable
 {
     i64 BlockSize;
-    int CodecId;
+    ECodecId CodecId;
 
-    //! Size of samples should not exceed given percent of the total data size.
+    //! Fraction of rows data size samples are allowed to occupy.
     double SampleRate;
 
-    int MaxSampleSize;
-
-    //! Size of index should not exceed given percent of the total data size.
+    //! Fraction of rows data size samples are allowed to occupy.
     double IndexRate;
 
     TChunkWriterConfig()
     {
-        // Block less than 1Kb is a nonsense.
+        // Block less than 1Kb is nonsense.
         Register("block_size", BlockSize)
             .GreaterThan(1024)
             .Default(1024 * 1024);
@@ -61,9 +59,6 @@ struct TChunkWriterConfig
             .GreaterThan(0)
             .LessThan(0.1)
             .Default(0.01);
-        Register("max_sample_size", MaxSampleSize)
-            .GreaterThan(0)
-            .Default(1024);
         Register("index_rate", IndexRate)
             .GreaterThan(0)
             .LessThan(0.1)
