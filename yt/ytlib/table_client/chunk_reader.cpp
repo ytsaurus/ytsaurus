@@ -42,11 +42,8 @@ public:
 
     bool IsValid(const TKey& key)
     {
-        if (LeftBoundary) {
-            return TKey::Compare(key, Pivot) >= 0;
-        } else {
-            return TKey::Compare(key, Pivot) < 0;
-        }
+        int result = CompareKeys(key, Pivot);
+        return LeftBoundary ? result >= 0 : result < 0;
     }
 
 private:
@@ -93,7 +90,7 @@ struct TChunkReader::TIndexComparator
 {
     bool operator()(const NProto::TKey& key, const NProto::TIndexRow& row)
     {
-        return Comparator(CompareProtoKeys(key, row.key()), 0);
+        return Comparator(CompareKeys(key, row.key()), 0);
     }
 
     TComparator<int> Comparator;
@@ -667,19 +664,19 @@ void TChunkReader::MakeCurrentRow()
                         const auto& token = lexer.GetToken();
                         switch (token.GetType()) {
                             case ETokenType::Integer:
-                                CurrentKey.AddValue(columnInfo.KeyIndex, token.GetIntegerValue());
+                                CurrentKey.SetValue(columnInfo.KeyIndex, token.GetIntegerValue());
                                 break;
 
                             case ETokenType::String:
-                                CurrentKey.AddValue(columnInfo.KeyIndex, token.GetStringValue());
+                                CurrentKey.SetValue(columnInfo.KeyIndex, token.GetStringValue());
                                 break;
 
                             case ETokenType::Double:
-                                CurrentKey.AddValue(columnInfo.KeyIndex, token.GetDoubleValue());
+                                CurrentKey.SetValue(columnInfo.KeyIndex, token.GetDoubleValue());
                                 break;
 
                             default:
-                                CurrentKey.AddComposite(columnInfo.KeyIndex);
+                                CurrentKey.SetComposite(columnInfo.KeyIndex);
                                 break;
                         }
                     }

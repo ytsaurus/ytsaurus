@@ -15,42 +15,53 @@ TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
     , ValueConsumer(&RowBuffer)
     , CurrentKey(KeyColumns ? KeyColumns->size() : 0)
     , OnValueFinished_(BIND(&TTableConsumer::OnValueFinished, this))
-{ }
+{
+    if (KeyColumns) {
+        for (int index = 0; index < static_cast<int>(KeyColumns.Get().size()); ++index) {
+            KeyColumnToIndex[KeyColumns.Get()[index]] = index;
+        }
+    }
+}
 
 void TTableConsumer::OnMyStringScalar(const TStringBuf& value)
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
+    ThrowMapExpected();
 }
 
 void TTableConsumer::OnMyIntegerScalar(i64 value)
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
+    ThrowMapExpected();
 }
 
 void TTableConsumer::OnMyDoubleScalar(double value)
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
+    ThrowMapExpected();
 }
 
 void TTableConsumer::OnMyEntity()
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
+    ThrowMapExpected();
 }
 
 void TTableConsumer::OnMyBeginList()
 {
     YASSERT(!InsideRow);
+    ThrowMapExpected();
+}
+
+void TTableConsumer::ThrowMapExpected()
+{
     ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
 }
 
 void TTableConsumer::OnMyListItem()
 {
     YASSERT(!InsideRow);
-    // Separator between rows, do nothing.
+    // Row separator, do nothing.
 }
 
 void TTableConsumer::OnMyBeginMap()
@@ -63,30 +74,22 @@ void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
 {
     YASSERT(InsideRow);
 
-    auto offset = RowBuffer.GetSize();
-
+    TBlobRange column(RowBuffer.GetBlob(), RowBuffer.GetSize(), name.size());
     RowBuffer.Write(name);
     Offsets.push_back(RowBuffer.GetSize());
 
-    TBlobRange column(RowBuffer.GetBlob(), offset, name.size());
     if (!UsedColumns.insert(column).second) {
         ythrow yexception() << Sprintf(
-            "Invalid row format, duplicate column name (RowIndex: %"PRId64", Column: %s)", 
-            Writer->GetRowCount(),
-            ~ToString(name));
+            "Duplicate column name %s (RowIndex: %"PRId64")", 
+            ~ToString(name).Quote(),
+            Writer->GetRowCount());
     }
 
-    if (KeyColumns.IsInitialized()) {
-        int keyIndex = -1;
-        for(int i = 0; i < KeyColumns->size(); ++i) {
-            if (name == KeyColumns->at(i)) {
-                keyIndex = i;
-                break;
-            }
+    if (KeyColumns) {
+        auto it = KeyColumnToIndex.find(name);
+        if (it != KeyColumnToIndex.end()) {
+            ValueConsumer.OnNewValue(&CurrentKey, it->second);
         }
-
-        if (keyIndex > 0)
-            ValueConsumer.OnNewValue(&CurrentKey, keyIndex);
     }
 
     ForwardNode(&ValueConsumer, OnValueFinished_);
@@ -102,30 +105,28 @@ void TTableConsumer::OnMyEndMap()
     YASSERT(InsideRow);
 
     if (KeyColumns) {
-        if (TKey::Compare(Writer->GetLastKey(), CurrentKey) > 0) {
+        if (CompareKeys(Writer->GetLastKey(), CurrentKey) > 0) {
             ythrow yexception() << Sprintf(
-                "Invalid sorting order (RowIndex: %"PRId64", PreviousKey: %s, CurrentKey: %s)", 
+                "Table data is not sorted (RowIndex: %"PRId64", PreviousKey: %s, CurrentKey: %s)", 
                 Writer->GetRowCount(),
-                ~(Writer->GetLastKey().ToString()),
+                ~Writer->GetLastKey().ToString(),
                 ~CurrentKey.ToString());
         }
     }
 
     TRow row;
 
-    int i = 0;
-    auto begin = 0;
-    auto end = 0;
-    while (i < Offsets.size()) {
+    int index = 0;
+    int begin = 0;
+    int end = 0;
+    while (index < Offsets.size()) {
         begin = end;
-        end = Offsets[i];
+        end = Offsets[index++];
         TStringBuf name(RowBuffer.Begin() + begin, end - begin);
-        ++i;
 
         begin = end;
-        end = Offsets[i];
+        end = Offsets[index++];
         TStringBuf value(RowBuffer.Begin() + begin, end - begin);
-        ++i;
 
         row.push_back(std::make_pair(name, value));
     }
@@ -136,7 +137,6 @@ void TTableConsumer::OnMyEndMap()
     UsedColumns.clear();
     Offsets.clear();
     RowBuffer.Clear();
-
     InsideRow = false;
 }
 

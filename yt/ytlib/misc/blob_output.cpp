@@ -8,9 +8,9 @@ namespace NYT {
 TBlobOutput::TBlobOutput()
 { }
 
-TBlobOutput::TBlobOutput(size_t size)
+TBlobOutput::TBlobOutput(size_t capacity)
 {
-    Blob.reserve(size);
+    Blob.reserve(capacity);
 }
 
 TBlobOutput::~TBlobOutput() throw()

@@ -25,12 +25,16 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 inline bool CompareReaders(
     const TChunkReaderPtr& r1, 
     const TChunkReaderPtr& r2)
 {
-    return TKey::Compare(r1->GetKey(), r2->GetKey()) > 0;
+    return CompareKeys(r1->GetKey(), r2->GetKey()) > 0;
 }
+
+} // namespace
 
 TSortedMergeJob::TSortedMergeJob(
     const TJobIOConfigPtr& config,

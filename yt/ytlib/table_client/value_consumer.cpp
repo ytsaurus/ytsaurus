@@ -24,7 +24,7 @@ void TValueConsumer::OnNewValue(TKey* key, int keyIndex)
 void TValueConsumer::OnStringScalar(const TStringBuf& value)
 {
     if (NewValue) {
-        Key->AddValue(KeyIndex, value);
+        Key->SetValue(KeyIndex, value);
         NewValue = false;
     }
 
@@ -34,7 +34,7 @@ void TValueConsumer::OnStringScalar(const TStringBuf& value)
 void TValueConsumer::OnIntegerScalar(i64 value)
 {
     if (NewValue) {
-        Key->AddValue(KeyIndex, value);
+        Key->SetValue(KeyIndex, value);
         NewValue = false;
     }
 
@@ -44,7 +44,7 @@ void TValueConsumer::OnIntegerScalar(i64 value)
 void TValueConsumer::OnDoubleScalar(double value)
 {
     if (NewValue) {
-        Key->AddValue(KeyIndex, value);
+        Key->SetValue(KeyIndex, value);
         NewValue = false;
     }
 
@@ -54,7 +54,7 @@ void TValueConsumer::OnDoubleScalar(double value)
 void TValueConsumer::OnEntity()
 {
     if (NewValue) {
-        Key->AddComposite(KeyIndex);
+        Key->SetComposite(KeyIndex);
         NewValue = false;
     }
 
@@ -64,7 +64,7 @@ void TValueConsumer::OnEntity()
 void TValueConsumer::OnBeginList()
 {
     if (NewValue) {
-        Key->AddComposite(KeyIndex);
+        Key->SetComposite(KeyIndex);
         NewValue = false;
     }
 
@@ -74,7 +74,7 @@ void TValueConsumer::OnBeginList()
 void TValueConsumer::OnBeginMap()
 {
     if (NewValue) {
-        Key->AddComposite(KeyIndex);
+        Key->SetComposite(KeyIndex);
         NewValue = false;
     }
 

@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "public.h"
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/blob_range.h>
@@ -20,8 +22,6 @@ DECLARE_ENUM(EKeyType,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TKey;
 
 class TKeyPart
 {
@@ -45,17 +45,30 @@ public:
 
     Stroka ToString() const;
 
-    // Makes protobuf representation. Strips string part length to maxSize if exceeds.
+    //! Converts the part into Protobuf.
+    //! Trims string part length to #maxSize if it exceeds the limit.
     NProto::TKeyPart ToProto(size_t maxSize = 0) const;
-    //FromProto();
 
 private:
-    // Keeps the actual value. 
+    // The actual value. 
     i64 IntValue;
     double DoubleValue;
-    // Points to the internal buffer inside the key.
+
+    // Pointer to an internal buffer inside the key.
     TBlobRange StrValue;
+
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
+int CompareKeys(const TKey& lhs, const TKey& rhs);
+
+bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator >= (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator <  (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator <= (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,47 +78,36 @@ class TKey
 public:
     //! Creates empty key.
     /* 
-     *  \param size maximum key size.
+     *  \param maxSize maximum string key size.
      */
-    TKey(int columnCount = 0, size_t size = 4096);
+    explicit TKey(int columnCount = 0, size_t maxSize = 4096);
 
-    void AddValue(int index, i64 value);
-    void AddValue(int index, double value);
-    void AddValue(int index, const TStringBuf& value);
+    void SetValue(int index, i64 value);
+    void SetValue(int index, double value);
+    void SetValue(int index, const TStringBuf& value);
 
-    void AddComposite(int index);
+    void SetComposite(int index);
 
     void Reset(int columnCount = -1);
     void Swap(TKey& other);
 
     size_t GetSize() const;
 
+    // TODO(babenko): ToYson?
     Stroka ToString() const;
 
     NProto::TKey ToProto() const;
     void FromProto(const NProto::TKey& protoKey);
 
-    // TODO(babenko): to free function
-    static int Compare(const TKey& lhs, const TKey& rhs);
-
 private:
+    friend int CompareKeys(const TKey& lhs, const TKey& rhs);
+
     const size_t MaxSize;
     int ColumnCount;
 
     std::vector<TKeyPart> Parts;
     TAutoPtr<TBlobOutput> Buffer;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): -> CompareKeys
-int CompareProtoKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
-
-bool operator>(const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator>=(const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator<(const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator<=(const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

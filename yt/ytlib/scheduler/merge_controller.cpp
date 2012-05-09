@@ -709,7 +709,7 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                auto keysResult = CompareProtoKeys(lhs.Key, rhs.Key);
+                auto keysResult = CompareKeys(lhs.Key, rhs.Key);
                 if (keysResult != 0) {
                     return keysResult < 0;
                 }

@@ -54,6 +54,9 @@ class TTableConsumer;
 typedef std::vector< std::pair<TStringBuf, TStringBuf> > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
+class TKey;
+class TKeyPart;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

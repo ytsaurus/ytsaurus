@@ -37,18 +37,30 @@ private:
 
     void OnValueFinished();
 
+    void ThrowMapExpected();
+
     ISyncWriterPtr Writer;
+
+    //! Names of key columns.
     TNullable<TKeyColumns> KeyColumns;
+    //! Name-to-index map for #KeyColumns. Actual names are kept in #KeyColumns.
+    yhash_map<TStringBuf, int> KeyColumnToIndex;
 
     bool InsideRow;
 
     TKey CurrentKey;
 
+    //! Names of columns seen in the currently filled row.
     yhash_set<TBlobRange> UsedColumns;
 
-    std::vector<size_t> Offsets;
+    //! Keeps the current row data.
     TBlobOutput RowBuffer;
+
+    //! |(endColumn, endValue)| offsets in #RowBuffer.
+    std::vector<size_t> Offsets;
+
     TValueConsumer ValueConsumer;
+
     //! A cached callback for #OnValueFinished.
     TClosure OnValueFinished_;
 };

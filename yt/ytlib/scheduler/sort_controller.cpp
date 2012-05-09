@@ -263,7 +263,7 @@ private:
             SortedSamples.begin(),
             SortedSamples.end(),
             [] (const NTableClient::NProto::TKeySample* lhs, const NTableClient::NProto::TKeySample* rhs) {
-                return CompareProtoKeys(lhs->key(), rhs->key()) < 0;
+                return CompareKeys(lhs->key(), rhs->key()) < 0;
             });
     }
 

@@ -12,11 +12,8 @@ class TBlobOutput
 {
 public:
     TBlobOutput();
+    explicit TBlobOutput(size_t capacity);
 
-    /*!
-     * \param size - size of blob reserved in ctor
-     */
-    TBlobOutput(size_t size);
     ~TBlobOutput() throw();
 
     void DoWrite(const void* buf, size_t len);
