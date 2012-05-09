@@ -42,12 +42,14 @@ TChunkWriter::TChunkWriter(
     , CurrentSize(0)
     , SentSize(0)
     , UncompressedSize(0)
-    , LastKey()
+    , RowCountSinceLastSample(0)
+    , DataSizeSinceLastSample(0)
     , SamplesSize(0)
     , IndexSize(0)
-    , DataOffset(0)
 {
+    YASSERT(config);
     YASSERT(chunkWriter);
+
     Codec = GetCodec(ECodecId(Config->CodecId));
     MiscExt.set_codec_id(Config->CodecId);
 
@@ -103,13 +105,15 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
 
+    i64 rowDataSize = 0;
     FOREACH (const auto& pair, row) {
         auto it = ColumnIndexes.find(pair.first);
         auto columnIndex = it == ColumnIndexes.end() 
             ? TChannelWriter::UnknownIndex 
             : it->second;
 
-        DataOffset += pair.first.size() + pair.second.size();
+        rowDataSize += pair.first.size();
+        rowDataSize += pair.second.size();
 
         FOREACH (const auto& writer, ChannelWriters) {
             writer->Write(columnIndex, pair.first, pair.second);
@@ -134,10 +138,13 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
         } 
     }
 
-    LastKey.Swap(key);
-
     if (SamplesSize < Config->SampleRate * CurrentSize) {
-        *SamplesExt.add_items() = MakeSample(row);
+        EmitSample(row);
+        RowCountSinceLastSample = 0;
+        DataSizeSinceLastSample = 0;
+    } else {
+        ++RowCountSinceLastSample;
+        DataSizeSinceLastSample += rowDataSize;
     }
 
     if (KeyColumns) {
@@ -146,12 +153,11 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
         }
 
         if (IndexSize < Config->IndexRate * CurrentSize) {
-            auto* indexRow = IndexExt.add_index_rows();
-            *indexRow->mutable_key() = key.ToProto();
-            indexRow->set_row_index(MiscExt.row_count() - 1);
-            IndexSize += key.GetSize();
+            EmitIndexEntry(key);
         }
     }
+
+    LastKey.Swap(key);
 
     return ChunkWriter->AsyncWriteBlocks(completedBlocks);
 }
@@ -232,11 +238,11 @@ TAsyncError TChunkWriter::AsyncClose()
     if (KeyColumns) {
         *BoundaryKeysExt.mutable_right() = LastKey.ToProto();
 
-        const auto lastIndexRow = --IndexExt.index_rows().end();
+        const auto lastIndexRow = --IndexExt.items().end();
         if (MiscExt.row_count() > lastIndexRow->row_index() + 1) {
-            auto* indexRow = IndexExt.add_index_rows();
-            *indexRow->mutable_key() = LastKey.ToProto();
-            indexRow->set_row_index(MiscExt.row_count() - 1);
+            auto* item = IndexExt.add_items();
+            *item->mutable_key() = LastKey.ToProto();
+            item->set_row_index(MiscExt.row_count() - 1);
         }
 
         SetProtoExtension(chunkMeta.mutable_extensions(), IndexExt);
@@ -251,14 +257,23 @@ TAsyncError TChunkWriter::AsyncClose()
     return ChunkWriter->AsyncClose(MoveRV(completedBlocks), chunkMeta);
 }
 
-NProto::TSample TChunkWriter::MakeSample(TRow& row)
+void TChunkWriter::EmitIndexEntry(const TKey& key)
 {
+    auto* item = IndexExt.add_items();
+    *item->mutable_key() = key.ToProto();
+    item->set_row_index(MiscExt.row_count() - 1);
+    IndexSize += key.GetSize();
+}
+
+void TChunkWriter::EmitSample(TRow& row)
+{
+    auto item = SamplesExt.add_items();
+
     std::sort(row.begin(), row.end());
 
     TLexer lexer;
-    NProto::TSample sample;
     FOREACH (const auto& pair, row) {
-        auto* part = sample.add_parts();
+        auto* part = item->add_parts();
         part->set_column(pair.first.begin(), pair.first.size());
         // sizeof(i32) for type field.
         SamplesSize += sizeof(i32);
@@ -269,7 +284,7 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
         auto& token = lexer.GetToken();
         switch (token.GetType()) {
             case ETokenType::Integer:
-                *part->mutable_key_part() = TKeyPart(token.GetIntegerValue()).ToProto();
+                *part->mutable_key_part() = TKeyPart::CreateValue(token.GetIntegerValue()).ToProto();
                 SamplesSize += sizeof(i64);
                 break;
 
@@ -283,7 +298,7 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
             }
 
             case ETokenType::Double:
-                *part->mutable_key_part() = TKeyPart(token.GetDoubleValue()).ToProto();
+                *part->mutable_key_part() = TKeyPart::CreateValue(token.GetDoubleValue()).ToProto();
                 SamplesSize += sizeof(double);
                 break;
 
@@ -293,15 +308,14 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
         }
     }
 
-    sample.set_row_index(MiscExt.row_count() - 1);
-    sample.set_data_offset(DataOffset);
-
-    return sample;
+    item->set_row_count_since_previous(RowCountSinceLastSample);
+    item->set_data_size_since_previous(DataSizeSinceLastSample);
 }
 
 NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const
 {
     YASSERT(IsClosed);
+
     NChunkHolder::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
     SetProtoExtension(meta.mutable_extensions(), MiscExt);
@@ -311,7 +325,6 @@ NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const
 
     return meta;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

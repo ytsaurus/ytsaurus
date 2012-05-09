@@ -430,16 +430,16 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
 
                 auto samples = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
                 FOREACH (const auto& sample, samples->items()) {
-                    auto* keySample = chunkSamples->add_items();
-                    //keySample->set_data_offset(sample.data_offset());
-                    //keySample->set_row_index(sample.row_index());
+                    auto* chunkSample = chunkSamples->add_items();
+                    chunkSample->set_data_size_since_previous(sample.data_size_since_previous());
+                    chunkSample->set_row_count_since_previous(sample.row_count_since_previous());
 
                     size_t size = 0;
                     FOREACH (const auto& column, keyColumns) {
                         if (size >= NTableClient::MaxKeySize)
                             break;
 
-                        auto* keyPart = keySample->mutable_key()->add_parts();
+                        auto* keyPart = chunkSample->mutable_key()->add_parts();
                         auto it = std::lower_bound(
                             sample.parts().begin(),
                             sample.parts().end(),

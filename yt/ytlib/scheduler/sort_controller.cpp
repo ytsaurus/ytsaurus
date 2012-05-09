@@ -271,7 +271,7 @@ private:
     {
         i64 totalSize = 0;
         FOREACH (const auto* sample, SortedSamples) {
-            totalSize += sample->data_size();
+            totalSize += sample->data_size_since_previous();
         }
 
         // Use partition count provided by the user, if given.
@@ -305,7 +305,7 @@ private:
                 sizeTaken = 0;
                 --samplesRemaining;
             }
-            sizeTaken += sample->data_size();
+            sizeTaken += sample->data_size_since_previous();
         }
 
         // Do the final adjustments.

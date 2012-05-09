@@ -28,14 +28,11 @@ class TKeyPart
     DEFINE_BYVAL_RO_PROPERTY(EKeyType, Type);
 
 public:
-    // TODO(babenko): create all types with CreateXXX
-    //! Creates null key part.
-    TKeyPart();
-    TKeyPart(const TBlobRange& value);
-    TKeyPart(i64 value);
-    TKeyPart(double value);
-
+    static TKeyPart CreateNull();
     static TKeyPart CreateComposite();
+    static TKeyPart CreateValue(const TBlobRange& value);
+    static TKeyPart CreateValue(i64 value);
+    static TKeyPart CreateValue(double value);
 
     i64 GetInteger() const;
     double GetDouble() const;
@@ -45,7 +42,7 @@ public:
 
     Stroka ToString() const;
 
-    //! Converts the part into Protobuf.
+    //! Converts the part into protobuf.
     //! Trims string part length to #maxSize if it exceeds the limit.
     NProto::TKeyPart ToProto(size_t maxSize = 0) const;
 

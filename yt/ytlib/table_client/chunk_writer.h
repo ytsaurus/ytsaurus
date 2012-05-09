@@ -47,21 +47,11 @@ public:
 private:
     friend class TChunkSequenceWriter;
 
-    TSharedRef PrepareBlock(int channelIndex);
-    NProto::TSample MakeSample(TRow& row);
-
-private:
     TChunkWriterConfigPtr Config;
     std::vector<TChannel> Channels;
-
-    ICodec* Codec;
-
     NChunkClient::IAsyncWriterPtr ChunkWriter;
-
     //! If not null chunk is expected to be sorted.
     TNullable<TKeyColumns> KeyColumns;
-
-    std::vector<TChannelWriterPtr> ChannelWriters;
 
     bool IsOpen;
     bool IsClosed;
@@ -76,35 +66,44 @@ private:
 
     //! Current size of written data.
     /*!
-     *  1. This counter is updated every #AsyncEndRow call.
-     *  2. This is an upper bound approximation of the size of written data, because we take 
-     *  into account real size of complete blocks and uncompressed size of the incomplete blocks.
+     *  - This counter is updated every #AsyncEndRow call.
+     *  - This is an upper bound approximation of the size of written data.
+     *    (Indeed, the counter includes compressed size of complete blocks and
+     *    uncompressed size of the incomplete blocks.)
      */
     i64 CurrentSize;
 
     //! Uncompressed size of completed blocks.
     i64 UncompressedSize;
 
-    //! Approximate size of written data, monotonically increases.
-    i64 DataOffset;
+    //! Number of written rows since the last sample.
+    i64 RowCountSinceLastSample;
+
+    //! Approximate data size counting all rows since the last sample.
+    i64 DataSizeSinceLastSample;
 
     TKey LastKey;
 
-    // Different chunk meta extensions.
-    NChunkHolder::NProto::TMiscExt MiscExt;
-    NProto::TSamplesExt SamplesExt;
-
     //! Approximate size of collected samples.
-    size_t SamplesSize;
+    i64 SamplesSize;
+
+    //! Approximate size of collected index.
+    i64 IndexSize;
+
+    ICodec* Codec;
+    std::vector<TChannelWriterPtr> ChannelWriters;
 
     NProto::TChannelsExt ChannelsExt;
-
-    // These are used only for sorted.
+    NChunkHolder::NProto::TMiscExt MiscExt;
+    NProto::TSamplesExt SamplesExt;
+    //! Only for sorted tables.
     NProto::TBoundaryKeysExt BoundaryKeysExt;
-
     NProto::TIndexExt IndexExt;
-    //! Approximate size of collected index.
-    size_t IndexSize;
+
+    TSharedRef PrepareBlock(int channelIndex);
+    
+    void EmitIndexEntry(const TKey& key);
+    void EmitSample(TRow& row);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

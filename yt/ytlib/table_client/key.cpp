@@ -8,30 +8,42 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyPart::TKeyPart()
-    : Type_(EKeyType::Null)
-{ }
-
-TKeyPart::TKeyPart(const TBlobRange& range)
-    : StrValue(range)
-    , Type_(EKeyType::String)
-{ }
-
-TKeyPart::TKeyPart(i64 value)
-    : IntValue(value)
-    , Type_(EKeyType::Integer)
-{ }
-
-TKeyPart::TKeyPart(double value)
-    : DoubleValue(value)
-    , Type_(EKeyType::Double)
-{ }
+TKeyPart TKeyPart::CreateNull()
+{
+    TKeyPart result;
+    result.Type_ = EKeyType::Null;
+    return result;
+}
 
 TKeyPart TKeyPart::CreateComposite()
 {
-    TKeyPart keyPart;
-    keyPart.Type_ = EKeyType::Composite;
-    return keyPart;
+    TKeyPart result;
+    result.Type_ = EKeyType::Composite;
+    return result;
+}
+
+TKeyPart TKeyPart::CreateValue(const TBlobRange& value)
+{
+    TKeyPart result;
+    result.Type_ = EKeyType::String;
+    result.StrValue = value;
+    return result;
+}
+
+TKeyPart TKeyPart::CreateValue(i64 value)
+{
+    TKeyPart result;
+    result.Type_ = EKeyType::Integer;
+    result.IntValue = value;
+    return result;
+}
+
+TKeyPart TKeyPart::CreateValue(double value)
+{
+    TKeyPart result;
+    result.Type_ = EKeyType::Double;
+    result.DoubleValue = value;
+    return result;
 }
 
 i64 TKeyPart::GetInteger() const
@@ -214,13 +226,13 @@ void TKey::FromProto(const NProto::TKey& protoKey)
 void TKey::SetValue(int index, i64 value)
 {
     YASSERT(index < ColumnCount);
-    Parts[index] = TKeyPart(value);
+    Parts[index] = TKeyPart::CreateValue(value);
 }
 
 void TKey::SetValue(int index, double value)
 {
     YASSERT(index < ColumnCount);
-    Parts[index] = TKeyPart(value);
+    Parts[index] = TKeyPart::CreateValue(value);
 }
 
 void TKey::SetValue(int index, const TStringBuf& value)
@@ -233,7 +245,7 @@ void TKey::SetValue(int index, const TStringBuf& value)
     auto offset = Buffer->GetSize();
     Buffer->Write(value.begin(), length);
 
-    Parts[index] = TKeyPart(TBlobRange(Buffer->GetBlob(), offset, length));
+    Parts[index] = TKeyPart::CreateValue(TBlobRange(Buffer->GetBlob(), offset, length));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

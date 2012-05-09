@@ -38,8 +38,10 @@ message TSamplePart
 message TSample
 {
     repeated TSamplePart parts = 1;
-    required int64 data_offset = 2;
-    required int64 row_index = 3;
+    // Number of rows from the last sample (inclusive) to this one (exclusive).
+    required int64 row_count_since_previous = 2;
+    // Similar to |row_count_since_previous| but measures approximate data size.
+    required int64 data_size_since_previous = 3;
 }
 
 message TSamplesExt
@@ -56,7 +58,7 @@ message TIndexRow
 // Chunk meta extension.
 message TIndexExt
 {
-    repeated TIndexRow index_rows = 2;
+    repeated TIndexRow items = 2;
 }
 
 // Chunk meta extension.
@@ -95,9 +97,9 @@ message TKeySample
 {
     required NYT.NTableClient.NProto.TKey key = 1;
     // Number of rows from the last sample (inclusive) to this one (exclusive).
-    required int32 row_count = 2;
-    // Similar to |row_count| but measures approximate data size instead.
-    required int32 data_size = 3;
+    required int64 row_count_since_previous = 2;
+    // Similar to |row_count_since_previous| but measures approximate data size.
+    required int64 data_size_since_previous = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

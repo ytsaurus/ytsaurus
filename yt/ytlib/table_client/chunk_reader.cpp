@@ -218,9 +218,9 @@ private:
             if (StartLimit.has_key() && StartLimit.key().parts_size() > 0) {
                 StartValidator.Reset(new TKeyValidator(StartLimit.key(), true));
 
-                typedef decltype(index->index_rows().begin()) TSampleIter;
-                std::reverse_iterator<TSampleIter> rbegin(index->index_rows().end());
-                std::reverse_iterator<TSampleIter> rend(index->index_rows().begin());
+                typedef decltype(index->items().begin()) TSampleIter;
+                std::reverse_iterator<TSampleIter> rbegin(index->items().end());
+                std::reverse_iterator<TSampleIter> rend(index->items().begin());
                 auto it = std::upper_bound(
                     rbegin, 
                     rend, 
@@ -236,12 +236,12 @@ private:
                 chunkReader->EndValidator.Reset(new TKeyValidator(EndLimit.key(), false));
 
                 auto it = std::upper_bound(
-                    index->index_rows().begin(), 
-                    index->index_rows().end(), 
+                    index->items().begin(), 
+                    index->items().end(), 
                     EndLimit.key(), 
                     TIndexComparator<std::less>());
 
-                if (it != index->index_rows().end()) {
+                if (it != index->items().end()) {
                     chunkReader->EndRowIndex = std::min(
                         it->row_index(), 
                         chunkReader->EndRowIndex);
