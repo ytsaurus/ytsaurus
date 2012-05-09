@@ -30,7 +30,7 @@ public:
         const std::vector<int>& blockIndexes,
         IAsyncReaderPtr chunkReader,
         // ToDo: use move semantics
-        TAutoPtr<NChunkHolder::NProto::TBlocks> protoBlocks);
+        TAutoPtr<NChunkHolder::NProto::TBlocksExt> protoBlocks);
 
     bool HasNext() const;
 
@@ -59,7 +59,7 @@ private:
         TVoid);
 
     const std::vector<int> BlockIndexSequence;
-    TAutoPtr<NChunkHolder::NProto::TBlocks> ProtoBlocks;
+    TAutoPtr<NChunkHolder::NProto::TBlocksExt> ProtoBlocks;
 
     TSequentialReaderConfigPtr Config;
     IAsyncReaderPtr ChunkReader;

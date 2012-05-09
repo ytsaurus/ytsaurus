@@ -42,7 +42,7 @@ private:
     i64 DataSize;
     THolder<TFile> DataFile;
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
-    NChunkHolder::NProto::TBlocks BlocksExt;
+    NChunkHolder::NProto::TBlocksExt BlocksExt;
     NChunkHolder::NProto::TChunkMeta ChunkMeta;
 
     bool EnsureOpen();

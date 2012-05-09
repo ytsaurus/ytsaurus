@@ -87,7 +87,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     auto chunkRef = chunkList.Children()[0];
     const auto& chunk = *chunkRef.AsChunk();
 
-    auto misc = GetProtoExtension<TMisc>(chunk.ChunkMeta().extensions());
+    auto misc = GetProtoExtension<TMiscExt>(chunk.ChunkMeta().extensions());
     if (name == "size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);

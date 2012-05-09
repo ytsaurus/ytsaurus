@@ -15,25 +15,32 @@ namespace NTableClient {
 struct IAsyncWriter
     : public virtual TRefCounted
 {
+    //! Opens the writer.
     virtual TAsyncError AsyncOpen() = 0;
 
+    //! Appends a new row.
     /*!
      *  Both parameters could be modified.
-     *  Sort order of written rows is not validated.
+     *  Sort order of rows is not validated.
      */
     virtual TAsyncError AsyncWriteRow(TRow& row, TKey& key) = 0;
+
+    //! Closes the writer.
     virtual TAsyncError AsyncClose() = 0;
 
+    //! Returns the last key added to the writer.
     /*! 
      *  Returns non-const reference on the internal key field.
-     *  One can swap it out to avoid unnecessary copying, but you 
-     *  should never want to do it before calling #AsyncClose.
+     *  One can swap it out to avoid excessive copying after (!)
+     *  the writer is closed by calling #AsyncClose.
      */
     virtual TKey& GetLastKey() = 0;
 
+    //! Returns key column names if rows are added in ``sorted'' mode
+    //! or |Null| otherwise.
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
 
-    //! Current row count.
+    //! Returns the current row count.
     virtual i64 GetRowCount() const = 0;
 };
 

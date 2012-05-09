@@ -39,7 +39,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     result.CompressedSize = ChunkInfo().size();
     result.ChunkCount = 1;
 
-    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(ChunkMeta().extensions());
+    auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(ChunkMeta().extensions());
     result.UncompressedSize = misc->uncompressed_size();
     result.RowCount = misc->row_count();
 

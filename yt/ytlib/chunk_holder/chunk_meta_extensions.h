@@ -7,8 +7,8 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PROTO_EXTENSION(NChunkHolder::NProto::TMisc, 0)
-DECLARE_PROTO_EXTENSION(NChunkHolder::NProto::TBlocks, 1)
+DECLARE_PROTO_EXTENSION(NChunkHolder::NProto::TMiscExt, 0)
+DECLARE_PROTO_EXTENSION(NChunkHolder::NProto::TBlocksExt, 1)
 
 ///////////////////////////////////////////////////////////////////////////////
 

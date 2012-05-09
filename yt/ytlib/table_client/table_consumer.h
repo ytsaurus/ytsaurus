@@ -43,6 +43,7 @@ private:
 
     //! Names of key columns.
     TNullable<TKeyColumns> KeyColumns;
+
     //! Name-to-index map for #KeyColumns. Actual names are kept in #KeyColumns.
     yhash_map<TStringBuf, int> KeyColumnToIndex;
 

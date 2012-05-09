@@ -165,7 +165,7 @@ private:
         auto reader = readerResult.Value();
 
         const auto& chunkMeta = reader->GetChunkMeta();
-        const auto blocksExtension = GetProtoExtension<TBlocks>(chunkMeta.extensions());
+        const auto blocksExtension = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
         const auto& blockInfo = blocksExtension->blocks(blockId.BlockIndex);
         auto blockSize = blockInfo.size();
         

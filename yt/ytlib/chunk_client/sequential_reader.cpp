@@ -18,7 +18,7 @@ TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
     const std::vector<int>& blockIndexes,
     IAsyncReaderPtr chunkReader,
-    TAutoPtr<TBlocks> protoBlocks)
+    TAutoPtr<TBlocksExt> protoBlocks)
     : BlockIndexSequence(blockIndexes)
     , ProtoBlocks(protoBlocks)
     , Config(config)

@@ -7,11 +7,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PROTO_EXTENSION(NTableClient::NProto::TChannels, 10)
-DECLARE_PROTO_EXTENSION(NTableClient::NProto::TSamples, 11)
-DECLARE_PROTO_EXTENSION(NTableClient::NProto::TIndex, 12)
-DECLARE_PROTO_EXTENSION(NTableClient::NProto::TBoundaryKeys, 13)
-DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumns, 14)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TChannelsExt, 10)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TSamplesExt, 11)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TIndexExt, 12)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TBoundaryKeysExt, 13)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -38,7 +38,7 @@ NTableClient::NProto::TKey GetMinKey(const TChunkTreeRef& ref)
 {
     switch (ref.GetType()) {
     case EObjectType::Chunk: {
-        auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeys>(
+        auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
             ref.AsChunk()->ChunkMeta().extensions());
         return boundaryKeys->left();
                              }
@@ -54,7 +54,7 @@ NTableClient::NProto::TKey GetMaxKey(const TChunkTreeRef& ref)
 {
     switch (ref.GetType()) {
     case EObjectType::Chunk: {
-        auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeys>(
+        auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
             ref.AsChunk()->ChunkMeta().extensions());
         return boundaryKeys->right();
                              }

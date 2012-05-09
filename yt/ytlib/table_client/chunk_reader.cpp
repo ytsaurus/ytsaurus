@@ -126,19 +126,19 @@ public:
         YASSERT(chunkReader);
 
         std::vector<int> tags;
-        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TBlocks>());
-        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMisc>());
-        tags.push_back(GetProtoExtensionTag<NProto::TChannels>());
+        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>());
+        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
+        tags.push_back(GetProtoExtensionTag<NProto::TChannelsExt>());
 
         HasRangeRequest = (StartLimit.has_key() && (StartLimit.key().parts_size() > 0)) ||
             (EndLimit.has_key() && (EndLimit.key().parts_size() > 0));
 
         if (HasRangeRequest) {
-            tags.push_back(GetProtoExtensionTag<NProto::TIndex>());
+            tags.push_back(GetProtoExtensionTag<NProto::TIndexExt>());
         }
 
         if (HasRangeRequest || chunkReader->Options.ReadKey) {
-            tags.push_back(GetProtoExtensionTag<NProto::TKeyColumns>());
+            tags.push_back(GetProtoExtensionTag<NProto::TKeyColumnsExt>());
         }
 
         AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(BIND(
@@ -174,7 +174,7 @@ private:
             columnInfo.InChannel = true;
         }
 
-        auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(
+        auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
             result.Value().extensions());
 
         StartRowIndex = 0;
@@ -195,7 +195,7 @@ private:
                 return;
             }
 
-            chunkReader->KeyColumns = GetProtoExtension<NProto::TKeyColumns>(
+            chunkReader->KeyColumns = GetProtoExtension<NProto::TKeyColumnsExt>(
                 result.Value().extensions());
 
             YASSERT(chunkReader->KeyColumns->values_size() > 0);
@@ -212,7 +212,7 @@ private:
         }
 
         if (HasRangeRequest) {
-            auto index = GetProtoExtension<NProto::TIndex>(
+            auto index = GetProtoExtension<NProto::TIndexExt>(
                 result.Value().extensions());
 
             if (StartLimit.has_key() && StartLimit.key().parts_size() > 0) {
@@ -263,7 +263,7 @@ private:
 
         chunkReader->Codec = GetCodec(ECodecId(misc->codec_id()));
 
-        ProtoChannels = GetProtoExtension<NProto::TChannels>(
+        ProtoChannels = GetProtoExtension<NProto::TChannelsExt>(
             result.Value().extensions());
 
         SelectChannels(chunkReader);
@@ -277,7 +277,7 @@ private:
             SequentialConfig,
             blockIndexSequence,
             AsyncReader,
-            GetProtoExtension<NChunkHolder::NProto::TBlocks>(
+            GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(
                 result.Value().extensions()));
 
         LOG_DEBUG("Defined block reading sequence (BlockIndexes: %s)", ~JoinToString(blockIndexSequence));
@@ -500,7 +500,7 @@ private:
 
     THolder<TKeyValidator> StartValidator;
 
-    TAutoPtr<NProto::TChannels> ProtoChannels;
+    TAutoPtr<NProto::TChannelsExt> ProtoChannels;
     std::vector<TChannel> ChunkChannels;
     std::vector<int> SelectedChannels;
 

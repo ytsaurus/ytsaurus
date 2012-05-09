@@ -22,8 +22,6 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): use totalReplicaCount
-
 TTableWriter::TTableWriter(
     TChunkSequenceWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,

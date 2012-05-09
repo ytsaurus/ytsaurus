@@ -53,8 +53,9 @@ TCommandDescriptor TWriteCommand::GetDescriptor()
 void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
     TNullable<TKeyColumns> keyColumns;
-    if (request->Sorted)
+    if (request->Sorted) {
         keyColumns.Assign(request->KeyColumns);
+    }
 
     auto writer = New<TTableWriter>(
         Host->GetConfig()->ChunkSequenceWriter,

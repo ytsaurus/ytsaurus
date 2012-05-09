@@ -242,9 +242,9 @@ TAsyncError TChunkWriter::AsyncClose()
         SetProtoExtension(chunkMeta.mutable_extensions(), IndexExt);
         SetProtoExtension(chunkMeta.mutable_extensions(), BoundaryKeysExt);
         {
-            NProto::TKeyColumns protoKeyColumnsExt;
-            ToProto(protoKeyColumnsExt.mutable_values(), KeyColumns.Get());
-            SetProtoExtension(chunkMeta.mutable_extensions(), protoKeyColumnsExt);
+            NProto::TKeyColumnsExt keyColumnsExt;
+            ToProto(keyColumnsExt.mutable_values(), KeyColumns.Get());
+            SetProtoExtension(chunkMeta.mutable_extensions(), keyColumnsExt);
         }
     }
 

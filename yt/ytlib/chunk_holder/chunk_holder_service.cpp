@@ -428,7 +428,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                     return;
                 }
 
-                auto samples = GetProtoExtension<NTableClient::NProto::TSamples>(result.Value().extensions());
+                auto samples = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
                 FOREACH (const auto& sample, samples->items()) {
                     auto* keySample = chunkSamples->add_items();
                     //keySample->set_data_offset(sample.data_offset());

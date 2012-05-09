@@ -91,18 +91,18 @@ private:
     TKey LastKey;
 
     // Different chunk meta extensions.
-    NChunkHolder::NProto::TMisc MiscExt;
-    NProto::TSamples SamplesExt;
+    NChunkHolder::NProto::TMiscExt MiscExt;
+    NProto::TSamplesExt SamplesExt;
 
     //! Approximate size of collected samples.
     size_t SamplesSize;
 
-    NProto::TChannels ChannelsExt;
+    NProto::TChannelsExt ChannelsExt;
 
     // These are used only for sorted.
-    NProto::TBoundaryKeys BoundaryKeysExt;
+    NProto::TBoundaryKeysExt BoundaryKeysExt;
 
-    NProto::TIndex IndexExt;
+    NProto::TIndexExt IndexExt;
     //! Approximate size of collected index.
     size_t IndexSize;
 

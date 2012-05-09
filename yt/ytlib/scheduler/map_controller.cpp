@@ -217,7 +217,7 @@ private:
                         chunk.set_row_attributes(rowAttributes.Get());
                     }
 
-                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunk.extensions());
+                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
 
                     i64 rowCount = misc->row_count();
                     i64 dataSize = misc->uncompressed_size();

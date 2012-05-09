@@ -89,7 +89,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 {
     YASSERT(Opened);
 
-    auto blocksExtension = GetProtoExtension<TBlocks>(ChunkMeta.extensions());
+    auto blocksExtension = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
     i32 blockCount = blocksExtension->blocks_size();
 
     if (blockIndex > blockCount || blockIndex < -blockCount) {

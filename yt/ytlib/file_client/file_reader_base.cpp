@@ -63,10 +63,10 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
 
     auto& chunkMeta = getMetaResult.Value();
     YASSERT(chunkMeta.type() == NChunkServer::EChunkType::File);
-    auto blocksExtension = GetProtoExtension<NChunkHolder::NProto::TBlocks>(chunkMeta.extensions());
+    auto blocksExtension = GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(chunkMeta.extensions());
     BlockCount = blocksExtension->blocks_size();
 
-    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunkMeta.extensions());
+    auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkMeta.extensions());
     Size = misc->uncompressed_size();
     auto codecId = ECodecId(misc->codec_id());
 

@@ -42,9 +42,7 @@ message TSample
     required int64 row_index = 3;
 }
 
-// Chunk meta extension.
-// TODO(babenko): Ext
-message TSamples
+message TSamplesExt
 {
     repeated TSample items = 1;
 }
@@ -56,22 +54,19 @@ message TIndexRow
 }
 
 // Chunk meta extension.
-// TODO(babenko): Ext
-message TIndex
+message TIndexExt
 {
     repeated TIndexRow index_rows = 2;
 }
 
 // Chunk meta extension.
-// TODO(babenko): Ext
-message TKeyColumns
+message TKeyColumnsExt
 {
     repeated bytes values = 1;
 }
 
 // Chunk meta extension.
-// TODO(babenko): Ext
-message TBoundaryKeys
+message TBoundaryKeysExt
 {
     required TKey left = 1;
     required TKey right = 2;
@@ -91,8 +86,7 @@ message TChunkChannel
 }
 
 // Chunk meta extension.
-// TODO(babenko): Ext
-message TChannels
+message TChannelsExt
 {
     repeated TChunkChannel items = 1;
 }
