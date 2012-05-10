@@ -42,6 +42,7 @@ TChunkWriter::TChunkWriter(
     , CurrentSize(0)
     , SentSize(0)
     , UncompressedSize(0)
+    , DataSize(0)
     , RowCountSinceLastSample(0)
     , DataSizeSinceLastSample(0)
     , SamplesSize(0)
@@ -138,7 +139,8 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
         } 
     }
 
-    if (SamplesSize < Config->SampleRate * CurrentSize) {
+    DataSize += rowDataSize;
+    if (SamplesSize < Config->SampleRate * DataSize) {
         EmitSample(row);
         RowCountSinceLastSample = 0;
         DataSizeSinceLastSample = 0;
@@ -152,7 +154,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
             *BoundaryKeysExt.mutable_left() = key.ToProto();
         }
 
-        if (IndexSize < Config->IndexRate * CurrentSize) {
+        if (IndexSize < Config->IndexRate * DataSize) {
             EmitIndexEntry(key);
         }
     }

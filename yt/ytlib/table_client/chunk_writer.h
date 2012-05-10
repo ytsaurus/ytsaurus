@@ -76,6 +76,9 @@ private:
     //! Uncompressed size of completed blocks.
     i64 UncompressedSize;
 
+    //! Approximate data size counting all written rows.
+    i64 DataSize;
+
     //! Number of written rows since the last sample.
     i64 RowCountSinceLastSample;
 
