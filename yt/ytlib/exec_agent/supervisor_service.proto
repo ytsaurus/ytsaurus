@@ -29,7 +29,7 @@ message TRspOnJobFinished
 ////////////////////////////////////////////////////////////////////////////////
 
 // One-way.
-message TReqOnProgress
+message TReqOnJobProgress
 {
     required NYT.NProto.TGuid job_id = 1;
     // Once there's gonna be progress.

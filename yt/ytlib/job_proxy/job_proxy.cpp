@@ -35,7 +35,7 @@ void TJobProxy::SendHeartbeat()
 {
     HeartbeatInvoker->ScheduleNext();
 
-    auto req = Proxy.OnProgress();
+    auto req = Proxy.OnJobProgress();
     *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke().Get();
