@@ -88,7 +88,7 @@ private:
             i64 lhsWeight = lhs->SortChunkPool->GetTotalWeight();
             i64 rhsWeight = rhs->SortChunkPool->GetTotalWeight();
             if (lhsWeight != rhsWeight) {
-                return lhsWeight < rhsWeight;
+                return lhsWeight > rhsWeight;
             }
             // Break ties.
             return lhs < rhs;
@@ -107,7 +107,7 @@ private:
     //! List of all partitions. Never resized so it's safe to keep pointers to elements.
     std::vector<TPartition> Partitions;
 
-    //! Pointers to partitions ordered by increasing sort weight.
+    //! Pointers to partitions ordered by decreasing sort weight.
     std::set<TPartition*, TPartitionSortWeightComparer> SortWeightOrderedPartitions;
 
     //! Templates for starting new jobs.
@@ -127,6 +127,14 @@ private:
             : TotalPartitionJobCount - CompletedPartitionJobCount;
     }
 
+    int GetPendingSortJobCount()
+    {
+        int result = 0;
+        FOREACH (auto* partition, SortWeightOrderedPartitions) {
+            i64 weight = partition->SortChunkPool->GetTotalWeight();
+        }
+        return result;
+    }
 
     // Job scheduling and outcome handling.
 
@@ -334,22 +342,14 @@ private:
             Partitions.resize(1);
             auto& partition = Partitions[0];
             partition.SortChunkPool = CreateUnorderedChunkPool();
-            FOREACH (const auto& input, InputTables) {
+            FOREACH (const auto& table, InputTables) {
                 FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
                     i64 dataSize = miscExt->uncompressed_size();
-
-                    // TODO(babenko): make customizable
                     // Plus one is to ensure that weights are positive.
                     i64 weight = dataSize + 1;
-
-                    totalRowCount += rowCount;
-                    totalDataSize += dataSize;
-                    ++TotalChunkCount;
-                    TotalWeight += weight;
-
                     auto pooledChunk = New<TPooledChunk>(chunk, weight);
-                    ChunkPool->Add(pooledChunk);
+                    partition.SortChunkPool->Add(pooledChunk);
                 }
             }
             YVERIFY(SortWeightOrderedPartitions.insert(&partition).second);

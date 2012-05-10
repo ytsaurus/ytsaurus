@@ -452,11 +452,6 @@ protected:
     virtual void DoGetProgress(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item("jobs").BeginMap()
-                .Item("total").Scalar(TotalJobCount)
-                .Item("completed").Scalar(CompletedJobCount)
-                .Item("pending").Scalar(GetPendingJobCount())
-            .EndMap()
             .Item("chunks").BeginMap()
                 .Item("total").Scalar(TotalChunkCount)
                 .Item("completed").Scalar(CompletedChunkCount)
