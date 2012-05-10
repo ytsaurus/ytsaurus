@@ -51,7 +51,7 @@ public:
      * when the actual flush happens. Once a block is flushed, the next block becomes
      * the first one in the window.
      */
-    TFuture<TVoid> FlushBlock(i32 blockIndex);
+    TFuture<void> FlushBlock(i32 blockIndex);
 
     //! Renews the lease.
     void RenewLease();
@@ -127,7 +127,7 @@ private:
     TVoid DoWrite(TCachedBlockPtr block, i32 blockIndex);
     void OnBlockWritten(i32 blockIndex, TVoid);
 
-    TVoid OnBlockFlushed(i32 blockIndex, TVoid);
+    void OnBlockFlushed(i32 blockIndex, TVoid);
 
     void ReleaseSpaceOccupiedByBlocks();
 };
