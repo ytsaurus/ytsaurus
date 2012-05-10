@@ -4,8 +4,11 @@
 #include "private.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/logging/tagged_logger.h>
+
 #include <util/system/execpath.h>
 #include <util/folder/dirut.h>
+
 #include <fcntl.h>
 
 #ifndef _win_
@@ -39,7 +42,7 @@ TError StatusToError(int status)
     } else if (WIFEXITED(status)) {
         return TError("Process exited with value %d",  WEXITSTATUS(status));
     } else {
-        return TError("Status %d", status);
+        return TError("Unknown status %d", status);
     }
 }
 
@@ -56,60 +59,63 @@ public:
         : ProxyPath(proxyPath)
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
+        , Logger(ExecAgentLogger)
         , ProcessId(-1)
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
-    { }
+    {
+        Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
+    }
 
     void Run() 
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)", 
+            ~WorkingDirectory);
+
         ProcessId = fork();
         if (ProcessId == 0) {
-            // ToDo: pass errors to parent process
+            // ToDo(psushin): pass errors to parent process
             // cause logging doesn't work here.
             // Use unnamed pipes with CLOEXEC.
 
             ChDir(WorkingDirectory);
 
-            // redirect stderr and stdout to file
+            // Redirect stderr and stdout to a file.
             int fd = open("stderr.txt", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
             dup2(fd, STDOUT_FILENO);
             dup2(fd, STDERR_FILENO);
 
-            // separate process group for that job - required in non-container mode only
+            // Separate process group for that job - required in non-container mode only.
             setpgid(0, 0); 
 
-            // search the PATH, inherit environment
+            // Search the PATH, inherit environment.
             execlp(
                 ~ProxyPath, 
                 ~ProxyPath, 
                 "--job-proxy", 
                 "--config", ~ProxyConfigFileName,
                 "--job-id", ~JobId.ToString(),
-                (void*)NULL);
-            int _errno = errno;
+                (void*) NULL);
 
-            fprintf(stderr, "Failed to exec job-proxy (%s --job-proxy --config %s --job-id %s): %s\n",
+            fprintf(stderr, "Failed to exec job-proxy (ProxyPath: %s, ProxyConfig: %s, Error: %s)\n",
                 ~ProxyPath,
                 ~ProxyConfigFileName,
                 ~JobId.ToString(),
-                strerror(_errno));
+                strerror(errno));
 
+            // TODO(babenko): use some meaningful constant
             exit(7);
         }
 
         if (ProcessId < 0) {
-            ythrow yexception() << Sprintf(
-                "Failed to start job proxy: fork failed. pid: %d", 
-                ProcessId);
+            ythrow yexception() << Sprintf("Failed to start job proxy: fork failed (errno: %s)", 
+                strerror(errno));
         }
 
-        LOG_DEBUG("Started job-proxy in unsafe environment (JobId: %s, working directory: %s)", 
-            ~JobId.ToString(),
-            ~WorkingDirectory);
-
+        LOG_INFO("Job proxy started (ProcessId: %d)",
+            ProcessId);
 
         ControllerThread.Start();
         ControllerThread.Detach();
@@ -118,24 +124,27 @@ public:
     void Kill(const TError& error) throw() 
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        LOG_DEBUG("Killing job, error: %s", ~error.GetMessage());
+        
+        LOG_INFO("Killing job\n%s", ~error.ToString());
 
         SetError(error);
 
         if (ProcessId < 0)
             return;
 
-        auto res = killpg(ProcessId, 9);
-
-        if (res != 0) {
-            if (errno == ESRCH)
-                // Process group doesn't exist already.
-                return;
-            else
-                LOG_FATAL(
-                    "Failed to kill job - killpg failed (errno: %d)",
-                    errno);
+        auto result = killpg(ProcessId, 9);
+        if (result != 0) {
+            switch (result) {
+                case ESRCH:
+                    // Process group doesn't exist already.
+                    return;
+                default:
+                    LOG_FATAL("Failed to kill job: killpg failed (errno: %s)", strerror(errno));
+                    break;
+            }
         }
+
+        LOG_INFO("Job killed");
     }
 
     void SubscribeExited(const TCallback<void(TError)>& callback)
@@ -166,34 +175,35 @@ private:
 
     void ThreadMain()
     {
+        LOG_INFO("Waiting for job proxy to finish");
+
         int status = 0;
         {
-            int res = waitpid(ProcessId, &status, WUNTRACED);
-            if (res < 0) {
-                SetError(TError(
-                    "waitpid failed with errno: %d", 
-                    errno));
+            int result = waitpid(ProcessId, &status, WUNTRACED);
+            if (result < 0) {
+                SetError(TError("Failed to wait for job proxy to finish: waitpid failed (errno: %s)", strerror(errno)));
+                // TODO(babenko): this return was missing.
+                OnExit.Set(Error);
+                return;
             }
-
-            YASSERT(res == ProcessId);
+            YASSERT(result == ProcessId);
         }
         
-        LOG_DEBUG("Job-proxy finished (JobId: %s)", ~JobId.ToString());
+        LOG_INFO("Job proxy finished");
 
-        TError statusInfo = StatusToError(status);
-        SetError(TError(statusInfo.GetCode(), Sprintf(
-            "Job proxy exited (JobId: %s, status: %s)",
-            ~JobId.ToString(),
-            ~statusInfo.GetMessage())));
+        auto statusError = StatusToError(status);
+        auto wrappedError = statusError.IsOK()
+            ? TError()
+            : TError(statusError.GetCode(), "Job proxy failed\n%s", ~statusError.GetMessage());
+        SetError(wrappedError);
 
         {
             // Kill process group for sanity reasons.
-            auto res = killpg(ProcessId, 9);
-
-            if (res != 0 && errno != ESRCH) {
-                SetError(TError(
-                    "Failed to clean up job process group (errno: %d)",
-                    errno));
+            auto result = killpg(ProcessId, 9);
+            if (result != 0 && errno != ESRCH) {
+                // TODO(babenko): this won't work if the error is already set. Is this the intended behavior?
+                SetError(TError("Failed to clean up job process group (errno: %s)",
+                    strerror(errno)));
             }
         }
 
@@ -203,7 +213,9 @@ private:
 
     const Stroka ProxyPath;
     const Stroka WorkingDirectory;
-    TJobId JobId;
+    const TJobId JobId;
+
+    NLog::TTaggedLogger Logger;
 
     int ProcessId;
 
@@ -225,22 +237,24 @@ class TUnsafeProxyController
 {
 public:
     TUnsafeProxyController(const TJobId& jobId)
-        : JobId(jobId)
+        : Logger(ExecAgentLogger)
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
-    { }
+    {
+        Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
+    }
 
     void Run() 
     {
         ControllerThread.Start();
         ControllerThread.Detach();
 
-        LOG_DEBUG("Run job /dummy stub/ (JobId: %s)", ~JobId.ToString());
+        LOG_INFO("Running dummy job");
     }
 
     void Kill(const TError& error) 
     {
-        LOG_DEBUG("Kill job /dummy stub/ (JobId: %s)", ~JobId.ToString());
+        LOG_INFO("Killing dummy job");
         OnExit.Get();
     }
 
@@ -264,15 +278,16 @@ private:
 
     void ThreadMain()
     {
+        // We don't have jobs support for Windows.
+        // Just wait for a couple of seconds and report the failure.
+        // This might help with scheduler debugging under Windows.
         Sleep(TDuration::Seconds(5));
-        LOG_DEBUG("Job finished (JobId: %s)", ~JobId.ToString());
-
-        OnExit.Set(TError("This is dummy job!"));
+        LOG_INFO("Dummy job finished");
+        OnExit.Set(TError("Jobs are not supported under Windows"));
     }
 
-    TJobId JobId;
+    NLog::TTaggedLogger Logger;
     TPromise<TError> OnExit;
-
     TThread ControllerThread;
 };
 
@@ -285,17 +300,19 @@ class TUnsafeEnvironmentBuilder
 {
 public:
     TUnsafeEnvironmentBuilder()
-    : ProxyPath(GetExecPath())
+        : ProxyPath(GetExecPath())
     { }
 
     IProxyControllerPtr CreateProxyController(
-        NYTree::INodePtr configuration, 
+        NYTree::INodePtr config, 
         const TJobId& jobId, 
         const Stroka& workingDirectory)
     {
 #ifndef _win_
         return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory);
 #else
+        UNUSED(config);
+        UNUSED(workingDirectory);
         return New<TUnsafeProxyController>(jobId);
 #endif
     }
