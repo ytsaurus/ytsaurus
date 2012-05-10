@@ -109,8 +109,8 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
         guard.Release();
 
         Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
-            ~ToString(runtimeInfo->Descriptor.OneWay),
-            ~ToString(context->IsOneWay()),
+            ~FormatBool(runtimeInfo->Descriptor.OneWay),
+            ~FormatBool(context->IsOneWay()),
             ~ServiceName,
             ~verb);
         LOG_WARNING("%s", ~message);
