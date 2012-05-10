@@ -490,7 +490,7 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t ParseChunkSize = 1024;
+const size_t ParseChunkSize = 1 << 16;
 
 void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 {
