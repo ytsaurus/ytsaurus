@@ -256,15 +256,13 @@ protected:
 
     // Job scheduling and outcome handling.
 
-    struct TJobInProgress
-        : public TIntrinsicRefCounted
+    struct TMergeJobInProgress
+        : public TJobInProgress
     {
         IChunkPool::TExtractResultPtr ExtractResult;
         TChunkListId ChunkListId;
         TMergeGroupPtr Group;
     };
-
-    typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
 
     virtual TJobPtr DoScheduleJob(TExecNodePtr node)
     {
@@ -278,7 +276,7 @@ protected:
         // Allocate chunks for the job.
         auto group = GetGroupFor(node->GetAddress());
         i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
-        auto jip = New<TJobInProgress>();
+        auto jip = New<TMergeJobInProgress>();
         jip->Group = group;
         jip->ExtractResult = ExtractChunksFromPool(
             group,
@@ -309,15 +307,14 @@ protected:
         PendingWeight -= jip->ExtractResult->Weight;
 
         return CreateJob(
-            Operation,
+            jip,
             node,
             jobSpec,
-            BIND(&TThis::OnJobCompleted, MakeWeak(this), jip),
-            BIND(&TThis::OnJobFailed, MakeWeak(this), jip));
-        return NULL;
+            BIND(&TThis::OnJobCompleted, MakeWeak(this)),
+            BIND(&TThis::OnJobFailed, MakeWeak(this)));
     }
 
-    virtual void OnJobCompleted(TJobInProgressPtr jip)
+    virtual void OnJobCompleted(TMergeJobInProgress* jip)
     {
         auto group = jip->Group;
         auto& table = OutputTables[0];
@@ -327,7 +324,7 @@ protected:
         CompletedWeight += jip->ExtractResult->Weight;
     }
 
-    virtual void OnJobFailed(TJobInProgressPtr jip)
+    virtual void OnJobFailed(TMergeJobInProgress* jip)
     {
         LOG_DEBUG("Returned %d chunks back into the pool", static_cast<int>(jip->ExtractResult->Chunks.size()));
         PutChunksBackToPool(jip->Group, jip->ExtractResult);

@@ -31,6 +31,17 @@ static NProfiling::TProfiler Profiler("/operations/sort");
 
 ////////////////////////////////////////////////////////////////////
 
+class TSortChunkPool
+{
+public:
+    TSortChunkPool()
+    {
+
+    }
+private:
+
+};
+
 class TSortController
     : public TOperationControllerBase
 {
@@ -75,12 +86,40 @@ private:
     int CompletedPartitionChunkCount;
 
     // Samples and partitions.
+    struct TPartition
+    {
+        //! Pool storing all chunks awaiting sort job.
+        TAutoPtr<IChunkPool> SortChunkPool;
+    };
+
+    struct TPartitionSortWeightComparer
+    {
+        bool operator()(const TPartition* lhs, const TPartition* rhs) const
+        {
+            i64 lhsWeight = lhs->SortChunkPool->GetTotalWeight();
+            i64 rhsWeight = rhs->SortChunkPool->GetTotalWeight();
+            if (lhsWeight != rhsWeight) {
+                return lhsWeight < rhsWeight;
+            }
+            // Break ties.
+            return lhs < rhs;
+        }
+    };
+
     TSamplesFetcherPtr SamplesFetcher;
     std::vector<const NTableClient::NProto::TKeySample*> SortedSamples;
-    int PartitionCount;
+
     // |PartitionCount - 1| separating keys.
     std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
+    
+    //! Pool storing all chunks awaiting partition job.
     TAutoPtr<IChunkPool> PartitionChunkPool;
+    
+    //! List of all partitions. Never resized so it's safe to keep pointers to elements.
+    std::vector<TPartition> Partitions;
+
+    //! Pointers to partitions ordered by increasing sort weight.
+    std::set<TPartition*, TPartitionSortWeightComparer> SortWeightOrderedPartitions;
 
     // Templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
@@ -103,7 +142,7 @@ private:
     // Job scheduling and outcome handling.
 
     struct TPartitionJobInProgress
-        : public TIntrinsicRefCounted
+        : public TJobInProgress
     {
         IChunkPool::TExtractResultPtr ExtractResult;
         TChunkListId ChunkListId;
@@ -159,19 +198,32 @@ private:
         PendingPartitionWeight -= jip->ExtractResult->Weight;
 
         return CreateJob(
-            Operation,
+            jip,
             node,
             jobSpec,
-            BIND(&TThis::OnPartitionJobCompleted, MakeWeak(this), jip),
-            BIND(&TThis::OnPartitionJobFailed, MakeWeak(this), jip));
+            BIND(&TThis::OnPartitionJobCompleted, MakeWeak(this)),
+            BIND(&TThis::OnPartitionJobFailed, MakeWeak(this)));
     }
 
-    void OnPartitionJobCompleted(TPartitionJobInProgressPtr jip)
+    void OnPartitionJobCompleted(TPartitionJobInProgress* jip)
     {
-        // TODO(babenko): handle partition success
+        CompletedPartitionChunkCount += jip->ExtractResult->Chunks.size();
+        CompletedPartitionWeight += jip->ExtractResult->Weight;
+
+        auto result = jip->Job->Result().GetExtension(TPartitionJobResult::partition_job_result);
+        FOREACH (const auto& partitionChunk, result.chunks()) {
+            YASSERT(partitionChunk.partition_sizes_size() == Partitions.size());
+            for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
+                auto& partition = Partitions[index];
+                i64 weight = partitionChunk.partition_sizes(index);
+                // TODO(babenko): avoid excessive copying
+                auto pooledChunk = New<TPooledChunk>(partitionChunk.chunk(), weight);
+                partition.SortChunkPool->Add(pooledChunk);
+            }
+        }
     }
 
-    void OnPartitionJobFailed(TPartitionJobInProgressPtr jip)
+    void OnPartitionJobFailed(TPartitionJobInProgress* jip)
     {
         PendingPartitionChunkCount += jip->ExtractResult->Chunks.size();
         PendingPartitionWeight  += jip->ExtractResult->Weight;
@@ -276,55 +328,31 @@ private:
 
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
-        if (Spec->PartitionCount) {
-            PartitionCount = Spec->PartitionCount.Get();
-        } else {
-            PartitionCount = static_cast<int>(ceil((double) totalSize / Config->MinSortPartitionSize));
-        }
+        int partitionCount = Spec->PartitionCount
+            ? Spec->PartitionCount.Get()
+            : static_cast<int>(ceil((double) totalSize / Config->MinSortPartitionSize));
 
         // Don't create more partitions that we have nodes.
-        PartitionCount = std::min(PartitionCount, ExecNodeCount);
+        partitionCount = std::min(partitionCount, ExecNodeCount);
         // Don't create more partitions than we have samples.
-        PartitionCount = std::min(PartitionCount, static_cast<int>(SortedSamples.size()) + 1);
+        partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
 
-        YASSERT(PartitionCount > 0);
+        YASSERT(partitionCount > 0);
 
-        if (PartitionCount == 1) {
+        if (partitionCount == 1) {
             LOG_INFO("Sorting without partitioning");
+            // TODO(babenko): xxx
             return;
         }
-
-        // Take partition keys evenly.
-        int samplesRemaining = PartitionCount - 1;
-        i64 sizeRemaining = totalSize;
-        i64 sizeCurrent = 0;
-        i64 sizeMin = std::numeric_limits<i64>::max();
-        i64 sizeMax = std::numeric_limits<i64>::min();
-        FOREACH (const auto* sample, SortedSamples) {
-            // TODO(babenko): killme
-            LOG_DEBUG("size = %" PRId64, sample->data_size_since_previous());
-            i64 sizeThreshold = sizeRemaining / (samplesRemaining + 1);
-            if (sizeCurrent >= sizeThreshold) {
-                PartitionKeys.push_back(&sample->key());
-                sizeMin = std::min(sizeMin, sizeCurrent);
-                sizeMax = std::max(sizeMax, sizeCurrent);
-                sizeRemaining -= sizeCurrent;
-                sizeCurrent = 0;
-                --samplesRemaining;
-                if (samplesRemaining == 0) {
-                    break;
-                }
-            }
-            sizeCurrent += sample->data_size_since_previous();
+        // Prepare partitions.
+        Partitions.resize(partitionCount);
+        FOREACH (auto& partition, Partitions) {
+            partition.SortChunkPool = CreateUnorderedChunkPool();
+            YVERIFY(SortWeightOrderedPartitions.insert(&partition).second);
         }
-        sizeMin = std::min(sizeMin, sizeRemaining);
-        sizeMax = std::max(sizeMax, sizeRemaining);
-
-        // Do the final adjustments.
-        PartitionCount = static_cast<int>(PartitionKeys.size()) + 1;
 
         LOG_INFO("Using %d partitions (MinSize: %" PRId64 ", MaxSize: %" PRId64 ")",
-            PartitionCount,
+            partitionCount,
             sizeMin,
             sizeMax);
     }

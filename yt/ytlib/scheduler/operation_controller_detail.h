@@ -129,17 +129,18 @@ protected:
 
     std::vector<TFile> Files;
 
-    // Job handlers.
-    struct TJobHandlers
+    // Jobs in progress.
+    struct TJobInProgress
         : public TIntrinsicRefCounted
     {
+        TJobPtr Job;
         TClosure OnCompleted;
         TClosure OnFailed;
     };
 
-    typedef TIntrusivePtr<TJobHandlers> TJobHandlersPtr;
+    typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
 
-    yhash_map<TJobPtr, TJobHandlersPtr> JobHandlers;
+    yhash_map<TJobPtr, TJobInProgressPtr> JobsInProgress;
 
     // The set of all input chunks. Used in #OnChunkFailed.
     yhash_set<NChunkServer::TChunkId> InputChunkIds;
@@ -147,15 +148,25 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
-    // Jobs handlers management.
+    // Jobs in progress management.
+    template <class TConcreteJip>
     TJobPtr CreateJob(
-        TOperationPtr operation,
+        TIntrusivePtr<TConcreteJip> jip,
         TExecNodePtr node, 
         const NProto::TJobSpec& spec,
-        TClosure onCompleted,
-        TClosure onFailed);
-    TJobHandlersPtr GetJobHandlers(TJobPtr job);
-    void RemoveJobHandlers(TJobPtr job);
+        TCallback<void(TConcreteJip*)> onCompleted,
+        TCallback<void(TConcreteJip*)> onFailed)
+    {
+        jip->Job = Host->CreateJob(Operation, node, spec);
+        // Pass jip to handlers via raw pointer to avoid cyclic references.
+        jip->OnCompleted = BIND(onCompleted, Unretained(~jip));
+        jip->OnFailed = BIND(onFailed, Unretained(~jip));
+        YVERIFY(JobsInProgress.insert(MakePair(jip->Job, jip)).second);
+        return jip->Job;
+    }
+
+    TJobInProgressPtr GetJobInProgress(TJobPtr job);
+    void RemoveJobInProgress(TJobPtr job);
 
     //! Performs the actual scheduling.
     virtual TJobPtr DoScheduleJob(TExecNodePtr node) = 0;

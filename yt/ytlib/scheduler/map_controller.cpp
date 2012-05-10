@@ -81,14 +81,12 @@ private:
 
     // Job scheduling and outcome handling.
 
-    struct TJobInProgress
-        : public TIntrinsicRefCounted
+    struct TMapJobInProgress
+        : public TJobInProgress
     {
         IChunkPool::TExtractResultPtr ExtractResult;
         std::vector<TChunkListId> ChunkListIds;
     };
-
-    typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
 
     virtual TJobPtr DoScheduleJob(TExecNodePtr node)
     {
@@ -100,7 +98,7 @@ private:
         // We've got a job to do! :)
 
         // Allocate chunks for the job.
-        auto jip = New<TJobInProgress>();
+        auto jip = New<TMapJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
         jip->ExtractResult = ChunkPool->Extract(
             node->GetAddress(),
@@ -133,14 +131,14 @@ private:
         PendingWeight -= jip->ExtractResult->Weight;
 
         return CreateJob(
-            Operation,
+            jip,
             node,
             jobSpec,
-            BIND(&TThis::OnJobCompleted, MakeWeak(this), jip),
-            BIND(&TThis::OnJobFailed, MakeWeak(this), jip));
+            BIND(&TThis::OnJobCompleted, MakeWeak(this)),
+            BIND(&TThis::OnJobFailed, MakeWeak(this)));
     }
 
-    void OnJobCompleted(TJobInProgressPtr jip)
+    void OnJobCompleted(TMapJobInProgress* jip)
     {
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jip->ChunkListIds[index];
@@ -151,7 +149,7 @@ private:
         CompletedWeight += jip->ExtractResult->Weight;
     }
 
-    void OnJobFailed(TJobInProgressPtr jip)
+    void OnJobFailed(TMapJobInProgress* jip)
     {
         PendingChunkCount += jip->ExtractResult->Chunks.size();
         PendingWeight += jip->ExtractResult->Weight;
