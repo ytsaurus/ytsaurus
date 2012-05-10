@@ -31,17 +31,6 @@ static NProfiling::TProfiler Profiler("/operations/sort");
 
 ////////////////////////////////////////////////////////////////////
 
-class TSortChunkPool
-{
-public:
-    TSortChunkPool()
-    {
-
-    }
-private:
-
-};
-
 class TSortController
     : public TOperationControllerBase
 {
@@ -352,8 +341,6 @@ private:
         i64 sizeMin = std::numeric_limits<i64>::max();
         i64 sizeMax = std::numeric_limits<i64>::min();
         FOREACH (const auto* sample, SortedSamples) {
-            // TODO(babenko): killme
-            LOG_DEBUG("size = %" PRId64, sample->data_size_since_previous());
             i64 sizeThreshold = sizeRemaining / (samplesRemaining + 1);
             if (sizeCurrent >= sizeThreshold) {
                 PartitionKeys.push_back(&sample->key());
