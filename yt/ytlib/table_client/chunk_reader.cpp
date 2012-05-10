@@ -130,7 +130,8 @@ public:
         tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
         tags.push_back(GetProtoExtensionTag<NProto::TChannelsExt>());
 
-        HasRangeRequest = (StartLimit.has_key() && (StartLimit.key().parts_size() > 0)) ||
+        HasRangeRequest =
+            (StartLimit.has_key() && (StartLimit.key().parts_size() > 0)) ||
             (EndLimit.has_key() && (EndLimit.key().parts_size() > 0));
 
         if (HasRangeRequest) {
@@ -160,34 +161,36 @@ private:
             return;
 
         if (!result.IsOK()) {
-            LOG_WARNING("Failed to download chunk meta: %s", ~result.GetMessage());
+            LOG_WARNING("Failed to download chunk meta\n%s", ~result.GetMessage());
             OnFail(result, chunkReader);
             return;
         }
 
         // ToDo(psushin): add chunk id.
         // TODO(babenko): use TTaggedLogger
-        LOG_DEBUG("Initializer got chunk meta");
+        LOG_DEBUG("Chunk meta received");
 
         FOREACH (const auto& column, Channel.GetColumns()) {
             auto& columnInfo = chunkReader->FixedColumns[TStringBuf(column)];
             columnInfo.InChannel = true;
         }
 
-        auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
             result.Value().extensions());
 
         StartRowIndex = 0;
-        chunkReader->EndRowIndex = misc->row_count();
+        chunkReader->EndRowIndex = miscExt->row_count();
 
-        if (StartLimit.has_row_index())
+        if (StartLimit.has_row_index()) {
             StartRowIndex = std::max(StartRowIndex, StartLimit.row_index());
+        }
 
-        if (EndLimit.has_row_index())
+        if (EndLimit.has_row_index()) {
             chunkReader->EndRowIndex = std::min(chunkReader->EndRowIndex, EndLimit.row_index());
+        }
 
         if (HasRangeRequest || chunkReader->Options.ReadKey) {
-            if (!misc->sorted()) {
+            if (!miscExt->sorted()) {
                 LOG_WARNING("Received key range read request for an unsorted chunk");
                 OnFail(
                     TError("Received key range read request for an unsorted chunk"), 
@@ -195,12 +198,12 @@ private:
                 return;
             }
 
-            chunkReader->KeyColumns = GetProtoExtension<NProto::TKeyColumnsExt>(
+            chunkReader->KeyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
                 result.Value().extensions());
 
-            YASSERT(chunkReader->KeyColumns->values_size() > 0);
-            for (int i = 0; i < chunkReader->KeyColumns->values_size(); ++i) {
-                const auto& column = chunkReader->KeyColumns->values(i);
+            YASSERT(chunkReader->KeyColumnsExt->values_size() > 0);
+            for (int i = 0; i < chunkReader->KeyColumnsExt->values_size(); ++i) {
+                const auto& column = chunkReader->KeyColumnsExt->values(i);
                 Channel.AddColumn(column);
                 auto& columnInfo = chunkReader->FixedColumns[TStringBuf(column)];
                 columnInfo.KeyIndex = i;
@@ -208,19 +211,19 @@ private:
                     columnInfo.InChannel = true;
             }
 
-            chunkReader->CurrentKey.Reset(chunkReader->KeyColumns->values_size());
+            chunkReader->CurrentKey.Reset(chunkReader->KeyColumnsExt->values_size());
         }
 
         if (HasRangeRequest) {
-            auto index = GetProtoExtension<NProto::TIndexExt>(
+            auto indexExt = GetProtoExtension<NProto::TIndexExt>(
                 result.Value().extensions());
 
             if (StartLimit.has_key() && StartLimit.key().parts_size() > 0) {
                 StartValidator.Reset(new TKeyValidator(StartLimit.key(), true));
 
-                typedef decltype(index->items().begin()) TSampleIter;
-                std::reverse_iterator<TSampleIter> rbegin(index->items().end());
-                std::reverse_iterator<TSampleIter> rend(index->items().begin());
+                typedef decltype(indexExt->items().begin()) TSampleIter;
+                std::reverse_iterator<TSampleIter> rbegin(indexExt->items().end());
+                std::reverse_iterator<TSampleIter> rend(indexExt->items().begin());
                 auto it = std::upper_bound(
                     rbegin, 
                     rend, 
@@ -236,12 +239,12 @@ private:
                 chunkReader->EndValidator.Reset(new TKeyValidator(EndLimit.key(), false));
 
                 auto it = std::upper_bound(
-                    index->items().begin(), 
-                    index->items().end(), 
+                    indexExt->items().begin(), 
+                    indexExt->items().end(), 
                     EndLimit.key(), 
                     TIndexComparator<std::less>());
 
-                if (it != index->items().end()) {
+                if (it != indexExt->items().end()) {
                     chunkReader->EndRowIndex = std::min(
                         it->row_index(), 
                         chunkReader->EndRowIndex);
@@ -249,27 +252,27 @@ private:
             }
         }
 
-        LOG_DEBUG("Defined row limits (StartRowIndex: %" PRId64 ", EndRowIndex: %" PRId64 ")",
+        LOG_DEBUG("Reading rows %" PRId64 "-%" PRId64,
             StartRowIndex,
             chunkReader->EndRowIndex);
 
         chunkReader->CurrentRowIndex = StartRowIndex;
         if (chunkReader->CurrentRowIndex >= chunkReader->EndRowIndex) {
-            LOG_WARNING("Nothing to read from current chunk.");
+            LOG_WARNING("Nothing to read from the current chunk");
             chunkReader->Initializer.Reset();
             chunkReader->State.FinishOperation();
             return;
         }
 
-        chunkReader->Codec = GetCodec(ECodecId(misc->codec_id()));
+        chunkReader->Codec = GetCodec(ECodecId(miscExt->codec_id()));
 
-        ProtoChannels = GetProtoExtension<NProto::TChannelsExt>(
+        ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(
             result.Value().extensions());
 
         SelectChannels(chunkReader);
         YASSERT(SelectedChannels.size() > 0);
 
-        LOG_DEBUG("Selected %d channels", static_cast<int>(SelectedChannels.size()));
+        LOG_DEBUG("Selected channels [%s]", ~JoinToString(SelectedChannels));
 
         auto blockIndexSequence = GetBlockReadSequence(chunkReader);
 
@@ -280,20 +283,20 @@ private:
             GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(
                 result.Value().extensions()));
 
-        LOG_DEBUG("Defined block reading sequence (BlockIndexes: %s)", ~JoinToString(blockIndexSequence));
+        LOG_DEBUG("Reading blocks [%s]", ~JoinToString(blockIndexSequence));
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
         chunkReader->SequentialReader->AsyncNextBlock().Subscribe(
-            BIND(&TInitializer::OnFirstBlock, MakeWeak(this), 0)
+            BIND(&TInitializer::OnStartingBlockReceived, MakeWeak(this), 0)
             .Via(ReaderThread->GetInvoker()));
     }
 
     void SelectChannels(TChunkReaderPtr chunkReader)
     {
-        ChunkChannels.reserve(ProtoChannels->items_size());
-        for(int i = 0; i < ProtoChannels->items_size(); ++i) {
-            ChunkChannels.push_back(TChannel::FromProto(ProtoChannels->items(i).channel()));
+        ChunkChannels.reserve(ChannelsExt->items_size());
+        for(int i = 0; i < ChannelsExt->items_size(); ++i) {
+            ChunkChannels.push_back(TChannel::FromProto(ChannelsExt->items(i).channel()));
         }
 
         // Heuristic: first try to find a channel that contain the whole read channel.
@@ -322,7 +325,7 @@ private:
         for (int i = 0; i < ChunkChannels.size(); ++i) {
             auto& channel = ChunkChannels[i];
             if (channel.Contains(Channel)) {
-                size_t blockCount = ProtoChannels->items(i).blocks_size();
+                size_t blockCount = ChannelsExt->items(i).blocks_size();
                 if (minBlockCount > blockCount) {
                     resultIdx = i;
                     minBlockCount = blockCount;
@@ -343,7 +346,7 @@ private:
         std::vector<TBlockInfo>& blockHeap) 
     {
         FOREACH (auto channelIdx, SelectedChannels) {
-            const auto& protoChannel = ProtoChannels->items(channelIdx);
+            const auto& protoChannel = ChannelsExt->items(channelIdx);
             int blockIndex = -1;
             i64 startRow = 0;
             i64 lastRow = 0;
@@ -371,17 +374,17 @@ private:
 
     std::vector<int> GetBlockReadSequence(TChunkReaderPtr chunkReader)
     {
-        yvector<int> result;
-        yvector<TBlockInfo> blockHeap;
+        std::vector<int> result;
+        std::vector<TBlockInfo> blockHeap;
 
         SelectOpeningBlocks(chunkReader, result, blockHeap);
 
         std::make_heap(blockHeap.begin(), blockHeap.end());
 
         while (true) {
-            TBlockInfo currentBlock = blockHeap.front();
+            auto currentBlock = blockHeap.front();
             int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
-            const auto& protoChannel = ProtoChannels->items(currentBlock.ChannelIndex);
+            const auto& protoChannel = ChannelsExt->items(currentBlock.ChannelIndex);
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
             blockHeap.pop_back();
@@ -410,7 +413,7 @@ private:
         return result;
     }
 
-    void OnFirstBlock(int selectedChannelIndex, TError error)
+    void OnStartingBlockReceived(int selectedChannelIndex, TError error)
     {
         auto chunkReader = ChunkReader.Lock();
         if (!chunkReader) {
@@ -420,10 +423,10 @@ private:
 
         auto& channelIdx = SelectedChannels[selectedChannelIndex];
 
-        LOG_DEBUG("Fetched first block for channel %d", channelIdx);
+        LOG_DEBUG("Fetched starting block for channel %d", channelIdx);
 
         if (!error.IsOK()) {
-            LOG_WARNING("Failed to download first block in channel %d\n%s", 
+            LOG_WARNING("Failed to download starting block for channel %d\n%s", 
                 channelIdx,
                 ~error.GetMessage());
             OnFail(error, chunkReader);
@@ -444,19 +447,19 @@ private:
             YVERIFY(channelReader->NextRow());
         }
 
-        LOG_DEBUG("Unwound rows for channel %d", channelIdx);
+        LOG_DEBUG("Skipped initial rows for channel %d", channelIdx);
 
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
             chunkReader->SequentialReader->AsyncNextBlock()
                 .Subscribe(BIND(
-                    &TInitializer::OnFirstBlock, 
+                    &TInitializer::OnStartingBlockReceived, 
                     MakeWeak(this), 
                     selectedChannelIndex)
                 .Via(ReaderThread->GetInvoker()));
         } else {
             // Create current row.
-            LOG_DEBUG("All first blocks fetched");
+            LOG_DEBUG("All starting blocks received");
 
             chunkReader->MakeCurrentRow();
             ValidateRow(TError());
@@ -480,7 +483,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Reader initialization complete");
+        LOG_DEBUG("Reader initialized");
 
         // Initialization complete.
         chunkReader->Initializer.Reset();
@@ -500,7 +503,7 @@ private:
 
     THolder<TKeyValidator> StartValidator;
 
-    TAutoPtr<NProto::TChannelsExt> ProtoChannels;
+    TAutoPtr<NProto::TChannelsExt> ChannelsExt;
     std::vector<TChannel> ChunkChannels;
     std::vector<int> SelectedChannels;
 
@@ -685,9 +688,7 @@ void TChunkReader::MakeCurrentRow()
                         CurrentRow.push_back(std::make_pair(column, reader->GetValue()));
                     }
                 }
-            } else if (UsedRangeColumns.insert(column).second && 
-                Channel.ContainsInRanges(column)) 
-            {
+            } else if (UsedRangeColumns.insert(column).second && Channel.ContainsInRanges(column)) {
                 CurrentRow.push_back(std::make_pair(column, reader->GetValue()));
             }
         }

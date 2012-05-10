@@ -89,8 +89,8 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 {
     YASSERT(Opened);
 
-    auto blocksExtension = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-    i32 blockCount = blocksExtension->blocks_size();
+    auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
+    i32 blockCount = blocksExt->blocks_size();
 
     if (blockIndex > blockCount || blockIndex < -blockCount) {
         return TSharedRef();
@@ -104,7 +104,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
         return TSharedRef();
     }
 
-    const TBlockInfo& blockInfo = blocksExtension->blocks(blockIndex);
+    const TBlockInfo& blockInfo = blocksExt->blocks(blockIndex);
     TBlob data(blockInfo.size());
     i64 offset = blockInfo.offset();
     DataFile->Pread(data.begin(), data.size(), offset); 

@@ -87,7 +87,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     auto chunkRef = chunkList.Children()[0];
     const auto& chunk = *chunkRef.AsChunk();
 
-    auto misc = GetProtoExtension<TMiscExt>(chunk.ChunkMeta().extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(chunk.ChunkMeta().extensions());
     if (name == "size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);
@@ -109,7 +109,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     }
 
     if (name == "codec_id") {
-        auto codecId = ECodecId(misc->codec_id());
+        auto codecId = ECodecId(miscExt->codec_id());
         BuildYsonFluently(consumer)
             .Scalar(CamelCaseToUnderscoreCase(codecId.ToString()));
         return true;

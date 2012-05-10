@@ -155,10 +155,10 @@ protected:
 
         auto chunkId = TChunkId::FromProto(chunk->InputChunk.slice().chunk_id());
 
-        auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
             chunk->InputChunk.extensions());
 
-        TotalWeight += misc->uncompressed_size();
+        TotalWeight += miscExt->uncompressed_size();
         ++TotalChunkCount;
         CurrentGroup->ChunkPool->Add(chunk);
         RegisterPendingChunk(CurrentGroup, chunk);
@@ -372,9 +372,9 @@ protected:
                 auto fetchRsp = table.FetchResponse;
                 FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-                    i64 dataSize = misc->uncompressed_size();
-                    i64 rowCount = misc->row_count();
+                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+                    i64 dataSize = miscExt->uncompressed_size();
+                    i64 rowCount = miscExt->row_count();
                     LOG_DEBUG("Processing chunk %s (DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
                         dataSize,
@@ -635,10 +635,10 @@ private:
         }
 
         // Merge is IO-bound, use data size as weight.
-        auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
         auto pooledChunk = New<TPooledChunk>(
             chunk,
-            misc->uncompressed_size());
+            miscExt->uncompressed_size());
         AddPooledChunk(pooledChunk);
 
         EndGroupIfLarge();
@@ -679,22 +679,22 @@ private:
 
     virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
-        auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-        YASSERT(misc->sorted());
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+        YASSERT(miscExt->sorted());
 
         // Construct endpoints and place it into the list.
-        auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk.extensions());
+        auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk.extensions());
         {
             TKeyEndpoint endpoint;
             endpoint.Left = true;
-            endpoint.Key = boundaryKeys->left();
+            endpoint.Key = boundaryKeysExt->left();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }
         {
             TKeyEndpoint endpoint;
             endpoint.Left = false;
-            endpoint.Key = boundaryKeys->right();
+            endpoint.Key = boundaryKeysExt->right();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }
@@ -761,11 +761,11 @@ private:
         }
 
         FOREACH (auto chunk, chunks) {
-            auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->extensions());
+            auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->extensions());
             // Merge is IO-bound, use data size as weight.
             auto pooledChunk = New<TPooledChunk>(
                 *chunk,
-                misc->uncompressed_size());
+                miscExt->uncompressed_size());
             AddPooledChunk(pooledChunk);
         }
 

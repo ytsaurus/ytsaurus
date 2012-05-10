@@ -63,12 +63,12 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
 
     auto& chunkMeta = getMetaResult.Value();
     YASSERT(chunkMeta.type() == NChunkServer::EChunkType::File);
-    auto blocksExtension = GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(chunkMeta.extensions());
-    BlockCount = blocksExtension->blocks_size();
+    auto blocksExt = GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(chunkMeta.extensions());
+    BlockCount = blocksExt->blocks_size();
 
-    auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkMeta.extensions());
-    Size = misc->uncompressed_size();
-    auto codecId = ECodecId(misc->codec_id());
+    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkMeta.extensions());
+    Size = miscExt->uncompressed_size();
+    auto codecId = ECodecId(miscExt->codec_id());
 
     Codec = GetCodec(codecId);
     LOG_INFO("Chunk info received (BlockCount: %d, Size: %"PRId64", CodecId: %s)",
@@ -87,7 +87,7 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
         ~Config->SequentialReader,
         blockIndexes,
         remoteReader,
-        blocksExtension);
+        blocksExt);
 
     LOG_INFO("File reader opened");
 

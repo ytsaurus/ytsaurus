@@ -38,7 +38,7 @@ private:
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
     void TraverseChunkTree(
-        yvector<NChunkServer::TChunkId>* chunkIds,
+        std::vector<NChunkServer::TChunkId>* chunkIds,
         const NChunkServer::TChunkList* chunkList);
 
     void TraverseChunkTree(

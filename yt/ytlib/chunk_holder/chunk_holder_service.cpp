@@ -428,8 +428,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                     return;
                 }
 
-                auto samples = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
-                FOREACH (const auto& sample, samples->items()) {
+                auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
+                FOREACH (const auto& sample, samplesExt->items()) {
                     auto* chunkSample = chunkSamples->add_items();
                     chunkSample->set_data_size_since_previous(sample.data_size_since_previous());
                     chunkSample->set_row_count_since_previous(sample.row_count_since_previous());

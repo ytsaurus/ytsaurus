@@ -210,8 +210,8 @@ private:
 
             // Download all blocks.
 
-            auto blocksExtension = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-            BlockCount = static_cast<int>(blocksExtension->blocks_size());
+            auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
+            BlockCount = static_cast<int>(blocksExt->blocks_size());
             yvector<int> blockIndexes;
             blockIndexes.reserve(BlockCount);
             for (int index = 0; index < BlockCount; ++index) {
@@ -222,7 +222,7 @@ private:
                 ~Owner->Config->CacheSequentialReader,
                 blockIndexes,
                 ~RemoteReader,
-                blocksExtension);
+                blocksExt);
 
             BlockIndex = 0;
             FetchNextBlock();
