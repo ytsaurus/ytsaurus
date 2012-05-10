@@ -34,14 +34,14 @@ struct TDeserializeTraits<
 ////////////////////////////////////////////////////////////////////////////////
 
 INodePtr CloneNode(
-    INode* node,
+    INodePtr node,
     INodeFactory* factory = GetEphemeralNodeFactory());
 
 TYsonProducer ProducerFromYson(TInputStream* input);
 
 TYsonProducer ProducerFromYson(const TYson& data);
 
-TYsonProducer ProducerFromNode(INode* node);
+TYsonProducer ProducerFromNode(INodePtr node);
 
 //! Checks YSON stream for correctness, throws exception on error.
 void ValidateYson(TInputStream* input);
@@ -74,7 +74,7 @@ typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node, c
 ////////////////////////////////////////////////////////////////////////////////
 
 TOutputStream& SerializeToYson(
-    INode* node,
+    INodePtr node,
     TOutputStream& output,
     EYsonFormat format = EYsonFormat::Binary);
 
@@ -93,66 +93,66 @@ TYson SerializeToYson(
 template <class T>
 void Read(
     TIntrusivePtr<T>& parameter,
-    INode* node,
+    INodePtr node,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType = 0);
 
 // i64
-void Read(i64& parameter, INode* node);
+void Read(i64& parameter, INodePtr node);
 
 // i32
-void Read(i32& parameter, INode* node);
+void Read(i32& parameter, INodePtr node);
 
 // ui32
-void Read(ui32& parameter, INode* node);
+void Read(ui32& parameter, INodePtr node);
 
 // ui16
-void Read(ui16& parameter, INode* node);
+void Read(ui16& parameter, INodePtr node);
 
 // double
-void Read(double& parameter, INode* node);
+void Read(double& parameter, INodePtr node);
 
 // Stroka
-void Read(Stroka& parameter, INode* node);
+void Read(Stroka& parameter, INodePtr node);
 
 // bool
-void Read(bool& parameter, INode* node);
+void Read(bool& parameter, INodePtr node);
 
 // TDuration
-void Read(TDuration& parameter, INode* node);
+void Read(TDuration& parameter, INodePtr node);
 
 // TInstant
-void Read(TInstant& parameter, INode* node);
+void Read(TInstant& parameter, INodePtr node);
 
 // TGuid
-void Read(TGuid& parameter, INode* node);
+void Read(TGuid& parameter, INodePtr node);
 
 // TEnumBase
 template <class T>
 void Read(
     T& parameter,
-    INode* node,
+    INodePtr node,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType = 0);
 
 // TNullable
 template <class T>
-void Read(TNullable<T>& parameter, INode* node);
+void Read(TNullable<T>& parameter, INodePtr node);
 
 // TNodePtr
 void Read(
     INodePtr& parameter,
-    INode* node);
+    INodePtr node);
 
 // yvector
 template <class T>
-void Read(yvector<T>& parameter, INode* node);
+void Read(yvector<T>& parameter, INodePtr node);
 
 // yhash_set
 template <class T>
-void Read(yhash_set<T>& parameter, INode* node);
+void Read(yhash_set<T>& parameter, INodePtr node);
 
 // yhash_map
 template <class T>
-void Read(yhash_map<Stroka, T>& parameter, INode* node);
+void Read(yhash_map<Stroka, T>& parameter, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

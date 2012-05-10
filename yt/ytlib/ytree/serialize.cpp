@@ -1,11 +1,12 @@
+#include "stdafx.h"
+#include "serialize.h"
 #include "ytree.h"
 #include "yson_parser.h"
 #include "tree_visitor.h"
 #include "tree_builder.h"
-#include "serialize.h"
 #include "null_yson_consumer.h"
 
-#include "../misc/configurable.h"
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NYTree {
@@ -26,7 +27,7 @@ TYsonProducer ProducerFromYson(const TYson& data)
     });
 }
 
-TYsonProducer ProducerFromNode(INode* node)
+TYsonProducer ProducerFromNode(INodePtr node)
 {
     return BIND([=] (IYsonConsumer* consumer) {
         VisitTree(node, consumer);
@@ -58,7 +59,7 @@ INodePtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
 }
 
 TOutputStream& SerializeToYson(
-    INode* node,
+    INodePtr node,
     TOutputStream& output,
     EYsonFormat format)
 {
@@ -77,7 +78,7 @@ TYson SerializeToYson(
     return output.Str();
 }
 
-INodePtr CloneNode(INode* node, INodeFactory* factory)
+INodePtr CloneNode(INodePtr node, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
@@ -88,70 +89,68 @@ INodePtr CloneNode(INode* node, INodeFactory* factory)
 ////////////////////////////////////////////////////////////////////////////////
 
 // i64
-void Read(i64& parameter, INode* node)
+void Read(i64& parameter, INodePtr node)
 {
     parameter = node->AsInteger()->GetValue();
 }
 
 // i32
-void Read(i32& parameter, INode* node)
+void Read(i32& parameter, INodePtr node)
 {
     parameter = CheckedStaticCast<i32>(node->AsInteger()->GetValue());
 }
 
 // ui32
-void Read(ui32& parameter, INode* node)
+void Read(ui32& parameter, INodePtr node)
 {
     parameter = CheckedStaticCast<ui32>(node->AsInteger()->GetValue());
 }
 
 // ui16
-void Read(ui16& parameter, INode* node)
+void Read(ui16& parameter, INodePtr node)
 {
     parameter = CheckedStaticCast<ui16>(node->AsInteger()->GetValue());
 }
 
 // double
-void Read(double& parameter, INode* node)
+void Read(double& parameter, INodePtr node)
 {
     parameter = node->AsDouble()->GetValue();
 }
 
 // Stroka
-void Read(Stroka& parameter, INode* node)
+void Read(Stroka& parameter, INodePtr node)
 {
     parameter = node->AsString()->GetValue();
 }
 
 // bool
-void Read(bool& parameter, INode* node)
+void Read(bool& parameter, INodePtr node)
 {
     Stroka value = node->AsString()->GetValue();
     parameter = ParseBool(value);
 }
 
 // TDuration
-void Read(TDuration& parameter, INode* node)
+void Read(TDuration& parameter, INodePtr node)
 {
     parameter = TDuration::MilliSeconds(node->AsInteger()->GetValue());
 }
 
 // TInstant
-void Read(TInstant& parameter, INode* node)
+void Read(TInstant& parameter, INodePtr node)
 {
     parameter = TInstant::MilliSeconds(node->AsInteger()->GetValue());
 }
 
 // TGuid
-void Read(TGuid& parameter, INode* node)
+void Read(TGuid& parameter, INodePtr node)
 {
     parameter = TGuid::FromString(node->AsString()->GetValue());
 }
 
 // TNodePtr
-void Read(
-    INodePtr& parameter,
-    INode* node)
+void Read(INodePtr& parameter, INodePtr node)
 {
     parameter = node;
 }
