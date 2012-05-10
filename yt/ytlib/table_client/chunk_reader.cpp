@@ -652,9 +652,9 @@ void TChunkReader::MakeCurrentRow()
     FOREACH (const auto& reader, ChannelReaders) {
         while (reader->NextColumn()) {
             auto column = reader->GetColumn();
-            auto it = FixedColumns.find(column);
-            if (it != FixedColumns.end()) {
-                auto& columnInfo = it->second;
+            auto fixedColumnsIt = FixedColumns.find(column);
+            if (fixedColumnsIt != FixedColumns.end()) {
+                auto& columnInfo = fixedColumnsIt->second;
                 if (!columnInfo.Used) {
                     columnInfo.Used = true;
 
