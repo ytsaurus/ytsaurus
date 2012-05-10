@@ -134,7 +134,7 @@ public:
 
         auto result = killpg(ProcessId, 9);
         if (result != 0) {
-            switch (result) {
+            switch (errno) {
                 case ESRCH:
                     // Process group doesn't exist already.
                     return;
