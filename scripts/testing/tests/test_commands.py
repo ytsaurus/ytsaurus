@@ -379,4 +379,5 @@ class TestCanceledUpload(YTEnvSetup):
 
     def _check_no_temp_file(self, chunk_store):
         for root, dirs, files in os.walk(chunk_store):
-            assert len(files) == 0, 'Found temporary files: ' + str(files)  
+            for file in files:
+                assert not file.endswith('~'), 'Found temporary file: ' + file  
