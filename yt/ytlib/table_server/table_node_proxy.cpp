@@ -214,6 +214,7 @@ void ParseRowLimit(
         case ETokenType::Hash:
             tokenizer.ParseNext();
             limit->set_row_index(tokenizer.Current().GetIntegerValue());
+            tokenizer.ParseNext();
             break;
 
         case ETokenType::LeftParenthesis:
@@ -232,6 +233,7 @@ void ParseRowLimit(
                         YUNREACHABLE();
                 }
             }
+            tokenizer.ParseNext();
             break;
 
         default:
@@ -239,7 +241,6 @@ void ParseRowLimit(
             break;
     }
 
-    tokenizer.ParseNext();
     tokenizer.Current().CheckType(separator);
     tokenizer.ParseNext();
 }
