@@ -338,10 +338,10 @@ private:
 
         if (partitionCount == 1) {
             // Create a single partition and put everything there.
-            LOG_INFO("Sorting without partitioning");
             Partitions.resize(1);
             auto& partition = Partitions[0];
             partition.SortChunkPool = CreateUnorderedChunkPool();
+            
             FOREACH (const auto& table, InputTables) {
                 FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
@@ -352,7 +352,10 @@ private:
                     partition.SortChunkPool->Add(pooledChunk);
                 }
             }
+
             YVERIFY(SortWeightOrderedPartitions.insert(&partition).second);
+
+            LOG_INFO("Sorting without partitioning");
         } else {
             // Take partition keys evenly.
             int samplesRemaining = partitionCount - 1;
@@ -472,7 +475,11 @@ private:
             ToProto(partitionJobSpec.mutable_key_columns(), Spec->KeyColumns);
             *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = partitionJobSpec;
 
-            PartitionJobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
+            auto jobIO = CloneConfigurable(Spec->JobIO);
+            // Don't replicate partition chunks.
+            jobIO->ChunkSequenceWriter->ReplicationFactor = 1;
+            jobIO->ChunkSequenceWriter->UploadReplicationFactor = 1;
+            PartitionJobSpecTemplate.set_io_config(SerializeToYson(jobIO));
         }
     }
 };
