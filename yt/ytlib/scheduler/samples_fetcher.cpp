@@ -24,7 +24,7 @@ TSamplesFetcher::TSamplesFetcher(
     : Config(config)
     , Spec(spec)
     , Invoker(invoker)
-    , Logger(SchedulerLogger)
+    , Logger(OperationLogger)
     , Promise(NewPromise< TValueOrError<void> >())
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operationId.ToString()));
@@ -154,8 +154,8 @@ void TSamplesFetcher::OnResponse(
                 LOG_TRACE("Received %d samples for chunk %s",
                     chunkSamples.items_size(),
                     ~chunkId.ToString());
-                FOREACH (const auto& keySamples, chunkSamples.items()) {
-                    Samples.push_back(keySamples);
+                FOREACH (const auto& sample, chunkSamples.items()) {
+                    Samples.push_back(sample);
                     ++samplesAdded;
                 }
                 YVERIFY(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
@@ -175,6 +175,7 @@ void TSamplesFetcher::OnResponse(
 void TSamplesFetcher::OnEndRound()
 {
     if (UnfetchedChunkIndexes.empty()) {
+        LOG_INFO("All samples are fetched");
         Promise.Set(TError());
     } else {
         SendRequests();
