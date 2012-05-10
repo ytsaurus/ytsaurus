@@ -344,6 +344,36 @@ private:
             // TODO(babenko): xxx
             return;
         }
+
+        // Take partition keys evenly.
+        int samplesRemaining = partitionCount - 1;
+        i64 sizeRemaining = totalSize;
+        i64 sizeCurrent = 0;
+        i64 sizeMin = std::numeric_limits<i64>::max();
+        i64 sizeMax = std::numeric_limits<i64>::min();
+        FOREACH (const auto* sample, SortedSamples) {
+            // TODO(babenko): killme
+            LOG_DEBUG("size = %" PRId64, sample->data_size_since_previous());
+            i64 sizeThreshold = sizeRemaining / (samplesRemaining + 1);
+            if (sizeCurrent >= sizeThreshold) {
+                PartitionKeys.push_back(&sample->key());
+                sizeMin = std::min(sizeMin, sizeCurrent);
+                sizeMax = std::max(sizeMax, sizeCurrent);
+                sizeRemaining -= sizeCurrent;
+                sizeCurrent = 0;
+                --samplesRemaining;
+                if (samplesRemaining == 0) {
+                    break;
+                }
+            }
+            sizeCurrent += sample->data_size_since_previous();
+        }
+        sizeMin = std::min(sizeMin, sizeRemaining);
+        sizeMax = std::max(sizeMax, sizeRemaining);
+
+        // Do the final adjustments.
+        partitionCount = static_cast<int>(PartitionKeys.size()) + 1;
+        
         // Prepare partitions.
         Partitions.resize(partitionCount);
         FOREACH (auto& partition, Partitions) {
