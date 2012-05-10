@@ -18,8 +18,6 @@ private:
     struct TEntry
         : public TRefCounted
     {
-        typedef TIntrusivePtr<TEntry> TPtr;
-
         bool Valid;
         TInstant Deadline;
         TClosure Action;
@@ -34,7 +32,7 @@ private:
 
 public:
     //! Encapsulates a delayed execution token.
-    typedef TEntry::TPtr TCookie;
+    typedef TEntryPtr TCookie;
 
     //! Submits an action for execution after a given delay.
     static TCookie Submit(TClosure action, TDuration delay);
