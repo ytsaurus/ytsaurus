@@ -99,7 +99,7 @@ public:
                 "--job-id", ~JobId.ToString(),
                 (void*) NULL);
 
-            fprintf(stderr, "Failed to exec job-proxy (ProxyPath: %s, ProxyConfig: %s, Error: %s)\n",
+            fprintf(stderr, "Failed to exec job proxy (ProxyPath: %s, ProxyConfig: %s, Error: %s)\n",
                 ~ProxyPath,
                 ~ProxyConfigFileName,
                 ~JobId.ToString(),
