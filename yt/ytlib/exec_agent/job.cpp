@@ -44,7 +44,7 @@ TJob::TJob(
     , JobState(EJobState::Running)
     , JobProgress(EJobProgress::Created)
     , JobResult(NewPromise<NScheduler::NProto::TJobResult>())
-    , JobFinished(NewPromise<TVoid>())
+    , JobFinished(NewPromise<void>())
     , ProxyConfig(proxyConfig)
 {
     VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
@@ -252,7 +252,7 @@ void TJob::OnJobExit(TError error)
             JobState = EJobState::Failed;
         }
 
-        JobFinished.Set(TVoid());
+        JobFinished.Set();
     }
 }
 
@@ -343,12 +343,12 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
     JobProgress = EJobProgress::Failed;
     JobState = resultState;
     SetResult(error);
-    JobFinished.Set(TVoid());
+    JobFinished.Set();
 }
 
 void TJob::SubscribeFinished(const TCallback<void()>& callback)
 {
-    JobFinished.Subscribe(BIND([=] (TVoid) {
+    JobFinished.Subscribe(BIND([=] () {
         callback.Run();
     }));
 }
