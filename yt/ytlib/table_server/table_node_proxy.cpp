@@ -34,33 +34,29 @@ using NTableClient::NProto::TKey;
 
 namespace {
 
-TKey GetMinKey(TChunkTreeRef ref)
+void GetBoundaryKeys(TChunkTreeRef ref, TKey* minKey, TKey* maxKey)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk: {
             auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
                 ref.AsChunk()->ChunkMeta().extensions());
-            return boundaryKeysExt->left();
+            if (minKey) {
+                *minKey = boundaryKeysExt->left();
+            }
+            if (maxKey) {
+                *maxKey = boundaryKeysExt->right();
+            }
+            break;
         }
         case EObjectType::ChunkList:
             YASSERT(!ref.AsChunkList()->Children().empty());
-            return GetMinKey(ref.AsChunkList()->Children()[0]);
-        default:
-            YUNREACHABLE();
-    }
-}
-
-TKey GetMaxKey(TChunkTreeRef ref)
-{
-    switch (ref.GetType()) {
-        case EObjectType::Chunk: {
-            auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
-                ref.AsChunk()->ChunkMeta().extensions());
-            return boundaryKeysExt->right();
-                                 }
-        case EObjectType::ChunkList:
-            YASSERT(!ref.AsChunkList()->Children().empty());
-            return GetMaxKey(ref.AsChunkList()->Children().back());
+            if (minKey) {
+                GetBoundaryKeys(ref.AsChunkList()->Children().front(), minKey, NULL);
+            }
+            if (maxKey) {
+                GetBoundaryKeys(ref.AsChunkList()->Children().back(), NULL, maxKey);
+            }
+            break;
         default:
             YUNREACHABLE();
     }
@@ -68,7 +64,9 @@ TKey GetMaxKey(TChunkTreeRef ref)
 
 bool LessComparer(TChunkTreeRef ref, const TKey& key)
 {
-    return GetMinKey(ref) < key;
+    TKey minKey;
+    GetBoundaryKeys(ref, &minKey, NULL);
+    return minKey < key;
 }
 
 bool IsEmpty(TChunkTreeRef ref)
@@ -395,9 +393,11 @@ void TTableNodeProxy::TraverseChunkTree(
         if (IsEmpty(child)) {
             continue;
         }
-        auto minKey = GetMinKey(child);
-        auto maxKey = GetMaxKey(child);
-        if (lowerBound > maxKey) {          
+
+        TKey minKey, maxKey;
+        GetBoundaryKeys(child, &minKey, &maxKey);
+
+        if (lowerBound > maxKey) {
             continue; // possible for the first chunk tree considered
         }
         if (upperBound && minKey >= *upperBound) {
