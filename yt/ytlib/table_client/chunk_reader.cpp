@@ -15,6 +15,7 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/actions/invoker.h>
+#include <ytlib/logging/tagged_logger.h>
 
 #include <algorithm>
 #include <limits>
@@ -118,12 +119,15 @@ public:
         , StartLimit(startLimit)
         , EndLimit(endLimit)
         , HasRangeRequest(false)
+        , Logger(TableClientLogger)
     { }
 
     void Initialize()
     {
         auto chunkReader = ChunkReader.Lock();
         YASSERT(chunkReader);
+
+        Logger.AddTag(Sprintf("ChunkId: %s", ~chunkReader->GetChunkId().ToString()));
 
         std::vector<int> tags;
         tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>());
@@ -166,8 +170,6 @@ private:
             return;
         }
 
-        // ToDo(psushin): add chunk id.
-        // TODO(babenko): use TTaggedLogger
         LOG_DEBUG("Chunk meta received");
 
         FOREACH (const auto& column, Channel.GetColumns()) {
@@ -494,6 +496,8 @@ private:
     NChunkClient::IAsyncReaderPtr AsyncReader;
     TWeakPtr<TChunkReader> ChunkReader;
 
+    NLog::TTaggedLogger Logger;
+
     TChannel Channel;
 
     NProto::TReadLimit StartLimit;
@@ -524,6 +528,7 @@ TChunkReader::TChunkReader(
     const NProto::TReadLimit& startLimit,
     const NProto::TReadLimit& endLimit,
     const NYTree::TYson& rowAttributes,
+    const NChunkHolder::TChunkId chunkId,
     TOptions options)
     : Codec(NULL)
     , SequentialReader(NULL)
@@ -533,6 +538,7 @@ TChunkReader::TChunkReader(
     , Options(options)
     , RowAttributes(rowAttributes)
     , SuccessResult(MakePromise(TError()))
+    , ChunkId(chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);
@@ -727,6 +733,11 @@ bool TChunkReader::IsValid() const
 const TYson& TChunkReader::GetRowAttributes() const
 {
     return RowAttributes;
+}
+
+NChunkHolder::TChunkId TChunkReader::GetChunkId() const
+{
+    return ChunkId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

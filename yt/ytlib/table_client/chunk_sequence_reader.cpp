@@ -48,11 +48,12 @@ void TChunkSequenceReader::PrepareNextChunk()
 
     const auto& inputChunk = InputChunks[NextChunkIndex];
     const auto& slice = inputChunk.slice();
+    TChunkId chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
     auto remoteReader = CreateRemoteReader(
         Config->RemoteReader,
         BlockCache,
         ~MasterChannel,
-        TChunkId::FromProto(inputChunk.slice().chunk_id()),
+        chunkId,
         FromProto<Stroka>(inputChunk.holder_addresses()));
 
     auto chunkReader = New<TChunkReader>(
@@ -61,7 +62,8 @@ void TChunkSequenceReader::PrepareNextChunk()
         remoteReader,
         slice.start_limit(),
         slice.end_limit(),
-        inputChunk.row_attributes()); // ToDo(psushin): pass row attributes here.
+        inputChunk.row_attributes(), // ToDo(psushin): pass row attributes here.
+        chunkId);
 
     chunkReader->AsyncOpen().Subscribe(BIND(
         &TChunkSequenceReader::OnNextReaderOpened,
@@ -178,6 +180,12 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
     }
 
     return State.GetOperationError();
+}
+
+NChunkHolder::TChunkId TChunkSequenceReader::GetChunkId() const
+{
+    YUNIMPLEMENTED();
+    return TChunkId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -60,6 +60,7 @@ TSortedMergeJob::TSortedMergeJob(
         TChunkReader::TOptions options;
         options.ReadKey = true;
 
+        const auto& chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
         auto chunkReader = New<TChunkReader>(
             config->ChunkSequenceReader->SequentialReader,
             TChannel::CreateUniversal(),
@@ -67,6 +68,7 @@ TSortedMergeJob::TSortedMergeJob(
             inputChunk.slice().start_limit(),
             inputChunk.slice().end_limit(),
             "", // No row attributes.
+            chunkId,
             options); 
 
         ChunkReaders.push_back(chunkReader);

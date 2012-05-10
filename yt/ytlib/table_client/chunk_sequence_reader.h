@@ -35,6 +35,8 @@ public:
 
     double GetProgress() const;
 
+    virtual NChunkHolder::TChunkId GetChunkId() const;
+
 private:
     void PrepareNextChunk();
     void OnNextReaderOpened(TChunkReaderPtr reader, TError error);

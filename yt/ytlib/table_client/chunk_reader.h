@@ -39,6 +39,7 @@ public:
         const NProto::TReadLimit& startLimit,
         const NProto::TReadLimit& endLimit,
         const NYTree::TYson& rowAttributes,
+        const NChunkHolder::TChunkId chunkId,
         TOptions options = TOptions());
 
     TAsyncError AsyncOpen();
@@ -50,10 +51,14 @@ public:
     TKey& GetKey();
     const NYTree::TYson& GetRowAttributes() const;
 
+    virtual NChunkHolder::TChunkId GetChunkId() const;
+
 private:
     class TKeyValidator;
     template <template <typename T> class TComparator>
     struct TIndexComparator;
+
+    NChunkHolder::TChunkId ChunkId;
 
     ICodec* Codec;
     NChunkClient::TSequentialReaderPtr SequentialReader;
