@@ -831,6 +831,7 @@ void TSortArgsParser::BuildRequest(IYsonConsumer* consumer)
             .Item("input_table_paths").List(input)
             .Item("output_table_path").Scalar(output)
             .Item("key_columns").List(keyColumns)
+            .Do(BIND(&TSortArgsParser::BuildOptions, Unretained(this)))
         .EndMap();
 }
 
