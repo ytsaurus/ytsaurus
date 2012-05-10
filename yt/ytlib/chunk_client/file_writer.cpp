@@ -78,7 +78,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
             "Failed to close chunk data file %s\n%s",
-            FileName,
+            ~FileName,
             ex.what()));
     }
 
