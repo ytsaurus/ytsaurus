@@ -154,7 +154,7 @@ private:
         PendingChunkCount += jip->ExtractResult->Chunks.size();
         PendingWeight += jip->ExtractResult->Weight;
 
-        LOG_DEBUG("Returned %d chunks into the pool",
+        LOG_DEBUG("Returned %d chunks into pool",
             static_cast<int>(jip->ExtractResult->Chunks.size()));
         ChunkPool->PutBack(jip->ExtractResult);
 

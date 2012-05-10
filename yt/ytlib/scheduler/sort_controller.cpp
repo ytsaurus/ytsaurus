@@ -117,23 +117,46 @@ private:
 
     virtual int GetPendingJobCount()
     {
-        return GetPendingPartitionJobCount();
+        return
+            GetPendingPartitionJobCount() +
+            GetPendingSortJobCount();
     }
 
     int GetPendingPartitionJobCount()
     {
-        return PendingPartitionWeight == 0
+        return PendingPartitionChunkCount == 0
             ? 0
             : TotalPartitionJobCount - CompletedPartitionJobCount;
+    }
+
+    bool HasPendingPartitionJobs()
+    {
+        return PendingPartitionChunkCount > 0;
     }
 
     int GetPendingSortJobCount()
     {
         int result = 0;
+        i64 weightPerChunk = Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize;
         FOREACH (auto* partition, SortWeightOrderedPartitions) {
-            i64 weight = partition->SortChunkPool->GetTotalWeight();
+            result += GetPendingSortJobCount(partition);
         }
         return result;
+    }
+
+    int GetPendingSortJobCount(const TPartition* partition)
+    {
+        i64 weight = partition->SortChunkPool->GetTotalWeight();
+        i64 weightPerChunk = Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize;
+        return HasPendingPartitionJobs()
+            ? static_cast<int>(floor((double) weight / weightPerChunk))
+            : static_cast<int>(ceil((double) weight / weightPerChunk));
+    }
+
+    bool HasPendingSortJobs()
+    {
+        const auto* largestPartition = *SortWeightOrderedPartitions.begin();
+        return GetPendingSortJobCount(largestPartition) > 0;
     }
 
     // Job scheduling and outcome handling.
@@ -155,8 +178,12 @@ private:
         }
 
         // We've got a job to do! :)
-        if (GetPendingPartitionJobCount() > 0) {
+        if (HasPendingPartitionJobs()) {
             return SchedulePartitionJob(node);
+        }
+
+        if (HasPendingSortJobs()) {
+            return ScheduleSortJob(node);
         }
 
         YUNREACHABLE();
@@ -225,11 +252,16 @@ private:
         PendingPartitionChunkCount += jip->ExtractResult->Chunks.size();
         PendingPartitionWeight  += jip->ExtractResult->Weight;
 
-        LOG_DEBUG("Returned %d chunks into the partition pool",
+        LOG_DEBUG("Returned %d chunks into partition pool",
             static_cast<int>(jip->ExtractResult->Chunks.size()));
         PartitionChunkPool->PutBack(jip->ExtractResult);
 
         ReleaseChunkList(jip->ChunkListId);
+    }
+
+    TJobPtr ScheduleSortJob(TExecNodePtr node)
+    {
+        YUNIMPLEMENTED();
     }
 
 

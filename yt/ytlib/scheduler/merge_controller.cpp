@@ -210,7 +210,7 @@ protected:
         return result;
     }
 
-    void PutChunksBackToPool(TMergeGroupPtr group, IChunkPool::TExtractResultPtr result)
+    void ReturnChunksToPool(TMergeGroupPtr group, IChunkPool::TExtractResultPtr result)
     {
         group->ChunkPool->PutBack(result);
         FOREACH (const auto& chunk, result->Chunks) {
@@ -326,8 +326,8 @@ protected:
 
     virtual void OnJobFailed(TMergeJobInProgress* jip)
     {
-        LOG_DEBUG("Returned %d chunks back into the pool", static_cast<int>(jip->ExtractResult->Chunks.size()));
-        PutChunksBackToPool(jip->Group, jip->ExtractResult);
+        LOG_DEBUG("Returned %d chunks into pool", static_cast<int>(jip->ExtractResult->Chunks.size()));
+        ReturnChunksToPool(jip->Group, jip->ExtractResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
