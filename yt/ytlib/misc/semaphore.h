@@ -30,7 +30,7 @@ public:
      *  The client must not call AsyncAquire again, until returned
      *  future is set.
      */
-    TFuture<TVoid> AsyncAcquire(i64 slots = 1);
+    TFuture<void> AsyncAcquire(i64 slots = 1);
 
 private:
     TSpinLock SpinLock;
@@ -39,8 +39,8 @@ private:
     i64 FreeSlotCount;
     i64 RequestedSlots;
 
-    TPromise<TVoid> AcquireEvent;
-    TPromise<TVoid> StaticResult;
+    TPromise<void> AcquireEvent;
+    TPromise<void> StaticResult;
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
 
