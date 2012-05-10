@@ -301,6 +301,7 @@ private:
         i64 sizeMin = std::numeric_limits<i64>::max();
         i64 sizeMax = std::numeric_limits<i64>::min();
         FOREACH (const auto* sample, SortedSamples) {
+            // TODO(babenko): killme
             LOG_DEBUG("size = %" PRId64, sample->data_size_since_previous());
             i64 sizeThreshold = sizeRemaining / (samplesRemaining + 1);
             if (sizeCurrent >= sizeThreshold) {
@@ -322,7 +323,7 @@ private:
         // Do the final adjustments.
         PartitionCount = static_cast<int>(PartitionKeys.size()) + 1;
 
-        LOG_INFO("Using %d partitions (MinSize: % " PRId64 ", MaxSize: %" PRId64 ")",
+        LOG_INFO("Using %d partitions (MinSize: %" PRId64 ", MaxSize: %" PRId64 ")",
             PartitionCount,
             sizeMin,
             sizeMax);
