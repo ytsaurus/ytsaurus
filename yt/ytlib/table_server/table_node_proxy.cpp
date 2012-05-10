@@ -48,15 +48,21 @@ void GetBoundaryKeys(TChunkTreeRef ref, TKey* minKey, TKey* maxKey)
             }
             break;
         }
-        case EObjectType::ChunkList:
-            YASSERT(!ref.AsChunkList()->Children().empty());
-            if (minKey) {
-                GetBoundaryKeys(ref.AsChunkList()->Children().front(), minKey, NULL);
-            }
-            if (maxKey) {
-                GetBoundaryKeys(ref.AsChunkList()->Children().back(), NULL, maxKey);
+        case EObjectType::ChunkList: {
+            const auto& children = ref.AsChunkList()->Children();
+            YASSERT(!children.empty());
+            if (children.size() == 1) {
+                GetBoundaryKeys(children.front(), minKey, maxKey);
+            } else {
+                if (minKey) {
+                    GetBoundaryKeys(ref.AsChunkList()->Children().front(), minKey, NULL);
+                }
+                if (maxKey) {
+                    GetBoundaryKeys(ref.AsChunkList()->Children().back(), NULL, maxKey);
+                }
             }
             break;
+        }
         default:
             YUNREACHABLE();
     }
