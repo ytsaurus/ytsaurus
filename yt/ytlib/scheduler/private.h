@@ -22,7 +22,7 @@ class TSamplesFetcher;
 typedef TIntrusivePtr<TSamplesFetcher> TSamplesFetcherPtr;
 
 extern NLog::TLogger SchedulerLogger;
-extern NLog::TLogger OperationsLogger;
+extern NLog::TLogger OperationLogger;
 extern NProfiling::TProfiler SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////

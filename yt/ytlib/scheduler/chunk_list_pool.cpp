@@ -25,7 +25,7 @@ TChunkListPool::TChunkListPool(
     , ControlInvoker(controlInvoker)
     , Operation(operation)
     , TransactionId(transactionId)
-    , Logger(OperationsLogger)
+    , Logger(OperationLogger)
     , RequestInProgress(false)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));

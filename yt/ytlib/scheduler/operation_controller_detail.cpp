@@ -32,7 +32,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Host(host)
     , Operation(operation)
     , ObjectProxy(host->GetMasterChannel())
-    , Logger(OperationsLogger)
+    , Logger(OperationLogger)
     , Active(false)
     , Running(false)
     , ExecNodeCount(-1)

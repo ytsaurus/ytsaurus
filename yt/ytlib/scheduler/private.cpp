@@ -7,7 +7,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////
 
 NLog::TLogger SchedulerLogger("Scheduler");
-NLog::TLogger OperationsLogger("Operations");
+NLog::TLogger OperationLogger("Operation");
 NProfiling::TProfiler SchedulerProfiler("/scheduler");
 
 ////////////////////////////////////////////////////////////////////
