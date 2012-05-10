@@ -210,20 +210,26 @@ private:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            // Compute statistics and prepare the fetcher.
+            // Compute statistics, populate partition pool, and prepare the fetcher.
+            PartitionChunkPool = CreateUnorderedChunkPool();
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
 
                 auto fetchRsp = table.FetchResponse;
                 FOREACH (const auto& chunk, *fetchRsp->mutable_chunks()) {
-                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-                    i64 rowCount = misc->row_count();
-                    i64 dataSize = misc->uncompressed_size();
+                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+                    i64 dataSize = miscExt->uncompressed_size();
 
-                    TotalPartitionWeight += dataSize;
+                    // Plus one is to ensure that weights are positive.
+                    i64 weight = dataSize + 1;
+
+                    TotalPartitionWeight += weight;
                     ++TotalPartitionChunkCount;
 
                     SamplesFetcher->AddChunk(chunk);
+
+                    auto pooledChunk = New<TPooledChunk>(chunk, weight);
+                    PartitionChunkPool->Add(pooledChunk);
                 }
             }
 
@@ -328,7 +334,10 @@ private:
             SortSamples();
             BuildPartitions();
            
+            // Init counters.
             ChooseJobCount();
+            PendingPartitionWeight = TotalPartitionWeight;
+            PendingPartitionChunkCount = TotalPartitionChunkCount;
 
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(TotalPartitionJobCount + Config->SpareChunkListCount);
