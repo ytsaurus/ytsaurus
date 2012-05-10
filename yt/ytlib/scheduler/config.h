@@ -66,7 +66,7 @@ struct TSchedulerConfig
             .Default(3)
             .GreaterThan(0);
         Register("min_sort_partition_size", MinSortPartitionSize)
-            .Default(4 * 1024 * 1024 * 1024)
+            .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
@@ -173,8 +173,10 @@ struct TSortOperationSpec
         Register("key_columns", KeyColumns)
             .NonEmpty();
         Register("partition_count", PartitionCount)
+            .Default()
             .GreaterThan(0);
         Register("partition_job_count", PartitionJobCount)
+            .Default()
             .GreaterThan(0);
     }
 };
