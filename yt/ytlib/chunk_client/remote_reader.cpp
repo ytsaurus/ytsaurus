@@ -109,6 +109,11 @@ public:
         GetSeedsPromise.Reset();
     }
 
+    virtual TChunkId GetChunkId() const
+    {
+        return ChunkId;
+    }
+
 private:
     friend class TSessionBase;
     friend class TReadSession;

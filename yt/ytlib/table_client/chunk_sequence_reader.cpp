@@ -62,8 +62,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         remoteReader,
         slice.start_limit(),
         slice.end_limit(),
-        inputChunk.row_attributes(), // ToDo(psushin): pass row attributes here.
-        chunkId);
+        inputChunk.row_attributes()); // ToDo(psushin): pass row attributes here.
 
     chunkReader->AsyncOpen().Subscribe(BIND(
         &TChunkSequenceReader::OnNextReaderOpened,
@@ -180,12 +179,6 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
     }
 
     return State.GetOperationError();
-}
-
-NChunkHolder::TChunkId TChunkSequenceReader::GetChunkId() const
-{
-    YUNIMPLEMENTED();
-    return TChunkId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
