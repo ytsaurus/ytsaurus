@@ -338,19 +338,18 @@ void TTableNodeProxy::TraverseChunkTree(
         return;
     }
 
-    int index;
-    if (lowerBound == 0) {
-        index = 0;
-    } else {
-        auto it = std::upper_bound(
+    YASSERT(chunkList->Children().size() == chunkList->RowCountSums().size() + 1);
+
+    int index =
+        std::upper_bound(
             chunkList->RowCountSums().begin(),
             chunkList->RowCountSums().end(),
-            lowerBound);
-        index = it - chunkList->RowCountSums().begin();
-    }
-
+            lowerBound) -
+        chunkList->RowCountSums().begin();
     YASSERT(index < chunkList->Children().size());
+
     i64 firstRowIndex = index == 0 ? 0 : chunkList->RowCountSums()[index - 1];
+    YASSERT(firstRowIndex <= lowerBound || lowerBound < 0 && firstRowIndex == 0);
 
     while (index < chunkList->Children().size()) {
         if (upperBound && firstRowIndex >= *upperBound) {
@@ -360,6 +359,8 @@ void TTableNodeProxy::TraverseChunkTree(
         switch (child.GetType()) {
             case EObjectType::Chunk: {
                 i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
+                i64 lastRowIndex = firstRowIndex + rowCount; // exclusive
+                YASSERT(lowerBound < lastRowIndex);
 
                 auto* inputChunk = response->add_chunks();
                 auto* slice = inputChunk->mutable_slice();
@@ -367,12 +368,11 @@ void TTableNodeProxy::TraverseChunkTree(
 
                 slice->mutable_start_limit();
                 if (lowerBound > firstRowIndex) {
-                    YASSERT(lowerBound - firstRowIndex < rowCount);
                     slice->mutable_start_limit()->set_row_index(lowerBound - firstRowIndex);
                 }
 
                 slice->mutable_end_limit();
-                if (upperBound && *upperBound < firstRowIndex + rowCount) {
+                if (upperBound && *upperBound < lastRowIndex) {
                     slice->mutable_end_limit()->set_row_index(*upperBound - firstRowIndex);
                 }
 
