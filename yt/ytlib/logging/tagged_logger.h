@@ -13,7 +13,7 @@ class TTaggedLogger
     : private TNonCopyable
 {
 public:
-    TTaggedLogger(TLogger& innerLogger);
+    explicit TTaggedLogger(TLogger& innerLogger);
 
     Stroka GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
