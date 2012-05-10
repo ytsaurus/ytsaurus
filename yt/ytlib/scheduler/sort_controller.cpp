@@ -98,7 +98,7 @@ private:
     TSamplesFetcherPtr SamplesFetcher;
     std::vector<const NTableClient::NProto::TKeySample*> SortedSamples;
 
-    // |PartitionCount - 1| separating keys.
+    //! |PartitionCount - 1| separating keys.
     std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
     
     //! Pool storing all chunks awaiting partition job.
@@ -110,7 +110,7 @@ private:
     //! Pointers to partitions ordered by increasing sort weight.
     std::set<TPartition*, TPartitionSortWeightComparer> SortWeightOrderedPartitions;
 
-    // Templates for starting new jobs.
+    //! Templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
 
     // Init/finish.
@@ -329,49 +329,70 @@ private:
         YASSERT(partitionCount > 0);
 
         if (partitionCount == 1) {
+            // Create a single partition and put everything there.
             LOG_INFO("Sorting without partitioning");
-            // TODO(babenko): xxx
-            return;
-        }
+            Partitions.resize(1);
+            auto& partition = Partitions[0];
+            partition.SortChunkPool = CreateUnorderedChunkPool();
+            FOREACH (const auto& input, InputTables) {
+                FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
+                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+                    i64 dataSize = miscExt->uncompressed_size();
 
-        // Take partition keys evenly.
-        int samplesRemaining = partitionCount - 1;
-        i64 sizeRemaining = totalSize;
-        i64 sizeCurrent = 0;
-        i64 sizeMin = std::numeric_limits<i64>::max();
-        i64 sizeMax = std::numeric_limits<i64>::min();
-        FOREACH (const auto* sample, SortedSamples) {
-            i64 sizeThreshold = sizeRemaining / (samplesRemaining + 1);
-            if (sizeCurrent >= sizeThreshold) {
-                PartitionKeys.push_back(&sample->key());
-                sizeMin = std::min(sizeMin, sizeCurrent);
-                sizeMax = std::max(sizeMax, sizeCurrent);
-                sizeRemaining -= sizeCurrent;
-                sizeCurrent = 0;
-                --samplesRemaining;
-                if (samplesRemaining == 0) {
-                    break;
+                    // TODO(babenko): make customizable
+                    // Plus one is to ensure that weights are positive.
+                    i64 weight = dataSize + 1;
+
+                    totalRowCount += rowCount;
+                    totalDataSize += dataSize;
+                    ++TotalChunkCount;
+                    TotalWeight += weight;
+
+                    auto pooledChunk = New<TPooledChunk>(chunk, weight);
+                    ChunkPool->Add(pooledChunk);
                 }
             }
-            sizeCurrent += sample->data_size_since_previous();
-        }
-        sizeMin = std::min(sizeMin, sizeRemaining);
-        sizeMax = std::max(sizeMax, sizeRemaining);
-
-        // Do the final adjustments.
-        partitionCount = static_cast<int>(PartitionKeys.size()) + 1;
-        
-        // Prepare partitions.
-        Partitions.resize(partitionCount);
-        FOREACH (auto& partition, Partitions) {
-            partition.SortChunkPool = CreateUnorderedChunkPool();
             YVERIFY(SortWeightOrderedPartitions.insert(&partition).second);
-        }
+        } else {
+            // Take partition keys evenly.
+            int samplesRemaining = partitionCount - 1;
+            i64 sizeRemaining = totalSize;
+            i64 sizeCurrent = 0;
+            i64 sizeMin = std::numeric_limits<i64>::max();
+            i64 sizeMax = std::numeric_limits<i64>::min();
+            FOREACH (const auto* sample, SortedSamples) {
+                i64 sizeThreshold = sizeRemaining / (samplesRemaining + 1);
+                if (sizeCurrent >= sizeThreshold) {
+                    PartitionKeys.push_back(&sample->key());
+                    sizeMin = std::min(sizeMin, sizeCurrent);
+                    sizeMax = std::max(sizeMax, sizeCurrent);
+                    sizeRemaining -= sizeCurrent;
+                    sizeCurrent = 0;
+                    --samplesRemaining;
+                    if (samplesRemaining == 0) {
+                        break;
+                    }
+                }
+                sizeCurrent += sample->data_size_since_previous();
+            }
+            sizeMin = std::min(sizeMin, sizeRemaining);
+            sizeMax = std::max(sizeMax, sizeRemaining);
 
-        LOG_INFO("Using %d partitions (MinSize: %" PRId64 ", MaxSize: %" PRId64 ")",
-            partitionCount,
-            sizeMin,
-            sizeMax);
+            // Do the final adjustments.
+            partitionCount = static_cast<int>(PartitionKeys.size()) + 1;
+
+            // Prepare partitions.
+            Partitions.resize(partitionCount);
+            FOREACH (auto& partition, Partitions) {
+                partition.SortChunkPool = CreateUnorderedChunkPool();
+                YVERIFY(SortWeightOrderedPartitions.insert(&partition).second);
+            }
+
+            LOG_INFO("Sorting with %d partitions (MinSize: %" PRId64 ", MaxSize: %" PRId64 ")",
+                partitionCount,
+                sizeMin,
+                sizeMax);
+        }
     }
 
     void OnSamplesReceived()

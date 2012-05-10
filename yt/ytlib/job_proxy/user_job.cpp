@@ -195,7 +195,8 @@ void TUserJob::StartJob()
             ~cmd, 
             strerror(_errno));
 
-        exit(7);
+        // TODO(babenko): extract error code constant
+        _exit(7);
     }
     catch (const std::exception& e) {
         auto writeResult = ::write(STDERR_FILENO, e.what(), strlen(e.what()));

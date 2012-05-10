@@ -366,8 +366,7 @@ protected:
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
-                auto fetchRsp = table.FetchResponse;
-                FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
+                FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
                     i64 dataSize = miscExt->uncompressed_size();

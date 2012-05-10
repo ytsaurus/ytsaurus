@@ -46,7 +46,8 @@ void TJobProxy::SendHeartbeat()
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
         LOG_ERROR("Failed to report progress for job %s", ~JobId.ToString());
-        exit(122);
+        // TODO(babenko): extract error code constant
+        _exit(122);
     }
 }
 
@@ -130,7 +131,8 @@ void TJobProxy::ReportResult(
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
         LOG_ERROR("Failed to report result for job %s", ~JobId.ToString());
-        exit(123);
+        // TODO(babenko): extract error code constant
+        _exit(123);
     }
 }
 

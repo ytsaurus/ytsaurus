@@ -206,8 +206,7 @@ private:
                         .EndMap();
                 }
 
-                auto fetchRsp = table.FetchResponse;
-                FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
+                FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     // Currently fetch never returns row attributes.
                     YASSERT(!chunk.has_row_attributes());
 
