@@ -7,6 +7,7 @@ import yson_parser
 import yson
 
 import time
+import os
 
 def expect_error(result):
     stdout, stderr, exitcode = result
@@ -38,6 +39,8 @@ def start_transaction(**kw):
 def commit_transaction(**kw): return command('commit_tx', **kw)
 def renew_transaction(**kw): return command('renew_tx', **kw)
 def abort_transaction(**kw): return command('abort_tx', **kw)
+
+def upload(path, **kw): return command('upload', path, **kw)
 
 #########################################
 
@@ -348,3 +351,32 @@ class TestOrchid(YTEnvSetup):
             assert sort_list(result) == '["a";"b";]'
             expect_ok( remove(path))
             expect_error( get(path))
+
+
+class TestCanceledUpload(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_HOLDERS = 3
+
+    DELTA_HOLDER_CONFIG = {'chunk_holder' : {'session_timeout': 100}}
+
+    # should be called on empty holders
+    #@pytest.mark.xfail(run = False, reason = 'Replace blocking read from empty stream with something else')
+    def test(self):
+        tx_id = start_transaction(opts = 'timeout=2000')
+
+        # uploading from empty stream will fail
+        process = run_command('upload', '//file', tx = tx_id)
+        time.sleep(1)
+        process.kill()
+        time.sleep(1)
+
+        # now check that there are no temp files
+        for i in xrange(self.NUM_HOLDERS):
+            # TODO(panin): refactor
+            holder_config = self.Env.configs['holder'][i]
+            chunk_store_path = holder_config['chunk_holder']['store_locations'][0]['path']
+            self._check_no_temp_file(chunk_store_path)
+
+    def _check_no_temp_file(self, chunk_store):
+        for root, dirs, files in os.walk(chunk_store):
+            assert len(files) == 0, 'Found temporary files: ' + str(files)  

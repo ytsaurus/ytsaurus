@@ -290,6 +290,7 @@ TFuture<TVoid> TSession::DeleteFile(const TError& error)
 
 TVoid TSession::DoDeleteFile(const TError& error)
 {
+    Writer->Abort();
     Writer.Reset();
 
     LOG_DEBUG("Chunk file deleted\n%s", ~error.ToString());
@@ -446,7 +447,6 @@ TSessionPtr TSessionManager::StartSession(
     LOG_INFO("Session %s started at %s",
         ~chunkId.ToString(),
         ~location->GetPath().Quote());
-
     return session;
 }
 

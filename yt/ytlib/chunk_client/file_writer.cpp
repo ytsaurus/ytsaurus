@@ -127,6 +127,31 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
     return MakeFuture(TError());
 }
 
+
+namespace {
+
+void RemoveFile(const Stroka& fileName)
+{
+    if (!NFS::Remove(fileName)) {
+        LOG_FATAL("Error deleting file %s", ~fileName.Quote());
+    }
+}
+
+} // namespace
+
+void TFileWriter::Abort()
+{
+    if (!IsOpen) {
+        return;
+    }
+    IsClosed = true;
+    IsOpen = false;
+
+    DataFile.Destroy();
+    RemoveFile(FileName + NFS::TempFileSuffix);
+}
+
+
 const TChunkInfo& TFileWriter::GetChunkInfo() const
 {
     YASSERT(IsClosed);

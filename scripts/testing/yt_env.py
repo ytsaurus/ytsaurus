@@ -14,6 +14,8 @@ import re
 import time
 import socket
 
+from collections import defaultdict
+
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
 CONFIGS_ROOTDIR = os.path.abspath('default_configs')
 
@@ -70,7 +72,6 @@ class YTEnv:
         self._prepare_configs()
         self._run_masters()
         self._wait_for_ready_masters()
-        #self._init_sys()
         self._run_services()
         self._wait_for_ready_holders()
 
@@ -98,8 +99,6 @@ class YTEnv:
                 else:
                     assert False, 'ALARM!!!, %s wasnt killed after 10 iterations' % (name)
 
-
-
     def _set_path(self, path_to_run):
         path_to_run = os.path.abspath(path_to_run)
         print 'Initializing at', path_to_run
@@ -121,6 +120,7 @@ class YTEnv:
         self.driver_config['masters']['addresses'] = master_addresses
 
         self.config_paths = {}
+        self.configs = defaultdict(lambda : [])
 
     def _run_services(self):
         self._run_holders()
@@ -192,18 +192,6 @@ class YTEnv:
                 ).split())
             self.process_to_kill.append((p, "scheduler-%d" % (i)))
 
-    def _init_sys(self):
-        if self.NUM_MASTERS == 0:
-            return
-        cmd = 'cat %s | yt' % (os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'))
-        subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
-        for i in xrange(self.NUM_MASTERS):
-            port = 8001 + i
-            orchid_yson = '{do=create;path="//sys/masters/localhost:%d/orchid";type=orchid;manifest={remote_address="localhost:%d"}}' %(port, port)
-            #print orchid_yson
-            cmd  = "yt '%s'" % (orchid_yson)
-            subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
-
     def _clean_run_path(self):
         os.system('rm -rf ' + self.path_to_run)
         os.makedirs(self.path_to_run)
@@ -268,7 +256,9 @@ class YTEnv:
 
             config_path = os.path.join(current, 'holder_config.yson')
             write_config(holder_config, config_path)
+
             self.config_paths['holder'].append(config_path)
+            self.configs['holder'].append(holder_config)
 
     def _prepare_schedulers_config(self):
         self.config_paths['scheduler'] = []
@@ -309,3 +299,4 @@ class YTEnv:
             current_wait_time += sleep_quantum
         print
         assert False, "%s still not ready after %s seconds" % (name, max_wait_time)
+   
