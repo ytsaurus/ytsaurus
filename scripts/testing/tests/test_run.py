@@ -14,3 +14,12 @@ class TestRunHolder(YTEnvSetup):
 
     def test(self):
         assert True
+
+class TestRunScheduler(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_HOLDERS = 0
+    NUM_SCHEDULERS = 1
+
+    def test(self):
+        assert True
+

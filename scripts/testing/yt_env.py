@@ -72,8 +72,10 @@ class YTEnv:
         self._prepare_configs()
         self._run_masters()
         self._wait_for_ready_masters()
-        self._run_services()
+        self._run_holders()
         self._wait_for_ready_holders()
+        self._run_schedulers()
+        self._wait_for_ready_schedulers()
 
     def tearDown(self):
         time.sleep(self.TEARDOWN_TIMEOUT)
@@ -121,10 +123,6 @@ class YTEnv:
 
         self.config_paths = {}
         self.configs = defaultdict(lambda : [])
-
-    def _run_services(self):
-        self._run_holders()
-        self._run_schedulers()
 
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
@@ -191,6 +189,19 @@ class YTEnv:
                     config_path=self.config_paths['scheduler'][i],
                 ).split())
             self.process_to_kill.append((p, "scheduler-%d" % (i)))
+
+    def _wait_for_ready_schedulers(self):
+        if self.NUM_SCHEDULERS == 0: return
+        self._wait_for(self._all_schedulers_ready, name = "schedulers", max_wait_time = 30)
+
+    def _all_schedulers_ready(self):
+        good_marker = 'Scheduler address published'
+
+        if (not os.path.exists(self.scheduler_log)): return False
+        for line in reversed(open(self.scheduler_log).readlines()):
+            if good_marker in line: 
+                return True
+        return False
 
     def _clean_run_path(self):
         os.system('rm -rf ' + self.path_to_run)
@@ -273,6 +284,7 @@ class YTEnv:
             logging_file_name = os.path.join(current, 'scheduler-%s.log' % i)
 
             config['logging']['writers']['file']['file_name'] = logging_file_name
+            self.scheduler_log = logging_file_name
 
             self.modify_scheduler_config(config)
             deepupdate(config, self.DELTA_SCHEDULER_CONFIG)
