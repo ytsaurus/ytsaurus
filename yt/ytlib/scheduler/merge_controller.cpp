@@ -402,7 +402,7 @@ protected:
 
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %d, ChunkCount: %d, JobCount: %d",
+            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
                 TotalWeight,
                 TotalChunkCount,
                 TotalJobCount);
