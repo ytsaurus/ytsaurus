@@ -214,26 +214,25 @@ TAsyncError TChunkWriter::AsyncClose()
 
     IsClosed = true;
 
-    std::vector<TSharedRef> completedBlocks;
+    std::vector<TSharedRef> finalBlocks;
     for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++channelIndex) {
         auto& channel = ChannelWriters[channelIndex];
 
         if (channel->GetCurrentRowCount()) {
             auto block = PrepareBlock(channelIndex);
-            completedBlocks.push_back(block);
+            finalBlocks.push_back(block);
         }
     }
 
     CurrentSize = SentSize;
 
-    NChunkHolder::NProto::TChunkMeta chunkMeta;
-    chunkMeta.set_type(EChunkType::Table);
-
-    MiscExt.set_uncompressed_size(UncompressedSize);
-
-    SetProtoExtension(chunkMeta.mutable_extensions(), MiscExt);
-    SetProtoExtension(chunkMeta.mutable_extensions(), SamplesExt);
-    SetProtoExtension(chunkMeta.mutable_extensions(), ChannelsExt);
+    Meta.set_type(EChunkType::Table);
+    {
+        MiscExt.set_uncompressed_size(UncompressedSize);
+        SetProtoExtension(Meta.mutable_extensions(), MiscExt);
+    }
+    SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
+    SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
 
     if (KeyColumns) {
         *BoundaryKeysExt.mutable_right() = LastKey.ToProto();
@@ -245,16 +244,27 @@ TAsyncError TChunkWriter::AsyncClose()
             item->set_row_index(MiscExt.row_count() - 1);
         }
 
-        SetProtoExtension(chunkMeta.mutable_extensions(), IndexExt);
-        SetProtoExtension(chunkMeta.mutable_extensions(), BoundaryKeysExt);
+        SetProtoExtension(Meta.mutable_extensions(), IndexExt);
+        SetProtoExtension(Meta.mutable_extensions(), BoundaryKeysExt);
         {
             NProto::TKeyColumnsExt keyColumnsExt;
             ToProto(keyColumnsExt.mutable_values(), KeyColumns.Get());
-            SetProtoExtension(chunkMeta.mutable_extensions(), keyColumnsExt);
+            SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
         }
     }
 
-    return ChunkWriter->AsyncClose(MoveRV(completedBlocks), chunkMeta);
+    return ChunkWriter
+        ->AsyncWriteBlocks(finalBlocks)
+        .Apply(BIND(&TChunkWriter::OnFinalBlocksWritten, MakeStrong(this)));
+}
+
+TAsyncError TChunkWriter::OnFinalBlocksWritten(TError error)
+{
+    if (!error.IsOK()) {
+        return MakeFuture(error);
+    }
+
+    return ChunkWriter->AsyncClose(Meta);
 }
 
 void TChunkWriter::EmitIndexEntry(const TKey& key)

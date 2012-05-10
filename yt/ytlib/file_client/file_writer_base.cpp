@@ -169,11 +169,7 @@ void TFileWriterBase::Close()
         SetProtoExtension(meta.mutable_extensions(), miscExt);
 
         try {
-            Sync(
-                ~Writer, 
-                &TRemoteWriter::AsyncClose, 
-                std::vector<TSharedRef>(), 
-                meta);
+            Sync(~Writer, &TRemoteWriter::AsyncClose, meta);
         } catch (const std::exception& ex) {
             LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s", 
                 ex.what());

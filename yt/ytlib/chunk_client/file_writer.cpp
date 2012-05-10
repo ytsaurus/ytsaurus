@@ -63,17 +63,10 @@ TAsyncError TFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
     return MakeFuture(TError());
 }
 
-TAsyncError TFileWriter::AsyncClose(
-    const std::vector<TSharedRef>& blocks,
-    const NChunkHolder::NProto::TChunkMeta& chunkMeta)
+TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
-    if (!IsOpen)
+    if (!IsOpen) {
         return MakeFuture(TError());
-
-    {
-        auto res = AsyncWriteBlocks(MoveRV(blocks));
-        if (!res.Get().IsOK())
-            return res;
     }
 
     IsOpen = false;
@@ -91,7 +84,7 @@ TAsyncError TFileWriter::AsyncClose(
 
     // Write meta.
     ChunkMeta.CopyFrom(chunkMeta);
-    SetProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
+    UpdateProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
     
     TBlob metaBlob;
     YVERIFY(SerializeToProto(&ChunkMeta, &metaBlob));

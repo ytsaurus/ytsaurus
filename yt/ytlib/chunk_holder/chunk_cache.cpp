@@ -269,9 +269,7 @@ private:
         {
             LOG_INFO("Closing chunk");
             // NB: This is always done synchronously.
-            auto closeResult = FileWriter->AsyncClose(
-                std::vector<TSharedRef>(),
-                ChunkMeta).Get();
+            auto closeResult = FileWriter->AsyncClose(ChunkMeta).Get();
 
             if (!closeResult.IsOK()) {
                 OnError(closeResult);

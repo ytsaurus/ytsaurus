@@ -55,8 +55,7 @@ private:
     void FetchNextGroup();
     void RequestBlocks(
         int firstIndex, 
-        const std::vector<int>& blockIndexes,
-        TVoid);
+        const std::vector<int>& blockIndexes);
 
     const std::vector<int> BlockIndexSequence;
     TAutoPtr<NChunkHolder::NProto::TBlocksExt> ProtoBlocks;

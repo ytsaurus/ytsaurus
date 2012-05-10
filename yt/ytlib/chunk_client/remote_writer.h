@@ -47,9 +47,7 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError AsyncClose(
-        const std::vector<TSharedRef>& lastBlocks,
-        const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
     ~TRemoteWriter();
 
@@ -83,6 +81,7 @@ private:
 
     bool IsOpen;
     bool IsInitComplete;
+    bool IsClosing;
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
@@ -115,13 +114,11 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    void DoClose(
-        const std::vector<TSharedRef>& lastBlocks,
-        TVoid);
+    void DoClose();
 
     void AddGroup(TGroupPtr group);
 
-    void RegisterReadyEvent(TFuture<TVoid> windowReady);
+    void RegisterReadyEvent(TFuture<void> windowReady);
 
     void OnHolderFailed(THolderPtr holder);
 
@@ -160,7 +157,7 @@ private:
         TIntrusivePtr<TResponse> rsp);
 
     void AddBlocks(const std::vector<TSharedRef>& blocks);
-    void DoWriteBlocks(const std::vector<TSharedRef>& blocks, TVoid);
+    void DoWriteBlocks(const std::vector<TSharedRef>& blocks);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);

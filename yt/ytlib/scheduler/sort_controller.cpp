@@ -26,7 +26,7 @@ using namespace NChunkHolder::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger(OperationsLogger);
+static NLog::TLogger& Logger(OperationLogger);
 static NProfiling::TProfiler Profiler("/operations/sort");
 
 ////////////////////////////////////////////////////////////////////
@@ -210,12 +210,6 @@ private:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            auto samplesFetcher = New<TSamplesFetcher>(
-                Config,
-                Spec,
-                Host->GetBackgroundInvoker(),
-                Operation->GetOperationId());
-
             // Compute statistics and prepare the fetcher.
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
@@ -229,7 +223,7 @@ private:
                     TotalPartitionWeight += dataSize;
                     ++TotalPartitionChunkCount;
 
-                    samplesFetcher->AddChunk(chunk);
+                    SamplesFetcher->AddChunk(chunk);
                 }
             }
 
@@ -240,11 +234,11 @@ private:
                 return MakeFuture(TValueOrError<void>());
             }
 
-            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ")",
+            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %d)",
                 TotalPartitionWeight,
                 TotalPartitionChunkCount);
 
-            return samplesFetcher->Run();
+            return SamplesFetcher->Run();
         }
     }
 
@@ -274,12 +268,12 @@ private:
             totalSize += sample->data_size_since_previous();
         }
 
-        // Use partition count provided by the user, if given.
+        // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         if (Spec->PartitionCount) {
             PartitionCount = Spec->PartitionCount.Get();
         } else {
-            PartitionCount = static_cast<int>(totalSize / Config->MinSortPartitionSize);
+            PartitionCount = static_cast<int>(ceil((double) totalSize / Config->MinSortPartitionSize));
         }
 
         // Don't create more partitions that we have nodes.
@@ -297,20 +291,35 @@ private:
         // Take partition keys evenly.
         int samplesRemaining = PartitionCount - 1;
         i64 sizeRemaining = totalSize;
-        i64 sizeTaken = 0;
+        i64 sizeCurrent = 0;
+        i64 sizeMin = std::numeric_limits<i64>::max();
+        i64 sizeMax = std::numeric_limits<i64>::min();
         FOREACH (const auto* sample, SortedSamples) {
-            if (sizeTaken >= sizeRemaining / samplesRemaining) {
+            LOG_DEBUG("size = %" PRId64, sample->data_size_since_previous());
+            i64 sizeThreshold = sizeRemaining / (samplesRemaining + 1);
+            if (sizeCurrent >= sizeThreshold) {
                 PartitionKeys.push_back(&sample->key());
-                sizeRemaining -= sizeTaken;
-                sizeTaken = 0;
+                sizeMin = std::min(sizeMin, sizeCurrent);
+                sizeMax = std::max(sizeMax, sizeCurrent);
+                sizeRemaining -= sizeCurrent;
+                sizeCurrent = 0;
                 --samplesRemaining;
+                if (samplesRemaining == 0) {
+                    break;
+                }
             }
-            sizeTaken += sample->data_size_since_previous();
+            sizeCurrent += sample->data_size_since_previous();
         }
+        sizeMin = std::min(sizeMin, sizeRemaining);
+        sizeMax = std::max(sizeMax, sizeRemaining);
 
         // Do the final adjustments.
         PartitionCount = static_cast<int>(PartitionKeys.size()) + 1;
-        LOG_INFO("Using %d partitions", PartitionCount);
+
+        LOG_INFO("Using %d partitions (MinSize: % " PRId64 ", MaxSize: %" PRId64 ")",
+            PartitionCount,
+            sizeMin,
+            sizeMax);
     }
 
     void OnSamplesReceived()

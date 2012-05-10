@@ -138,20 +138,18 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
     auto this_ = MakeStrong(this);
 
     if (!error.IsOK()) {
-        LOG_WARNING("Replication failed (BlockIndex: %d)\n%s",
-            blockIndex,
-            ~error.ToString());
+        LOG_WARNING("Replication failed\n%s", ~error.ToString());
 
         State = EJobState::Failed;
         return;
     }
 
-    auto blocksExtension = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-    if (blockIndex >= static_cast<int>(blocksExtension->blocks_size())) {
+    auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
+    if (blockIndex >= static_cast<int>(blocksExt->blocks_size())) {
         LOG_DEBUG("All blocks are enqueued for replication");
 
         Writer
-            ->AsyncClose(std::vector<TSharedRef>(), ChunkMeta)
+            ->AsyncClose(ChunkMeta)
             .Subscribe(BIND([=] (TError error) {
                 if (error.IsOK()) {
                     LOG_DEBUG("Replication job completed");
@@ -179,18 +177,19 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
         .Subscribe(
             BIND([=] (TBlockStore::TGetBlockResult result) {
                 if (!result.IsOK()) {
-                    LOG_WARNING("Error getting block for replication (BlockIndex: %d)\n%s",
+                    LOG_WARNING("Error getting block %d for replication\n%s",
                         blockIndex,
                         ~result.ToString());
 
-                    this_->State = EJobState::Failed;
+                    State = EJobState::Failed;
                     return;
                 } 
 
-                std::vector<TSharedRef> blocks;
+                // XXX(babenko): changing yvector to std::vector causes ICE under VC
+                yvector<TSharedRef> blocks;
                 blocks.push_back(result.Value()->GetData());
-                this_->Writer
-                    ->AsyncWriteBlocks(MoveRV(blocks))
+                Writer
+                    ->AsyncWriteBlocks(blocks)
                     .Subscribe(BIND(
                         &TJob::ReplicateBlock,
                         this_,

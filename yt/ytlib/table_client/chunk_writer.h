@@ -69,7 +69,7 @@ private:
      *  - This counter is updated every #AsyncEndRow call.
      *  - This is an upper bound approximation of the size of written data.
      *    (Indeed, the counter includes compressed size of complete blocks and
-     *    uncompressed size of the incomplete blocks.)
+     *    uncompressed size of incomplete blocks.)
      */
     i64 CurrentSize;
 
@@ -93,6 +93,7 @@ private:
     ICodec* Codec;
     std::vector<TChannelWriterPtr> ChannelWriters;
 
+    NChunkHolder::NProto::TChunkMeta Meta;
     NProto::TChannelsExt ChannelsExt;
     NChunkHolder::NProto::TMiscExt MiscExt;
     NProto::TSamplesExt SamplesExt;
@@ -101,6 +102,8 @@ private:
     NProto::TIndexExt IndexExt;
 
     TSharedRef PrepareBlock(int channelIndex);
+
+    TAsyncError OnFinalBlocksWritten(TError error);
     
     void EmitIndexEntry(const TKey& key);
     void EmitSample(TRow& row);

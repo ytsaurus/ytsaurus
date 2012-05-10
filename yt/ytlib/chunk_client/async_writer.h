@@ -34,7 +34,7 @@ struct IAsyncWriter
      */
     virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks) = 0;
 
-    //! Called when the client has added all the blocks and is 
+    //! Called when the client has added all blocks and is 
     //! willing to finalize the upload.
     /*!
      *  The call completes immediately but returns a result that gets
@@ -43,10 +43,9 @@ struct IAsyncWriter
      *  Should be called only once.
      *  Calling #AsyncWriteBlock afterwards is an error.
      */
-    virtual TAsyncError AsyncClose(
-        const std::vector<TSharedRef>& lastBlocks,
-        const NChunkHolder::NProto::TChunkMeta& chunkMeta) = 0;
+    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta) = 0;
 
+    //! Returns the chunk info.
     /*!
      *  This method can only be called when the writer is successfully closed.
      *  

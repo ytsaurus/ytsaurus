@@ -23,7 +23,7 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger(OperationsLogger);
+static NLog::TLogger& Logger(OperationLogger);
 static NProfiling::TProfiler Profiler("/operations/map");
 
 ////////////////////////////////////////////////////////////////////

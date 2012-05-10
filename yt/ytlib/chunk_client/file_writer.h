@@ -25,9 +25,7 @@ public:
 
     virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
-    virtual TAsyncError AsyncClose(
-        const std::vector<TSharedRef>& blocks,
-        const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
     //! Returns chunk info. The writer must be already closed.
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;

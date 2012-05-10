@@ -154,8 +154,7 @@ void TSequentialReader::FetchNextGroup()
 
 void TSequentialReader::RequestBlocks(
     int firstIndex, 
-    const std::vector<int>& blockIndexes, 
-    TVoid)
+    const std::vector<int>& blockIndexes)
 {
     ChunkReader->AsyncReadBlocks(blockIndexes).Subscribe(BIND(
         &TSequentialReader::OnGotBlocks, 

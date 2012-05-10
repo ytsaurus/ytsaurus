@@ -60,7 +60,7 @@ public:
     void AddBlock(const TSharedRef& block);
     void Process();
     bool IsWritten() const;
-    int GetSize() const;
+    i64 GetSize() const;
 
     /*!
      * \note Thread affinity: any.
@@ -89,7 +89,7 @@ private:
     std::vector<TSharedRef> Blocks;
     int StartBlockIndex;
 
-    int Size;
+    i64 Size;
 
     TWeakPtr<TRemoteWriter> Writer;
 
@@ -164,7 +164,7 @@ int TRemoteWriter::TGroup::GetEndBlockIndex() const
     return StartBlockIndex + Blocks.size() - 1;
 }
 
-int TRemoteWriter::TGroup::GetSize() const
+i64 TRemoteWriter::TGroup::GetSize() const
 {
     return Size;
 }
@@ -423,6 +423,7 @@ TRemoteWriter::TRemoteWriter(
     , Addresses(addresses)
     , IsOpen(false)
     , IsInitComplete(false)
+    , IsClosing(false)
     , IsCloseRequested(false)
     , WindowSlots(config->WindowSize)
     , AliveHolderCount(addresses.size())
@@ -576,7 +577,8 @@ void TRemoteWriter::OnWindowShifted(int lastFlushedBlock)
         if (group->GetEndBlockIndex() > lastFlushedBlock)
             return;
 
-        LOG_DEBUG("Window shifted (BlockIndex: %d, Size: %d)",
+        LOG_DEBUG("Window %d-%d shifted (Size: %" PRId64 ")",
+            group->GetStartBlockIndex(),
             group->GetEndBlockIndex(),
             group->GetSize());
 
@@ -618,15 +620,15 @@ void TRemoteWriter::OnHolderFailed(THolderPtr holder)
     holder->IsAlive = false;
     --AliveHolderCount;
 
-    LOG_INFO("Holder %s failed, %d holders remaining",
+    LOG_INFO("Node %s failed, %d nodes remaining",
         ~holder->Address,
         AliveHolderCount);
 
     if (State.IsActive() && AliveHolderCount == 0) {
         TError error(
             TError::Fail,
-            Sprintf("All target holders failed (Addresses: [%s])", ~JoinToString(Addresses)));
-        LOG_WARNING("Chunk writing failed\n%s", ~error.ToString());
+            Sprintf("All target nodes [%s] have failed", ~JoinToString(Addresses)));
+        LOG_WARNING("Chunk writer failed\n%s", ~error.ToString());
         State.Fail(error);
     }
 }
@@ -645,7 +647,7 @@ void TRemoteWriter::CheckResponse(
         onSuccess.Run(rsp);
     } else {
         // TODO: retry?
-        LOG_ERROR("Error reported by holder %s\n%s",
+        LOG_ERROR("Error reported by node %s\n%s",
             ~holder->Address, 
             ~rsp->GetError().ToString());
         OnHolderFailed(holder);
@@ -726,7 +728,7 @@ void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto& chunkInfo = rsp->chunk_info();
-    LOG_DEBUG("Chunk is finished (Address: %s, Size: %" PRId64 ")",
+    LOG_DEBUG("Chunk is finished at %s (Size: %" PRId64 ")",
         ~holder->Address,
         chunkInfo.size());
 
@@ -735,10 +737,10 @@ void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::
         if (ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
             ChunkInfo.size() != chunkInfo.size()) 
         {
-            LOG_FATAL("Mismatched chunk info reported by holder (KnownInfo: %s, NewInfo: %s, Address: %s)",
+            LOG_FATAL("Mismatched chunk info reported by %s (KnownInfo: {%s}, NewInfo: {%s})",
+                ~holder->Address,
                 ~ChunkInfo.DebugString(),
-                ~chunkInfo.DebugString(),
-                ~holder->Address);
+                ~chunkInfo.DebugString());
         }
     } else {
         ChunkInfo = chunkInfo;
@@ -826,17 +828,18 @@ TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& block
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
+    YASSERT(!IsClosing);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
-    i64 sumSize = 0;
-    FOREACH (auto& block, blocks) {
-        sumSize += block.Size();
+    i64 blocksSize = 0;
+    FOREACH (const auto& block, blocks) {
+        blocksSize += block.Size();
     }
 
     State.StartOperation();
 
-    WindowSlots.AsyncAcquire(sumSize).Subscribe(BIND(
+    WindowSlots.AsyncAcquire(blocksSize).Subscribe(BIND(
         &TRemoteWriter::DoWriteBlocks,
         MakeWeak(this),
         blocks));
@@ -844,7 +847,7 @@ TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& block
     return State.GetOperationError();
 }
 
-void TRemoteWriter::DoWriteBlocks(const std::vector<TSharedRef>& blocks, TVoid)
+void TRemoteWriter::DoWriteBlocks(const std::vector<TSharedRef>& blocks)
 {
     if (State.IsActive()) {
         AddBlocks(blocks);
@@ -855,8 +858,10 @@ void TRemoteWriter::DoWriteBlocks(const std::vector<TSharedRef>& blocks, TVoid)
 
 void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
 {
-    FOREACH (auto& block, blocks) {
-        LOG_DEBUG("Block added (BlockIndex: %d)", BlockCount);
+    YASSERT(!IsClosing);
+
+    FOREACH (const auto& block, blocks) {
+        LOG_DEBUG("Block %d added", BlockCount);
 
         CurrentGroup->AddBlock(block);
         ++BlockCount;
@@ -872,9 +877,7 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     }
 }
 
-void TRemoteWriter::DoClose(
-    const std::vector<TSharedRef>& lastBlocks,
-    TVoid)
+void TRemoteWriter::DoClose()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
@@ -885,8 +888,6 @@ void TRemoteWriter::DoClose(
         State.FinishOperation();
         return;
     }
-
-    AddBlocks(MoveRV(lastBlocks));
 
     if (CurrentGroup->GetSize() > 0) {
         AddGroup(CurrentGroup);
@@ -899,29 +900,20 @@ void TRemoteWriter::DoClose(
     }
 }
 
-TAsyncError TRemoteWriter::AsyncClose(
-    const std::vector<TSharedRef>& lastBlocks,
-    const NChunkHolder::NProto::TChunkMeta& chunkMeta)
+TAsyncError TRemoteWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
     YASSERT(IsOpen);
+    YASSERT(!IsClosing);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
-    i64 sumSize = 0;
-    FOREACH (auto& block, lastBlocks) {
-        sumSize += block.Size();
-    }
-
+    IsClosing = true;
     ChunkMeta = chunkMeta;
 
-    LOG_DEBUG("Requesting writer to close.");
+    LOG_DEBUG("Requesting writer to close");
     State.StartOperation();
 
-    // XXX(sandello): Do you realize, that lastBlocks and meta are copied back and forth here?
-    WindowSlots.AsyncAcquire(sumSize).Subscribe(BIND(
-        &TRemoteWriter::DoClose,
-        MakeWeak(this),
-        lastBlocks).Via(WriterThread->GetInvoker()));
+    WriterThread->GetInvoker()->Invoke(BIND(&TRemoteWriter::DoClose, MakeWeak(this)));
 
     return State.GetOperationError();
 }
