@@ -165,6 +165,41 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
     }
 }
 
+void ParseKeyPart(
+    TTokenizer& tokenizer,
+    TKey* key)
+{
+    auto *keyPart = key->add_parts();
+
+    switch (tokenizer.GetCurrentType()) {
+        case ETokenType::String: {
+            auto value = tokenizer.Current().GetStringValue();
+            keyPart->set_str_value(value.begin(), value.size());
+            keyPart->set_type(EKeyType::String);
+            break;
+        }
+
+        case ETokenType::Integer: {
+            auto value = tokenizer.Current().GetIntegerValue();
+            keyPart->set_int_value(value);
+            keyPart->set_type(EKeyType::Integer);
+            break;
+        }
+
+        case ETokenType::Double: {
+            auto value = tokenizer.Current().GetDoubleValue();
+            keyPart->set_double_value(value);
+            keyPart->set_type(EKeyType::Double);
+            break;
+        }
+
+        default:
+            ThrowUnexpectedToken(tokenizer.Current());
+            break;
+    }
+    tokenizer.ParseNext();
+}
+
 void ParseRowLimit(
     TTokenizer& tokenizer,
     ETokenType separator,
@@ -176,15 +211,6 @@ void ParseRowLimit(
     }
 
     switch (tokenizer.GetCurrentType()) {
-        //ToDo(psushin): make other yson types possible.
-        case ETokenType::String: {
-            auto *keyPart = limit->mutable_key()->add_parts();
-            auto value = tokenizer.Current().GetStringValue();
-            keyPart->set_str_value(value.begin(), value.size());
-            keyPart->set_type(EKeyType::String);
-            break;
-        }
-
         case ETokenType::Hash:
             tokenizer.ParseNext();
             limit->set_row_index(tokenizer.Current().GetIntegerValue());
@@ -194,12 +220,7 @@ void ParseRowLimit(
             tokenizer.ParseNext();
             limit->mutable_key();
             while (tokenizer.GetCurrentType() != ETokenType::RightParenthesis) {
-                auto *keyPart = limit->mutable_key()->add_parts();
-                auto value = tokenizer.Current().GetStringValue();
-                keyPart->set_str_value(value.begin(), value.size());
-                keyPart->set_type(EKeyType::String);
-
-                tokenizer.ParseNext();
+                ParseKeyPart(tokenizer, limit->mutable_key());
                 switch (tokenizer.GetCurrentType()) {
                     case ETokenType::Comma:
                         tokenizer.ParseNext();
@@ -214,7 +235,7 @@ void ParseRowLimit(
             break;
 
         default:
-            ThrowUnexpectedToken(tokenizer.Current());
+            ParseKeyPart(tokenizer, limit->mutable_key());
             break;
     }
 
