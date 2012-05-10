@@ -34,11 +34,11 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, con
             if (tokenizer.GetCurrentType() == ETokenType::At) {
                 return ResolveAttributes(TYPath(tokenizer.GetCurrentSuffix()), verb);
             } else {
-                return ResolveRecursive(TYPath(tokenizer.GetCurrentInput()), verb);
+                return ResolveRecursive(TYPath(tokenizer.CurrentInput()), verb);
             }
 
         default:
-            ThrowUnexpectedToken(tokenizer.Current());
+            ThrowUnexpectedToken(tokenizer.CurrentToken());
             YUNREACHABLE();
     }
 }
@@ -115,12 +115,12 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
                 if (tokenizer.GetCurrentType() == ETokenType::At) { \
                     verb##Attribute(TYPath(tokenizer.GetCurrentSuffix()), request, response, ~context); \
                 } else { \
-                    verb##Recursive(TYPath(tokenizer.GetCurrentInput()), request, response, ~context); \
+                    verb##Recursive(TYPath(tokenizer.CurrentInput()), request, response, ~context); \
                 } \
                 break; \
             \
             default: \
-                ThrowUnexpectedToken(tokenizer.Current()); \
+                ThrowUnexpectedToken(tokenizer.CurrentToken()); \
                 YUNREACHABLE(); \
         } \
     } \
@@ -418,13 +418,13 @@ void TSupportsAttributes::GetAttribute(
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                Stroka(tokenizer.Current().GetStringValue()));
+                Stroka(tokenizer.CurrentToken().GetStringValue()));
 
         if (!tokenizer.ParseNext()) {
             response->set_value(yson);
         } else {
             auto wholeValue = DeserializeFromYson(yson);
-            auto value = SyncYPathGet(~wholeValue, TYPath(tokenizer.GetCurrentInput()));
+            auto value = SyncYPathGet(~wholeValue, TYPath(tokenizer.CurrentInput()));
             response->set_value(value);
         }
     }
@@ -452,7 +452,7 @@ void TSupportsAttributes::ListAttribute(
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                Stroka(tokenizer.Current().GetStringValue())));
+                Stroka(tokenizer.CurrentToken().GetStringValue())));
         keys = SyncYPathList(~wholeValue, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
@@ -494,7 +494,7 @@ void TSupportsAttributes::SetAttribute(
             DoSetAttribute(userAttributes, systemAttributeProvider, key, value);
         }
     } else {
-        auto key = Stroka(tokenizer.Current().GetStringValue());
+        auto key = Stroka(tokenizer.CurrentToken().GetStringValue());
         if (!tokenizer.ParseNext()) {
             if (key.Empty()) {
                 ythrow yexception() << "Attribute key cannot be empty";
@@ -513,7 +513,7 @@ void TSupportsAttributes::SetAttribute(
                     key,
                     &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathSet(~wholeValue, TYPath(tokenizer.GetCurrentInput()), request->value());
+            SyncYPathSet(~wholeValue, TYPath(tokenizer.CurrentInput()), request->value());
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,
@@ -543,7 +543,7 @@ void TSupportsAttributes::RemoveAttribute(
             YVERIFY(userAttributes->Remove(key));
         }
     } else {
-        auto key = Stroka(tokenizer.Current().GetStringValue());
+        auto key = Stroka(tokenizer.CurrentToken().GetStringValue());
         if (!tokenizer.ParseNext()) {
             if (!DoRemoveAttribute(userAttributes, systemAttributeProvider, key)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found",
@@ -557,7 +557,7 @@ void TSupportsAttributes::RemoveAttribute(
                 key,
                 &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathRemove(~wholeValue, TYPath(tokenizer.GetCurrentInput()));
+            SyncYPathRemove(~wholeValue, TYPath(tokenizer.CurrentInput()));
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,

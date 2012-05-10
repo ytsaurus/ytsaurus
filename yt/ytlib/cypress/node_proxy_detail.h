@@ -567,7 +567,7 @@ protected:
         if (!tokenizer.ParseNext()) {
             ythrow yexception() << "Node already exists";
         }
-        tokenizer.Current().CheckType(NYTree::ETokenType::Slash);
+        tokenizer.CurrentToken().CheckType(NYTree::ETokenType::Slash);
 
         auto cypressManager = this->Bootstrap->GetCypressManager();
 

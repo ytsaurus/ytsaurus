@@ -226,7 +226,7 @@ void TArgsParserBase::ApplyConfigUpdates(IYPathServicePtr service)
                 ythrow yexception() << "Incorrect option";
             }
         }
-        TStringBuf ypath = TStringBuf(updateString).Chop(tokenizer.GetCurrentInput().length());
+        TStringBuf ypath = TStringBuf(updateString).Chop(tokenizer.CurrentInput().length());
         SyncYPathSet(service, TYPath(ypath), TYson(tokenizer.GetCurrentSuffix()));
     }
 }

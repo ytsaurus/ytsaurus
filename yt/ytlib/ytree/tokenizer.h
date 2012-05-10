@@ -16,10 +16,10 @@ public:
     explicit TTokenizer(const TStringBuf& input);
 
     bool ParseNext();
-    const TToken& Current() const;
+    const TToken& CurrentToken() const;
     ETokenType GetCurrentType() const;
     TStringBuf GetCurrentSuffix() const;
-    const TStringBuf& GetCurrentInput() const;
+    const TStringBuf& CurrentInput() const;
 
 private:
     TStringBuf Input;

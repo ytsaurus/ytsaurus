@@ -34,7 +34,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    Stroka key(tokenizer.Current().GetStringValue());
+    Stroka key(tokenizer.CurrentToken().GetStringValue());
 
     auto service = GetItemService(key);
     if (!service) {

@@ -121,7 +121,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
             bool isRange = false;
             switch (tokenizer.GetCurrentType()) {
                 case ETokenType::String:
-                    begin.assign(tokenizer.Current().GetStringValue());
+                    begin.assign(tokenizer.CurrentToken().GetStringValue());
                     tokenizer.ParseNext();
                     if (tokenizer.GetCurrentType() == ETokenType::Colon) {
                         isRange = true;
@@ -133,13 +133,13 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
                     tokenizer.ParseNext();
                     break;
                 default:
-                    ThrowUnexpectedToken(tokenizer.Current());
+                    ThrowUnexpectedToken(tokenizer.CurrentToken());
                     YUNREACHABLE();
             }
             if (isRange) {
                 switch (tokenizer.GetCurrentType()) {
                     case ETokenType::String: {
-                        Stroka end(tokenizer.Current().GetStringValue());
+                        Stroka end(tokenizer.CurrentToken().GetStringValue());
                         channel->AddRange(begin, end);
                         tokenizer.ParseNext();
                         break;
@@ -148,7 +148,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
                         channel->AddRange(TRange(begin));
                         break;
                     default:
-                        ThrowUnexpectedToken(tokenizer.Current());
+                        ThrowUnexpectedToken(tokenizer.CurrentToken());
                         YUNREACHABLE();
                 }
             } else {
@@ -161,7 +161,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
                 case ETokenType::RightBrace:
                     break;
                 default:
-                    ThrowUnexpectedToken(tokenizer.Current());
+                    ThrowUnexpectedToken(tokenizer.CurrentToken());
                     YUNREACHABLE();
             }
         }
@@ -179,28 +179,28 @@ void ParseKeyPart(
 
     switch (tokenizer.GetCurrentType()) {
         case ETokenType::String: {
-            auto value = tokenizer.Current().GetStringValue();
+            auto value = tokenizer.CurrentToken().GetStringValue();
             keyPart->set_str_value(value.begin(), value.size());
             keyPart->set_type(EKeyType::String);
             break;
         }
 
         case ETokenType::Integer: {
-            auto value = tokenizer.Current().GetIntegerValue();
+            auto value = tokenizer.CurrentToken().GetIntegerValue();
             keyPart->set_int_value(value);
             keyPart->set_type(EKeyType::Integer);
             break;
         }
 
         case ETokenType::Double: {
-            auto value = tokenizer.Current().GetDoubleValue();
+            auto value = tokenizer.CurrentToken().GetDoubleValue();
             keyPart->set_double_value(value);
             keyPart->set_type(EKeyType::Double);
             break;
         }
 
         default:
-            ThrowUnexpectedToken(tokenizer.Current());
+            ThrowUnexpectedToken(tokenizer.CurrentToken());
             break;
     }
     tokenizer.ParseNext();
@@ -219,7 +219,7 @@ void ParseRowLimit(
     switch (tokenizer.GetCurrentType()) {
         case ETokenType::Hash:
             tokenizer.ParseNext();
-            limit->set_row_index(tokenizer.Current().GetIntegerValue());
+            limit->set_row_index(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
             break;
 
@@ -235,7 +235,7 @@ void ParseRowLimit(
                     case ETokenType::RightParenthesis:
                         break;
                     default:
-                        ThrowUnexpectedToken(tokenizer.Current());
+                        ThrowUnexpectedToken(tokenizer.CurrentToken());
                         YUNREACHABLE();
                 }
             }
@@ -247,7 +247,7 @@ void ParseRowLimit(
             break;
     }
 
-    tokenizer.Current().CheckType(separator);
+    tokenizer.CurrentToken().CheckType(separator);
     tokenizer.ParseNext();
 }
 
@@ -561,7 +561,7 @@ void TTableNodeProxy::ParseYPath(
     tokenizer.ParseNext();
     ParseChannel(tokenizer, channel);
     ParseRowLimits(tokenizer, lowerBound, upperBound);
-    tokenizer.Current().CheckType(ETokenType::EndOfStream);
+    tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)

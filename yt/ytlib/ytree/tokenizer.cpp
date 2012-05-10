@@ -17,10 +17,10 @@ bool TTokenizer::ParseNext()
     Lexer.Reset();
     Parsed = Lexer.Read(Input);
     Lexer.Finish();
-    return !Current().IsEmpty();
+    return !CurrentToken().IsEmpty();
 }
 
-const TToken& TTokenizer::Current() const
+const TToken& TTokenizer::CurrentToken() const
 {
     return Lexer.GetState() == TLexer::EState::Terminal
         ? Lexer.GetToken()
@@ -29,7 +29,7 @@ const TToken& TTokenizer::Current() const
 
 ETokenType TTokenizer::GetCurrentType() const
 {
-    return Current().GetType();
+    return CurrentToken().GetType();
 }
 
 TStringBuf TTokenizer::GetCurrentSuffix() const
@@ -37,7 +37,7 @@ TStringBuf TTokenizer::GetCurrentSuffix() const
     return Input.Tail(Parsed);
 }
 
-const TStringBuf& TTokenizer::GetCurrentInput() const
+const TStringBuf& TTokenizer::CurrentInput() const
 {
     return Input;
 }

@@ -101,7 +101,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    Stroka name(tokenizer.Current().GetStringValue());
+    Stroka name(tokenizer.CurrentToken().GetStringValue());
 
     if (name.Empty()) {
         ythrow yexception() << Sprintf("Child name cannot be empty");
@@ -136,7 +136,7 @@ void TMapNodeMixin::SetRecursive(
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    Stroka childName(tokenizer.Current().GetStringValue());
+    Stroka childName(tokenizer.CurrentToken().GetStringValue());
     YASSERT(!tokenizer.ParseNext());
     YASSERT(!childName.empty());
     YASSERT(!FindChild(childName));
@@ -154,32 +154,32 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     switch (tokenizer.GetCurrentType()) {
         case ETokenType::Plus:
             tokenizer.ParseNext();
-            tokenizer.Current().CheckType(ETokenType::EndOfStream);
+            tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here("/" + path);
 
         case ETokenType::Integer: {
-            int index = NormalizeAndCheckIndex(tokenizer.Current().GetIntegerValue());
+            int index = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
             if (tokenizer.GetCurrentType() == ETokenType::Caret) {
                 tokenizer.ParseNext();
-                tokenizer.Current().CheckType(ETokenType::EndOfStream);
+                tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
                 return IYPathService::TResolveResult::Here("/" + path);
             } else {
                 auto child = FindChild(index);
                 YASSERT(child);
-                return IYPathService::TResolveResult::There(~child, TYPath(tokenizer.GetCurrentInput()));
+                return IYPathService::TResolveResult::There(~child, TYPath(tokenizer.CurrentInput()));
             }
         }
 
         case ETokenType::Caret:
             tokenizer.ParseNext();
-            NormalizeAndCheckIndex(tokenizer.Current().GetIntegerValue());
+            NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
-            tokenizer.Current().CheckType(ETokenType::EndOfStream);
+            tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here("/" + path);
 
         default:
-            ThrowUnexpectedToken(tokenizer.Current());
+            ThrowUnexpectedToken(tokenizer.CurrentToken());
             YUNREACHABLE();
     }
 }
@@ -208,12 +208,12 @@ void TListNodeMixin::SetRecursive(
 
         case ETokenType::Caret:
             tokenizer.ParseNext();
-            beforeIndex = NormalizeAndCheckIndex(tokenizer.Current().GetIntegerValue());
+            beforeIndex = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
             YASSERT(!tokenizer.ParseNext());
             break;
 
         case ETokenType::Integer:
-            beforeIndex = NormalizeAndCheckIndex(tokenizer.Current().GetIntegerValue()) + 1;
+            beforeIndex = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue()) + 1;
             tokenizer.ParseNext();
             YASSERT(tokenizer.GetCurrentType() == ETokenType::Caret);
             YASSERT(!tokenizer.ParseNext());
