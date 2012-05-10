@@ -217,10 +217,10 @@ private:
                         chunk.set_row_attributes(rowAttributes.Get());
                     }
 
-                    auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
 
-                    i64 rowCount = misc->row_count();
-                    i64 dataSize = misc->uncompressed_size();
+                    i64 rowCount = miscExt->row_count();
+                    i64 dataSize = miscExt->uncompressed_size();
 
                     // TODO(babenko): make customizable
                     // Plus one is to ensure that weights are positive.
