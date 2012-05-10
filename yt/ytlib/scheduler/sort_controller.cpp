@@ -448,6 +448,7 @@ private:
                 *partitionJobSpec.add_partition_keys() = *key;
             }
             *partitionJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            ToProto(partitionJobSpec.mutable_key_columns(), Spec->KeyColumns);
             *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = partitionJobSpec;
 
             PartitionJobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
