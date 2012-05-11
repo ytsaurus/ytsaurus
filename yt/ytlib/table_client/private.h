@@ -9,6 +9,8 @@ namespace NTableClient {
 
 extern NLog::TLogger TableClientLogger;
 
+extern int DefaultPartitionTag;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

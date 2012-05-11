@@ -22,7 +22,8 @@ public:
         TChunkSequenceReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        const std::vector<NProto::TInputChunk>& inputChunks);
+        const std::vector<NProto::TInputChunk>& inputChunks,
+        int partitionTag = -1);
 
     TAsyncError AsyncOpen();
 
@@ -49,6 +50,7 @@ private:
     TAsyncStreamState State;
 
     int NextChunkIndex;
+    int PartitionTag;
     TPromise<TChunkReaderPtr> NextReader;
     TChunkReaderPtr CurrentReader;
 };

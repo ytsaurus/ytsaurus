@@ -110,7 +110,8 @@ public:
         TChunkReaderPtr chunkReader, 
         NChunkClient::IAsyncReaderPtr asyncReader,
         const NProto::TReadLimit& startLimit,
-        const NProto::TReadLimit& endLimit)
+        const NProto::TReadLimit& endLimit,
+        int partitionTag)
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
@@ -118,6 +119,7 @@ public:
         , StartLimit(startLimit)
         , EndLimit(endLimit)
         , HasRangeRequest(false)
+        , PartitionTag(partitionTag)
     { }
 
     void Initialize()
@@ -126,6 +128,7 @@ public:
         YASSERT(chunkReader);
 
         std::vector<int> tags;
+        tags.reserve(10);
         tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>());
         tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
         tags.push_back(GetProtoExtensionTag<NProto::TChannelsExt>());
@@ -133,6 +136,8 @@ public:
         HasRangeRequest =
             (StartLimit.has_key() && (StartLimit.key().parts_size() > 0)) ||
             (EndLimit.has_key() && (EndLimit.key().parts_size() > 0));
+
+        YASSERT(PartitionTag == DefaultPartitionTag || !HasRangeRequest);
 
         if (HasRangeRequest) {
             tags.push_back(GetProtoExtensionTag<NProto::TIndexExt>());
@@ -269,6 +274,8 @@ private:
         ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(
             result.Value().extensions());
 
+        YASSERT(PartitionTag == DefaultPartitionTag || ChannelsExt->items_size() == 1);
+
         SelectChannels(chunkReader);
         YASSERT(SelectedChannels.size() > 0);
 
@@ -354,10 +361,15 @@ private:
                 ++blockIndex;
                 YASSERT(blockIndex < static_cast<int>(protoChannel.blocks_size()));
                 const auto& protoBlock = protoChannel.blocks(blockIndex);
+
+                YASSERT((protoBlock.partition_tag() == DefaultPartitionTag && PartitionTag == DefaultPartitionTag) ||
+                    (protoBlock.partition_tag() != DefaultPartitionTag && PartitionTag != DefaultPartitionTag));
+
+
                 startRow = lastRow;
                 lastRow += protoBlock.row_count();
 
-                if (lastRow > StartRowIndex) {
+                if (lastRow > StartRowIndex && protoBlock.partition_tag() == PartitionTag) {
                     blockHeap.push_back(TBlockInfo(
                         protoBlock.block_index(),
                         blockIndex,
@@ -385,6 +397,7 @@ private:
             auto currentBlock = blockHeap.front();
             int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
             const auto& protoChannel = ChannelsExt->items(currentBlock.ChannelIndex);
+            int lastRow = currentBlock.LastRow;
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
             blockHeap.pop_back();
@@ -398,16 +411,27 @@ private:
                 break;
             }
 
-            const auto& protoBlock = protoChannel.blocks(nextBlockIndex);
+            while (nextBlockIndex < protoChannel.blocks_size()) {
+                const auto& protoBlock = protoChannel.blocks(nextBlockIndex);
+                YASSERT((protoBlock.partition_tag() == DefaultPartitionTag && PartitionTag == DefaultPartitionTag) ||
+                    (protoBlock.partition_tag() != DefaultPartitionTag && PartitionTag != DefaultPartitionTag));
 
-            blockHeap.push_back(TBlockInfo(
-                protoBlock.block_index(),
-                nextBlockIndex,
-                currentBlock.ChannelIndex,
-                currentBlock.LastRow + protoBlock.row_count()));
+                lastRow += protoBlock.row_count();
 
-            std::push_heap(blockHeap.begin(), blockHeap.end());
-            result.push_back(protoBlock.block_index());
+                if (protoBlock.partition_tag() != PartitionTag) {
+                    ++nextBlockIndex;
+                } else {
+                    blockHeap.push_back(TBlockInfo(
+                        protoBlock.block_index(),
+                        nextBlockIndex,
+                        currentBlock.ChannelIndex,
+                        lastRow));
+
+                    std::push_heap(blockHeap.begin(), blockHeap.end());
+                    result.push_back(protoBlock.block_index());
+                    break;
+                }
+            }
         }
 
         return result;
@@ -513,6 +537,8 @@ private:
      */
     std::vector<i64> StartRows;
     bool HasRangeRequest;
+
+    int PartitionTag;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -524,6 +550,7 @@ TChunkReader::TChunkReader(
     const NProto::TReadLimit& startLimit,
     const NProto::TReadLimit& endLimit,
     const NYTree::TYson& rowAttributes,
+    int partitionTag,
     TOptions options)
     : Codec(NULL)
     , SequentialReader(NULL)
@@ -542,7 +569,8 @@ TChunkReader::TChunkReader(
         this, 
         chunkReader, 
         startLimit, 
-        endLimit);
+        endLimit,
+        partitionTag);
 }
 
 TAsyncError TChunkReader::AsyncOpen()

@@ -23,13 +23,15 @@ TChunkSequenceReader::TChunkSequenceReader(
     TChunkSequenceReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
-    const std::vector<NProto::TInputChunk>& fetchedChunks)
+    const std::vector<NProto::TInputChunk>& fetchedChunks,
+    int partitionTag)
     : Config(config)
     , BlockCache(blockCache)
     , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
     , NextChunkIndex(-1)
     , NextReader(NewPromise<TChunkReaderPtr>())
+    , PartitionTag(partitionTag)
 {
     PrepareNextChunk();
 }

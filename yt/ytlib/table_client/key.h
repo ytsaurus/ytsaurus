@@ -3,8 +3,6 @@
 #include "public.h"
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/misc/blob_output.h>
-#include <ytlib/misc/blob_range.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/property.h>
 
@@ -23,6 +21,7 @@ DECLARE_ENUM(EKeyType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TStrType>
 class TKeyPart
 {
     DEFINE_BYVAL_RO_PROPERTY(EKeyType, Type);
@@ -30,7 +29,7 @@ class TKeyPart
 public:
     static TKeyPart CreateNull();
     static TKeyPart CreateComposite();
-    static TKeyPart CreateValue(const TBlobRange& value);
+    static TKeyPart CreateValue(const TStrType& value);
     static TKeyPart CreateValue(i64 value);
     static TKeyPart CreateValue(double value);
 
@@ -50,16 +49,16 @@ private:
     // The actual value. 
     i64 IntValue;
     double DoubleValue;
-
-    // Pointer to an internal buffer inside the key.
-    TBlobRange StrValue;
+    TStrType StrValue;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
-int CompareKeys(const TKey& lhs, const TKey& rhs);
+
+template<class TLhsBuffer, class TRhsBuffer>
+int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs);
 
 bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs);
 bool operator >= (const NProto::TKey& lhs, const NProto::TKey& rhs);
@@ -69,6 +68,7 @@ bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TBuffer>
 class TKey
     : public TNonCopyable
 {
@@ -77,7 +77,7 @@ public:
     /* 
      *  \param maxSize maximum string key size.
      */
-    explicit TKey(int columnCount = 0, size_t maxSize = 4096);
+    explicit TKey(int columnCount = 0);
 
     void SetValue(int index, i64 value);
     void SetValue(int index, double value);
@@ -86,7 +86,6 @@ public:
     void SetComposite(int index);
 
     void Reset(int columnCount = -1);
-    void Swap(TKey& other);
 
     size_t GetSize() const;
 
@@ -97,13 +96,13 @@ public:
     void FromProto(const NProto::TKey& protoKey);
 
 private:
-    friend int CompareKeys(const TKey& lhs, const TKey& rhs);
+    template<class TLhsBuffer, class TRhsBuffer>
+    friend int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs);
 
-    const size_t MaxSize;
     int ColumnCount;
 
-    std::vector<TKeyPart> Parts;
-    TAutoPtr<TBlobOutput> Buffer;
+    std::vector< TKeyPart<TBuffer::TStrType> > Parts;
+    TBuffer Buffer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

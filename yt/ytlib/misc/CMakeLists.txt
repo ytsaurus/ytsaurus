@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
   ${BASE}/checksum.cpp
+  ${BASE}/chunked_buffer.cpp
   ${BASE}/codec.cpp
   ${BASE}/configurable.cpp
   ${BASE}/delayed_invoker.cpp
@@ -43,6 +44,7 @@ set( HDRS
   ${BASE}/cache-inl.h
   ${BASE}/cache.h
   ${BASE}/checksum.h
+  ${BASE}/chunked_buffer.h
   ${BASE}/codec.h
   ${BASE}/common.h
   ${BASE}/configurable-inl.h

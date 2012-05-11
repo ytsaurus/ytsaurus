@@ -22,7 +22,7 @@ TKeyPart TKeyPart::CreateComposite()
     return result;
 }
 
-TKeyPart TKeyPart::CreateValue(const TBlobRange& value)
+TKeyPart TKeyPart::CreateValue(const TStringBuf& value)
 {
     TKeyPart result;
     result.Type_ = EKeyType::String;
@@ -104,7 +104,7 @@ NProto::TKeyPart TKeyPart::ToProto(size_t maxSize) const
     keyPart.set_type(Type_);
 
     switch (Type_) {
-	    case EKeyType::String:
+        case EKeyType::String:
             keyPart.set_str_value(StrValue.GetStringBuf().begin(), StrValue.GetStringBuf().size());
             break;
 
@@ -132,7 +132,7 @@ NProto::TKeyPart TKeyPart::ToProto(size_t maxSize) const
 TKey::TKey(int columnCount, size_t maxSize)
     : MaxSize(maxSize)
     , ColumnCount(columnCount)
-    , Buffer(new TBlobOutput(maxSize))
+    , Buffer(columnCount * maxSize)
     , Parts(ColumnCount)
 { }
 
@@ -162,20 +162,9 @@ void TKey::SetComposite(int index)
     Parts[index] = TKeyPart::CreateComposite();
 }
 
-void TKey::Swap(TKey& other)
-{
-    // May be one day these asserts will be deprecated.
-    YASSERT(MaxSize == other.MaxSize);
-    YASSERT(ColumnCount == other.ColumnCount);
-
-    Parts.swap(other.Parts);
-    std::swap(Buffer, other.Buffer);
-}
-
-// TODO(babenko): implement!
 Stroka TKey::ToString() const
 {
-    return "";//return JoinToString(Parts);
+    return JoinToString(Parts);
 }
 
 NProto::TKey TKey::ToProto() const
