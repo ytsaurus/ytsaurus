@@ -280,7 +280,7 @@ public:
     }
 
 
-    void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
+    void AttachToChunkList(TChunkList& chunkList, const std::vector<TChunkTreeRef>& children)
     {
         auto objectManager = Bootstrap->GetObjectManager();
         TChunkTreeStatistics statisticsDelta;
@@ -449,8 +449,147 @@ private:
         }
     }
 
+
+    // TODO(roizner): consider extracting TChunkBalancer
+
+    void MergeChunkRef(std::vector<TChunkTreeRef>& children, const TChunkTreeRef& child) {
+        // We are trying to add the child to the last chunk list.
+        auto* lastChunkList = children.back().AsChunkList();
+        YASSERT(lastChunkList->GetObjectRefCounter() <= 1);
+        YASSERT(lastChunkList->Children().size() < Config->MinChunkListSize);
+        switch (child.GetType()) {
+            case EObjectType::Chunk: {
+                // Just adding the chunk to the last chunk list.
+                std::vector<TChunkTreeRef> childVec;
+                childVec.push_back(child);
+                AttachToChunkList(*lastChunkList, childVec);
+                break;
+            }
+            case EObjectType::ChunkList: {
+                const auto& chunkList = *child.AsChunkList();
+                if (lastChunkList->Children().size() + chunkList.Children().size() <=
+                    Config->MaxChunkListSize)
+                {
+                    // Just appending the chunk list to the last chunk list.
+                    AttachToChunkList(*lastChunkList, chunkList.Children());
+                } else {
+                    // The chunk list is too large. We have to copy chunks by blocks.
+                    i32 mergedCount = 0;
+                    std::vector<TChunkTreeRef> childrenToAttach;
+                    while (mergedCount < chunkList.Children().size()) {
+                        if (lastChunkList->Children().size() >= Config->MinChunkListSize) {
+                            // The last chunk list is too large. Creating a new one.
+                            YASSERT(lastChunkList->Children().size() == Config->MinChunkListSize);
+                            lastChunkList = &CreateChunkList();
+                            children.push_back(TChunkTreeRef(lastChunkList));
+                        }
+
+                        i32 count =
+                            Min(Config->MinChunkListSize - lastChunkList->Children().size(),
+                                chunkList.Children().size() - mergedCount);
+                        childrenToAttach.assign(
+                            chunkList.Children().begin() + mergedCount,
+                            chunkList.Children().begin() + mergedCount + count);
+
+                        // TODO: consider using iterators in AttachToChunkList instead of vector
+                        AttachToChunkList(*lastChunkList, childrenToAttach);
+
+                        mergedCount += count;
+                    }
+                }
+                break;
+            }
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void AddChunkRef(std::vector<TChunkTreeRef>& children, const TChunkTreeRef& child)
+    {
+        // Expand child if it has high rank
+        if (child.GetType() == EObjectType::ChunkList) {
+            const auto& chunkList = *child.AsChunkList();
+            if (chunkList.Statistics().Rank > 1) {
+                FOREACH (const auto& childRef, chunkList.Children()) {
+                    AddChunkRef(children, childRef);
+                }
+                return;
+            }
+        }
+
+        // Can we reuse last chunk list?
+        bool merge = false;
+        if (!children.empty()) {
+            auto& lastChild = *children.back().AsChunkList();
+            if (lastChild.Children().size() < Config->MinChunkListSize) {
+                YASSERT(lastChild.Statistics().Rank == 1);
+                YASSERT(lastChild.Children().size() <= Config->MaxChunkListSize);
+                if (lastChild.GetObjectRefCounter() > 1) {
+                    // We want to merge to this chunk list but it is shared.
+                    // Copying on write.
+                    children.pop_back();
+                    auto& newChunkList = CreateChunkList();
+                    AttachToChunkList(newChunkList, lastChild.Children());
+                    children.push_back(TChunkTreeRef(&newChunkList));
+                }
+                merge = true;
+            }
+        }
+
+        // Trying to add the child as is.
+        if (!merge) {
+            if (child.GetType() == EObjectType::ChunkList &&
+                child.AsChunkList()->Children().size() <= Config->MaxChunkListSize)
+            {
+                children.push_back(child);
+                return;
+            }
+
+            // We need to split the child. So we use usual merging.
+            auto& newChunkList = CreateChunkList();
+            children.push_back(TChunkTreeRef(&newChunkList));
+        }
+
+        // Merge!
+        MergeChunkRef(children, child);
+    }
+
     void RebalanceChunkTree(TChunkList& root) {
-        UNUSED(root);
+        if (root.Statistics().Rank <= Config->MaxChunkTreeRank) {
+            return;
+        }
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto oldStatistics = root.Statistics();
+        auto oldChildren = root.Children();
+
+        // Clear root
+        root.Children().clear(); // we'll drop the references later
+        root.RowCountSums().clear();
+        YASSERT(root.Parents().empty());
+        root.Statistics() = TChunkTreeStatistics();
+
+        FOREACH (const auto& childRef, oldChildren) {
+            ResetChunkTreeParent(root, childRef);
+        }
+
+        std::vector<TChunkTreeRef> newChildren;
+        FOREACH (const auto& childRef, oldChildren) {
+            AddChunkRef(newChildren, childRef);
+        }
+
+        AttachToChunkList(root, newChildren);
+
+        // Drop old references to children.
+        FOREACH (const auto& childRef, oldChildren) {
+            objectManager->UnrefObject(childRef.GetId());
+        }
+
+        const auto& newStatistics = root.Statistics();
+        YASSERT(newStatistics.RowCount == oldStatistics.RowCount);
+        YASSERT(newStatistics.UncompressedSize == oldStatistics.UncompressedSize);
+        YASSERT(newStatistics.CompressedSize == oldStatistics.CompressedSize);
+        YASSERT(newStatistics.ChunkCount == oldStatistics.ChunkCount);
     }
 
     void SetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
@@ -1521,7 +1660,7 @@ private:
         context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
 
         auto objectManager = Bootstrap->GetObjectManager();
-        yvector<TChunkTreeRef> children;
+        std::vector<TChunkTreeRef> children;
         FOREACH (const auto& childId, childrenIds) {
             if (!objectManager->ObjectExists(childId)) {
                 ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
@@ -1641,7 +1780,7 @@ TChunkList& TChunkManager::CreateChunkList()
     return Impl->CreateChunkList();
 }
 
-void TChunkManager::AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
+void TChunkManager::AttachToChunkList(TChunkList& chunkList, const std::vector<TChunkTreeRef>& children)
 {
     Impl->AttachToChunkList(chunkList, children);
 }

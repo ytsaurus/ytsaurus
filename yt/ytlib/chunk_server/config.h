@@ -68,6 +68,10 @@ struct TChunkManagerConfig
     double ActiveSessionsPenalityCoeff;
     TJobSchedulerConfigPtr Jobs;
 
+    i32 MaxChunkTreeRank;
+    i32 MinChunkListSize;
+    i32 MaxChunkListSize;
+
     TChunkManagerConfig()
     {
         Register("online_holder_timeout", OnlineHolderTimeout)
@@ -88,6 +92,15 @@ struct TChunkManagerConfig
             .Default(0.1);
         Register("jobs", Jobs)
             .DefaultNew();
+        Register("max_chunk_tree_rank", MaxChunkTreeRank)
+            .GreaterThan(2)
+            .Default(10);
+        Register("min_chunk_list_size", MinChunkListSize)
+            .GreaterThan(0)
+            .Default(1024);
+        Register("min_chunk_list_size", MaxChunkListSize)
+            .GreaterThan(0)
+            .Default(2048);
     }
 };
 
