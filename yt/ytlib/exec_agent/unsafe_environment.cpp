@@ -106,7 +106,7 @@ public:
                 strerror(errno));
 
             // TODO(babenko): use some meaningful constant
-            exit(7);
+            _exit(7);
         }
 
         if (ProcessId < 0) {
