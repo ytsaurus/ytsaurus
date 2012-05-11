@@ -95,7 +95,7 @@ TChunkWriter::TChunkWriter(
 
 TAsyncError TChunkWriter::AsyncOpen()
 {
-    // No thread affinity check here - 
+    // No thread affinity check here:
     // TChunkSequenceWriter may call it from different threads.
     YASSERT(!IsOpen);
     YASSERT(!IsClosed);
