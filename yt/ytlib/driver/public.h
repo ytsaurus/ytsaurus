@@ -22,6 +22,8 @@ typedef TIntrusivePtr<ICommand> ICommandPtr;
 
 struct ICommandHost;
 
+struct TFormat;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NDriver
