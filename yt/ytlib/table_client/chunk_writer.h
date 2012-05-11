@@ -95,7 +95,7 @@ private:
     //! Approximate size of collected index.
     i64 IndexSize;
 
-    double CompressionRate;
+    double CompressionRatio;
 
     ICodec* Codec;
     std::vector<TChannelWriterPtr> ChannelWriters;

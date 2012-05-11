@@ -47,7 +47,7 @@ struct TChunkWriterConfig
     //! Fraction of rows data size samples are allowed to occupy.
     double IndexRate;
 
-    double EstimatedCompressionRate;
+    double EstimatedCompressionRatio;
 
     TChunkWriterConfig()
     {
@@ -65,7 +65,7 @@ struct TChunkWriterConfig
             .GreaterThan(0)
             .LessThan(0.1)
             .Default(0.01);
-        Register("estimated_compression_rate", EstimatedCompressionRate)
+        Register("estimated_compression_ratio", EstimatedCompressionRatio)
             .GreaterThan(0)
             .LessThan(1)
             .Default(0.2);

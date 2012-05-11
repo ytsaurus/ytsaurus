@@ -47,7 +47,7 @@ TChunkWriter::TChunkWriter(
     , DataSizeSinceLastSample(0)
     , SamplesSize(0)
     , IndexSize(0)
-    , CompressionRate(config->EstimatedCompressionRate)
+    , CompressionRatio(config->EstimatedCompressionRatio)
     , BasicMetaSize(0)
 {
     YASSERT(config);
@@ -144,7 +144,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
     }
 
     DataSize += rowDataSize;
-    if (SamplesSize < Config->SampleRate * DataSize * CompressionRate) {
+    if (SamplesSize < Config->SampleRate * DataSize * CompressionRatio) {
         EmitSample(row);
         RowCountSinceLastSample = 0;
         DataSizeSinceLastSample = 0;
@@ -158,7 +158,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
             *BoundaryKeysExt.mutable_left() = key.ToProto();
         }
 
-        if (IndexSize < Config->IndexRate * DataSize * CompressionRate) {
+        if (IndexSize < Config->IndexRate * DataSize * CompressionRatio) {
             EmitIndexEntry(key);
         }
     }
@@ -185,7 +185,7 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
     SentSize += data.Size();
 
-    CompressionRate = SentSize / double(DataSize);
+    CompressionRatio = SentSize / double(DataSize + 1);
 
     ++CurrentBlockIndex;
 
