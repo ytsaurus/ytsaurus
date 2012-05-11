@@ -58,4 +58,21 @@ const TBlob* TBlobOutput::GetBlob() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTransparentOutput::TTransparentOutput(size_t capacity)
+{
+
+}
+
+const TStrType TTransparentOutput::PutData(const TStringBuf& value)
+{
+
+}
+
+void TTransparentOutput::Clear()
+{
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

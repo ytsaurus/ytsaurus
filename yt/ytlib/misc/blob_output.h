@@ -31,10 +31,23 @@ public:
     void Clear();
     TSharedRef Flush(size_t size);
 
-    void Swap(TBlobOutput& other);
-
 private:
     TBlob Blob;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TTransparentOutput
+{
+public:
+    typedef TStringBuf TStrType;
+
+    // Unused parameter, required for compatibility with TBlobOutput.
+    TTransparentOutput(size_t capacity);
+
+    const TStrType PutData(const TStringBuf& value);
+
+    void Clear();
 };
 
 ///////////////////////////////////////////////////////////////////////////////

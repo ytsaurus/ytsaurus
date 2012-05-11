@@ -23,6 +23,17 @@ TStringBuf TBlobRange::GetStringBuf() const
     return TStringBuf(Blob->begin() + Offset, Length);
 }
 
+TBlob::const_iterator TBlobRange::begin() const
+{
+    return Blob->begin() + Offset;
+}
+
+size_t TBlobRange::size() const
+{
+    return Length;
+}
+
+
 bool operator==(const TBlobRange& lhs, const TBlobRange& rhs)
 {
     return lhs.GetStringBuf() == rhs.GetStringBuf();
