@@ -60,6 +60,7 @@ void TResourceTracker::EnqueueUsage()
             fields = splitStroku(cpuStatFile.ReadLine(), " ");
         } catch (const TIoException&) {
             // Ignore all IO exceptions.
+            continue;
         }
 
         Stroka threadName = fields[1].substr(1, fields[1].size() - 2);
