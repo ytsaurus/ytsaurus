@@ -22,7 +22,6 @@ struct TChunkTreeStatistics
     { }
 
     void Accumulate(const TChunkTreeStatistics& other);
-    void Negate();
 
     void Save(TOutputStream* output) const;
     void Load(TInputStream* input);

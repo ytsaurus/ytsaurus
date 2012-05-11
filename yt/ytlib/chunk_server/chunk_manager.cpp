@@ -293,25 +293,6 @@ public:
         }
     }
 
-    void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
-    {
-        auto objectManager = Bootstrap->GetObjectManager();
-        yhash_set<TChunkTreeRef> childrenSet(children.begin(), children.end());
-        auto it = chunkList.Children().begin();
-        while (it != chunkList.Children().end()) {
-            auto jt = it;
-            ++jt;
-            const auto& childRef = *it;
-            if (childrenSet.find(childRef) != childrenSet.end()) {
-                chunkList.Children().erase(it);
-                ResetChunkTreeParent(chunkList, childRef, true);
-                objectManager->UnrefObject(childRef.GetId());
-            }
-            it = jt;
-        }
-    }
-
-
     void ScheduleJobs(
         THolder& holder,
         const yvector<TJobInfo>& runningJobs,
@@ -435,7 +416,7 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-    void UpdateStatistics(TChunkList& chunkList, const TChunkTreeRef& childRef, bool negate)
+    void UpdateStatistics(TChunkList& chunkList, const TChunkTreeRef& childRef)
     {
         // Compute delta.
         TChunkTreeStatistics delta;
@@ -448,11 +429,6 @@ private:
                 break;
             default:
                 YUNREACHABLE();
-        }
-
-        // Negate delta if necessary.
-        if (negate) {
-            delta.Negate();
         }
 
         // Go upwards and apply delta.
@@ -479,17 +455,14 @@ private:
             auto* childChunkList = childRef.AsChunkList();
             YVERIFY(childChunkList->Parents().insert(&parent).second);
         }
-        UpdateStatistics(parent, childRef, false);
+        UpdateStatistics(parent, childRef);
     }
 
-    void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef, bool updateStatistics)
+    void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
     {
         if (childRef.GetType() == EObjectType::ChunkList) {
             auto* childChunkList = childRef.AsChunkList();
             YVERIFY(childChunkList->Parents().erase(&parent) == 1);
-        }
-        if (updateStatistics) {
-            UpdateStatistics(parent, childRef, true);
         }
     }
 
@@ -526,7 +499,7 @@ private:
         auto objectManager = Bootstrap->GetObjectManager();
         // Drop references to children.
         FOREACH (const auto& childRef, chunkList.Children()) {
-            ResetChunkTreeParent(chunkList, childRef, false);
+            ResetChunkTreeParent(chunkList, childRef);
             objectManager->UnrefObject(childRef.GetId());
         }
     }
@@ -1560,30 +1533,6 @@ private:
 
         context->Reply();
     }
-
-//    DECLARE_RPC_SERVICE_METHOD(NProto, Detach)
-//    {
-//        UNUSED(response);
-
-//        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
-
-//        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
-
-//        auto objectManager = Bootstrap->GetObjectManager();
-//        yvector<TChunkTreeRef> children;
-//        FOREACH (const auto& childId, childrenIds) {
-//            if (!objectManager->ObjectExists(childId)) {
-//                ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
-//            }
-//            auto chunkRef = Owner->GetChunkTree(childId);
-//            children.push_back(chunkRef);
-//        }
-
-//        auto& chunkList = GetTypedImpl();
-//        Owner->DetachFromChunkList(chunkList, children);
-
-//        context->Reply();
-//    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1693,11 +1642,6 @@ TChunkList& TChunkManager::CreateChunkList()
 void TChunkManager::AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
 {
     Impl->AttachToChunkList(chunkList, children);
-}
-
-void TChunkManager::DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
-{
-    Impl->DetachFromChunkList(chunkList, children);
 }
 
 void TChunkManager::ScheduleJobs(

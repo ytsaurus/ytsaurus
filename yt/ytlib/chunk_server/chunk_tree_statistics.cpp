@@ -14,14 +14,6 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     ChunkCount += other.ChunkCount;
 }
 
-void TChunkTreeStatistics::Negate()
-{
-    RowCount = -RowCount;
-    UncompressedSize = -UncompressedSize;
-    CompressedSize = -CompressedSize;
-    ChunkCount = -ChunkCount;
-}
-
 void TChunkTreeStatistics::Save(TOutputStream* output) const
 {
     ::Save(output, RowCount);

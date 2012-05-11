@@ -77,7 +77,6 @@ public:
     TChunkList& CreateChunkList();
 
     void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef> &children);
-    void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children);
 
     void ScheduleJobs(
         THolder& holder,
