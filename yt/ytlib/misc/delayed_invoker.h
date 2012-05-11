@@ -27,7 +27,7 @@ private:
         TClosure Action;
         std::set<TEntryPtr, TEntryComparer>::iterator Iterator;
 
-        TEntry(const TClosure& action, TInstant deadline)
+        TEntry(TClosure action, TInstant deadline)
             : Valid(true)
             , Deadline(deadline)
             , Action(MoveRV(action))
