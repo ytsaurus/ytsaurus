@@ -436,6 +436,7 @@ private:
         // Check that parents are unique along the way.
         auto* current = &chunkList;
         for (;;) {
+            ++delta.Rank;
             current->Statistics().Accumulate(delta);
             current->SetSorted(false);
 

@@ -38,6 +38,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     YASSERT(ChunkInfo().size() != TChunk::UnknownSize);
     result.CompressedSize = ChunkInfo().size();
     result.ChunkCount = 1;
+    result.Rank = 0;
 
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(ChunkMeta().extensions());
     result.UncompressedSize = miscExt->uncompressed_size();
