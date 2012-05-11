@@ -129,11 +129,6 @@ private:
             : TotalPartitionJobCount - CompletedPartitionJobCount;
     }
 
-    bool HasPendingPartitionJobs()
-    {
-        return PendingPartitionChunkCount > 0;
-    }
-
     int GetPendingSortJobCount()
     {
         int result = 0;
@@ -148,15 +143,9 @@ private:
     {
         i64 weight = partition->SortChunkPool->GetTotalWeight();
         i64 weightPerChunk = Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize;
-        return HasPendingPartitionJobs()
+        return GetPendingPartitionJobCount() > 0
             ? static_cast<int>(floor((double) weight / weightPerChunk))
             : static_cast<int>(ceil((double) weight / weightPerChunk));
-    }
-
-    bool HasPendingSortJobs()
-    {
-        const auto* largestPartition = *SortWeightOrderedPartitions.begin();
-        return GetPendingSortJobCount(largestPartition) > 0;
     }
 
     // Job scheduling and outcome handling.
@@ -177,20 +166,25 @@ private:
             return NULL;
         }
 
-        // We've got a job to do! :)
-        if (HasPendingPartitionJobs()) {
-            return SchedulePartitionJob(node);
+        auto partitionJob = TrySchedulePartitionJob(node);
+        if (partitionJob) {
+            return partitionJob;
         }
 
-        if (HasPendingSortJobs()) {
-            return ScheduleSortJob(node);
+        auto sortJob = TryScheduleSortJob(node);
+        if (sortJob) {
+            return sortJob;
         }
 
         YUNREACHABLE();
     }
 
-    TJobPtr SchedulePartitionJob(TExecNodePtr node)
+    TJobPtr TrySchedulePartitionJob(TExecNodePtr node)
     {
+        if (!PartitionChunkPool->HasPendingChunks()) {
+            return NULL;
+        }
+
         // Allocate chunks for the job.
         auto jip = New<TPartitionJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(GetPendingPartitionJobCount(), PendingPartitionWeight);
@@ -259,9 +253,9 @@ private:
         ReleaseChunkList(jip->ChunkListId);
     }
 
-    TJobPtr ScheduleSortJob(TExecNodePtr node)
+    TJobPtr TryScheduleSortJob(TExecNodePtr node)
     {
-        YUNIMPLEMENTED();
+        return NULL;
     }
 
 
