@@ -79,11 +79,12 @@ Handle<Value> TNodeJSInputStream::DoPush(Handle<Value> buffer, char *data, size_
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TPart part;
-    part.Buffer = Persistent<Value>::New(buffer);
-    part.Data   = data;
-    part.Offset = offset;
-    part.Length = length;
+    TPart* part  = new TPart(); assert(part);
+    part->Stream = this;
+    part->Handle = handle;
+    part->Data   = data;
+    part->Offset = offset;
+    part->Length = length;
 
     {
         TGuard guard(&Mutex);
@@ -149,13 +150,15 @@ void TNodeJSInputStream::DoSweep()
         jt = Queue.end();
 
     while (it != jt) {
-        TPart& current = *it;
+        TPart* part = *it;
 
-        if (current.Length > 0) {
+        if (part->Length > 0) {
             break;
         } else {
-            current.Buffer.Dispose();
-            current.Buffer.Clear();
+            part->Handle.Dispose();
+            part->Handle.Clear();
+            delete part;
+
             ++it;
         }
     }
@@ -220,23 +223,23 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
         bool canReadSomething = false;
 
         while (length > 0 && it != jt) {
-            TPart& current = *it;
+            TPart* part = *it;
 
-            canRead = std::min(length, current.Length);
+            canRead = std::min(length, part->Length);
             canReadSomething |= (canRead > 0);
 
             ::memcpy(
                 (char*)buffer + result,
-                current.Data + current.Offset,
+                part->Data + part->Offset,
                 canRead);
 
             result += canRead;
             length -= canRead;
 
-            current.Offset += canRead;
-            current.Length -= canRead;
+            part->Offset += canRead;
+            part->Length -= canRead;
 
-            assert(length == 0 || current.Length == 0);
+            assert(length == 0 || part->Length == 0);
 
             ++it;
         }

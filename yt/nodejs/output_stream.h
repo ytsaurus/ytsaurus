@@ -20,32 +20,21 @@ public:
     // Synchronous JS API.
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
-    static v8::Handle<v8::Value> Pull(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoPull();
-
     // Asynchronous JS API.
-    static void AsyncWriteCallback(uv_work_t* request);
-    void EnqueueWriteCallback();
-    void DoWriteCallback();
+    static void AsyncOnWrite(uv_work_t* request);
+    void EnqueueOnWrite(TPart* part);
+    void DoOnWrite(TPart* part);
 
     // C++ API.
     void Write(const void* buffer, size_t length);
-
-private:
-    static void DeleteCallback(char* data, void* hint);
-
-    pthread_mutex_t Mutex;
-    TQueue Queue;
-
-    uv_work_t WriteCallbackRequest;
 };
 
-inline void TNodeJSOutputStream::EnqueueWriteCallback()
+inline void TNodeJSOutputStream::EnqueueOnWrite(TPart* part)
 {
     // Post to V8 thread.
     uv_queue_work(
-        uv_default_loop(), &WriteCallbackRequest,
-        DoNothing, TNodeJSOutputStream::AsyncWriteCallback);
+        uv_default_loop(), &part->Request,
+        DoNothing, TNodeJSOutputStream::AsyncOnWrite);
 }
 
 void ExportOutputStream(v8::Handle<v8::Object> target);

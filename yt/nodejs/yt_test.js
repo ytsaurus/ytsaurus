@@ -1,12 +1,12 @@
-var yt = require('./build/Release/yt_test');
+var binding = require('./build/Release/yt_test');
 
 var expect = require('chai').expect;
 var assert = require('chai').assert;
 
 describe("input stream interface", function() {
     beforeEach(function() {
-        this.stream = new yt.TNodeJSInputStream();
-        this.reader = new yt.TTestInputStream(this.stream);
+        this.stream = new binding.TNodeJSInputStream();
+        this.reader = new binding.TTestInputStream(this.stream);
     });
 
     it("should be able to read whole input byte-by-byte", function() {
@@ -102,42 +102,36 @@ describe("input stream interface", function() {
 
 describe("output stream interface", function() {
     beforeEach(function() {
-        this.stream = new yt.TNodeJSOutputStream();
-        this.writer = new yt.TTestOutputStream(this.stream);
-
-        this.stream.on_write_calls = 0;
-        this.stream.on_write = (function() {
-            ++this.stream.on_write_calls;
-        }).bind(this);
+        this.stream = new binding.TNodeJSOutputStream();
+        this.writer = new binding.TTestOutputStream(this.stream);
     });
-
-    var expectWriteCalls = function(stream, n, done) {
-        return (function() {
-            assert.strictEqual(stream.on_write_calls, n);
-            done();
-        }).bind(this);
-    };
 
     it("should be able to write one chunk", function(done) {
+        this.stream.on_write = (function(chunk) {
+            expect(chunk.toString()).to.be.equal("hello");
+            done();
+        }).bind(this);
+
         this.writer.WriteSynchronously("hello");
-
-        expect(this.stream.Pull().toString())
-            .to.be.equal("hello");
-
-        // Force rescheduling of the following expectation.
-        setTimeout(expectWriteCalls(this.stream, 1, done), 0);
     });
 
-    it("should be able to write two chunks", function(done) {
+    it("should be able to write many chunks", function(done) {
+        this.stream.on_write_calls = 0;
+        this.stream.on_write = (function(chunk) {
+            switch (this.stream.on_write_calls) {
+                case 0:
+                    expect(chunk.toString()).to.be.equal("hello");
+                    break;
+                case 1:
+                    expect(chunk.toString()).to.be.equal("dolly");
+                    break;
+            }
+            if (++this.stream.on_write_calls > 1) {
+                done();
+            }
+        }).bind(this);
+
         this.writer.WriteSynchronously("hello");
         this.writer.WriteSynchronously("dolly");
-
-        expect(this.stream.Pull().toString())
-            .to.be.equal("hello");
-        expect(this.stream.Pull().toString())
-            .to.be.equal("dolly");
-
-        // Force rescheduling of the following expectation.
-        setTimeout(expectWriteCalls(this.stream, 2, done), 0);
     });
 });

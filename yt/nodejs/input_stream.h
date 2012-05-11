@@ -39,6 +39,7 @@ public:
 
 private:
     bool IsAlive;
+
     pthread_mutex_t Mutex;
     pthread_cond_t Conditional;
     TQueue Queue;
