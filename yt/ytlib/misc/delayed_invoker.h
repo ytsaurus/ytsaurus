@@ -15,12 +15,12 @@ private:
     struct TEntryComparer;
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
-    struct TDelayedInvoker::TEntryComparer
+    struct TEntryComparer
     {
         bool operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const;
     };
 
-    struct TDelayedInvoker::TEntry
+    struct TEntry
         : public TIntrinsicRefCounted
     {
         bool Valid;
