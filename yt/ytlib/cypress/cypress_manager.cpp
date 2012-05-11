@@ -849,21 +849,21 @@ void TCypressManager::ReleaseLocks(const TTransaction& transaction)
     }
 }
 
-void TCypressManager::MergeBranchedNode(
-    TTransaction& transaction,
-    ICypressNode* branchedNode)
+void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode* branchedNode)
 {
-    // No merge for Snapshot locks.
-    YASSERT(branchedNode->GetLockMode() != ELockMode::Snapshot);
-
+    auto handler = GetHandler(*branchedNode);
     auto parentTransaction = transaction.GetParent();
     auto branchedId = branchedNode->GetId();
     auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
     auto* originatingNode = NodeMap.Find(originatingId);
     if (originatingNode) {
         // Merge the changes back (unless the node is locked in Snapshot mode).
-        if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
-            GetHandler(*branchedNode)->Merge(*originatingNode, *branchedNode);
+        if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
+            handler->Destroy(*branchedNode);
+            LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedId.ToString());
+        } else {
+            handler->Merge(*originatingNode, *branchedNode);
+            LOG_INFO_IF(!IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
         }
 
         // Remove the branched copy.
@@ -882,8 +882,6 @@ void TCypressManager::MergeBranchedNode(
         // Drop the implicit reference to the originator.
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->UnrefObject(originatingId.ObjectId);
-
-        LOG_INFO_IF(!IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
     } else {
         // Promote branched node to the parent transaction.
         YASSERT(parentTransaction);
