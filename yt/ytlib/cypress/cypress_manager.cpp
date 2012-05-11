@@ -837,8 +837,8 @@ void TCypressManager::OnTransactionAborted(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    RemoveBranchedNodes(transaction);
     ReleaseLocks(transaction);
+    RemoveBranchedNodes(transaction);
     ReleaseCreatedNodes(transaction);
 }
 
