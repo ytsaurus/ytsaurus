@@ -225,11 +225,14 @@ class YTEnv:
 
             log_path = os.path.join(current, 'logs')
             snapshot_path = os.path.join(current, 'snapshots')
+
             logging_file_name = os.path.join(current, 'master-' + str(i) + '.log')
+            debugging_file_name = os.path.join(current, 'master-' + str(i) + '.debug.log')
 
             master_config['meta_state']['changelogs']['path'] = log_path
             master_config['meta_state']['snapshots']['path'] = snapshot_path
             master_config['logging']['writers']['file']['file_name'] = logging_file_name
+            master_config['logging']['writers']['raw']['file_name'] = debugging_file_name
 
             self.modify_master_config(master_config)
             deepupdate(master_config, self.DELTA_MASTER_CONFIG)
