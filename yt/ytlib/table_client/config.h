@@ -47,6 +47,8 @@ struct TChunkWriterConfig
     //! Fraction of rows data size samples are allowed to occupy.
     double IndexRate;
 
+    double EstimatedCompressionRate;
+
     TChunkWriterConfig()
     {
         // Block less than 1Kb is nonsense.
@@ -63,7 +65,10 @@ struct TChunkWriterConfig
             .GreaterThan(0)
             .LessThan(0.1)
             .Default(0.01);
-        
+        Register("estimated_compression_rate", EstimatedCompressionRate)
+            .GreaterThan(0)
+            .LessThan(1)
+            .Default(0.2);
     }
 };
 
@@ -73,6 +78,7 @@ struct TChunkSequenceWriterConfig
     : public TConfigurable
 {
     i64 DesiredChunkSize;
+    i64 MaxMetaSize;
 
     int ReplicationFactor;
     int UploadReplicationFactor;
@@ -85,6 +91,10 @@ struct TChunkSequenceWriterConfig
         Register("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
             .Default(1024 * 1024 * 1024);
+        Register("max_meta_size", MaxMetaSize)
+            .GreaterThan(0)
+            .LessThan(64 * 1024 * 1024)
+            .Default(30 * 1024 * 1024);
         Register("replication_factor", ReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(3);

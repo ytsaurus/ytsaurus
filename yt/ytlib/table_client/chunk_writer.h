@@ -44,6 +44,8 @@ public:
     i64 GetCurrentSize() const;
     NChunkHolder::NProto::TChunkMeta GetMasterMeta() const;
 
+    i64 GetMetaSize() const;
+
 private:
     friend class TChunkSequenceWriter;
 
@@ -93,8 +95,12 @@ private:
     //! Approximate size of collected index.
     i64 IndexSize;
 
+    double CompressionRate;
+
     ICodec* Codec;
     std::vector<TChannelWriterPtr> ChannelWriters;
+
+    i64 BasicMetaSize;
 
     NChunkHolder::NProto::TChunkMeta Meta;
     NProto::TChannelsExt ChannelsExt;

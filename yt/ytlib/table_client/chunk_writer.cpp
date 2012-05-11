@@ -47,6 +47,8 @@ TChunkWriter::TChunkWriter(
     , DataSizeSinceLastSample(0)
     , SamplesSize(0)
     , IndexSize(0)
+    , CompressionRate(config->EstimatedCompressionRate)
+    , BasicMetaSize(0)
 {
     YASSERT(config);
     YASSERT(chunkWriter);
@@ -87,6 +89,8 @@ TChunkWriter::TChunkWriter(
         *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel, ColumnIndexes));
     }
+
+    BasicMetaSize = ChannelsExt.ByteSize() + MiscExt.ByteSize();
 }
 
 TAsyncError TChunkWriter::AsyncOpen()
@@ -140,7 +144,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
     }
 
     DataSize += rowDataSize;
-    if (SamplesSize < Config->SampleRate * DataSize) {
+    if (SamplesSize < Config->SampleRate * DataSize * CompressionRate) {
         EmitSample(row);
         RowCountSinceLastSample = 0;
         DataSizeSinceLastSample = 0;
@@ -154,7 +158,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
             *BoundaryKeysExt.mutable_left() = key.ToProto();
         }
 
-        if (IndexSize < Config->IndexRate * DataSize) {
+        if (IndexSize < Config->IndexRate * DataSize * CompressionRate) {
             EmitIndexEntry(key);
         }
     }
@@ -180,6 +184,9 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
     auto data = Codec->Compress(block);
 
     SentSize += data.Size();
+
+    CompressionRate = SentSize / double(DataSize);
+
     ++CurrentBlockIndex;
 
     return data;
@@ -336,6 +343,11 @@ NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const
     }
 
     return meta;
+}
+
+i64 TChunkWriter::GetMetaSize() const
+{
+    return BasicMetaSize + SamplesSize + IndexSize + (CurrentBlockIndex + 1) * sizeof(NProto::TBlockInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
