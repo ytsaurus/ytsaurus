@@ -344,7 +344,7 @@ NConfig::TParameter<T>& TConfigurable::Register(const Stroka& parameterName, T& 
 template <class T>
 inline TIntrusivePtr<T> CloneConfigurable(TIntrusivePtr<T> obj)
 {
-    return DeserializeFromYson<T>(SerializeToYson(obj));
+    return NYTree::DeserializeFromYson<T>(NYTree::SerializeToYson(obj));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
