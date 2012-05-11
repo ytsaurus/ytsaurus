@@ -208,7 +208,7 @@ class TestLockCommands(YTEnvSetup):
         abort_transaction(tx = tx_id)
 
 
-    def test_shared_locks(self):
+    def test_shared_locks_on_different_types(self):
 
         types_to_check = """
         string_node
@@ -248,6 +248,23 @@ class TestLockCommands(YTEnvSetup):
                 expect_ok( lock('//some', mode = 'shared', tx = tx_id))
 
             expect_ok( abort_transaction(tx = tx_id))
+    
+    @pytest.mark.xfail(run = False, reason = 'Issue #196')
+    def test_snapshot_lock(self):
+        expect_ok(set('//node', '42'))
+        
+        tx_id = start_transaction()
+        expect_ok(lock('//node', mode = 'snapshot', tx = tx_id))
+        
+        expect_ok(set('//node', '100'))
+        # check that node under snapshot lock wasn't changed
+        assert_eq(get('//node', tx = tx_id), '42')
+
+        expect_ok(remove('//node'))
+        # check that node under snapshot lock still exist
+        assert_eq(get('//node', tx = tx_id), '42')
+        
+        expect_ok(abort_transaction(tx = tx_id))
 
     @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
