@@ -1370,7 +1370,7 @@ private:
         attributes->push_back("uncompressed_data_size");
         attributes->push_back("codec_id");
         attributes->push_back(TAttributeInfo("row_count", miscExt->has_row_count()));
-        attributes->push_back("sorted");
+        attributes->push_back(TAttributeInfo("sorted", miscExt->has_sorted()));
         attributes->push_back("master_meta_size");
         attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
