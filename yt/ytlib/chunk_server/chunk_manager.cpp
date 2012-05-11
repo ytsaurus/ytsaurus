@@ -1361,10 +1361,17 @@ private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         const auto& chunk = GetTypedImpl();
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.ChunkMeta().extensions());
+
         attributes->push_back("confirmed");
         attributes->push_back("cached_locations");
         attributes->push_back("stored_locations");
         attributes->push_back("replication_factor");
+        attributes->push_back("uncompressed_data_size");
+        attributes->push_back("codec_id");
+        attributes->push_back(TAttributeInfo("row_count", miscExt->has_row_count()));
+        attributes->push_back("sorted");
+        attributes->push_back("master_meta_size");
         attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
         TBase::GetSystemAttributes(attributes);
@@ -1373,6 +1380,7 @@ private:
     virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
         const auto& chunk = GetTypedImpl();
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.ChunkMeta().extensions());
 
         if (name == "confirmed") {
             BuildYsonFluently(consumer)
@@ -1407,6 +1415,36 @@ private:
         if (name == "replication_factor") {
             BuildYsonFluently(consumer)
                 .Scalar(chunk.GetReplicationFactor());
+            return true;
+        }
+
+        if (name == "uncompressed_data_size") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->uncompressed_size());
+            return true;
+        }
+
+        if (name == "row_count") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->row_count());
+            return true;
+        }
+
+        if (name == "codec_id") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->codec_id());
+            return true;
+        }
+
+        if (name == "sorted") {
+            BuildYsonFluently(consumer)
+                .Scalar(FormatBool(miscExt->sorted()));
+            return true;
+        }
+
+        if (name == "master_meta_size") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->ByteSize());
             return true;
         }
 
