@@ -97,6 +97,8 @@ private:
 
     void OnClose();
 
+    void SwitchSession();
+
     TChunkSequenceWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     const std::vector<TChannel> Channels;

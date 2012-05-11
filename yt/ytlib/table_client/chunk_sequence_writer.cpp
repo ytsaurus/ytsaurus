@@ -183,7 +183,18 @@ void TChunkSequenceWriter::OnRowWritten(TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) {
+    if (CurrentSession.ChunkWriter->GetMetaSize() > Config->MaxMetaSize) {
+        LOG_DEBUG("Switching to next chunk: too big chunk meta (TransactionId: %s, ChunkMetaSize: %" PRId64,
+            ~TransactionId.ToString(),
+            CurrentSession.ChunkWriter->GetMetaSize());
+
+        SwitchSession();
+        return;
+    }
+
+
+    if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) 
+    {
         auto currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
         auto expectedInputSize = currentDataSize * std::max(.0, 1. - Progress);
 
@@ -195,17 +206,22 @@ void TChunkSequenceWriter::OnRowWritten(TError error)
                 CurrentSession.ChunkWriter->GetCurrentSize(),
                 expectedInputSize);
 
-            YASSERT(!NextSession.IsNull());
-            // We're not waiting for chunk to be closed.
-            FinishCurrentSession();
-            NextSession.Subscribe(BIND(
-                &TChunkSequenceWriter::InitCurrentSession,
-                MakeWeak(this)));
+            SwitchSession();
             return;
         }
     }
 
     State.FinishOperation(error);
+}
+
+void TChunkSequenceWriter::SwitchSession()
+{
+    YASSERT(!NextSession.IsNull());
+    // We're not waiting for chunk to be closed.
+    FinishCurrentSession();
+    NextSession.Subscribe(BIND(
+        &TChunkSequenceWriter::InitCurrentSession,
+        MakeWeak(this)));
 }
 
 void TChunkSequenceWriter::FinishCurrentSession()
