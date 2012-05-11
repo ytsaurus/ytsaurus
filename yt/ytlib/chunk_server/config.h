@@ -98,7 +98,7 @@ struct TChunkManagerConfig
         Register("min_chunk_list_size", MinChunkListSize)
             .GreaterThan(0)
             .Default(1024);
-        Register("min_chunk_list_size", MaxChunkListSize)
+        Register("max_chunk_list_size", MaxChunkListSize)
             .GreaterThan(0)
             .Default(2048);
     }
