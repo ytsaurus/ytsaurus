@@ -442,37 +442,7 @@ void TTestOutputStream::WriteAfter(uv_work_t* workRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InitInputStream(Handle<Object> target)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSInputStream::New);
-
-    tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Push", TNodeJSInputStream::Push);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Sweep", TNodeJSInputStream::Sweep);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Close", TNodeJSInputStream::Close);
-
-    tpl->SetClassName(String::NewSymbol("TNodeJSInputStream"));
-    target->Set(String::NewSymbol("TNodeJSInputStream"), tpl->GetFunction());
-}
-
-void InitOutputStream(Handle<Object> target)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSOutputStream::New);
-
-    tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Pull", TNodeJSOutputStream::Pull);
-
-    tpl->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
-    target->Set(String::NewSymbol("TNodeJSOutputStream"), tpl->GetFunction());
-}
-
-void InitTestInputStream(Handle<Object> target)
+void ExportTestInputStream(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -487,7 +457,7 @@ void InitTestInputStream(Handle<Object> target)
     target->Set(String::NewSymbol("TTestInputStream"), tpl->GetFunction());
 }
 
-void InitTestOutputStream(Handle<Object> target)
+void ExportTestOutputStream(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -502,19 +472,19 @@ void InitTestOutputStream(Handle<Object> target)
     target->Set(String::NewSymbol("TTestOutputStream"), tpl->GetFunction());
 }
 
-void InitYT(Handle<Object> target)
+void ExportYT(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    InitInputStream(target);
-    InitOutputStream(target);
-    InitTestInputStream(target);
-    InitTestOutputStream(target);
+    ExportInputStream(target);
+    ExportOutputStream(target);
+    ExportTestInputStream(target);
+    ExportTestOutputStream(target);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-NODE_MODULE(yt_test, NYT::InitYT)
+NODE_MODULE(yt_test, NYT::ExportYT)

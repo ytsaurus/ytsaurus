@@ -114,4 +114,22 @@ void TNodeJSOutputStream::DeleteCallback(char *data, void *hint)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ExportOutputStream(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    OnWriteSymbol = NODE_PSYMBOL("on_write");
+
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSOutputStream::New);
+
+    tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Pull", TNodeJSOutputStream::Pull);
+
+    tpl->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
+    target->Set(String::NewSymbol("TNodeJSOutputStream"), tpl->GetFunction());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

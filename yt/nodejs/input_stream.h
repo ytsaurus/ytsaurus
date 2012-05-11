@@ -65,6 +65,8 @@ inline void TNodeJSInputStream::EnqueueClose()
         TNodeJSInputStream::AsyncClose, DoNothing);
 }
 
+void ExportInputStream(v8::Handle<v8::Object> target);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

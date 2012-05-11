@@ -258,4 +258,22 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ExportInputStream(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSInputStream::New);
+
+    tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Push", TNodeJSInputStream::Push);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Sweep", TNodeJSInputStream::Sweep);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Close", TNodeJSInputStream::Close);
+
+    tpl->SetClassName(String::NewSymbol("TNodeJSInputStream"));
+    target->Set(String::NewSymbol("TNodeJSInputStream"), tpl->GetFunction());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

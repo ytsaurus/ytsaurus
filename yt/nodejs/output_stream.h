@@ -37,6 +37,8 @@ private:
     TQueue Queue;
 };
 
+void ExportOutputStream(v8::Handle<v8::Object> target);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
