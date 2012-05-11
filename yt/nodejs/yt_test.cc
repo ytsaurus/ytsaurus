@@ -233,7 +233,7 @@ Handle<Value> TTestInputStream::Read(const Arguments& args)
     return Undefined();
 }
 
-void TTestInputStream::ReadWork(uv_work_t *workRequest)
+void TTestInputStream::ReadWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
     TReadRequest* request =
@@ -242,7 +242,7 @@ void TTestInputStream::ReadWork(uv_work_t *workRequest)
     request->Length = request->Stream->Slave->Read(request->Buffer, request->Length);
 }
 
-void TTestInputStream::ReadAfter(uv_work_t *workRequest)
+void TTestInputStream::ReadAfter(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -418,7 +418,7 @@ Handle<Value> TTestOutputStream::Write(const Arguments& args)
     return Undefined();
 }
 
-void TTestOutputStream::WriteWork(uv_work_t *workRequest)
+void TTestOutputStream::WriteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
     TWriteRequest* request =
@@ -427,7 +427,7 @@ void TTestOutputStream::WriteWork(uv_work_t *workRequest)
     assert(0);
 }
 
-void TTestOutputStream::WriteAfter(uv_work_t *workRequest)
+void TTestOutputStream::WriteAfter(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;

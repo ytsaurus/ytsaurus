@@ -25,12 +25,12 @@ public:
 
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Sweep(const v8::Arguments& args);
-    static void AsyncSweep(uv_work_t *request);
+    static void AsyncSweep(uv_work_t* request);
     void EnqueueSweep();
     void DoSweep();
 
     static v8::Handle<v8::Value> Close(const v8::Arguments& args);
-    static void AsyncClose(uv_work_t *request);
+    static void AsyncClose(uv_work_t* request);
     void EnqueueClose();
     void DoClose();
 

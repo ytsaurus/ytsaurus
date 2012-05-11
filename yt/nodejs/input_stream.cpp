@@ -118,7 +118,7 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
 }
 
 
-void TNodeJSInputStream::AsyncSweep(uv_work_t *request)
+void TNodeJSInputStream::AsyncSweep(uv_work_t* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSInputStream* stream =
@@ -184,7 +184,7 @@ Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
     return Undefined();
 }
 
-void TNodeJSInputStream::AsyncClose(uv_work_t *request)
+void TNodeJSInputStream::AsyncClose(uv_work_t* request)
 {
     THREAD_AFFINITY_IS_UV();
     TNodeJSInputStream* stream =
