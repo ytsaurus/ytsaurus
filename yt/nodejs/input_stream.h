@@ -38,8 +38,6 @@ public:
     size_t Read(void* buffer, size_t length);
 
 private:
-    friend class TNodeJSDriverHost;
-    
     bool IsAlive;
     pthread_mutex_t Mutex;
     pthread_cond_t Conditional;

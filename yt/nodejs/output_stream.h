@@ -29,8 +29,6 @@ public:
     void Write(const void* buffer, size_t length);
 
 private:
-    friend class TNodeJSDriverHost;
-
     static void DeleteCallback(char* data, void* hint);
 
     pthread_mutex_t Mutex;
