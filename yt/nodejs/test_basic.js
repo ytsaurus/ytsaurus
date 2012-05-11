@@ -1,7 +1,7 @@
-var binding = require('./build/Release/yt_test');
+var binding = require("./build/Release/yt_test");
 
-var expect = require('chai').expect;
-var assert = require('chai').assert;
+var expect = require("chai").expect;
+var assert = require("chai").assert;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,3 +1,7 @@
+- There should be EventuallyUnref() method which is thread-safe and
+  which eventually Unref()'s Ref()'ed object. Exactly this method
+  should be used with TIntrusivePtr on C++ side.
+- Ensure that TNodeJS* objects are destroyed within V8 thread.
 - Extract TNodeJSOutputStream::Pull to an asynchronous method
   in order to avoid locking on Mutex.
 - Extract TNodeJSInputStream::Push to an asynchronous method

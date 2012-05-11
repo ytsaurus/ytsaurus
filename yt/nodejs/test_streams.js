@@ -1,8 +1,8 @@
-var expect = require('chai').expect;
-var assert = require('chai').assert;
+var expect = require("chai").expect;
+var assert = require("chai").assert;
 
-var binding = require('./build/Release/yt_test');
-var yt_streams = require('./yt_streams');
+var binding = require("./build/Release/yt_test");
+var yt_streams = require("./yt_streams");
 
 ////////////////////////////////////////////////////////////////////////////////
 
