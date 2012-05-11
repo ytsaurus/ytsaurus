@@ -3,6 +3,8 @@ var binding = require('./build/Release/yt_test');
 var expect = require('chai').expect;
 var assert = require('chai').assert;
 
+////////////////////////////////////////////////////////////////////////////////
+
 describe("input stream interface", function() {
     beforeEach(function() {
         this.stream = new binding.TNodeJSInputStream();
@@ -104,6 +106,10 @@ describe("output stream interface", function() {
     beforeEach(function() {
         this.stream = new binding.TNodeJSOutputStream();
         this.writer = new binding.TTestOutputStream(this.stream);
+
+        this.stream.on_write  = function(){};
+        this.stream.on_flush  = function(){};
+        this.stream.on_finish = function(){};
     });
 
     it("should be able to write one chunk", function(done) {
@@ -133,5 +139,15 @@ describe("output stream interface", function() {
 
         this.writer.WriteSynchronously("hello");
         this.writer.WriteSynchronously("dolly");
+    });
+
+    it("should fire Flush() callback", function(done) {
+        this.stream.on_flush = function() { done(); };
+        this.writer.Flush();
+    });
+
+    it("should fire Finish() callback", function(done) {
+        this.stream.on_finish = function() { done(); };
+        this.writer.Finish();
     });
 });

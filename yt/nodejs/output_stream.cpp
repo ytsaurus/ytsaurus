@@ -15,6 +15,8 @@ void DeleteCallback(char* data, void* hint)
 COMMON_V8_USES
 
 static Persistent<String> OnWriteSymbol;
+static Persistent<String> OnFlushSymbol;
+static Persistent<String> OnFinishSymbol;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +70,44 @@ void TNodeJSOutputStream::DoOnWrite(TPart* part)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNodeJSOutputStream::AsyncOnFlush(uv_work_t* request)
+{
+    THREAD_AFFINITY_IS_V8();
+    TNodeJSOutputStream* stream =
+        container_of(request, TNodeJSOutputStream, FlushRequest);
+    stream->DoOnFlush();
+}
+
+void TNodeJSOutputStream::DoOnFlush()
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // TODO(sandello): Use OnFlushSymbol here.
+    node::MakeCallback(this->handle_, "on_flush", 0, NULL);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNodeJSOutputStream::AsyncOnFinish(uv_work_t* request)
+{
+    THREAD_AFFINITY_IS_V8();
+    TNodeJSOutputStream* stream =
+        container_of(request, TNodeJSOutputStream, FinishRequest);
+    stream->DoOnFinish();
+}
+
+void TNodeJSOutputStream::DoOnFinish()
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // TODO(sandello): Use OnFinishSymbol here.
+    node::MakeCallback(this->handle_, "on_finish", 0, NULL);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TNodeJSOutputStream::Write(const void *buffer, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
@@ -84,6 +124,18 @@ void TNodeJSOutputStream::Write(const void *buffer, size_t length)
     EnqueueOnWrite(part);
 }
 
+void TNodeJSOutputStream::Flush()
+{
+    THREAD_AFFINITY_IS_ANY();
+    EnqueueOnFlush();
+}
+
+void TNodeJSOutputStream::Finish()
+{
+    THREAD_AFFINITY_IS_ANY();
+    EnqueueOnFinish();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExportOutputStream(Handle<Object> target)
@@ -91,7 +143,9 @@ void ExportOutputStream(Handle<Object> target)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    OnWriteSymbol = NODE_PSYMBOL("on_write");
+    OnWriteSymbol  = NODE_PSYMBOL("on_write");
+    OnFlushSymbol  = NODE_PSYMBOL("on_flush");
+    OnFinishSymbol = NODE_PSYMBOL("on_Finish");
 
     Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSOutputStream::New);
 

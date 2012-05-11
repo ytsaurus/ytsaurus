@@ -285,6 +285,8 @@ public:
     static Handle<Value> New(const Arguments& args);
 
     static Handle<Value> WriteSynchronously(const Arguments& args);
+    static Handle<Value> Flush(const Arguments& args);
+    static Handle<Value> Finish(const Arguments& args);
 
     // Asynchronous JS API.
     static Handle<Value> Write(const Arguments& args);
@@ -387,7 +389,6 @@ Handle<Value> TTestOutputStream::WriteSynchronously(const Arguments& args)
     return Undefined();
 }
 
-// XXX fix me
 Handle<Value> TTestOutputStream::Write(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
@@ -450,6 +451,46 @@ void TTestOutputStream::WriteAfter(uv_work_t* workRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Handle<Value> TTestOutputStream::Flush(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TTestOutputStream* host =
+        ObjectWrap::Unwrap<TTestOutputStream>(args.This());
+
+    // Validate arguments.
+    assert(args.Length() == 0);
+
+    // Do the work.
+    host->Slave->Flush();
+
+    return Undefined();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TTestOutputStream::Finish(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TTestOutputStream* host =
+        ObjectWrap::Unwrap<TTestOutputStream>(args.This());
+
+    // Validate arguments.
+    assert(args.Length() == 0);
+
+    // Do the work.
+    host->Slave->Finish();
+
+    return Undefined();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ExportTestInputStream(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
@@ -475,6 +516,8 @@ void ExportTestOutputStream(Handle<Object> target)
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
     NODE_SET_PROTOTYPE_METHOD(tpl, "Write", TTestOutputStream::Write);
     NODE_SET_PROTOTYPE_METHOD(tpl, "WriteSynchronously", TTestOutputStream::WriteSynchronously);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Flush", TTestOutputStream::Flush);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Finish", TTestOutputStream::Finish);
 
     tpl->SetClassName(String::NewSymbol("TTestOutputStream"));
     target->Set(String::NewSymbol("TTestOutputStream"), tpl->GetFunction());

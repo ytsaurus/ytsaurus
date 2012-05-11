@@ -4,10 +4,18 @@ var assert  = require('assert');
 var binding = require('./build/Release/yt_test');
 
 var __EOF   = {};
+var __DBG;
+
+if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
+    __DBG = function(x) { console.error("YT:", x); };
+} else {
+    __DBG = function( ) { };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtReadableStream() {
+    __DBG("Readable -> New")
     stream.Stream.call(this);
 
     this.readable = true;
@@ -21,6 +29,7 @@ function YtReadableStream() {
     
     this._binding = new binding.TNodeJSOutputStream();
     this._binding.on_write = function(chunk) {
+        __DBG("Readable -> Bindings -> on_write");
         if (!self.readable || self._ended) {
             return;
         }
@@ -31,15 +40,25 @@ function YtReadableStream() {
             self._emitData(chunk);
         }
     };
+    this._binding.on_flush = function() {
+        __DBG("Readable -> Bindings -> on_flush");
+        self._emitQueue();
+    };
+    this._binding.on_finish = function() {
+        __DBG("Readable -> Bindings -> on_finish");
+        self._emitEnd();
+    };
 };
 
 util.inherits(YtReadableStream, stream.Stream);
 
 YtReadableStream.prototype._emitData = function(chunk) {
+    __DBG("Readable -> _emitData");
     this.emit('data', chunk);
 };
 
 YtReadableStream.prototype._emitEnd = function() {
+    __DBG("Readable -> _emitEnd");
     if (!this._ended) { 
         this.emit('end');
     }
@@ -49,10 +68,12 @@ YtReadableStream.prototype._emitEnd = function() {
 }
 
 YtReadableStream.prototype._emitQueue = function(callback) {
+    __DBG("Readable -> _emitQueue");
     if (this._pending.length) {
         var self = this;
         process.nextTick(function() {
-            while (!self._paused && self._pending.length) {
+            __DBG("Readable -> _emitQueue -> (inner-cycle)");
+            while (self.readable && !self._ended && !self._paused && self._pending.length) {
                 var chunk = self._pending.shift();
                 if (chunk !== __EOF) {
                     assert.ok(Buffer.isBuffer(chunk));
@@ -74,30 +95,26 @@ YtReadableStream.prototype._emitQueue = function(callback) {
 };
 
 YtReadableStream.prototype.pause = function() {
+    __DBG("Readable -> pause");
     this._paused = true;
 };
 
 YtReadableStream.prototype.resume = function() {
+    __DBG("Readable -> resume");
     this._paused = false;
     this._emitQueue();
 }
 
 YtReadableStream.prototype.destroy = function() {
+    __DBG("Readable -> destory");
     this.readable = false;
     this._ended = true;
-}
-
-YtReadableStream.prototype.destroySoon = function() {
-    var self = this;
-    this._emitQueue(function() {
-        self.readable = false;
-        self._ended = true;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtWritableStream() {
+    __DBG("Writable -> New")
     stream.Stream.call(this);
 
     this.readable = false;
@@ -112,7 +129,8 @@ function YtWritableStream() {
 
 util.inherits(YtWritableStream, stream.Stream);
 
-YtWritableStream._emitClose() = function() {
+YtWritableStream.prototype._emitClose = function() {
+    __DBG("Writable -> _emitClose");
     if (!this._ended) {
         this.emit('close');
     }
@@ -121,12 +139,13 @@ YtWritableStream._emitClose() = function() {
     this._ended = true;
 }
 
-YtWritableStream.write = function(chunk, encoding) {
-    if (typeof(chunk) !== 'string' && !Buffer.isBuffer(chunk)) {
-        throw new TypeError('first argument must be a string or Buffer');
+YtWritableStream.prototype.write = function(chunk, encoding) {
+    __DBG("Writable -> write");
+    if (typeof(chunk) !== "string" && !Buffer.isBuffer(chunk)) {
+        throw new TypeError("Expected first argument to be a String or Buffer");
     }
 
-    if (typeof(chunk) === 'string') {
+    if (typeof(chunk) === "string") {
         chunk = new Buffer(chunk, encoding);
     }
 
@@ -138,7 +157,8 @@ YtWritableStream.write = function(chunk, encoding) {
     }
 }
 
-YtWritableStream.end = function(chunk, encoding) {
+YtWritableStream.prototype.end = function(chunk, encoding) {
+    __DBG("Writable -> end");
     if (chunk) {
         this.write(chunk, encoding);
     }
@@ -151,15 +171,8 @@ YtWritableStream.end = function(chunk, encoding) {
     this._emitClose();
 }
 
-YtWritableStream.destroy = function() {
-    this._binding.Close();
-
-    this.writable = false;
-    this._ended = true;
-}
-
-YtWritableStream.destroySoon = function() {
-    // TODO(sandello): Implement proper flush here.
+YtWritableStream.prototype.destroy = function() {
+    __DBG("Writable -> destroy");
     this._binding.Close();
 
     this.writable = false;
@@ -168,4 +181,5 @@ YtWritableStream.destroySoon = function() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+exports.YtReadableStream = YtReadableStream;
 exports.YtWritableStream = YtWritableStream;
