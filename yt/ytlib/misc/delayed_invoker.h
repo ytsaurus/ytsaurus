@@ -12,23 +12,8 @@ class TDelayedInvoker
 {
 private:
     struct TEntry;
+    struct TEntryComparer;
     typedef TIntrusivePtr<TEntry> TEntryPtr;
-    typedef ymultimap<TInstant, TEntryPtr> TEntries;
-
-    struct TEntry
-        : public TRefCounted
-    {
-        bool Valid;
-        TInstant Deadline;
-        TClosure Action;
-        TEntries::iterator Iterator;
-
-        TEntry(TClosure action, TInstant deadline)
-            : Valid(true)
-            , Deadline(deadline)
-            , Action(action)
-        { }
-    };
 
 public:
     //! Encapsulates a delayed execution token.
