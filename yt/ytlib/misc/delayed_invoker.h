@@ -12,7 +12,6 @@ class TDelayedInvoker
 {
 private:
     struct TEntry;
-    struct TEntryComparer;
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
     struct TEntryComparer
