@@ -37,11 +37,15 @@ void TLogger::Write(const TLogEvent& event)
 
 bool TLogger::IsEnabled(ELogLevel level) const
 {
+    if (Category.empty()) {
+        return false;
+    }
+
     if (GetLogManager()->GetConfigVersion() != ConfigVersion) {
         const_cast<TLogger*>(this)->UpdateConfig();
     }
 
-    return level >= MinLevel && !Category.empty();
+    return level >= MinLevel;
 }
 
 void TLogger::UpdateConfig()
