@@ -13,7 +13,6 @@ message TBlockInfo
 }
 
 // Chunk meta extension.
-// TODO(babenko): Ext
 message TBlocksExt
 {
     repeated TBlockInfo blocks = 1;
@@ -21,9 +20,10 @@ message TBlocksExt
 
 message TChunkInfo
 {
+    // Full size (the sum of data size and meta size).
     required int64 size = 1;
 
-    // Is not set in full heartbeats.
+    // Not sent during full heartbeats.
     optional uint64 meta_checksum = 2;
 }
 
