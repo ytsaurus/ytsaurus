@@ -24,6 +24,9 @@ public:
     v8::Handle<v8::Value> DoPull();
 
     // Asynchronous JS API.
+    static void AsyncWriteCallback(uv_work_t* request);
+    void EnqueueWriteCallback();
+    void DoWriteCallback();
 
     // C++ API.
     void Write(const void* buffer, size_t length);
@@ -33,7 +36,17 @@ private:
 
     pthread_mutex_t Mutex;
     TQueue Queue;
+
+    uv_work_t WriteCallbackRequest;
 };
+
+inline void TNodeJSOutputStream::EnqueueWriteCallback()
+{
+    // Post to V8 thread.
+    uv_queue_work(
+        uv_default_loop(), &WriteCallbackRequest,
+        DoNothing, TNodeJSOutputStream::AsyncWriteCallback);
+}
 
 void ExportOutputStream(v8::Handle<v8::Object> target);
 

@@ -4,7 +4,7 @@ var expect = require('chai').expect;
 var assert = require('chai').assert;
 
 describe("input stream interface", function() {
-    before(function() {
+    beforeEach(function() {
         this.stream = new yt.TNodeJSInputStream();
         this.reader = new yt.TTestInputStream(this.stream);
     });
@@ -79,6 +79,7 @@ describe("input stream interface", function() {
     it("should be able to read whole input if the stream was closed", function(done) {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
+        this.stream.Close();
 
         expect(this.reader.ReadSynchronously(2))
             .to.be.a("string").and.to.eql("fo");
@@ -100,19 +101,34 @@ describe("input stream interface", function() {
 });
 
 describe("output stream interface", function() {
-    before(function() {
+    beforeEach(function() {
         this.stream = new yt.TNodeJSOutputStream();
         this.writer = new yt.TTestOutputStream(this.stream);
+
+        this.stream.on_write_calls = 0;
+        this.stream.on_write = (function() {
+            ++this.stream.on_write_calls;
+        }).bind(this);
     });
 
-    it("should be able to write one chunk", function() {
+    var expectWriteCalls = function(stream, n, done) {
+        return (function() {
+            assert.strictEqual(stream.on_write_calls, n);
+            done();
+        }).bind(this);
+    };
+
+    it("should be able to write one chunk", function(done) {
         this.writer.WriteSynchronously("hello");
 
         expect(this.stream.Pull().toString())
             .to.be.equal("hello");
+
+        // Force rescheduling of the following expectation.
+        setTimeout(expectWriteCalls(this.stream, 1, done), 0);
     });
 
-    it("should be able to write two chunks", function() {
+    it("should be able to write two chunks", function(done) {
         this.writer.WriteSynchronously("hello");
         this.writer.WriteSynchronously("dolly");
 
@@ -120,5 +136,8 @@ describe("output stream interface", function() {
             .to.be.equal("hello");
         expect(this.stream.Pull().toString())
             .to.be.equal("dolly");
+
+        // Force rescheduling of the following expectation.
+        setTimeout(expectWriteCalls(this.stream, 2, done), 0);
     });
 });

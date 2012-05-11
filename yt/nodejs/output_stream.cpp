@@ -7,6 +7,8 @@ namespace NYT {
 
 COMMON_V8_USES
 
+static Persistent<String> OnWriteSymbol;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeJSOutputStream::TNodeJSOutputStream()
@@ -89,6 +91,25 @@ Handle<Value> TNodeJSOutputStream::DoPull()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNodeJSOutputStream::AsyncWriteCallback(uv_work_t* request)
+{
+    THREAD_AFFINITY_IS_V8();
+    TNodeJSOutputStream* stream =
+        container_of(request, TNodeJSOutputStream, WriteCallbackRequest);
+    stream->DoWriteCallback();
+}
+
+void TNodeJSOutputStream::DoWriteCallback()
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // TODO(sandello): Use OnWriteSymbol here.
+    node::MakeCallback(handle_, "on_write", 0, NULL);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TNodeJSOutputStream::Write(const void *buffer, size_t length)
 {
     // Affinity: any
@@ -105,6 +126,8 @@ void TNodeJSOutputStream::Write(const void *buffer, size_t length)
         TGuard guard(&Mutex);
         Queue.push_back(part);
     }
+
+    EnqueueWriteCallback();
 }
 
 void TNodeJSOutputStream::DeleteCallback(char *data, void *hint)
