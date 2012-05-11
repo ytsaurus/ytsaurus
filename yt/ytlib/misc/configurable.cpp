@@ -28,8 +28,7 @@ void TConfigurable::Load(NYTree::INodePtr node, bool validate, const NYTree::TYP
     YASSERT(node);
 
     if (node->GetType() != ENodeType::Map) {
-        ythrow yexception()
-            << Sprintf("Configuration must be loaded from a map node (Path: %s)\n%s",
+        ythrow yexception() << Sprintf("Configuration must be loaded from a map node (Path: %s)",
             ~path);
     }
 
