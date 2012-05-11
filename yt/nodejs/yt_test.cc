@@ -99,15 +99,15 @@ private:
     struct TReadRequest
     {
         uv_work_t Request;
-        TTestInputStream* Stream;
+        TTestInputStream* Host;
 
         Persistent<Function> Callback;
 
         char*  Buffer;
         size_t Length;
 
-        TReadRequest(TTestInputStream* stream, Handle<Integer> length, Handle<Function> callback)
-            : Stream(stream)
+        TReadRequest(TTestInputStream* host, Handle<Integer> length, Handle<Function> callback)
+            : Host(host)
             , Callback(Persistent<Function>::New(callback))
             , Length(length->Uint32Value())
         {
@@ -119,8 +119,8 @@ private:
 
             assert(Buffer || !Length);
 
-            Stream->Ref();
-            Stream->Slave->Ref();
+            Host->Ref();
+            Host->Slave->Ref();
         }
 
         ~TReadRequest()
@@ -134,8 +134,8 @@ private:
             Callback.Dispose();
             Callback.Clear();
 
-            Stream->Slave->Unref();
-            Stream->Unref();
+            Host->Slave->Unref();
+            Host->Unref();
         }
     };
 
@@ -239,7 +239,7 @@ void TTestInputStream::ReadWork(uv_work_t* workRequest)
     TReadRequest* request =
         container_of(workRequest, TReadRequest, Request);
 
-    request->Length = request->Stream->Slave->Read(request->Buffer, request->Length);
+    request->Length = request->Host->Slave->Read(request->Buffer, request->Length);
 }
 
 void TTestInputStream::ReadAfter(uv_work_t* workRequest)
@@ -298,7 +298,7 @@ private:
     struct TWriteRequest
     {
         uv_work_t Request;
-        TTestOutputStream* Stream;
+        TTestOutputStream* Host;
 
         Persistent<Function> Callback;
         String::Utf8Value ValueToBeWritten;
@@ -306,8 +306,8 @@ private:
         char*  Buffer;
         size_t Length;
 
-        TWriteRequest(TTestOutputStream* stream, Handle<String> string, Handle<Function> callback)
-            : Stream(stream)
+        TWriteRequest(TTestOutputStream* host, Handle<String> string, Handle<Function> callback)
+            : Host(host)
             , Callback(Persistent<Function>::New(callback))
             , ValueToBeWritten(string)
         {
@@ -316,8 +316,8 @@ private:
             Buffer = *ValueToBeWritten;
             Length = ValueToBeWritten.length();
 
-            Stream->Ref();
-            Stream->Slave->Ref();
+            Host->Ref();
+            Host->Slave->Ref();
         }
 
         ~TWriteRequest()
@@ -327,8 +327,8 @@ private:
             Callback.Dispose();
             Callback.Clear();
 
-            Stream->Slave->Unref();
-            Stream->Unref();
+            Host->Slave->Unref();
+            Host->Unref();
         }
     };
 };
@@ -424,7 +424,7 @@ void TTestOutputStream::WriteWork(uv_work_t* workRequest)
     TWriteRequest* request =
         container_of(workRequest, TWriteRequest, Request);
 
-    assert(0);
+    request->Host->Slave->Write(request->Buffer, request->Length);
 }
 
 void TTestOutputStream::WriteAfter(uv_work_t* workRequest)
@@ -435,7 +435,15 @@ void TTestOutputStream::WriteAfter(uv_work_t* workRequest)
     TWriteRequest* request =
         container_of(workRequest, TWriteRequest, Request);
 
-    assert(0);
+    {
+        TryCatch block;
+
+        request->Callback->Call(Context::GetCurrent()->Global(), 0, NULL);
+
+        if (block.HasCaught()) {
+            node::FatalException(block);
+        }
+    }
 
     delete request;
 }

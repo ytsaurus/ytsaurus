@@ -13,7 +13,7 @@ TNodeJSInputStream::TNodeJSInputStream()
     : TNodeJSStreamBase()
     , IsAlive(false)
 {
-    THREAD_AFFINITY_IS_V8();
+    T_THREAD_AFFINITY_IS_V8();
 
     CHECK_RETURN_VALUE(pthread_mutex_init(&Mutex, NULL));
     CHECK_RETURN_VALUE(pthread_cond_init(&Conditional, NULL));
@@ -39,7 +39,7 @@ TNodeJSInputStream::~TNodeJSInputStream()
 
 Handle<Value> TNodeJSInputStream::New(const Arguments& args)
 {
-    THREAD_AFFINITY_IS_V8();
+    T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     TNodeJSInputStream* stream = new TNodeJSInputStream();
@@ -68,13 +68,13 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
     // Do the work.
     assert(stream);
     return stream->DoPush(
-        /* buffer */ args[0],
+        /* handle */ Persistent<Value>::New(args[0]),
         /* data   */ node::Buffer::Data(Local<Object>::Cast(args[0])),
         /* offset */ args[1]->Uint32Value(),
         /* length */ args[2]->Uint32Value());
 }
 
-Handle<Value> TNodeJSInputStream::DoPush(Handle<Value> buffer, char *data, size_t offset, size_t length)
+Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, size_t offset, size_t length)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -209,7 +209,7 @@ void TNodeJSInputStream::DoClose()
 
 size_t TNodeJSInputStream::Read(void* buffer, size_t length)
 {
-    THREAD_AFFINITY_IS_UV();
+    THREAD_AFFINITY_IS_ANY();
 
     TGuard guard(&Mutex);
 
@@ -269,7 +269,7 @@ void ExportInputStream(Handle<Object> target)
     Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSInputStream::New);
 
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Push", TNodeJSInputStream::Push);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Push",  TNodeJSInputStream::Push );
     NODE_SET_PROTOTYPE_METHOD(tpl, "Sweep", TNodeJSInputStream::Sweep);
     NODE_SET_PROTOTYPE_METHOD(tpl, "Close", TNodeJSInputStream::Close);
 
