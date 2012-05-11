@@ -283,6 +283,8 @@ public:
     void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
     {
         auto objectManager = Bootstrap->GetObjectManager();
+        TChunkTreeStatistics statisticsDelta;
+
         FOREACH (const auto& childRef, children) {
             if (!chunkList.Children().empty()) {
                 chunkList.RowCountSums().push_back(chunkList.Statistics().RowCount);
@@ -290,7 +292,20 @@ public:
             chunkList.Children().push_back(childRef);
             SetChunkTreeParent(chunkList, childRef);
             objectManager->RefObject(childRef.GetId());
+
+            switch (childRef.GetType()) {
+                case EObjectType::Chunk:
+                    statisticsDelta.Accumulate(childRef.AsChunk()->GetStatistics());
+                    break;
+                case EObjectType::ChunkList:
+                    statisticsDelta.Accumulate(childRef.AsChunkList()->Statistics());
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
         }
+
+        UpdateStatistics(chunkList, MoveRV(statisticsDelta));
     }
 
     void ScheduleJobs(
@@ -416,39 +431,27 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-    void UpdateStatistics(TChunkList& chunkList, const TChunkTreeRef& childRef)
+    void UpdateStatistics(TChunkList& chunkList, TChunkTreeStatistics&& statisticsDelta)
     {
-        // Compute delta.
-        TChunkTreeStatistics delta;
-        switch (childRef.GetType()) {
-            case EObjectType::Chunk:
-                delta = childRef.AsChunk()->GetStatistics();
-                break;
-            case EObjectType::ChunkList:
-                delta = childRef.AsChunkList()->Statistics();
-                break;
-            default:
-                YUNREACHABLE();
-        }
-
         // Go upwards and apply delta.
         // Also reset Sorted flags.
         // Check that parents are unique along the way.
-        auto* current = &chunkList;
-        for (;;) {
-            ++delta.Rank;
-            current->Statistics().Accumulate(delta);
-            current->SetSorted(false);
+        ++statisticsDelta.Rank;
+        chunkList.Statistics().Accumulate(statisticsDelta);
+        chunkList.SetSorted(false);
 
-            const auto& parents = current->Parents();
-            if (parents.empty())
-                break;
-
+        const auto& parents = chunkList.Parents();
+        if (parents.empty()) {
+            RebalanceChunkTree(chunkList);
+        } else {
             YASSERT(parents.size() == 1);
-            current = *parents.begin();
+            UpdateStatistics(**parents.begin(), MoveRV(statisticsDelta));
         }
     }
 
+    void RebalanceChunkTree(TChunkList& root) {
+        UNUSED(root);
+    }
 
     void SetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
     {
@@ -456,7 +459,6 @@ private:
             auto* childChunkList = childRef.AsChunkList();
             YVERIFY(childChunkList->Parents().insert(&parent).second);
         }
-        UpdateStatistics(parent, childRef);
     }
 
     void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
@@ -466,7 +468,6 @@ private:
             YVERIFY(childChunkList->Parents().erase(&parent) == 1);
         }
     }
-
 
     void OnChunkDestroyed(TChunk* chunk)
     {

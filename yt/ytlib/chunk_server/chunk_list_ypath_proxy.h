@@ -13,7 +13,6 @@ struct TChunkListYPathProxy
     : public NObjectServer::TObjectYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, Attach);
-    DEFINE_YPATH_PROXY_METHOD(NProto, Detach);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
