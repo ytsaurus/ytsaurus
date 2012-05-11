@@ -49,7 +49,7 @@ $range ARITY 0..MAX_ARITY
 #ifdef ENABLE_BIND_LOCATION_TRACKING
 #define BIND(...) ::NYT::Bind(FROM_HERE, __VA_ARGS__)
 #else
-#define BIND(...) ::NYT::Bind( __VA_ARGS__)
+#define BIND(...) ::NYT::Bind(__VA_ARGS__)
 #endif
 
 namespace NYT {
@@ -93,13 +93,11 @@ TCallback<
         typename NYT::NDetail::TFunctorTraits<Functor>::Signature,
         void($for ARG , [[typename NMpl::TDecay<P$(ARG)>::TType]])
     >::UnboundSignature>
+Bind(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-Bind(const TSourceLocation& location, Functor functor
-$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]]) {
-#else
-Bind(Functor functor
-$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]]) {
+    const TSourceLocation& location,
 #endif
+    Functor functor$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]]) {
 
     // Typedefs for how to store and run the functor.
     typedef NYT::NDetail::TFunctorTraits<Functor> TFunctorTraits;
@@ -148,15 +146,13 @@ by the raw pointer");
     typedef NYT::NDetail::TBindState<TRunnableType, Signature, [[]]
 void($for ARG , [[typename NMpl::TDecay<P$(ARG)>::TType]])> [[]]
 TTypedBindState;
+    return TCallback<typename TTypedBindState::UnboundSignature>(
+        New<TTypedBindState>(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-    return TCallback<typename TTypedBindState::UnboundSignature>(
-        New<TTypedBindState>(location, NYT::NDetail::MakeRunnable(functor)[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[ForwardRV<P$(ARG)>(p$(ARG))]]));
-#else
-    return TCallback<typename TTypedBindState::UnboundSignature>(
-        New<TTypedBindState>(NYT::NDetail::MakeRunnable(functor)[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[ForwardRV<P$(ARG)>(p$(ARG))]]));
+            location,
 #endif
+            NYT::NDetail::MakeRunnable(functor)
+$if ARITY > 0 [[, ]] $for ARG , [[ForwardRV<P$(ARG)>(p$(ARG))]]));
 }
 
 ]]  $$ for ARITY

@@ -645,25 +645,11 @@ $if ARITY > 0 [[
     template<$for ARG , [[class P$(ARG)]]>
 
 ]]
+$$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
+[[    ]]TBindState(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
-$$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
-[[    ]]TBindState(
         const ::NYT::TSourceLocation& location,
-        const Runnable& runnable
-$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]])
-        : TBindStateBase(location)
-        , Runnable_(runnable)[[]]
-$if ARITY > 0 [[
-$for ARG [[
-
-        , S$(ARG)_(ForwardRV<P$(ARG)>(p$(ARG)))
-]] $$ for ARG
-]]
-
-    { }
-#else
-$$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
-[[    ]]TBindState(
+#endif
         const Runnable& runnable
 $if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]])
         : Runnable_(runnable)[[]]
@@ -674,9 +660,11 @@ $for ARG [[
 ]] $$ for ARG
 ]]
 
-    { }
+#ifdef ENABLE_BIND_LOCATION_TRACKING
+        , TBindStateBase(location)
 #endif
 
+    { }
 
     virtual ~TBindState()
     { }
