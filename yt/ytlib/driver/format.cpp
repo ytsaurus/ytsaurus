@@ -12,7 +12,6 @@ using namespace NYTree;
 
 TFormat::TFormat(EFormatType type)
     : Type(type)
-    , Attributes(EmptyAttributes())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +30,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(TFormat format, EDataType dataType, TOutputStream *output)
 {
     switch (format.Type) {
-        case EFormatType:
+        case EFormatType::Yson:
             return CreateConsumerForYson(~format.Attributes, output);
         default:
             YUNIMPLEMENTED();
@@ -43,7 +42,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(TFormat format, EDataType dataTy
 TYsonProducer CreateProducerForFormat(TFormat format, EDataType dataType, TInputStream *input)
 {
     switch (format.Type) {
-        case EFormatType:
+        case EFormatType::Yson:
             return ProducerFromYson(input);
         default:
             YUNIMPLEMENTED();

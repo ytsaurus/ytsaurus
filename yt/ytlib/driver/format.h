@@ -12,7 +12,7 @@ namespace NDriver {
 
 DECLARE_ENUM(EFormatType,
     (Yson)
-    (CSV)
+    (Csv)
 );
 
 struct TFormat
@@ -20,6 +20,8 @@ struct TFormat
     TFormat(EFormatType type);
 
     EFormatType Type;
+
+    //XXX(panin): revise the method of storage this
     TSharedPtr<NYTree::IAttributeDictionary> Attributes;
 };
 
