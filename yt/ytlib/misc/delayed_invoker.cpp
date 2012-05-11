@@ -18,26 +18,6 @@ static const TDuration SleepQuantum = TDuration::MilliSeconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDelayedInvoker::TEntryComparer
-{
-    bool operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const;
-};
-
-struct TDelayedInvoker::TEntry
-    : public TIntrinsicRefCounted
-{
-    bool Valid;
-    TInstant Deadline;
-    TClosure Action;
-    std::set<TEntryPtr, TEntryComparer>::iterator Iterator;
-
-    TEntry(const TClosure& action, TInstant deadline)
-        : Valid(true)
-        , Deadline(deadline)
-        , Action(MoveRV(action))
-    { }
-};
-
 bool TDelayedInvoker::TEntryComparer::operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const
 {
     if (lhs->Deadline != rhs->Deadline) {

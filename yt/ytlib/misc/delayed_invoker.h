@@ -15,6 +15,26 @@ private:
     struct TEntryComparer;
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
+    struct TDelayedInvoker::TEntryComparer
+    {
+        bool operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const;
+    };
+
+    struct TDelayedInvoker::TEntry
+        : public TIntrinsicRefCounted
+    {
+        bool Valid;
+        TInstant Deadline;
+        TClosure Action;
+        std::set<TEntryPtr, TEntryComparer>::iterator Iterator;
+
+        TEntry(const TClosure& action, TInstant deadline)
+            : Valid(true)
+            , Deadline(deadline)
+            , Action(MoveRV(action))
+        { }
+    };
+
 public:
     //! Encapsulates a delayed execution token.
     typedef TEntryPtr TCookie;
