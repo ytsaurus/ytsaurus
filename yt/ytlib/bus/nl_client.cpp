@@ -99,7 +99,7 @@ public:
     {
         SequenceId = 0;
         SessionId = TSessionId::Create();
-    }
+    }7
 
     const TSessionId& GetSessionId()
     {
@@ -109,7 +109,7 @@ public:
 
     TSequenceId GenerateSequenceId()
     {
-        return SequenceId++;
+        return AtomicIncrement(SequenceId) - 1;
     }
 
 
