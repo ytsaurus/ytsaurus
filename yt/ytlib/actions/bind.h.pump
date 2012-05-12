@@ -97,7 +97,8 @@ Bind(
 #ifdef ENABLE_BIND_LOCATION_TRACKING
     const TSourceLocation& location,
 #endif
-    Functor functor$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]]) {
+    Functor functor[[]]
+$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]]) {
 
     // Typedefs for how to store and run the functor.
     typedef NYT::NDetail::TFunctorTraits<Functor> TFunctorTraits;
