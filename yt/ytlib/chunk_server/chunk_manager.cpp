@@ -283,29 +283,32 @@ public:
     void AttachToChunkList(TChunkList& chunkList, const std::vector<TChunkTreeRef>& children)
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        TChunkTreeStatistics statisticsDelta;
+        TChunkTreeStatistics accumulatedDelta;
 
         FOREACH (const auto& childRef, children) {
             if (!chunkList.Children().empty()) {
-                chunkList.RowCountSums().push_back(chunkList.Statistics().RowCount);
+                chunkList.RowCountSums().push_back(
+                    chunkList.Statistics().RowCount + accumulatedDelta.RowCount);
             }
             chunkList.Children().push_back(childRef);
             SetChunkTreeParent(chunkList, childRef);
             objectManager->RefObject(childRef.GetId());
 
+            TChunkTreeStatistics delta;
             switch (childRef.GetType()) {
                 case EObjectType::Chunk:
-                    statisticsDelta.Accumulate(childRef.AsChunk()->GetStatistics());
+                    delta = childRef.AsChunk()->GetStatistics();
                     break;
                 case EObjectType::ChunkList:
-                    statisticsDelta.Accumulate(childRef.AsChunkList()->Statistics());
+                    delta = childRef.AsChunkList()->Statistics();
                     break;
                 default:
                     YUNREACHABLE();
             }
+            accumulatedDelta.Accumulate(delta);
         }
 
-        UpdateStatistics(chunkList, MoveRV(statisticsDelta));
+        UpdateStatistics(chunkList, accumulatedDelta);
     }
 
     void ScheduleJobs(
@@ -431,7 +434,7 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-    void UpdateStatistics(TChunkList& chunkList, TChunkTreeStatistics&& statisticsDelta)
+    void UpdateStatistics(TChunkList& chunkList, TChunkTreeStatistics& statisticsDelta)
     {
         // Go upwards and apply delta.
         // Also reset Sorted flags.
@@ -445,7 +448,7 @@ private:
             RebalanceChunkTree(chunkList);
         } else {
             YASSERT(parents.size() == 1);
-            UpdateStatistics(**parents.begin(), MoveRV(statisticsDelta));
+            UpdateStatistics(**parents.begin(), statisticsDelta);
         }
     }
 
