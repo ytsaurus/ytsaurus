@@ -99,7 +99,7 @@ public:
     {
         SequenceId = 0;
         SessionId = TSessionId::Create();
-    }7
+    }
 
     const TSessionId& GetSessionId()
     {
