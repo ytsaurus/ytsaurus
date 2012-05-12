@@ -1643,7 +1643,33 @@ private:
         attributes->push_back("compressed_size");
         attributes->push_back("chunk_count");
         attributes->push_back("rank");
+        attributes->push_back(TAttributeInfo("tree", true, true));
         TBase::GetSystemAttributes(attributes);
+    }
+
+    void BuildTree(TChunkTreeRef ref, IYsonConsumer* consumer)
+    {
+        consumer->OnBeginAttributes();
+        consumer->OnKeyedItem("id");
+        consumer->OnStringScalar(ref.GetId().ToString());
+        consumer->OnEndAttributes();
+        switch (ref.GetType()) {
+            case EObjectType::Chunk:
+                consumer->OnEntity();
+                break;
+            case EObjectType::ChunkList: {
+                consumer->OnBeginList();
+                const auto& chunkList = *ref.AsChunkList();
+                FOREACH (auto childRef, chunkList.Children()) {
+                    consumer->OnListItem();
+                    BuildTree(childRef, consumer);
+                }
+                consumer->OnEndList();
+                break;
+            }
+            default:
+                YUNREACHABLE();
+        }
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
@@ -1695,6 +1721,11 @@ private:
         if (name == "rank") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.Rank);
+            return true;
+        }
+
+        if (name == "tree") {
+            BuildTree(TChunkTreeRef(const_cast<TChunkList*>(&chunkList)), consumer);
             return true;
         }
 
