@@ -1636,6 +1636,7 @@ private:
         attributes->push_back("uncompressed_size");
         attributes->push_back("compressed_size");
         attributes->push_back("chunk_count");
+        attributes->push_back("rank");
         TBase::GetSystemAttributes(attributes);
     }
 
@@ -1688,6 +1689,7 @@ private:
         if (name == "rank") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.Rank);
+            return true;
         }
 
         return TBase::GetSystemAttribute(name, consumer);
