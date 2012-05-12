@@ -560,6 +560,9 @@ private:
 
     void RebalanceChunkTree(TChunkList& root)
     {
+        // XXX(babenko): rebalacing is currently switched off
+        return;
+
         if (root.Statistics().Rank <= Config->MaxChunkTreeRank) {
             return;
         }
