@@ -100,7 +100,7 @@ TAsyncError TChunkWriter::AsyncOpen()
     return MakeFuture(TError());
 }
 
-TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
+TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, const TKey<TFakeStrbufStore>& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -150,6 +150,8 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
     }
 
     if (KeyColumns) {
+        LastKey = key;
+
         if (MiscExt.row_count() == 1) {
             *BoundaryKeysExt.mutable_left() = key.ToProto();
         }
@@ -158,8 +160,6 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
             EmitIndexEntry(key);
         }
     }
-
-    LastKey.Swap(key);
 
     return ChunkWriter->AsyncWriteBlocks(completedBlocks);
 }
@@ -193,7 +193,7 @@ i64 TChunkWriter::GetCurrentSize() const
     return CurrentSize;
 }
 
-TKey& TChunkWriter::GetLastKey()
+const TKey<TBlobOutput>& TChunkWriter::GetLastKey()
 {
     return LastKey;
 }
@@ -269,12 +269,12 @@ TAsyncError TChunkWriter::OnFinalBlocksWritten(TError error)
     return ChunkWriter->AsyncClose(Meta);
 }
 
-void TChunkWriter::EmitIndexEntry(const TKey& key)
+void TChunkWriter::EmitIndexEntry()
 {
     auto* item = IndexExt.add_items();
-    *item->mutable_key() = key.ToProto();
+    *item->mutable_key() = LastKey.ToProto();
     item->set_row_index(MiscExt.row_count() - 1);
-    IndexSize += key.GetSize();
+    IndexSize += LastKey.GetSize();
 }
 
 void TChunkWriter::EmitSample(TRow& row)

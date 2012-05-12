@@ -85,13 +85,6 @@ void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
             Writer->GetRowCount());
     }
 
-    if (KeyColumns) {
-        auto it = KeyColumnToIndex.find(name);
-        if (it != KeyColumnToIndex.end()) {
-            ValueConsumer.OnNewValue(&CurrentKey, it->second);
-        }
-    }
-
     ForwardNode(&ValueConsumer, OnValueFinished_);
 }
 

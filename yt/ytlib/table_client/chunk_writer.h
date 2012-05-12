@@ -33,11 +33,11 @@ public:
 
     TAsyncError AsyncOpen();
 
-    TAsyncError AsyncWriteRow(TRow& row, TKey& key);
+    TAsyncError AsyncWriteRow(TRow& row, const TKey<TFakeStrbufStore>& key);
 
     TAsyncError AsyncClose();
 
-    TKey& GetLastKey();
+    const TKey<TBlobOutput>& GetLastKey();
     const TNullable<TKeyColumns>& GetKeyColumns() const;
     i64 GetRowCount() const;
 
@@ -85,7 +85,7 @@ private:
     //! Approximate data size counting all rows since the last sample.
     i64 DataSizeSinceLastSample;
 
-    TKey LastKey;
+    TKey<TBlobOutput> LastKey;
 
     //! Approximate size of collected samples.
     i64 SamplesSize;
@@ -108,7 +108,7 @@ private:
 
     TAsyncError OnFinalBlocksWritten(TError error);
     
-    void EmitIndexEntry(const TKey& key);
+    void EmitIndexEntry();
     void EmitSample(TRow& row);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
