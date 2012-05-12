@@ -259,7 +259,7 @@ private:
                         break;
 
                     case EState::ListAfterItem:
-                        if (tokenType == ItemSeparatorToken) {
+                        if (tokenType == ListItemSeparatorToken) {
                             StateStack.top() = EState::ListBeforeItem;
                         } else {
                             ythrow yexception() << Sprintf("Expected ';' or ']', but token %s of type %s found (%s)",
@@ -332,7 +332,7 @@ private:
                     Consumer->OnEndMap();
                     StateStack.pop();
                     OnItemConsumed();
-                } else if (tokenType == ItemSeparatorToken) {
+                } else if (tokenType == KeyedItemSeparatorToken) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Expected ';' or '}', but token %s of type %s found (%s)",
@@ -393,7 +393,7 @@ private:
                 break;
 
             case EState::AttributesAfterValue:
-                if (tokenType == ItemSeparatorToken) {
+                if (tokenType == KeyedItemSeparatorToken) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Expected ';' or '>', but token %s of type %s found (%s)",

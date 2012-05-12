@@ -143,7 +143,11 @@ bool TYsonWriter::IsTopLevelFragmentContext() const
 void TYsonWriter::EndNode()
 {
     if (IsTopLevelFragmentContext()) {
-        Stream->Write(TokenTypeToChar(ItemSeparatorToken));
+        auto separatorToken =
+            Type == EYsonType::ListFragment
+            ? ListItemSeparatorToken
+            : KeyedItemSeparatorToken;
+        Stream->Write(TokenTypeToChar(separatorToken));
         if (Format == EYsonFormat::Text || Format == EYsonFormat::Pretty) {
             Stream->Write('\n');
         }
@@ -157,11 +161,11 @@ void TYsonWriter::BeginCollection(ETokenType beginToken)
     BeforeFirstItem = true;
 }
 
-void TYsonWriter::CollectionItem()
+void TYsonWriter::CollectionItem(ETokenType separatorToken)
 {
     if (!IsTopLevelFragmentContext()) {
         if (!BeforeFirstItem) {
-            Stream->Write(TokenTypeToChar(ItemSeparatorToken));
+            Stream->Write(TokenTypeToChar(separatorToken));
         }
 
         if (Format == EYsonFormat::Pretty) {
@@ -238,7 +242,7 @@ void TYsonWriter::OnBeginList()
 
 void TYsonWriter::OnListItem()
 {
-    CollectionItem();
+    CollectionItem(ListItemSeparatorToken);
 }
 
 void TYsonWriter::OnEndList()
@@ -254,7 +258,7 @@ void TYsonWriter::OnBeginMap()
 
 void TYsonWriter::OnKeyedItem(const TStringBuf& key)
 {
-    CollectionItem();
+    CollectionItem(KeyedItemSeparatorToken);
 
     WriteStringScalar(key);
     

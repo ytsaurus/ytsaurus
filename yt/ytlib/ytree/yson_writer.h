@@ -77,7 +77,7 @@ protected:
     void WriteStringScalar(const TStringBuf& value);
 
     void BeginCollection(ETokenType beginToken);
-    void CollectionItem();
+    void CollectionItem(ETokenType separatorToken);
     void EndCollection(ETokenType endToken);
 
     bool IsTopLevelFragmentContext() const;
