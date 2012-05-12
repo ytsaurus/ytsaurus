@@ -452,7 +452,8 @@ private:
 
     // TODO(roizner): consider extracting TChunkBalancer
 
-    void MergeChunkRef(std::vector<TChunkTreeRef>& children, const TChunkTreeRef& child) {
+    void MergeChunkRef(std::vector<TChunkTreeRef>& children, const TChunkTreeRef& child)
+    {
         // We are trying to add the child to the last chunk list.
         auto* lastChunkList = children.back().AsChunkList();
         YASSERT(lastChunkList->GetObjectRefCounter() <= 1);
@@ -554,49 +555,51 @@ private:
         MergeChunkRef(children, child);
     }
 
-    void RebalanceChunkTree(TChunkList& root) {
+    void RebalanceChunkTree(TChunkList& root)
+    {
         if (root.Statistics().Rank <= Config->MaxChunkTreeRank) {
             return;
         }
 
-        LOG_DEBUG("Starting rebalancing chunk list (ChunkListId: %s)",
-            ~root.GetId().ToString().Quote());
+        PROFILE_TIMING ("/chunk_tree_rebalancing_time") {
+            LOG_DEBUG_IF(!IsRecovery(), "Starting rebalancing chunk list (ChunkListId: %s)",
+                ~root.GetId().ToString().Quote());
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto oldStatistics = root.Statistics();
-        auto oldChildren = root.Children();
+            auto objectManager = Bootstrap->GetObjectManager();
+            auto oldStatistics = root.Statistics();
+            auto oldChildren = root.Children();
 
-        // Clear root
-        root.Children().clear(); // we'll drop the references later
-        root.RowCountSums().clear();
-        YASSERT(root.Parents().empty());
-        root.Statistics() = TChunkTreeStatistics();
+            // Clear root
+            root.Children().clear(); // we'll drop the references later
+            root.RowCountSums().clear();
+            YASSERT(root.Parents().empty());
+            root.Statistics() = TChunkTreeStatistics();
 
-        FOREACH (const auto& childRef, oldChildren) {
-            ResetChunkTreeParent(root, childRef);
+            FOREACH (const auto& childRef, oldChildren) {
+                ResetChunkTreeParent(root, childRef);
+            }
+
+            std::vector<TChunkTreeRef> newChildren;
+            FOREACH (const auto& childRef, oldChildren) {
+                AddChunkRef(newChildren, childRef);
+            }
+
+            AttachToChunkList(root, newChildren);
+
+            // Drop old references to children.
+            FOREACH (const auto& childRef, oldChildren) {
+                objectManager->UnrefObject(childRef.GetId());
+            }
+
+            const auto& newStatistics = root.Statistics();
+            YASSERT(newStatistics.RowCount == oldStatistics.RowCount);
+            YASSERT(newStatistics.UncompressedSize == oldStatistics.UncompressedSize);
+            YASSERT(newStatistics.CompressedSize == oldStatistics.CompressedSize);
+            YASSERT(newStatistics.ChunkCount == oldStatistics.ChunkCount);
+
+            LOG_DEBUG_IF(!IsRecovery(), "Chunk list rebalanced (ChunkListId: %s)",
+                ~root.GetId().ToString().Quote());
         }
-
-        std::vector<TChunkTreeRef> newChildren;
-        FOREACH (const auto& childRef, oldChildren) {
-            AddChunkRef(newChildren, childRef);
-        }
-
-        AttachToChunkList(root, newChildren);
-
-        // Drop old references to children.
-        FOREACH (const auto& childRef, oldChildren) {
-            objectManager->UnrefObject(childRef.GetId());
-        }
-
-        const auto& newStatistics = root.Statistics();
-        YASSERT(newStatistics.RowCount == oldStatistics.RowCount);
-        YASSERT(newStatistics.UncompressedSize == oldStatistics.UncompressedSize);
-        YASSERT(newStatistics.CompressedSize == oldStatistics.CompressedSize);
-        YASSERT(newStatistics.ChunkCount == oldStatistics.ChunkCount);
-
-        LOG_DEBUG("Chunk list rebalanced (ChunkListId: %s)",
-            ~root.GetId().ToString().Quote());
-
     }
 
     void SetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
