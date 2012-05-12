@@ -559,6 +559,9 @@ private:
             return;
         }
 
+        LOG_DEBUG("Starting rebalancing chunk list (ChunkListId: %s)",
+            ~root.GetId().ToString().Quote());
+
         auto objectManager = Bootstrap->GetObjectManager();
         auto oldStatistics = root.Statistics();
         auto oldChildren = root.Children();
@@ -590,6 +593,10 @@ private:
         YASSERT(newStatistics.UncompressedSize == oldStatistics.UncompressedSize);
         YASSERT(newStatistics.CompressedSize == oldStatistics.CompressedSize);
         YASSERT(newStatistics.ChunkCount == oldStatistics.ChunkCount);
+
+        LOG_DEBUG("Chunk list rebalanced (ChunkListId: %s)",
+            ~root.GetId().ToString().Quote());
+
     }
 
     void SetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
@@ -1613,7 +1620,6 @@ public:
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Detach);
         return TBase::IsWriteRequest(context);
     }
 
@@ -1679,13 +1685,17 @@ private:
             return true;
         }
 
+        if (name == "rank") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.Rank);
+        }
+
         return TBase::GetSystemAttribute(name, consumer);
     }
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Attach);
-        //DISPATCH_YPATH_SERVICE_METHOD(Detach);
         TBase::DoInvoke(context);
     }
 
