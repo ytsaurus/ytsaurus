@@ -4,6 +4,7 @@
 #include "object_service_proxy.h"
 
 #include <ytlib/ytree/tokenizer.h>
+#include <ytlib/ytree/ypath_format.h>
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/transaction_server/transaction_manager.h>
@@ -180,7 +181,7 @@ public:
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
 
-        if (tokenizer.GetCurrentType() == ETokenType::Bang) {
+        if (tokenizer.GetCurrentType() == TransactionMarkerToken) {
             tokenizer.ParseNext();
             Stroka transactionToken(tokenizer.CurrentToken().GetStringValue());
             tokenizer.ParseNext();
@@ -196,9 +197,9 @@ public:
             }
         }
 
-        if (tokenizer.GetCurrentType() == ETokenType::Slash) {
+        if (tokenizer.GetCurrentType() == RootToken) {
             objectId = cypressManager->GetRootNodeId();
-        } else if (tokenizer.GetCurrentType() == ETokenType::Hash) {
+        } else if (tokenizer.GetCurrentType() == NodeGuidMarkerToken) {
             tokenizer.ParseNext();
             Stroka objectToken(tokenizer.CurrentToken().GetStringValue());
             if (!TObjectId::FromString(objectToken, &objectId)) {

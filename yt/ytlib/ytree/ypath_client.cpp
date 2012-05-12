@@ -4,6 +4,7 @@
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
 #include "tokenizer.h"
+#include "ypath_format.h"
 
 #include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/misc/serialize.h>
@@ -322,7 +323,7 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
     INodePtr currentNode = root;
     TTokenizer tokenizer(path);
     while (tokenizer.ParseNext()) {
-        tokenizer.CurrentToken().CheckType(ETokenType::Slash);
+        tokenizer.CurrentToken().CheckType(PathSeparatorToken);
 
         INodePtr child;
         tokenizer.ParseNext();

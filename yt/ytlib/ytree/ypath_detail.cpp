@@ -4,6 +4,7 @@
 #include "ypath_client.h"
 #include "serialize.h"
 #include "tokenizer.h"
+#include "ypath_format.h"
 
 #include <ytlib/rpc/rpc.pb.h>
 
@@ -29,9 +30,9 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, con
         case ETokenType::EndOfStream:
             return ResolveSelf(TYPath(tokenizer.GetCurrentSuffix()), verb);
 
-        case ETokenType::Slash:
+        case PathSeparatorToken:
             tokenizer.ParseNext();
-            if (tokenizer.GetCurrentType() == ETokenType::At) {
+            if (tokenizer.GetCurrentType() == GoToAttributesToken) {
                 return ResolveAttributes(TYPath(tokenizer.GetCurrentSuffix()), verb);
             } else {
                 return ResolveRecursive(TYPath(tokenizer.CurrentInput()), verb);
@@ -110,9 +111,9 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
                 verb##Self(request, response, ~context); \
                 break; \
             \
-            case ETokenType::Slash: \
+            case PathSeparatorToken: \
                 tokenizer.ParseNext(); \
-                if (tokenizer.GetCurrentType() == ETokenType::At) { \
+                if (tokenizer.GetCurrentType() == GoToAttributesToken) { \
                     verb##Attribute(TYPath(tokenizer.GetCurrentSuffix()), request, response, ~context); \
                 } else { \
                     verb##Recursive(TYPath(tokenizer.CurrentInput()), request, response, ~context); \
@@ -756,7 +757,7 @@ public:
 
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
-        if (tokenizer.GetCurrentType() != ETokenType::Slash) {
+        if (tokenizer.GetCurrentType() != RootToken) {
             ythrow yexception() << Sprintf("YPath must start with '/'");
         }
 

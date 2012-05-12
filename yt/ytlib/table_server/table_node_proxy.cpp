@@ -7,6 +7,7 @@
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/tokenizer.h>
+#include <ytlib/ytree/ypath_format.h>
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -113,22 +114,22 @@ ForwardIterator LowerBound(ForwardIterator first, ForwardIterator last, const TK
 
 void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
 {
-    if (tokenizer.GetCurrentType() == ETokenType::LeftBrace) {
+    if (tokenizer.GetCurrentType() == BeginColumnSelectorToken) {
         tokenizer.ParseNext();
         *channel = TChannel::CreateEmpty();
-        while (tokenizer.GetCurrentType() != ETokenType::RightBrace) {
+        while (tokenizer.GetCurrentType() != EndColumnSelectorToken) {
             Stroka begin;
             bool isRange = false;
             switch (tokenizer.GetCurrentType()) {
                 case ETokenType::String:
                     begin.assign(tokenizer.CurrentToken().GetStringValue());
                     tokenizer.ParseNext();
-                    if (tokenizer.GetCurrentType() == ETokenType::Colon) {
+                    if (tokenizer.GetCurrentType() == RangeToken) {
                         isRange = true;
                         tokenizer.ParseNext();
                     }
                     break;
-                case ETokenType::Colon:
+                case RangeToken:
                     isRange = true;
                     tokenizer.ParseNext();
                     break;
@@ -144,7 +145,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
                         tokenizer.ParseNext();
                         break;
                     }
-                    case ETokenType::Comma:
+                    case ColumnSeparatorToken:
                         channel->AddRange(TRange(begin));
                         break;
                     default:
@@ -155,10 +156,10 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
                 channel->AddColumn(begin);
             }
             switch (tokenizer.GetCurrentType()) {
-                case ETokenType::Comma:
+                case ColumnSeparatorToken:
                     tokenizer.ParseNext();
                     break;
-                case ETokenType::RightBrace:
+                case EndColumnSelectorToken:
                     break;
                 default:
                     ThrowUnexpectedToken(tokenizer.CurrentToken());
@@ -217,22 +218,22 @@ void ParseRowLimit(
     }
 
     switch (tokenizer.GetCurrentType()) {
-        case ETokenType::Hash:
+        case RowIndexMarkerToken:
             tokenizer.ParseNext();
             limit->set_row_index(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
             break;
 
-        case ETokenType::LeftParenthesis:
+        case BeginTupleToken:
             tokenizer.ParseNext();
             limit->mutable_key();
-            while (tokenizer.GetCurrentType() != ETokenType::RightParenthesis) {
+            while (tokenizer.GetCurrentType() != EndTupleToken) {
                 ParseKeyPart(tokenizer, limit->mutable_key());
                 switch (tokenizer.GetCurrentType()) {
-                    case ETokenType::Comma:
+                    case KeySeparatorToken:
                         tokenizer.ParseNext();
                         break;
-                    case ETokenType::RightParenthesis:
+                    case EndTupleToken:
                         break;
                     default:
                         ThrowUnexpectedToken(tokenizer.CurrentToken());
@@ -258,10 +259,10 @@ void ParseRowLimits(
 {
     *lowerLimit = TReadLimit();
     *upperLimit = TReadLimit();
-    if (tokenizer.GetCurrentType() == ETokenType::LeftBracket) {
+    if (tokenizer.GetCurrentType() == BeginRowSelectorToken) {
         tokenizer.ParseNext();
-        ParseRowLimit(tokenizer, ETokenType::Colon, lowerLimit);
-        ParseRowLimit(tokenizer, ETokenType::RightBracket, upperLimit);
+        ParseRowLimit(tokenizer, RangeToken, lowerLimit);
+        ParseRowLimit(tokenizer, EndRowSelectorToken, upperLimit);
     }
 }
 

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "virtual.h"
 
+#include <ytlib/ytree/ypath_format.h>
 #include <ytlib/cypress/node_detail.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -58,7 +59,7 @@ public:
     {
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
-        if (tokenizer.GetCurrentType() == ETokenType::Ampersand) {
+        if (tokenizer.GetCurrentType() == SuppressRedirectToken) {
             return TBase::Resolve(TYPath(tokenizer.GetCurrentSuffix()), verb);
         }
         return TResolveResult::There(~Service, path);

@@ -8,9 +8,9 @@ set( SRCS
   ${BASE}/pipes.cpp
   ${BASE}/private.cpp
   ${BASE}/sorted_merge_job.cpp
+  ${BASE}/table_output.cpp
   ${BASE}/user_job.cpp
   ${BASE}/user_job_io.cpp
-  ${BASE}/table_output.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -22,9 +22,9 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/sorted_merge_job.h
+  ${BASE}/table_output.h
   ${BASE}/user_job.h
   ${BASE}/user_job_io.h
-  ${BASE}/table_output.h
 )
 
 list(APPEND YT_SOURCE_FILES

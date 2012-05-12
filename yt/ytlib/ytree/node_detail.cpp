@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "node_detail.h"
+
 #include "ypath_detail.h"
 #include "ypath_service.h"
 #include "tree_visitor.h"
@@ -8,6 +9,7 @@
 #include "ypath_client.h"
 #include "serialize.h"
 #include "tokenizer.h"
+#include "ypath_format.h"
 
 namespace NYT {
 namespace NYTree {
@@ -152,7 +154,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
-        case ETokenType::Plus:
+        case ListAppendToken:
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here("/" + path);
@@ -160,7 +162,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
         case ETokenType::Integer: {
             int index = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
-            if (tokenizer.GetCurrentType() == ETokenType::Caret) {
+            if (tokenizer.GetCurrentType() == ListInsertToken) {
                 tokenizer.ParseNext();
                 tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
                 return IYPathService::TResolveResult::Here("/" + path);
@@ -171,7 +173,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             }
         }
 
-        case ETokenType::Caret:
+        case ListInsertToken:
             tokenizer.ParseNext();
             NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
@@ -202,11 +204,11 @@ void TListNodeMixin::SetRecursive(
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
-        case ETokenType::Plus:
+        case ListAppendToken:
             YASSERT(!tokenizer.ParseNext());
             break;
 
-        case ETokenType::Caret:
+        case ListInsertToken:
             tokenizer.ParseNext();
             beforeIndex = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
             YASSERT(!tokenizer.ParseNext());
@@ -215,7 +217,7 @@ void TListNodeMixin::SetRecursive(
         case ETokenType::Integer:
             beforeIndex = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue()) + 1;
             tokenizer.ParseNext();
-            YASSERT(tokenizer.GetCurrentType() == ETokenType::Caret);
+            YASSERT(tokenizer.GetCurrentType() == ListInsertToken);
             YASSERT(!tokenizer.ParseNext());
             if (beforeIndex == GetChildCount()) {
                 beforeIndex = -1;
