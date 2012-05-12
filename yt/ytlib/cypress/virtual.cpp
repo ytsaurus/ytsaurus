@@ -56,7 +56,11 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
-        // TODO(babenko): handle ugly face
+        TTokenizer tokenizer(path);
+        tokenizer.ParseNext();
+        if (tokenizer.GetCurrentType() == ETokenType::Ampersand) {
+            return TBase::Resolve(TYPath(tokenizer.GetCurrentSuffix()), verb);
+        }
         return TResolveResult::There(~Service, path);
     }
 
