@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "yson_writer.h"
+
 #include "yson_format.h"
 
 #include <ytlib/misc/serialize.h>
@@ -142,16 +143,16 @@ bool TYsonWriter::IsTopLevelFragmentContext() const
 void TYsonWriter::EndNode()
 {
     if (IsTopLevelFragmentContext()) {
-        Stream->Write(ItemSeparator);
+        Stream->Write(TokenTypeToChar(ItemSeparatorToken));
         if (Format == EYsonFormat::Text || Format == EYsonFormat::Pretty) {
             Stream->Write('\n');
         }
     }
 }
 
-void TYsonWriter::BeginCollection(char openBracket)
+void TYsonWriter::BeginCollection(ETokenType beginToken)
 {
-    Stream->Write(openBracket);
+    Stream->Write(TokenTypeToChar(beginToken));
     ++Depth;
     BeforeFirstItem = true;
 }
@@ -160,7 +161,7 @@ void TYsonWriter::CollectionItem()
 {
     if (!IsTopLevelFragmentContext()) {
         if (!BeforeFirstItem) {
-            Stream->Write(ItemSeparator);
+            Stream->Write(TokenTypeToChar(ItemSeparatorToken));
         }
 
         if (Format == EYsonFormat::Pretty) {
@@ -172,14 +173,14 @@ void TYsonWriter::CollectionItem()
     BeforeFirstItem = false;
 }
 
-void TYsonWriter::EndCollection(char closeBracket)
+void TYsonWriter::EndCollection(ETokenType endToken)
 {
     --Depth;
     if (Format == EYsonFormat::Pretty && !BeforeFirstItem) {
         Stream->Write('\n');
         WriteIndent();
     }
-    Stream->Write(closeBracket);
+    Stream->Write(TokenTypeToChar(endToken));
     BeforeFirstItem = false;
 }
 
@@ -226,13 +227,13 @@ void TYsonWriter::OnDoubleScalar(double value)
 
 void TYsonWriter::OnEntity()
 {
-    Stream->Write('#');
+    Stream->Write(TokenTypeToChar(EntityToken));
     EndNode();
 }
 
 void TYsonWriter::OnBeginList()
 {
-    BeginCollection(BeginListSymbol);
+    BeginCollection(BeginListToken);
 }
 
 void TYsonWriter::OnListItem()
@@ -242,13 +243,13 @@ void TYsonWriter::OnListItem()
 
 void TYsonWriter::OnEndList()
 {
-    EndCollection(EndListSymbol);
+    EndCollection(EndListToken);
     EndNode();
 }
 
 void TYsonWriter::OnBeginMap()
 {
-    BeginCollection(BeginMapSymbol);
+    BeginCollection(BeginMapToken);
 }
 
 void TYsonWriter::OnKeyedItem(const TStringBuf& key)
@@ -260,7 +261,7 @@ void TYsonWriter::OnKeyedItem(const TStringBuf& key)
     if (Format == EYsonFormat::Pretty) {
         Stream->Write(' ');
     }
-    Stream->Write(KeyValueSeparator);
+    Stream->Write(TokenTypeToChar(KeyValueSeparatorToken));
     if (Format == EYsonFormat::Pretty) {
         Stream->Write(' ');
     }
@@ -270,18 +271,18 @@ void TYsonWriter::OnKeyedItem(const TStringBuf& key)
 
 void TYsonWriter::OnEndMap()
 {
-    EndCollection(EndMapSymbol);
+    EndCollection(EndMapToken);
     EndNode();
 }
 
 void TYsonWriter::OnBeginAttributes()
 {
-    BeginCollection(BeginAttributesSymbol);
+    BeginCollection(BeginAttributesToken);
 }
 
 void TYsonWriter::OnEndAttributes()
 {
-    EndCollection(EndAttributesSymbol);
+    EndCollection(EndAttributesToken);
     if (Format == EYsonFormat::Pretty) {
         Stream->Write(' ');
     }

@@ -2,8 +2,8 @@
 #include "yson_parser.h"
 
 #include "yson_consumer.h"
-#include "token.h"
 #include "lexer.h"
+#include "yson_format.h"
 
 #include <ytlib/misc/foreach.h>
 
@@ -197,22 +197,22 @@ private:
                 OnItemConsumed();
                 break;
 
-            case ETokenType::Hash:
+            case EntityToken:
                 Consumer->OnEntity();
                 OnItemConsumed();
                 break;
 
-            case ETokenType::LeftBracket:
+            case BeginListToken:
                 Consumer->OnBeginList();
                 StateStack.push(EState::ListBeforeItem);
                 break;
 
-            case ETokenType::LeftBrace:
+            case BeginMapToken:
                 Consumer->OnBeginMap();
                 StateStack.push(EState::MapBeforeKey);
                 break;
 
-            case ETokenType::LeftAngle:
+            case BeginAttributesToken:
                 if (allowAttributes) {
                     Consumer->OnBeginAttributes();
                     StateStack.push(EState::AttributesBeforeKey);
@@ -241,7 +241,7 @@ private:
                 }
                 break;
 
-            case ETokenType::RightBracket:
+            case EndListToken:
                 if (inFragment) {
                     ythrow yexception() << Sprintf("Unexpected end of list in list fragment (%s)",
                         ~GetPositionInfo());
@@ -259,7 +259,7 @@ private:
                         break;
 
                     case EState::ListAfterItem:
-                        if (tokenType == ETokenType::Semicolon) {
+                        if (tokenType == ItemSeparatorToken) {
                             StateStack.top() = EState::ListBeforeItem;
                         } else {
                             ythrow yexception() << Sprintf("Expected ';' or ']', but token %s of type %s found (%s)",
@@ -285,7 +285,7 @@ private:
         {
             if (tokenType == ETokenType::EndOfStream) {
                 StateStack.top() = EState::Parsed;
-            } else if (tokenType == ETokenType::RightBrace) {
+            } else if (tokenType == EndMapToken) {
                 ythrow yexception() << Sprintf("Unexpected end of map in map fragment (%s)",
                     ~GetPositionInfo());
             }
@@ -297,7 +297,7 @@ private:
 
         switch (currentState) {
             case EState::MapBeforeKey:
-                if (tokenType == ETokenType::RightBrace) {
+                if (tokenType == EndMapToken) {
                     Consumer->OnEndMap();
                     StateStack.pop();
                     OnItemConsumed();
@@ -313,7 +313,7 @@ private:
                 break;
 
             case EState::MapAfterKey:
-                if (tokenType == ETokenType::Equals) {
+                if (tokenType == KeyValueSeparatorToken) {
                     StateStack.top() = EState::MapBeforeValue;
                 } else {
                     ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
@@ -328,11 +328,11 @@ private:
                 break;
 
             case EState::MapAfterValue:
-                if (tokenType == ETokenType::RightBrace) {
+                if (tokenType == EndMapToken) {
                     Consumer->OnEndMap();
                     StateStack.pop();
                     OnItemConsumed();
-                } else if (tokenType == ETokenType::Semicolon) {
+                } else if (tokenType == ItemSeparatorToken) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Expected ';' or '}', but token %s of type %s found (%s)",
@@ -356,7 +356,7 @@ private:
             return;
         }
 
-        if (tokenType == ETokenType::RightAngle &&
+        if (tokenType == EndAttributesToken &&
             (currentState == EState::AttributesBeforeKey || currentState == EState::AttributesAfterValue))
         {
             Consumer->OnEndAttributes();
@@ -378,7 +378,7 @@ private:
                 break;
 
             case EState::AttributesAfterKey:
-                if (tokenType == ETokenType::Equals) {
+                if (tokenType == KeyValueSeparatorToken) {
                     StateStack.top() = EState::AttributesBeforeValue;
                 } else {
                     ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
@@ -393,7 +393,7 @@ private:
                 break;
 
             case EState::AttributesAfterValue:
-                if (tokenType == ETokenType::Semicolon) {
+                if (tokenType == ItemSeparatorToken) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Expected ';' or '>', but token %s of type %s found (%s)",
