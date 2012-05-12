@@ -171,7 +171,7 @@ message TSortJobSpec
 {
     extend TJobSpec
     {
-        optional TPartitionJobSpec sort_job_spec = 104;
+        optional TSortJobSpec sort_job_spec = 104;
     }
 
     required TTableInputSpec input_spec = 1;

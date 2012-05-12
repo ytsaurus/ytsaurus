@@ -140,13 +140,13 @@ private:
 
     void OnJobCompleted(TMapJobInProgress* jip)
     {
+        CompletedChunkCount += jip->ExtractResult->Chunks.size();
+        CompletedWeight += jip->ExtractResult->Weight;
+
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jip->ChunkListIds[index];
             OutputTables[index].PartitionTreeIds.push_back(chunkListId);
         }
-
-        CompletedChunkCount += jip->ExtractResult->Chunks.size();
-        CompletedWeight += jip->ExtractResult->Weight;
     }
 
     void OnJobFailed(TMapJobInProgress* jip)
