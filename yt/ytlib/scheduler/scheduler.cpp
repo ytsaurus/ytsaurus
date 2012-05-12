@@ -504,17 +504,17 @@ private:
             }
             LOG_INFO("Scheduler address published");
 
-            //LOG_INFO("Registering at orchid");
-            //{
-            //    auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_address");
-            //    req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-            //    auto rsp = ObjectProxy.Execute(req).Get();
-            //    if (!rsp->IsOK()) {
-            //        ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
-            //            ~rsp->GetError().ToString());
-            //    }
-            //}
-            //LOG_INFO("Registered at orchid");
+            LOG_INFO("Registering at orchid");
+            {
+                auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_address");
+                req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
+                auto rsp = ObjectProxy.Execute(req).Get();
+                if (!rsp->IsOK()) {
+                    ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
+                        ~rsp->GetError().ToString());
+                }
+            }
+            LOG_INFO("Registered at orchid");
         } catch (...) {
             // Abort the bootstrap transaction (will need a new one anyway).
             BootstrapTransaction->Abort();
