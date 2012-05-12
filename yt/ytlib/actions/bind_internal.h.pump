@@ -652,17 +652,18 @@ $$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
 #endif
         const Runnable& runnable
 $if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]])
-        : Runnable_(runnable)[[]]
+#ifdef ENABLE_BIND_LOCATION_TRACKING
+        : TBindStateBase(location)
+        , Runnable_(runnable)
+#else
+        : Runnable_(runnable)
+#endif[[]]
 $if ARITY > 0 [[
 $for ARG [[
 
         , S$(ARG)_(ForwardRV<P$(ARG)>(p$(ARG)))
 ]] $$ for ARG
 ]]
-
-#ifdef ENABLE_BIND_LOCATION_TRACKING
-        , TBindStateBase(location)
-#endif
 
     { }
 
