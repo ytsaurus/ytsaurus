@@ -1433,7 +1433,7 @@ private:
 
         if (name == "uncompressed_data_size") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->uncompressed_size());
+                .Scalar(miscExt->uncompressed_data_size());
             return true;
         }
 
@@ -1639,7 +1639,7 @@ private:
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");
         attributes->push_back("row_count");
-        attributes->push_back("uncompressed_size");
+        attributes->push_back("uncompressed_data_size");
         attributes->push_back("compressed_size");
         attributes->push_back("chunk_count");
         attributes->push_back("rank");
@@ -1674,7 +1674,7 @@ private:
             return true;
         }
 
-        if (name == "uncompressed_size") {
+        if (name == "uncompressed_data_size") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.UncompressedSize);
             return true;

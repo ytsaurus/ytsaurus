@@ -520,7 +520,7 @@ private:
                 auto fetchRsp = table.FetchResponse;
                 FOREACH (const auto& chunk, *fetchRsp->mutable_chunks()) {
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-                    i64 dataSize = miscExt->uncompressed_size();
+                    i64 dataSize = miscExt->uncompressed_data_size();
 
                     // Plus one is to ensure that weights are positive.
                     i64 weight = dataSize + 1;
@@ -615,7 +615,7 @@ private:
         FOREACH (const auto& table, InputTables) {
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                 auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-                i64 dataSize = miscExt->uncompressed_size();
+                i64 dataSize = miscExt->uncompressed_data_size();
                 // Plus one is to ensure that weights are positive.
                 i64 weight = dataSize + 1;
                 auto pooledChunk = New<TPooledChunk>(chunk, weight);

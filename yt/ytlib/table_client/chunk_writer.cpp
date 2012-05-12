@@ -235,11 +235,6 @@ TAsyncError TChunkWriter::AsyncClose()
 
     CurrentSize = SentSize;
 
-    Meta.set_type(EChunkType::Table);
-    {
-        MiscExt.set_uncompressed_size(UncompressedSize);
-        SetProtoExtension(Meta.mutable_extensions(), MiscExt);
-    }
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
     SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
 
@@ -260,6 +255,14 @@ TAsyncError TChunkWriter::AsyncClose()
             ToProto(keyColumnsExt.mutable_values(), KeyColumns.Get());
             SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
         }
+    }
+
+    Meta.set_type(EChunkType::Table);
+    {
+        MiscExt.set_uncompressed_data_size(UncompressedSize);
+        MiscExt.set_compressed_data_size(SentSize);
+        MiscExt.set_meta_size(Meta.ByteSize());
+        SetProtoExtension(Meta.mutable_extensions(), MiscExt);
     }
 
     return ChunkWriter

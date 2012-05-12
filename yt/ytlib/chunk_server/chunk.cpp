@@ -41,7 +41,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     result.Rank = 0;
 
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(ChunkMeta().extensions());
-    result.UncompressedSize = miscExt->uncompressed_size();
+    result.UncompressedSize = miscExt->uncompressed_data_size();
     result.RowCount = miscExt->row_count();
 
     return result;

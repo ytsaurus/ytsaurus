@@ -30,10 +30,17 @@ message TChunkInfo
 // Chunk meta extension.
 message TMiscExt
 {
-    optional int64 uncompressed_size = 1 [default = 0];
+    // Total size of uncompressed blocks.
+    optional int64 uncompressed_data_size = 1 [default = 0];
     optional int64 row_count = 2 [default = 0];
     optional int32 codec_id = 3 [default = 0];
     optional bool sorted = 4 [default = false];
+
+    // Total size of blocks with data sent to holder.
+    optional int64 compressed_data_size = 5 [default = 0];
+
+    // Size of chunk meta (without TMiscExt), obtained via ByteSize.
+    optional int64 meta_size = 6 [default = 0];
 }
 
 // TChunkMeta is stored in *.meta files on chunk holders

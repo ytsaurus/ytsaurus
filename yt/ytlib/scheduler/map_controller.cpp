@@ -217,7 +217,7 @@ private:
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
 
                     i64 rowCount = miscExt->row_count();
-                    i64 dataSize = miscExt->uncompressed_size();
+                    i64 dataSize = miscExt->uncompressed_data_size();
 
                     // TODO(babenko): make customizable
                     // Plus one is to ensure that weights are positive.

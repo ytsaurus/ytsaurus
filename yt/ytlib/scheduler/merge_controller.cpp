@@ -160,7 +160,7 @@ protected:
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
             chunk->InputChunk.extensions());
 
-        TotalWeight += miscExt->uncompressed_size();
+        TotalWeight += miscExt->uncompressed_data_size();
         ++TotalChunkCount;
         CurrentGroup->ChunkPool->Add(chunk);
         RegisterPendingChunk(CurrentGroup, chunk);
@@ -375,7 +375,7 @@ protected:
                 FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-                    i64 dataSize = miscExt->uncompressed_size();
+                    i64 dataSize = miscExt->uncompressed_data_size();
                     i64 rowCount = miscExt->row_count();
                     LOG_DEBUG("Processing chunk %s (DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
@@ -494,7 +494,7 @@ protected:
 
         // ToDo(psushin): mind that desired chunk size is for compressed chunk.
         auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-        if (misc->uncompressed_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (misc->uncompressed_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -559,7 +559,7 @@ private:
         auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
         auto pooledChunk = New<TPooledChunk>(
             chunk,
-            misc->uncompressed_size());
+            misc->uncompressed_data_size());
         AddPendingChunk(pooledChunk);
     }
 
@@ -640,7 +640,7 @@ private:
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
         auto pooledChunk = New<TPooledChunk>(
             chunk,
-            miscExt->uncompressed_size());
+            miscExt->uncompressed_data_size());
         AddPendingChunk(pooledChunk);
 
         EndGroupIfLarge();
@@ -767,7 +767,7 @@ private:
             // Merge is IO-bound, use data size as weight.
             auto pooledChunk = New<TPooledChunk>(
                 *chunk,
-                miscExt->uncompressed_size());
+                miscExt->uncompressed_data_size());
             AddPendingChunk(pooledChunk);
         }
 
