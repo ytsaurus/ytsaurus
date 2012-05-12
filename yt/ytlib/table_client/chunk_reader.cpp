@@ -40,7 +40,8 @@ public:
         Pivot.FromProto(pivot);
     }
 
-    bool IsValid(const TKey& key)
+    template<class TBuffer>
+    bool IsValid(const TKey<TBuffer>& key)
     {
         int result = CompareKeys(key, Pivot);
         return LeftBoundary ? result >= 0 : result < 0;
@@ -48,8 +49,8 @@ public:
 
 private:
     bool LeftBoundary;
-    TKey Pivot;
-    
+    TKey<TBlobOutput> Pivot;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,7 +204,7 @@ private:
                 return;
             }
 
-            chunkReader->KeyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
+            auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
                 result.Value().extensions());
 
             YASSERT(chunkReader->KeyColumnsExt->values_size() > 0);
@@ -462,6 +463,8 @@ private:
         auto& channelReader = chunkReader->ChannelReaders.back();
         auto compressedBlock = chunkReader->SequentialReader->GetBlock();
         auto decompressedBlock = chunkReader->Codec->Decompress(compressedBlock);
+        if (chunkReader->Options.KeepBlocks)
+            chunkReader->FetchedBlocks.push_back(decompressedBlock);
         channelReader->SetBlock(decompressedBlock);
 
         for (i64 rowIndex = StartRows[selectedChannelIndex]; 
@@ -496,15 +499,24 @@ private:
         if (!chunkReader)
             return;
 
-        LOG_TRACE("Validating row %" PRId64, chunkReader->CurrentRowIndex);
+        while (true) {
+            LOG_TRACE("Validating row %" PRId64, chunkReader->CurrentRowIndex);
 
-        YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
-        if (~StartValidator && !StartValidator->IsValid(chunkReader->CurrentKey)) {
-            // TODO(babenko): potential performance issue
-            chunkReader->DoNextRow().Subscribe(
-                BIND(&TInitializer::ValidateRow, MakeWeak(this))
-                .Via(ReaderThread->GetInvoker()));
-            return;
+            YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
+            if (~StartValidator && !StartValidator->IsValid(chunkReader->CurrentKey)) {
+                auto result = chunkReader->DoNextRow();
+
+                // This quick check is aimed to improve potential performance issue and
+                // eliminate unnecessary calls to Subscribe and BIND.
+                if (!result.IsSet()) {
+                    result.Subscribe(
+                        BIND(&TInitializer::ValidateRow, MakeWeak(this))
+                        .Via(ReaderThread->GetInvoker()));
+                    return;
+                }
+            } else {
+                break;
+            }
         }
 
         LOG_DEBUG("Reader initialized");
@@ -640,7 +652,10 @@ TAsyncError TChunkReader::ContinueNextRow(
 
     if (channelIndex >= 0) {
         auto& channel = ChannelReaders[channelIndex];
-        channel->SetBlock(Codec->Decompress(SequentialReader->GetBlock()));
+        auto decompressedBlock = Codec->Decompress(SequentialReader->GetBlock());
+        if (Options.KeepBlocks)
+            FetchedBlocks.push_back(decompressedBlock);
+        channel->SetBlock(decompressedBlock);
     }
 
     ++channelIndex;
@@ -732,7 +747,7 @@ TRow& TChunkReader::GetRow()
     return CurrentRow;
 }
 
-TKey& TChunkReader::GetKey()
+const TKey<TFakeStrbufStore>& TChunkReader::GetKey()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());

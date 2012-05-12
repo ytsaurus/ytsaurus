@@ -10,6 +10,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/misc/codec.h>
+#include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 
@@ -27,8 +28,15 @@ public:
     {
         bool ReadKey;
 
+        // These key columns are used if ReadKey is set.
+        // If not initialized, key columns are taken from chunk meta.
+        TNullable<TKeyColumns> KeyColumns;
+
+        bool KeepBlocks;
+
         TOptions()
             : ReadKey(false)
+            , KeepBlocks(false)
         { }
     };
 
@@ -48,7 +56,7 @@ public:
     bool IsValid() const;
 
     TRow& GetRow();
-    TKey& GetKey();
+    const TKey<TFakeStrbufStore>& GetKey();
     const NYTree::TYson& GetRowAttributes() const;
 
 private:
@@ -78,7 +86,7 @@ private:
 
     NYTree::TYson RowAttributes;
     TRow CurrentRow;
-    TKey CurrentKey;
+    TKey<TFakeStrbufStore> CurrentKey;
 
     struct TColumnInfo
     {
@@ -101,7 +109,7 @@ private:
 
     THolder<TKeyValidator> EndValidator;
 
-    TAutoPtr<NProto::TKeyColumnsExt> KeyColumnsExt;
+    TNullable<TKeyColumns> KeyColumns;
 
     /*! 
      *  See DoNextRow for usage.
@@ -109,6 +117,9 @@ private:
     const TAsyncErrorPromise SuccessResult;
 
     std::vector<TChannelReaderPtr> ChannelReaders;
+
+    //! Stores references to blocks if KeepBlocks option is set.
+    std::vector<TSharedRef> FetchedBlocks;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);

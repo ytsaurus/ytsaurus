@@ -37,13 +37,13 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TTransparentOutput
+class TFakeStrbufStore
 {
 public:
     typedef TStringBuf TStrType;
 
     // Unused parameter, required for compatibility with TBlobOutput.
-    TTransparentOutput(size_t capacity);
+    TFakeStrbufStore(size_t capacity);
 
     const TStrType PutData(const TStringBuf& value);
 

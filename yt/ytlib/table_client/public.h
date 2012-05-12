@@ -19,8 +19,6 @@ typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
 struct IAsyncReader;
 typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
 
-class TKey;
-
 struct TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
@@ -54,7 +52,10 @@ class TTableConsumer;
 typedef std::vector< std::pair<TStringBuf, TStringBuf> > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
+template <class TBuffer>
 class TKey;
+
+template <class TStrType>
 class TKeyPart;
 
 ////////////////////////////////////////////////////////////////////////////////

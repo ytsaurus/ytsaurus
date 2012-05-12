@@ -58,20 +58,16 @@ const TBlob* TBlobOutput::GetBlob() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransparentOutput::TTransparentOutput(size_t capacity)
-{
+TFakeStrbufStore::TFakeStrbufStore(size_t /* capacity */)
+{ }
 
+const TStrType TFakeStrbufStore::PutData(const TStringBuf& value)
+{
+    return value;
 }
 
-const TStrType TTransparentOutput::PutData(const TStringBuf& value)
-{
-
-}
-
-void TTransparentOutput::Clear()
-{
-
-}
+void TFakeStrbufStore::Clear()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
