@@ -75,7 +75,7 @@ private:
     {
         return PendingWeight == 0
             ? 0
-            : TotalJobCount - CompletedJobCount;
+            : TotalJobCount - RunningJobCount - CompletedJobCount;
     }
 
 
