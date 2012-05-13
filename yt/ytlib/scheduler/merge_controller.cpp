@@ -288,10 +288,10 @@ protected:
             false);
         YASSERT(!jip->ExtractResult->Chunks.empty());
 
-        LOG_DEBUG("Extracted %d chunks, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+        LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
             static_cast<int>(jip->ExtractResult->Chunks.size()),
-            jip->ExtractResult->LocalCount,
             ~node->GetAddress(),
+            jip->ExtractResult->LocalCount,
             jip->ExtractResult->Weight,
             weightThreshold);
 

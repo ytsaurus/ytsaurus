@@ -333,10 +333,10 @@ private:
             false);
         YASSERT(jip->ExtractResult);
 
-        LOG_DEBUG("Extracted %d chunks for partition, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+        LOG_DEBUG("Extracted %d chunks for partition at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
             static_cast<int>(jip->ExtractResult->Chunks.size()),
-            jip->ExtractResult->LocalCount,
             ~node->GetAddress(),
+            jip->ExtractResult->LocalCount,
             jip->ExtractResult->Weight,
             weightThreshold);
 
@@ -427,10 +427,10 @@ private:
             false);
         YASSERT(!jip->ExtractResult->Chunks.empty());
 
-        LOG_DEBUG("Extracted %d chunks for sort, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+        LOG_DEBUG("Extracted %d chunks for sort at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
             static_cast<int>(jip->ExtractResult->Chunks.size()),
-            jip->ExtractResult->LocalCount,
             ~node->GetAddress(),
+            jip->ExtractResult->LocalCount,
             jip->ExtractResult->Weight,
             weightThreshold);
 
