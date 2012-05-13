@@ -141,7 +141,7 @@ private:
             : partition->SortChunkPool->HasPendingChunks();
     }
 
-    bool IsPartitionActive(TPartitionPtr partition, const Stroka& address)
+    bool IsPartitionActiveFor(TPartitionPtr partition, const Stroka& address)
     {
         return
             IsPartitionActive(partition) &&
@@ -153,7 +153,7 @@ private:
         if (IsPartitionActive(partition)) {
             ActivePartitions.insert(partition);
             FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-                if (IsPartitionActive(partition, address)) {
+                if (IsPartitionActiveFor(partition, address)) {
                     AddressToActivePartitions[address].insert(partition);
                 }
             }
@@ -201,7 +201,7 @@ private:
 
         FOREACH (const auto& chunk, result->Chunks) {
             FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-                if (!IsPartitionActive(partition, address)) {
+                if (!IsPartitionActiveFor(partition, address)) {
                     AddressToActivePartitions[address].erase(partition);
                 }
             }
