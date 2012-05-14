@@ -5,6 +5,7 @@
 #include "user_job.h"
 #include "sorted_merge_job.h"
 #include "ordered_merge_job.h"
+#include "sort_job.h"
 
 #include <ytlib/rpc/channel.h>
 #include <ytlib/scheduler/public.h>
@@ -97,6 +98,13 @@ void TJobProxy::Start()
                     Config->JobIO, 
                     Config->Masters, 
                     jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+                break;
+
+            case EJobType::Sort:
+                Job = new TSortJob(
+                    Config->JobIO, 
+                    Config->Masters, 
+                    jobSpec.GetExtension(TSortJobSpec::sort_job_spec));
                 break;
 
             default:
