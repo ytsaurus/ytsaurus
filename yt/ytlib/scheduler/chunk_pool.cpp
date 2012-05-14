@@ -46,6 +46,7 @@ class TUnorderedChunkPool
 public:
     TUnorderedChunkPool()
         : TotalWeight(0)
+        , PendingWeight(0)
     { }
 
     virtual void Add(TPooledChunkPtr chunk)
