@@ -263,7 +263,7 @@ private:
 
     int GetPendingSortJobCount(TPartitionPtr partition)
     {
-        i64 weight = partition->SortChunkPool->GetTotalWeight();
+        i64 weight = partition->SortChunkPool->GetPendingWeight();
         i64 weightPerChunk = Config->MaxSortJobDataSize;
         return GetPendingPartitionJobCount() > 0
             ? static_cast<int>(floor((double) weight / weightPerChunk))
