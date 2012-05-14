@@ -15,23 +15,28 @@ DECLARE_ENUM(EFormatType,
     (Csv)
 );
 
-struct TFormat
+class TFormat
 {
+public:
     TFormat(EFormatType type);
 
     EFormatType Type;
 
-    //XXX(panin): revise the method of storage this
-    TSharedPtr<NYTree::IAttributeDictionary> Attributes;
+    TAutoPtr<NYTree::IAttributeDictionary> Attributes;
+
+    static TFormat FromYson(NYTree::INodePtr node);
+    void ToYson(NYTree::IYsonConsumer* consumer) const;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TAutoPtr<NYTree::IYsonConsumer> CreateConsumerForFormat(
-    TFormat format,
+    const TFormat& format,
     EDataType dataType,
     TOutputStream* output);
 
 NYTree::TYsonProducer CreateProducerForFormat(
-    TFormat format,
+    const TFormat& format,
     EDataType dataType,
     TInputStream* input);
 
