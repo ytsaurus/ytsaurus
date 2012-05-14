@@ -5,6 +5,7 @@
 #include "yson_parser.h"
 #include "tree_visitor.h"
 #include "serialize.h"
+#include "attributes.h"
 
 #include <ytlib/actions/callback.h>
 #include <ytlib/misc/foreach.h>
@@ -268,6 +269,27 @@ public:
             return TAny<TThis>(this->Consumer, *this);
         }
 
+        TThis& Items(IMapNodePtr map)
+        {
+            FOREACH (const auto& pair, map->GetChildren())
+            {
+                this->Consumer->OnKeyedItem(pair.first);
+                VisitTree(~pair.second, this->Consumer);
+            }
+            return *this;
+        }
+
+        TThis& Items(IAttributeDictionary* attributes)
+        {
+            FOREACH (const auto& key, attributes->List())
+            {
+                const auto& yson = attributes->GetYson(key);
+                this->Consumer->OnKeyedItem(key);
+                ParseYson(yson, this->Consumer);
+            }
+            return *this;
+        }
+
         TParent EndAttributes()
         {
             this->Consumer->OnEndAttributes();
@@ -290,6 +312,16 @@ public:
         {
             this->Consumer->OnListItem();
             return TAny<TThis>(this->Consumer, *this);
+        }
+
+        TThis& Items(IListNodePtr list)
+        {
+            FOREACH (const auto& item, list->GetChildren())
+            {
+                this->Consumer->OnListItem();
+                VisitTree(~item, this->Consumer);
+            }
+            return *this;
         }
 
         TList& Do(TYsonProducer producer)
@@ -354,6 +386,27 @@ public:
         {
             this->Consumer->OnKeyedItem(key);
             return TAny<TThis>(this->Consumer, *this);
+        }
+
+        TThis& Items(IMapNodePtr map)
+        {
+            FOREACH (const auto& pair, map->GetChildren())
+            {
+                this->Consumer->OnKeyedItem(pair.first);
+                VisitTree(~pair.second, this->Consumer);
+            }
+            return *this;
+        }
+
+        TThis& Items(IAttributeDictionary* attributes)
+        {
+            FOREACH (const auto& key, attributes->List())
+            {
+                const auto& yson = attributes->GetYson(key);
+                this->Consumer->OnKeyedItem(key);
+                ParseYson(yson, this->Consumer);
+            }
+            return *this;
         }
 
         TMap& Do(TYsonProducer producer)
