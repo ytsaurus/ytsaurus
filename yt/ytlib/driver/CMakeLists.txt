@@ -2,7 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/driver )
 set( SRCS
   ${BASE}/command.cpp
-  ${BASE}/common.cpp
+  ${BASE}/private.cpp
   ${BASE}/cypress_commands.cpp
   ${BASE}/driver.cpp
   ${BASE}/file_commands.cpp
@@ -13,7 +13,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/command.h
-  ${BASE}/common.h
+  ${BASE}/private.h
   ${BASE}/config.h
   ${BASE}/cypress_commands.h
   ${BASE}/driver.h
