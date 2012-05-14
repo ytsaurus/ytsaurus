@@ -92,7 +92,7 @@ struct TCommandDescriptor
 struct IDriver
     : public TRefCounted
 {
-    //! Synchronously executes a given request. Returns the outcome.
+    //! Synchronously executes a given request.
     virtual TDriverResponse Execute(const TDriverRequest& request) = 0;
 
     //! Returns a descriptor for a command with a given name.
