@@ -148,6 +148,25 @@ TEST(TYTreeFluentMapTest, Simple)
         .EndMap();
 }
 
+TEST(TYTreeFluentMapTest, Items)
+{
+    StrictMock<TMockYsonConsumer> mock;
+    InSequence dummy;
+
+    auto node = DeserializeFromYson("{bar = 10}");
+
+    EXPECT_CALL(mock, OnBeginMap());
+    EXPECT_CALL(mock, OnKeyedItem("bar"));
+    EXPECT_CALL(mock, OnIntegerScalar(10));
+    EXPECT_CALL(mock, OnEndMap());
+
+    BuildYsonFluently(&mock)
+        .BeginMap()
+            .Items(node->AsMap())
+        .EndMap();
+}
+
+
 TEST(TYTreeFluentMapTest, Nested)
 {
     StrictMock<TMockYsonConsumer> mock;
@@ -214,6 +233,28 @@ TEST(TYTreeFluentListTest, Simple)
 
             .Item()
             .Scalar("bar")
+        .EndList();
+}
+
+TEST(TYTreeFluentListTest, Items)
+{
+    StrictMock<TMockYsonConsumer> mock;
+    InSequence dummy;
+
+    auto node = DeserializeFromYson("[10; 20; 30]");
+
+    EXPECT_CALL(mock, OnBeginList());
+    EXPECT_CALL(mock, OnListItem());
+    EXPECT_CALL(mock, OnIntegerScalar(10));
+    EXPECT_CALL(mock, OnListItem());
+    EXPECT_CALL(mock, OnIntegerScalar(20));
+    EXPECT_CALL(mock, OnListItem());
+    EXPECT_CALL(mock, OnIntegerScalar(30));
+    EXPECT_CALL(mock, OnEndList());
+
+    BuildYsonFluently(&mock)
+        .BeginList()
+            .Items(node->AsList())
         .EndList();
 }
 

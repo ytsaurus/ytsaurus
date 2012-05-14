@@ -122,7 +122,7 @@ private:
     TUdpAddress Address;
     IMessageHandler::TPtr Handler;
     volatile bool Terminated;
-    TSequenceId SequenceId;
+    TAtomic SequenceId;
     TSessionId SessionId;
     TRequestIdSet PendingRequestIds_;
 

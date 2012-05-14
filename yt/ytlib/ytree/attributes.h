@@ -39,7 +39,6 @@ struct IAttributeDictionary
 
     template <class T>
     T Get(const Stroka& key, const T& defaultValue) const;
-    // If you need this method for ref-counted obects you should add special implementation.
 
     template <class T>
     typename TNullableTraits<

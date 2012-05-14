@@ -14,6 +14,22 @@ TFormat::TFormat(EFormatType type)
     : Type(type)
 { }
 
+TFormat TFormat::FromYson(INodePtr node)
+{
+    TFormat format(EFormatType::FromString(node->GetValue<Stroka>()));
+    format.Attributes = &node->Attributes();
+    return format;
+}
+
+void TFormat::ToYson(IYsonConsumer* consumer) const
+{
+    BuildYsonFluently(consumer)
+        .BeginAttributes()
+            .Items(~Attributes)
+        .EndAttributes()
+        .Scalar(Type.ToString());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAutoPtr<IYsonConsumer> CreateConsumerForYson(
@@ -21,13 +37,13 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
     TOutputStream* output)
 {
     // TODO(panin): maybe parse via TYsonWriterConfig
-    auto format = attributes->Get("format", EYsonFormat(EYsonFormat::Binary));
+    auto format = attributes->Get<EYsonFormat>("format", EYsonFormat::Binary);
     auto type = attributes->Get<EYsonType>("type", EYsonType::Node);
-    bool formatRaw = attributes->Get("raw", false);
+    bool formatRaw = attributes->Get("format_raw", false);
     return new TYsonWriter(output, format, type, formatRaw);
 }
 
-TAutoPtr<IYsonConsumer> CreateConsumerForFormat(TFormat format, EDataType dataType, TOutputStream *output)
+TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
 {
     switch (format.Type) {
         case EFormatType::Yson:
@@ -39,7 +55,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(TFormat format, EDataType dataTy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonProducer CreateProducerForFormat(TFormat format, EDataType dataType, TInputStream *input)
+TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType, TInputStream* input)
 {
     switch (format.Type) {
         case EFormatType::Yson:
