@@ -167,7 +167,7 @@ private:
         partition->SortChunkPool->Add(chunk);
         RegisterPendingChunkForSort(partition, chunk);
 
-        LOG_DEBUG("Added pending %s for sort in partition %d",
+        LOG_DEBUG("Added pending chunk %s for sort in partition %d",
             ~chunkId.ToString(),
             partition->Index);
 
