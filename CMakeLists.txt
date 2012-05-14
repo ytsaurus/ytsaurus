@@ -83,3 +83,4 @@ add_custom_target(package touch package-stamp
   COMMENT "Packaging YT..."
 )
 
+add_custom_target(version echo ${YT_VERSION})
