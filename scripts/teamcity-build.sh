@@ -2,11 +2,15 @@
 ################################################################################
 
 function shout() {
+    set +x
     echo '*' $@ >&2
+    set -x
 }
 
 function tc() {
+    set +x
     echo "##teamcity[$*]"
+    set -x
 }
 
 function usage() {
