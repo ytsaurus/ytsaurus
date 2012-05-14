@@ -102,7 +102,10 @@ TJobResult TSortJob::Run()
             keyColumnToIndex[name] = i;
         }
 
+        int rowIndex = 0;
         while (Reader->IsValid()) {
+            LOG_DEBUG("Reading row %d", rowIndex);
+
             auto sortRow = New<TSortRow>();
             sortRow->Row.swap(Reader->GetRow());
             sortRow->Key.Reset(KeyColumns.size());
@@ -116,6 +119,7 @@ TJobResult TSortJob::Run()
 
             sortBuffer.push_back(sortRow);
             Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+            ++rowIndex;
         }
     }
 
