@@ -280,12 +280,16 @@ public:
     }
 
 
-    void AttachToChunkList(TChunkList& chunkList, const std::vector<TChunkTreeRef>& children)
+    void AttachToChunkList(
+        TChunkList& chunkList,
+        const TChunkTreeRef* childrenBegin,
+        const TChunkTreeRef* childrenEnd)
     {
         auto objectManager = Bootstrap->GetObjectManager();
         TChunkTreeStatistics accumulatedDelta;
 
-        FOREACH (const auto& childRef, children) {
+        for (auto it = childrenBegin; it != childrenEnd; ++it) {
+            auto childRef = *it;
             if (!chunkList.Children().empty()) {
                 chunkList.RowCountSums().push_back(
                     chunkList.Statistics().RowCount + accumulatedDelta.RowCount);
@@ -309,7 +313,19 @@ public:
         }
 
         UpdateStatistics(chunkList, accumulatedDelta);
+        RebalanceChunkTreeIfNeeded(chunkList);
     }
+
+    void AttachToChunkList(
+        TChunkList& chunkList,
+        const std::vector<TChunkTreeRef>& children)
+    {
+        AttachToChunkList(
+            chunkList,
+            &*children.begin(),
+            &*children.begin() + children.size());
+    }
+
 
     void ScheduleJobs(
         THolder& holder,
@@ -444,9 +460,7 @@ private:
         chunkList.SetSorted(false);
 
         const auto& parents = chunkList.Parents();
-        if (parents.empty()) {
-            RebalanceChunkTree(chunkList);
-        } else {
+        if (!parents.empty()) {
             YASSERT(parents.size() == 1);
             UpdateStatistics(**parents.begin(), statisticsDelta);
         }
@@ -466,9 +480,7 @@ private:
         switch (child.GetType()) {
             case EObjectType::Chunk: {
                 // Just adding the chunk to the last chunk list.
-                std::vector<TChunkTreeRef> childVec;
-                childVec.push_back(child);
-                AttachToChunkList(*lastChunkList, childVec);
+                AttachToChunkList(*lastChunkList, &child, &child + 1);
                 break;
             }
             case EObjectType::ChunkList: {
@@ -480,8 +492,7 @@ private:
                     AttachToChunkList(*lastChunkList, chunkList.Children());
                 } else {
                     // The chunk list is too large. We have to copy chunks by blocks.
-                    i32 mergedCount = 0;
-                    std::vector<TChunkTreeRef> childrenToAttach;
+                    int mergedCount = 0;
                     while (mergedCount < chunkList.Children().size()) {
                         if (lastChunkList->Children().size() >= Config->MinChunkListSize) {
                             // The last chunk list is too large. Creating a new one.
@@ -489,17 +500,13 @@ private:
                             lastChunkList = &CreateChunkList();
                             children.push_back(TChunkTreeRef(lastChunkList));
                         }
-
-                        i32 count =
-                            Min(Config->MinChunkListSize - lastChunkList->Children().size(),
-                                chunkList.Children().size() - mergedCount);
-                        childrenToAttach.assign(
-                            chunkList.Children().begin() + mergedCount,
-                            chunkList.Children().begin() + mergedCount + count);
-
-                        // TODO: consider using iterators in AttachToChunkList instead of vector
-                        AttachToChunkList(*lastChunkList, childrenToAttach);
-
+                        int count = Min(
+                            Config->MinChunkListSize - lastChunkList->Children().size(),
+                            chunkList.Children().size() - mergedCount);
+                        AttachToChunkList(
+                            *lastChunkList,
+                            &*chunkList.Children().begin() + mergedCount,
+                            &*chunkList.Children().begin() + mergedCount + count);
                         mergedCount += count;
                     }
                 }
@@ -561,9 +568,11 @@ private:
         MergeChunkRef(children, child);
     }
 
-    void RebalanceChunkTree(TChunkList& root)
+    void RebalanceChunkTreeIfNeeded(TChunkList& root)
     {
-        if (root.Statistics().Rank <= Config->MaxChunkTreeRank) {
+        if (!root.GetRebalancingEnabled() ||
+            root.Statistics().Rank <= Config->MaxChunkTreeRank)
+        {
             return;
         }
 
@@ -576,7 +585,7 @@ private:
             auto oldStatistics = root.Statistics();
 
 
-            // Creat new children list.
+            // Create new children list.
             YASSERT(root.Statistics().Rank > 1); // We can't put root into new children
             std::vector<TChunkTreeRef> newChildren;
             TChunkTreeRef rootRef(&root);
@@ -588,14 +597,14 @@ private:
             auto oldChildren = root.Children();
             root.Children().clear(); // We'll drop the references later.
             root.RowCountSums().clear();
-            FOREACH (const auto& childRef, oldChildren) {
+            FOREACH (auto childRef, oldChildren) {
                 ResetChunkTreeParent(root, childRef);
             }
             root.Statistics() = TChunkTreeStatistics();
             AttachToChunkList(root, newChildren);
 
             // Drop old references to children.
-            FOREACH (const auto& childRef, oldChildren) {
+            FOREACH (auto childRef, oldChildren) {
                 objectManager->UnrefObject(childRef.GetId());
             }
 
@@ -1889,7 +1898,17 @@ TChunkList& TChunkManager::CreateChunkList()
     return Impl->CreateChunkList();
 }
 
-void TChunkManager::AttachToChunkList(TChunkList& chunkList, const std::vector<TChunkTreeRef>& children)
+void TChunkManager::AttachToChunkList(
+    TChunkList& chunkList,
+    const TChunkTreeRef* childrenBegin,
+    const TChunkTreeRef* childrenEnd)
+{
+    Impl->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
+}
+
+void TChunkManager::AttachToChunkList(
+    TChunkList& chunkList,
+    const std::vector<TChunkTreeRef>& children)
 {
     Impl->AttachToChunkList(chunkList, children);
 }

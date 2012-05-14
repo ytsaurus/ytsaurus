@@ -20,10 +20,17 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
+    
     // This is a pessimistic estimate.
-    // In particular, this flag is true for root chunk lists of sorted tables.
+    // In particular, this flag is True for root chunk lists of sorted tables.
     // However other chunk lists in such a table may have it false.
     DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
+
+    // Indicates if the subtree of this chunk list can be rebalanced.
+    // Rebalancing affects the root, i.e. changes the set of children.
+    // For some chunk lists (e.g. those corresponding to roots of branched tables)
+    // such changes are not allowed since they would break the invariants.
+    DEFINE_BYVAL_RW_PROPERTY(bool, RebalancingEnabled);
 
 public:
     explicit TChunkList(const TChunkListId& id);

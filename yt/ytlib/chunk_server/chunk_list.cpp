@@ -15,6 +15,7 @@ using namespace NCellMaster;
 TChunkList::TChunkList(const TChunkListId& id)
     : TObjectWithIdBase(id)
     , Sorted_(false)
+    , RebalancingEnabled_(true)
 { }
 
 void TChunkList::Save(TOutputStream* output) const
@@ -24,6 +25,7 @@ void TChunkList::Save(TOutputStream* output) const
     SaveObjectRefs(output, Parents_);
     ::Save(output, Statistics_);
     ::Save(output, Sorted_);
+    ::Save(output, RebalancingEnabled_);
     ::Save(output, RowCountSums_);
 }
 
@@ -35,6 +37,7 @@ void TChunkList::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRefs(input, Parents_, context);
     ::Load(input, Statistics_);
     ::Load(input, Sorted_);
+    ::Load(input, RebalancingEnabled_);
     ::Load(input, RowCountSums_);
 }
 

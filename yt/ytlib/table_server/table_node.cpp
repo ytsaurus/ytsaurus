@@ -136,13 +136,18 @@ protected:
         
         auto chunkManager = Bootstrap->GetChunkManager();
         auto objectManager = Bootstrap->GetObjectManager();
-
+      
         // Create composite chunk list and place it in the root of branchedNode.
         auto& branchedChunkList = chunkManager->CreateChunkList();
-        branchedNode.SetChunkList(&branchedChunkList);
 
-        auto branchedChunkListId = branchedChunkList.GetId();
-        objectManager->RefObject(branchedChunkListId);
+        // The first child of the branched chunk list has a special
+        // meaning: it captures the state of the table at the moment it was branched.
+        // Suppress rebalancing for this chunk list to prevent
+        // unwanted modifications of the children set.
+        branchedChunkList.SetRebalancingEnabled(false);
+
+        branchedNode.SetChunkList(&branchedChunkList);
+        objectManager->RefObject(branchedChunkList.GetId());
 
         // Make the original chunk list a child of the composite one.
         yvector<TChunkTreeRef> children;
@@ -154,28 +159,30 @@ protected:
         branchedChunkList.SetSorted(originatingChunkList->GetSorted());
     }
 
-    // TODO(babenko): this needs much improvement
     virtual void DoMerge(TTableNode& originatingNode, TTableNode& branchedNode)
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
-        // Obtain the chunk list of branchedNode.
-        auto branchedChunkList = branchedNode.GetChunkList();
-        YASSERT(branchedChunkList->GetObjectRefCounter() == 1);
+        // Create a new chunk list obtained from the branched one
+        // by replacing the first child to its up-to-date state.
+        auto* branchedChunkList = branchedNode.GetChunkList();
+        YASSERT(!branchedChunkList->Children().empty());
+        TChunkTreeRef newFirstChildRef(originatingNode.GetChunkList());
+        auto& newChunkList = chunkManager->CreateChunkList();
+        objectManager->RefObject(newChunkList.GetId());
+        chunkManager->AttachToChunkList(
+            newChunkList,
+            &newFirstChildRef,
+            &newFirstChildRef + 1);
+        chunkManager->AttachToChunkList(
+            newChunkList,
+            &*branchedChunkList->Children().begin() + 1,
+            &*branchedChunkList->Children().begin() + branchedChunkList->Children().size());
 
-        // Replace the first child of the branched chunk list with the current chunk list of originatingNode.
-        YASSERT(branchedChunkList->Children().size() >= 1);
-        auto oldFirstChild = branchedChunkList->Children()[0];
-        auto newFirstChild = originatingNode.GetChunkList();
-        auto newFirstChildId = newFirstChild->GetId();
-        branchedChunkList->Children()[0] = TChunkTreeRef(newFirstChild);
-        objectManager->RefObject(newFirstChildId);
-        objectManager->UnrefObject(oldFirstChild.GetId());
-
-        // Replace the chunk list of originatingNode.
-        originatingNode.SetChunkList(branchedChunkList);
-        objectManager->UnrefObject(newFirstChildId);
+        // Assign this newly created chunk list to originatingNode.
+        originatingNode.SetChunkList(&newChunkList);
+        objectManager->UnrefObject(branchedChunkList->GetId());
     }
 
 };
