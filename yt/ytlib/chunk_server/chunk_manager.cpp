@@ -454,12 +454,14 @@ private:
 
 
     // TODO(roizner): consider extracting TChunkBalancer
+    // TODO(roizner): reuse chunklists with ref-count = 1
 
     void MergeChunkRef(std::vector<TChunkTreeRef>& children, const TChunkTreeRef& child)
     {
         // We are trying to add the child to the last chunk list.
         auto* lastChunkList = children.back().AsChunkList();
-        YASSERT(lastChunkList->GetObjectRefCounter() <= 1);
+        YASSERT(lastChunkList->GetObjectRefCounter() == 0);
+        YASSERT(lastChunkList->Statistics().Rank <= 1);
         YASSERT(lastChunkList->Children().size() < Config->MinChunkListSize);
         switch (child.GetType()) {
             case EObjectType::Chunk: {
@@ -510,7 +512,7 @@ private:
 
     void AddChunkRef(std::vector<TChunkTreeRef>& children, const TChunkTreeRef& child)
     {
-        // Expand child if it has high rank
+        // Expand child if it has high rank.
         if (child.GetType() == EObjectType::ChunkList) {
             const auto& chunkList = *child.AsChunkList();
             if (chunkList.Statistics().Rank > 1) {
@@ -528,9 +530,9 @@ private:
             if (lastChild.Children().size() < Config->MinChunkListSize) {
                 YASSERT(lastChild.Statistics().Rank == 1);
                 YASSERT(lastChild.Children().size() <= Config->MaxChunkListSize);
-                if (lastChild.GetObjectRefCounter() > 1) {
+                if (lastChild.GetObjectRefCounter() > 0) {
                     // We want to merge to this chunk list but it is shared.
-                    // Copying on write.
+                    // Copy on write.
                     children.pop_back();
                     auto& newChunkList = CreateChunkList();
                     AttachToChunkList(newChunkList, lastChild.Children());
@@ -540,11 +542,12 @@ private:
             }
         }
 
-        // Trying to add the child as is.
+        // Try to add the child as is.
         if (!merge) {
             if (child.GetType() == EObjectType::ChunkList &&
                 child.AsChunkList()->Children().size() <= Config->MaxChunkListSize)
             {
+                YASSERT(child.AsChunkList()->GetObjectRefCounter() > 0);
                 children.push_back(child);
                 return;
             }
@@ -560,9 +563,6 @@ private:
 
     void RebalanceChunkTree(TChunkList& root)
     {
-        // XXX(babenko): rebalacing is currently switched off
-        return;
-
         if (root.Statistics().Rank <= Config->MaxChunkTreeRank) {
             return;
         }
@@ -571,25 +571,27 @@ private:
             LOG_DEBUG_IF(!IsRecovery(), "Starting rebalancing chunk list (ChunkListId: %s)",
                 ~root.GetId().ToString().Quote());
 
+            YASSERT(root.Parents().empty());
             auto objectManager = Bootstrap->GetObjectManager();
             auto oldStatistics = root.Statistics();
+
+
+            // Creat new children list.
+            YASSERT(root.Statistics().Rank > 1); // We can't put root into new children
+            std::vector<TChunkTreeRef> newChildren;
+            TChunkTreeRef rootRef(&root);
+            AddChunkRef(newChildren, rootRef);
+            YASSERT(!newChildren.empty());
+            YASSERT(newChildren.front() != rootRef);
+
+            // Rewrite root.
             auto oldChildren = root.Children();
-
-            // Clear root
-            root.Children().clear(); // we'll drop the references later
+            root.Children().clear(); // We'll drop the references later.
             root.RowCountSums().clear();
-            YASSERT(root.Parents().empty());
-            root.Statistics() = TChunkTreeStatistics();
-
             FOREACH (const auto& childRef, oldChildren) {
                 ResetChunkTreeParent(root, childRef);
             }
-
-            std::vector<TChunkTreeRef> newChildren;
-            FOREACH (const auto& childRef, oldChildren) {
-                AddChunkRef(newChildren, childRef);
-            }
-
+            root.Statistics() = TChunkTreeStatistics();
             AttachToChunkList(root, newChildren);
 
             // Drop old references to children.
@@ -1652,17 +1654,20 @@ private:
 
     void BuildTree(TChunkTreeRef ref, IYsonConsumer* consumer)
     {
-        consumer->OnBeginAttributes();
-        consumer->OnKeyedItem("id");
-        consumer->OnStringScalar(ref.GetId().ToString());
-        consumer->OnEndAttributes();
         switch (ref.GetType()) {
             case EObjectType::Chunk:
-                consumer->OnEntity();
+                consumer->OnStringScalar(ref.GetId().ToString());
                 break;
             case EObjectType::ChunkList: {
-                consumer->OnBeginList();
                 const auto& chunkList = *ref.AsChunkList();
+                consumer->OnBeginAttributes();
+                consumer->OnKeyedItem("id");
+                consumer->OnStringScalar(chunkList.GetId().ToString());
+                consumer->OnKeyedItem("rank");
+                consumer->OnIntegerScalar(chunkList.Statistics().Rank);
+                consumer->OnEndAttributes();
+
+                consumer->OnBeginList();
                 FOREACH (auto childRef, chunkList.Children()) {
                     consumer->OnListItem();
                     BuildTree(childRef, consumer);
