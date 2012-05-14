@@ -18,7 +18,7 @@
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/key.h>
-#include <ytlib/table_client/limits.h>
+#include <ytlib/table_client/size_limits.h>
 
 namespace NYT {
 namespace NChunkHolder {
