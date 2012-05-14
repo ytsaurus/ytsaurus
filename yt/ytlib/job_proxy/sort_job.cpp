@@ -23,6 +23,8 @@ using namespace NChunkServer;
 using namespace NObjectServer;
 using namespace NYTree;
 
+static NLog::TLogger& Logger = JobProxyLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -123,7 +125,7 @@ TJobResult TSortJob::Run()
         }
     }
 
-    std::sort(sortBuffer.begin(), sortBuffer.end());
+    std::sort(sortBuffer.begin(), ortBuffer.end());
 
     for (int i = 0; i < sortBuffer.size(); ++i) {
         Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, sortBuffer[i]->Row, sortBuffer[i]->Key);
