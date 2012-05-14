@@ -618,6 +618,8 @@ private:
 
         // Put all input chunks into this unique partition.
         TotalSortWeight = 0;
+        TotalPartitionChunkCount = 0;
+        TotalPartitionWeight = 0;
         FOREACH (const auto& table, InputTables) {
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                 auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
