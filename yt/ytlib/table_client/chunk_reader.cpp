@@ -365,8 +365,7 @@ private:
                 YASSERT(blockIndex < static_cast<int>(protoChannel.blocks_size()));
                 const auto& protoBlock = protoChannel.blocks(blockIndex);
 
-                YASSERT((protoBlock.partition_tag() == DefaultPartitionTag && PartitionTag == DefaultPartitionTag) ||
-                    (protoBlock.partition_tag() != DefaultPartitionTag && PartitionTag != DefaultPartitionTag));
+                YASSERT((protoBlock.partition_tag() == DefaultPartitionTag) == (PartitionTag == DefaultPartitionTag));
 
 
                 startRow = lastRow;
