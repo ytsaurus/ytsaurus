@@ -25,6 +25,7 @@ void TFormat::ToYson(IYsonConsumer* consumer) const
 {
     BuildYsonFluently(consumer)
         .BeginAttributes()
+            .Items(~Attributes)
         .EndAttributes()
         .Scalar(Type.ToString());
 }
