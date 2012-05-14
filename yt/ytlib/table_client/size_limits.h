@@ -1,0 +1,18 @@
+﻿#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const size_t MaxKeySize;
+extern const int MaxColumnCount;
+extern const i64 MaxRowSize;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTableClient
+} // namespace NYT
+
