@@ -51,6 +51,13 @@ const TBlob* TBlobOutput::GetBlob() const
     return &Blob;
 }
 
+const TBlobOutput::TStrType TBlobOutput::PutData(const TStringBuf& value)
+{
+    auto offset = value.size();
+    Write(value);
+    return TStrType(&Blob, offset, value.size());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFakeStrbufStore::TFakeStrbufStore(size_t /* capacity */)
