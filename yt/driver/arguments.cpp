@@ -7,6 +7,7 @@
 #include <ytlib/misc/fs.h>
 
 #include <ytlib/ytree/tokenizer.h>
+#include <ytlib/ytree/yson_format.h>
 
 #include <ytlib/job_proxy/config.h>
 
@@ -221,12 +222,12 @@ void TArgsParserBase::ApplyConfigUpdates(IYPathServicePtr service)
     FOREACH (auto updateString, ConfigSetArg.getValue()) {
         TTokenizer tokenizer(updateString);
         tokenizer.ParseNext();
-        while (tokenizer.GetCurrentType() != ETokenType::Equals) {
+        while (tokenizer.GetCurrentType() != KeyValueSeparatorToken) {
             if (!tokenizer.ParseNext()) {
                 ythrow yexception() << "Incorrect option";
             }
         }
-        TStringBuf ypath = TStringBuf(updateString).Chop(tokenizer.GetCurrentInput().length());
+        TStringBuf ypath = TStringBuf(updateString).Chop(tokenizer.CurrentInput().length());
         SyncYPathSet(service, TYPath(ypath), TYson(tokenizer.GetCurrentSuffix()));
     }
 }

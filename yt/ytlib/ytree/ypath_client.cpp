@@ -4,6 +4,7 @@
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
 #include "tokenizer.h"
+#include "ypath_format.h"
 
 #include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/misc/serialize.h>
@@ -322,13 +323,13 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
     INodePtr currentNode = root;
     TTokenizer tokenizer(path);
     while (tokenizer.ParseNext()) {
-        tokenizer.Current().CheckType(ETokenType::Slash);
+        tokenizer.CurrentToken().CheckType(PathSeparatorToken);
 
         INodePtr child;
         tokenizer.ParseNext();
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String: {
-                Stroka key(tokenizer.Current().GetStringValue());
+                Stroka key(tokenizer.CurrentToken().GetStringValue());
                 child = currentNode->AsMap()->FindChild(key);
                 if (!child) {
                     auto factory = currentNode->CreateFactory();
@@ -339,12 +340,12 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
             }
 
             case ETokenType::Integer: {
-                child = currentNode->AsList()->GetChild(tokenizer.Current().GetIntegerValue());
+                child = currentNode->AsList()->GetChild(tokenizer.CurrentToken().GetIntegerValue());
                 break;
             }
 
             default:
-                ThrowUnexpectedToken(tokenizer.Current());
+                ThrowUnexpectedToken(tokenizer.CurrentToken());
                 YUNREACHABLE();
         }
         currentNode = child;

@@ -47,6 +47,7 @@ set( HDRS
   ${BASE}/ypath_client-inl.h
   ${BASE}/ypath_client.h
   ${BASE}/ypath_detail.h
+  ${BASE}/ypath_format.h
   ${BASE}/ypath_proxy.h
   ${BASE}/ypath_service.h
   ${BASE}/yson_consumer-mock.h

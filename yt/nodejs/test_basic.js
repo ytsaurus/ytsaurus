@@ -1,12 +1,14 @@
-var yt = require('./build/Release/yt_test');
+var binding = require('./build/Release/yt_test');
 
 var expect = require('chai').expect;
 var assert = require('chai').assert;
 
+////////////////////////////////////////////////////////////////////////////////
+
 describe("input stream interface", function() {
-    before(function() {
-        this.stream = new yt.TNodeJSInputStream();
-        this.reader = new yt.TTestInputStream(this.stream);
+    beforeEach(function() {
+        this.stream = new binding.TNodeJSInputStream();
+        this.reader = new binding.TTestInputStream(this.stream);
     });
 
     it("should be able to read whole input byte-by-byte", function() {
@@ -79,6 +81,7 @@ describe("input stream interface", function() {
     it("should be able to read whole input if the stream was closed", function(done) {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
+        this.stream.Close();
 
         expect(this.reader.ReadSynchronously(2))
             .to.be.a("string").and.to.eql("fo");
@@ -100,25 +103,51 @@ describe("input stream interface", function() {
 });
 
 describe("output stream interface", function() {
-    before(function() {
-        this.stream = new yt.TNodeJSOutputStream();
-        this.writer = new yt.TTestOutputStream(this.stream);
+    beforeEach(function() {
+        this.stream = new binding.TNodeJSOutputStream();
+        this.writer = new binding.TTestOutputStream(this.stream);
+
+        this.stream.on_write  = function(){};
+        this.stream.on_flush  = function(){};
+        this.stream.on_finish = function(){};
     });
 
-    it("should be able to write one chunk", function() {
+    it("should be able to write one chunk", function(done) {
+        this.stream.on_write = (function(chunk) {
+            expect(chunk.toString()).to.be.equal("hello");
+            done();
+        }).bind(this);
+
         this.writer.WriteSynchronously("hello");
-
-        expect(this.stream.Pull().toString())
-            .to.be.equal("hello");
     });
 
-    it("should be able to write two chunks", function() {
+    it("should be able to write many chunks", function(done) {
+        this.stream.on_write_calls = 0;
+        this.stream.on_write = (function(chunk) {
+            switch (this.stream.on_write_calls) {
+                case 0:
+                    expect(chunk.toString()).to.be.equal("hello");
+                    break;
+                case 1:
+                    expect(chunk.toString()).to.be.equal("dolly");
+                    break;
+            }
+            if (++this.stream.on_write_calls > 1) {
+                done();
+            }
+        }).bind(this);
+
         this.writer.WriteSynchronously("hello");
         this.writer.WriteSynchronously("dolly");
+    });
 
-        expect(this.stream.Pull().toString())
-            .to.be.equal("hello");
-        expect(this.stream.Pull().toString())
-            .to.be.equal("dolly");
+    it("should fire Flush() callback", function(done) {
+        this.stream.on_flush = function() { done(); };
+        this.writer.Flush();
+    });
+
+    it("should fire Finish() callback", function(done) {
+        this.stream.on_finish = function() { done(); };
+        this.writer.Finish();
     });
 });

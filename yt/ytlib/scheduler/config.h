@@ -42,6 +42,9 @@ struct TSchedulerConfig
     //! when the user sets the number of partitions explicitly.
     i64 MinSortPartitionSize;
 
+    //! Maximum amount of (uncompressed) data to be given to a single sort job.
+    i64 MaxSortJobDataSize;
+
     TSchedulerConfig()
     {
         Register("startup_retry_period", StartupRetryPeriod)
@@ -66,6 +69,9 @@ struct TSchedulerConfig
             .Default(3)
             .GreaterThan(0);
         Register("min_sort_partition_size", MinSortPartitionSize)
+            .Default((i64) 4 * 1024 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("max_sort_job_data_size", MaxSortJobDataSize)
             .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
     }

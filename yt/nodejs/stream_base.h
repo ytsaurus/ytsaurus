@@ -21,21 +21,16 @@ public:
 
     struct TPart
     {
-        v8::Persistent<v8::Value> Buffer;
+        uv_work_t Request;
+        TNodeJSStreamBase* Stream;
+        v8::Persistent<v8::Value> Handle;
 
         char*  Data;
         size_t Offset;
         size_t Length;
-
-        TPart()
-            : Buffer()
-            , Data(NULL)
-            , Offset(-1)
-            , Length(-1)
-        { }
     };
 
-    typedef std::deque<TPart> TQueue;
+    typedef std::deque<TPart*> TQueue;
 
 private:
     TNodeJSStreamBase(const TNodeJSStreamBase&);

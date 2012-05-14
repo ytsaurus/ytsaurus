@@ -3,6 +3,7 @@
 #include <ytlib/misc/foreach.h>
 
 #include <ytlib/ytree/tokenizer.h>
+#include <ytlib/ytree/ypath_format.h>
 #include <ytlib/ytree/ypath_client.h>
 
 namespace NYT {
@@ -15,7 +16,7 @@ TYPath PreprocessYPath(const TYPath& path)
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    if (tokenizer.GetCurrentType() == ETokenType::Tilde) {
+    if (tokenizer.GetCurrentType() == HomeDirToken) {
         auto userName = Stroka(getenv("USERNAME"));
         TYPath userDirectory = Stroka("//home/") + EscapeYPathToken(userName);
         return userDirectory + tokenizer.GetCurrentSuffix();

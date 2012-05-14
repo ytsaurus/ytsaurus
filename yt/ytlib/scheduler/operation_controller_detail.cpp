@@ -152,10 +152,10 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     --RunningJobCount;
     ++CompletedJobCount;
 
-    auto jobInProgress = GetJobHandlers(job);
-    jobInProgress->OnCompleted.Run();
+    auto jip = GetJobInProgress(job);
+    jip->OnCompleted.Run();
     
-    RemoveJobHandlers(job);
+    RemoveJobInProgress(job);
 
     LogProgress();
 
@@ -175,10 +175,10 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     --RunningJobCount;
     ++FailedJobCount;
 
-    auto jobInProgress = GetJobHandlers(job);
-    jobInProgress->OnFailed.Run();
+    auto jip = GetJobInProgress(job);
+    jip->OnFailed.Run();
 
-    RemoveJobHandlers(job);
+    RemoveJobInProgress(job);
 
     LogProgress();
 
@@ -842,31 +842,16 @@ i64 TOperationControllerBase::GetJobWeightThreshold(int pendingJobCount, i64 pen
     return static_cast<i64>(std::ceil((double) pendingWeight / pendingJobCount));
 }
 
-TJobPtr TOperationControllerBase::CreateJob(
-    TOperationPtr operation,
-    TExecNodePtr node,
-    const NProto::TJobSpec& spec,
-    TClosure onCompleted,
-    TClosure onFailed)
+TOperationControllerBase::TJobInProgressPtr TOperationControllerBase::GetJobInProgress(TJobPtr job)
 {
-    auto job = Host->CreateJob(operation, node, spec);
-    auto handlers = New<TJobHandlers>();
-    handlers->OnCompleted = onCompleted;
-    handlers->OnFailed = onFailed;
-    YVERIFY(JobHandlers.insert(MakePair(job, handlers)).second);
-    return job;
-}
-
-TOperationControllerBase::TJobHandlersPtr TOperationControllerBase::GetJobHandlers(TJobPtr job)
-{
-    auto it = JobHandlers.find(job);
-    YASSERT(it != JobHandlers.end());
+    auto it = JobsInProgress.find(job);
+    YASSERT(it != JobsInProgress.end());
     return it->second;
 }
 
-void TOperationControllerBase::RemoveJobHandlers(TJobPtr job)
+void TOperationControllerBase::RemoveJobInProgress(TJobPtr job)
 {
-    YVERIFY(JobHandlers.erase(job) == 1);
+    YVERIFY(JobsInProgress.erase(job) == 1);
 }
 
 void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
@@ -874,6 +859,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("jobs").BeginMap()
+                .Item("total").Scalar(CompletedJobCount + RunningJobCount + GetPendingJobCount())
                 .Item("pending").Scalar(GetPendingJobCount())
                 .Item("running").Scalar(RunningJobCount)
                 .Item("completed").Scalar(CompletedJobCount)

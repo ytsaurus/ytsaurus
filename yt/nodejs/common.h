@@ -13,7 +13,6 @@
 #define TRACE_CURRENT_THREAD(marker) \
     (fprintf(stderr, "=== " marker " Thread 0x%012lx: %s\n", (size_t)pthread_self(), __PRETTY_FUNCTION__))
 
-
 #if 0
 #define T_THREAD_AFFINITY_IS_V8() TRACE_CURRENT_THREAD("V8")
 #define T_THREAD_AFFINITY_IS_UV() TRACE_CURRENT_THREAD("UV")
@@ -24,6 +23,9 @@
 
 #define THREAD_AFFINITY_IS_V8()
 #define THREAD_AFFINITY_IS_UV()
+#define THREAD_AFFINITY_IS_ANY()
+
+#define PRISZT "lu"
 
 #define CHECK_RETURN_VALUE(expr) \
     do { int rv = (expr); assert(rv == 0 && #expr); } while (0)

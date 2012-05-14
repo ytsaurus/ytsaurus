@@ -219,7 +219,7 @@ void TSession::OnBlockWritten(i32 blockIndex, TVoid)
     slot.IsWritten.Set(TVoid());
 }
 
-TFuture<TVoid> TSession::FlushBlock(i32 blockIndex)
+TFuture<void> TSession::FlushBlock(i32 blockIndex)
 {
     // TODO: verify monotonicity of blockIndex
 
@@ -243,10 +243,10 @@ TFuture<TVoid> TSession::FlushBlock(i32 blockIndex)
         blockIndex));
 }
 
-TVoid TSession::OnBlockFlushed(i32 blockIndex, TVoid)
+void TSession::OnBlockFlushed(i32 blockIndex, TVoid)
 {
     ReleaseBlocks(blockIndex);
-    return TVoid();
+    return;
 }
 
 TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
@@ -290,6 +290,7 @@ TFuture<TVoid> TSession::DeleteFile(const TError& error)
 
 TVoid TSession::DoDeleteFile(const TError& error)
 {
+    Writer->Abort();
     Writer.Reset();
 
     LOG_DEBUG("Chunk file deleted\n%s", ~error.ToString());
@@ -446,7 +447,6 @@ TSessionPtr TSessionManager::StartSession(
     LOG_INFO("Session %s started at %s",
         ~chunkId.ToString(),
         ~location->GetPath().Quote());
-
     return session;
 }
 

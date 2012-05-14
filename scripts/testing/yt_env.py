@@ -14,6 +14,8 @@ import re
 import time
 import socket
 
+from collections import defaultdict
+
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
 CONFIGS_ROOTDIR = os.path.abspath('default_configs')
 
@@ -70,9 +72,10 @@ class YTEnv:
         self._prepare_configs()
         self._run_masters()
         self._wait_for_ready_masters()
-        #self._init_sys()
-        self._run_services()
+        self._run_holders()
         self._wait_for_ready_holders()
+        self._run_schedulers()
+        self._wait_for_ready_schedulers()
 
     def tearDown(self):
         time.sleep(self.TEARDOWN_TIMEOUT)
@@ -98,8 +101,6 @@ class YTEnv:
                 else:
                     assert False, 'ALARM!!!, %s wasnt killed after 10 iterations' % (name)
 
-
-
     def _set_path(self, path_to_run):
         path_to_run = os.path.abspath(path_to_run)
         print 'Initializing at', path_to_run
@@ -121,10 +122,7 @@ class YTEnv:
         self.driver_config['masters']['addresses'] = master_addresses
 
         self.config_paths = {}
-
-    def _run_services(self):
-        self._run_holders()
-        self._run_schedulers()
+        self.configs = defaultdict(lambda : [])
 
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
@@ -192,17 +190,18 @@ class YTEnv:
                 ).split())
             self.process_to_kill.append((p, "scheduler-%d" % (i)))
 
-    def _init_sys(self):
-        if self.NUM_MASTERS == 0:
-            return
-        cmd = 'cat %s | yt' % (os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'))
-        subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
-        for i in xrange(self.NUM_MASTERS):
-            port = 8001 + i
-            orchid_yson = '{do=create;path="//sys/masters/localhost:%d/orchid";type=orchid;manifest={remote_address="localhost:%d"}}' %(port, port)
-            #print orchid_yson
-            cmd  = "yt '%s'" % (orchid_yson)
-            subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
+    def _wait_for_ready_schedulers(self):
+        if self.NUM_SCHEDULERS == 0: return
+        self._wait_for(self._all_schedulers_ready, name = "schedulers", max_wait_time = 30)
+
+    def _all_schedulers_ready(self):
+        good_marker = 'Scheduler address published'
+
+        if (not os.path.exists(self.scheduler_log)): return False
+        for line in reversed(open(self.scheduler_log).readlines()):
+            if good_marker in line: 
+                return True
+        return False
 
     def _clean_run_path(self):
         os.system('rm -rf ' + self.path_to_run)
@@ -226,11 +225,14 @@ class YTEnv:
 
             log_path = os.path.join(current, 'logs')
             snapshot_path = os.path.join(current, 'snapshots')
+
             logging_file_name = os.path.join(current, 'master-' + str(i) + '.log')
+            debugging_file_name = os.path.join(current, 'master-' + str(i) + '.debug.log')
 
             master_config['meta_state']['changelogs']['path'] = log_path
             master_config['meta_state']['snapshots']['path'] = snapshot_path
             master_config['logging']['writers']['file']['file_name'] = logging_file_name
+            master_config['logging']['writers']['raw']['file_name'] = debugging_file_name
 
             self.modify_master_config(master_config)
             deepupdate(master_config, self.DELTA_MASTER_CONFIG)
@@ -268,7 +270,9 @@ class YTEnv:
 
             config_path = os.path.join(current, 'holder_config.yson')
             write_config(holder_config, config_path)
+
             self.config_paths['holder'].append(config_path)
+            self.configs['holder'].append(holder_config)
 
     def _prepare_schedulers_config(self):
         self.config_paths['scheduler'] = []
@@ -283,6 +287,7 @@ class YTEnv:
             logging_file_name = os.path.join(current, 'scheduler-%s.log' % i)
 
             config['logging']['writers']['file']['file_name'] = logging_file_name
+            self.scheduler_log = logging_file_name
 
             self.modify_scheduler_config(config)
             deepupdate(config, self.DELTA_SCHEDULER_CONFIG)
@@ -309,3 +314,4 @@ class YTEnv:
             current_wait_time += sleep_quantum
         print
         assert False, "%s still not ready after %s seconds" % (name, max_wait_time)
+   

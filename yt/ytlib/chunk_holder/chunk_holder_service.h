@@ -46,19 +46,6 @@ private:
     TIntrusivePtr<TChunk> GetChunk(const TChunkId& chunkId);
 
     bool CheckThrottling() const;
-
-    void OnFinishedChunk(
-        TVoid,
-        TCtxFinishChunk::TPtr context);
-
-    void OnSentBlocks(
-        TProxy::TRspPutBlocks::TPtr putResponse, 
-        TCtxSendBlocks::TPtr context);
-
-    void OnFlushedBlock(
-        TVoid,
-        TCtxFlushBlock::TPtr context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

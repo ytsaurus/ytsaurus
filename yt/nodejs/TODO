@@ -5,5 +5,9 @@
 - Investigate common allocation sizes and migrate to SlabAllocator.
 - Merge {Read,Write} and {Read,Write}Synchronous into a single method
   (i. e. if a callback was passed then perform asynchronously).
-- Measure performance when, e. g., writing to a file
-- Write proper JS-stream wrapper around exported objects.
+- Measure performance when, e. g., writing to a file.
+- Investigate whether it is costy to allocate uv_work_t structures
+  on every asynchronous call.
+- Maybe cache allocated and used request structures.
+- Implement write queue threshold to limit memory usage.
+- Callbacks throughout the interface.

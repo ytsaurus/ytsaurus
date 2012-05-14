@@ -56,12 +56,14 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
         TGuard<TSpinLock> guard(SpinLock);
         if (HasMeta) {
             return MakeFuture(TGetMetaResult(
-                tags ?
-                ExtractChunkMetaExtensions(Meta, *tags)
+                tags
+                ? ExtractChunkMetaExtensions(Meta, *tags)
                 : Meta));
         }
     }
 
+    // Make a copy of tags list to pass it into the closure.
+    auto tags_ = MakeNullable(tags);
     auto this_ = MakeStrong(this);
     auto invoker = Location_->GetInvoker();
     return ReadMeta().Apply(
@@ -70,8 +72,8 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
                 return error;
             }
             YASSERT(HasMeta);
-            return tags
-                ? ExtractChunkMetaExtensions(Meta, *tags)
+            return tags_
+                ? ExtractChunkMetaExtensions(Meta, tags_.Get())
                 : Meta;
         }).AsyncVia(invoker));
 }

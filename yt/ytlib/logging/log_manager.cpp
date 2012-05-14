@@ -61,7 +61,7 @@ struct TRule
         Register("writers", Writers).NonEmpty();
     }
 
-    virtual void Load(INode* node, bool validate, const TYPath& path)
+    virtual void Load(INodePtr node, bool validate, const TYPath& path)
     {
         TConfigurable::Load(node, validate, path);
 
@@ -246,7 +246,7 @@ private:
 
 void LogReloadHandler(int signum)
 {
-    NLog::TLogManager::Get()->NeedReload = true;
+    NLog::TLogManager::Get()->ReopenLogs();
 }
 
 class TLogManager::TImpl
@@ -261,6 +261,7 @@ public:
         , Config(TLogConfig::CreateDefault())
         , EnqueueCounter("/enqueue_rate")
         , WriteCounter("/write_rate")
+        , NeedReopen(false)
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
         Start();
@@ -367,8 +368,8 @@ public:
                 DoUpdateConfig(config);
             }
 
-            if (TLogManager::Get()->NeedReload) {
-                TLogManager::Get()->NeedReload = false;
+            if (NeedReopen) {
+                NeedReopen = false;
                 Config->ReloadWriters();
             }
 
@@ -378,6 +379,12 @@ public:
 
         return result;
     }
+
+    void ReopenLogs()
+    {
+        NeedReopen = true;
+    }
+
 
 private:
     typedef yvector<ILogWriter::TPtr> TWriters;
@@ -419,13 +426,13 @@ private:
 
     TWriters SystemWriters;
 
+    volatile bool NeedReopen;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogManager::TLogManager()
     : Impl(new TImpl())
-    , NeedReload(false)
 { }
 
 TLogManager* TLogManager::Get()
@@ -464,6 +471,11 @@ void TLogManager::GetLoggerConfig(
 void TLogManager::Enqueue(const TLogEvent& event)
 {
     Impl->Enqueue(event);
+}
+
+void TLogManager::ReopenLogs()
+{
+    Impl->ReopenLogs();
 }
 
 

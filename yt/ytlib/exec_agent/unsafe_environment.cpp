@@ -106,7 +106,7 @@ public:
                 strerror(errno));
 
             // TODO(babenko): use some meaningful constant
-            exit(7);
+            _exit(7);
         }
 
         if (ProcessId < 0) {
@@ -134,7 +134,7 @@ public:
 
         auto result = killpg(ProcessId, 9);
         if (result != 0) {
-            switch (result) {
+            switch (errno) {
                 case ESRCH:
                     // Process group doesn't exist already.
                     return;

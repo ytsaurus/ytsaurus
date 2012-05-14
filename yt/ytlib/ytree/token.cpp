@@ -30,6 +30,7 @@ ETokenType CharToTokenType(char ch)
         case ':': return ETokenType::Colon;
         case ',': return ETokenType::Comma;
         case '~': return ETokenType::Tilde;
+        case '&': return ETokenType::Ampersand;
         default:  return ETokenType::EndOfStream;
     }
 }
@@ -56,6 +57,7 @@ char TokenTypeToChar(ETokenType type)
         case ETokenType::Colon:             return ':';
         case ETokenType::Comma:             return ',';
         case ETokenType::Tilde:             return '~';
+        case ETokenType::Ampersand:         return '&';
         default:                            YUNREACHABLE();
     }
 }

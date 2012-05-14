@@ -146,17 +146,23 @@ message TPartitionJobSpec
     repeated NYT.NTableClient.NProto.TKey partition_keys = 2;
     required NYT.NProto.TGuid output_chunk_list_id = 3;
     required NYT.NProto.TGuid output_transaction_id = 4;
+    repeated string key_columns = 5;
 }
 
 message TPartitionJobResult
 {
     extend TJobResult
     {
-        optional TMergeJobResult partition_job_result = 102;
+        optional TPartitionJobResult partition_job_result = 102;
     }
 
-    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
-    repeated int64 partition_sizes = 2;
+    message TPartitionChunk
+    {
+        required NYT.NTableClient.NProto.TInputChunk chunk = 1;
+        repeated int64 partition_sizes = 2;
+    }
+
+    repeated TPartitionChunk chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,13 +171,14 @@ message TSortJobSpec
 {
     extend TJobSpec
     {
-        optional TPartitionJobSpec sort_job_spec = 104;
+        optional TSortJobSpec sort_job_spec = 104;
     }
 
     required TTableInputSpec input_spec = 1;
     required TTableOutputSpec output_spec = 2;
-    required int32 partition_tag = 3;
+    optional int32 partition_tag = 3;
     required NYT.NProto.TGuid output_transaction_id = 4;
+    repeated string key_columns = 5;
 }
 
 message TSortJobResult

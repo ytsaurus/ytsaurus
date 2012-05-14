@@ -290,11 +290,19 @@ private:
         }
 
         if (begin != end) {
-            YASSERT(BytesRead <= 0);
-            if (end - begin > -BytesRead) {
-                end = begin - BytesRead;
+            int length = -BytesRead;
+            YASSERT(length >= 0);
+            if (end - begin > length) {
+                end = begin + length;
             }
             if (begin != end) {
+                // performance hack
+                if (end - begin == length && StringValue.empty()) {
+                    FinishString(); // stuff for turning to Terminal state
+                    Token = TToken(TStringBuf(begin, end)); // rewriting Token
+                    return end;
+                }
+
                 StringValue.append(begin, end);
                 BytesRead += end - begin;
             }

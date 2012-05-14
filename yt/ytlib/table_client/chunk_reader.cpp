@@ -15,6 +15,7 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/actions/invoker.h>
+#include <ytlib/logging/tagged_logger.h>
 
 #include <algorithm>
 #include <limits>
@@ -121,12 +122,15 @@ public:
         , EndLimit(endLimit)
         , HasRangeRequest(false)
         , PartitionTag(partitionTag)
+        , Logger(TableClientLogger)
     { }
 
     void Initialize()
     {
         auto chunkReader = ChunkReader.Lock();
         YASSERT(chunkReader);
+
+        Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
 
         std::vector<int> tags;
         tags.reserve(10);
@@ -172,8 +176,6 @@ private:
             return;
         }
 
-        // ToDo(psushin): add chunk id.
-        // TODO(babenko): use TTaggedLogger
         LOG_DEBUG("Chunk meta received");
 
         FOREACH (const auto& column, Channel.GetColumns()) {
@@ -530,6 +532,8 @@ private:
     NChunkClient::IAsyncReaderPtr AsyncReader;
     TWeakPtr<TChunkReader> ChunkReader;
 
+    NLog::TTaggedLogger Logger;
+
     TChannel Channel;
 
     NProto::TReadLimit StartLimit;
@@ -555,8 +559,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReader::TChunkReader(
-    TSequentialReaderConfigPtr config,
+TChunkReader::TChunkReader(TSequentialReaderConfigPtr config,
     const TChannel& channel,
     NChunkClient::IAsyncReaderPtr chunkReader,
     const NProto::TReadLimit& startLimit,

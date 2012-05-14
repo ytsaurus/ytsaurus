@@ -23,24 +23,21 @@ NYTree::IMapNodePtr TConfigurable::GetOptions() const
     return Options;
 }
 
-void TConfigurable::Load(NYTree::INode* node, bool validate, const NYTree::TYPath& path)
+void TConfigurable::Load(NYTree::INodePtr node, bool validate, const NYTree::TYPath& path)
 {
     YASSERT(node);
 
-        TIntrusivePtr<IMapNode> mapNode;
-    try {
-        mapNode = node->AsMap();
-    } catch (const std::exception& ex) {
-        ythrow yexception()
-            << Sprintf("Configuration must be loaded from a map node (Path: %s)\n%s",
-                ~path,
-                ex.what());
+    if (node->GetType() != ENodeType::Map) {
+        ythrow yexception() << Sprintf("Configuration must be loaded from a map node (Path: %s)",
+            ~path);
     }
+
+    auto mapNode = node->AsMap();
     FOREACH (const auto& pair, Parameters) {
         auto name = pair.first;
         auto childPath = path + "/" + name;
         auto child = mapNode->FindChild(name); // can be NULL
-        pair.second->Load(~child, childPath);
+        pair.second->Load(child, childPath);
     }
 
     if (KeepOptions_) {
@@ -49,7 +46,7 @@ void TConfigurable::Load(NYTree::INode* node, bool validate, const NYTree::TYPat
             const auto& key = pair.first;
             auto child = pair.second;
             if (Parameters.find(key) == Parameters.end()) {
-                Options->AddChild(~CloneNode(~child), key);
+                Options->AddChild(~CloneNode(child), key);
             }
         }
     }

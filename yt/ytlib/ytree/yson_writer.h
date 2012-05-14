@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "yson_consumer.h"
 
 namespace NYT {
@@ -75,9 +76,9 @@ protected:
     void WriteIndent();
     void WriteStringScalar(const TStringBuf& value);
 
-    void BeginCollection(char openBracket);
-    void CollectionItem();
-    void EndCollection(char closeBracket);
+    void BeginCollection(ETokenType beginToken);
+    void CollectionItem(ETokenType separatorToken);
+    void EndCollection(ETokenType endToken);
 
     bool IsTopLevelFragmentContext() const;
     void EndNode();

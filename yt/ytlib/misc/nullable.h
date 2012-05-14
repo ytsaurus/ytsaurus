@@ -285,6 +285,14 @@ TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(bool condition, T&& va
 }
 
 template <class T>
+TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(const T* ptr)
+{
+    return ptr
+        ? TNullable< typename NMpl::TDecay<T>::TType >(*ptr)
+        : TNullable< typename NMpl::TDecay<T>::TType >(Null);
+}
+
+template <class T>
 bool operator==(const TNullable<T>& lhs, const TNullable<T>& rhs)
 {
     if (!lhs.IsInitialized() && !rhs.IsInitialized()) {

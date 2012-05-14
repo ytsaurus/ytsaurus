@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
   ${BASE}/chunk_holder_service.cpp
+  ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_registry.cpp
   ${BASE}/chunk_store.cpp
   ${BASE}/common.cpp
@@ -17,7 +18,6 @@ set( SRCS
   ${BASE}/reader_cache.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
-  ${BASE}/chunk_meta_extensions.cpp
 )
 set( HDRS
   ${BASE}/block_store.h
@@ -26,6 +26,7 @@ set( HDRS
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_holder_service.h
   ${BASE}/chunk_holder_service_proxy.h
+  ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_registry.h
   ${BASE}/chunk_store.h
   ${BASE}/common.h
@@ -39,7 +40,6 @@ set( HDRS
   ${BASE}/reader_cache.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h
-  ${BASE}/chunk_meta_extensions.h
 )
 
 list(APPEND YT_SOURCE_FILES

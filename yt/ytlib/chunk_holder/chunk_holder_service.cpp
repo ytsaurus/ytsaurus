@@ -326,7 +326,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
 
     session
         ->FlushBlock(blockIndex)
-        .Subscribe(BIND([=] (TVoid) {
+        .Subscribe(BIND([=] () {
             context->Reply();
         }));
 }

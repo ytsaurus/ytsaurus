@@ -13,28 +13,30 @@ class TDelayedInvoker
 private:
     struct TEntry;
     typedef TIntrusivePtr<TEntry> TEntryPtr;
-    typedef ymultimap<TInstant, TEntryPtr> TEntries;
+
+    struct TEntryComparer
+    {
+        bool operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const;
+    };
 
     struct TEntry
-        : public TRefCounted
+        : public TIntrinsicRefCounted
     {
-        typedef TIntrusivePtr<TEntry> TPtr;
-
         bool Valid;
         TInstant Deadline;
         TClosure Action;
-        TEntries::iterator Iterator;
+        std::set<TEntryPtr, TEntryComparer>::iterator Iterator;
 
         TEntry(TClosure action, TInstant deadline)
             : Valid(true)
             , Deadline(deadline)
-            , Action(action)
+            , Action(MoveRV(action))
         { }
     };
 
 public:
     //! Encapsulates a delayed execution token.
-    typedef TEntry::TPtr TCookie;
+    typedef TEntryPtr TCookie;
 
     //! Submits an action for execution after a given delay.
     static TCookie Submit(TClosure action, TDuration delay);

@@ -18,6 +18,17 @@ static const TDuration SleepQuantum = TDuration::MilliSeconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TDelayedInvoker::TEntryComparer::operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const
+{
+    if (lhs->Deadline != rhs->Deadline) {
+        return lhs->Deadline < rhs->Deadline;
+    }
+    // Break ties.
+    return lhs < rhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDelayedInvoker::TImpl
     : private TNonCopyable
 {
@@ -43,8 +54,12 @@ public:
     {
         auto cookie = New<TEntry>(action, deadline);
 
-        TGuard<TSpinLock> guard(SpinLock);
-        cookie->Iterator = Entries.insert(MakePair(cookie->Deadline, cookie));
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            auto pair = Entries.insert(cookie);
+            YASSERT(pair.second);
+            cookie->Iterator = pair.first;
+        }
 
         LOG_TRACE("Submitted delayed action (Action: %p, Cookie: %p, Deadline: %s, Count: %d)",
             action.GetHandle(),
@@ -89,7 +104,7 @@ public:
     }
 
 private:
-    TEntries Entries;
+    std::set<TEntryPtr, TEntryComparer> Entries;
     TThread Thread;
     TSpinLock SpinLock;
     volatile bool Finished;
@@ -116,7 +131,7 @@ private:
                         LOG_TRACE("Nothing to execute");
                         break;
                     }
-                    cookie = Entries.begin()->second;
+                    cookie = *Entries.begin();
                     if (cookie->Deadline > now) {
                         LOG_TRACE("Deadline is not reached yet (NextCookie: %p, NextDeadline: %s, Count: %d)",
                             ~cookie,
@@ -124,13 +139,14 @@ private:
                             static_cast<int>(Entries.size()));
                         break;
                     }
-                    Entries.erase(Entries.begin());
+                    Entries.erase(cookie->Iterator);
                     cookie->Valid = false;
                 }
-
-                LOG_TRACE("Action started (Cookie: %p)", ~cookie);
-                cookie->Action.Run();
-                LOG_TRACE("Action completed (Cookie: %p)", ~cookie);
+                {
+                    LOG_TRACE("Action started (Cookie: %p)", ~cookie);
+                    cookie->Action.Run();
+                    LOG_TRACE("Action completed (Cookie: %p)", ~cookie);
+                }
             }
             Sleep(SleepQuantum);
         }

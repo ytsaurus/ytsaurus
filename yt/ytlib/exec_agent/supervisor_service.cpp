@@ -23,7 +23,8 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     , Bootstrap(bootstrap)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
-    RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(OnJobFinished));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
+    RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(OnJobProgress));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
@@ -51,11 +52,11 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     context->Reply();
 }
 
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnProgress)
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
     UNUSED(request);
 
-    // Progress tracking did not implemented yet.
+    // Progress tracking is not implemented yet.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

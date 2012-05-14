@@ -13,11 +13,11 @@ TChunkMeta ExtractChunkMetaExtensions(const TChunkMeta& chunkMeta, const std::ve
     TChunkMeta result;
     result.set_type(chunkMeta.type());
 
-    FOREACH(auto tag, tags) {
-        FOREACH(const auto& extension, chunkMeta.extensions().extensions()) {
-            if (tag == extension.tag()) {
-                *result.mutable_extensions()->add_extensions() = extension;
-            }
+    std::set<int> tagsSet(tags.begin(), tags.end());
+
+    FOREACH (const auto& extension, chunkMeta.extensions().extensions()) {
+        if (tagsSet.find(extension.tag()) != tagsSet.end()) {
+            *result.mutable_extensions()->add_extensions() = extension;
         }
     }
 

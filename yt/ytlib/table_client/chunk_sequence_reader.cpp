@@ -53,11 +53,12 @@ void TChunkSequenceReader::PrepareNextChunk()
 
     const auto& inputChunk = InputChunks[NextChunkIndex];
     const auto& slice = inputChunk.slice();
+    TChunkId chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
     auto remoteReader = CreateRemoteReader(
         Config->RemoteReader,
         BlockCache,
         ~MasterChannel,
-        TChunkId::FromProto(inputChunk.slice().chunk_id()),
+        chunkId,
         FromProto<Stroka>(inputChunk.holder_addresses()));
 
     auto chunkReader = New<TChunkReader>(

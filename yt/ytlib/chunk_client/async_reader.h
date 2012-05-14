@@ -2,6 +2,7 @@
 
 #include <ytlib/chunk_holder/chunk.pb.h>
 
+#include <ytlib/chunk_holder/public.h>
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/ref.h>
 #include <ytlib/actions/future.h>
@@ -36,6 +37,8 @@ struct IAsyncReader
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) = 0;
 
     virtual TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<int>* tags = NULL) = 0;
+
+    virtual NChunkHolder::TChunkId GetChunkId() const = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

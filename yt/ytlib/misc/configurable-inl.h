@@ -32,7 +32,7 @@ namespace NConfig {
 template <class T, class = void>
 struct TLoadHelper
 {
-    static void Load(T& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(T& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         UNUSED(path);
         NYTree::Read(parameter, node);
@@ -46,7 +46,7 @@ struct TLoadHelper<
     typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TConfigurable*> >::TType
 >
 {
-    static void Load(T& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(T& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         if (!parameter) {
             parameter = New<T>();
@@ -59,7 +59,7 @@ struct TLoadHelper<
 template <class T>
 struct TLoadHelper<TNullable<T>, void>
 {
-    static void Load(TNullable<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(TNullable<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         T value;
         TLoadHelper<T>::Load(value, node, path);
@@ -71,7 +71,7 @@ struct TLoadHelper<TNullable<T>, void>
 template <class T>
 struct TLoadHelper<yvector<T>, void>
 {
-    static void Load(yvector<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yvector<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -79,7 +79,7 @@ struct TLoadHelper<yvector<T>, void>
         for (int i = 0; i < size; ++i) {
             TLoadHelper<T>::Load(
                 parameter[i],
-                ~listNode->GetChild(i),
+                listNode->GetChild(i),
                 path + "/" + NYTree::EscapeYPathToken(i));
         }
     }
@@ -89,7 +89,7 @@ struct TLoadHelper<yvector<T>, void>
 template <class T>
 struct TLoadHelper<yhash_set<T>, void>
 {
-    static void Load(yhash_set<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yhash_set<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -97,7 +97,7 @@ struct TLoadHelper<yhash_set<T>, void>
             T value;
             TLoadHelper<T>::Load(
                 value,
-                ~listNode->GetChild(i),
+                listNode->GetChild(i),
                 path + "/" +  NYTree::EscapeYPathToken(i));
             parameter.insert(MoveRV(value));
         }
@@ -108,7 +108,7 @@ struct TLoadHelper<yhash_set<T>, void>
 template <class T>
 struct TLoadHelper<yhash_map<Stroka, T>, void>
 {
-    static void Load(yhash_map<Stroka, T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yhash_map<Stroka, T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         auto mapNode = node->AsMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -116,7 +116,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
             T value;
             TLoadHelper<T>::Load(
                 value,
-                ~pair.second,
+                pair.second,
                 path + "/" + NYTree::SerializeToYson(key));
             parameter.insert(MakePair(key, MoveRV(value)));
         }
@@ -200,7 +200,7 @@ TParameter<T>::TParameter(T& parameter)
 { }
 
 template <class T>
-void TParameter<T>::Load(NYTree::INode* node, const NYTree::TYPath& path)
+void TParameter<T>::Load(NYTree::INodePtr node, const NYTree::TYPath& path)
 {
     if (node) {
         try {
@@ -337,6 +337,14 @@ NConfig::TParameter<T>& TConfigurable::Register(const Stroka& parameterName, T& 
     YVERIFY(Parameters.insert(
         TPair<Stroka, NConfig::IParameter::TPtr>(parameterName, parameter)).second);
     return *parameter;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+inline TIntrusivePtr<T> CloneConfigurable(TIntrusivePtr<T> obj)
+{
+    return NYTree::DeserializeFromYson<T>(NYTree::SerializeToYson(obj));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

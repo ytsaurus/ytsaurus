@@ -20,22 +20,54 @@ public:
     // Synchronous JS API.
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
-    static v8::Handle<v8::Value> Pull(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoPull();
-
     // Asynchronous JS API.
+    static void AsyncOnWrite(uv_work_t* request);
+    void EnqueueOnWrite(TPart* part);
+    void DoOnWrite(TPart* part);
+
+    static void AsyncOnFlush(uv_work_t* request);
+    void EnqueueOnFlush();
+    void DoOnFlush();
+
+    static void AsyncOnFinish(uv_work_t* request);
+    void EnqueueOnFinish();
+    void DoOnFinish();
 
     // C++ API.
     void Write(const void* buffer, size_t length);
+    void Flush();
+    void Finish();
 
 private:
-    friend class TNodeJSDriverHost;
-
-    static void DeleteCallback(char* data, void* hint);
-
-    pthread_mutex_t Mutex;
-    TQueue Queue;
+    uv_work_t FlushRequest;
+    uv_work_t FinishRequest;
 };
+
+inline void TNodeJSOutputStream::EnqueueOnWrite(TPart* part)
+{
+    // Post to V8 thread.
+    uv_queue_work(
+        uv_default_loop(), &part->Request,
+        DoNothing, TNodeJSOutputStream::AsyncOnWrite);
+}
+
+inline void TNodeJSOutputStream::EnqueueOnFlush()
+{
+    // Post to V8 thread.
+    uv_queue_work(
+        uv_default_loop(), &FlushRequest,
+        DoNothing, TNodeJSOutputStream::AsyncOnFlush);
+}
+
+inline void TNodeJSOutputStream::EnqueueOnFinish()
+{
+    // Post to V8 thread.
+    uv_queue_work(
+        uv_default_loop(), &FinishRequest,
+        DoNothing, TNodeJSOutputStream::AsyncOnFinish);
+}
+
+void ExportOutputStream(v8::Handle<v8::Object> target);
 
 ////////////////////////////////////////////////////////////////////////////////
 

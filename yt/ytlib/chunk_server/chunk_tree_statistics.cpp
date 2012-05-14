@@ -12,14 +12,7 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     UncompressedSize += other.UncompressedSize;
     CompressedSize += other.CompressedSize;
     ChunkCount += other.ChunkCount;
-}
-
-void TChunkTreeStatistics::Negate()
-{
-    RowCount = -RowCount;
-    UncompressedSize = -UncompressedSize;
-    CompressedSize = -CompressedSize;
-    ChunkCount = -ChunkCount;
+    Rank = Max(Rank, other.Rank);
 }
 
 void TChunkTreeStatistics::Save(TOutputStream* output) const
@@ -28,6 +21,7 @@ void TChunkTreeStatistics::Save(TOutputStream* output) const
     ::Save(output, UncompressedSize);
     ::Save(output, CompressedSize);
     ::Save(output, ChunkCount);
+    ::Save(output, Rank);
 }
 
 void TChunkTreeStatistics::Load(TInputStream* input)
@@ -36,6 +30,7 @@ void TChunkTreeStatistics::Load(TInputStream* input)
     ::Load(input, UncompressedSize);
     ::Load(input, CompressedSize);
     ::Load(input, ChunkCount);
+    ::Load(input, Rank);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

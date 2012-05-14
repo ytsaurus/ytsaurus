@@ -29,8 +29,16 @@ public:
     TCachedReader(const TChunkId& chunkId, const Stroka& fileName)
         : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
         , TFileReader(fileName)
+        , ChunkId(chunkId)
     { }
 
+    virtual TChunkId GetChunkId() const
+    {
+        return ChunkId;
+    }
+
+private:
+    TChunkId ChunkId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

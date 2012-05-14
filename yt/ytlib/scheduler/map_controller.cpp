@@ -81,14 +81,12 @@ private:
 
     // Job scheduling and outcome handling.
 
-    struct TJobInProgress
-        : public TIntrinsicRefCounted
+    struct TMapJobInProgress
+        : public TJobInProgress
     {
         IChunkPool::TExtractResultPtr ExtractResult;
         std::vector<TChunkListId> ChunkListIds;
     };
-
-    typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
 
     virtual TJobPtr DoScheduleJob(TExecNodePtr node)
     {
@@ -100,7 +98,7 @@ private:
         // We've got a job to do! :)
 
         // Allocate chunks for the job.
-        auto jip = New<TJobInProgress>();
+        auto jip = New<TMapJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
         jip->ExtractResult = ChunkPool->Extract(
             node->GetAddress(),
@@ -133,30 +131,30 @@ private:
         PendingWeight -= jip->ExtractResult->Weight;
 
         return CreateJob(
-            Operation,
+            jip,
             node,
             jobSpec,
-            BIND(&TThis::OnJobCompleted, MakeWeak(this), jip),
-            BIND(&TThis::OnJobFailed, MakeWeak(this), jip));
+            BIND(&TThis::OnJobCompleted, MakeWeak(this)),
+            BIND(&TThis::OnJobFailed, MakeWeak(this)));
     }
 
-    void OnJobCompleted(TJobInProgressPtr jip)
+    void OnJobCompleted(TMapJobInProgress* jip)
     {
+        CompletedChunkCount += jip->ExtractResult->Chunks.size();
+        CompletedWeight += jip->ExtractResult->Weight;
+
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jip->ChunkListIds[index];
             OutputTables[index].PartitionTreeIds.push_back(chunkListId);
         }
-
-        CompletedChunkCount += jip->ExtractResult->Chunks.size();
-        CompletedWeight += jip->ExtractResult->Weight;
     }
 
-    void OnJobFailed(TJobInProgressPtr jip)
+    void OnJobFailed(TMapJobInProgress* jip)
     {
         PendingChunkCount += jip->ExtractResult->Chunks.size();
         PendingWeight += jip->ExtractResult->Weight;
 
-        LOG_DEBUG("Returned %d chunks into the pool",
+        LOG_DEBUG("Returned %d chunks into pool",
             static_cast<int>(jip->ExtractResult->Chunks.size()));
         ChunkPool->PutBack(jip->ExtractResult);
 
@@ -208,8 +206,7 @@ private:
                         .EndMap();
                 }
 
-                auto fetchRsp = table.FetchResponse;
-                FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
+                FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     // Currently fetch never returns row attributes.
                     YASSERT(!chunk.has_row_attributes());
 
@@ -220,7 +217,7 @@ private:
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
 
                     i64 rowCount = miscExt->row_count();
-                    i64 dataSize = miscExt->uncompressed_size();
+                    i64 dataSize = miscExt->uncompressed_data_size();
 
                     // TODO(babenko): make customizable
                     // Plus one is to ensure that weights are positive.

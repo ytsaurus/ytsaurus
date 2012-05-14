@@ -109,7 +109,7 @@ public:
 
     TSequenceId GenerateSequenceId()
     {
-        return SequenceId++;
+        return AtomicIncrement(SequenceId) - 1;
     }
 
 

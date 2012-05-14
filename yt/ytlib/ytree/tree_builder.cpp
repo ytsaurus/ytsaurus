@@ -158,7 +158,8 @@ private:
     INodePtr ResultNode;
     THolder<TAttributeConsumer> AttributeConsumer;
 
-    void AddNode(INode* node, bool push) {
+    void AddNode(INode* node, bool push)
+    {
         if (AttributeConsumer.Get()) {
             node->Attributes().MergeFrom(AttributeConsumer->GetAttributes());
             AttributeConsumer.Reset(NULL);

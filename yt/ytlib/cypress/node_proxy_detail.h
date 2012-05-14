@@ -2,9 +2,10 @@
 
 #include "node_proxy.h"
 #include "node_detail.h"
-#include <ytlib/cypress/cypress_ypath.pb.h>
 
+#include <ytlib/cypress/cypress_ypath.pb.h>
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_format.h>
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
@@ -567,7 +568,7 @@ protected:
         if (!tokenizer.ParseNext()) {
             ythrow yexception() << "Node already exists";
         }
-        tokenizer.Current().CheckType(NYTree::ETokenType::Slash);
+        tokenizer.CurrentToken().CheckType(NYTree::PathSeparatorToken);
 
         auto cypressManager = this->Bootstrap->GetCypressManager();
 

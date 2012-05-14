@@ -9,8 +9,6 @@ set( SRCS
   ${BASE}/job.cpp
   ${BASE}/map_controller.cpp
   ${BASE}/merge_controller.cpp
-  ${BASE}/sort_controller.cpp
-  ${BASE}/samples_fetcher.cpp
   ${BASE}/null_strategy.cpp
   ${BASE}/operation.cpp
   ${BASE}/operation_controller_detail.cpp
@@ -18,6 +16,7 @@ set( SRCS
   ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_channel.cpp
+  ${BASE}/sort_controller.cpp
 )
 set( HDRS
   ${BASE}/chunk_list_pool.h
@@ -29,7 +28,6 @@ set( HDRS
   ${BASE}/job.h
   ${BASE}/map_controller.h
   ${BASE}/merge_controller.h
-  ${BASE}/sort_controller.h
   ${BASE}/null_strategy.h
   ${BASE}/operation.h
   ${BASE}/operation_controller.h
@@ -41,6 +39,7 @@ set( HDRS
   ${BASE}/scheduler_channel.h
   ${BASE}/scheduler_proxy.h
   ${BASE}/scheduler_strategy.h
+  ${BASE}/sort_controller.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -7,6 +7,7 @@ import yson_parser
 import yson
 
 import time
+import os
 
 def expect_error(result):
     stdout, stderr, exitcode = result
@@ -38,6 +39,8 @@ def start_transaction(**kw):
 def commit_transaction(**kw): return command('commit_tx', **kw)
 def renew_transaction(**kw): return command('renew_tx', **kw)
 def abort_transaction(**kw): return command('abort_tx', **kw)
+
+def upload(path, **kw): return command('upload', path, **kw)
 
 #########################################
 
@@ -205,7 +208,7 @@ class TestLockCommands(YTEnvSetup):
         abort_transaction(tx = tx_id)
 
 
-    def test_shared_locks(self):
+    def test_shared_locks_on_different_types(self):
 
         types_to_check = """
         string_node
@@ -245,6 +248,23 @@ class TestLockCommands(YTEnvSetup):
                 expect_ok( lock('//some', mode = 'shared', tx = tx_id))
 
             expect_ok( abort_transaction(tx = tx_id))
+    
+    @pytest.mark.xfail(run = False, reason = 'Issue #196')
+    def test_snapshot_lock(self):
+        expect_ok(set('//node', '42'))
+        
+        tx_id = start_transaction()
+        expect_ok(lock('//node', mode = 'snapshot', tx = tx_id))
+        
+        expect_ok(set('//node', '100'))
+        # check that node under snapshot lock wasn't changed
+        assert_eq(get('//node', tx = tx_id), '42')
+
+        expect_ok(remove('//node'))
+        # check that node under snapshot lock still exist
+        assert_eq(get('//node', tx = tx_id), '42')
+        
+        expect_ok(abort_transaction(tx = tx_id))
 
     @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
@@ -348,3 +368,33 @@ class TestOrchid(YTEnvSetup):
             assert sort_list(result) == '["a";"b";]'
             expect_ok( remove(path))
             expect_error( get(path))
+
+
+class TestCanceledUpload(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_HOLDERS = 3
+
+    DELTA_HOLDER_CONFIG = {'chunk_holder' : {'session_timeout': 100}}
+
+    # should be called on empty holders
+    #@pytest.mark.xfail(run = False, reason = 'Replace blocking read from empty stream with something else')
+    def test(self):
+        tx_id = start_transaction(opts = 'timeout=2000')
+
+        # uploading from empty stream will fail
+        process = run_command('upload', '//file', tx = tx_id)
+        time.sleep(1)
+        process.kill()
+        time.sleep(1)
+
+        # now check that there are no temp files
+        for i in xrange(self.NUM_HOLDERS):
+            # TODO(panin): refactor
+            holder_config = self.Env.configs['holder'][i]
+            chunk_store_path = holder_config['chunk_holder']['store_locations'][0]['path']
+            self._check_no_temp_file(chunk_store_path)
+
+    def _check_no_temp_file(self, chunk_store):
+        for root, dirs, files in os.walk(chunk_store):
+            for file in files:
+                assert not file.endswith('~'), 'Found temporary file: ' + file  

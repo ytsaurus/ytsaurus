@@ -27,6 +27,8 @@ public:
 
     virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
+    void Abort();
+
     //! Returns chunk info. The writer must be already closed.
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
 

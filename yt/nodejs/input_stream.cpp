@@ -13,7 +13,7 @@ TNodeJSInputStream::TNodeJSInputStream()
     : TNodeJSStreamBase()
     , IsAlive(false)
 {
-    THREAD_AFFINITY_IS_V8();
+    T_THREAD_AFFINITY_IS_V8();
 
     CHECK_RETURN_VALUE(pthread_mutex_init(&Mutex, NULL));
     CHECK_RETURN_VALUE(pthread_cond_init(&Conditional, NULL));
@@ -39,7 +39,7 @@ TNodeJSInputStream::~TNodeJSInputStream()
 
 Handle<Value> TNodeJSInputStream::New(const Arguments& args)
 {
-    THREAD_AFFINITY_IS_V8();
+    T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     TNodeJSInputStream* stream = new TNodeJSInputStream();
@@ -68,22 +68,23 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
     // Do the work.
     assert(stream);
     return stream->DoPush(
-        /* buffer */ args[0],
+        /* handle */ Persistent<Value>::New(args[0]),
         /* data   */ node::Buffer::Data(Local<Object>::Cast(args[0])),
         /* offset */ args[1]->Uint32Value(),
         /* length */ args[2]->Uint32Value());
 }
 
-Handle<Value> TNodeJSInputStream::DoPush(Handle<Value> buffer, char *data, size_t offset, size_t length)
+Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, size_t offset, size_t length)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TPart part;
-    part.Buffer = Persistent<Value>::New(buffer);
-    part.Data   = data;
-    part.Offset = offset;
-    part.Length = length;
+    TPart* part  = new TPart(); assert(part);
+    part->Stream = this;
+    part->Handle = handle;
+    part->Data   = data;
+    part->Offset = offset;
+    part->Length = length;
 
     {
         TGuard guard(&Mutex);
@@ -118,7 +119,7 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
 }
 
 
-void TNodeJSInputStream::AsyncSweep(uv_work_t *request)
+void TNodeJSInputStream::AsyncSweep(uv_work_t* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSInputStream* stream =
@@ -149,13 +150,15 @@ void TNodeJSInputStream::DoSweep()
         jt = Queue.end();
 
     while (it != jt) {
-        TPart& current = *it;
+        TPart* part = *it;
 
-        if (current.Length > 0) {
+        if (part->Length > 0) {
             break;
         } else {
-            current.Buffer.Dispose();
-            current.Buffer.Clear();
+            part->Handle.Dispose();
+            part->Handle.Clear();
+            delete part;
+
             ++it;
         }
     }
@@ -184,7 +187,7 @@ Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
     return Undefined();
 }
 
-void TNodeJSInputStream::AsyncClose(uv_work_t *request)
+void TNodeJSInputStream::AsyncClose(uv_work_t* request)
 {
     THREAD_AFFINITY_IS_UV();
     TNodeJSInputStream* stream =
@@ -206,7 +209,7 @@ void TNodeJSInputStream::DoClose()
 
 size_t TNodeJSInputStream::Read(void* buffer, size_t length)
 {
-    THREAD_AFFINITY_IS_UV();
+    THREAD_AFFINITY_IS_ANY();
 
     TGuard guard(&Mutex);
 
@@ -220,23 +223,23 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
         bool canReadSomething = false;
 
         while (length > 0 && it != jt) {
-            TPart& current = *it;
+            TPart* part = *it;
 
-            canRead = std::min(length, current.Length);
+            canRead = std::min(length, part->Length);
             canReadSomething |= (canRead > 0);
 
             ::memcpy(
                 (char*)buffer + result,
-                current.Data + current.Offset,
+                part->Data + part->Offset,
                 canRead);
 
             result += canRead;
             length -= canRead;
 
-            current.Offset += canRead;
-            current.Length -= canRead;
+            part->Offset += canRead;
+            part->Length -= canRead;
 
-            assert(length == 0 || current.Length == 0);
+            assert(length == 0 || part->Length == 0);
 
             ++it;
         }
@@ -254,6 +257,24 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
     EnqueueSweep();
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ExportInputStream(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSInputStream::New);
+
+    tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Push",  TNodeJSInputStream::Push );
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Sweep", TNodeJSInputStream::Sweep);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Close", TNodeJSInputStream::Close);
+
+    tpl->SetClassName(String::NewSymbol("TNodeJSInputStream"));
+    target->Set(String::NewSymbol("TNodeJSInputStream"), tpl->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

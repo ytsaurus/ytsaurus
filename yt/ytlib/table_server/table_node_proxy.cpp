@@ -7,6 +7,7 @@
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/tokenizer.h>
+#include <ytlib/ytree/ypath_format.h>
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -34,33 +35,35 @@ using NTableClient::NProto::TKey;
 
 namespace {
 
-TKey GetMinKey(TChunkTreeRef ref)
+void GetBoundaryKeys(TChunkTreeRef ref, TKey* minKey, TKey* maxKey)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk: {
             auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
                 ref.AsChunk()->ChunkMeta().extensions());
-            return boundaryKeysExt->left();
+            if (minKey) {
+                *minKey = boundaryKeysExt->left();
+            }
+            if (maxKey) {
+                *maxKey = boundaryKeysExt->right();
+            }
+            break;
         }
-        case EObjectType::ChunkList:
-            YASSERT(!ref.AsChunkList()->Children().empty());
-            return GetMinKey(ref.AsChunkList()->Children()[0]);
-        default:
-            YUNREACHABLE();
-    }
-}
-
-TKey GetMaxKey(TChunkTreeRef ref)
-{
-    switch (ref.GetType()) {
-        case EObjectType::Chunk: {
-            auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
-                ref.AsChunk()->ChunkMeta().extensions());
-            return boundaryKeysExt->right();
-                                 }
-        case EObjectType::ChunkList:
-            YASSERT(!ref.AsChunkList()->Children().empty());
-            return GetMaxKey(ref.AsChunkList()->Children().back());
+        case EObjectType::ChunkList: {
+            const auto& children = ref.AsChunkList()->Children();
+            YASSERT(!children.empty());
+            if (children.size() == 1) {
+                GetBoundaryKeys(children.front(), minKey, maxKey);
+            } else {
+                if (minKey) {
+                    GetBoundaryKeys(ref.AsChunkList()->Children().front(), minKey, NULL);
+                }
+                if (maxKey) {
+                    GetBoundaryKeys(ref.AsChunkList()->Children().back(), NULL, maxKey);
+                }
+            }
+            break;
+        }
         default:
             YUNREACHABLE();
     }
@@ -68,7 +71,9 @@ TKey GetMaxKey(TChunkTreeRef ref)
 
 bool LessComparer(TChunkTreeRef ref, const TKey& key)
 {
-    return GetMinKey(ref) < key;
+    TKey minKey;
+    GetBoundaryKeys(ref, &minKey, NULL);
+    return minKey < key;
 }
 
 bool IsEmpty(TChunkTreeRef ref)
@@ -109,55 +114,55 @@ ForwardIterator LowerBound(ForwardIterator first, ForwardIterator last, const TK
 
 void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
 {
-    if (tokenizer.GetCurrentType() == ETokenType::LeftBrace) {
+    if (tokenizer.GetCurrentType() == BeginColumnSelectorToken) {
         tokenizer.ParseNext();
         *channel = TChannel::CreateEmpty();
-        while (tokenizer.GetCurrentType() != ETokenType::RightBrace) {
+        while (tokenizer.GetCurrentType() != EndColumnSelectorToken) {
             Stroka begin;
             bool isRange = false;
             switch (tokenizer.GetCurrentType()) {
                 case ETokenType::String:
-                    begin.assign(tokenizer.Current().GetStringValue());
+                    begin.assign(tokenizer.CurrentToken().GetStringValue());
                     tokenizer.ParseNext();
-                    if (tokenizer.GetCurrentType() == ETokenType::Colon) {
+                    if (tokenizer.GetCurrentType() == RangeToken) {
                         isRange = true;
                         tokenizer.ParseNext();
                     }
                     break;
-                case ETokenType::Colon:
+                case RangeToken:
                     isRange = true;
                     tokenizer.ParseNext();
                     break;
                 default:
-                    ThrowUnexpectedToken(tokenizer.Current());
+                    ThrowUnexpectedToken(tokenizer.CurrentToken());
                     YUNREACHABLE();
             }
             if (isRange) {
                 switch (tokenizer.GetCurrentType()) {
                     case ETokenType::String: {
-                        Stroka end(tokenizer.Current().GetStringValue());
+                        Stroka end(tokenizer.CurrentToken().GetStringValue());
                         channel->AddRange(begin, end);
                         tokenizer.ParseNext();
                         break;
                     }
-                    case ETokenType::Comma:
+                    case ColumnSeparatorToken:
                         channel->AddRange(TRange(begin));
                         break;
                     default:
-                        ThrowUnexpectedToken(tokenizer.Current());
+                        ThrowUnexpectedToken(tokenizer.CurrentToken());
                         YUNREACHABLE();
                 }
             } else {
                 channel->AddColumn(begin);
             }
             switch (tokenizer.GetCurrentType()) {
-                case ETokenType::Comma:
+                case ColumnSeparatorToken:
                     tokenizer.ParseNext();
                     break;
-                case ETokenType::RightBrace:
+                case EndColumnSelectorToken:
                     break;
                 default:
-                    ThrowUnexpectedToken(tokenizer.Current());
+                    ThrowUnexpectedToken(tokenizer.CurrentToken());
                     YUNREACHABLE();
             }
         }
@@ -165,6 +170,41 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
     } else {
         *channel = TChannel::CreateUniversal();
     }
+}
+
+void ParseKeyPart(
+    TTokenizer& tokenizer,
+    TKey* key)
+{
+    auto *keyPart = key->add_parts();
+
+    switch (tokenizer.GetCurrentType()) {
+        case ETokenType::String: {
+            auto value = tokenizer.CurrentToken().GetStringValue();
+            keyPart->set_str_value(value.begin(), value.size());
+            keyPart->set_type(EKeyType::String);
+            break;
+        }
+
+        case ETokenType::Integer: {
+            auto value = tokenizer.CurrentToken().GetIntegerValue();
+            keyPart->set_int_value(value);
+            keyPart->set_type(EKeyType::Integer);
+            break;
+        }
+
+        case ETokenType::Double: {
+            auto value = tokenizer.CurrentToken().GetDoubleValue();
+            keyPart->set_double_value(value);
+            keyPart->set_type(EKeyType::Double);
+            break;
+        }
+
+        default:
+            ThrowUnexpectedToken(tokenizer.CurrentToken());
+            break;
+    }
+    tokenizer.ParseNext();
 }
 
 void ParseRowLimit(
@@ -178,50 +218,37 @@ void ParseRowLimit(
     }
 
     switch (tokenizer.GetCurrentType()) {
-        //ToDo(psushin): make other yson types possible.
-        case ETokenType::String: {
-            auto *keyPart = limit->mutable_key()->add_parts();
-            auto value = tokenizer.Current().GetStringValue();
-            keyPart->set_str_value(value.begin(), value.size());
-            keyPart->set_type(EKeyType::String);
-            break;
-        }
-
-        case ETokenType::Hash:
+        case RowIndexMarkerToken:
             tokenizer.ParseNext();
-            limit->set_row_index(tokenizer.Current().GetIntegerValue());
+            limit->set_row_index(tokenizer.CurrentToken().GetIntegerValue());
+            tokenizer.ParseNext();
             break;
 
-        case ETokenType::LeftParenthesis:
+        case BeginTupleToken:
             tokenizer.ParseNext();
             limit->mutable_key();
-            while (tokenizer.GetCurrentType() != ETokenType::RightParenthesis) {
-                auto *keyPart = limit->mutable_key()->add_parts();
-                auto value = tokenizer.Current().GetStringValue();
-                keyPart->set_str_value(value.begin(), value.size());
-                keyPart->set_type(EKeyType::String);
-
-                tokenizer.ParseNext();
+            while (tokenizer.GetCurrentType() != EndTupleToken) {
+                ParseKeyPart(tokenizer, limit->mutable_key());
                 switch (tokenizer.GetCurrentType()) {
-                    case ETokenType::Comma:
+                    case KeySeparatorToken:
                         tokenizer.ParseNext();
                         break;
-                    case ETokenType::RightParenthesis:
+                    case EndTupleToken:
                         break;
                     default:
-                        ThrowUnexpectedToken(tokenizer.Current());
+                        ThrowUnexpectedToken(tokenizer.CurrentToken());
                         YUNREACHABLE();
                 }
             }
+            tokenizer.ParseNext();
             break;
 
         default:
-            ThrowUnexpectedToken(tokenizer.Current());
+            ParseKeyPart(tokenizer, limit->mutable_key());
             break;
     }
 
-    tokenizer.ParseNext();
-    tokenizer.Current().CheckType(separator);
+    tokenizer.CurrentToken().CheckType(separator);
     tokenizer.ParseNext();
 }
 
@@ -232,10 +259,10 @@ void ParseRowLimits(
 {
     *lowerLimit = TReadLimit();
     *upperLimit = TReadLimit();
-    if (tokenizer.GetCurrentType() == ETokenType::LeftBracket) {
+    if (tokenizer.GetCurrentType() == BeginRowSelectorToken) {
         tokenizer.ParseNext();
-        ParseRowLimit(tokenizer, ETokenType::Colon, lowerLimit);
-        ParseRowLimit(tokenizer, ETokenType::RightBracket, upperLimit);
+        ParseRowLimit(tokenizer, RangeToken, lowerLimit);
+        ParseRowLimit(tokenizer, EndRowSelectorToken, upperLimit);
     }
 }
 
@@ -312,19 +339,18 @@ void TTableNodeProxy::TraverseChunkTree(
         return;
     }
 
-    int index;
-    if (lowerBound == 0) {
-        index = 0;
-    } else {
-        auto it = std::upper_bound(
+    YASSERT(chunkList->Children().size() == chunkList->RowCountSums().size() + 1);
+
+    int index =
+        std::upper_bound(
             chunkList->RowCountSums().begin(),
             chunkList->RowCountSums().end(),
-            lowerBound);
-        index = it - chunkList->RowCountSums().begin();
-    }
-
+            lowerBound) -
+        chunkList->RowCountSums().begin();
     YASSERT(index < chunkList->Children().size());
+
     i64 firstRowIndex = index == 0 ? 0 : chunkList->RowCountSums()[index - 1];
+    YASSERT(firstRowIndex <= lowerBound || lowerBound < 0 && firstRowIndex == 0);
 
     while (index < chunkList->Children().size()) {
         if (upperBound && firstRowIndex >= *upperBound) {
@@ -334,6 +360,8 @@ void TTableNodeProxy::TraverseChunkTree(
         switch (child.GetType()) {
             case EObjectType::Chunk: {
                 i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
+                i64 lastRowIndex = firstRowIndex + rowCount; // exclusive
+                YASSERT(lowerBound < lastRowIndex);
 
                 auto* inputChunk = response->add_chunks();
                 auto* slice = inputChunk->mutable_slice();
@@ -341,12 +369,11 @@ void TTableNodeProxy::TraverseChunkTree(
 
                 slice->mutable_start_limit();
                 if (lowerBound > firstRowIndex) {
-                    YASSERT(lowerBound - firstRowIndex < rowCount);
                     slice->mutable_start_limit()->set_row_index(lowerBound - firstRowIndex);
                 }
 
                 slice->mutable_end_limit();
-                if (upperBound && *upperBound < firstRowIndex + rowCount) {
+                if (upperBound && *upperBound < lastRowIndex) {
                     slice->mutable_end_limit()->set_row_index(*upperBound - firstRowIndex);
                 }
 
@@ -395,9 +422,11 @@ void TTableNodeProxy::TraverseChunkTree(
         if (IsEmpty(child)) {
             continue;
         }
-        auto minKey = GetMinKey(child);
-        auto maxKey = GetMaxKey(child);
-        if (lowerBound > maxKey) {          
+
+        TKey minKey, maxKey;
+        GetBoundaryKeys(child, &minKey, &maxKey);
+
+        if (lowerBound > maxKey) {
             continue; // possible for the first chunk tree considered
         }
         if (upperBound && minKey >= *upperBound) {
@@ -443,7 +472,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
     attributes->push_back("chunk_count");
-    attributes->push_back("uncompressed_size");
+    attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_size");
     attributes->push_back("compression_ratio");
     attributes->push_back("row_count");
@@ -480,7 +509,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         return true;
     }
 
-    if (name == "uncompressed_size") {
+    if (name == "uncompressed_data_size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);
         return true;
@@ -533,7 +562,7 @@ void TTableNodeProxy::ParseYPath(
     tokenizer.ParseNext();
     ParseChannel(tokenizer, channel);
     ParseRowLimits(tokenizer, lowerBound, upperBound);
-    tokenizer.Current().CheckType(ETokenType::EndOfStream);
+    tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)

@@ -47,6 +47,8 @@ TChunkWriter::TChunkWriter(
     , DataSizeSinceLastSample(0)
     , SamplesSize(0)
     , IndexSize(0)
+    , CompressionRatio(config->EstimatedCompressionRatio)
+    , BasicMetaSize(0)
 {
     YASSERT(config);
     YASSERT(chunkWriter);
@@ -87,11 +89,13 @@ TChunkWriter::TChunkWriter(
         *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel, ColumnIndexes));
     }
+
+    BasicMetaSize = ChannelsExt.ByteSize() + MiscExt.ByteSize();
 }
 
 TAsyncError TChunkWriter::AsyncOpen()
 {
-    // No thread affinity check here - 
+    // No thread affinity check here:
     // TChunkSequenceWriter may call it from different threads.
     YASSERT(!IsOpen);
     YASSERT(!IsClosed);
@@ -140,7 +144,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key)
     }
 
     DataSize += rowDataSize;
-    if (SamplesSize < Config->SampleRate * DataSize) {
+    if (SamplesSize < Config->SampleRate * DataSize * CompressionRatio) {
         EmitSample(row);
         RowCountSinceLastSample = 0;
         DataSizeSinceLastSample = 0;
@@ -156,7 +160,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key)
             *BoundaryKeysExt.mutable_left() = key.ToProto();
         }
 
-        if (IndexSize < Config->IndexRate * DataSize) {
+        if (IndexSize < Config->IndexRate * DataSize * CompressionRatio) {
             EmitIndexEntry();
         }
     }
@@ -180,6 +184,9 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
     auto data = Codec->Compress(block);
 
     SentSize += data.Size();
+
+    CompressionRatio = SentSize / double(DataSize + 1);
+
     ++CurrentBlockIndex;
 
     return data;
@@ -228,11 +235,6 @@ TAsyncError TChunkWriter::AsyncClose()
 
     CurrentSize = SentSize;
 
-    Meta.set_type(EChunkType::Table);
-    {
-        MiscExt.set_uncompressed_size(UncompressedSize);
-        SetProtoExtension(Meta.mutable_extensions(), MiscExt);
-    }
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
     SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
 
@@ -253,6 +255,14 @@ TAsyncError TChunkWriter::AsyncClose()
             ToProto(keyColumnsExt.mutable_values(), KeyColumns.Get());
             SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
         }
+    }
+
+    Meta.set_type(EChunkType::Table);
+    {
+        MiscExt.set_uncompressed_data_size(UncompressedSize);
+        MiscExt.set_compressed_data_size(SentSize);
+        MiscExt.set_meta_size(Meta.ByteSize());
+        SetProtoExtension(Meta.mutable_extensions(), MiscExt);
     }
 
     return ChunkWriter
@@ -338,6 +348,11 @@ NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const
     }
 
     return meta;
+}
+
+i64 TChunkWriter::GetMetaSize() const
+{
+    return BasicMetaSize + SamplesSize + IndexSize + (CurrentBlockIndex + 1) * sizeof(NProto::TBlockInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

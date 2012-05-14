@@ -33,7 +33,7 @@ typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node)
 {
     typedef typename TDeserializeTraits<T>::TReturnType TResult;
     TResult value;
-    Read(value, ~node);
+    Read(value, node);
     return value;
 }
 
@@ -73,7 +73,7 @@ T CheckedStaticCast(i64 value)
 template <class T>
 void Read(
     TIntrusivePtr<T>& parameter,
-    INode* node,
+    INodePtr node,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
 {
     if (!parameter) {
@@ -88,7 +88,7 @@ void Read(
 template <class T>
 void Read(
     T& parameter,
-    INode* node, 
+    INodePtr node, 
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
 {
     auto value = node->AsString()->GetValue();
@@ -97,7 +97,7 @@ void Read(
 
 // TNullable
 template <class T>
-void Read(TNullable<T>& parameter, INode* node)
+void Read(TNullable<T>& parameter, INodePtr node)
 {
     T value;
     Read(value, node);
@@ -106,38 +106,38 @@ void Read(TNullable<T>& parameter, INode* node)
 
 // yvector
 template <class T>
-void Read(yvector<T>& parameter, INode* node)
+void Read(yvector<T>& parameter, INodePtr node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     parameter.resize(size);
     for (int i = 0; i < size; ++i) {
-        Read(parameter[i], ~listNode->GetChild(i));
+        Read(parameter[i], listNode->GetChild(i));
     }
 }
 
 // yhash_set
 template <class T>
-void Read(yhash_set<T>& parameter, INode* node)
+void Read(yhash_set<T>& parameter, INodePtr node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     for (int i = 0; i < size; ++i) {
         T value;
-        Read(value, ~listNode->GetChild(i));
+        Read(value, listNode->GetChild(i));
         parameter.insert(MoveRV(value));
     }
 }
 
 // yhash_map
 template <class T>
-void Read(yhash_map<Stroka, T>& parameter, INode* node)
+void Read(yhash_map<Stroka, T>& parameter, INodePtr node)
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {
         auto& key = pair.first;
         T value;
-        Read(value, ~pair.second);
+        Read(value, pair.second);
         parameter.insert(MakePair(key, MoveRV(value)));
     }
 }

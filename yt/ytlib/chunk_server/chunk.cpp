@@ -38,9 +38,10 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     YASSERT(ChunkInfo().size() != TChunk::UnknownSize);
     result.CompressedSize = ChunkInfo().size();
     result.ChunkCount = 1;
+    result.Rank = 0;
 
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(ChunkMeta().extensions());
-    result.UncompressedSize = miscExt->uncompressed_size();
+    result.UncompressedSize = miscExt->uncompressed_data_size();
     result.RowCount = miscExt->row_count();
 
     return result;
@@ -49,8 +50,8 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 void TChunk::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
-    YVERIFY(ChunkInfo_.SerializeToStream(output));
-    YVERIFY(ChunkMeta_.SerializeToStream(output));
+    SaveProto(output, ChunkInfo_);
+    SaveProto(output, ChunkMeta_);
     ::Save(output, ReplicationFactor_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
@@ -60,8 +61,8 @@ void TChunk::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectWithIdBase::Load(input);
-    YVERIFY(ChunkInfo_.ParseFromStream(input));
-    YVERIFY(ChunkMeta_.ParseFromStream(input));
+    LoadProto(input, ChunkInfo_);
+    LoadProto(input, ChunkMeta_);
     ::Load(input, ReplicationFactor_);
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);
