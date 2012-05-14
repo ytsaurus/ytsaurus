@@ -35,6 +35,13 @@ public:
         const NYTree::TYPath& timerPathSuffix,
         TCallback<void(T)> onResult = TCallback<void(T)>());
 
+    // specifiacation of Await for T = void
+    void Await(
+        TFuture<void> result,
+        const NYTree::TYPath& timerPathSuffix,
+        TCallback<void()> onResult = TCallback<void()>());
+
+
     void Complete(TClosure onComplete = TClosure());
     void Cancel();
 
@@ -66,6 +73,11 @@ private:
         const NYTree::TYPath& timerPathSuffix,
         TCallback<void(T)> onResult,
         T result);
+
+    void OnVoidResult(
+        const NYTree::TYPath& timerPathSuffix,
+        TCallback<void()> onResult);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

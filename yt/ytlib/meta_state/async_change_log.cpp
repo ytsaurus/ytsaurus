@@ -82,7 +82,7 @@ public:
             }
         }
 
-        promise.Set(TVoid());
+        promise.Set();
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -132,7 +132,7 @@ public:
             }
         }
 
-        Promise.Set(TVoid());
+        Promise.Set();
         Promise.Reset();
 
         return true;

@@ -74,6 +74,35 @@ void TParallelAwaiter::Await(
         Passed(MoveRV(wrappedOnResult))));
 }
 
+inline void TParallelAwaiter::Await(
+    TFuture<void> result,
+    const NYTree::TYPath& timerPathSuffix,
+    TCallback<void()> onResult)
+{
+    YASSERT(!result.IsNull());
+
+    TCallback<void()> wrappedOnResult;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        YASSERT(!Completed);
+
+        if (Canceled || Terminated)
+            return;
+
+        ++RequestCount;
+
+        if (!onResult.IsNull()) {
+            wrappedOnResult = onResult.Via(CancelableInvoker);
+        }
+    }
+
+    result.Subscribe(BIND(
+        &TParallelAwaiter::OnVoidResult,
+        MakeStrong(this),
+        timerPathSuffix,
+        Passed(MoveRV(wrappedOnResult))));
+}
+
 template <class T>
 void TParallelAwaiter::Await(
     TFuture<T> result,
@@ -117,6 +146,41 @@ void TParallelAwaiter::OnResult(
         onComplete.Run();
     }
 }
+
+inline void TParallelAwaiter::OnVoidResult(
+    const NYTree::TYPath& timerPathSuffix,
+    TCallback<void()> onResult)
+{
+    if (!onResult.IsNull()) {
+        onResult.Run();
+    }
+
+    bool invokeOnComplete = false;
+    TClosure onComplete;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        if (Canceled || Terminated)
+            return;
+
+        if (Profiler && !timerPathSuffix.empty()) {
+            Profiler->TimingCheckpoint(Timer, timerPathSuffix);
+        }
+
+        ++ResponseCount;
+
+        onComplete = OnComplete;
+        invokeOnComplete = ResponseCount == RequestCount && Completed;
+        if (invokeOnComplete) {
+            Terminate();
+        }
+    }
+
+    if (invokeOnComplete && !onComplete.IsNull()) {
+        onComplete.Run();
+    }
+}
+
 
 inline void TParallelAwaiter::Complete(TClosure onComplete)
 {
