@@ -44,7 +44,7 @@ public:
     //! Opens the writer.
     void Open();
 
-    void WriteRow(TRow& column, TKey& value);
+    void WriteRow(TRow& column, const TNonOwningKey& value);
     void Close();
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
@@ -52,7 +52,7 @@ public:
     //! Current row count.
     i64 GetRowCount() const;
 
-    TKey& GetLastKey();
+    const TOwningKey& GetLastKey() const;
 
 private:
     TChunkSequenceWriterConfigPtr Config;

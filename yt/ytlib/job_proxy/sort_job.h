@@ -25,6 +25,8 @@ public:
 private:
     NTableClient::TChunkSequenceReaderPtr Reader;
     NTableClient::TChunkSequenceWriterPtr Writer;
+
+    NTableClient::TKeyColumns KeyColumns;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

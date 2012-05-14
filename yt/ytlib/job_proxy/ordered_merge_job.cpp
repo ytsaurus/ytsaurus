@@ -58,7 +58,7 @@ TOrderedMergeJob::TOrderedMergeJob(
 TJobResult TOrderedMergeJob::Run()
 {
     // Unsorted write - use dummy key.
-    TKey key;
+    TNonOwningKey key;
     while (Reader->IsValid()) {
         Writer->WriteRow(Reader->GetRow(), key);
     }

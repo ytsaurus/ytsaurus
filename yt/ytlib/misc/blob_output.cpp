@@ -46,11 +46,6 @@ TSharedRef TBlobOutput::Flush(size_t size)
     return result;
 }
 
-void TBlobOutput::Swap(TBlobOutput& other)
-{
-    Blob.swap(other.Blob);
-}
-
 const TBlob* TBlobOutput::GetBlob() const
 {
     return &Blob;
@@ -61,7 +56,7 @@ const TBlob* TBlobOutput::GetBlob() const
 TFakeStrbufStore::TFakeStrbufStore(size_t /* capacity */)
 { }
 
-const TStrType TFakeStrbufStore::PutData(const TStringBuf& value)
+const TFakeStrbufStore::TStrType TFakeStrbufStore::PutData(const TStringBuf& value)
 {
     return value;
 }

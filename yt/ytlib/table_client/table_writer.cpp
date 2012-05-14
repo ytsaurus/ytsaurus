@@ -165,7 +165,7 @@ void TTableWriter::Open()
     LOG_INFO("Table writer opened");
 }
 
-void TTableWriter::WriteRow(TRow& row, TKey& key)
+void TTableWriter::WriteRow(TRow& row, const TNonOwningKey& key)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YVERIFY(IsOpen);
@@ -229,7 +229,7 @@ i64 TTableWriter::GetRowCount() const
     return Writer->GetRowCount();
 }
 
-TKey& TTableWriter::GetLastKey()
+const TOwningKey& TTableWriter::GetLastKey() const
 {
     return Writer->GetLastKey();
 }

@@ -57,7 +57,7 @@ private:
     //! |(endColumn, endValue)| offsets in #RowBuffer.
     std::vector<size_t> Offsets;
 
-    TYsonWriter ValueConsumer;
+    NYTree::TYsonWriter ValueConsumer;
 
     //! A cached callback for #OnValueFinished.
     TClosure OnValueFinished_;

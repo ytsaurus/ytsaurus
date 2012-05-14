@@ -16,7 +16,6 @@ set( SRCS
   ${BASE}/table_consumer.cpp
   ${BASE}/value.cpp
   ${BASE}/key.cpp
-  ${BASE}/value_consumer.cpp
   ${BASE}/table_producer.cpp
   ${BASE}/limits.cpp
 )
@@ -41,7 +40,6 @@ set( HDRS
   ${BASE}/table_consumer.h
   ${BASE}/value.h
   ${BASE}/key.h
-  ${BASE}/value_consumer.h
   ${BASE}/table_producer.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/limits.h

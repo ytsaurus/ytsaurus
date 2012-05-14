@@ -8,6 +8,7 @@
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/foreach.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -325,19 +326,19 @@ public:
     {
         lexer.Reset();
         YVERIFY(lexer.Read(yson) > 0);
-        YASSERT(lexer.GetState() == TLexer::EState::Terminal);
+        YASSERT(lexer.GetState() == NYTree::TLexer::EState::Terminal);
 
         const auto& token = lexer.GetToken();
         switch (token.GetType()) {
-            case ETokenType::Integer:
+            case NYTree::ETokenType::Integer:
                 SetValue(index, token.GetIntegerValue());
                 break;
 
-            case ETokenType::String:
+            case NYTree::ETokenType::String:
                 SetValue(index, token.GetStringValue());
                 break;
 
-            case ETokenType::Double:
+            case NYTree::ETokenType::Double:
                 SetValue(index, token.GetDoubleValue());
                 break;
 

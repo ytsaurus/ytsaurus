@@ -9,6 +9,7 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_client/sync_writer.h>
+#include <ytlib/table_client/private.h>
 #include <ytlib/table_client/chunk_sequence_writer.h>
 #include <ytlib/table_client/chunk_reader.h>
 #include <ytlib/misc/sync.h>
@@ -57,7 +58,7 @@ TSortedMergeJob::TSortedMergeJob(
             TChunkId::FromProto(inputChunk.slice().chunk_id()),
             seedAddresses);
 
-        TChunkReader::TOptions options;
+        TReaderOptions options;
         options.ReadKey = true;
 
         auto chunkReader = New<TChunkReader>(
@@ -67,6 +68,7 @@ TSortedMergeJob::TSortedMergeJob(
             inputChunk.slice().start_limit(),
             inputChunk.slice().end_limit(),
             "", // No row attributes.
+            DefaultPartitionTag,
             options); 
 
         ChunkReaders.push_back(chunkReader);

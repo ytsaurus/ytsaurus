@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
 #include "config.h"
-#include "sorted_merge_job.h"
+#include "sort_job.h"
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/election/leader_channel.h>
@@ -8,6 +8,8 @@
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_client/chunk_sequence_writer.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/ytree/lexer.h>
+
 #include <ytlib/misc/sync.h>
 
 namespace NYT {
@@ -19,6 +21,27 @@ using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NObjectServer;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+struct TSortRow
+    : public TRefCounted
+{
+    TRow Row;
+    TNonOwningKey Key;
+};
+
+typedef TIntrusivePtr<TSortRow> TSortRowPtr;
+
+bool operator< (const TSortRowPtr& lhs, const TSortRowPtr& rhs)
+{
+    return CompareKeys(lhs->Key, rhs->Key) < 0;
+}
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,34 +71,66 @@ TSortJob::TSortJob(
     }
 
     {
-        const TYson& channels = IoSpec.output_specs(index).channels();
+        const TYson& channels = sortJobSpec.output_spec().channels();
+        KeyColumns.assign(
+            sortJobSpec.key_columns().begin(),
+            sortJobSpec.key_columns().end());
 
         Writer = New<TChunkSequenceWriter>(
             config->ChunkSequenceWriter,
             masterChannel,
             TTransactionId::FromProto(sortJobSpec.output_transaction_id()),
             TChunkListId::FromProto(sortJobSpec.output_spec().chunk_list_id()),
-            ChannelsFromYson(channels)));
+            ChannelsFromYson(channels),
+            KeyColumns);
     }
 }
 
-TJobResult TSortedMergeJob::Run()
+TJobResult TSortJob::Run()
 {
-    while (!ChunkReaders.empty()) {
-        std::pop_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
-        Writer->WriteRow(ChunkReaders.back()->GetRow(), ChunkReaders.back()->GetKey());
+    std::vector<TSortRowPtr> sortBuffer;
 
-        Sync(~ChunkReaders.back(), &TChunkReader::AsyncNextRow);
-        if (ChunkReaders.back()->IsValid()) {
-            std::push_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
-        } else {
-            ChunkReaders.pop_back();
+    {
+        TLexer lexer;
+        yhash_map<TStringBuf, int> keyColumnToIndex;
+
+        for (int i = 0; i < KeyColumns.size(); ++i) {
+            TStringBuf name(~KeyColumns[i], KeyColumns[i].size());
+            keyColumnToIndex[name] = i;
+        }
+
+        while (Reader->IsValid()) {
+            auto sortRow = New<TSortRow>();
+            sortRow->Row.swap(Reader->GetRow());
+            sortRow->Key.Reset(KeyColumns.size());
+
+            FOREACH(const auto& pair, sortRow->Row) {
+                auto it = keyColumnToIndex.find(pair.first);
+                if (it != keyColumnToIndex.end()) {
+                    sortRow->Key.SetKeyPart(it->second, pair.second, lexer);
+                }
+            }
+
+            sortBuffer.push_back(sortRow);
+            Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
         }
     }
-    Writer->Close();
+
+    std::sort(sortBuffer.begin(), sortBuffer.end());
+
+    for (int i = 0; i < sortBuffer.size(); ++i) {
+        Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, sortBuffer[i]->Row, sortBuffer[i]->Key);
+        // ToDo(psushin): Writer->SetProgress();
+    }
+
+
+    TSortJobResult sortResult;
+    ToProto(sortResult.mutable_chunks(), Writer->GetWrittenChunks());
 
     TJobResult result;
     *result.mutable_error() = TError().ToProto();
+    *result.MutableExtension(TSortJobResult::sort_job_result) = sortResult;
+
     return result;
 }
 

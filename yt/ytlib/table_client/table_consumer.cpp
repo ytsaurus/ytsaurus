@@ -18,7 +18,6 @@ TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
     , KeyColumns(writer->GetKeyColumns())
     , InsideRow(false)
     , ValueConsumer(&RowBuffer)
-    , CurrentKey(KeyColumns ? KeyColumns->size() : 0)
     , OnValueFinished_(BIND(&TTableConsumer::OnValueFinished, this))
 {
     if (KeyColumns) {
@@ -133,13 +132,12 @@ void TTableConsumer::OnMyEndMap()
                 "Table data is not sorted (RowIndex: %"PRId64", PreviousKey: %s, CurrentKey: %s)", 
                 Writer->GetRowCount(),
                 ~Writer->GetLastKey().ToString(),
-                ~CurrentKey.ToString());
+                ~key.ToString());
         }
     }
 
     Writer->WriteRow(row, key);
 
-    CurrentKey.Reset();
     UsedColumns.clear();
     Offsets.clear();
     RowBuffer.Clear();
