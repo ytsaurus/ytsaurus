@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "private.h"
 #include "config.h"
 #include "sort_job.h"
 
@@ -125,7 +126,7 @@ TJobResult TSortJob::Run()
         }
     }
 
-    std::sort(sortBuffer.begin(), ortBuffer.end());
+    std::sort(sortBuffer.begin(), sortBuffer.end());
 
     for (int i = 0; i < sortBuffer.size(); ++i) {
         Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, sortBuffer[i]->Row, sortBuffer[i]->Key);
