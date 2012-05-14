@@ -147,10 +147,10 @@ void TChunkSequenceWriter::InitCurrentSession(TSession nextSession)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    // We swap the last key of the previous chunk to the last key of the new chunk.
+    // We copy the last key of the previous chunk to the last key of the new chunk.
     if (!CurrentSession.IsNull()) {
-        nextSession.ChunkWriter->LastKey.Swap(
-            CurrentSession.ChunkWriter->GetLastKey());
+        nextSession.ChunkWriter->LastKey = 
+            CurrentSession.ChunkWriter->GetLastKey();
     }
     CurrentSession = nextSession;
 
@@ -160,7 +160,7 @@ void TChunkSequenceWriter::InitCurrentSession(TSession nextSession)
     State.FinishOperation();
 }
 
-TAsyncError TChunkSequenceWriter::AsyncWriteRow(TRow& row, TKey& key)
+TAsyncError TChunkSequenceWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
@@ -275,6 +275,22 @@ void TChunkSequenceWriter::OnChunkClosed(
         batchReq->AddRequest(~req);
     }
 
+    {
+        NProto::TInputChunk inputChunk;
+        auto* slice = inputChunk.mutable_slice();
+        slice->mutable_start_limit();
+        slice->mutable_end_limit();
+        *slice->mutable_chunk_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
+
+        ToProto(inputChunk.mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
+        *inputChunk.mutable_channel() = TChannel::CreateUniversal().ToProto();
+        *inputChunk.mutable_extensions() = 
+            currentSession.ChunkWriter->GetMasterMeta().extensions();
+
+        TGuard<TSpinLock> guard(WrittenChunksGuard);
+        WrittenChunks.push_back(inputChunk);
+    }
+
     batchReq->Invoke().Subscribe(BIND(
         &TChunkSequenceWriter::OnChunkRegistered,
         MakeWeak(this),
@@ -350,7 +366,7 @@ void TChunkSequenceWriter::OnClose()
     State.FinishOperation();
 }
 
-TKey& TChunkSequenceWriter::GetLastKey()
+const TOwningKey& TChunkSequenceWriter::GetLastKey() const
 {
     YASSERT(!State.HasRunningOperation());
     return CurrentSession.ChunkWriter->GetLastKey();
@@ -365,6 +381,11 @@ i64 TChunkSequenceWriter::GetRowCount() const
 {
     YASSERT(!State.HasRunningOperation());
     return RowCount;
+}
+
+const std::vector<NProto::TInputChunk>& TChunkSequenceWriter::GetWrittenChunks() const
+{
+    return WrittenChunks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

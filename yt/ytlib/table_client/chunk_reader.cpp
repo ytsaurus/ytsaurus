@@ -204,7 +204,7 @@ private:
                 return;
             }
 
-            auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
+            chunkReader->KeyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
                 result.Value().extensions());
 
             YASSERT(chunkReader->KeyColumnsExt->values_size() > 0);
@@ -563,7 +563,7 @@ TChunkReader::TChunkReader(
     const NProto::TReadLimit& endLimit,
     const NYTree::TYson& rowAttributes,
     int partitionTag,
-    TOptions options)
+    TReaderOptions options)
     : Codec(NULL)
     , SequentialReader(NULL)
     , Channel(channel)
@@ -703,28 +703,10 @@ void TChunkReader::MakeCurrentRow()
 
                     if (columnInfo.KeyIndex >= 0) {
                         // Use first token to create key part.
-                        lexer.Reset();
-                        YVERIFY(lexer.Read(reader->GetValue()) > 0);
-                        YASSERT(lexer.GetState() == TLexer::EState::Terminal);
-
-                        const auto& token = lexer.GetToken();
-                        switch (token.GetType()) {
-                            case ETokenType::Integer:
-                                CurrentKey.SetValue(columnInfo.KeyIndex, token.GetIntegerValue());
-                                break;
-
-                            case ETokenType::String:
-                                CurrentKey.SetValue(columnInfo.KeyIndex, token.GetStringValue());
-                                break;
-
-                            case ETokenType::Double:
-                                CurrentKey.SetValue(columnInfo.KeyIndex, token.GetDoubleValue());
-                                break;
-
-                            default:
-                                CurrentKey.SetComposite(columnInfo.KeyIndex);
-                                break;
-                        }
+                        CurrentKey.SetKeyPart(
+                            columnInfo.KeyIndex,
+                            reader->GetValue(),
+                            lexer);
                     }
 
                     if (columnInfo.InChannel) {
@@ -747,7 +729,7 @@ TRow& TChunkReader::GetRow()
     return CurrentRow;
 }
 
-const TKey<TFakeStrbufStore>& TChunkReader::GetKey()
+const TKey<TFakeStrbufStore>& TChunkReader::GetKey() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());

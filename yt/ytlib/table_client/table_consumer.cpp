@@ -2,9 +2,14 @@
 
 #include "sync_writer.h"
 #include "table_consumer.h"
+#include "key.h"
+
+#include <ytlib/ytree/lexer.h>
 
 namespace NYT {
 namespace NTableClient {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,16 +102,8 @@ void TTableConsumer::OnMyEndMap()
 {
     YASSERT(InsideRow);
 
-    if (KeyColumns) {
-        if (CompareKeys(Writer->GetLastKey(), CurrentKey) > 0) {
-            ythrow yexception() << Sprintf(
-                "Table data is not sorted (RowIndex: %"PRId64", PreviousKey: %s, CurrentKey: %s)", 
-                Writer->GetRowCount(),
-                ~Writer->GetLastKey().ToString(),
-                ~CurrentKey.ToString());
-        }
-    }
-
+    TLexer lexer;
+    TKey<TFakeStrbufStore> key;
     TRow row;
 
     int index = 0;
@@ -121,10 +118,26 @@ void TTableConsumer::OnMyEndMap()
         end = Offsets[index++];
         TStringBuf value(RowBuffer.Begin() + begin, end - begin);
 
+        auto it = KeyColumnToIndex.find(name);
+        if (it != KeyColumnToIndex.end()) {
+            key.SetKeyPart(it->second, value, lexer);
+        }
+
         row.push_back(std::make_pair(name, value));
     }
 
-    Writer->WriteRow(row, CurrentKey);
+
+    if (KeyColumns) {
+        if (CompareKeys(Writer->GetLastKey(), key) > 0) {
+            ythrow yexception() << Sprintf(
+                "Table data is not sorted (RowIndex: %"PRId64", PreviousKey: %s, CurrentKey: %s)", 
+                Writer->GetRowCount(),
+                ~Writer->GetLastKey().ToString(),
+                ~CurrentKey.ToString());
+        }
+    }
+
+    Writer->WriteRow(row, key);
 
     CurrentKey.Reset();
     UsedColumns.clear();

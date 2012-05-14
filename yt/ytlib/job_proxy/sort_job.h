@@ -11,20 +11,20 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedMergeJob
+class TSortJob
     : public IJob
 {
 public:
-    TSortedMergeJob(
+    TSortJob(
         const TJobIOConfigPtr& config,
         const NElection::TLeaderLookup::TConfigPtr& masterConfig,
-        const NScheduler::NProto::TMergeJobSpec& mergeJobSpec);
+        const NScheduler::NProto::TSortJobSpec& sortJobSpec);
 
     NScheduler::NProto::TJobResult Run();
 
 private:
-    std::vector<NTableClient::TChunkReaderPtr> ChunkReaders;
-    NTableClient::ISyncWriterPtr Writer;
+    NTableClient::TChunkSequenceReaderPtr Reader;
+    NTableClient::TChunkSequenceWriterPtr Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

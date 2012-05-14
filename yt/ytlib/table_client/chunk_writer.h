@@ -31,15 +31,15 @@ public:
 
     ~TChunkWriter();
 
-    TAsyncError AsyncOpen();
+    virtual TAsyncError AsyncOpen();
 
-    TAsyncError AsyncWriteRow(TRow& row, const TKey<TFakeStrbufStore>& key);
+    virtual TAsyncError AsyncWriteRow(TRow& row, const TNonOwningKey& key);
 
-    TAsyncError AsyncClose();
+    virtual TAsyncError AsyncClose();
 
-    const TKey<TBlobOutput>& GetLastKey();
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
-    i64 GetRowCount() const;
+    virtual const TOwningKey& GetLastKey() const;
+    virtual const TNullable<TKeyColumns>& GetKeyColumns() const;
+    virtual i64 GetRowCount() const;
 
     i64 GetCurrentSize() const;
     NChunkHolder::NProto::TChunkMeta GetMasterMeta() const;

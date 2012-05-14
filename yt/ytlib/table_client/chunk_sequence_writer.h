@@ -5,6 +5,7 @@
 #include "async_writer.h"
 #include "chunk_writer.h"
 
+#include <ytlib/table_client/table_reader.pb.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
@@ -37,17 +38,22 @@ public:
 
     TAsyncError AsyncOpen();
 
-    TAsyncError AsyncWriteRow(TRow& row, TKey& key);
+    TAsyncError AsyncWriteRow(TRow& row, const TNonOwningKey& key);
     TAsyncError AsyncClose();
 
     void SetProgress(double progress);
 
-    TKey& GetLastKey();
+    const TOwningKey& GetLastKey() const;
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
 
     //! Current row count.
     i64 GetRowCount() const;
+
+    /*! 
+     *  To get consistent data, should be called only when the writer is closed.
+     */
+    const std::vector<NProto::TInputChunk>& GetWrittenChunks() const;
 
 private:
     // Tools for writing single chunk.
@@ -117,6 +123,9 @@ private:
     TPromise<TSession> NextSession;
 
     TParallelAwaiter::TPtr CloseChunksAwaiter;
+
+    TSpinLock WrittenChunksGuard;
+    std::vector<NProto::TInputChunk> WrittenChunks;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

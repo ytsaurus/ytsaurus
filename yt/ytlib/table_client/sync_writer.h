@@ -21,7 +21,7 @@ struct ISyncWriter
      *  \param key is used only if the table is sorted, e.g. GetKeyColumns
      *  returns not null.
      */
-    virtual void WriteRow(TRow& row, TKey& key) = 0;
+    virtual void WriteRow(TRow& row, const TNonOwningKey& key) = 0;
 
     //! Returns all key columns seen so far.
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
@@ -30,7 +30,7 @@ struct ISyncWriter
     virtual i64 GetRowCount() const = 0;
 
     //! Returns the last key written so far.
-    virtual TKey& GetLastKey() = 0;
+    virtual const TOwningKey& GetLastKey() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,13 +42,13 @@ public:
     TSyncWriterAdapter(IAsyncWriterPtr writer);
 
     void Open();
-    void WriteRow(TRow& row, TKey& key);
+    void WriteRow(TRow& row, const TNonOwningKey& key);
     void Close();
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
 
     i64 GetRowCount() const;
-    TKey& GetLastKey();
+    const TOwningKey& GetLastKey() const;
 
 private:
     IAsyncWriterPtr Writer;

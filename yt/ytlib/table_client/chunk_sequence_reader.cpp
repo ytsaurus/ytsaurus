@@ -24,7 +24,8 @@ TChunkSequenceReader::TChunkSequenceReader(
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     const std::vector<NProto::TInputChunk>& fetchedChunks,
-    int partitionTag)
+    int partitionTag,
+    TReaderOptions options)
     : Config(config)
     , BlockCache(blockCache)
     , InputChunks(fetchedChunks)
@@ -33,6 +34,8 @@ TChunkSequenceReader::TChunkSequenceReader(
     , NextReader(NewPromise<TChunkReaderPtr>())
     , PartitionTag(partitionTag)
 {
+    // Current reader is not set.
+    Readers.push_back(TChunkReaderPtr());
     PrepareNextChunk();
 }
 
@@ -63,7 +66,9 @@ void TChunkSequenceReader::PrepareNextChunk()
         remoteReader,
         slice.start_limit(),
         slice.end_limit(),
-        inputChunk.row_attributes()); // ToDo(psushin): pass row attributes here.
+        inputChunk.row_attributes(),
+        PartitionTag,
+        Options); // ToDo(psushin): pass row attributes here.
 
     chunkReader->AsyncOpen().Subscribe(BIND(
         &TChunkSequenceReader::OnNextReaderOpened,
@@ -103,12 +108,16 @@ TAsyncError TChunkSequenceReader::AsyncOpen()
 
 void TChunkSequenceReader::SetCurrentChunk(TChunkReaderPtr nextReader)
 {
-    CurrentReader = nextReader;
+    if (!Options.KeepBlocks)
+        Readers.clear();
+
+    Readers.push_back(nextReader);
+
     if (nextReader) {
         NextReader = NewPromise<TChunkReaderPtr>();
         PrepareNextChunk();
 
-        if (!CurrentReader->IsValid()) {
+        if (!Readers.back()->IsValid()) {
             NextReader.Subscribe(BIND(
                 &TChunkSequenceReader::SetCurrentChunk,
                 MakeWeak(this)));
@@ -127,7 +136,7 @@ void TChunkSequenceReader::OnRowFetched(TError error)
         return;
     }
 
-    if (!CurrentReader->IsValid()) {
+    if (!Readers.back()->IsValid()) {
         NextReader.Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
             MakeWeak(this)));
@@ -140,28 +149,28 @@ void TChunkSequenceReader::OnRowFetched(TError error)
 bool TChunkSequenceReader::IsValid() const
 {
     YASSERT(!State.HasRunningOperation());
-    if (!CurrentReader)
+    if (!Readers.back())
         return false;
 
-    return CurrentReader->IsValid();
+    return Readers.back()->IsValid();
 }
 
 TRow& TChunkSequenceReader::GetRow()
 {
     YASSERT(!State.HasRunningOperation());
-    YASSERT(CurrentReader);
-    YASSERT(CurrentReader->IsValid());
+    YASSERT(Readers.back());
+    YASSERT(Readers.back()->IsValid());
 
-    return CurrentReader->GetRow();
+    return Readers.back()->GetRow();
 }
 
 const NYTree::TYson& TChunkSequenceReader::GetRowAttributes() const
 {
     YASSERT(!State.HasRunningOperation());
-    YASSERT(CurrentReader);
-    YASSERT(CurrentReader->IsValid());
+    YASSERT(Readers.back());
+    YASSERT(Readers.back()->IsValid());
 
-    return CurrentReader->GetRowAttributes();
+    return Readers.back()->GetRowAttributes();
 }
 
 TAsyncError TChunkSequenceReader::AsyncNextRow()
@@ -172,7 +181,7 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
     State.StartOperation();
     
     // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
-    auto asyncResult = CurrentReader->AsyncNextRow();
+    auto asyncResult = Readers.back()->AsyncNextRow();
     if (asyncResult.IsSet()) {
         OnRowFetched(asyncResult.Get());
     } else {
@@ -180,6 +189,20 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
     }
 
     return State.GetOperationError();
+}
+
+const TKey<TFakeStrbufStore>& TChunkSequenceReader::GetKey() const
+{
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(Readers.back());
+    YASSERT(Readers.back()->IsValid());
+
+    return Readers.back()->GetKey();
+}
+
+double TChunkSequenceReader::GetProgress() const
+{
+    YUNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

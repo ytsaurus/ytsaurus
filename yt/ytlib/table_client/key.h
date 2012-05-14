@@ -4,8 +4,10 @@
 #include "limits.h"
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/ytree/lexer.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -28,6 +30,10 @@ class TKeyPart
     DEFINE_BYVAL_RO_PROPERTY(EKeyType, Type);
 
 public:
+    TKeyPart()
+        : Type_(EKeyType::Null)
+    { }
+
     static TKeyPart CreateNull()
     {
         TKeyPart result;
@@ -90,7 +96,7 @@ public:
 
         switch (Type_) {
         case EKeyType::String:
-            return typeSize + StrValue.GetStringBuf().size();
+            return typeSize + StrValue.size();
         case EKeyType::Integer:
             return typeSize + sizeof(i64);
         case EKeyType::Double:
@@ -109,7 +115,7 @@ public:
 
         switch (Type_) {
         case EKeyType::String:
-            keyPart.set_str_value(StrValue.GetStringBuf().begin(), StrValue.GetStringBuf().size());
+            keyPart.set_str_value(StrValue.begin(), StrValue.size());
             break;
 
         case EKeyType::Integer:
@@ -172,7 +178,6 @@ bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 template <class TBuffer>
 class TKey
-    : public TNonCopyable
 {
 public:
     //! Creates empty key.
@@ -213,9 +218,7 @@ public:
 
             default:
                 YUNREACHABLE();
-
             }
-            SetValue(i, other.Parts[i].Ge)
         }
     }
 
@@ -262,7 +265,7 @@ public:
     size_t GetSize() const
     {
         size_t result = 0;
-        FOREACH (const auto part, Parts) {
+        FOREACH (const auto& part, Parts) {
             result += part.GetSize();
         }
         return std::min(result, MaxKeySize);
@@ -282,7 +285,7 @@ public:
                 *key.add_parts() = part.ToProto(MaxKeySize - currentSize);
                 currentSize += part.GetSize();
             } else {
-                *key.add_parts() = TKeyPart().ToProto();
+                *key.add_parts() = TKeyPart<typename TBuffer::TStrType>::CreateNull().ToProto();
             }
         }
         return key;
@@ -318,6 +321,36 @@ public:
         }
     }
 
+    void SetKeyPart(int index, const TStringBuf& yson, NYTree::TLexer& lexer)
+    {
+        lexer.Reset();
+        YVERIFY(lexer.Read(yson) > 0);
+        YASSERT(lexer.GetState() == TLexer::EState::Terminal);
+
+        const auto& token = lexer.GetToken();
+        switch (token.GetType()) {
+            case ETokenType::Integer:
+                SetValue(index, token.GetIntegerValue());
+                break;
+
+            case ETokenType::String:
+                SetValue(index, token.GetStringValue());
+                break;
+
+            case ETokenType::Double:
+                SetValue(index, token.GetDoubleValue());
+                break;
+
+            default:
+                SetComposite(index);
+                break;
+        }
+    }
+
+    // This is required for correct compilation of operator =.
+    template <class TOtherBuffer>
+    friend class TKey;
+
 private:
     template<class TLhsBuffer, class TRhsBuffer>
     friend int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs);
@@ -338,29 +371,29 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
     }
 
     switch (rhs.GetType()) {
-    case EKeyType::String:
-        return lhs.GetString().compare(rhs.GetString());
+        case EKeyType::String:
+            return lhs.GetString().compare(rhs.GetString());
 
-    case EKeyType::Integer:
-        if (lhs.GetInteger() > rhs.GetInteger())
-            return 1;
-        if (lhs.GetInteger() < rhs.GetInteger())
-            return -1;
-        return 0;
+        case EKeyType::Integer:
+            if (lhs.GetInteger() > rhs.GetInteger())
+                return 1;
+            if (lhs.GetInteger() < rhs.GetInteger())
+                return -1;
+            return 0;
 
-    case EKeyType::Double:
-        if (lhs.GetDouble() > rhs.GetDouble())
-            return 1;
-        if (lhs.GetDouble() < rhs.GetDouble())
-            return -1;
-        return 0;
+        case EKeyType::Double:
+            if (lhs.GetDouble() > rhs.GetDouble())
+                return 1;
+            if (lhs.GetDouble() < rhs.GetDouble())
+                return -1;
+            return 0;
 
-    case EKeyType::Null:
-    case EKeyType::Composite:
-        return 0; // All composites are equal to each other.
+        case EKeyType::Null:
+        case EKeyType::Composite:
+            return 0; // All composites are equal to each other.
 
-    default:
-        YUNREACHABLE();
+        default:
+            YUNREACHABLE();
     }
 }
 

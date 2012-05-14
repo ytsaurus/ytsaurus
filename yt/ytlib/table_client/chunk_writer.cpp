@@ -100,7 +100,7 @@ TAsyncError TChunkWriter::AsyncOpen()
     return MakeFuture(TError());
 }
 
-TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, const TKey<TFakeStrbufStore>& key)
+TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -157,7 +157,7 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, const TKey<TFakeStrbufStore>&
         }
 
         if (IndexSize < Config->IndexRate * DataSize) {
-            EmitIndexEntry(key);
+            EmitIndexEntry();
         }
     }
 
@@ -193,7 +193,7 @@ i64 TChunkWriter::GetCurrentSize() const
     return CurrentSize;
 }
 
-const TKey<TBlobOutput>& TChunkWriter::GetLastKey()
+const TKey<TBlobOutput>& TChunkWriter::GetLastKey() const 
 {
     return LastKey;
 }
@@ -296,7 +296,8 @@ void TChunkWriter::EmitSample(TRow& row)
         auto& token = lexer.GetToken();
         switch (token.GetType()) {
             case ETokenType::Integer:
-                *part->mutable_key_part() = TKeyPart::CreateValue(token.GetIntegerValue()).ToProto();
+                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
+                    token.GetIntegerValue()).ToProto();
                 SamplesSize += sizeof(i64);
                 break;
 
@@ -310,12 +311,13 @@ void TChunkWriter::EmitSample(TRow& row)
             }
 
             case ETokenType::Double:
-                *part->mutable_key_part() = TKeyPart::CreateValue(token.GetDoubleValue()).ToProto();
+                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
+                    token.GetDoubleValue()).ToProto();
                 SamplesSize += sizeof(double);
                 break;
 
             default:
-                *part->mutable_key_part() = TKeyPart::CreateComposite().ToProto();
+                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateComposite().ToProto();
                 break;
         }
     }

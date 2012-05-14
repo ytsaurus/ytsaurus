@@ -24,22 +24,6 @@ class TChunkReader
     : public IAsyncReader
 {
 public:
-    struct TOptions
-    {
-        bool ReadKey;
-
-        // These key columns are used if ReadKey is set.
-        // If not initialized, key columns are taken from chunk meta.
-        TNullable<TKeyColumns> KeyColumns;
-
-        bool KeepBlocks;
-
-        TOptions()
-            : ReadKey(false)
-            , KeepBlocks(false)
-        { }
-    };
-
     TChunkReader(
         NChunkClient::TSequentialReaderConfigPtr config,
         const TChannel& channel,
@@ -48,16 +32,16 @@ public:
         const NProto::TReadLimit& endLimit,
         const NYTree::TYson& rowAttributes,
         int partitionTag,
-        TOptions options = TOptions());
+        TReaderOptions options);
 
-    TAsyncError AsyncOpen();
+    virtual TAsyncError AsyncOpen();
 
-    TAsyncError AsyncNextRow();
-    bool IsValid() const;
+    virtual TAsyncError AsyncNextRow();
+    virtual bool IsValid() const;
 
-    TRow& GetRow();
-    const TKey<TFakeStrbufStore>& GetKey();
-    const NYTree::TYson& GetRowAttributes() const;
+    virtual TRow& GetRow();
+    virtual const TKey<TFakeStrbufStore>& GetKey() const;
+    virtual const NYTree::TYson& GetRowAttributes() const;
 
 private:
     class TKeyValidator;
@@ -82,7 +66,7 @@ private:
     TIntrusivePtr<TInitializer> Initializer;
 
     TAsyncStreamState State;
-    TOptions Options;
+    TReaderOptions Options;
 
     NYTree::TYson RowAttributes;
     TRow CurrentRow;
@@ -109,7 +93,7 @@ private:
 
     THolder<TKeyValidator> EndValidator;
 
-    TNullable<TKeyColumns> KeyColumns;
+    TAutoPtr<NProto::TKeyColumnsExt> KeyColumnsExt;
 
     /*! 
      *  See DoNextRow for usage.

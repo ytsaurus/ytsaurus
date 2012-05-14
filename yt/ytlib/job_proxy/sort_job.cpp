@@ -4,13 +4,10 @@
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/election/leader_channel.h>
-#include <ytlib/chunk_client/async_reader.h>
-#include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
-#include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/chunk_sequence_writer.h>
-#include <ytlib/table_client/chunk_reader.h>
+#include <ytlib/table_client/chunk_sequence_reader.h>
 #include <ytlib/misc/sync.h>
 
 namespace NYT {
@@ -25,71 +22,41 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-inline bool CompareReaders(
-    const TChunkReaderPtr& r1, 
-    const TChunkReaderPtr& r2)
-{
-    return CompareKeys(r1->GetKey(), r2->GetKey()) > 0;
-}
-
-} // namespace
-
-TSortedMergeJob::TSortedMergeJob(
+TSortJob::TSortJob(
     const TJobIOConfigPtr& config,
     const NElection::TLeaderLookup::TConfigPtr& masterConfig,
-    const NScheduler::NProto::TMergeJobSpec& mergeJobSpec)
+    const NScheduler::NProto::TSortJobSpec& sortJobSpec)
 {
-    auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
     auto masterChannel = CreateLeaderChannel(masterConfig);
 
-    for (int i = 0; i < mergeJobSpec.input_spec().chunks_size(); ++i) {
-        // ToDo(psushin): validate that input chunks are sorted.
+    {
+        auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
+        TReaderOptions options;
+        options.KeepBlocks = true;
 
-        const auto& inputChunk = mergeJobSpec.input_spec().chunks(i);
-        yvector<Stroka> seedAddresses = FromProto<Stroka>(inputChunk.holder_addresses());
+        std::vector<NTableClient::NProto::TInputChunk> chunks(
+            sortJobSpec.input_spec().chunks().begin(),
+            sortJobSpec.input_spec().chunks().end());
 
-        auto remoteReader = CreateRemoteReader(
-            config->ChunkSequenceReader->RemoteReader,
-            blockCache,
-            ~masterChannel,
-            TChunkId::FromProto(inputChunk.slice().chunk_id()),
-            seedAddresses);
-
-        TChunkReader::TOptions options;
-        options.ReadKey = true;
-
-        auto chunkReader = New<TChunkReader>(
-            config->ChunkSequenceReader->SequentialReader,
-            TChannel::CreateUniversal(),
-            remoteReader,
-            inputChunk.slice().start_limit(),
-            inputChunk.slice().end_limit(),
-            "", // No row attributes.
-            options); 
-
-        ChunkReaders.push_back(chunkReader);
-        Sync(~ChunkReaders.back(), &TChunkReader::AsyncOpen);
-
-        if (!ChunkReaders.back()->IsValid()) {
-            ChunkReaders.pop_back();
-        }
+        Reader = New<TChunkSequenceReader>(
+            config->ChunkSequenceReader, 
+            masterChannel, 
+            blockCache, 
+            chunks,
+            sortJobSpec.partition_tag(),
+            options);
     }
 
-    std::make_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
+    {
+        const TYson& channels = IoSpec.output_specs(index).channels();
 
-    // ToDo(psushin): estimate row count for writer.
-    auto asyncWriter = New<TChunkSequenceWriter>(
-        ~config->ChunkSequenceWriter,
-        ~masterChannel,
-        TTransactionId::FromProto(mergeJobSpec.output_transaction_id()),
-        TChunkListId::FromProto(mergeJobSpec.output_spec().chunk_list_id()),
-        ChannelsFromYson(mergeJobSpec.output_spec().channels()));
-
-    Writer = New<TSyncWriterAdapter>(asyncWriter);
-
-    Writer->Open();
+        Writer = New<TChunkSequenceWriter>(
+            config->ChunkSequenceWriter,
+            masterChannel,
+            TTransactionId::FromProto(sortJobSpec.output_transaction_id()),
+            TChunkListId::FromProto(sortJobSpec.output_spec().chunk_list_id()),
+            ChannelsFromYson(channels)));
+    }
 }
 
 TJobResult TSortedMergeJob::Run()

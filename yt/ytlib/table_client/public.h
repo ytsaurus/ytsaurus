@@ -3,6 +3,10 @@
 #include <ytlib/misc/common.h>
 
 namespace NYT {
+
+class TBlobOutput;
+class TFakeStrbufStore;
+
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +61,9 @@ class TKey;
 
 template <class TStrType>
 class TKeyPart;
+
+typedef TKey<TBlobOutput> TOwningKey;
+typedef TKey<TFakeStrbufStore> TNonOwningKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 

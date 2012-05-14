@@ -19,7 +19,7 @@ void TSyncWriterAdapter::Open()
     Sync(~Writer, &IAsyncWriter::AsyncOpen);
 }
 
-void TSyncWriterAdapter::WriteRow(TRow& row, TKey& key)
+void TSyncWriterAdapter::WriteRow(TRow& row, const TNonOwningKey& key)
 {
     Sync(~Writer, &IAsyncWriter::AsyncWriteRow, row, key);
 }
@@ -39,7 +39,7 @@ i64 TSyncWriterAdapter::GetRowCount() const
     return Writer->GetRowCount();
 }
 
-TKey& TSyncWriterAdapter::GetLastKey()
+const TOwningKey& TSyncWriterAdapter::GetLastKey() const
 {
     return Writer->GetLastKey();
 }

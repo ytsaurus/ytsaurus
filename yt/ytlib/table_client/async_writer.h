@@ -24,7 +24,7 @@ struct IAsyncWriter
      *  Both parameters could be modified.
      *  Sort order of rows is not validated.
      */
-    virtual TAsyncError AsyncWriteRow(TRow& row, const TKey<TFakeStrbufStore>& key) = 0;
+    virtual TAsyncError AsyncWriteRow(TRow& row, const TNonOwningKey& key) = 0;
 
     //! Closes the writer.
     virtual TAsyncError AsyncClose() = 0;
@@ -35,7 +35,7 @@ struct IAsyncWriter
      *  One can swap it out to avoid excessive copying after (!)
      *  the writer is closed by calling #AsyncClose.
      */
-    virtual const TKey<TBlobOutput>& GetLastKey() = 0;
+    virtual const TOwningKey& GetLastKey() const = 0;
 
     //! Returns key column names if rows are added in ``sorted'' mode
     //! or |Null| otherwise.

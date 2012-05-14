@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "key.h"
 
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
@@ -48,8 +47,6 @@ private:
     yhash_map<TStringBuf, int> KeyColumnToIndex;
 
     bool InsideRow;
-
-    TKey<TFakeStrbufStore> CurrentKey;
 
     //! Names of columns seen in the currently filled row.
     yhash_set<TBlobRange> UsedColumns;
