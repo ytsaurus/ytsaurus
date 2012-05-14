@@ -443,7 +443,9 @@ private:
         }
         jip->ChunkListId = ChunkListPool->Extract();
         *sortJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
-        sortJobSpec->set_partition_tag(partition->Index);
+        if (Partitions.size() > 1) {
+            sortJobSpec->set_partition_tag(partition->Index);
+        }
 
         // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
         // Don't use replication for sort jobs in large partitions since their chunks will be merged.
