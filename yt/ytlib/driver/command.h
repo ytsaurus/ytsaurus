@@ -76,26 +76,6 @@ struct ICommandHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EDataType,
-    (Null)
-    (Binary)
-    (Node)
-    (Table)
-);
-
-struct TCommandDescriptor
-{
-    EDataType InputType;
-    EDataType OutputType;
-
-    TCommandDescriptor(EDataType inputType, EDataType outputType)
-        : InputType(inputType)
-        , OutputType(outputType)
-    { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct ICommand
     : public virtual TRefCounted
 {

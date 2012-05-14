@@ -39,6 +39,7 @@ static NLog::TLogger& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 class TOutputStreamConsumer
     : public TForwardingYsonConsumer
 {
@@ -270,7 +271,7 @@ IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverHost* driverHost)
 {
     return New<TDriver>(config, driverHost);
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver
