@@ -17,7 +17,7 @@ set( SRCS
   ${BASE}/value.cpp
   ${BASE}/key.cpp
   ${BASE}/table_producer.cpp
-  ${BASE}/limits.cpp
+  ${BASE}/size_limits.cpp
 )
 
 set( HDRS
@@ -42,7 +42,7 @@ set( HDRS
   ${BASE}/key.h
   ${BASE}/table_producer.h
   ${BASE}/chunk_meta_extensions.h
-  ${BASE}/limits.h
+  ${BASE}/size_limits.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "limits.h"
+#include "size_limits.h"
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/ytree/lexer.h>

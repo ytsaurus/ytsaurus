@@ -4,7 +4,7 @@
 #include "config.h"
 #include "channel_writer.h"
 #include "chunk_meta_extensions.h"
-#include "limits.h"
+#include "size_limits.h"
 
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/chunk_client/async_writer.h>
