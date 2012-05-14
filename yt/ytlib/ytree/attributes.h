@@ -59,6 +59,8 @@ struct IAttributeDictionary
 
     //! Adds more attributes from another attribute dictionary.
     void MergeFrom(const IAttributeDictionary& other);
+
+    TAutoPtr<IAttributeDictionary> Clone();
 };
 
 TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
