@@ -314,6 +314,11 @@ private:
 
     TJobPtr TrySchedulePartitionJob(TExecNodePtr node)
     {
+        if (!PartitionChunkPool) {
+            // Single partition case.
+            return NULL;
+        }
+
         if (!PartitionChunkPool->HasPendingChunks()) {
             return NULL;
         }
@@ -612,6 +617,7 @@ private:
         auto partition = Partitions[0] = New<TPartition>(0);
 
         // Put all input chunks into this unique partition.
+        TotalPartitionWeight = 0;
         FOREACH (const auto& table, InputTables) {
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                 auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
@@ -625,6 +631,7 @@ private:
         }
 
         PendingSortWeight = TotalSortWeight;
+        PartitionChunkPool.Destroy();
 
         LOG_INFO("Sorting without partitioning");
     }
@@ -673,6 +680,15 @@ private:
             Partitions[index] = New<TPartition>(index);
         }
 
+        // Init counters.
+        TotalPartitionJobCount = GetJobCount(
+            TotalPartitionWeight,
+            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
+            Spec->PartitionJobCount,
+            TotalPartitionChunkCount);
+        PendingPartitionWeight = TotalPartitionWeight;
+        PendingPartitionChunkCount = TotalPartitionChunkCount;
+
         LOG_INFO("Sorting with %d partitions (MinWeight: %" PRId64 ", MaxWeight: %" PRId64 ")",
             partitionCount,
             weightMin,
@@ -685,11 +701,6 @@ private:
             SortSamples();
             BuildPartitions();
            
-            // Init counters.
-            ChooseJobCount();
-            PendingPartitionWeight = TotalPartitionWeight;
-            PendingPartitionChunkCount = TotalPartitionChunkCount;
-
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(TotalPartitionJobCount + Config->SpareChunkListCount);
 
@@ -699,16 +710,6 @@ private:
                 TotalPartitionJobCount);
         }
     }
-
-    void ChooseJobCount()
-    {
-        TotalPartitionJobCount = GetJobCount(
-            TotalPartitionWeight,
-            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
-            Spec->PartitionJobCount,
-            TotalPartitionChunkCount);
-    }
-
 
     // Progress reporting.
 

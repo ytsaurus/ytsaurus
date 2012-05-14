@@ -241,7 +241,11 @@ private:
             }
 
             // Init counters.
-            ChooseJobCount();
+            TotalJobCount = GetJobCount(
+                TotalWeight,
+                Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
+                Spec->JobCount,
+                TotalChunkCount);
             PendingWeight = TotalWeight;
             PendingChunkCount = TotalChunkCount;
 
@@ -257,15 +261,6 @@ private:
                 TotalChunkCount,
                 TotalJobCount);
         }
-    }
-
-    void ChooseJobCount()
-    {
-        TotalJobCount = GetJobCount(
-            TotalWeight,
-            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
-            Spec->JobCount,
-            TotalChunkCount);
     }
 
     // Progress reporting.
