@@ -509,7 +509,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         return true;
     }
 
-    if (name == "uncompressed_size") {
+    if (name == "uncompressed_data_size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);
         return true;
