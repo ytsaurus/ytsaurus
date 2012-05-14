@@ -153,13 +153,11 @@ TEST(TYTreeFluentMapTest, Items)
     StrictMock<TMockYsonConsumer> mock;
     InSequence dummy;
 
-    auto node = DeserializeFromYson("{bar = 10; foo = 20}");
+    auto node = DeserializeFromYson("{bar = 10}");
 
     EXPECT_CALL(mock, OnBeginMap());
     EXPECT_CALL(mock, OnKeyedItem("bar"));
     EXPECT_CALL(mock, OnIntegerScalar(10));
-    EXPECT_CALL(mock, OnKeyedItem("foo"));
-    EXPECT_CALL(mock, OnIntegerScalar(20));
     EXPECT_CALL(mock, OnEndMap());
 
     BuildYsonFluently(&mock)
