@@ -72,14 +72,16 @@ public:
 
     bool Cancel(TCookie cookie)
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        {
+            TGuard<TSpinLock> guard(SpinLock);
 
-        if (!cookie->Valid) {
-            return false;
+            if (!cookie->Valid) {
+                return false;
+            }
+
+            Entries.erase(cookie->Iterator);
+            cookie->Valid = false;
         }
-
-        Entries.erase(cookie->Iterator);
-        cookie->Valid = false;
 
         LOG_TRACE("Canceled delayed action (Cookie: %p, Count: %d)",
             ~cookie,
