@@ -1385,11 +1385,13 @@ private:
         attributes->push_back("cached_locations");
         attributes->push_back("stored_locations");
         attributes->push_back("replication_factor");
-        attributes->push_back("uncompressed_data_size");
-        attributes->push_back("codec_id");
+        attributes->push_back("master_meta_size");
+        attributes->push_back(TAttributeInfo("meta_size", miscExt->has_meta_size()));
+        attributes->push_back(TAttributeInfo("compressed_data_size", miscExt->has_compressed_data_size()));
+        attributes->push_back(TAttributeInfo("uncompressed_data_size", miscExt->has_uncompressed_data_size()));
+        attributes->push_back(TAttributeInfo("codec_id", miscExt->has_codec_id()));
         attributes->push_back(TAttributeInfo("row_count", miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("sorted", miscExt->has_sorted()));
-        attributes->push_back("master_meta_size");
         attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
         TBase::GetSystemAttributes(attributes);
@@ -1436,9 +1438,21 @@ private:
             return true;
         }
 
+        if (name == "meta_size") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->meta_size());
+            return true;
+        }
+
         if (name == "uncompressed_data_size") {
             BuildYsonFluently(consumer)
                 .Scalar(miscExt->uncompressed_data_size());
+            return true;
+        }
+
+        if (name == "compressed_data_size") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->compressed_data_size());
             return true;
         }
 
@@ -1462,7 +1476,7 @@ private:
 
         if (name == "master_meta_size") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->ByteSize());
+                .Scalar(chunk.ChunkMeta().ByteSize());
             return true;
         }
 
