@@ -68,6 +68,8 @@ TSortJob::TSortJob(
             chunks,
             sortJobSpec.partition_tag(),
             options);
+
+        Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
     }
 
     {
@@ -83,6 +85,7 @@ TSortJob::TSortJob(
             TChunkListId::FromProto(sortJobSpec.output_spec().chunk_list_id()),
             ChannelsFromYson(channels),
             KeyColumns);
+        Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
     }
 }
 
@@ -122,6 +125,8 @@ TJobResult TSortJob::Run()
         Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, sortBuffer[i]->Row, sortBuffer[i]->Key);
         // ToDo(psushin): Writer->SetProgress();
     }
+
+    Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
 
 
     TSortJobResult sortResult;
