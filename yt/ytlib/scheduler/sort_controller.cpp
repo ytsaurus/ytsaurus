@@ -778,13 +778,13 @@ private:
         {
             PartitionJobSpecTemplate.set_type(EJobType::Partition);
 
-            TPartitionJobSpec partitionJobSpec;
+            TPartitionJobSpec specificSpec;
             FOREACH (const auto* key, PartitionKeys) {
-                *partitionJobSpec.add_partition_keys() = *key;
+                *specificSpec.add_partition_keys() = *key;
             }
-            *partitionJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            ToProto(partitionJobSpec.mutable_key_columns(), Spec->KeyColumns);
-            *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = partitionJobSpec;
+            *specificSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            ToProto(specificSpec.mutable_key_columns(), Spec->KeyColumns);
+            *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = specificSpec;
 
             // Don't replicate partition chunks.
             PartitionJobSpecTemplate.set_io_config(SerializeToYson(GetJobIOCOnfig(false)));
@@ -792,10 +792,14 @@ private:
         {
             SortJobSpecTemplate.set_type(EJobType::Sort);
 
-            TSortJobSpec sortJobSpec;
-            *sortJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            ToProto(sortJobSpec.mutable_key_columns(), Spec->KeyColumns);
-            *SortJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec) = sortJobSpec;
+            TSortJobSpec specificSpec;
+            *specificSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            ToProto(specificSpec.mutable_key_columns(), Spec->KeyColumns);
+            
+            *specificSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            auto& table = OutputTables[0];
+            specificSpec.mutable_output_spec()->set_channels(table.Channels);
+            *SortJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec) = specificSpec;
 
             // Can't fill in io_config right away: some sort jobs need output replication
             // while others don't. Leave this customization to |TryScheduleSortJob|.
