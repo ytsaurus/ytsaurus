@@ -44,7 +44,7 @@ void TChunkStore::Start()
                 ELocationType::Store,
                 ~locationConfig,
                 ~Bootstrap->GetReaderCache(),
-                Sprintf("ChunkStore-%d", i));
+                Sprintf("ChunkStore_%d", i));
             Locations_.push_back(location);
 
             FOREACH (const auto& descriptor, location->Scan()) {
