@@ -624,16 +624,22 @@ private:
         ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
     }
 
-    static Stroka FormatPhaseProgress(const Stroka& phase, const TYson& progress)
+    static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const TYson& progress)
     {
         i64 jobsTotal = DeserializeFromYson<i64>(progress, "/total");
+        if (jobsTotal == 0) {
+            return;
+        }
         i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/completed");
         int donePercentage  = (jobsCompleted * 100) / jobsTotal;
-        return Sprintf("%3d%% %sdone (%" PRId64 "4 of %4" PRId64 "4)\n",
+        if (!out->empty()) {
+            out->append(", ");
+        }
+        out->append(Sprintf("%3d%% %sdone (%" PRId64 "4 of %4" PRId64 "4)\n",
             donePercentage,
             phase.empty() ? "" : ~(phase + " "),
             jobsCompleted,
-            jobsTotal);
+            jobsTotal));
 
     }
 
@@ -641,21 +647,24 @@ private:
     {
         // TODO(babenko): refactor
         auto progressAttributes = IAttributeDictionary::FromMap(DeserializeFromYson(progress)->AsMap());
+        Stroka result;
         switch (OperationType) {
             case EOperationType::Map:
             case EOperationType::Merge:
             case EOperationType::Erase:
-                return FormatPhaseProgress("", progressAttributes->GetYson("jobs"));
-
+                AppendPhaseProgress(&result, "", progressAttributes->GetYson("jobs"));
+                break;
+                                        
             case EOperationType::Sort:
-                return Sprintf("%s, %s, %s",
-                    ~FormatPhaseProgress("partition", progressAttributes->GetYson("partition_jobs")),
-                    ~FormatPhaseProgress("sort", progressAttributes->GetYson("sort_jobs")),
-                    ~FormatPhaseProgress("merge", progressAttributes->GetYson("merge_jobs")));
+                AppendPhaseProgress(&result, "partition", progressAttributes->GetYson("partition_jobs"));
+                AppendPhaseProgress(&result, "sort", progressAttributes->GetYson("sort_jobs"));
+                AppendPhaseProgress(&result, "merge", progressAttributes->GetYson("merge_jobs"));
+                break;
 
             default:
                 YUNREACHABLE();
         }
+        return result;
     }
 
     void DumpProgress()
