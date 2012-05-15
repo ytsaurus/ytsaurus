@@ -29,9 +29,9 @@ const char* TBlobOutput::Begin() const
     return Blob.begin();
 }
 
-i32 TBlobOutput::GetSize() const
+i64 TBlobOutput::GetSize() const
 {
-    return static_cast<i32>(Blob.size());
+    return static_cast<i64>(Blob.size());
 }
 
 void TBlobOutput::Clear()

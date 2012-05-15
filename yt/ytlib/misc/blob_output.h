@@ -24,7 +24,7 @@ public:
     const TBlob* GetBlob() const;
 
     const char* Begin() const;
-    i32 GetSize() const;
+    i64 GetSize() const;
 
     void Clear();
     TSharedRef Flush();
