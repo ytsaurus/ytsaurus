@@ -1,10 +1,10 @@
-var http        = require("http");
-var url         = require("url");
+var http = require("http");
+var url = require("url");
 var querystring = require("querystring");
 
-var connect     = require("connect");
+var connect = require("connect");
 
-var utils       = require("./utils");
+var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 

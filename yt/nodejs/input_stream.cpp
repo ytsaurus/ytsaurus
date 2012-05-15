@@ -23,8 +23,7 @@ TNodeJSInputStream::TNodeJSInputStream()
 
 TNodeJSInputStream::~TNodeJSInputStream()
 {
-    // Affinity: any?
-    TRACE_CURRENT_THREAD("??");
+    T_THREAD_AFFINITY_IS_V8();
 
     {
         TGuard guard(&Mutex);

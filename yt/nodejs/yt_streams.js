@@ -1,7 +1,8 @@
-var util    = require('util');
-var stream  = require('stream');
-var assert  = require('assert');
-var binding = require('./build/Release/yt_test');
+var util = require('util');
+var stream = require('stream');
+var assert = require('assert');
+
+var binding = require('./build/Release/yt_streams');
 
 ////////////////////////////////////////////////////////////////////////////////
 

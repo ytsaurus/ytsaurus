@@ -1,6 +1,5 @@
 #!/bin/bash
-mocha -R spec -s 1000 \
-    test_basic.js \
+mocha -R spec -s 250 -t 2500 \
     test_streams.js \
     test_http.js \
     test_utils.js

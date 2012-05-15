@@ -1,5 +1,6 @@
 srcdir = '.'
 blddir = 'build'
+
 VERSION = '0.0.1'
 
 def set_options(opt):
@@ -10,12 +11,20 @@ def configure(conf):
   conf.check_tool('node_addon')
 
 def build(bld):
-  obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
-  obj.cxxflags = [ "-std=gnu++0x" ]
-  obj.target = 'yt_test'
-  obj.source = [
+  CXXFLAGS = [ '-std=gnu++0x' ]
+  SOURCES = [
+    'common.cpp',
     'input_stream.cpp',
     'output_stream.cpp',
-    'stream_base.cpp',
-    'yt_test.cc'
+    'stream_base.cpp'
   ]
+
+  obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
+  obj.cxxflags = CXXFLAGS
+  obj.target = 'yt_streams'
+  obj.source = SOURCES + [ 'yt_streams.cpp' ]
+
+  obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
+  obj.cxxflags = CXXFLAGS
+  obj.target = 'test_streams'
+  obj.source = SOURCES + [ 'test_streams.cpp' ]

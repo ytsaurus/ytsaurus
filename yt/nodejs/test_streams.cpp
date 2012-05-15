@@ -6,11 +6,6 @@
 #define _GLIBCXX_PURE inline
 #endif
 
-#include <deque>
-#include <memory>
-
-#define INPUT_QUEUE_SIZE 128
-
 namespace NYT {
 
 COMMON_V8_USES
@@ -19,12 +14,6 @@ using v8::Context;
 using v8::Exception;
 using v8::ThrowException;
 using v8::TryCatch;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(sandello): Extract this method to a separate file.
-void DoNothing(uv_work_t*)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -523,13 +512,11 @@ void ExportTestOutputStream(Handle<Object> target)
     target->Set(String::NewSymbol("TTestOutputStream"), tpl->GetFunction());
 }
 
-void ExportYT(Handle<Object> target)
+void ExportTestStreams(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    ExportInputStream(target);
-    ExportOutputStream(target);
     ExportTestInputStream(target);
     ExportTestOutputStream(target);
 }
@@ -538,4 +525,4 @@ void ExportYT(Handle<Object> target)
 
 } // namespace NYT
 
-NODE_MODULE(yt_test, NYT::ExportYT)
+NODE_MODULE(test_streams, NYT::ExportTestStreams)
