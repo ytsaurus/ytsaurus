@@ -107,7 +107,7 @@ message TMapJobSpec
 
 // Merge jobs.
 /*
- * Merge job takes a number of chunks sequences (each containing sorted data)
+ * A merge job takes a number of chunks sequences (each containing sorted data)
  * and merges them. The result is split into chunks again.
  */
 message TMergeJobSpec
@@ -135,6 +135,13 @@ message TMergeJobResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Partition jobs.
+/*
+ * A partition jobs read the input and scatters the rows into buckets depending
+ * on their keys. When a bucket becomes full, it is written as a block.
+ * Output blocks are marked with |partition_tag| to enable subsequently
+ * started sort jobs to fetch appropriate portions of data.
+ */
 message TPartitionJobSpec
 {
     extend TJobSpec
@@ -143,8 +150,8 @@ message TPartitionJobSpec
     }
 
     required TTableInputSpec input_spec = 1;
-    repeated NYT.NTableClient.NProto.TKey partition_keys = 2;
-    required NYT.NProto.TGuid output_chunk_list_id = 3;
+    required TTableOutputSpec output_spec = 2;
+    repeated NYT.NTableClient.NProto.TKey partition_keys = 3;
     required NYT.NProto.TGuid output_transaction_id = 4;
     repeated string key_columns = 5;
 }
@@ -167,6 +174,11 @@ message TPartitionJobResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Sort jobs.
+/*
+ * A sort job reads the input chunks, sorts the rows, and then flushes
+ * the rows into a sequence of output chunks.
+ */
 message TSortJobSpec
 {
     extend TJobSpec

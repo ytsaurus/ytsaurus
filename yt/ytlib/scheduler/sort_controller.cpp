@@ -343,12 +343,17 @@ private:
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = PartitionJobSpecTemplate;
-        auto* partitionJobSpec = jobSpec.MutableExtension(TPartitionJobSpec::partition_job_spec);
-        FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
-            *partitionJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
+        {
+            auto* partitionJobSpec = jobSpec.MutableExtension(TPartitionJobSpec::partition_job_spec);
+            FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
+                *partitionJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
+            }
+            jip->ChunkListId = ChunkListPool->Extract();
+            auto* outputSpec = partitionJobSpec->mutable_output_spec();
+            const auto& ouputTable = OutputTables[0];
+            *outputSpec->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
+            outputSpec->set_channels(ouputTable.Channels);
         }
-        jip->ChunkListId = ChunkListPool->Extract();
-        *partitionJobSpec->mutable_output_chunk_list_id() = jip->ChunkListId.ToProto();
 
         // Update counters.
         ++RunningPartitionJobCount;
