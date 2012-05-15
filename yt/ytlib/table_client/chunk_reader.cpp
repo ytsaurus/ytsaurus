@@ -606,8 +606,9 @@ TAsyncError TChunkReader::AsyncNextRow()
 
     // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
     auto asyncResult = DoNextRow();
-    if (asyncResult.IsSet()) {
-        OnRowFetched(asyncResult.Get());
+    auto error = asyncResult.TryGet();
+    if (error) {
+        OnRowFetched(error.Get());
     } else {
         asyncResult.Subscribe(BIND(&TChunkReader::OnRowFetched, MakeWeak(this)));
     }
@@ -731,7 +732,7 @@ TRow& TChunkReader::GetRow()
     return CurrentRow;
 }
 
-const TKey<TFakeStrbufStore>& TChunkReader::GetKey() const
+const TNonOwningKey& TChunkReader::GetKey() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
