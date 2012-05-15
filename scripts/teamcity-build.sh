@@ -109,7 +109,9 @@ if [[ $BUILD_PACKAGE = "YES" ]]; then
         .
 
     make package && dupload --to common --nomail ARTIFACTS/*.changes
-    VERSION=$((make version | head -n1) 2>/dev/null)
+    make version
+
+    VERSION=$(cat ytversion)
     tc "setParameter name='yt.version' value='$VERSION'"
 
     tc "blockClosed name='Package'"
