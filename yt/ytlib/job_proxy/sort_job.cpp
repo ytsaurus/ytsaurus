@@ -23,6 +23,8 @@ using namespace NObjectServer;
 using namespace NYTree;
 using namespace NScheduler::NProto;
 
+////////////////////////////////////////////////////////////////////////////////
+
 static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
@@ -46,58 +48,67 @@ bool operator < (const TSortRow& lhs, const TSortRow& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortJob::TSortJob(
-    const TJobIOConfigPtr& ioConfig,
-    const NElection::TLeaderLookup::TConfigPtr& masterConfig,
+    TJobIOConfigPtr ioConfig,
+    NElection::TLeaderLookup::TConfigPtr masterConfig,
     const NScheduler::NProto::TSortJobSpec& jobSpec)
-    : IOConfig(ioConfig)
-    , MasterConfig(masterConfig)
-    , JobSpec(jobSpec)
-{ }
+{
+    auto masterChannel = CreateLeaderChannel(masterConfig);
+
+    KeyColumns.assign(
+        jobSpec.key_columns().begin(),
+        jobSpec.key_columns().end());
+
+    auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
+
+    TReaderOptions options;
+    options.KeepBlocks = true;
+
+    std::vector<NTableClient::NProto::TInputChunk> chunks(
+        jobSpec.input_spec().chunks().begin(),
+        jobSpec.input_spec().chunks().end());
+
+    Reader = New<TChunkSequenceReader>(
+        ioConfig->ChunkSequenceReader, 
+        masterChannel, 
+        blockCache, 
+        chunks,
+        jobSpec.partition_tag(),
+        options);
+
+    Writer = New<TChunkSequenceWriter>(
+        ioConfig->ChunkSequenceWriter,
+        masterChannel,
+        TTransactionId::FromProto(jobSpec.output_transaction_id()),
+        TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
+        ChannelsFromYson(jobSpec.output_spec().channels()),
+        KeyColumns);
+}
 
 TJobResult TSortJob::Run()
 {
     PROFILE_TIMING ("/sort_time") {
-        LOG_INFO("Initializing sort");
-
-        auto masterChannel = CreateLeaderChannel(MasterConfig);
-      
-        KeyColumns.assign(
-            JobSpec.key_columns().begin(),
-            JobSpec.key_columns().end());
+        LOG_INFO("Initializing");
 
         std::vector<TSortRow> sortBuffer;
+        yhash_map<TStringBuf, int> keyColumnToIndex;
+
         // TODO(babenko): call sortBuffer.reserve
 
-        LOG_INFO("Reading sort buffer");
+        LOG_INFO("Initializing");
         {
-            auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
-
-            TReaderOptions options;
-            options.KeepBlocks = true;
-
-            std::vector<NTableClient::NProto::TInputChunk> chunks(
-                JobSpec.input_spec().chunks().begin(),
-                JobSpec.input_spec().chunks().end());
-
-            Reader = New<TChunkSequenceReader>(
-                IOConfig->ChunkSequenceReader, 
-                masterChannel, 
-                blockCache, 
-                chunks,
-                JobSpec.partition_tag(),
-                options);
-
-            Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
-
-            TLexer lexer;
-            yhash_map<TStringBuf, int> keyColumnToIndex;
-
             for (int i = 0; i < KeyColumns.size(); ++i) {
                 TStringBuf name(~KeyColumns[i], KeyColumns[i].size());
                 keyColumnToIndex[name] = i;
             }
 
+            Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+            Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
+        }
+        PROFILE_TIMING_CHECKPOINT("init");
 
+        LOG_INFO("Reading");
+        {
+            TLexer lexer;
             while (Reader->IsValid()) {
                 sortBuffer.push_back(TSortRow());
                 auto& sortRow = sortBuffer.back();
@@ -114,35 +125,25 @@ TJobResult TSortJob::Run()
 
                 Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
             }
-
         }
         PROFILE_TIMING_CHECKPOINT("read");
 
-        LOG_INFO("Sorting rows");
+        LOG_INFO("Sorting");
         std::sort(sortBuffer.begin(), sortBuffer.end());
         PROFILE_TIMING_CHECKPOINT("sort");
 
-        LOG_INFO("Writing sort buffer");
+        LOG_INFO("Writing");
         {
-            Writer = New<TChunkSequenceWriter>(
-                IOConfig->ChunkSequenceWriter,
-                masterChannel,
-                TTransactionId::FromProto(JobSpec.output_transaction_id()),
-                TChunkListId::FromProto(JobSpec.output_spec().chunk_list_id()),
-                ChannelsFromYson(JobSpec.output_spec().channels()),
-                KeyColumns);
             Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
 
             for (int i = 0; i < sortBuffer.size(); ++i) {
                 Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, sortBuffer[i].Row, sortBuffer[i].Key);
                 // ToDo(psushin): Writer->SetProgress();
             }
-
-            Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
         }
         PROFILE_TIMING_CHECKPOINT("write");
 
-        LOG_INFO("Sort complete");
+        LOG_INFO("Finalizing");
         {
             TSortJobResult sortResult;
             ToProto(sortResult.mutable_chunks(), Writer->GetWrittenChunks());

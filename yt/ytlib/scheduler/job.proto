@@ -117,8 +117,7 @@ message TMergeJobSpec
         optional TMergeJobSpec merge_job_spec = 102;
     }
 
-    // TODO(babenko): must be "repeated"
-    required TTableInputSpec input_spec = 1;
+    repeated TTableInputSpec input_spec = 1;
     required TTableOutputSpec output_spec = 2;
     required NYT.NProto.TGuid output_transaction_id = 3;
 }

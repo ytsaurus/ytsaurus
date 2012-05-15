@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
-#include "config.h"
 #include "ordered_merge_job.h"
+#include "config.h"
+#include "private.h"
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/election/leader_channel.h>
@@ -12,62 +13,85 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
 
-
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NScheduler::NProto;
 using namespace NElection;
 using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NObjectServer;
+using namespace NScheduler::NProto;
+using namespace NTableClient::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = JobProxyLogger;
+static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TOrderedMergeJob::TOrderedMergeJob(
-    const TJobIOConfigPtr& config,
-    const NElection::TLeaderLookup::TConfigPtr& masterConfig,
-    const NScheduler::NProto::TMergeJobSpec& mergeJobSpec)
+    TJobIOConfigPtr ioConfig,
+    NElection::TLeaderLookup::TConfigPtr masterConfig,
+    const NScheduler::NProto::TMergeJobSpec& jobSpec)
 {
-    auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
+    auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
     auto masterChannel = CreateLeaderChannel(masterConfig);
 
-    auto inputChunks = FromProto<NTableClient::NProto::TInputChunk>(
-        mergeJobSpec.input_spec().chunks());
+    std::vector<TInputChunk> inputChunks;
+    FOREACH (const auto& inputSpec, jobSpec.input_spec()) {
+        FOREACH (const auto& inputChunk, inputSpec.chunks()) {
+            inputChunks.push_back(inputChunk);
+        }
+    }
 
     Reader = New<TSyncReaderAdapter>(New<TChunkSequenceReader>(
-        config->ChunkSequenceReader,
+        ioConfig->ChunkSequenceReader,
         masterChannel,
         blockCache,
         inputChunks));
-    Reader->Open();
 
     // ToDo(psushin): estimate row count for writer.
     auto asyncWriter = New<TChunkSequenceWriter>(
-        config->ChunkSequenceWriter,
+        ioConfig->ChunkSequenceWriter,
         masterChannel,
-        TTransactionId::FromProto(mergeJobSpec.output_transaction_id()),
-        TChunkListId::FromProto(mergeJobSpec.output_spec().chunk_list_id()),
-        ChannelsFromYson(mergeJobSpec.output_spec().channels()));
+        TTransactionId::FromProto(jobSpec.output_transaction_id()),
+        TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
+        ChannelsFromYson(jobSpec.output_spec().channels()));
 
     Writer = New<TSyncWriterAdapter>(asyncWriter);
-    Writer->Open();
 }
 
 TJobResult TOrderedMergeJob::Run()
 {
-    // Unsorted write - use dummy key.
-    TNonOwningKey key;
-    while (Reader->IsValid()) {
-        Writer->WriteRow(Reader->GetRow(), key);
+    PROFILE_TIMING ("/ordered_merge_time") {
+        LOG_INFO("Initializing");
+        {
+            Reader->Open();
+            Writer->Open();
+        }
+        PROFILE_TIMING_CHECKPOINT("init");
+
+        LOG_INFO("Merging");
+        {
+            // Unsorted write - use dummy key.
+            TNonOwningKey key;
+            while (Reader->IsValid()) {
+                Writer->WriteRow(Reader->GetRow(), key);
+            }
+        }
+        PROFILE_TIMING_CHECKPOINT("merge");
+
+        LOG_INFO("Finalizing");
+        {
+            Writer->Close();
+
+            TJobResult result;
+            *result.mutable_error() = TError().ToProto();
+            return result;
+        }
     }
-
-    Writer->Close();
-
-    TJobResult result;
-    *result.mutable_error() = TError().ToProto();
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

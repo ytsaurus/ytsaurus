@@ -295,14 +295,16 @@ protected:
             jip->ExtractResult->Weight,
             weightThreshold);
 
+        YUNREACHABLE();
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
-        auto* mergeJobSpec = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
-        FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
-            *mergeJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
-        }
-        jip->ChunkListId = ChunkListPool->Extract();
-        *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
+        // TODO(babenko): use multiple input_spec
+        //auto* mergeJobSpec = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
+        //FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
+        //    *mergeJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
+        //}
+        //jip->ChunkListId = ChunkListPool->Extract();
+        //*mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
 
         // Update counters.
         PendingChunkCount -= jip->ExtractResult->Chunks.size();

@@ -16,15 +16,16 @@ class TOrderedMergeJob
 {
 public:
     TOrderedMergeJob(
-        const TJobIOConfigPtr& config,
-        const NElection::TLeaderLookup::TConfigPtr& masterConfig,
-        const NScheduler::NProto::TMergeJobSpec& mergeJobSpec);
+        TJobIOConfigPtr ioConfig,
+        NElection::TLeaderLookup::TConfigPtr masterConfig,
+        const NScheduler::NProto::TMergeJobSpec& jobSpec);
 
     NScheduler::NProto::TJobResult Run();
 
 private:
     NTableClient::ISyncReaderPtr Reader;
     NTableClient::ISyncWriterPtr Writer;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
