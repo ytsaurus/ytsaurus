@@ -693,6 +693,13 @@ private:
         PendingPartitionWeight = TotalPartitionWeight;
         PendingPartitionChunkCount = TotalPartitionChunkCount;
 
+        // Prepare to mark the output table as sorted.
+        {
+            auto& table = OutputTables[0];
+            table.SetSorted = true;
+            table.KeyColumns = Spec->KeyColumns;
+        }
+
         LOG_INFO("Sorting with %d partitions (MinWeight: %" PRId64 ", MaxWeight: %" PRId64 ")",
             partitionCount,
             weightMin,
@@ -780,13 +787,13 @@ private:
         {
             PartitionJobSpecTemplate.set_type(EJobType::Partition);
 
-            TPartitionJobSpec specificSpec;
+            TPartitionJobSpec specExt;
             FOREACH (const auto* key, PartitionKeys) {
-                *specificSpec.add_partition_keys() = *key;
+                *specExt.add_partition_keys() = *key;
             }
-            *specificSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            ToProto(specificSpec.mutable_key_columns(), Spec->KeyColumns);
-            *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = specificSpec;
+            *specExt.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            ToProto(specExt.mutable_key_columns(), Spec->KeyColumns);
+            *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = specExt;
 
             // Don't replicate partition chunks.
             PartitionJobSpecTemplate.set_io_config(SerializeToYson(GetJobIOCOnfig(false)));
@@ -794,14 +801,14 @@ private:
         {
             SortJobSpecTemplate.set_type(EJobType::Sort);
 
-            TSortJobSpec specificSpec;
-            *specificSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            ToProto(specificSpec.mutable_key_columns(), Spec->KeyColumns);
+            TSortJobSpec specExt;
+            *specExt.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            ToProto(specExt.mutable_key_columns(), Spec->KeyColumns);
             
-            *specificSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            *specExt.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
             auto& table = OutputTables[0];
-            specificSpec.mutable_output_spec()->set_channels(table.Channels);
-            *SortJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec) = specificSpec;
+            specExt.mutable_output_spec()->set_channels(table.Channels);
+            *SortJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec) = specExt;
 
             // Can't fill in io_config right away: some sort jobs need output replication
             // while others don't. Leave this customization to |TryScheduleSortJob|.
