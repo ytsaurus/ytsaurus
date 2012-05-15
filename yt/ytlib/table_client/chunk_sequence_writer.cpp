@@ -170,8 +170,9 @@ TAsyncError TChunkSequenceWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& 
 
     // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
     auto asyncResult = CurrentSession.ChunkWriter->AsyncWriteRow(row, key);
-    if (asyncResult.IsSet()) {
-        OnRowWritten(asyncResult.Get());
+    auto error = asyncResult.TryGet();
+    if (error) {
+        OnRowWritten(error.Get());
     } else {
         asyncResult.Subscribe(BIND(&TChunkSequenceWriter::OnRowWritten, MakeWeak(this)));
     }
