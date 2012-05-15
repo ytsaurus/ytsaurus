@@ -13,6 +13,7 @@ namespace NCypress {
 
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,11 +92,10 @@ private:
     virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TLockId::FromString(key);
-        if (Bootstrap->GetCypressManager()->FindLock(id)) {
-            return Bootstrap->GetObjectManager()->FindProxy(id);
-        } else {
+        if (TypeFromId(id) != EObjectType::Lock) {
             return NULL;
         }
+        return Bootstrap->GetObjectManager()->FindProxy(id);
     }
 };
 

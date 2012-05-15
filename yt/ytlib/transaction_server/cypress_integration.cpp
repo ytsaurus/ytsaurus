@@ -14,6 +14,7 @@ namespace NTransactionServer {
 using namespace NYTree;
 using namespace NCypress;
 using namespace NCellMaster;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,11 +43,10 @@ private:
     virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TTransactionId::FromString(key);
-        if (Bootstrap->GetTransactionManager()->FindTransaction(id)) {
-            return Bootstrap->GetObjectManager()->FindProxy(id);
-        } else {
+        if (TypeFromId(id) != EObjectType::Transaction) {
             return NULL;
         }
+        return Bootstrap->GetObjectManager()->FindProxy(id);
     }
 };
 
