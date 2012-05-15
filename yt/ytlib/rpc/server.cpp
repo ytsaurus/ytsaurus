@@ -52,7 +52,7 @@ private:
         UNUSED(error);
 
         ReplyBus->Send(responseMessage);
-        Service->OnEndRequest(this);
+        Service->OnEndRequest(MakeStrong(this));
     }
 
     virtual void LogRequest()
@@ -196,7 +196,7 @@ private:
             ~service,
             service->GetLoggingCategory());
 
-        service->OnBeginRequest(~context);
+        service->OnBeginRequest(context);
     }
 
 };

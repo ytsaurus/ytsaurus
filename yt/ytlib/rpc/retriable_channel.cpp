@@ -34,8 +34,8 @@ public:
     virtual TNullable<TDuration> GetDefaultTimeout() const;
 
     virtual void Send(
-        IClientRequest* request, 
-        IClientResponseHandler* responseHandler, 
+        IClientRequestPtr request, 
+        IClientResponseHandlerPtr responseHandler, 
         TNullable<TDuration> timeout);
 
     virtual void Terminate();
@@ -61,8 +61,8 @@ public:
 
     TRetriableRequest(
         TRetriableChannel* channel,
-        IClientRequest* request,
-        IClientResponseHandler* originalHandler,
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr originalHandler,
         TNullable<TDuration> timeout)
         : CurrentAttempt(0)
         , Channel(channel)
@@ -98,8 +98,8 @@ private:
     //! The current attempt number (starting from 0).
     TAtomic CurrentAttempt;
     TRetriableChannel::TPtr Channel;
-    IClientRequest::TPtr Request;
-    IClientResponseHandler::TPtr OriginalHandler;
+    IClientRequestPtr Request;
+    IClientResponseHandlerPtr OriginalHandler;
     TNullable<TDuration> Timeout;
     TInstant Deadline;
     Stroka CumulativeErrorMessage;
@@ -201,8 +201,8 @@ TRetriableChannel::TRetriableChannel(
 }
 
 void TRetriableChannel::Send(
-    IClientRequest* request, 
-    IClientResponseHandler* responseHandler, 
+    IClientRequestPtr request, 
+    IClientResponseHandlerPtr responseHandler, 
     TNullable<TDuration> timeout)
 {
     YASSERT(request);
