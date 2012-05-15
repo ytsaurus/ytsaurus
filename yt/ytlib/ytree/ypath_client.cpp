@@ -352,6 +352,44 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
     }
 }
 
+TYPath GetPath(INodePtr node, INodePtr* root)
+{
+    std::vector<TYPath> tokens;
+    while (true) {
+        auto parent = node->GetParent();
+        if (!parent) {
+            break;
+        }
+        TYPath token;
+        switch (parent->GetType()) {
+            case ENodeType::List: {
+                auto index = parent->AsList()->GetChildIndex(~node);
+                token = EscapeYPathToken(index);
+                break;
+            }
+            case ENodeType::Map: {
+                auto key = parent->AsMap()->GetChildKey(~node);
+                token = EscapeYPathToken(key);
+                break;
+            }
+            default:
+                YUNREACHABLE();
+        }
+        tokens.push_back(token);
+        node = parent;
+    }
+    if (root) {
+        *root = node;
+    }
+    std::reverse(tokens.begin(), tokens.end());
+    TYPath path;
+    FOREACH (const auto& token, tokens) {
+        path.append(TokenTypeToChar(PathSeparatorToken));
+        path.append(token);
+    }
+    return path;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
