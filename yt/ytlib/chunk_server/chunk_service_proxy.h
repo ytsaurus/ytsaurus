@@ -26,7 +26,7 @@ public:
         ((InvalidState)(4))
     );
 
-    TChunkServiceProxy(NRpc::IChannel* channel)
+    TChunkServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -56,7 +56,7 @@ class TErrorOutput
 public:
     TErrorOutput(
         TFileWriterBase::TConfig* config, 
-        NRpc::IChannel* masterChannel,
+        NRpc::IChannelPtr masterChannel,
         const TTransactionId& transactionId,
         const TObjectId& chunkListId)
         : FileWriter(New<TFileWriterBase>(config, masterChannel))
@@ -124,7 +124,7 @@ private:
 
 TMapJobIO::TMapJobIO(
     TJobIOConfigPtr config,
-    NRpc::IChannel* masterChannel,
+    NRpc::IChannelPtr masterChannel,
     const NScheduler::NProto::TMapJobSpec& ioSpec)
     : Config(config)
     , MasterChannel(masterChannel)

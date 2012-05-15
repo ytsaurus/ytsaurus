@@ -29,7 +29,7 @@ public:
 
     TRetriableChannel(
         TRetryConfig* config,
-        IChannel* underlyingChannel);
+        IChannelPtr underlyingChannel);
 
     virtual TNullable<TDuration> GetDefaultTimeout() const;
 
@@ -44,7 +44,7 @@ public:
 
 IChannelPtr CreateRetriableChannel(
     TRetryConfig* config,
-    IChannel* underlyingChannel)
+    IChannelPtr underlyingChannel)
 {
     return New<TRetriableChannel>(
         config,
@@ -193,7 +193,7 @@ private:
 
 TRetriableChannel::TRetriableChannel(
     TRetryConfig* config,
-    IChannel* underlyingChannel)
+    IChannelPtr underlyingChannel)
     : UnderlyingChannel_(underlyingChannel)
     , Config_(config)
 {
