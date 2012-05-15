@@ -151,8 +151,8 @@ class Holder(Server):
     params = Template('--node --config %(config_path)s')
 
     proxyLogging = deepcopy(Logging)
-    proxyLogging['writers']['raw']['file_name'] = 'job_proxy.log'
-    proxyLogging['writers']['file']['file_name'] = 'job_proxy.debug.log'
+    proxyLogging['writers']['raw']['file_name'] = 'job_proxy.debug.log'
+    proxyLogging['writers']['file']['file_name'] = 'job_proxy.log'
 
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
