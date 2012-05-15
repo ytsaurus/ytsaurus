@@ -53,7 +53,7 @@ TOrderedMergeJob::TOrderedMergeJob(
         inputChunks));
 
     // ToDo(psushin): estimate row count for writer.
-    auto asyncWriter = New<TChunkSequenceWriter>(
+    auto asyncWriter = New<TTableChunkSequenceWriter>(
         ioConfig->ChunkSequenceWriter,
         masterChannel,
         TTransactionId::FromProto(jobSpec.output_transaction_id()),

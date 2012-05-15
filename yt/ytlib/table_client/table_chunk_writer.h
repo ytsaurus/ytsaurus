@@ -19,17 +19,17 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class  TChunkWriter
+class  TTableChunkWriter
     : public IAsyncWriter
 {
 public:
-    TChunkWriter(
+    TTableChunkWriter(
         TChunkWriterConfigPtr config,
         NChunkClient::IAsyncWriterPtr chunkWriter,
         const std::vector<TChannel>& channels,
         const TNullable<TKeyColumns>& keyColumns);
 
-    ~TChunkWriter();
+    ~TTableChunkWriter();
 
     virtual TAsyncError AsyncOpen();
 
@@ -47,7 +47,7 @@ public:
     i64 GetMetaSize() const;
 
 private:
-    friend class TChunkSequenceWriter;
+    friend class TTableChunkSequenceWriter;
 
     TChunkWriterConfigPtr Config;
     std::vector<TChannel> Channels;

@@ -75,7 +75,7 @@ TSortJob::TSortJob(
         jobSpec.partition_tag(),
         options);
 
-    Writer = New<TChunkSequenceWriter>(
+    Writer = New<TTableChunkSequenceWriter>(
         ioConfig->ChunkSequenceWriter,
         masterChannel,
         TTransactionId::FromProto(jobSpec.output_transaction_id()),
@@ -102,7 +102,7 @@ TJobResult TSortJob::Run()
             }
 
             Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
-            Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
+            Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
         }
         PROFILE_TIMING_CHECKPOINT("init");
 
@@ -134,10 +134,10 @@ TJobResult TSortJob::Run()
 
         LOG_INFO("Writing");
         {
-            Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
+            Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
             for (int i = 0; i < sortBuffer.size(); ++i) {
-                Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, sortBuffer[i].Row, sortBuffer[i].Key);
+                Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, sortBuffer[i].Row, sortBuffer[i].Key);
                 // ToDo(psushin): Writer->SetProgress();
             }
         }

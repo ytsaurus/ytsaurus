@@ -26,14 +26,14 @@ typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
 struct TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
-class TChunkWriter;
-typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
+class TTableChunkWriter;
+typedef TIntrusivePtr<TTableChunkWriter> TChunkWriterPtr;
 
 class TChunkReader;
 typedef TIntrusivePtr<TChunkReader> TChunkReaderPtr;
 
-class TChunkSequenceWriter;
-typedef TIntrusivePtr<TChunkSequenceWriter> TChunkSequenceWriterPtr;
+class TTableChunkSequenceWriter;
+typedef TIntrusivePtr<TTableChunkSequenceWriter> TChunkSequenceWriterPtr;
 
 class TChunkSequenceReader;
 typedef TIntrusivePtr<TChunkSequenceReader> TChunkSequenceReaderPtr;

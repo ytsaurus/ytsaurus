@@ -5,8 +5,10 @@ set( SRCS
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_reader.cpp
   ${BASE}/chunk_sequence_reader.cpp
-  ${BASE}/chunk_sequence_writer.cpp
-  ${BASE}/chunk_writer.cpp
+  ${BASE}/table_chunk_sequence_writer.cpp
+  ${BASE}/partition_chunk_sequence_writer.cpp
+  ${BASE}/table_chunk_writer.cpp
+  ${BASE}/partition_chunk_writer.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
   ${BASE}/sync_reader.cpp
@@ -28,8 +30,12 @@ set( HDRS
   ${BASE}/channel_writer.h
   ${BASE}/chunk_reader.h
   ${BASE}/chunk_sequence_reader.h
-  ${BASE}/chunk_sequence_writer.h
-  ${BASE}/chunk_writer.h
+  ${BASE}/chunk_sequence_writer_base.h
+  ${BASE}/chunk_sequence_writer_base-inl.h
+  ${BASE}/table_chunk_sequence_writer.h
+  ${BASE}/partition_chunk_sequence_writer.h
+  ${BASE}/table_chunk_writer.h
+  ${BASE}/partition_chunk_writer.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/schema.h

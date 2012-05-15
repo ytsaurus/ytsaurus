@@ -175,7 +175,7 @@ TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
     const TYson& channels = IoSpec.output_specs(index).channels();
     YASSERT(!channels.empty());
 
-    auto chunkSequenceWriter = New<TChunkSequenceWriter>(
+    auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         Config->ChunkSequenceWriter,
         MasterChannel,
         TTransactionId::FromProto(IoSpec.output_transaction_id()),

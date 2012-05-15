@@ -146,7 +146,7 @@ void TTableWriter::Open()
         ~chunkListId.ToString(),
         static_cast<int>(channels.size()));
 
-    Writer = New<TChunkSequenceWriter>(
+    Writer = New<TTableChunkSequenceWriter>(
         Config, 
         MasterChannel,
         UploadTransaction->GetId(),
@@ -154,7 +154,7 @@ void TTableWriter::Open()
         channels,
         KeyColumns);
 
-    Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
+    Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
     if (Transaction) {
         ListenTransaction(~Transaction);
@@ -171,7 +171,7 @@ void TTableWriter::WriteRow(TRow& row, const TNonOwningKey& key)
     YVERIFY(IsOpen);
 
     CheckAborted();
-    Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, row, key);
+    Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, row, key);
 }
 
 void TTableWriter::Close()
@@ -189,7 +189,7 @@ void TTableWriter::Close()
     LOG_INFO("Closing table writer");
 
     LOG_INFO("Closing chunk writer");
-    Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
+    Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
     LOG_INFO("Chunk writer closed");
 
     if (KeyColumns.IsInitialized()) {
