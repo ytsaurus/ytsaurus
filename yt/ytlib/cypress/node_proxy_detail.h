@@ -156,6 +156,7 @@ protected:
         attributes->push_back("parent_id");
         attributes->push_back("lock_ids");
         attributes->push_back(TAttributeInfo("lock_mode", Transaction));
+        attributes->push_back(TAttributeInfo("path", true, true));
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -185,6 +186,16 @@ protected:
                     .Scalar(FormatEnum(node.GetLockMode()));
                 return true;
             }
+        }
+
+        if (name == "path") {
+            NYTree::INodePtr root;
+            auto path = NYTree::GetPath(this, &root);
+            auto cypressRoot = GetProxy(Bootstrap->GetCypressManager()->GetRootNodeId());
+            YASSERT(~root == cypressRoot);
+            BuildYsonFluently(consumer)
+                .Scalar(Stroka(NYTree::TokenTypeToChar(NYTree::RootToken)) + path);
+            return true;
         }
 
         return NObjectServer::TObjectProxyBase::GetSystemAttribute(name, consumer);
