@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "private.h"
 #include "chunk_sequence_reader.h"
 #include "chunk_reader.h"
 #include "config.h"
@@ -17,6 +18,8 @@ namespace NTableClient {
 
 using namespace NChunkServer;
 
+static NLog::TLogger& Logger = TableClientLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSequenceReader::TChunkSequenceReader(
@@ -33,6 +36,7 @@ TChunkSequenceReader::TChunkSequenceReader(
     , NextChunkIndex(-1)
     , NextReader(NewPromise<TChunkReaderPtr>())
     , PartitionTag(partitionTag)
+    , Options(options)
 {
     // Current reader is not set.
     Readers.push_back(TChunkReaderPtr());
@@ -109,8 +113,9 @@ TAsyncError TChunkSequenceReader::AsyncOpen()
 
 void TChunkSequenceReader::SetCurrentChunk(TChunkReaderPtr nextReader)
 {
-    if (!Options.KeepBlocks)
+    if (!Options.KeepBlocks) {
         Readers.clear();
+    }
 
     Readers.push_back(nextReader);
 

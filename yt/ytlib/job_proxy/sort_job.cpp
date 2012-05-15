@@ -105,10 +105,7 @@ TJobResult TSortJob::Run()
             keyColumnToIndex[name] = i;
         }
 
-        int rowIndex = 0;
         while (Reader->IsValid()) {
-            LOG_DEBUG("Reading row %d", rowIndex);
-
             auto sortRow = New<TSortRow>();
             sortRow->Row.swap(Reader->GetRow());
             sortRow->Key.Reset(KeyColumns.size());
@@ -122,11 +119,14 @@ TJobResult TSortJob::Run()
 
             sortBuffer.push_back(sortRow);
             Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
-            ++rowIndex;
         }
     }
 
+    LOG_DEBUG("Sort input has been read.");
+
     std::sort(sortBuffer.begin(), sortBuffer.end());
+
+    LOG_DEBUG("Sort completed, start writing.");
 
     for (int i = 0; i < sortBuffer.size(); ++i) {
         Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, sortBuffer[i]->Row, sortBuffer[i]->Key);

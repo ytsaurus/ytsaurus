@@ -292,7 +292,7 @@ void TChunkWriter::EmitSample(TRow& row)
     auto item = SamplesExt.add_items();
 
     std::sort(row.begin(), row.end());
-
+    
     TLexer lexer;
     FOREACH (const auto& pair, row) {
         auto* part = item->add_parts();
