@@ -42,7 +42,11 @@ private:
     virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TTransactionId::FromString(key);
-        return Bootstrap->GetObjectManager()->FindProxy(id);
+        if (Bootstrap->GetTransactionManager()->FindTransaction(id)) {
+            return Bootstrap->GetObjectManager()->FindProxy(id);
+        } else {
+            return NULL;
+        }
     }
 };
 
