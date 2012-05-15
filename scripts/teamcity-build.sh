@@ -116,47 +116,51 @@ make -j 1
 
 tc "blockClosed name='make'"
 
+package_name=yandex-yt
+package_version=
+package_ticket=
+
 if [[ ( $WITH_PACKAGE = "YES" ) ]]; then
     tc "progressMessage 'Packing...'"
 
     make package
-    dupload --to common --nomail ARTIFACTS/*.changes
+    make version
+
+    package_version=$(cat ytversion)
+
+    changes_file=ARTIFACTS/${package_name}_${package_version}_amd64.changes
+    dupload --to common --nomail ${changes_file}
 
     tc "setParameter name='yt.package_built' value='1'"
+    tc "setParameter name='yt.package_version' value='$package_version'"
 fi
 
 if [[ ( $WITH_PACKAGE = "YES" ) && ( $WITH_DEPLOY = "YES" ) ]]; then
     tc "progressMessage 'Deploying...'"
 
-    make version
-
-    package_name=yandex-yt
-    package_version=$(cat ytversion)
-    package_ticket=
-
-    tmp_comment_file=$(mktemp)
+    comment_file=$(mktemp)
+    deploy_file=ARTIFACTS/${package_name}_${package_version}.deploy
 
     # TODO(sandello): More verbose commentary is always better.
-    trap 'rm -f $tmp_comment_file ; exit $?' INT TERM EXIT
-    echo "Auto-generated ticket posted by $(hostname) on $(date)" > $tmp_comment_file
-    echo "See http://teamcity.yandex.ru/viewLog.html?buildTypeId=bt1364&buildNumber=${BUILD_NUMBER}" >> $tmp_comment_file
+    trap 'rm -f $comment_file ; exit $?' INT TERM EXIT
+    echo "Auto-generated ticket posted by $(hostname) on $(date)" > $comment_file
+    echo "See http://teamcity.yandex.ru/viewLog.html?buildTypeId=bt1364&buildNumber=${BUILD_NUMBER}" >> $comment_file
 
     curl http://c.yandex-team.ru/auth_update/ticket_add/ \
-        --get \
+        --silent --get \
         --data-urlencode "package[0]=${package_name}" \
         --data-urlencode "version[0]=${package_version}" \
         --data-urlencode "ticket[branch]=testing" \
         --data-urlencode "ticket[mailcc]=sandello@yandex-team.ru" \
-        --data-urlencode "ticket[comment]@${tmp_comment_file}" \
+        --data-urlencode "ticket[comment]@${comment_file}" \
         --cookie "conductor_auth=$(cat ~/.conductor_auth)" \
         --header "Accept: application/xml" \
-        --show-error \
-        --write-out "\nHTTP %{http_code} (done in %{time_total})\n"
-    > ARTIFACTS/deploy
+        --write-out "\nHTTP %{http_code} (done in %{time_total}s)\n" \
+        --output "${deploy_file}" \
+        --show-error
 
-    package_ticket=$(cat ARTIFACTS/deploy | grep URL | cut -d : -f 2- | cut -c 2-)
+    package_ticket=$(cat ${deploy_file} | grep URL | cut -d : -f 2- | cut -c 2-)
 
-    tc "setParameter name='yt.package_version' value='$package_version'"
     tc "setParameter name='yt.package_ticket' value='$package_ticket'"
 fi
 
