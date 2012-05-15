@@ -135,6 +135,29 @@ struct TObjectRefSetSerializer
     }
 };
 
+struct TObjectRefMultisetSerializer
+{
+    template <class T>
+    static void SaveRefs(TOutputStream* output, const T& objects)
+    {
+        TObjectRefSetSerializer::SaveRefs(output, objects);
+    }
+
+    template <class T>
+    static void LoadRefs(TInputStream* input, T& objects, const TLoadContext& context)
+    {
+        typedef typename T::value_type V;
+
+        auto size = ::LoadSize(input);
+        objects.clear();
+        for (size_t i = 0; i < size; ++i) {
+            V object;
+            LoadObjectRef(input, object, context);
+            objects.insert(object);
+        }
+    }
+};
+
 template <class T>
 struct TObjectRefSerializerTraits
 { };
@@ -151,12 +174,17 @@ struct TObjectRefSerializerTraits< TSmallVector<V, N> >
     typedef TObjectRefVectorSerializer TSerializer;
 };
 
-template <class V, class E, class A>
-struct TObjectRefSerializerTraits< yhash_set<V, E, A> >
+template <class V, class H, class E, class A>
+struct TObjectRefSerializerTraits< yhash_set<V, H, E, A> >
 {
     typedef TObjectRefSetSerializer TSerializer;
 };
 
+template <class V, class H, class E, class A>
+struct TObjectRefSerializerTraits< yhash_multiset<V, H, E, A> >
+{
+    typedef TObjectRefMultisetSerializer TSerializer;
+};
 
 template <class T>
 void SaveObjectRefs(TOutputStream* output, const T& objects)

@@ -623,15 +623,17 @@ private:
     {
         if (childRef.GetType() == EObjectType::ChunkList) {
             auto* childChunkList = childRef.AsChunkList();
-            YVERIFY(childChunkList->Parents().insert(&parent).second);
+            childChunkList->Parents().insert(&parent);
         }
     }
 
     void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
     {
         if (childRef.GetType() == EObjectType::ChunkList) {
-            auto* childChunkList = childRef.AsChunkList();
-            YVERIFY(childChunkList->Parents().erase(&parent) == 1);
+            auto& parents = childRef.AsChunkList()->Parents();
+            auto it = parents.find(&parent);
+            YASSERT(it != parents.end());
+            parents.erase(it);
         }
     }
 
