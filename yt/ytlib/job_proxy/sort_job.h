@@ -16,17 +16,20 @@ class TSortJob
 {
 public:
     TSortJob(
-        const TJobIOConfigPtr& config,
+        const TJobIOConfigPtr& ioConfig,
         const NElection::TLeaderLookup::TConfigPtr& masterConfig,
-        const NScheduler::NProto::TSortJobSpec& sortJobSpec);
+        const NScheduler::NProto::TSortJobSpec& jobSpec);
 
     NScheduler::NProto::TJobResult Run();
 
 private:
-    NTableClient::TChunkSequenceReaderPtr Reader;
-    NTableClient::TChunkSequenceWriterPtr Writer;
+    TJobIOConfigPtr IOConfig;
+    NElection::TLeaderLookup::TConfigPtr MasterConfig;
+    NScheduler::NProto::TSortJobSpec JobSpec;
 
     NTableClient::TKeyColumns KeyColumns;
+    NTableClient::TChunkSequenceReaderPtr Reader;
+    NTableClient::TChunkSequenceWriterPtr Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
