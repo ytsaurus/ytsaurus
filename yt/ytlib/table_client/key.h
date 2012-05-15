@@ -192,6 +192,15 @@ public:
     { }
 
     template<class TOtherBuffer>
+    TKey(const TKey<TOtherBuffer>& other)
+        : ColumnCount(other.ColumnCount)
+        , Buffer(ColumnCount * MaxKeySize)
+        , Parts(ColumnCount)
+    {
+        *this = other;
+    }
+
+    template<class TOtherBuffer>
     void operator=(const TKey<TOtherBuffer>& other)
     {
         Reset(other.Parts.size());

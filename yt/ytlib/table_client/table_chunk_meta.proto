@@ -102,5 +102,10 @@ message TKeySample
     required int64 data_size_since_previous = 3;
 }
 
+message TPartitionsExt
+{
+    repeated int64 sizes = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

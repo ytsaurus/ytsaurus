@@ -12,6 +12,7 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TSamplesExt, 11)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TIndexExt, 12)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TBoundaryKeysExt, 13)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TPartitionsExt, 15)
 
 ////////////////////////////////////////////////////////////////////////////////
 
