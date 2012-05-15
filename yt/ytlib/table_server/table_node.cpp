@@ -155,7 +155,7 @@ protected:
         children.push_back(TChunkTreeRef(originatingChunkList));
         chunkManager->AttachToChunkList(branchedChunkList, children);
 
-        // Propagate "sorted" attributes.
+        // Propagate "sorted" attribute.
         branchedChunkList.SetSorted(originatingChunkList->GetSorted());
     }
 
@@ -179,6 +179,9 @@ protected:
             newChunkList,
             &*branchedChunkList->Children().begin() + 1,
             &*branchedChunkList->Children().begin() + branchedChunkList->Children().size());
+
+        // Propagate "sorted" attribute back.
+        newChunkList.SetSorted(branchedChunkList->GetSorted());
 
         // Assign this newly created chunk list to originatingNode.
         originatingNode.SetChunkList(&newChunkList);
