@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/table_client/schema.h"
+#include <ytlib/table_client/schema.h>
 
 #include <contrib/testing/framework.h>
 
