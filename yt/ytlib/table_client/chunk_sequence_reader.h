@@ -34,7 +34,7 @@ public:
     virtual bool IsValid() const;
 
     virtual TRow& GetRow();
-    virtual const TKey<TFakeStrbufStore>& GetKey() const;
+    virtual const TNonOwningKey& GetKey() const;
     virtual const NYTree::TYson& GetRowAttributes() const;
 
     double GetProgress() const;
@@ -58,9 +58,10 @@ private:
     TPromise<TChunkReaderPtr> NextReader;
 
     /*!
-     *  References to chunk readers are stored here till destruction if 
-     *  KeepBlocks option is set.
-     *  Current reader is always Readers.back().
+    *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
+    *  to all chunk readers it has opened during its lifetime.
+    *  
+     * The current reader is always |Readers.back()|.
      */
     std::vector<TChunkReaderPtr> Readers;
 };
