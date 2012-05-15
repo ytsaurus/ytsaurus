@@ -102,7 +102,7 @@ void TTableConsumer::OnMyEndMap()
     YASSERT(InsideRow);
 
     TLexer lexer;
-    TKey<TFakeStrbufStore> key;
+    TNonOwningKey key;
     TRow row;
 
     int index = 0;
