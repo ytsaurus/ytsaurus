@@ -93,7 +93,7 @@ class YTEnv:
             p.poll()
             if p.returncode is None:
                 print '%s, pid %d, wasnt killed by the kill command' %(name, p.pid)
-                for i in xrange(10):
+                for i in xrange(50):
                     p.poll()
                     if p.returncode is not None: break
                     p.kill()

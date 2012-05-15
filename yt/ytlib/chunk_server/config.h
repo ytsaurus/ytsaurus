@@ -93,7 +93,7 @@ struct TChunkManagerConfig
         Register("jobs", Jobs)
             .DefaultNew();
         Register("max_chunk_tree_rank", MaxChunkTreeRank)
-            .GreaterThan(2)
+            .GreaterThanOrEqual(2)
             .Default(10);
         Register("min_chunk_list_size", MinChunkListSize)
             .GreaterThan(0)
@@ -101,6 +101,13 @@ struct TChunkManagerConfig
         Register("max_chunk_list_size", MaxChunkListSize)
             .GreaterThan(0)
             .Default(2048);
+    }
+
+    virtual void DoValidate() const
+    {
+        if (MaxChunkListSize <= MinChunkListSize) {
+            ythrow yexception() << "\"max_chunk_list_size\" must be greater than \"min_chunk_list_size\"";
+        }
     }
 };
 

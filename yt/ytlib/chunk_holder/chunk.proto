@@ -20,7 +20,7 @@ message TBlocksExt
 
 message TChunkInfo
 {
-    // Full size (the sum of data size and meta size).
+    // Exact full size (data size plus meta size).
     required int64 size = 1;
 
     // Not sent during full heartbeats.
@@ -32,20 +32,24 @@ message TMiscExt
 {
     // Total size of uncompressed blocks.
     optional int64 uncompressed_data_size = 1 [default = 0];
-    optional int64 row_count = 2 [default = 0];
-    optional int32 codec_id = 3 [default = 0];
-    optional bool sorted = 4 [default = false];
 
     // Total size of blocks with data sent to holder.
     optional int64 compressed_data_size = 5 [default = 0];
 
     // Size of chunk meta (without TMiscExt), obtained via ByteSize.
     optional int64 meta_size = 6 [default = 0];
+
+    // Number of rows in this chunk (tables only).
+    optional int64 row_count = 2 [default = 0];
+
+    optional int32 codec_id = 3 [default = 0];
+
+    // Indicates if the chunk contains a sorted rowset (tables only).
+    optional bool sorted = 4 [default = false];
 }
 
 // TChunkMeta is stored in *.meta files on chunk holders
-// and passed around with different extension subset among
-// client, holder, master and scheduler.
+// and passed around (possibly with a different extension subset).
 message TChunkMeta
 {
     required int32 type = 1;

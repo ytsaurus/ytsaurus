@@ -141,7 +141,7 @@ private:
             : partition->SortChunkPool->HasPendingChunks();
     }
 
-    bool IsPartitionActive(TPartitionPtr partition, const Stroka& address)
+    bool IsPartitionActiveFor(TPartitionPtr partition, const Stroka& address)
     {
         return
             IsPartitionActive(partition) &&
@@ -153,7 +153,7 @@ private:
         if (IsPartitionActive(partition)) {
             ActivePartitions.insert(partition);
             FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-                if (IsPartitionActive(partition, address)) {
+                if (IsPartitionActiveFor(partition, address)) {
                     AddressToActivePartitions[address].insert(partition);
                 }
             }
@@ -201,7 +201,7 @@ private:
 
         FOREACH (const auto& chunk, result->Chunks) {
             FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-                if (!IsPartitionActive(partition, address)) {
+                if (!IsPartitionActiveFor(partition, address)) {
                     AddressToActivePartitions[address].erase(partition);
                 }
             }
@@ -333,10 +333,10 @@ private:
             false);
         YASSERT(jip->ExtractResult);
 
-        LOG_DEBUG("Extracted %d chunks for partition, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+        LOG_DEBUG("Extracted %d chunks for partition at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
             static_cast<int>(jip->ExtractResult->Chunks.size()),
-            jip->ExtractResult->LocalCount,
             ~node->GetAddress(),
+            jip->ExtractResult->LocalCount,
             jip->ExtractResult->Weight,
             weightThreshold);
 
@@ -427,10 +427,10 @@ private:
             false);
         YASSERT(!jip->ExtractResult->Chunks.empty());
 
-        LOG_DEBUG("Extracted %d chunks for sort, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+        LOG_DEBUG("Extracted %d chunks for sort at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
             static_cast<int>(jip->ExtractResult->Chunks.size()),
-            jip->ExtractResult->LocalCount,
             ~node->GetAddress(),
+            jip->ExtractResult->LocalCount,
             jip->ExtractResult->Weight,
             weightThreshold);
 
