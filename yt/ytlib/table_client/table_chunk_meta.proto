@@ -38,10 +38,6 @@ message TSamplePart
 message TSample
 {
     repeated TSamplePart parts = 1;
-    // Number of rows from the last sample (inclusive) to this one (exclusive).
-    required int64 row_count_since_previous = 2;
-    // Similar to |row_count_since_previous| but measures approximate data size.
-    required int64 data_size_since_previous = 3;
 }
 
 message TSamplesExt
@@ -91,15 +87,6 @@ message TChunkChannel
 message TChannelsExt
 {
     repeated TChunkChannel items = 1;
-}
-
-message TKeySample
-{
-    required NYT.NTableClient.NProto.TKey key = 1;
-    // Number of rows from the last sample (inclusive) to this one (exclusive).
-    required int64 row_count_since_previous = 2;
-    // Similar to |row_count_since_previous| but measures approximate data size.
-    required int64 data_size_since_previous = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

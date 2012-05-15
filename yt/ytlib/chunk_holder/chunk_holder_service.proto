@@ -148,7 +148,7 @@ message TRspGetTableSamples
     message TChunkSamples
     {
         optional NYT.NProto.TError error = 1;
-        repeated NTableClient.NProto.TKeySample items = 2;
+        repeated NTableClient.NProto.TKey items = 2;
     }
 
     repeated TChunkSamples samples = 1;

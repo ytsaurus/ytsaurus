@@ -118,7 +118,7 @@ private:
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
 
     TSamplesFetcherPtr SamplesFetcher;
-    std::vector<const NTableClient::NProto::TKeySample*> SortedSamples;
+    std::vector<const NTableClient::NProto::TKey*> SortedSamples;
 
     //! |PartitionCount - 1| separating keys.
     std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
@@ -586,10 +586,7 @@ private:
 
         std::sort(
             SortedSamples.begin(),
-            SortedSamples.end(),
-            [] (const NTableClient::NProto::TKeySample* lhs, const NTableClient::NProto::TKeySample* rhs) {
-                return CompareKeys(lhs->key(), rhs->key()) < 0;
-            });
+            SortedSamples.end());
     }
 
     void BuildPartitions()
