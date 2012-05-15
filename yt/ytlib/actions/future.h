@@ -201,10 +201,7 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
-    //! Gets the value.
-    /*!
-     *  This call will block until the value is set.
-     */
+    //! Synchronously waits unitl the method #Set is called.
     void Get() const;
 
     //! Attaches a listener.

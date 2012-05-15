@@ -35,7 +35,7 @@ public:
         const NYTree::TYPath& timerPathSuffix,
         TCallback<void(T)> onResult = TCallback<void(T)>());
 
-    // specifiacation of Await for T = void
+    //! Specialization of #Await for |T = void|.
     void Await(
         TFuture<void> result,
         const NYTree::TYPath& timerPathSuffix,
@@ -62,6 +62,11 @@ private:
     NProfiling::TProfiler* Profiler;
     NProfiling::TTimer Timer;
 
+    template <class Signature>
+    bool WrapOnResult(TCallback<Signature> onResult, TCallback<Signature>& wrappedOnResult);
+
+    void MaybeInvokeOnComplete(const NYTree::TYPath& timerPathSuffix);
+
     void Init(
         IInvoker::TPtr invoker,
         NProfiling::TProfiler* profiler,
@@ -74,7 +79,7 @@ private:
         TCallback<void(T)> onResult,
         T result);
 
-    void OnVoidResult(
+    void OnResult(
         const NYTree::TYPath& timerPathSuffix,
         TCallback<void()> onResult);
 
