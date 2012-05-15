@@ -39,11 +39,9 @@ void TBlobOutput::Clear()
     Blob.clear();
 }
 
-TSharedRef TBlobOutput::Flush(size_t size)
+TSharedRef TBlobOutput::Flush()
 {
-    auto result = TSharedRef(MoveRV(Blob));
-    Blob.reserve(size);
-    return result;
+    return TSharedRef(MoveRV(Blob));
 }
 
 const TBlob* TBlobOutput::GetBlob() const
@@ -60,15 +58,15 @@ const TBlobOutput::TStrType TBlobOutput::PutData(const TStringBuf& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFakeStrbufStore::TFakeStrbufStore(size_t /* capacity */)
+TFakeStringBufStore::TFakeStringBufStore(size_t /* capacity */)
 { }
 
-const TFakeStrbufStore::TStrType TFakeStrbufStore::PutData(const TStringBuf& value)
+TFakeStringBufStore::TStrType TFakeStringBufStore::PutData(const TStringBuf& value)
 {
     return value;
 }
 
-void TFakeStrbufStore::Clear()
+void TFakeStringBufStore::Clear()
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,8 +19,6 @@ public:
 
     ~TBlobOutput() throw();
 
-    void DoWrite(const void* buf, size_t len);
-
     const TStrType PutData(const TStringBuf& value);
 
     const TBlob* GetBlob() const;
@@ -29,23 +27,29 @@ public:
     i32 GetSize() const;
 
     void Clear();
-    TSharedRef Flush(size_t size);
+    TSharedRef Flush();
 
 private:
+    void DoWrite(const void* buf, size_t len);
+
     TBlob Blob;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TFakeStrbufStore
+// TODO(babenko): should we declare this inline?
+class TFakeStringBufStore
 {
 public:
     typedef TStringBuf TStrType;
 
-    // Unused parameter, required for compatibility with TBlobOutput.
-    TFakeStrbufStore(size_t capacity);
+    /*!
+     *  \param capacity Unused, required for compatibility with TBlobOutput.
+     */
+    explicit TFakeStringBufStore(size_t capacity);
 
-    const TStrType PutData(const TStringBuf& value);
+    TStrType PutData(const TStringBuf& value);
 
     void Clear();
 };
