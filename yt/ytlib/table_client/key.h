@@ -226,13 +226,13 @@ public:
     void SetValue(int index, i64 value)
     {
         YASSERT(index < ColumnCount);
-        Parts[index] = TKeyPart<typename TBuffer::TStrType>::CreateValue(value);
+        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateValue(value);
     }
 
     void SetValue(int index, double value)
     {
         YASSERT(index < ColumnCount);
-        Parts[index] = TKeyPart<typename TBuffer::TStrType>::CreateValue(value);
+        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateValue(value);
     }
 
     void SetValue(int index, const TStringBuf& value)
@@ -244,13 +244,13 @@ public:
 
         auto part = Buffer.PutData(TStringBuf(value.begin(), length));
 
-        Parts[index] = TKeyPart<typename TBuffer::TStrType>::CreateValue(part);
+        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateValue(part);
     }
 
     void SetComposite(int index)
     {
         YASSERT(index < ColumnCount);
-        Parts[index] = TKeyPart<typename TBuffer::TStrType>::CreateComposite();
+        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateComposite();
     }
 
     void Reset(int columnCount = -1)
@@ -286,7 +286,7 @@ public:
                 *key.add_parts() = part.ToProto(MaxKeySize - currentSize);
                 currentSize += part.GetSize();
             } else {
-                *key.add_parts() = TKeyPart<typename TBuffer::TStrType>::CreateNull().ToProto();
+                *key.add_parts() = TKeyPart<typename TBuffer::TStoredType>::CreateNull().ToProto();
             }
         }
         return key;
@@ -358,7 +358,7 @@ private:
 
     int ColumnCount;
 
-    std::vector< TKeyPart<typename TBuffer::TStrType> > Parts;
+    std::vector< TKeyPart<typename TBuffer::TStoredType> > Parts;
     TBuffer Buffer;
 };
 

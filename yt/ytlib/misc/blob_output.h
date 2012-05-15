@@ -12,14 +12,14 @@ class TBlobOutput
     : public TOutputStream
 {
 public:
-    typedef TBlobRange TStrType;
+    typedef TBlobRange TStoredType;
 
     TBlobOutput();
     explicit TBlobOutput(size_t capacity);
 
     ~TBlobOutput() throw();
 
-    const TStrType PutData(const TStringBuf& value);
+    TStoredType PutData(const TStringBuf& value);
 
     const TBlob* GetBlob() const;
 
@@ -42,14 +42,14 @@ private:
 class TFakeStringBufStore
 {
 public:
-    typedef TStringBuf TStrType;
+    typedef TStringBuf TStoredType;
 
     /*!
      *  \param capacity Unused, required for compatibility with TBlobOutput.
      */
     explicit TFakeStringBufStore(size_t capacity);
 
-    TStrType PutData(const TStringBuf& value);
+    TStoredType PutData(const TStringBuf& value);
 
     void Clear();
 };

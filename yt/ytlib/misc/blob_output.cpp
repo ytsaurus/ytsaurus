@@ -49,11 +49,11 @@ const TBlob* TBlobOutput::GetBlob() const
     return &Blob;
 }
 
-const TBlobOutput::TStrType TBlobOutput::PutData(const TStringBuf& value)
+TBlobOutput::TStoredType TBlobOutput::PutData(const TStringBuf& value)
 {
     auto offset = value.size();
     Write(value);
-    return TStrType(&Blob, offset, value.size());
+    return TStoredType(&Blob, offset, value.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ const TBlobOutput::TStrType TBlobOutput::PutData(const TStringBuf& value)
 TFakeStringBufStore::TFakeStringBufStore(size_t /* capacity */)
 { }
 
-TFakeStringBufStore::TStrType TFakeStringBufStore::PutData(const TStringBuf& value)
+TFakeStringBufStore::TStoredType TFakeStringBufStore::PutData(const TStringBuf& value)
 {
     return value;
 }
