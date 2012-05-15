@@ -22,6 +22,7 @@
 #include <ytlib/scheduler/helpers.h>
 
 #include <util/folder/dirut.h>
+#include <util/stream/format.h>
 
 namespace NYT {
 
@@ -630,17 +631,29 @@ private:
         if (jobsTotal == 0) {
             return;
         }
+        
         i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/completed");
-        int donePercentage  = (jobsCompleted * 100) / jobsTotal;
+        int percentComplete  = (jobsCompleted * 100) / jobsTotal;
+
         if (!out->empty()) {
             out->append(", ");
         }
-        out->append(Sprintf("%3d%% %sdone (%4" PRId64 " of %4" PRId64 ")",
-            donePercentage,
-            phase.empty() ? "" : ~(phase + " "),
-            jobsCompleted,
-            jobsTotal));
 
+        out->append(Sprintf("%3d%% ", percentComplete));
+        if (!phase.empty()) {
+            out->append(phase);
+            out->append(' ');
+        }
+
+        out->append("done ");
+
+        // Some simple pretty-printing.
+        int totalWidth = ToString(jobsTotal).length();
+        out->append("(");
+        out->append(ToString(LeftPad(ToString(jobsCompleted), totalWidth)));
+        out->append(" of ");
+        out->append(ToString(jobsTotal));
+        out->append(")");
     }
 
     Stroka FormatProgress(const TYson& progress)
