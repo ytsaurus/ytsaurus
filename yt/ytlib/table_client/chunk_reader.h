@@ -40,7 +40,7 @@ public:
     virtual bool IsValid() const;
 
     virtual TRow& GetRow();
-    virtual const TKey<TFakeStrbufStore>& GetKey() const;
+    virtual const TNonOwningKey& GetKey() const;
     virtual const NYTree::TYson& GetRowAttributes() const;
 
 private:
@@ -70,7 +70,7 @@ private:
 
     NYTree::TYson RowAttributes;
     TRow CurrentRow;
-    TKey<TFakeStrbufStore> CurrentKey;
+    TNonOwningKey CurrentKey;
 
     struct TColumnInfo
     {
@@ -96,13 +96,16 @@ private:
     TAutoPtr<NProto::TKeyColumnsExt> KeyColumnsExt;
 
     /*! 
-     *  See DoNextRow for usage.
+     *  See #DoNextRow for usage.
      */
     const TAsyncErrorPromise SuccessResult;
 
     std::vector<TChannelReaderPtr> ChannelReaders;
 
-    //! Stores references to blocks if KeepBlocks option is set.
+    /*!
+     *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
+     *  to all (uncompressed) blocks it has fetched.
+     */
     std::vector<TSharedRef> FetchedBlocks;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
