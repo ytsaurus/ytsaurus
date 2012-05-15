@@ -47,7 +47,7 @@ struct IAsyncReader
     //! Non-const reference - client can possibly modify internal buffer.
     virtual TRow& GetRow() = 0;
 
-    virtual const TKey<TFakeStrbufStore>& GetKey() const = 0;
+    virtual const TNonOwningKey& GetKey() const = 0;
     virtual const NYTree::TYson& GetRowAttributes() const = 0;
 };
 
