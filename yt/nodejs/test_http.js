@@ -7,12 +7,6 @@ var app     = require("./srv");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-describe("http command", function() {
-    before(function() {
-        this.command = new app.YtCommandHost()
-    });
-});
-
 describe("http application", function() {
     var APP_HTTP_PORT = 8000;
     var APP_HTTP_HOST = "127.0.0.1";
