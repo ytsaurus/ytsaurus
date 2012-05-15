@@ -635,7 +635,7 @@ private:
         if (!out->empty()) {
             out->append(", ");
         }
-        out->append(Sprintf("%3d%% %sdone (%" PRId64 "4 of %4" PRId64 "4)\n",
+        out->append(Sprintf("%3d%% %sdone (%4" PRId64 " of %4" PRId64 ")",
             donePercentage,
             phase.empty() ? "" : ~(phase + " "),
             jobsCompleted,
