@@ -189,12 +189,9 @@ protected:
         }
 
         if (name == "path") {
-            NYTree::INodePtr root;
-            auto path = NYTree::GetPath(this, &root);
-            auto rootId = dynamic_cast<ICypressNodeProxy*>(~root)->GetId();
-            YASSERT(rootId == Bootstrap->GetCypressManager()->GetRootNodeId());
+            auto path = Bootstrap->GetCypressManager()->GetNodePath(this);
             BuildYsonFluently(consumer)
-                .Scalar(Stroka(NYTree::TokenTypeToChar(NYTree::RootToken)) + path);
+                .Scalar(path);
             return true;
         }
 

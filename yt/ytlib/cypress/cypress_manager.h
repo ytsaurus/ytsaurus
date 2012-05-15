@@ -89,6 +89,11 @@ public:
         NTransactionServer::TTransaction* transaction,
         TAutoPtr<ICypressNode> node);
 
+    NYTree::TYPath GetNodePath(ICypressNodeProxy::TPtr proxy);
+    NYTree::TYPath GetNodePath(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction);
+
     DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
     DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
 

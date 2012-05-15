@@ -516,7 +516,7 @@ void TCypressManager::ValidateLock(
     auto handler = GetHandler(TypeFromId(nodeId));
     if (!handler->IsLockModeSupported(requestedMode)) {
         ythrow yexception() << Sprintf("Node %s does not support %s locks",
-            ~nodeId.ToString(),
+            ~GetNodePath(nodeId, transaction).Quote(),
             ~FormatEnum(requestedMode).Quote());
     }
 
@@ -538,7 +538,7 @@ void TCypressManager::ValidateLock(
         {
             ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
                 ~FormatEnum(requestedMode).Quote(),
-                ~nodeId.ToString(),
+                ~GetNodePath(nodeId, transaction).Quote(),
                 ~FormatEnum(lock->GetMode()).Quote(),
                 ~lock->GetTransaction()->GetId().ToString());
         }
@@ -563,7 +563,7 @@ void TCypressManager::ValidateLock(
             if (lock->GetMode() == ELockMode::Snapshot) {
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is already taken",
                     ~FormatEnum(requestedMode).Quote(),
-                    ~nodeId.ToString(),
+                    ~GetNodePath(nodeId, transaction).Quote(),
                     ~FormatEnum(lock->GetMode()).Quote());
             }
         } else {
@@ -575,7 +575,7 @@ void TCypressManager::ValidateLock(
             {
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by transaction %s",
                     ~FormatEnum(requestedMode).Quote(),
-                    ~nodeId.ToString(),
+                    ~GetNodePath(nodeId, transaction).Quote(),
                     ~FormatEnum(lock->GetMode()).Quote(),
                     ~lock->GetTransaction()->GetId().ToString());
             }
@@ -964,6 +964,22 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedN
 {
     auto type = TypeFromId(id.ObjectId);
     return CypressManager->GetHandler(type)->Create(id);
+}
+
+TYPath TCypressManager::GetNodePath(ICypressNodeProxy::TPtr proxy)
+{
+    INodePtr root;
+    auto path = GetYPath(proxy, &root);
+    auto rootId = dynamic_cast<ICypressNodeProxy*>(~root)->GetId();
+    YASSERT(rootId == GetRootNodeId());
+    return Stroka(TokenTypeToChar(RootToken)) + path;
+}
+
+TYPath TCypressManager::GetNodePath(
+    const TNodeId& nodeId,
+    NTransactionServer::TTransaction* transaction)
+{
+    return GetNodePath(GetVersionedNodeProxy(nodeId, transaction));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

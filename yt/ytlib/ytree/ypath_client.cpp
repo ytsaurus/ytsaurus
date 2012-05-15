@@ -351,7 +351,7 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
     }
 }
 
-TYPath GetPath(INodePtr node, INodePtr* root)
+TYPath GetYPath(INodePtr node, INodePtr* root)
 {
     std::vector<TYPath> tokens;
     while (true) {
