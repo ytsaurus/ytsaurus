@@ -21,6 +21,7 @@ using namespace NYTree;
 using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NJobProxy;
+using namespace NObjectServer;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 
@@ -557,6 +558,14 @@ private:
         }
     }
 
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        UNUSED(batchRsp);
+
+        CheckOutputTablesEmpty();
+        SetOutputTablesSorted(InputTables[0].KeyColumns);
+    }
+
     void SortSamples()
     {
         const auto& samples = SamplesFetcher->GetSamples();
@@ -692,13 +701,6 @@ private:
             TotalPartitionChunkCount);
         PendingPartitionWeight = TotalPartitionWeight;
         PendingPartitionChunkCount = TotalPartitionChunkCount;
-
-        // Prepare to mark the output table as sorted.
-        {
-            auto& table = OutputTables[0];
-            table.SetSorted = true;
-            table.KeyColumns = Spec->KeyColumns;
-        }
 
         LOG_INFO("Sorting with %d partitions (MinWeight: %" PRId64 ", MaxWeight: %" PRId64 ")",
             partitionCount,
