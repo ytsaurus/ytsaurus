@@ -69,7 +69,7 @@ public:
         Logger = NCypress::Logger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
         return TBase::IsWriteRequest(context);

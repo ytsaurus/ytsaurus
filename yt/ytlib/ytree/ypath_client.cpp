@@ -247,13 +247,12 @@ ExecuteVerb(
     return asyncResponseMessage;
 }
 
-void ExecuteVerb(IYPathServicePtr service, IServiceContext* context)
+void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
 {
-    auto context_ = MakeStrong(context);
     auto requestMessage = context->GetRequestMessage();
     ExecuteVerb(service, ~requestMessage)
         .Subscribe(BIND([=] (NBus::IMessage::TPtr responseMessage) {
-            context_->Reply(~responseMessage);
+            context->Reply(~responseMessage);
         }));
 }
 

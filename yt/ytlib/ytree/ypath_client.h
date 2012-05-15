@@ -134,7 +134,7 @@ TFuture<NBus::IMessage::TPtr>
 ExecuteVerb(IYPathServicePtr service, NBus::IMessage* requestMessage);
 
 //! Asynchronously executes a request against the given service.
-void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContext* context);
+void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContextPtr context);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>

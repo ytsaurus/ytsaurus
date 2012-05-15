@@ -22,7 +22,7 @@ class TReplyInterceptorContext
 {
 public:
     TReplyInterceptorContext(
-        IServiceContext* underlyingContext,
+        IServiceContextPtr underlyingContext,
         TClosure onReply)
         : UnderlyingContext(underlyingContext)
         , OnReply(onReply)
@@ -128,7 +128,7 @@ public:
     }
 
 private:
-    IServiceContext::TPtr UnderlyingContext;
+    IServiceContextPtr UnderlyingContext;
     TClosure OnReply;
 
 };
@@ -160,14 +160,14 @@ public:
         }
     }
 
-    virtual void Invoke(IServiceContext* context)
+    virtual void Invoke(IServiceContextPtr context)
     {
         auto wrappedContext =
             UnderlyingService->IsWriteRequest(context)
             ? New<TReplyInterceptorContext>(
                 context,
                 BIND(&TWriteBackService::SaveFile, MakeStrong(this)))
-            : IServiceContext::TPtr(context);
+            : IServiceContextPtr(context);
         UnderlyingService->Invoke(~wrappedContext);
     }
 
@@ -176,7 +176,7 @@ public:
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContext* context) const
+    virtual bool IsWriteRequest(IServiceContextPtr context) const
     {
         return UnderlyingService->IsWriteRequest(context);
     }
@@ -219,7 +219,7 @@ public:
         return TResolveResult::There(~service, path);
     }
 
-    virtual void Invoke(NRpc::IServiceContext* context)
+    virtual void Invoke(NRpc::IServiceContextPtr context)
     {
         UNUSED(context);
         YUNREACHABLE();
@@ -230,7 +230,7 @@ public:
         return "YsonFileService";
     }
 
-    virtual bool IsWriteRequest(IServiceContext* context) const
+    virtual bool IsWriteRequest(IServiceContextPtr context) const
     {
         UNUSED(context);
         YUNREACHABLE();

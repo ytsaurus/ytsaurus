@@ -26,7 +26,7 @@ protected:
     typedef TValueOrError<TRedirectParams> TRedirectResult;
     typedef TFuture<TRedirectResult> TAsyncRedirectResult;
 
-    virtual TAsyncRedirectResult HandleRedirect(IServiceContext* context) = 0;
+    virtual TAsyncRedirectResult HandleRedirect(IServiceContextPtr context) = 0;
 
 private:
     class TRequest;
@@ -35,8 +35,8 @@ private:
     Stroka ServiceName;
     Stroka LoggingCategory;
 
-    virtual void OnBeginRequest(IServiceContext* context);
-    virtual void OnEndRequest(IServiceContext* context);
+    virtual void OnBeginRequest(IServiceContextPtr context);
+    virtual void OnEndRequest(IServiceContextPtr context);
 
     virtual Stroka GetLoggingCategory() const;
     virtual Stroka GetServiceName() const;

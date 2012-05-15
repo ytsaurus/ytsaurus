@@ -35,7 +35,7 @@ private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
-    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
 

@@ -50,7 +50,7 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
 
 protected:
     template <class TNode>
@@ -62,7 +62,7 @@ protected:
         SetNodeFromProducer(node, ProducerFromYson(&input), ~builder);
     }
     
-    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
     virtual void GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context);

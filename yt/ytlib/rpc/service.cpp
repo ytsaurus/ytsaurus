@@ -79,7 +79,7 @@ Stroka TServiceBase::GetLoggingCategory() const
     return LoggingCategory;
 }
 
-void TServiceBase::OnBeginRequest(IServiceContext* context)
+void TServiceBase::OnBeginRequest(IServiceContextPtr context)
 {
     YASSERT(context);
 
@@ -164,7 +164,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
     InvokeHandler(~runtimeInfo, wrappedHandler, context);
 }
 
-void TServiceBase::OnEndRequest(IServiceContext* context)
+void TServiceBase::OnEndRequest(IServiceContextPtr context)
 {
     YASSERT(context);
     YASSERT(!context->IsOneWay());
@@ -217,7 +217,7 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker*
 void TServiceBase::InvokeHandler(
     TRuntimeMethodInfo* runtimeInfo,
     const TClosure& handler,
-    IServiceContext* context)
+    IServiceContextPtr context)
 {
     UNUSED(context);
 

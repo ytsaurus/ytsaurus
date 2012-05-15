@@ -23,17 +23,17 @@ class TYPathServiceBase
 public:
     typedef TIntrusivePtr<TYPathServiceBase> TPtr;
 
-    virtual void Invoke(NRpc::IServiceContext* context);
+    virtual void Invoke(NRpc::IServiceContextPtr context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
     virtual Stroka GetLoggingCategory() const;
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
 
-    void GuardedInvoke(NRpc::IServiceContext* context);
+    void GuardedInvoke(NRpc::IServiceContextPtr context);
 
 protected:
     NLog::TLogger Logger;
 
-    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context);
     virtual TResolveResult ResolveSelf(const TYPath& path, const Stroka& verb);
     virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
@@ -330,7 +330,7 @@ void SetNodeFromProducer(
 
 typedef TCallback<void(NBus::IMessage::TPtr)> TYPathResponseHandler;
 
-NRpc::IServiceContext::TPtr CreateYPathContext(
+NRpc::IServiceContextPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     const TYPath& path,
     const Stroka& verb,

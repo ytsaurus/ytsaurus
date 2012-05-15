@@ -18,7 +18,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TNodeBase::IsWriteRequest(IServiceContext* context) const
+bool TNodeBase::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(SetNode);
@@ -26,7 +26,7 @@ bool TNodeBase::IsWriteRequest(IServiceContext* context) const
     return TYPathServiceBase::IsWriteRequest(context);
 }
 
-void TNodeBase::DoInvoke(IServiceContext* context)
+void TNodeBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(Set);

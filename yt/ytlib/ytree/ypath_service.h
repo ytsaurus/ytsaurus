@@ -3,17 +3,9 @@
 #include "public.h"
 #include "yson_consumer.h"
 
+#include <ytlib/rpc/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/enum.h>
-
-// TODO(babenko): move to rpc/public.h
-
-namespace NYT {
-    struct IInvoker;
-    namespace NRpc {
-        class IServiceContext;
-    }
-}
 
 namespace NYT {
 namespace NYTree {
@@ -76,7 +68,7 @@ struct IYPathService
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) = 0;
 
     //! Executes a given request.
-    virtual void Invoke(NRpc::IServiceContext* context) = 0;
+    virtual void Invoke(NRpc::IServiceContextPtr context) = 0;
 
     //! Called for the target service and
     //! returns the logging category that will be used by RPC infrastructure
@@ -91,7 +83,7 @@ struct IYPathService
      *  - Checking if the request modifies a mapped YSON file, so we need
      *    to write it back one the processing is finished.
      */
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const = 0;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const = 0;
 
     //! Creates a YPath service from a YSON producer.
     /*!
