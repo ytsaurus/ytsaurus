@@ -5,7 +5,7 @@
 namespace NYT {
 
 class TBlobOutput;
-class TFakeStrbufStore;
+class TFakeStringBufStore;
 
 namespace NTableClient {
 
@@ -63,7 +63,7 @@ template <class TStrType>
 class TKeyPart;
 
 typedef TKey<TBlobOutput> TOwningKey;
-typedef TKey<TFakeStrbufStore> TNonOwningKey;
+typedef TKey<TFakeStringBufStore> TNonOwningKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
