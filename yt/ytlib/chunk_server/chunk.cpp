@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "chunk_tree_statistics.h"
+#include "chunk_list.h"
 
 #include <ytlib/cell_master/load_context.h>
 
@@ -53,6 +54,7 @@ void TChunk::Save(TOutputStream* output) const
     SaveProto(output, ChunkInfo_);
     SaveProto(output, ChunkMeta_);
     ::Save(output, ReplicationFactor_);
+    SaveObjectRefs(output, Parents_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
 }
@@ -64,6 +66,7 @@ void TChunk::Load(const TLoadContext& context, TInputStream* input)
     LoadProto(input, ChunkInfo_);
     LoadProto(input, ChunkMeta_);
     ::Load(input, ReplicationFactor_);
+    LoadObjectRefs(input, Parents_, context);
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);
 }
