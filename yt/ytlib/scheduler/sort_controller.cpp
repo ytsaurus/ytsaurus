@@ -54,6 +54,7 @@ public:
         , TotalPartitionChunkCount(0)
         , PendingPartitionChunkCount(0)
         , CompletedPartitionChunkCount(0)
+        , TotalSortJobCount(0)
         , RunningSortJobCount(0)
         , CompletedSortJobCount(0)
         , TotalSortWeight(0)
@@ -87,6 +88,7 @@ private:
     int CompletedPartitionChunkCount;
 
     // Sort job counters.
+    int TotalSortJobCount;
     int RunningSortJobCount;
     int CompletedSortJobCount;
     i64 TotalSortWeight;
@@ -616,6 +618,13 @@ private:
             BuildMulitplePartitions(partitionCount);
         }
 
+        // Compute sort job count.
+        FOREACH (auto partition, Partitions) {
+            i64 weight = partition->SortChunkPool->GetTotalWeight();
+            i64 weightPerJob = Config->MaxSortJobDataSize;
+            TotalSortJobCount += static_cast<int>(ceil((double) weight / weightPerJob));
+        }
+
         // Init output trees.
         {
             auto& table = OutputTables[0];
@@ -738,7 +747,7 @@ private:
             "PartitionJobs = {T: %d, R: %d, C: %d, P: %d}, "
             "PartitionChunks = {T: %d, C: %d, P: %d}, "
             "PartitionWeight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}, "
-            "SortJobs = {R: %d, C: %d}, "
+            "SortJobs = {T: %d, R: %d, C: %d}, "
             "SortWeight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}",
             // Jobs
             RunningJobCount,
@@ -759,6 +768,7 @@ private:
             CompletedPartitionWeight,
             PendingPartitionWeight,
             // SortJobs
+            TotalSortJobCount,
             RunningSortJobCount,
             CompletedSortJobCount,
             // SortWeight
@@ -769,9 +779,19 @@ private:
 
     virtual void DoGetProgress(IYsonConsumer* consumer)
     {
-    //    BuildYsonMapFluently(consumer)
-    //        .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &ChunkCounter))
-    //        .Item("weight").Do(BIND(&TProgressCounter::ToYson, &WeightCounter));
+        BuildYsonMapFluently(consumer)
+            .Item("partition_jobs").BeginMap()
+                .Item("total").Scalar(TotalPartitionJobCount)
+                .Item("completed").Scalar(CompletedPartitionJobCount)
+            .EndMap()
+            .Item("sort_jobs").BeginMap()
+                .Item("total").Scalar(TotalSortJobCount)
+                .Item("completed").Scalar(CompletedSortJobCount)
+            .EndMap()
+            .Item("merge_jobs").BeginMap()
+                .Item("total").Scalar(0)
+                .Item("completed").Scalar(0)
+            .EndMap();
     }
 
 

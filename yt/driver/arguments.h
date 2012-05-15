@@ -304,6 +304,7 @@ private:
 
     TCLAP::SwitchArg NoTrackArg;
 
+    virtual NScheduler::EOperationType GetOperationType() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,6 +323,7 @@ private:
 
     virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
+    virtual NScheduler::EOperationType GetOperationType() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -344,6 +346,7 @@ private:
 
     virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
+    virtual NScheduler::EOperationType GetOperationType() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -361,6 +364,7 @@ private:
 
     virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
+    virtual NScheduler::EOperationType GetOperationType() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,6 +383,7 @@ private:
 
     virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
+    virtual NScheduler::EOperationType GetOperationType() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
