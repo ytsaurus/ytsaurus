@@ -116,11 +116,11 @@ TJobResult TSortJob::Run()
             }
 
         }
-        PROFILE_TIMING_CHECKPOINT("/read");
+        PROFILE_TIMING_CHECKPOINT("read");
 
         LOG_INFO("Sorting rows");
         std::sort(sortBuffer.begin(), sortBuffer.end());
-        PROFILE_TIMING_CHECKPOINT("/sort");
+        PROFILE_TIMING_CHECKPOINT("sort");
 
         LOG_INFO("Writing sort buffer");
         {
@@ -140,7 +140,7 @@ TJobResult TSortJob::Run()
 
             Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
         }
-        PROFILE_TIMING_CHECKPOINT("/write");
+        PROFILE_TIMING_CHECKPOINT("write");
 
         LOG_INFO("Sort complete");
         {
