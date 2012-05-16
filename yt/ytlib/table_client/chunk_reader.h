@@ -62,8 +62,11 @@ private:
 
     void MakeCurrentRow();
 
-    class TInitializer;
-    TIntrusivePtr<TInitializer> Initializer;
+    class IInitializer;
+    TIntrusivePtr<IInitializer> Initializer;
+
+    class TRegularInitializer;
+    class TPartitionInitializer;
 
     TAsyncStreamState State;
     TReaderOptions Options;
@@ -90,6 +93,8 @@ private:
 
     i64 CurrentRowIndex;
     i64 EndRowIndex;
+
+    int PartitionTag;
 
     THolder<TKeyValidator> EndValidator;
 

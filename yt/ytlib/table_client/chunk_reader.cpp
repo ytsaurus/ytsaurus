@@ -32,6 +32,22 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkReader::IInitializer
+    : public virtual TRefCounted
+{
+public:
+    virtual void Initialize() = 0;
+
+protected:
+    void OnFail(const TError& error, TChunkReaderPtr chunkReader) 
+    {
+        chunkReader->Initializer.Reset();
+        chunkReader->State.Fail(error);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkReader::TKeyValidator
 {
 public:
@@ -101,19 +117,16 @@ struct TChunkReader::TIndexComparator
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Helper class aimed to asynchronously initialize the internals of TChunkReader.
-class TChunkReader::TInitializer
-    : public TRefCounted
+class TChunkReader::TRegularInitializer
+    : public TChunkReader::IInitializer
 {
 public:
-    typedef TIntrusivePtr<TInitializer> TPtr;
-
-    TInitializer(
+    TRegularInitializer(
         TSequentialReaderConfigPtr config,
         TChunkReaderPtr chunkReader, 
         NChunkClient::IAsyncReaderPtr asyncReader,
         const NProto::TReadLimit& startLimit,
-        const NProto::TReadLimit& endLimit,
-        int partitionTag)
+        const NProto::TReadLimit& endLimit)
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
@@ -121,7 +134,6 @@ public:
         , StartLimit(startLimit)
         , EndLimit(endLimit)
         , HasRangeRequest(false)
-        , PartitionTag(partitionTag)
         , Logger(TableClientLogger)
     { }
 
@@ -142,8 +154,6 @@ public:
             (StartLimit.has_key() && (StartLimit.key().parts_size() > 0)) ||
             (EndLimit.has_key() && (EndLimit.key().parts_size() > 0));
 
-        YASSERT(PartitionTag == DefaultPartitionTag || !HasRangeRequest);
-
         if (HasRangeRequest) {
             tags.push_back(GetProtoExtensionTag<NProto::TIndexExt>());
         }
@@ -153,7 +163,7 @@ public:
         }
 
         AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(BIND(
-            &TInitializer::OnGotMeta, 
+            &TRegularInitializer::OnGotMeta, 
             MakeStrong(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
     }
 
@@ -277,8 +287,6 @@ private:
         ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(
             result.Value().extensions());
 
-        YASSERT(PartitionTag == DefaultPartitionTag || ChannelsExt->items_size() == 1);
-
         SelectChannels(chunkReader);
         YASSERT(SelectedChannels.size() > 0);
 
@@ -298,7 +306,7 @@ private:
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
         chunkReader->SequentialReader->AsyncNextBlock().Subscribe(
-            BIND(&TInitializer::OnStartingBlockReceived, MakeWeak(this), 0)
+            BIND(&TRegularInitializer::OnStartingBlockReceived, MakeWeak(this), 0)
             .Via(ReaderThread->GetInvoker()));
     }
 
@@ -365,13 +373,11 @@ private:
                 YASSERT(blockIndex < static_cast<int>(protoChannel.blocks_size()));
                 const auto& protoBlock = protoChannel.blocks(blockIndex);
 
-                YASSERT((protoBlock.partition_tag() == DefaultPartitionTag) == (PartitionTag == DefaultPartitionTag));
-
 
                 startRow = lastRow;
                 lastRow += protoBlock.row_count();
 
-                if (lastRow > StartRowIndex && protoBlock.partition_tag() == PartitionTag) {
+                if (lastRow > StartRowIndex) {
                     blockHeap.push_back(TBlockInfo(
                         protoBlock.block_index(),
                         blockIndex,
@@ -415,24 +421,17 @@ private:
 
             while (nextBlockIndex < protoChannel.blocks_size()) {
                 const auto& protoBlock = protoChannel.blocks(nextBlockIndex);
-                YASSERT((protoBlock.partition_tag() == DefaultPartitionTag && PartitionTag == DefaultPartitionTag) ||
-                    (protoBlock.partition_tag() != DefaultPartitionTag && PartitionTag != DefaultPartitionTag));
-
+                
                 lastRow += protoBlock.row_count();
+                blockHeap.push_back(TBlockInfo(
+                    protoBlock.block_index(),
+                    nextBlockIndex,
+                    currentBlock.ChannelIndex,
+                    lastRow));
 
-                if (protoBlock.partition_tag() != PartitionTag) {
-                    ++nextBlockIndex;
-                } else {
-                    blockHeap.push_back(TBlockInfo(
-                        protoBlock.block_index(),
-                        nextBlockIndex,
-                        currentBlock.ChannelIndex,
-                        lastRow));
-
-                    std::push_heap(blockHeap.begin(), blockHeap.end());
-                    result.push_back(protoBlock.block_index());
-                    break;
-                }
+                std::push_heap(blockHeap.begin(), blockHeap.end());
+                result.push_back(protoBlock.block_index());
+                break;
             }
         }
 
@@ -481,7 +480,7 @@ private:
         if (selectedChannelIndex < SelectedChannels.size()) {
             chunkReader->SequentialReader->AsyncNextBlock()
                 .Subscribe(BIND(
-                    &TInitializer::OnStartingBlockReceived, 
+                    &TRegularInitializer::OnStartingBlockReceived, 
                     MakeWeak(this), 
                     selectedChannelIndex)
                 .Via(ReaderThread->GetInvoker()));
@@ -511,7 +510,7 @@ private:
                 // eliminate unnecessary calls to Subscribe and BIND.
                 if (!result.IsSet()) {
                     result.Subscribe(
-                        BIND(&TInitializer::ValidateRow, MakeWeak(this))
+                        BIND(&TRegularInitializer::ValidateRow, MakeWeak(this))
                         .Via(ReaderThread->GetInvoker()));
                     return;
                 }
@@ -552,8 +551,111 @@ private:
      */
     std::vector<i64> StartRows;
     bool HasRangeRequest;
+};
 
-    int PartitionTag;
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkReader::TPartitionInitializer
+    : public TChunkReader::IInitializer
+{
+public:
+    TPartitionInitializer(
+        TSequentialReaderConfigPtr config,
+        TChunkReaderPtr chunkReader, 
+        NChunkClient::IAsyncReaderPtr asyncReader)
+        : SequentialConfig(config)
+        , AsyncReader(asyncReader)
+        , ChunkReader(chunkReader)
+        , Logger(TableClientLogger)
+    { }
+
+    void Initialize()
+    {
+        auto chunkReader = ChunkReader.Lock();
+        YASSERT(chunkReader);
+
+        Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
+        LOG_DEBUG("Initializing partition chunk reader");
+
+        std::vector<int> tags;
+        tags.reserve(10);
+        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>());
+        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
+        tags.push_back(GetProtoExtensionTag<NProto::TChannelsExt>());
+
+        AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(BIND(
+            &TPartitionInitializer::OnGotMeta, 
+            MakeStrong(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
+    }
+
+    void OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)
+    {
+        auto chunkReader = ChunkReader.Lock();
+        if (!chunkReader)
+            return;
+
+        if (!result.IsOK()) {
+            LOG_WARNING("Failed to download chunk meta\n%s", ~result.GetMessage());
+            OnFail(result, chunkReader);
+            return;
+        }
+
+        LOG_DEBUG("Chunk meta received");
+
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
+            result.Value().extensions());
+
+        chunkReader->EndRowIndex = miscExt->row_count();
+        YASSERT(chunkReader->EndRowIndex > 0);
+        
+        chunkReader->Codec = GetCodec(ECodecId(miscExt->codec_id()));
+
+        auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(
+            result.Value().extensions());
+
+        YASSERT(channelsExt->items_size() == 1);
+
+        std::vector<int> blockIndexSequence;
+        for (int i = 0; i < channelsExt->items(0).blocks_size(); ++i) {
+            const auto& blockInfo = channelsExt->items(0).blocks(i);
+            if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
+                blockIndexSequence.push_back(i);
+            }
+        }
+
+        if (blockIndexSequence.empty()) {
+            LOG_DEBUG("Nothing to read for partition %d", chunkReader->PartitionTag);
+            chunkReader->Initializer.Reset();
+            chunkReader->State.FinishOperation();
+            chunkReader->CurrentRowIndex = chunkReader->EndRowIndex;
+            return;
+        }
+
+        chunkReader->SequentialReader = New<TSequentialReader>(
+            SequentialConfig,
+            blockIndexSequence,
+            AsyncReader,
+            GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(result.Value().extensions()));
+
+        LOG_DEBUG("Reading blocks [%s] for partition %d", 
+            ~JoinToString(blockIndexSequence),
+            chunkReader->PartitionTag);
+
+        chunkReader->ChannelReaders.push_back(New<TChannelReader>(
+            TChannel::FromProto(channelsExt->items(0).channel())));
+
+        chunkReader->CurrentRowIndex = -1;
+        chunkReader->DoNextRow().Subscribe(BIND(
+            &TChunkReader::OnRowFetched, 
+            chunkReader));
+
+        chunkReader->Initializer.Reset();
+    }
+
+    TSequentialReaderConfigPtr SequentialConfig;
+    NChunkClient::IAsyncReaderPtr AsyncReader;
+    TWeakPtr<TChunkReader> ChunkReader;
+    NLog::TTaggedLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -570,6 +672,7 @@ TChunkReader::TChunkReader(TSequentialReaderConfigPtr config,
     , SequentialReader(NULL)
     , Channel(channel)
     , CurrentRowIndex(-1)
+    , PartitionTag(partitionTag)
     , EndRowIndex(0)
     , Options(options)
     , RowAttributes(rowAttributes)
@@ -578,13 +681,19 @@ TChunkReader::TChunkReader(TSequentialReaderConfigPtr config,
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);
 
-    Initializer = New<TInitializer>(
-        config, 
-        this, 
-        chunkReader, 
-        startLimit, 
-        endLimit,
-        partitionTag);
+    if (PartitionTag == DefaultPartitionTag) {
+        Initializer = New<TRegularInitializer>(
+            config, 
+            this, 
+            chunkReader, 
+            startLimit, 
+            endLimit);
+    } else {
+        Initializer = New<TPartitionInitializer>(
+            config, 
+            this, 
+            chunkReader);
+    }
 }
 
 TAsyncError TChunkReader::AsyncOpen()
@@ -612,7 +721,7 @@ TAsyncError TChunkReader::AsyncNextRow()
     } else {
         asyncResult.Subscribe(BIND(&TChunkReader::OnRowFetched, MakeWeak(this)));
     }
-    
+
     return State.GetOperationError();
 }
 
@@ -627,10 +736,12 @@ void TChunkReader::OnRowFetched(TError error)
 
 TAsyncError TChunkReader::DoNextRow()
 {
+
     CurrentRowIndex = std::min(CurrentRowIndex + 1, EndRowIndex);
 
-    if (CurrentRowIndex == EndRowIndex)
-        return SuccessResult;
+    if (CurrentRowIndex == EndRowIndex) {
+         return SuccessResult;
+    }
 
     UsedRangeColumns.clear();
     FOREACH (auto& it, FixedColumns) {
@@ -661,12 +772,23 @@ TAsyncError TChunkReader::ContinueNextRow(
         channel->SetBlock(decompressedBlock);
     }
 
-    ++channelIndex;
+    bool rowFetched = true;
 
     while (channelIndex < ChannelReaders.size()) {
         auto& channel = ChannelReaders[channelIndex];
         if (!channel->NextRow()) {
-            YASSERT(SequentialReader->HasNext());
+
+            if (PartitionTag == DefaultPartitionTag) {
+                YASSERT(SequentialReader->HasNext());
+            } else  {
+                // Only one channel in partition chunk.
+                YASSERT(channelIndex == 0);
+                if (!SequentialReader->HasNext()) {
+                    // All blocks from this partition are read.
+                    CurrentRowIndex = EndRowIndex; // IsValid will now return false.
+                    break;
+                }
+            }
 
             if (result.IsSet()) {
                 // Possible when called directly from DoNextRow
@@ -683,7 +805,10 @@ TAsyncError TChunkReader::ContinueNextRow(
         ++channelIndex;
     }
 
-    MakeCurrentRow();
+    YASSERT(CurrentRowIndex < EndRowIndex || PartitionTag != DefaultPartitionTag);
+
+    if (CurrentRowIndex < EndRowIndex) 
+        MakeCurrentRow();
 
     if (!result.IsSet()) {
         result.Set(TError());
