@@ -17,6 +17,8 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NYTree;
 
+static NLog::TLogger& Logger = TableClientLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool operator < (const TNonOwningKey& key, const TOwningKey& partitionKey)
@@ -128,6 +130,7 @@ TAsyncError TPartitionChunkWriter::AsyncWriteRow(const TRow& row)
         rowDataSize += pair.first.size();
         rowDataSize += pair.second.size();
     }
+    channelWriter->EndRow();
 
     PartitionsExt.set_sizes(partitionTag, PartitionsExt.sizes(partitionTag) + rowDataSize);
     MiscExt.set_row_count(MiscExt.row_count() + 1);
