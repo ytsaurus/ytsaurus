@@ -44,6 +44,8 @@ void TTableChunkSequenceWriter::PrepareChunkWriter(TSession& newSession)
         newSession.RemoteWriter,
         Channels,
         KeyColumns);
+
+    newSession.ChunkWriter->AsyncOpen();
 }
 
 void TTableChunkSequenceWriter::InitCurrentSession(TSession nextSession)
