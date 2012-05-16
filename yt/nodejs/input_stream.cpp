@@ -7,6 +7,8 @@ namespace NYT {
 
 COMMON_V8_USES
 
+Persistent<FunctionTemplate> TNodeJSInputStream::ConstructorTemplate;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeJSInputStream::TNodeJSInputStream()
@@ -32,6 +34,34 @@ TNodeJSInputStream::~TNodeJSInputStream()
 
     CHECK_RETURN_VALUE(pthread_mutex_destroy(&Mutex));
     CHECK_RETURN_VALUE(pthread_cond_destroy(&Conditional));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNodeJSInputStream::Initialize(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    ConstructorTemplate = Persistent<FunctionTemplate>::New(
+        FunctionTemplate::New(TNodeJSInputStream::New));
+
+    ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
+    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSInputStream"));
+
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Push",  TNodeJSInputStream::Push );
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Sweep", TNodeJSInputStream::Sweep);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Close", TNodeJSInputStream::Close);
+
+    target->Set(String::NewSymbol("TNodeJSInputStream"), ConstructorTemplate->GetFunction());
+}
+
+bool TNodeJSInputStream::HasInstance(Handle<Value> value)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    return value->IsObject() && ConstructorTemplate->HasInstance(value->ToObject());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,24 +286,6 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
     EnqueueSweep();
 
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ExportInputStream(Handle<Object> target)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSInputStream::New);
-
-    tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Push",  TNodeJSInputStream::Push );
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Sweep", TNodeJSInputStream::Sweep);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Close", TNodeJSInputStream::Close);
-
-    tpl->SetClassName(String::NewSymbol("TNodeJSInputStream"));
-    target->Set(String::NewSymbol("TNodeJSInputStream"), tpl->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

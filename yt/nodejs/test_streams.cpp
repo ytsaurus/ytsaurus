@@ -144,8 +144,7 @@ TTestInputStream::TTestInputStream(TNodeJSInputStream* slave)
 
 TTestInputStream::~TTestInputStream()
 {
-    // Affinity: any?
-    TRACE_CURRENT_THREAD("??");
+    T_THREAD_AFFINITY_IS_V8();
 }
 
 Handle<Value> TTestInputStream::New(const Arguments& args)
@@ -154,6 +153,10 @@ Handle<Value> TTestInputStream::New(const Arguments& args)
     HandleScope scope;
 
     assert(args.Length() == 1);
+    if (!TNodeJSInputStream::HasInstance(args[0])) {
+        return ThrowException(Exception::TypeError(
+            String::New("Expected first argument to be a TINodeJSInputStream")));        
+    }
 
     TTestInputStream* host = new TTestInputStream(
         ObjectWrap::Unwrap<TNodeJSInputStream>(Local<Object>::Cast(args[0])));
@@ -335,8 +338,7 @@ TTestOutputStream::TTestOutputStream(TNodeJSOutputStream* slave)
 
 TTestOutputStream::~TTestOutputStream()
 {
-    // Affinity: any?
-    TRACE_CURRENT_THREAD("??");
+    T_THREAD_AFFINITY_IS_V8();
 }
 
 Handle<Value> TTestOutputStream::New(const Arguments& args)
@@ -345,6 +347,10 @@ Handle<Value> TTestOutputStream::New(const Arguments& args)
     HandleScope scope;
 
     assert(args.Length() == 1);
+    if (!TNodeJSInputStream::HasInstance(args[0])) {
+        return ThrowException(Exception::TypeError(
+            String::New("Expected first argument to be a TTestOutputStream")));        
+    }
 
     TTestOutputStream* host = new TTestOutputStream(
         ObjectWrap::Unwrap<TNodeJSOutputStream>(Local<Object>::Cast(args[0])));

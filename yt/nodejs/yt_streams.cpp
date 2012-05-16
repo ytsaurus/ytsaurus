@@ -18,8 +18,8 @@ void ExportYTStreams(Handle<Object> target)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    ExportInputStream(target);
-    ExportOutputStream(target);
+    TNodeJSInputStream::Initialize(target);
+    TNodeJSOutputStream::Initialize(target);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
