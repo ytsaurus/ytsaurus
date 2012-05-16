@@ -51,7 +51,7 @@ const TBlob* TBlobOutput::GetBlob() const
 
 TBlobOutput::TStoredType TBlobOutput::PutData(const TStringBuf& value)
 {
-    auto offset = value.size();
+    auto offset = GetSize();
     Write(value);
     return TStoredType(&Blob, offset, value.size());
 }
