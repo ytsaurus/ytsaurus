@@ -1,9 +1,12 @@
-var util    = require('util');
-var stream  = require('stream');
-var assert  = require('assert');
-var binding = require('./build/Release/yt_test');
+var util = require('util');
+var stream = require('stream');
+var assert = require('assert');
 
-var __EOF   = {};
+var binding = require('./build/Release/yt_streams');
+
+////////////////////////////////////////////////////////////////////////////////
+
+var __EOF = {};
 var __DBG;
 
 if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
@@ -15,7 +18,7 @@ if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtReadableStream() {
-    __DBG("Readable -> New")
+    __DBG("Readable -> New");
     stream.Stream.call(this);
 
     this.readable = true;
@@ -46,7 +49,15 @@ function YtReadableStream() {
     };
     this._binding.on_finish = function() {
         __DBG("Readable -> Bindings -> on_finish");
-        self._emitEnd();
+        if (!self.readable || self._ended) {
+            return;
+        }
+        if (self._paused || self._pending.length) {
+            self._pending.push(__EOF);
+        } else {
+            assert.ok(self._pending.length === 0);
+            self._emitEnd();
+        }
     };
 };
 
@@ -122,8 +133,6 @@ function YtWritableStream() {
 
     this._ended = false;
 
-    var self = this;
-
     this._binding = new binding.TNodeJSInputStream();
 };
 
@@ -168,7 +177,8 @@ YtWritableStream.prototype.end = function(chunk, encoding) {
     this.writable = false;
     this._ended = true;
 
-    this._emitClose();
+    var self = this;
+    process.nextTick(function() { self._emitClose(); });
 }
 
 YtWritableStream.prototype.destroy = function() {
