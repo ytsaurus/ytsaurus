@@ -203,7 +203,7 @@ public:
     template<class TOtherBuffer>
     void operator=(const TKey<TOtherBuffer>& other)
     {
-        if (static_cast<void*>(this) == static_cast<void*>(&other))
+        if (reinterpret_cast<const void*>(this) == reinterpret_cast<const void*>(&other))
             return;
 
         Reset(other.Parts.size());
