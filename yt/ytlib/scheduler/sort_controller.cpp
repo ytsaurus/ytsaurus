@@ -382,8 +382,8 @@ private:
             YASSERT(partitionChunk.partition_sizes_size() == Partitions.size());
             for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
                 auto partition = Partitions[index];
-                // Plus one is to ensure that weights are positive.
-                i64 weight = partitionChunk.partition_sizes(index) + 1;
+                // TODO(babenko): fixme, use meta
+                i64 weight = partitionChunk.partition_sizes(index);
                 // TODO(babenko): avoid excessive copying
                 auto pooledChunk = New<TPooledChunk>(partitionChunk.chunk(), weight);
                 AddPendingChunkForSort(partition, pooledChunk);
@@ -533,12 +533,9 @@ private:
                 const auto& table = InputTables[tableIndex];
 
                 auto fetchRsp = table.FetchResponse;
-                FOREACH (const auto& chunk, *fetchRsp->mutable_chunks()) {
-                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-                    i64 dataSize = miscExt->uncompressed_data_size();
-
-                    // Plus one is to ensure that weights are positive.
-                    i64 weight = dataSize + 1;
+                FOREACH (const auto& chunk, fetchRsp->chunks()) {
+                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                    i64 weight = miscExt->data_weight();
 
                     TotalPartitionWeight += weight;
                     ++TotalPartitionChunkCount;
@@ -579,20 +576,21 @@ private:
         int sampleCount = static_cast<int>(samples.size());
         LOG_INFO("Sorting %d samples", sampleCount);
 
-        SortedSamples.resize(sampleCount);
-        for (int index = 0; index < sampleCount; ++index) {
-            SortedSamples[index] = &samples[index];
+        SortedSamples.reserve(sampleCount);
+        FOREACH (const auto& sample, samples) {
+            SortedSamples.push_back(&sample);
         }
 
-        std::sort(
-            SortedSamples.begin(),
-            SortedSamples.end());
+        std::sort(SortedSamples.begin(), SortedSamples.end());
     }
 
     void BuildPartitions()
     {
-        FOREACH (const auto* sample, SortedSamples) {
-            TotalSortWeight += sample->data_size_since_previous() + 1;
+        FOREACH (const auto& table, InputTables) {
+            FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
+                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                TotalSortWeight += miscExt->data_weight();
+            }
         }
         PendingSortWeight = TotalSortWeight;
 
@@ -615,13 +613,6 @@ private:
             BuildMulitplePartitions(partitionCount);
         }
 
-        // Compute sort job count.
-        FOREACH (auto partition, Partitions) {
-            i64 weight = partition->SortChunkPool->GetTotalWeight();
-            i64 weightPerJob = Config->MaxSortJobDataSize;
-            TotalSortJobCount += static_cast<int>(ceil((double) weight / weightPerJob));
-        }
-
         // Init output trees.
         {
             auto& table = OutputTables[0];
@@ -638,24 +629,32 @@ private:
         Partitions.resize(1);
         auto partition = Partitions[0] = New<TPartition>(0);
 
-        // Put all input chunks into this unique partition.
-        TotalSortWeight = 0;
+        // There will be no partition jobs, reset partition counters.
         TotalPartitionChunkCount = 0;
         TotalPartitionWeight = 0;
+        PartitionChunkPool.Destroy();
+
+        // Put all input chunks into this unique partition.
+        TotalSortWeight = 0;
+        int totalSortChunkCount = 0;
         FOREACH (const auto& table, InputTables) {
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
-                auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-                i64 dataSize = miscExt->uncompressed_data_size();
-                // Plus one is to ensure that weights are positive.
-                i64 weight = dataSize + 1;
+                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                i64 weight = miscExt->uncompressed_data_size();
                 auto pooledChunk = New<TPooledChunk>(chunk, weight);
                 AddPendingChunkForSort(partition, pooledChunk);
                 TotalSortWeight += weight;
+                ++totalSortChunkCount;
             }
         }
 
+        // Init counters.
         PendingSortWeight = TotalSortWeight;
-        PartitionChunkPool.Destroy();
+        TotalSortJobCount = GetJobCount(
+            TotalSortWeight,
+            Config->MaxSortJobDataSize,
+            Null,
+            totalSortChunkCount);
 
         LOG_INFO("Sorting without partitioning");
     }
@@ -663,45 +662,22 @@ private:
     void BuildMulitplePartitions(int partitionCount)
     {
         // Take partition keys evenly.
-        int samplesRemaining = partitionCount - 1;
-        i64 weightRemaining = TotalSortWeight;
-        i64 weightCurrent = 0;
-        i64 weightMin = std::numeric_limits<i64>::max();
-        i64 weightMax = std::numeric_limits<i64>::min();
-        int index = 0;
-        while (index < static_cast<int>(SortedSamples.size())) {
-            // Check current weight against the threshold.
-            i64 weightThreshold = weightRemaining / (samplesRemaining + 1);
-            if (weightCurrent >= weightThreshold) {
-                PartitionKeys.push_back(&SortedSamples[index]->key());
-                weightMin = std::min(weightMin, weightCurrent);
-                weightMax = std::max(weightMax, weightCurrent);
-                weightRemaining -= weightCurrent;
-                weightCurrent = 0;
-                --samplesRemaining;
-                if (samplesRemaining == 0) {
-                    break;
-                }
+        for (int partIndex = 0; partIndex < partitionCount - 1; ++partIndex) {
+            int sampleIndex = (partIndex + 1) * SortedSamples.size() / partitionCount;
+            auto* key = SortedSamples[sampleIndex];
+            // Avoid producing same keys.
+            if (PartitionKeys.empty() || CompareKeys(*key, *SortedSamples.back()) != 0) {
+                PartitionKeys.push_back(key);
             }
-            // Handle range of equal samples.
-            do {
-                weightCurrent += SortedSamples[index]->data_size_since_previous() + 1;
-                ++index;
-            } while (
-                index < static_cast<int>(SortedSamples.size()) &&
-                CompareKeys(SortedSamples[index]->key(), SortedSamples[index - 1]->key()) == 0);
         }
-        // Handle the final partition.
-        weightMin = std::min(weightMin, weightRemaining);
-        weightMax = std::max(weightMax, weightRemaining);
 
         // Do the final adjustments.
         partitionCount = static_cast<int>(PartitionKeys.size()) + 1;
 
         // Prepare partitions.
         Partitions.resize(partitionCount);
-        for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
-            Partitions[index] = New<TPartition>(index);
+        for (int partIndex = 0; partIndex < static_cast<int>(Partitions.size()); ++partIndex) {
+            Partitions[partIndex] = New<TPartition>(partIndex);
         }
 
         // Init counters.
@@ -712,11 +688,14 @@ private:
             TotalPartitionChunkCount);
         PendingPartitionWeight = TotalPartitionWeight;
         PendingPartitionChunkCount = TotalPartitionChunkCount;
+        // A very rough estimate.
+        TotalSortJobCount = GetJobCount(
+            TotalPartitionWeight,
+            Config->MaxSortJobDataSize,
+            Null,
+            std::numeric_limits<int>::max()) + partitionCount;
 
-        LOG_INFO("Sorting with %d partitions (MinWeight: %" PRId64 ", MaxWeight: %" PRId64 ")",
-            partitionCount,
-            weightMin,
-            weightMax);
+        LOG_INFO("Sorting with %d partitions", partitionCount);
     }
 
     void OnSamplesReceived()
