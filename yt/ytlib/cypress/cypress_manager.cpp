@@ -985,8 +985,10 @@ TYPath TCypressManager::GetNodePath(
 TYPath TCypressManager::GetNodePath(const TVersionedNodeId& id)
 {
     auto transactionManager = Bootstrap->GetTransactionManager();
-    auto& transaction = transactionManager->GetTransaction(id.TransactionId);
-    return GetNodePath(id.ObjectId, &transaction);
+    auto* transaction = id.TransactionId == NullTransactionId
+        ? NULL
+        : &transactionManager->GetTransaction(id.TransactionId);
+    return GetNodePath(id.ObjectId, transaction);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

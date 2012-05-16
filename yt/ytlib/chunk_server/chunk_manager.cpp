@@ -1407,6 +1407,7 @@ private:
         yhash_set<TChunkTreeRef> visitedRefs;
         GetChunkRefOwningNodes(chunkRef, visitedRefs, &owningNodes);
 
+        // Converting ids to paths
         std::vector<TYPath> paths;
         FOREACH (auto* node, owningNodes) {
             paths.push_back(cypressManager->GetNodePath(node->GetId()));
