@@ -93,8 +93,6 @@ TJobResult TSortJob::Run()
         yhash_map<TStringBuf, int> keyColumnToIndex;
 
         // TODO(babenko): call sortBuffer.reserve
-
-        LOG_INFO("Initializing");
         {
             for (int i = 0; i < KeyColumns.size(); ++i) {
                 TStringBuf name(~KeyColumns[i], KeyColumns[i].size());

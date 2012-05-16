@@ -381,6 +381,7 @@ private:
         FOREACH (const auto& partitionChunk, result.chunks()) {
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
             YASSERT(partitionsExt->sizes_size() == Partitions.size());
+            LOG_DEBUG("Partition sizes from some job %s", partitionsExt->DebugString().c_str());
             for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
                 i64 weight = partitionsExt->sizes(index);
                 if (weight > 0) {
@@ -671,6 +672,10 @@ private:
             if (PartitionKeys.empty() || CompareKeys(*key, *SortedSamples.back()) != 0) {
                 PartitionKeys.push_back(key);
             }
+        }
+
+        FOREACH(const auto* key, PartitionKeys) {
+            LOG_DEBUG("Partition key: %s", key->DebugString().c_str());
         }
 
         // Do the final adjustments.
