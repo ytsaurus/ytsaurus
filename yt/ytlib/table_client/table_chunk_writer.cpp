@@ -42,9 +42,7 @@ TTableChunkWriter::TTableChunkWriter(
     , CurrentSize(0)
     , SentSize(0)
     , UncompressedSize(0)
-    , DataSize(0)
-    , RowCountSinceLastSample(0)
-    , DataSizeSinceLastSample(0)
+    , DataWeight(0)
     , SamplesSize(0)
     , IndexSize(0)
     , CompressionRatio(config->EstimatedCompressionRatio)
@@ -110,15 +108,15 @@ TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
 
-    i64 rowDataSize = 0;
+    i64 rowDataWeight = 1;
     FOREACH (const auto& pair, row) {
         auto it = ColumnIndexes.find(pair.first);
         auto columnIndex = it == ColumnIndexes.end() 
             ? TChannelWriter::UnknownIndex 
             : it->second;
 
-        rowDataSize += pair.first.size();
-        rowDataSize += pair.second.size();
+        rowDataWeight += pair.first.size();
+        rowDataWeight += pair.second.size();
 
         FOREACH (const auto& writer, ChannelWriters) {
             writer->Write(columnIndex, pair.first, pair.second);
@@ -143,14 +141,9 @@ TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key
         } 
     }
 
-    DataSize += rowDataSize;
-    if (SamplesSize < Config->SampleRate * DataSize * CompressionRatio) {
+    DataWeight += rowDataWeight;
+    if (SamplesSize < Config->SampleRate * DataWeight * CompressionRatio) {
         EmitSample(row);
-        RowCountSinceLastSample = 0;
-        DataSizeSinceLastSample = 0;
-    } else {
-        ++RowCountSinceLastSample;
-        DataSizeSinceLastSample += rowDataSize;
     }
 
     if (KeyColumns) {
@@ -160,7 +153,7 @@ TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key
             *BoundaryKeysExt.mutable_left() = key.ToProto();
         }
 
-        if (IndexSize < Config->IndexRate * DataSize * CompressionRatio) {
+        if (IndexSize < Config->IndexRate * DataWeight * CompressionRatio) {
             EmitIndexEntry();
         }
     }
@@ -185,7 +178,7 @@ TSharedRef TTableChunkWriter::PrepareBlock(int channelIndex)
 
     SentSize += data.Size();
 
-    CompressionRatio = SentSize / double(DataSize + 1);
+    CompressionRatio = SentSize / double(DataWeight + 1);
 
     ++CurrentBlockIndex;
 
@@ -261,6 +254,7 @@ TAsyncError TTableChunkWriter::AsyncClose()
     {
         MiscExt.set_uncompressed_data_size(UncompressedSize);
         MiscExt.set_compressed_data_size(SentSize);
+        MiscExt.set_data_weight(DataWeight);
         MiscExt.set_meta_size(Meta.ByteSize());
         SetProtoExtension(Meta.mutable_extensions(), MiscExt);
     }
@@ -331,9 +325,6 @@ void TTableChunkWriter::EmitSample(TRow& row)
                 break;
         }
     }
-
-    item->set_row_count_since_previous(RowCountSinceLastSample);
-    item->set_data_size_since_previous(DataSizeSinceLastSample);
 }
 
 NChunkHolder::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const

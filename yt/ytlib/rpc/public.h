@@ -10,10 +10,10 @@ namespace NRpc {
 class IServer;
 typedef TIntrusivePtr<IServer> IServerPtr;
 
-class IService;
+struct IService;
 typedef TIntrusivePtr<IService> IServicePtr;
 
-class IChannel;
+struct IChannel;
 typedef TIntrusivePtr<IChannel> IChannelPtr;
 
 class TChannelCache;

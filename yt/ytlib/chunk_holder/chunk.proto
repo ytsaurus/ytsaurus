@@ -36,6 +36,9 @@ message TMiscExt
     // Total size of blocks with data sent to holder.
     optional int64 compressed_data_size = 5 [default = 0];
 
+    // Total size of (key column names + data size + 1) in each row.
+    optional int64 data_weight = 7 [default = 1]; // Must be greater than zero.
+
     // Size of chunk meta (without TMiscExt), obtained via ByteSize.
     optional int64 meta_size = 6 [default = 0];
 

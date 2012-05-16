@@ -91,7 +91,11 @@ private:
     virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TLockId::FromString(key);
-        return Bootstrap->GetObjectManager()->FindProxy(id);
+        if (Bootstrap->GetCypressManager()->FindLock(id)) {
+            return Bootstrap->GetObjectManager()->FindProxy(id);
+        } else {
+            return NULL;
+        }
     }
 };
 

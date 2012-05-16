@@ -160,7 +160,7 @@ protected:
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
             chunk->InputChunk.extensions());
 
-        TotalWeight += miscExt->uncompressed_data_size();
+        TotalWeight += miscExt->data_weight();
         ++TotalChunkCount;
         CurrentGroup->ChunkPool->Add(chunk);
         RegisterPendingChunk(CurrentGroup, chunk);
@@ -377,11 +377,11 @@ protected:
                 FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-                    i64 dataSize = miscExt->uncompressed_data_size();
+                    i64 weight = miscExt->data_weight();
                     i64 rowCount = miscExt->row_count();
-                    LOG_DEBUG("Processing chunk %s (DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
+                    LOG_DEBUG("Processing chunk %s (DataWeight: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
-                        dataSize,
+                        weight,
                         rowCount);
                     ProcessInputChunk(chunk);
                 }
@@ -494,9 +494,10 @@ protected:
             return true;
         }
 
-        // ToDo(psushin): mind that desired chunk size is for compressed chunk.
         auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-        if (misc->uncompressed_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
+        // so we have to be more flexible here.
+        if (0.9 * misc->compressed_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -559,9 +560,7 @@ private:
 
         // Merge is IO-bound, use data size as weight.
         auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-        auto pooledChunk = New<TPooledChunk>(
-            chunk,
-            misc->uncompressed_data_size());
+        auto pooledChunk = New<TPooledChunk>(chunk, misc->data_weight());
         AddPendingChunk(pooledChunk);
     }
 
@@ -640,9 +639,7 @@ private:
 
         // Merge is IO-bound, use data size as weight.
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-        auto pooledChunk = New<TPooledChunk>(
-            chunk,
-            miscExt->uncompressed_data_size());
+        auto pooledChunk = New<TPooledChunk>(chunk, miscExt->data_weight());
         AddPendingChunk(pooledChunk);
 
         EndGroupIfLarge();
@@ -767,9 +764,7 @@ private:
         FOREACH (auto chunk, chunks) {
             auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->extensions());
             // Merge is IO-bound, use data size as weight.
-            auto pooledChunk = New<TPooledChunk>(
-                *chunk,
-                miscExt->uncompressed_data_size());
+            auto pooledChunk = New<TPooledChunk>(*chunk, miscExt->data_weight());
             AddPendingChunk(pooledChunk);
         }
 

@@ -64,8 +64,9 @@ private:
 
     bool CheckFilter(const TChunkId& chunkId) const
     {
-        if (Filter == EChunkFilter::All)
-            return true;
+        if (Filter == EChunkFilter::All) {
+            return Bootstrap->GetChunkManager()->FindChunk(chunkId);
+        }
 
         const auto& chunkIds = GetFilteredChunkIds();
         return chunkIds.find(chunkId) != chunkIds.end();
@@ -170,7 +171,11 @@ private:
     virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TChunkListId::FromString(key);
-        return Bootstrap->GetObjectManager()->GetProxy(id, NULL);
+        if (Bootstrap->GetChunkManager()->FindChunkList(id)) {
+            return Bootstrap->GetObjectManager()->GetProxy(id);
+        } else {
+            return NULL;
+        }
     }
 };
 

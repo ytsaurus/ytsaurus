@@ -621,17 +621,37 @@ private:
 
     void SetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
     {
-        if (childRef.GetType() == EObjectType::ChunkList) {
-            auto* childChunkList = childRef.AsChunkList();
-            YVERIFY(childChunkList->Parents().insert(&parent).second);
+        switch (childRef.GetType()) {
+            case EObjectType::Chunk:
+                childRef.AsChunk()->Parents().push_back(&parent);
+                break;
+            case EObjectType::ChunkList:
+                childRef.AsChunkList()->Parents().insert(&parent);
+                break;
+            default:
+                YUNREACHABLE();
         }
     }
 
     void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
     {
-        if (childRef.GetType() == EObjectType::ChunkList) {
-            auto* childChunkList = childRef.AsChunkList();
-            YVERIFY(childChunkList->Parents().erase(&parent) == 1);
+        switch (childRef.GetType()) {
+            case EObjectType::Chunk: {
+                auto& parents = childRef.AsChunk()->Parents();
+                auto it = std::find(parents.begin(), parents.end(), &parent);
+                YASSERT(it != parents.end());
+                parents.erase(it);
+                break;
+            }
+            case EObjectType::ChunkList: {
+                auto& parents = childRef.AsChunkList()->Parents();
+                auto it = parents.find(&parent);
+                YASSERT(it != parents.end());
+                parents.erase(it);
+                break;
+            }
+            default:
+                YUNREACHABLE();
         }
     }
 

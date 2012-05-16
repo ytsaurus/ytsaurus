@@ -22,6 +22,7 @@
 #include <ytlib/scheduler/helpers.h>
 
 #include <util/folder/dirut.h>
+#include <util/stream/format.h>
 
 namespace NYT {
 
@@ -29,6 +30,7 @@ using namespace NYTree;
 using namespace NScheduler;
 using namespace NDriver;
 using namespace NObjectServer;
+using namespace NScheduler;
 using namespace NRpc;
 
 static const char* UserConfigFileName = ".ytdriver.conf";
@@ -572,10 +574,12 @@ public:
     TOperationTracker(
         TArgsParserBase::TConfig::TPtr config,
         IDriverPtr driver,
-        const TOperationId& operationId)
+        const TOperationId& operationId,
+        EOperationType operationType)
         : Config(config)
         , Driver(driver)
         , OperationId(operationId)
+        , OperationType(operationType)
     { }
 
     void Run()
@@ -608,6 +612,7 @@ private:
     TArgsParserBase::TConfig::TPtr Config;
     IDriverPtr Driver;
     TOperationId OperationId;
+    EOperationType OperationType;
 
     // TODO(babenko): refactor
     // TODO(babenko): YPath and RPC responses currently share no base class.
@@ -618,6 +623,61 @@ private:
             return;
 
         ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+    }
+
+    static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const TYson& progress)
+    {
+        i64 jobsTotal = DeserializeFromYson<i64>(progress, "/total");
+        if (jobsTotal == 0) {
+            return;
+        }
+        
+        i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/completed");
+        int percentComplete  = (jobsCompleted * 100) / jobsTotal;
+
+        if (!out->empty()) {
+            out->append(", ");
+        }
+
+        out->append(Sprintf("%3d%% ", percentComplete));
+        if (!phase.empty()) {
+            out->append(phase);
+            out->append(' ');
+        }
+
+        out->append("done ");
+
+        // Some simple pretty-printing.
+        int totalWidth = ToString(jobsTotal).length();
+        out->append("(");
+        out->append(ToString(LeftPad(ToString(jobsCompleted), totalWidth)));
+        out->append(" of ");
+        out->append(ToString(jobsTotal));
+        out->append(")");
+    }
+
+    Stroka FormatProgress(const TYson& progress)
+    {
+        // TODO(babenko): refactor
+        auto progressAttributes = IAttributeDictionary::FromMap(DeserializeFromYson(progress)->AsMap());
+        Stroka result;
+        switch (OperationType) {
+            case EOperationType::Map:
+            case EOperationType::Merge:
+            case EOperationType::Erase:
+                AppendPhaseProgress(&result, "", progressAttributes->GetYson("jobs"));
+                break;
+                                        
+            case EOperationType::Sort:
+                AppendPhaseProgress(&result, "partition", progressAttributes->GetYson("partition_jobs"));
+                AppendPhaseProgress(&result, "sort", progressAttributes->GetYson("sort_jobs"));
+                AppendPhaseProgress(&result, "merge", progressAttributes->GetYson("merge_jobs"));
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+        return result;
     }
 
     void DumpProgress()
@@ -655,14 +715,9 @@ private:
         }
 
         if (state == EOperationState::Running) {
-            i64 jobsTotal = DeserializeFromYson<i64>(progress, "/jobs/total");
-            i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/jobs/completed");
-            int donePercentage  = (jobsCompleted * 100) / jobsTotal;
-            printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
+            printf("%s: %s\n",
                 ~state.ToString(),
-                donePercentage,
-                jobsCompleted,
-                jobsTotal);
+                ~FormatProgress(progress));
         } else {
             printf("%s\n", ~state.ToString());
         }
@@ -729,7 +784,7 @@ TError TStartOpArgsParser::Execute(const std::vector<std::string>& args)
     auto operationId = DeserializeFromYson<TOperationId>(driverHost.GetOutput());
     printf("done, %s\n", ~operationId.ToString());
 
-    TOperationTracker tracker(config, driver, operationId);
+    TOperationTracker tracker(config, driver, operationId, GetOperationType());
     tracker.Run();
 
     return TError();
@@ -772,6 +827,11 @@ Stroka TMapArgsParser::GetDriverCommandName() const
     return "map";
 }
 
+EOperationType TMapArgsParser::GetOperationType() const
+{
+    return EOperationType::Map;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMergeArgsParser::TMergeArgsParser()
@@ -808,6 +868,11 @@ Stroka TMergeArgsParser::GetDriverCommandName() const
     return "merge";
 }
 
+EOperationType TMergeArgsParser::GetOperationType() const
+{
+    return EOperationType::Merge;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortArgsParser::TSortArgsParser()
@@ -841,6 +906,11 @@ Stroka TSortArgsParser::GetDriverCommandName() const
     return "sort";
 }
 
+EOperationType TSortArgsParser::GetOperationType() const
+{
+    return EOperationType::Sort;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEraseArgsParser::TEraseArgsParser()
@@ -872,6 +942,11 @@ void TEraseArgsParser::BuildRequest(IYsonConsumer* consumer)
 Stroka TEraseArgsParser::GetDriverCommandName() const
 {
     return "erase";
+}
+
+EOperationType TEraseArgsParser::GetOperationType() const
+{
+    return EOperationType::Erase;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

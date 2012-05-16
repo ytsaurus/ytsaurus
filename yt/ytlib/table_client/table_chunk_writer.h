@@ -79,13 +79,7 @@ private:
     i64 UncompressedSize;
 
     //! Approximate data size counting all written rows.
-    i64 DataSize;
-
-    //! Number of written rows since the last sample.
-    i64 RowCountSinceLastSample;
-
-    //! Approximate data size counting all rows since the last sample.
-    i64 DataSizeSinceLastSample;
+    i64 DataWeight;
 
     TKey<TBlobOutput> LastKey;
 

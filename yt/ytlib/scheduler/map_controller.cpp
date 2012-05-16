@@ -191,8 +191,6 @@ private:
             
             // Compute statistics and populate the pool.
             i64 totalRowCount = 0;
-            i64 totalDataSize = 0;
-
             ChunkPool = CreateUnorderedChunkPool();
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
@@ -217,14 +215,10 @@ private:
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
 
                     i64 rowCount = miscExt->row_count();
-                    i64 dataSize = miscExt->uncompressed_data_size();
-
                     // TODO(babenko): make customizable
-                    // Plus one is to ensure that weights are positive.
-                    i64 weight = dataSize + 1;
+                    i64 weight = miscExt->data_weight();
 
                     totalRowCount += rowCount;
-                    totalDataSize += dataSize;
                     ++TotalChunkCount;
                     TotalWeight += weight;
 
@@ -254,9 +248,8 @@ private:
 
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (RowCount: %" PRId64 ", DataSize: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
+            LOG_INFO("Inputs processed (RowCount: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
                 totalRowCount,
-                totalDataSize,
                 TotalWeight,
                 TotalChunkCount,
                 TotalJobCount);
