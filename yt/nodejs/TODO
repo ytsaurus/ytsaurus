@@ -1,3 +1,6 @@
+- Build YSON from JS object.
+- Forward formats to the request structure.
+- Merge yt_streams and yt_driver into a single module.
 - There should be EventuallyUnref() method which is thread-safe and
   which eventually Unref()'s Ref()'ed object. Exactly this method
   should be used with TIntrusivePtr on C++ side.
