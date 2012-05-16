@@ -203,6 +203,7 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
         MiscExt.set_uncompressed_data_size(UncompressedSize);
         MiscExt.set_compressed_data_size(SentSize);
         MiscExt.set_meta_size(Meta.ByteSize());
+        MiscExt.set_codec_id(Config->CodecId);
         SetProtoExtension(Meta.mutable_extensions(), MiscExt);
     }
 
