@@ -982,6 +982,13 @@ TYPath TCypressManager::GetNodePath(
     return GetNodePath(GetVersionedNodeProxy(nodeId, transaction));
 }
 
+TYPath TCypressManager::GetNodePath(const TVersionedNodeId& id)
+{
+    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto& transaction = transactionManager->GetTransaction(id.TransactionId);
+    return GetNodePath(id.ObjectId, &transaction);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress

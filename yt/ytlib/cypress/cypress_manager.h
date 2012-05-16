@@ -93,6 +93,7 @@ public:
     NYTree::TYPath GetNodePath(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction);
+    NYTree::TYPath GetNodePath(const TVersionedNodeId& id);
 
     DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
     DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);

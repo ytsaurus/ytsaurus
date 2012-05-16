@@ -57,6 +57,7 @@ using namespace NObjectServer;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NChunkHolder::NProto;
+using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1369,6 +1370,47 @@ private:
         }
     }
 
+    void GetChunkRefOwningNodes(
+        TChunkTreeRef chunkRef,
+        yhash_set<TChunkTreeRef>& visitedRefs,
+        yhash_set<ICypressNode*>* owningNodes)
+    {
+        if (!visitedRefs.insert(chunkRef).second) {
+            return;
+        }
+        switch (chunkRef.GetType()) {
+            case EObjectType::Chunk: {
+                FOREACH (auto* parent, chunkRef.AsChunk()->Parents()) {
+                    GetChunkRefOwningNodes(TChunkTreeRef(parent), visitedRefs, owningNodes);
+                }
+                break;
+            }
+            case EObjectType::ChunkList: {
+                auto* chunkList = chunkRef.AsChunkList();
+                owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
+                FOREACH (auto* parent, chunkList->Parents()) {
+                    GetChunkRefOwningNodes(TChunkTreeRef(parent), visitedRefs, owningNodes);
+                }
+                break;
+            }
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void GetChunkRefOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
+    {
+        yhash_set<ICypressNode*> owningNodes;
+        yhash_set<TChunkTreeRef> visitedRefs;
+        GetChunkRefOwningNodes(chunkRef, visitedRefs, &owningNodes);
+        consumer->OnBeginList();
+        FOREACH (auto* node, owningNodes) {
+            consumer->OnListItem();
+            consumer->OnStringScalar(node->GetId().ToString());
+        }
+        consumer->OnEndList();
+    }
+
 };
 
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
@@ -1423,6 +1465,7 @@ private:
         attributes->push_back(TAttributeInfo("sorted", miscExt->has_sorted()));
         attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
+        attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         TBase::GetSystemAttributes(attributes);
     }
 
@@ -1522,6 +1565,11 @@ private:
                     .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
                 return true;
             }
+        }
+
+        if (name == "owning_nodes") {
+            Owner->GetChunkRefOwningNodes(TChunkTreeRef(const_cast<TChunk*>(&chunk)), consumer);
+            return true;
         }
 
         return TBase::GetSystemAttribute(name, consumer);
@@ -1692,6 +1740,7 @@ private:
         attributes->push_back("chunk_count");
         attributes->push_back("rank");
         attributes->push_back(TAttributeInfo("tree", true, true));
+        attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         TBase::GetSystemAttributes(attributes);
     }
 
@@ -1777,6 +1826,11 @@ private:
 
         if (name == "tree") {
             BuildTree(TChunkTreeRef(const_cast<TChunkList*>(&chunkList)), consumer);
+            return true;
+        }
+
+        if (name == "owning_nodes") {
+            Owner->GetChunkRefOwningNodes(TChunkTreeRef(const_cast<TChunkList*>(&chunkList)), consumer);
             return true;
         }
 
