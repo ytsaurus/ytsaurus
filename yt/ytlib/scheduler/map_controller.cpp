@@ -103,22 +103,20 @@ private:
         jip->ExtractResult = ChunkPool->Extract(
             node->GetAddress(),
             weightThreshold,
-            std::numeric_limits<int>::max(),
             false);
-        YASSERT(jip->ExtractResult);
 
-        LOG_DEBUG("Extracted %d chunks for map at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-            static_cast<int>(jip->ExtractResult->Chunks.size()),
+        LOG_DEBUG("Extracted %d chunks for map at node %s (LocalChunkCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+            jip->ExtractResult->LocalChunkCount,
             ~node->GetAddress(),
-            jip->ExtractResult->LocalCount,
-            jip->ExtractResult->Weight,
+            jip->ExtractResult->LocalChunkCount,
+            jip->ExtractResult->TotalChunkWeight,
             weightThreshold);
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
         auto* mapJobSpec = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
-        FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
-            *mapJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
+        FOREACH (const auto& stripe, jip->ExtractResult->Stripes) {
+            *mapJobSpec->mutable_input_spec()->add_chunks() = stripe->InputChunks[0];
         }
         FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
             auto chunkListId = ChunkListPool->Extract();
@@ -127,8 +125,8 @@ private:
         }
 
         // Update running counters.
-        PendingChunkCount -= jip->ExtractResult->Chunks.size();
-        PendingWeight -= jip->ExtractResult->Weight;
+        PendingChunkCount -= jip->ExtractResult->LocalChunkCount;
+        PendingWeight -= jip->ExtractResult->TotalChunkWeight;
 
         return CreateJob(
             jip,
@@ -140,8 +138,8 @@ private:
 
     void OnJobCompleted(TMapJobInProgress* jip)
     {
-        CompletedChunkCount += jip->ExtractResult->Chunks.size();
-        CompletedWeight += jip->ExtractResult->Weight;
+        CompletedChunkCount += jip->ExtractResult->TotalChunkCount;
+        CompletedWeight += jip->ExtractResult->TotalChunkWeight;
 
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jip->ChunkListIds[index];
@@ -151,11 +149,10 @@ private:
 
     void OnJobFailed(TMapJobInProgress* jip)
     {
-        PendingChunkCount += jip->ExtractResult->Chunks.size();
-        PendingWeight += jip->ExtractResult->Weight;
+        PendingChunkCount += jip->ExtractResult->TotalChunkCount;
+        PendingWeight += jip->ExtractResult->TotalChunkWeight;
 
-        LOG_DEBUG("Returned %d chunks into pool",
-            static_cast<int>(jip->ExtractResult->Chunks.size()));
+        LOG_DEBUG("Returned %d chunks into pool", jip->ExtractResult->TotalChunkCount);
         ChunkPool->PutBack(jip->ExtractResult);
 
         ReleaseChunkLists(jip->ChunkListIds);
@@ -222,8 +219,8 @@ private:
                     ++TotalChunkCount;
                     TotalWeight += weight;
 
-                    auto pooledChunk = New<TPooledChunk>(chunk, weight);
-                    ChunkPool->Add(pooledChunk);
+                    auto stripe = New<TChunkStripe>(chunk, weight);
+                    ChunkPool->Add(stripe);
                 }
             }
 
