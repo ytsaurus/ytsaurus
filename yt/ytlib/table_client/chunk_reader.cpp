@@ -773,6 +773,7 @@ TAsyncError TChunkReader::ContinueNextRow(
     }
 
     bool rowFetched = true;
+    ++channelIndex;
 
     while (channelIndex < ChannelReaders.size()) {
         auto& channel = ChannelReaders[channelIndex];
@@ -780,7 +781,7 @@ TAsyncError TChunkReader::ContinueNextRow(
 
             if (PartitionTag == DefaultPartitionTag) {
                 YASSERT(SequentialReader->HasNext());
-            } else  {
+            } else {
                 // Only one channel in partition chunk.
                 YASSERT(channelIndex == 0);
                 if (!SequentialReader->HasNext()) {
