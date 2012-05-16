@@ -14,6 +14,8 @@ void DeleteCallback(char* data, void* hint)
 
 COMMON_V8_USES
 
+Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
+
 static Persistent<String> OnWriteSymbol;
 static Persistent<String> OnFlushSymbol;
 static Persistent<String> OnFinishSymbol;

@@ -11,7 +11,7 @@ def configure(conf):
   conf.check_tool('node_addon')
 
 def build(bld):
-  CXXFLAGS = [ '-std=gnu++0x' ]
+  CXXFLAGS = [ '-g', '-std=gnu++0x' ]
   SOURCES = [
     'common.cpp',
     'input_stream.cpp',
@@ -27,9 +27,9 @@ def build(bld):
   obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   obj.cxxflags = CXXFLAGS
   obj.target = 'yt_driver'
-  obj.source = SOURCES + [ 'yt_driver.cpp' ]
+  obj.source = [ 'yt_driver.cpp' ]
 
   obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
   obj.cxxflags = CXXFLAGS
   obj.target = 'test_streams'
-  obj.source = SOURCES + [ 'test_streams.cpp' ]
+  obj.source = [ 'test_streams.cpp' ]
