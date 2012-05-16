@@ -95,6 +95,9 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         sizeof(NChunkHolder::NProto::TChunkMeta);
 }
 
+TPartitionChunkWriter::~TPartitionChunkWriter()
+{ }
+
 TAsyncError TPartitionChunkWriter::AsyncWriteRow(const TRow& row)
 {
     YASSERT(!IsClosed);
