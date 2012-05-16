@@ -1,5 +1,5 @@
 var connect = require("connect");
-var app     = require("./srv");
+var app = require("./srv");
 
 connect()
     .use(connect.favicon())

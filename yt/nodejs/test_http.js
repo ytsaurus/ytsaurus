@@ -1,9 +1,9 @@
 var expect = require("chai").expect;
 var assert = require("chai").assert;
 
-var http    = require("http");
+var http = require("http");
 var connect = require("connect");
-var app     = require("./srv");
+var app = require("./srv");
 
 ////////////////////////////////////////////////////////////////////////////////
 
