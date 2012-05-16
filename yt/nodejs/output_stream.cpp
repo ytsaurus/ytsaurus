@@ -47,7 +47,9 @@ void TNodeJSOutputStream::Initialize(Handle<Object> target)
     ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
     ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
 
-    target->Set(String::NewSymbol("TNodeJSOutputStream"), ConstructorTemplate->GetFunction());
+    target->Set(
+        String::NewSymbol("TNodeJSOutputStream"),
+        ConstructorTemplate->GetFunction());
 }
 
 bool TNodeJSOutputStream::HasInstance(Handle<Value> value)
@@ -55,7 +57,9 @@ bool TNodeJSOutputStream::HasInstance(Handle<Value> value)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    return value->IsObject() && ConstructorTemplate->HasInstance(value->ToObject());
+    return
+        value->IsObject() &&
+        ConstructorTemplate->HasInstance(value->ToObject());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

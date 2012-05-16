@@ -53,7 +53,9 @@ void TNodeJSInputStream::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Sweep", TNodeJSInputStream::Sweep);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Close", TNodeJSInputStream::Close);
 
-    target->Set(String::NewSymbol("TNodeJSInputStream"), ConstructorTemplate->GetFunction());
+    target->Set(
+        String::NewSymbol("TNodeJSInputStream"),
+        ConstructorTemplate->GetFunction());
 }
 
 bool TNodeJSInputStream::HasInstance(Handle<Value> value)
@@ -61,7 +63,9 @@ bool TNodeJSInputStream::HasInstance(Handle<Value> value)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    return value->IsObject() && ConstructorTemplate->HasInstance(value->ToObject());
+    return
+        value->IsObject() &&
+        ConstructorTemplate->HasInstance(value->ToObject());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,9 +94,9 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
     // Validate arguments.
     assert(args.Length() == 3);
 
-    assert(node::Buffer::HasInstance(args[0]));
-    assert(args[1]->IsUint32());
-    assert(args[2]->IsUint32());
+    EXPECT_THAT_HAS_INSTANCE(args[0], node::Buffer);
+    EXPECT_THAT_IS(args[1], Uint32);
+    EXPECT_THAT_IS(args[2], Uint32);
 
     // Do the work.
     assert(stream);

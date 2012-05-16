@@ -153,10 +153,7 @@ Handle<Value> TTestInputStream::New(const Arguments& args)
     HandleScope scope;
 
     assert(args.Length() == 1);
-    if (!TNodeJSInputStream::HasInstance(args[0])) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be a TINodeJSInputStream")));        
-    }
+    EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSInputStream);
 
     TTestInputStream* host = new TTestInputStream(
         ObjectWrap::Unwrap<TNodeJSInputStream>(Local<Object>::Cast(args[0])));
@@ -177,11 +174,7 @@ Handle<Value> TTestInputStream::ReadSynchronously(const Arguments& args)
 
     // Validate arguments.
     assert(args.Length() == 1);
-
-    if (!args[0]->IsUint32()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be an Uint32")));
-    }
+    EXPECT_THAT_IS(args[0], Uint32);
 
     // Do the work.
     size_t length;
@@ -202,15 +195,8 @@ Handle<Value> TTestInputStream::Read(const Arguments& args)
 
     // Validate arguments.
     assert(args.Length() == 2);
-
-    if (!args[0]->IsUint32()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be an Uint32")));
-    }
-    if (!args[1]->IsFunction()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected second argument to be a Function")));
-    }
+    EXPECT_THAT_IS(args[0], Uint32);
+    EXPECT_THAT_IS(args[1], Function);
 
     // Do the work.
     TReadRequest* request = new TReadRequest(
@@ -347,10 +333,7 @@ Handle<Value> TTestOutputStream::New(const Arguments& args)
     HandleScope scope;
 
     assert(args.Length() == 1);
-    if (!TNodeJSInputStream::HasInstance(args[0])) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be a TTestOutputStream")));        
-    }
+    EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSOutputStream);
 
     TTestOutputStream* host = new TTestOutputStream(
         ObjectWrap::Unwrap<TNodeJSOutputStream>(Local<Object>::Cast(args[0])));
@@ -371,11 +354,7 @@ Handle<Value> TTestOutputStream::WriteSynchronously(const Arguments& args)
 
     // Validate arguments.
     assert(args.Length() == 1);
-
-    if (!args[0]->IsString()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be a String")));
-    }
+    EXPECT_THAT_IS(args[0], String);
 
     // Do the work.
     String::Utf8Value value(args[0]);
@@ -391,15 +370,8 @@ Handle<Value> TTestOutputStream::Write(const Arguments& args)
 
     // Validate arguments.
     assert(args.Length() == 2);
-
-    if (!args[0]->IsString()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be an Uint32")));
-    }
-    if (!args[1]->IsFunction()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected second argument to be a Function")));
-    }
+    EXPECT_THAT_IS(args[0], String);
+    EXPECT_THAT_IS(args[1], Function);
 
     // Do the work.
     TWriteRequest* request = new TWriteRequest(

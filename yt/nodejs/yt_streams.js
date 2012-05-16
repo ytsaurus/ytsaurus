@@ -18,7 +18,7 @@ if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtReadableStream() {
-    __DBG("Readable -> New")
+    __DBG("Readable -> New");
     stream.Stream.call(this);
 
     this.readable = true;

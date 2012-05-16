@@ -44,7 +44,23 @@
     using v8::FunctionTemplate; \
     using v8::Undefined; \
     using v8::Null; \
+    using v8::Exception;
 
+#define EXPECT_THAT_IS(value, type) \
+    do { \
+        if (!(value)->Is##type()) { \
+            return ThrowException(Exception::TypeError( \
+                String::New("Expected " #value " to be a " #type))); \
+        } \
+    } while(0)
+
+#define EXPECT_THAT_HAS_INSTANCE(value, type) \
+    do { \
+        if (!type::HasInstance(value)) { \
+            return ThrowException(Exception::TypeError( \
+                String::New("Expected " #value " to be an instance of " #type))); \
+        } \
+    } while(0)
 
 namespace NYT {
 

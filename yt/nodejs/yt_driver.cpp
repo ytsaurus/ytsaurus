@@ -155,47 +155,13 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // hence we have to validate all the arguments as early as possible.
     assert(args.Length() == 7);
 
-    // CommandName
-    if (!args[0]->IsString()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be a String")));
-    }
-
-    // InputStream
-    if (!TNodeJSInputStream::HasInstance(args[1])) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected second argument to be a TNodeJSInputStream")));   
-    }
-
-    // InputFormat
-    if (!args[2]->IsString()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected third argument to be a String")));
-    }
-
-    // OutputStream
-    if (!TNodeJSOutputStream::HasInstance(args[3])) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected fourth argument to be a TNodeJSOutputStream")));   
-    }
-
-    // OutputFormat
-    if (!args[4]->IsString()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected fifth argument to be a String")));
-    }
-
-    // Parameters
-    if (!args[5]->IsObject()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected sixth argument to be an Object")));
-    }
-
-    // Callback
-    if (!args[6]->IsFunction()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected seventh argument to be a Function")));
-    }
+    EXPECT_THAT_IS(args[0], String); // CommandName
+    EXPECT_THAT_HAS_INSTANCE(args[1], TNodeJSInputStream); // InputStream
+    EXPECT_THAT_IS(args[2], String); // InputFormat
+    EXPECT_THAT_HAS_INSTANCE(args[3], TNodeJSOutputStream); // OutputStream
+    EXPECT_THAT_IS(args[4], String); // OutputFormat
+    EXPECT_THAT_IS(args[5], Object); // Parameters
+    EXPECT_THAT_IS(args[6], Function); // Callback
 
     // Unwrap arguments.
     String::AsciiValue commandName(args[0]);
