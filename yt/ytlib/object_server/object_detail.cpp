@@ -109,7 +109,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
     context->Reply();
 }
 
-void TObjectProxyBase::Invoke(IServiceContext* context)
+void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
     Bootstrap->GetObjectManager()->ExecuteVerb(
         GetVersionedId(),
@@ -118,7 +118,7 @@ void TObjectProxyBase::Invoke(IServiceContext* context)
         BIND(&TYPathServiceBase::GuardedInvoke, TIntrusivePtr<TYPathServiceBase>(this)));
 }
 
-void TObjectProxyBase::DoInvoke(IServiceContext* context)
+void TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetId);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -128,7 +128,7 @@ void TObjectProxyBase::DoInvoke(IServiceContext* context)
     TYPathServiceBase::DoInvoke(context);
 }
 
-bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
+bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);

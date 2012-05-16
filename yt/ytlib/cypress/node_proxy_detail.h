@@ -126,7 +126,7 @@ public:
     }
 
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
         // NB: Create is not considered a write verb since it always fails here.
@@ -156,6 +156,7 @@ protected:
         attributes->push_back("parent_id");
         attributes->push_back("lock_ids");
         attributes->push_back(TAttributeInfo("lock_mode", Transaction));
+        attributes->push_back(TAttributeInfo("path", true, true));
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -187,11 +188,18 @@ protected:
             }
         }
 
+        if (name == "path") {
+            auto path = Bootstrap->GetCypressManager()->GetNodePath(this);
+            BuildYsonFluently(consumer)
+                .Scalar(path);
+            return true;
+        }
+
         return NObjectServer::TObjectProxyBase::GetSystemAttribute(name, consumer);
     }
 
 
-    virtual void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(GetId);
         DISPATCH_YPATH_SERVICE_METHOD(Lock);
@@ -528,13 +536,13 @@ protected:
         const NYTree::TYPath& path,
         NYTree::INode* value) = 0;
 
-    virtual void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         TBase::DoInvoke(context);
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
         return TBase::IsWriteRequest(context);
@@ -626,7 +634,7 @@ public:
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
 
-    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context);
     virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);

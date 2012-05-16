@@ -97,7 +97,7 @@ public:
 private:
     std::deque<TStoredSample> Samples;
 
-    void DoInvoke(NRpc::IServiceContext* context)
+    void DoInvoke(NRpc::IServiceContextPtr context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         TYPathServiceBase::DoInvoke(context);

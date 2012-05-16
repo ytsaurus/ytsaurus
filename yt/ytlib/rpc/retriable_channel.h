@@ -42,7 +42,7 @@ struct TRetryConfig
  */ 
 IChannelPtr CreateRetriableChannel(
     TRetryConfig* config,
-    IChannel* underlyingChannel);
+    IChannelPtr underlyingChannel);
 
 ////////////////////////////////////////////////////////////////////////////////
 

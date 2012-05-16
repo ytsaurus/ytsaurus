@@ -104,6 +104,7 @@ public:
         // Create an empty chunk list and reference it from the node.
         auto& chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(&chunkList);
+        YVERIFY(chunkList.OwningNodes().insert(~node).second);
 
         auto chunkListId = chunkList.GetId();
         objectManager->RefObject(chunkListId);
@@ -127,6 +128,7 @@ public:
 protected:
     virtual void DoDestroy(TTableNode& node)
     {
+        YVERIFY(node.GetChunkList()->OwningNodes().erase(&node) == 1);
         Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkList()->GetId());
     }
 
@@ -147,6 +149,7 @@ protected:
         branchedChunkList.SetRebalancingEnabled(false);
 
         branchedNode.SetChunkList(&branchedChunkList);
+        YVERIFY(branchedChunkList.OwningNodes().insert(&branchedNode).second);
         objectManager->RefObject(branchedChunkList.GetId());
 
         // Make the original chunk list a child of the composite one.
@@ -168,7 +171,8 @@ protected:
         // by replacing the first child to its up-to-date state.
         auto* branchedChunkList = branchedNode.GetChunkList();
         YASSERT(!branchedChunkList->Children().empty());
-        TChunkTreeRef newFirstChildRef(originatingNode.GetChunkList());
+        auto oldChunkList = originatingNode.GetChunkList();
+        TChunkTreeRef newFirstChildRef(oldChunkList);
         auto& newChunkList = chunkManager->CreateChunkList();
         objectManager->RefObject(newChunkList.GetId());
         chunkManager->AttachToChunkList(
@@ -185,6 +189,10 @@ protected:
 
         // Assign this newly created chunk list to originatingNode.
         originatingNode.SetChunkList(&newChunkList);
+        YVERIFY(newChunkList.OwningNodes().insert(&originatingNode).second);
+        YVERIFY(oldChunkList->OwningNodes().erase(&originatingNode) == 1);
+        objectManager->UnrefObject(oldChunkList->GetId());
+        YVERIFY(branchedChunkList->OwningNodes().erase(&branchedNode) == 1);
         objectManager->UnrefObject(branchedChunkList->GetId());
     }
 

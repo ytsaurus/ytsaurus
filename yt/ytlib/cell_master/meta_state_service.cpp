@@ -26,14 +26,14 @@ TMetaStateServiceBase::TMetaStateServiceBase(
 void TMetaStateServiceBase::InvokeHandler(
     TRuntimeMethodInfo* runtimeInfo,
     const TClosure& handler,
-    NRpc::IServiceContext* context)
+    NRpc::IServiceContextPtr context)
 {
     if (Bootstrap->GetMetaStateManager()->GetStateStatusAsync() != EPeerStatus::Leading) {
         context->Reply(TError(NRpc::EErrorCode::Unavailable, "Not an active leader"));
         return;
     }
 
-    NRpc::IServiceContext::TPtr context_ = context;
+    NRpc::IServiceContextPtr context_ = context;
     runtimeInfo->Invoker->Invoke(BIND([=] ()
         {
             if (Bootstrap->GetMetaStateManager()->GetStateStatusAsync() != EPeerStatus::Leading ||

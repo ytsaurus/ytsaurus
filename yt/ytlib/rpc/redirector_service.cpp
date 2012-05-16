@@ -72,7 +72,7 @@ class TRedirectorService::TResponseHandler
     : public IClientResponseHandler
 {
 public:
-    TResponseHandler(IServiceContext* context)
+    TResponseHandler(IServiceContextPtr context)
         : Context(context)
     { }
 
@@ -90,7 +90,7 @@ public:
     }
 
 private:
-    IServiceContext::TPtr Context;
+    IServiceContextPtr Context;
 
 };
 
@@ -103,13 +103,12 @@ TRedirectorService::TRedirectorService(
     , LoggingCategory(loggingCategory)
 { }
 
-void TRedirectorService::OnBeginRequest(IServiceContext* context)
+void TRedirectorService::OnBeginRequest(IServiceContextPtr context)
 {
-    auto context_= MakeStrong(context);
     HandleRedirect(context).Subscribe(BIND([=] (TRedirectResult result)
         {
             if (!result.IsOK()) {
-                context_->Reply(TError(
+                context->Reply(TError(
                     NRpc::EErrorCode::Unavailable,
                     Sprintf("Redirection failed\n%s", ~result.GetMessage())));
                 return;
@@ -117,7 +116,7 @@ void TRedirectorService::OnBeginRequest(IServiceContext* context)
 
             const auto& params = result.Value();
 
-            context_->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
+            context->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
                 ~params.Address,
                 // TODO(babenko): get rid of this once ToString works for TNullable
                 params.Timeout
@@ -127,17 +126,17 @@ void TRedirectorService::OnBeginRequest(IServiceContext* context)
             auto channel = ChannelCache.GetChannel(params.Address);
 
             auto request = New<TRequest>(
-                context_->GetRequestMessage(),
-                context_->GetRequestId(),
-                context_->GetPath(),
-                context_->GetVerb());
+                context->GetRequestMessage(),
+                context->GetRequestId(),
+                context->GetPath(),
+                context->GetVerb());
 
-            auto responseHandler = New<TResponseHandler>(~context_);
+            auto responseHandler = New<TResponseHandler>(~context);
             channel->Send(~request, ~responseHandler, params.Timeout);
         }));
 }
 
-void TRedirectorService::OnEndRequest(IServiceContext* context)
+void TRedirectorService::OnEndRequest(IServiceContextPtr context)
 {
     UNUSED(context);
 }

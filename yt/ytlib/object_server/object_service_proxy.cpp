@@ -23,7 +23,7 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
     auto response = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
     auto asyncResult = response->GetAsyncResult();
-    DoInvoke(~response, Timeout_);
+    DoInvoke(response, Timeout_);
     return asyncResult;
 }
 

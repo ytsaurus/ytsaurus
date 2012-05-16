@@ -13,7 +13,10 @@ typedef TIntrusivePtr<IServer> IServerPtr;
 struct IService;
 typedef TIntrusivePtr<IService> IServicePtr;
 
-struct IChannel;
+struct IServiceContext;
+typedef TIntrusivePtr<IServiceContext> IServiceContextPtr;
+
+class IChannel;
 typedef TIntrusivePtr<IChannel> IChannelPtr;
 
 class TChannelCache;

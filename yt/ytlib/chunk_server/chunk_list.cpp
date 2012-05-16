@@ -23,6 +23,7 @@ void TChunkList::Save(TOutputStream* output) const
     TObjectWithIdBase::Save(output);
     SaveObjectRefs(output, Children_);
     SaveObjectRefs(output, Parents_);
+    SaveObjectRefs(output, OwningNodes_);
     ::Save(output, Statistics_);
     ::Save(output, Sorted_);
     ::Save(output, RebalancingEnabled_);
@@ -35,6 +36,7 @@ void TChunkList::Load(const TLoadContext& context, TInputStream* input)
     TObjectWithIdBase::Load(input);
     LoadObjectRefs(input, Children_, context);
     LoadObjectRefs(input, Parents_, context);
+    LoadObjectRefs(input, OwningNodes_, context);
     ::Load(input, Statistics_);
     ::Load(input, Sorted_);
     ::Load(input, RebalancingEnabled_);

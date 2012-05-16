@@ -35,7 +35,7 @@ TFileNodeProxy::TFileNodeProxy(
         nodeId)
 { }
 
-void TFileNodeProxy::DoInvoke(IServiceContext* context)
+void TFileNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);
     TBase::DoInvoke(context);

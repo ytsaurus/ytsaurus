@@ -1394,7 +1394,7 @@ public:
         Logger = ChunkServerLogger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
         return TBase::IsWriteRequest(context);
@@ -1527,7 +1527,7 @@ private:
         return TBase::GetSystemAttribute(name, consumer);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Confirm);
@@ -1671,7 +1671,7 @@ public:
         Logger = ChunkServerLogger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
         return TBase::IsWriteRequest(context);
@@ -1783,7 +1783,7 @@ private:
         return TBase::GetSystemAttribute(name, consumer);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Attach);
         TBase::DoInvoke(context);

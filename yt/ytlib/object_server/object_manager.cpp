@@ -41,7 +41,7 @@ class TObjectManager::TServiceContextWrapper
     : public IServiceContext
 {
 public:
-    TServiceContextWrapper(IServiceContext* underlyingContext)
+    TServiceContextWrapper(IServiceContextPtr underlyingContext)
         : UnderlyingContext(underlyingContext)
         , Replied(false)
     { }
@@ -150,7 +150,7 @@ public:
     }
 
 private:
-    IServiceContext::TPtr UnderlyingContext;
+    IServiceContextPtr UnderlyingContext;
     TError Error;
     bool Replied;
 
@@ -217,7 +217,7 @@ public:
         return TResolveResult::There(proxy, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
-    virtual void Invoke(IServiceContext* context)
+    virtual void Invoke(IServiceContextPtr context)
     {
         UNUSED(context);
         YUNREACHABLE();
@@ -228,7 +228,7 @@ public:
         return NObjectServer::Logger.GetCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContext* context) const
+    virtual bool IsWriteRequest(IServiceContextPtr context) const
     {
         UNUSED(context);
         YUNREACHABLE();
@@ -530,8 +530,8 @@ void TObjectManager::MergeAttributes(
 void TObjectManager::ExecuteVerb(
     const TVersionedObjectId& id,
     bool isWrite,
-    IServiceContext* context,
-    TCallback<void(NRpc::IServiceContext*)> action)
+    IServiceContextPtr context,
+    TCallback<void(NRpc::IServiceContextPtr)> action)
 {
     LOG_INFO_IF(!IsRecovery(), "Executing %s request with path %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),
@@ -565,7 +565,6 @@ void TObjectManager::ExecuteVerb(
         message.add_request_parts(part.Begin(), part.Size());
     }
 
-    auto context_ = MakeStrong(context);
     auto wrappedContext = New<TServiceContextWrapper>(context);
 
     auto change = CreateMetaChange(
@@ -583,7 +582,7 @@ void TObjectManager::ExecuteVerb(
             wrappedContext->Flush();
         }))
         ->OnError(BIND([=] () {
-            context_->Reply(TError(
+            context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Error committing meta state changes"));
         }))

@@ -46,8 +46,8 @@ public:
     }
 
     virtual void Send(
-        IClientRequest* request,
-        IClientResponseHandler* responseHandler,
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout)
     {
         YASSERT(request);
@@ -118,8 +118,8 @@ private:
 
     struct TActiveRequest
     {
-        IClientRequest::TPtr ClientRequest;
-        TIntrusivePtr<IClientResponseHandler> ResponseHandler;
+        IClientRequestPtr ClientRequest;
+        IClientResponseHandlerPtr ResponseHandler;
         TDelayedInvoker::TCookie TimeoutCookie;
         NProfiling::TTimer Timer;
     };
@@ -179,7 +179,7 @@ private:
         auto header = GetResponseHeader(~message);
         auto requestId = TRequestId::FromProto(header.request_id());
     
-        IClientResponseHandler::TPtr responseHandler;
+        IClientResponseHandlerPtr responseHandler;
         {
             TGuard<TSpinLock> guard(&SpinLock);
 
@@ -218,7 +218,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        IClientResponseHandler::TPtr responseHandler;
+        IClientResponseHandlerPtr responseHandler;
         {
             TGuard<TSpinLock> guard(SpinLock);
 

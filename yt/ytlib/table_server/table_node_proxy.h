@@ -27,7 +27,7 @@ public:
         const NCypress::TNodeId& nodeId);
 
     virtual TResolveResult Resolve(const NYTree::TYPath& path, const Stroka& verb);
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
 
 private:
     typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
@@ -35,7 +35,7 @@ private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
-    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context);
 
     void TraverseChunkTree(
         std::vector<NChunkServer::TChunkId>* chunkIds,

@@ -21,7 +21,7 @@ class TMapJobIO
 public:
     TMapJobIO(
         TJobIOConfigPtr config,
-        NRpc::IChannel* masterChannel,
+        NRpc::IChannelPtr masterChannel,
         const NScheduler::NProto::TMapJobSpec& ioSpec);
 
     int GetInputCount() const;

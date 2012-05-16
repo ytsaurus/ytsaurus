@@ -51,7 +51,7 @@ public:
     TRemoteReader(
         TRemoteReaderConfigPtr config,
         IBlockCachePtr blockCache,
-        IChannel* masterChannel,
+        IChannelPtr masterChannel,
         const TChunkId& chunkId,
         const std::vector<Stroka>& seedAddresses)
         : Config(config)
@@ -707,7 +707,7 @@ TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(const std::v
 IAsyncReaderPtr CreateRemoteReader(
     TRemoteReaderConfigPtr config,
     IBlockCachePtr blockCache,
-    NRpc::IChannel* masterChannel,
+    NRpc::IChannelPtr masterChannel,
     const TChunkId& chunkId,
     const std::vector<Stroka>& seedAddresses)
 {
