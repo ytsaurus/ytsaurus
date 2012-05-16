@@ -1405,13 +1405,15 @@ private:
         auto cypressManager = Bootstrap->GetCypressManager();
         yhash_set<ICypressNode*> owningNodes;
         yhash_set<TChunkTreeRef> visitedRefs;
+        GetChunkRefOwningNodes(chunkRef, visitedRefs, &owningNodes);
+
         std::vector<TYPath> paths;
         FOREACH (auto* node, owningNodes) {
             paths.push_back(cypressManager->GetNodePath(node->GetId()));
         }
         std::sort(paths.begin(), paths.end());
         paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
-        GetChunkRefOwningNodes(chunkRef, visitedRefs, &owningNodes);
+
         consumer->OnBeginList();
         FOREACH (const auto& path, paths) {
             consumer->OnListItem();
