@@ -165,7 +165,6 @@ message TPartitionJobResult
     message TPartitionChunk
     {
         required NYT.NTableClient.NProto.TInputChunk chunk = 1;
-        repeated int64 partition_sizes = 2;
     }
 
     repeated TPartitionChunk chunks = 1;

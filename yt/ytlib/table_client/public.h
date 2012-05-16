@@ -27,13 +27,19 @@ struct TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
 class TTableChunkWriter;
-typedef TIntrusivePtr<TTableChunkWriter> TChunkWriterPtr;
+typedef TIntrusivePtr<TTableChunkWriter> TTableChunkWriterPtr;
+
+class TPartitionChunkWriter;
+typedef TIntrusivePtr<TPartitionChunkWriter> TPartitionChunkWriterPtr;
 
 class TChunkReader;
 typedef TIntrusivePtr<TChunkReader> TChunkReaderPtr;
 
 class TTableChunkSequenceWriter;
-typedef TIntrusivePtr<TTableChunkSequenceWriter> TChunkSequenceWriterPtr;
+typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
+
+class TPartitionChunkSequenceWriter;
+typedef TIntrusivePtr<TPartitionChunkSequenceWriter> TPartitionChunkSequenceWriterPtr;
 
 class TChunkSequenceReader;
 typedef TIntrusivePtr<TChunkSequenceReader> TChunkSequenceReaderPtr;
