@@ -356,6 +356,12 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnClose()
     State.FinishOperation();
 }
 
+template <class TChunkWriter> 
+const std::vector<NProto::TInputChunk>& TChunkSequenceWriterBase<TChunkWriter>::GetWrittenChunks() const
+{
+    return WrittenChunks;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT 
