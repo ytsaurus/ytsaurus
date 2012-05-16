@@ -6,6 +6,7 @@
 #include "sorted_merge_job.h"
 #include "ordered_merge_job.h"
 #include "sort_job.h"
+#include "partition_job.h"
 
 #include <ytlib/rpc/channel.h>
 #include <ytlib/scheduler/public.h>
@@ -105,6 +106,13 @@ void TJobProxy::Start()
                     Config->JobIO, 
                     Config->Masters, 
                     jobSpec.GetExtension(TSortJobSpec::sort_job_spec));
+                break;
+
+            case EJobType::Partition:
+                Job = new TPartitionJob(
+                    Config->JobIO, 
+                    Config->Masters, 
+                    jobSpec.GetExtension(TPartitionJobSpec::partition_job_spec));
                 break;
 
             default:
