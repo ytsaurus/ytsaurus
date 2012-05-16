@@ -21,6 +21,8 @@
 #include <ytlib/chunk_server/chunk_list_ypath.pb.h>
 #include <ytlib/chunk_server/chunk_manager.pb.h>
 
+#include <ytlib/cypress/cypress_manager.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/cell_master/load_context.h>
@@ -1400,13 +1402,20 @@ private:
 
     void GetChunkRefOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
     {
+        auto cypressManager = Bootstrap->GetCypressManager();
         yhash_set<ICypressNode*> owningNodes;
         yhash_set<TChunkTreeRef> visitedRefs;
+        std::vector<TYPath> paths;
+        FOREACH (auto* node, owningNodes) {
+            paths.push_back(cypressManager->GetNodePath(node->GetId()));
+        }
+        std::sort(paths.begin(), paths.end());
+        paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
         GetChunkRefOwningNodes(chunkRef, visitedRefs, &owningNodes);
         consumer->OnBeginList();
-        FOREACH (auto* node, owningNodes) {
+        FOREACH (const auto& path, paths) {
             consumer->OnListItem();
-            consumer->OnStringScalar(node->GetId().ToString());
+            consumer->OnStringScalar(path);
         }
         consumer->OnEndList();
     }
