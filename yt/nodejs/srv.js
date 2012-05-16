@@ -2,6 +2,8 @@ var url = require("url");
 var querystring = require("querystring");
 
 var utils = require("./utils");
+var yt_streams = require("./yt_streams");
+var yt_driver = require("./yt_driver");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +126,7 @@ function _reqExtractOutputFormat(req) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function _dispatch(req, rsp) {
+function _dispatch(driver, req, rsp) {
     req.parsedUrl = url.parse(req.url);
 
     var name = _reqExtractName(req);
@@ -155,15 +157,27 @@ function _dispatch(req, rsp) {
 
     _rspSetFormatHeaders(rsp, input_format, output_format);
 
-    rsp.writeHead(200, { "Content-Type": "text/plain" });
-    rsp.end(require("util").inspect(req));
+    var input_stream = new yt_streams.YtWritableStream();
+    var output_stream = new yt_streams.YtReadableStream();
+
+    req.pipe(input_stream);
+    output_stream.pipe(rsp);
+
+    // TODO(sandello): Handle various return-types here.
+    driver.execute(name,
+        input_stream, input_format,
+        output_stream, output_format,
+        parameters, function() {
+            rsp.end();
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplication() {
+    var driver = new yt_driver.YtDriver();
     return function(req, rsp) {
-        return _dispatch(req, rsp);
+        return _dispatch(driver, req, rsp);
     };
 }
 

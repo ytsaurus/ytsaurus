@@ -79,6 +79,7 @@ public:
 
 private:
     // TODO(sandello): Store by smart pointer.
+    // TODO(sandello): Initialized this at some moment.
     IDriver* Driver;
 
     struct TExecuteRequest
@@ -186,6 +187,11 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     request->DriverRequest.OutputStream = outputStream;
     // request->DriverRequest.OutputFormat =
     // request->DriverRequest.Parameters =
+
+    fprintf(stderr, "WOOHOO! We are executing %s [%p->%p]!\n",
+        *commandName,
+        inputStream,
+        outputStream);
 
     uv_queue_work(
         uv_default_loop(), &request->Request,
