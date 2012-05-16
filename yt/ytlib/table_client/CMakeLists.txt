@@ -12,7 +12,6 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
   ${BASE}/sync_reader.cpp
-  ${BASE}/sync_writer.cpp
   ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/table_consumer.cpp
