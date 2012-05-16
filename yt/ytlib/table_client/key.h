@@ -203,6 +203,9 @@ public:
     template<class TOtherBuffer>
     void operator=(const TKey<TOtherBuffer>& other)
     {
+        if (static_cast<void*>(this) == static_cast<void*>(&other))
+            return;
+
         Reset(other.Parts.size());
         for (int i = 0; i < other.Parts.size(); ++i) {
             switch (other.Parts[i].GetType()) {
