@@ -169,12 +169,6 @@ Stroka ToString(const TKeyPart<TStrType>& keyPart)
 
 int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
 
-bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator >= (const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator <  (const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator <= (const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBuffer>
