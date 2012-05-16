@@ -21,9 +21,9 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator < (const TNonOwningKey& key, const TOwningKey& partitionKey)
+bool operator < (const TOwningKey& partitionKey, const TNonOwningKey& key)
 {
-    return CompareKeys(key, partitionKey) < 0;
+    return CompareKeys(partitionKey, key) < 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
