@@ -69,7 +69,8 @@ TJobResult TPartitionJob::Run()
         LOG_INFO("Initializing");
 
         Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
-        Sync(~Writer, &TChunkSequenceWriterBase<TPartitionChunkWriter>::AsyncOpen);
+
+        Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncOpen);
 
         LOG_INFO("Partitioning.");
 
@@ -87,7 +88,7 @@ TJobResult TPartitionJob::Run()
 
             TJobResult result;
             *result.mutable_error() = TError().ToProto();
-            *result.MutableExtension(TSortJobResult::sort_job_result) = partitionResult;
+            *result.MutableExtension(TPartitionJobResult::partition_job_result) = partitionResult;
 
             return result;
         }

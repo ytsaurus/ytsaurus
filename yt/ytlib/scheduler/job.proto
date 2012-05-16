@@ -162,12 +162,7 @@ message TPartitionJobResult
         optional TPartitionJobResult partition_job_result = 102;
     }
 
-    message TPartitionChunk
-    {
-        required NYT.NTableClient.NProto.TInputChunk chunk = 1;
-    }
-
-    repeated TPartitionChunk chunks = 1;
+    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

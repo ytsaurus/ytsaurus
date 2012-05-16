@@ -7,7 +7,7 @@
 #include <ytlib/election/leader_channel.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
 #include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
@@ -60,7 +60,7 @@ TOrderedMergeJob::TOrderedMergeJob(
         TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
         ChannelsFromYson(jobSpec.output_spec().channels()));
 
-    Writer = New<TSyncWriterAdapter>(asyncWriter);
+    Writer = CreateSyncWriter(asyncWriter);
 }
 
 TJobResult TOrderedMergeJob::Run()

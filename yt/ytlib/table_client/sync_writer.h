@@ -2,9 +2,11 @@
 
 #include "public.h"
 #include "key.h"
+#include "async_writer.h"
 
 #include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/sync.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -35,24 +37,57 @@ struct ISyncWriter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TAsyncWriter>
 class TSyncWriterAdapter
     : public ISyncWriter
 {
 public:
-    TSyncWriterAdapter(IAsyncWriterPtr writer);
+    TSyncWriterAdapter(TIntrusivePtr<TAsyncWriter> writer)
+        : Writer(writer)
+    { }
 
-    void Open();
-    void WriteRow(TRow& row, const TNonOwningKey& key);
-    void Close();
+    void Open()
+    {
+        Sync(~Writer, &TAsyncWriter::AsyncOpen);
+    }
 
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
 
-    i64 GetRowCount() const;
-    const TOwningKey& GetLastKey() const;
+    void WriteRow(TRow& row, const TNonOwningKey& key)
+    {
+        Sync(~Writer, &TAsyncWriter::AsyncWriteRow, row, key);
+    }
+
+    void Close()
+    {
+        Sync(~Writer, &TAsyncWriter::AsyncClose);
+    }
+
+    const TNullable<TKeyColumns>& GetKeyColumns() const
+    {
+        return Writer->GetKeyColumns();
+    }
+
+    i64 GetRowCount() const
+    {
+        return Writer->GetRowCount();
+    }
+
+    const TOwningKey& GetLastKey() const
+    {
+        return Writer->GetLastKey();
+    }
 
 private:
-    IAsyncWriterPtr Writer;
+    TIntrusivePtr<TAsyncWriter> Writer;
 };
+
+////////////////////////////////////////////////////////////////////////////////s
+
+template <class TAsyncWriter>
+ISyncWriterPtr CreateSyncWriter(TIntrusivePtr<TAsyncWriter> asyncWriter)
+{
+    return New< TSyncWriterAdapter<TAsyncWriter> >(asyncWriter);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

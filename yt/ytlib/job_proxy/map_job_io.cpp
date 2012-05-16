@@ -7,7 +7,7 @@
 // ToDo(psushin): use public.h everywhere.
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
-#include <ytlib/table_client/chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
@@ -182,7 +182,7 @@ TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
         TChunkListId::FromProto(IoSpec.output_specs(index).chunk_list_id()),
         ChannelsFromYson(channels));
 
-    return new TTableOutput(New<TSyncWriterAdapter>(chunkSequenceWriter));
+    return new TTableOutput(CreateSyncWriter(chunkSequenceWriter));
 }
 
 void TMapJobIO::UpdateProgress()

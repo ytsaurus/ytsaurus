@@ -11,7 +11,7 @@
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/private.h>
-#include <ytlib/table_client/chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/chunk_reader.h>
 #include <ytlib/misc/sync.h>
 
@@ -88,7 +88,7 @@ TSortedMergeJob::TSortedMergeJob(
         TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
         ChannelsFromYson(jobSpec.output_spec().channels()));
 
-    Writer = New<TSyncWriterAdapter>(asyncWriter);
+    Writer = CreateSyncWriter(asyncWriter);
 }
 
 TJobResult TSortedMergeJob::Run()

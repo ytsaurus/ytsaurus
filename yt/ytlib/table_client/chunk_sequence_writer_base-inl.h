@@ -29,6 +29,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , ParentChunkList(parentChunkList)
     , NextSession(Null)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
+    , Logger(TableClientLogger)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(config);
@@ -53,16 +54,16 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
         Config->ReplicationFactor,
         Config->UploadReplicationFactor);
 
-    TObjectServiceProxy objectProxy(MasterChannel);
+    NObjectServer::TObjectServiceProxy objectProxy(MasterChannel);
     auto req = NTransactionServer::TTransactionYPathProxy::CreateObject(
         NCypress::FromObjectId(TransactionId));
-    req->set_type(EObjectType::Chunk);
-    auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
+    req->set_type(NObjectServer::EObjectType::Chunk);
+    auto* reqExt = req->MutableExtension(NChunkServer::NProto::TReqCreateChunk::create_chunk);
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriterBase::OnChunkCreated, MakeWeak(this))
-        .Via(WriterThread->GetInvoker()));
+        .Via(NChunkClient::WriterThread->GetInvoker()));
 }
 
 template <class TChunkWriter>
@@ -81,8 +82,9 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
         return;
     }
 
-    auto chunkId = TChunkId::FromProto(rsp->object_id());
-    const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
+    auto chunkId = NChunkServer::TChunkId::FromProto(rsp->object_id());
+    const auto& rspExt = rsp->GetExtension(
+        NChunkServer::NProto::TRspCreateChunk::create_chunk);
     auto holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
 
     if (holderAddresses.size() < Config->UploadReplicationFactor) {
@@ -95,7 +97,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
         ~chunkId.ToString());
 
     TSession session;
-    session.RemoteWriter = New<TRemoteWriter>(
+    session.RemoteWriter = New<NChunkClient::TRemoteWriter>(
         Config->RemoteWriter,
         chunkId,
         holderAddresses);
@@ -233,7 +235,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
         ~currentSession.RemoteWriter->GetChunkId().ToString());
 
-    TObjectServiceProxy objectProxy(MasterChannel);
+    NObjectServer::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
     {
         auto req = NChunkServer::TChunkYPathProxy::Confirm(

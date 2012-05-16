@@ -8,7 +8,7 @@
 #include <ytlib/election/leader_channel.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
-#include <ytlib/table_client/chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
 #include <ytlib/ytree/lexer.h>
 
@@ -102,7 +102,6 @@ TJobResult TSortJob::Run()
             }
 
             Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
-            Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
         }
         PROFILE_TIMING_CHECKPOINT("init");
 
@@ -134,13 +133,19 @@ TJobResult TSortJob::Run()
 
         LOG_INFO("Writing");
         {
-            Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
+            // Required for Sync calls with MSVC.
+            typedef TChunkSequenceWriterBase<TTableChunkWriter> TWriterBase;
+
+            Sync(static_cast<TWriterBase*>(~Writer), &TWriterBase::AsyncOpen);
 
             for (int i = 0; i < sortBuffer.size(); ++i) {
                 Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, sortBuffer[i].Row, sortBuffer[i].Key);
                 // ToDo(psushin): Writer->SetProgress();
             }
+
+            Sync(static_cast<TWriterBase*>(~Writer), &TWriterBase::AsyncClose);
         }
+
         PROFILE_TIMING_CHECKPOINT("write");
 
         LOG_INFO("Finalizing");

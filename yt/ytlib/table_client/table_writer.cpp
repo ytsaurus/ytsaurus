@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "schema.h"
-#include "chunk_sequence_writer.h"
+#include "table_chunk_sequence_writer.h"
 
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
@@ -19,6 +19,7 @@ using namespace NCypress;
 using namespace NTransactionClient;
 using namespace NTableServer;
 using namespace NChunkServer;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

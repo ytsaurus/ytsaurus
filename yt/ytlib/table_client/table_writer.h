@@ -71,7 +71,7 @@ private:
     NTransactionClient::ITransaction::TPtr UploadTransaction;
     NChunkServer::TChunkListId ChunkListId;
 
-    TChunkSequenceWriterPtr Writer;
+    TTableChunkSequenceWriterPtr Writer;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 
