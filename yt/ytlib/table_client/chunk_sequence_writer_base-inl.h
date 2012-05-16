@@ -4,6 +4,7 @@
 #undef CHUNK_SEQUENCE_WRITER_BASE_INL_H_
 
 #include "private.h"
+#include "schema.h"
 #include <ytlib/misc/string.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
@@ -28,7 +29,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , TransactionId(transactionId)
     , ParentChunkList(parentChunkList)
     , NextSession(Null)
-    , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
+    , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::WriterThread->GetInvoker()))
     , Logger(TableClientLogger)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
