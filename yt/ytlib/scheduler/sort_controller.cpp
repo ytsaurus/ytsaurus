@@ -382,11 +382,13 @@ private:
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
             YASSERT(partitionsExt->sizes_size() == Partitions.size());
             for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
-                auto partition = Partitions[index];
                 i64 weight = partitionsExt->sizes(index);
-                // TODO(babenko): avoid excessive copying
-                auto pooledChunk = New<TPooledChunk>(partitionChunk, weight);
-                AddPendingChunkForSort(partition, pooledChunk);
+                if (weight > 0) {
+                    auto partition = Partitions[index];
+                    // TODO(babenko): avoid excessive copying
+                    auto pooledChunk = New<TPooledChunk>(partitionChunk, weight);
+                    AddPendingChunkForSort(partition, pooledChunk);
+                }
             }
         }
     }
