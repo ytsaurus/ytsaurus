@@ -26,7 +26,7 @@ static NProfiling::TProfiler Profiler("/bus/client");
 // TODO: make configurable
 static const int MaxNLCallsPerIteration = 10;
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
-static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
+static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(1000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
