@@ -1,5 +1,4 @@
 ﻿#include "stdafx.h"
-
 #include "sync_writer.h"
 #include "table_consumer.h"
 #include "key.h"
@@ -131,8 +130,8 @@ void TTableConsumer::OnMyEndMap()
             ythrow yexception() << Sprintf(
                 "Table data is not sorted (RowIndex: %"PRId64", PreviousKey: %s, CurrentKey: %s)", 
                 Writer->GetRowCount(),
-                ~Writer->GetLastKey().ToString(),
-                ~key.ToString());
+                ~ToString(Writer->GetLastKey()),
+                ~ToString(key));
         }
     }
 

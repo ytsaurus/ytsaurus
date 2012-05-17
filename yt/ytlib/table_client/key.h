@@ -148,19 +148,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
-
-bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator >= (const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator <  (const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator <= (const NProto::TKey& lhs, const NProto::TKey& rhs);
-bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NTableClient
-} // namespace NYT
-
 template <class TStrType>
 Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
 {
@@ -179,6 +166,46 @@ Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
         YUNREACHABLE();
     }
 }
+
+template<class TLhsStrType, class TRhsStrType>
+int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType>& rhs)
+{
+    if (rhs.GetType() != lhs.GetType()) {
+        return static_cast<int>(lhs.GetType()) - static_cast<int>(rhs.GetType());
+    }
+
+    switch (rhs.GetType()) {
+    case EKeyType::String:
+        return lhs.GetString().compare(rhs.GetString());
+
+    case EKeyType::Integer:
+        if (lhs.GetInteger() > rhs.GetInteger())
+            return 1;
+        if (lhs.GetInteger() < rhs.GetInteger())
+            return -1;
+        return 0;
+
+    case EKeyType::Double:
+        if (lhs.GetDouble() > rhs.GetDouble())
+            return 1;
+        if (lhs.GetDouble() < rhs.GetDouble())
+            return -1;
+        return 0;
+
+    case EKeyType::Null:
+    case EKeyType::Composite:
+        return 0; // All composites are equal to each other.
+
+    default:
+        YUNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTableClient
+} // namespace NYT
+
 
 namespace NYT {
 namespace NTableClient {
@@ -209,38 +236,18 @@ public:
     }
 
     template<class TOtherBuffer>
-    void operator=(const TKey<TOtherBuffer>& other)
+    TKey<TBuffer>& operator=(const TKey<TOtherBuffer>& other)
     {
-        if (reinterpret_cast<const void*>(this) == reinterpret_cast<const void*>(&other))
-            return;
+        Assign(other);
+        return *this;
+    }
 
-        Reset(other.Parts.size());
-        for (int i = 0; i < other.Parts.size(); ++i) {
-            switch (other.Parts[i].GetType()) {
-            case EKeyType::Composite:
-                SetComposite(i);
-                break;
-
-            case EKeyType::Integer:
-                SetValue(i, other.Parts[i].GetInteger());
-                break;
-
-            case EKeyType::Double:
-                SetValue(i, other.Parts[i].GetDouble());
-                break;
-
-            case EKeyType::String:
-                SetValue(i, other.Parts[i].GetString());
-                break;
-
-            case EKeyType::Null:
-                // Do nothing.
-                break;
-
-            default:
-                YUNREACHABLE();
-            }
+    TKey<TBuffer>& operator=(const TKey<TBuffer>& other)
+    {
+        if (this != &other) {
+            Assign(other);
         }
+        return *this;
     }
 
     void SetValue(int index, i64 value)
@@ -290,11 +297,6 @@ public:
             result += part.GetSize();
         }
         return std::min(result, MaxKeySize);
-    }
-
-    Stroka ToString() const
-    {
-        return JoinToString(Parts);
     }
 
     NProto::TKey ToProto() const
@@ -368,54 +370,61 @@ public:
         }
     }
 
+private:
+    template <class TLhsBuffer, class TRhsBuffer>
+    friend int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs);
+
+    template <class TBuffer>
+    friend Stroka ToString(const TKey<TBuffer>& key);
+
     // This is required for correct compilation of operator =.
     template <class TOtherBuffer>
     friend class TKey;
-
-private:
-    template<class TLhsBuffer, class TRhsBuffer>
-    friend int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs);
 
     int ColumnCount;
 
     std::vector< TKeyPart<typename TBuffer::TStoredType> > Parts;
     TBuffer Buffer;
+
+    template <class TOtherBuffer>
+    void Assign(const TKey<TOtherBuffer>& other)
+    {
+        Reset(other.Parts.size());
+        for (int i = 0; i < other.Parts.size(); ++i) {
+            switch (other.Parts[i].GetType()) {
+            case EKeyType::Composite:
+                SetComposite(i);
+                break;
+
+            case EKeyType::Integer:
+                SetValue(i, other.Parts[i].GetInteger());
+                break;
+
+            case EKeyType::Double:
+                SetValue(i, other.Parts[i].GetDouble());
+                break;
+
+            case EKeyType::String:
+                SetValue(i, other.Parts[i].GetString());
+                break;
+
+            case EKeyType::Null:
+                // Do nothing.
+                break;
+
+            default:
+                YUNREACHABLE();
+            }
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TLhsStrType, class TRhsStrType>
-int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType>& rhs)
+template <class TBuffer>
+Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key)
 {
-    if (rhs.GetType() != lhs.GetType()) {
-        return static_cast<int>(lhs.GetType()) - static_cast<int>(rhs.GetType());
-    }
-
-    switch (rhs.GetType()) {
-        case EKeyType::String:
-            return lhs.GetString().compare(rhs.GetString());
-
-        case EKeyType::Integer:
-            if (lhs.GetInteger() > rhs.GetInteger())
-                return 1;
-            if (lhs.GetInteger() < rhs.GetInteger())
-                return -1;
-            return 0;
-
-        case EKeyType::Double:
-            if (lhs.GetDouble() > rhs.GetDouble())
-                return 1;
-            if (lhs.GetDouble() < rhs.GetDouble())
-                return -1;
-            return 0;
-
-        case EKeyType::Null:
-        case EKeyType::Composite:
-            return 0; // All composites are equal to each other.
-
-        default:
-            YUNREACHABLE();
-    }
+    return "[" + JoinToString(key.Parts) + "]";
 }
 
 template<class TLhsBuffer, class TRhsBuffer>
@@ -430,6 +439,14 @@ int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs)
     }
     return static_cast<int>(lhs.Parts.size()) - static_cast<int>(rhs.Parts.size());
 }
+
+int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
+
+bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator >= (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator <  (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator <= (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
