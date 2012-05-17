@@ -175,7 +175,8 @@ private:
             ~chunkId.ToString(),
             partition->Index);
 
-        if (GetPendingPartitionJobCount() == 0 &&
+        if (Partitions.size() > 1 &&
+            GetPendingPartitionJobCount() == 0 &&
             partition->SortChunkPool->GetTotalWeight() <= Config->MaxSortJobDataSize)
         {
             partition->Small = true;
@@ -253,7 +254,7 @@ private:
     {
         return PendingPartitionChunkCount == 0
             ? 0
-            : TotalPartitionJobCount - CompletedPartitionJobCount;
+            : TotalPartitionJobCount - RunningPartitionJobCount - CompletedPartitionJobCount;
     }
 
     int GetPendingSortJobCount()
@@ -382,8 +383,8 @@ private:
         FOREACH (const auto& partitionChunk, result.chunks()) {
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
             YASSERT(partitionsExt->sizes_size() == Partitions.size());
-            LOG_DEBUG("Partition sizes from some job %s", partitionsExt->DebugString().c_str());
-            for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
+            LOG_DEBUG("Partition sizes are [%s]", ~JoinToString(partitionsExt->sizes()));
+            for (int index = 0; index < partitionsExt->sizes_size(); ++index) {
                 i64 weight = partitionsExt->sizes(index);
                 if (weight > 0) {
                     auto partition = Partitions[index];
@@ -636,6 +637,7 @@ private:
         // Create a single partition.
         Partitions.resize(1);
         auto partition = Partitions[0] = New<TPartition>(0);
+        partition->Small = true;
 
         // There will be no partition jobs, reset partition counters.
         TotalPartitionChunkCount = 0;
@@ -671,16 +673,12 @@ private:
     {
         // Take partition keys evenly.
         for (int partIndex = 0; partIndex < partitionCount - 1; ++partIndex) {
-            int sampleIndex = (partIndex + 1) * SortedSamples.size() / partitionCount;
+            int sampleIndex = partIndex * (SortedSamples.size() - 1) / (partitionCount - 2);
             auto* key = SortedSamples[sampleIndex];
             // Avoid producing same keys.
             if (PartitionKeys.empty() || CompareKeys(*key, *SortedSamples.back()) != 0) {
                 PartitionKeys.push_back(key);
             }
-        }
-
-        FOREACH(const auto* key, PartitionKeys) {
-            LOG_DEBUG("Partition key: %s", key->DebugString().c_str());
         }
 
         // Do the final adjustments.
