@@ -661,7 +661,7 @@ private:
         TotalSortJobCount = GetJobCount(
             TotalSortWeight,
             Config->MaxSortJobDataSize,
-            Null,
+            Spec->SortJobCount,
             totalSortChunkCount);
 
         LOG_INFO("Sorting without partitioning");
