@@ -214,6 +214,12 @@ namespace NTableClient {
 
 template <class TBuffer>
 class TKey
+
+template <class TBuffer>
+Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key);
+
+template <class TBuffer>
+class TKey
 {
 public:
     //! Creates empty key.
