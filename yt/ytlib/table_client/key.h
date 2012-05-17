@@ -206,8 +206,8 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
 template <class TBuffer>
 class TKey;
 
-//template <class TBuffer>
-//Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key);
+template <class TBuffer>
+Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key);
 
 template <class TBuffer>
 class TKey
