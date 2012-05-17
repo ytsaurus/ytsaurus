@@ -115,8 +115,8 @@ public:
     void ExecuteVerb(
         const TVersionedObjectId& id,
         bool isWrite,
-        NRpc::IServiceContext* context,
-        TCallback<void(NRpc::IServiceContext*)> action);
+        NRpc::IServiceContextPtr context,
+        TCallback<void(NRpc::IServiceContextPtr)> action);
 
     DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 

@@ -6,9 +6,25 @@
 #include <ytlib/chunk_holder/public.h>
 #include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/blob_output.h>
 
 namespace NYT {
 namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReaderOptions
+{
+    bool ReadKey;
+
+    // If set, reader keeps all memory buffers valid until destruction.
+    bool KeepBlocks;
+
+    TReaderOptions()
+        : ReadKey(false)
+        , KeepBlocks(false)
+    { }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +46,8 @@ struct IAsyncReader
 
     //! Non-const reference - client can possibly modify internal buffer.
     virtual TRow& GetRow() = 0;
+
+    virtual const TNonOwningKey& GetKey() const = 0;
     virtual const NYTree::TYson& GetRowAttributes() const = 0;
 };
 

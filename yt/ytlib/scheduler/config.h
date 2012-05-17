@@ -171,6 +171,8 @@ struct TSortOperationSpec
     yvector<Stroka> KeyColumns;
     TNullable<int> PartitionCount;
     TNullable<int> PartitionJobCount;
+    //! Only used if not partitioning is done.
+    TNullable<int> SortJobCount;
 
     TSortOperationSpec()
     {
@@ -182,6 +184,9 @@ struct TSortOperationSpec
             .Default()
             .GreaterThan(0);
         Register("partition_job_count", PartitionJobCount)
+            .Default()
+            .GreaterThan(0);
+        Register("sort_job_count", SortJobCount)
             .Default()
             .GreaterThan(0);
     }

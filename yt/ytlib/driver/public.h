@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "private.h"
 
 namespace NYT {
 namespace NDriver {

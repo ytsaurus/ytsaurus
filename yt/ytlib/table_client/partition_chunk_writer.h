@@ -1,8 +1,6 @@
-#pragma once
+﻿#pragma once
 
 #include "public.h"
-#include "async_writer.h"
-
 #include "schema.h"
 #include "key.h"
 
@@ -13,33 +11,28 @@
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/ref_counted.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class  TChunkWriter
-    : public IAsyncWriter
+class  TPartitionChunkWriter
+    : public virtual TRefCounted
 {
 public:
-    TChunkWriter(
+    TPartitionChunkWriter(
         TChunkWriterConfigPtr config,
         NChunkClient::IAsyncWriterPtr chunkWriter,
         const std::vector<TChannel>& channels,
-        const TNullable<TKeyColumns>& keyColumns);
+        const TKeyColumns& keyColumns,
+        const std::vector<NProto::TKey>& partitionKeys);
 
-    ~TChunkWriter();
+    ~TPartitionChunkWriter();
 
-    TAsyncError AsyncOpen();
-
-    TAsyncError AsyncWriteRow(TRow& row, TKey& key);
-
+    TAsyncError AsyncWriteRow(const TRow& row);
     TAsyncError AsyncClose();
-
-    TKey& GetLastKey();
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
-    i64 GetRowCount() const;
 
     i64 GetCurrentSize() const;
     NChunkHolder::NProto::TChunkMeta GetMasterMeta() const;
@@ -47,19 +40,17 @@ public:
     i64 GetMetaSize() const;
 
 private:
-    friend class TChunkSequenceWriter;
-
     TChunkWriterConfigPtr Config;
-    std::vector<TChannel> Channels;
-    NChunkClient::IAsyncWriterPtr ChunkWriter;
-    //! If not null chunk is expected to be sorted.
-    TNullable<TKeyColumns> KeyColumns;
 
-    bool IsOpen;
+    TChannel Channel;
+
+    NChunkClient::IAsyncWriterPtr ChunkWriter;
+
     bool IsClosed;
 
-    //! Stores mapping from all key columns and channel non-range columns to indexes.
+    std::vector<TOwningKey> PartitionKeys;
     yhash_map<TStringBuf, int> ColumnIndexes;
+    int KeyColumnCount;
 
     int CurrentBlockIndex;
 
@@ -81,20 +72,6 @@ private:
     //! Approximate data size counting all written rows.
     i64 DataSize;
 
-    //! Number of written rows since the last sample.
-    i64 RowCountSinceLastSample;
-
-    //! Approximate data size counting all rows since the last sample.
-    i64 DataSizeSinceLastSample;
-
-    TKey LastKey;
-
-    //! Approximate size of collected samples.
-    i64 SamplesSize;
-
-    //! Approximate size of collected index.
-    i64 IndexSize;
-
     double CompressionRatio;
 
     ICodec* Codec;
@@ -103,19 +80,13 @@ private:
     i64 BasicMetaSize;
 
     NChunkHolder::NProto::TChunkMeta Meta;
-    NProto::TChannelsExt ChannelsExt;
     NChunkHolder::NProto::TMiscExt MiscExt;
-    NProto::TSamplesExt SamplesExt;
-    //! Only for sorted tables.
-    NProto::TBoundaryKeysExt BoundaryKeysExt;
-    NProto::TIndexExt IndexExt;
+    NProto::TChannelsExt ChannelsExt;
+    NProto::TPartitionsExt PartitionsExt;
 
-    TSharedRef PrepareBlock(int channelIndex);
+    TSharedRef PrepareBlock(int partitionTag);
 
     TAsyncError OnFinalBlocksWritten(TError error);
-    
-    void EmitIndexEntry(const TKey& key);
-    void EmitSample(TRow& row);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

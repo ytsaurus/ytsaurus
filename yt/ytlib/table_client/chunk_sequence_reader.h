@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "public.h"
+#include "private.h"
 #include "async_reader.h"
 
 #include <ytlib/table_client/table_reader.pb.h>
@@ -22,16 +23,19 @@ public:
         TChunkSequenceReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        const std::vector<NProto::TInputChunk>& inputChunks);
+        const std::vector<NProto::TInputChunk>& inputChunks,
+        int partitionTag = DefaultPartitionTag,
+        TReaderOptions options = TReaderOptions());
 
-    TAsyncError AsyncOpen();
+    virtual TAsyncError AsyncOpen();
 
-    TAsyncError AsyncNextRow();
+    virtual TAsyncError AsyncNextRow();
 
-    bool IsValid() const;
+    virtual bool IsValid() const;
 
-    TRow& GetRow();
-    const NYTree::TYson& GetRowAttributes() const;
+    virtual TRow& GetRow();
+    virtual const TNonOwningKey& GetKey() const;
+    virtual const NYTree::TYson& GetRowAttributes() const;
 
     double GetProgress() const;
 
@@ -44,13 +48,22 @@ private:
     TChunkSequenceReaderConfigPtr Config;
     NChunkClient::IBlockCachePtr BlockCache;
     std::vector<NProto::TInputChunk> InputChunks;
+    TReaderOptions Options;
 
     NRpc::IChannelPtr MasterChannel;
     TAsyncStreamState State;
 
     int NextChunkIndex;
+    int PartitionTag;
     TPromise<TChunkReaderPtr> NextReader;
-    TChunkReaderPtr CurrentReader;
+
+    /*!
+    *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
+    *  to all chunk readers it has opened during its lifetime.
+    *  
+     * The current reader is always |Readers.back()|.
+     */
+    std::vector<TChunkReaderPtr> Readers;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

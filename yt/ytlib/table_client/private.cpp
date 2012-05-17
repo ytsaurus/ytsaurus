@@ -8,6 +8,8 @@ namespace NTableClient {
 
 NLog::TLogger TableClientLogger("TableClient");
 
+int DefaultPartitionTag = -1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

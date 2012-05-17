@@ -51,7 +51,7 @@ public:
         return TResolveResult::Here(path);
     }
 
-    void Invoke(NRpc::IServiceContext* context)
+    void Invoke(NRpc::IServiceContextPtr context)
     {
         auto manifest = LoadManifest();
 
@@ -81,7 +81,7 @@ public:
             BIND(
                 &TOrchidYPathService::OnResponse,
                 MakeStrong(this),
-                IServiceContext::TPtr(context),
+                IServiceContextPtr(context),
                 manifest,
                 path,
                 verb)
@@ -93,7 +93,7 @@ public:
         return OrchidLogger.GetCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContext* context) const
+    virtual bool IsWriteRequest(IServiceContextPtr context) const
     {
         UNUSED(context);
         return false;
@@ -117,7 +117,7 @@ private:
     }
 
     void OnResponse(
-        NRpc::IServiceContext::TPtr context,
+        NRpc::IServiceContextPtr context,
         TOrchidManifest::TPtr manifest,
         TYPath path,
         const Stroka& verb,

@@ -10,6 +10,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/misc/codec.h>
+#include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 
@@ -23,15 +24,6 @@ class TChunkReader
     : public IAsyncReader
 {
 public:
-    struct TOptions
-    {
-        bool ReadKey;
-
-        TOptions()
-            : ReadKey(false)
-        { }
-    };
-
     TChunkReader(
         NChunkClient::TSequentialReaderConfigPtr config,
         const TChannel& channel,
@@ -39,16 +31,17 @@ public:
         const NProto::TReadLimit& startLimit,
         const NProto::TReadLimit& endLimit,
         const NYTree::TYson& rowAttributes,
-        TOptions options = TOptions());
+        int partitionTag,
+        TReaderOptions options);
 
-    TAsyncError AsyncOpen();
+    virtual TAsyncError AsyncOpen();
 
-    TAsyncError AsyncNextRow();
-    bool IsValid() const;
+    virtual TAsyncError AsyncNextRow();
+    virtual bool IsValid() const;
 
-    TRow& GetRow();
-    TKey& GetKey();
-    const NYTree::TYson& GetRowAttributes() const;
+    virtual TRow& GetRow();
+    virtual const TNonOwningKey& GetKey() const;
+    virtual const NYTree::TYson& GetRowAttributes() const;
 
 private:
     class TKeyValidator;
@@ -69,15 +62,18 @@ private:
 
     void MakeCurrentRow();
 
-    class TInitializer;
-    TIntrusivePtr<TInitializer> Initializer;
+    class IInitializer;
+    TIntrusivePtr<IInitializer> Initializer;
+
+    class TRegularInitializer;
+    class TPartitionInitializer;
 
     TAsyncStreamState State;
-    TOptions Options;
+    TReaderOptions Options;
 
     NYTree::TYson RowAttributes;
     TRow CurrentRow;
-    TKey CurrentKey;
+    TNonOwningKey CurrentKey;
 
     struct TColumnInfo
     {
@@ -98,16 +94,24 @@ private:
     i64 CurrentRowIndex;
     i64 EndRowIndex;
 
+    int PartitionTag;
+
     THolder<TKeyValidator> EndValidator;
 
     TAutoPtr<NProto::TKeyColumnsExt> KeyColumnsExt;
 
     /*! 
-     *  See DoNextRow for usage.
+     *  See #DoNextRow for usage.
      */
     const TAsyncErrorPromise SuccessResult;
 
     std::vector<TChannelReaderPtr> ChannelReaders;
+
+    /*!
+     *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
+     *  to all (uncompressed) blocks it has fetched.
+     */
+    std::vector<TSharedRef> FetchedBlocks;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);

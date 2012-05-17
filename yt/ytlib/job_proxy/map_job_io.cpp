@@ -7,7 +7,7 @@
 // ToDo(psushin): use public.h everywhere.
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
-#include <ytlib/table_client/chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
@@ -56,7 +56,7 @@ class TErrorOutput
 public:
     TErrorOutput(
         TFileWriterBase::TConfig* config, 
-        NRpc::IChannel* masterChannel,
+        NRpc::IChannelPtr masterChannel,
         const TTransactionId& transactionId,
         const TObjectId& chunkListId)
         : FileWriter(New<TFileWriterBase>(config, masterChannel))
@@ -124,7 +124,7 @@ private:
 
 TMapJobIO::TMapJobIO(
     TJobIOConfigPtr config,
-    NRpc::IChannel* masterChannel,
+    NRpc::IChannelPtr masterChannel,
     const NScheduler::NProto::TMapJobSpec& ioSpec)
     : Config(config)
     , MasterChannel(masterChannel)
@@ -175,14 +175,14 @@ TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
     const TYson& channels = IoSpec.output_specs(index).channels();
     YASSERT(!channels.empty());
 
-    auto chunkSequenceWriter = New<TChunkSequenceWriter>(
+    auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         Config->ChunkSequenceWriter,
         MasterChannel,
         TTransactionId::FromProto(IoSpec.output_transaction_id()),
         TChunkListId::FromProto(IoSpec.output_specs(index).chunk_list_id()),
         ChannelsFromYson(channels));
 
-    return new TTableOutput(New<TSyncWriterAdapter>(chunkSequenceWriter));
+    return new TTableOutput(CreateSyncWriter(chunkSequenceWriter));
 }
 
 void TMapJobIO::UpdateProgress()

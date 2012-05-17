@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "schema.h"
-#include "chunk_sequence_writer.h"
+#include "table_chunk_sequence_writer.h"
 
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
@@ -19,6 +19,7 @@ using namespace NCypress;
 using namespace NTransactionClient;
 using namespace NTableServer;
 using namespace NChunkServer;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,7 +147,7 @@ void TTableWriter::Open()
         ~chunkListId.ToString(),
         static_cast<int>(channels.size()));
 
-    Writer = New<TChunkSequenceWriter>(
+    Writer = New<TTableChunkSequenceWriter>(
         Config, 
         MasterChannel,
         UploadTransaction->GetId(),
@@ -154,7 +155,7 @@ void TTableWriter::Open()
         channels,
         KeyColumns);
 
-    Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
+    Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
     if (Transaction) {
         ListenTransaction(~Transaction);
@@ -165,13 +166,13 @@ void TTableWriter::Open()
     LOG_INFO("Table writer opened");
 }
 
-void TTableWriter::WriteRow(TRow& row, TKey& key)
+void TTableWriter::WriteRow(TRow& row, const TNonOwningKey& key)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YVERIFY(IsOpen);
 
     CheckAborted();
-    Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, row, key);
+    Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, row, key);
 }
 
 void TTableWriter::Close()
@@ -189,7 +190,7 @@ void TTableWriter::Close()
     LOG_INFO("Closing table writer");
 
     LOG_INFO("Closing chunk writer");
-    Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
+    Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
     LOG_INFO("Chunk writer closed");
 
     if (KeyColumns.IsInitialized()) {
@@ -229,7 +230,7 @@ i64 TTableWriter::GetRowCount() const
     return Writer->GetRowCount();
 }
 
-TKey& TTableWriter::GetLastKey()
+const TOwningKey& TTableWriter::GetLastKey() const
 {
     return Writer->GetLastKey();
 }

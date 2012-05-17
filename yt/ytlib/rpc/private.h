@@ -8,9 +8,12 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IClientRequest;
+typedef TIntrusivePtr<IClientRequest> IClientRequestPtr;
+
 class TClientRequest;
 
 struct IClientResponseHandler;
+typedef TIntrusivePtr<IClientResponseHandler> IClientResponseHandlerPtr;
 
 template <class TRequestMessage, class TResponse>
 class TTypedClientRequest;

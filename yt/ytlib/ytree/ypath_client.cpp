@@ -247,13 +247,12 @@ ExecuteVerb(
     return asyncResponseMessage;
 }
 
-void ExecuteVerb(IYPathServicePtr service, IServiceContext* context)
+void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
 {
-    auto context_ = MakeStrong(context);
     auto requestMessage = context->GetRequestMessage();
     ExecuteVerb(service, ~requestMessage)
         .Subscribe(BIND([=] (NBus::IMessage::TPtr responseMessage) {
-            context_->Reply(~responseMessage);
+            context->Reply(~responseMessage);
         }));
 }
 
@@ -350,6 +349,44 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
         }
         currentNode = child;
     }
+}
+
+TYPath GetYPath(INodePtr node, INodePtr* root)
+{
+    std::vector<TYPath> tokens;
+    while (true) {
+        auto parent = node->GetParent();
+        if (!parent) {
+            break;
+        }
+        TYPath token;
+        switch (parent->GetType()) {
+            case ENodeType::List: {
+                auto index = parent->AsList()->GetChildIndex(~node);
+                token = EscapeYPathToken(index);
+                break;
+            }
+            case ENodeType::Map: {
+                auto key = parent->AsMap()->GetChildKey(~node);
+                token = EscapeYPathToken(key);
+                break;
+            }
+            default:
+                YUNREACHABLE();
+        }
+        tokens.push_back(token);
+        node = parent;
+    }
+    if (root) {
+        *root = node;
+    }
+    std::reverse(tokens.begin(), tokens.end());
+    TYPath path;
+    FOREACH (const auto& token, tokens) {
+        path.append(TokenTypeToChar(PathSeparatorToken));
+        path.append(token);
+    }
+    return path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

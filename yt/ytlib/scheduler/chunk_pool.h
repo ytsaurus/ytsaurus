@@ -72,6 +72,7 @@ struct IChunkPool
     virtual void PutBack(TExtractResultPtr result) = 0;
 
     virtual i64 GetTotalWeight() const = 0;
+    virtual i64 GetPendingWeight() const = 0;
     virtual bool HasPendingChunks() const = 0;
     virtual bool HasPendingLocalChunksFor(const Stroka& address) const = 0;
 };

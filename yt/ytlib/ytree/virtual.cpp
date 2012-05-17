@@ -21,7 +21,7 @@ const int DefaultMaxSize = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TVirtualMapBase::DoInvoke(IServiceContext* context)
+void TVirtualMapBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);

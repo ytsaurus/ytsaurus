@@ -46,12 +46,14 @@ class TUnorderedChunkPool
 public:
     TUnorderedChunkPool()
         : TotalWeight(0)
+        , PendingWeight(0)
     { }
 
     virtual void Add(TPooledChunkPtr chunk)
     {
         YASSERT(chunk->Weight > 0);
         TotalWeight += chunk->Weight;
+        PendingWeight += chunk->Weight;
         FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
             YVERIFY(LocalChunks[address].insert(chunk).second);
         }
@@ -121,6 +123,11 @@ public:
         return TotalWeight;
     }
 
+    virtual i64 GetPendingWeight() const
+    {
+        return PendingWeight;
+    }
+
     virtual bool HasPendingChunks() const
     {
         return !GlobalChunks.empty();
@@ -134,6 +141,7 @@ public:
 
 private:
     i64 TotalWeight;
+    i64 PendingWeight;
     yhash_map<Stroka, yhash_set<TPooledChunkPtr> > LocalChunks;
     yhash_set<TPooledChunkPtr> GlobalChunks;
     
@@ -143,6 +151,7 @@ private:
             YVERIFY(LocalChunks[address].erase(chunk) == 1);
         }
         YVERIFY(GlobalChunks.erase(chunk) == 1);
+        PendingWeight -= chunk->Weight;
     }
 };
 
@@ -205,6 +214,11 @@ public:
     virtual i64 GetTotalWeight() const
     {
         return TotalWeight;
+    }
+
+    virtual i64 GetPendingWeight() const
+    {
+        return Extracted ? 0 : TotalWeight;
     }
 
     virtual bool HasPendingChunks() const
@@ -336,6 +350,11 @@ public:
     virtual i64 GetTotalWeight() const
     {
         return TotalWeight;
+    }
+
+    virtual i64 GetPendingWeight() const
+    {
+        YUNREACHABLE();
     }
 
     virtual bool HasPendingChunks() const

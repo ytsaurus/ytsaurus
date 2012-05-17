@@ -12,7 +12,12 @@ class TBlobRange
 public:
     TBlobRange();
     TBlobRange(const TBlob* blob, size_t offset, size_t length);
+
+    //ToDo(psushin): consider removing this.
     TStringBuf GetStringBuf() const;
+
+    TBlob::const_iterator begin() const;
+    size_t size() const;
 
 private:
     const TBlob* Blob;

@@ -40,8 +40,6 @@ protected:
 struct IClientRequest
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IClientRequest> TPtr;
-
     virtual NBus::IMessage::TPtr Serialize() const = 0;
 
     virtual const TRequestId& GetRequestId() const = 0;
@@ -87,7 +85,7 @@ protected:
     virtual TBlob SerializeBody() const = 0;
 
     void DoInvoke(
-        IClientResponseHandler* responseHandler,
+        IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout);
 };
 
@@ -113,7 +111,7 @@ public:
     {
         auto response = NYT::New<TResponse>(GetRequestId());
         auto asyncResult = response->GetAsyncResult();
-        DoInvoke(~response, Timeout_);
+        DoInvoke(response, Timeout_);
         return asyncResult;
     }
 
@@ -141,8 +139,6 @@ private:
 struct IClientResponseHandler
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IClientResponseHandler> TPtr;
-
     //! Request delivery has been acknowledged.
     virtual void OnAcknowledgement() = 0;
     //! The request has been replied with #EErrorCode::OK.
@@ -168,8 +164,6 @@ class TClientResponseBase
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
 public:
-    typedef TIntrusivePtr<TClientResponseBase> TPtr;
-
     int GetErrorCode() const;
     bool IsOK() const;
 
@@ -202,8 +196,6 @@ class TClientResponse
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
 
 public:
-    typedef TIntrusivePtr<TClientResponse> TPtr;
-
     NBus::IMessage::TPtr GetResponseMessage() const;
 
     NYTree::IAttributeDictionary& Attributes();

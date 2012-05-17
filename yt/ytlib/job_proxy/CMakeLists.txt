@@ -11,6 +11,9 @@ set( SRCS
   ${BASE}/table_output.cpp
   ${BASE}/user_job.cpp
   ${BASE}/user_job_io.cpp
+  ${BASE}/table_output.cpp
+  ${BASE}/sort_job.cpp
+  ${BASE}/partition_job.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -25,6 +28,9 @@ set( HDRS
   ${BASE}/table_output.h
   ${BASE}/user_job.h
   ${BASE}/user_job_io.h
+  ${BASE}/table_output.h
+  ${BASE}/sort_job.h
+  ${BASE}/partition_job.h
 )
 
 list(APPEND YT_SOURCE_FILES

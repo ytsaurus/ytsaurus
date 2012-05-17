@@ -282,7 +282,7 @@ TTableNodeProxy::TTableNodeProxy(
         nodeId)
 { }
 
-void TTableNodeProxy::DoInvoke(IServiceContext* context)
+void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);
@@ -301,7 +301,7 @@ IYPathService::TResolveResult TTableNodeProxy::Resolve(const TYPath& path, const
     return TCypressNodeProxyBase::Resolve(path, verb);
 }
 
-bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
+bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkListForUpdate);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(SetSorted);
@@ -509,7 +509,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         return true;
     }
 
-    if (name == "uncompressed_size") {
+    if (name == "uncompressed_data_size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);
         return true;

@@ -11,14 +11,14 @@ import os
 
 def expect_error(result):
     stdout, stderr, exitcode = result
-    assert exitcode != 0
     print stderr
+    assert exitcode != 0
     return stderr
 
 def expect_ok(result):
     stdout, stderr, exitcode = result
-    assert exitcode == 0
     print stdout
+    assert exitcode == 0
     return stdout
 
 def lock(path, **kw): return command('lock', path, **kw)
@@ -292,6 +292,19 @@ class TestLockCommands(YTEnvSetup):
 class TestTableCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
+
+    # test that chunks are not available from chunk_lists
+    # Issue #198
+    def test_chunk_ids(self):
+        expect_ok(create('table', '//t'))
+        expect_ok(write('//t', '{a=10}'))
+
+        result = expect_ok(ls('//sys/chunks'))
+        chunk_id = yson_parser.parse_string(result)[0]
+
+        expect_error(get('//sys/chunk_lists/"' + chunk_id + '"'))
+        expect_ok(remove('//t'))
+
 
     def test_simple(self):
         expect_ok( create('table', '//table'))

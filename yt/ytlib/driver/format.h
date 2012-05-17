@@ -18,14 +18,16 @@ DECLARE_ENUM(EFormatType,
 class TFormat
 {
 public:
-    TFormat(EFormatType type);
+    TFormat(EFormatType type, NYTree::IAttributeDictionary* attributes = NULL);
 
-    EFormatType Type;
-
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes;
+    DEFINE_BYVAL_RO_PROPERTY(EFormatType, Type);
+    NYTree::IAttributeDictionary* GetAttributes() const;
 
     static TFormat FromYson(NYTree::INodePtr node);
     void ToYson(NYTree::IYsonConsumer* consumer) const;
+
+private:
+    TAutoPtr<NYTree::IAttributeDictionary> Attributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

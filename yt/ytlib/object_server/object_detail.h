@@ -84,7 +84,7 @@ public:
     virtual TObjectId GetId() const;
     virtual NYTree::IAttributeDictionary& Attributes();
     virtual const NYTree::IAttributeDictionary& Attributes() const;
-    virtual void Invoke(NRpc::IServiceContext* context);
+    virtual void Invoke(NRpc::IServiceContextPtr context);
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;
@@ -96,8 +96,8 @@ protected:
     virtual TVersionedObjectId GetVersionedId() const;
 
     // NYTree::TYPathServiceBase members
-    virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
+    virtual void DoInvoke(NRpc::IServiceContextPtr context);
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
 
     // NYTree::TSupportsAttributes members
     virtual NYTree::IAttributeDictionary* GetUserAttributes();

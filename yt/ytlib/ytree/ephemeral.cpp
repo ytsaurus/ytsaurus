@@ -236,7 +236,7 @@ private:
     yhash_map<Stroka, INodePtr> KeyToChild;
     yhash_map<INodePtr, Stroka> ChildToKey;
 
-    virtual void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TEphemeralNodeBase::DoInvoke(context);

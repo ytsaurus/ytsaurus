@@ -25,7 +25,7 @@ using namespace NTransactionClient;
 
 TFileReaderBase::TFileReaderBase(
     TFileReaderConfigPtr config,
-    NRpc::IChannel* masterChannel,
+    NRpc::IChannelPtr masterChannel,
     IBlockCache* blockCache)
     : Config(config)
     , MasterChannel(masterChannel)

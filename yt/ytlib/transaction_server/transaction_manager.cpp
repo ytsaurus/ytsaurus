@@ -41,7 +41,7 @@ public:
         Logger = NTransactionServer::Logger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Commit);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
@@ -99,7 +99,7 @@ private:
         return TBase::GetSystemAttribute(name, consumer);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Commit);
         DISPATCH_YPATH_SERVICE_METHOD(Abort);

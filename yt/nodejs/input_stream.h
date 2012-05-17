@@ -17,6 +17,10 @@ protected:
     ~TNodeJSInputStream();
 
 public:
+    static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
+    static void Initialize(v8::Handle<v8::Object> target);
+    static bool HasInstance(v8::Handle<v8::Value> value);
+
     // Synchronous JS API.
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
@@ -63,8 +67,6 @@ inline void TNodeJSInputStream::EnqueueClose()
         uv_default_loop(), &CloseRequest,
         TNodeJSInputStream::AsyncClose, DoNothing);
 }
-
-void ExportInputStream(v8::Handle<v8::Object> target);
 
 ////////////////////////////////////////////////////////////////////////////////
 

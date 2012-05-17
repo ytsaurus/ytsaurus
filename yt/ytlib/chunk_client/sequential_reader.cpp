@@ -31,7 +31,7 @@ TSequentialReader::TSequentialReader(
 
     YASSERT(ChunkReader);
     YASSERT(blockIndexes.size() > 0);
-    YASSERT(blockIndexes.size() == ProtoBlocks->blocks_size());
+    YASSERT(blockIndexes.size() <= ProtoBlocks->blocks_size());
 
     LOG_DEBUG("Creating sequential reader (BlockCount: %d)", 
         static_cast<int>(blockIndexes.size()));

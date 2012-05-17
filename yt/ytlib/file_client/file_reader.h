@@ -23,7 +23,7 @@ public:
     //! Initializes an instance.
     TFileReader(
         TFileReaderConfigPtr config,
-        NRpc::IChannel* masterChannel,
+        NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransaction* transaction,
         NChunkClient::IBlockCache* blockCache,
         const NYTree::TYPath& path);

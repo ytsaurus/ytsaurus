@@ -6,11 +6,6 @@
 #define _GLIBCXX_PURE inline
 #endif
 
-#include <deque>
-#include <memory>
-
-#define INPUT_QUEUE_SIZE 128
-
 namespace NYT {
 
 COMMON_V8_USES
@@ -19,12 +14,6 @@ using v8::Context;
 using v8::Exception;
 using v8::ThrowException;
 using v8::TryCatch;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(sandello): Extract this method to a separate file.
-void DoNothing(uv_work_t*)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,8 +144,7 @@ TTestInputStream::TTestInputStream(TNodeJSInputStream* slave)
 
 TTestInputStream::~TTestInputStream()
 {
-    // Affinity: any?
-    TRACE_CURRENT_THREAD("??");
+    T_THREAD_AFFINITY_IS_V8();
 }
 
 Handle<Value> TTestInputStream::New(const Arguments& args)
@@ -165,6 +153,7 @@ Handle<Value> TTestInputStream::New(const Arguments& args)
     HandleScope scope;
 
     assert(args.Length() == 1);
+    EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSInputStream);
 
     TTestInputStream* host = new TTestInputStream(
         ObjectWrap::Unwrap<TNodeJSInputStream>(Local<Object>::Cast(args[0])));
@@ -185,11 +174,7 @@ Handle<Value> TTestInputStream::ReadSynchronously(const Arguments& args)
 
     // Validate arguments.
     assert(args.Length() == 1);
-
-    if (!args[0]->IsUint32()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be an Uint32")));
-    }
+    EXPECT_THAT_IS(args[0], Uint32);
 
     // Do the work.
     size_t length;
@@ -210,15 +195,8 @@ Handle<Value> TTestInputStream::Read(const Arguments& args)
 
     // Validate arguments.
     assert(args.Length() == 2);
-
-    if (!args[0]->IsUint32()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be an Uint32")));
-    }
-    if (!args[1]->IsFunction()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected second argument to be a Function")));
-    }
+    EXPECT_THAT_IS(args[0], Uint32);
+    EXPECT_THAT_IS(args[1], Function);
 
     // Do the work.
     TReadRequest* request = new TReadRequest(
@@ -346,8 +324,7 @@ TTestOutputStream::TTestOutputStream(TNodeJSOutputStream* slave)
 
 TTestOutputStream::~TTestOutputStream()
 {
-    // Affinity: any?
-    TRACE_CURRENT_THREAD("??");
+    T_THREAD_AFFINITY_IS_V8();
 }
 
 Handle<Value> TTestOutputStream::New(const Arguments& args)
@@ -356,6 +333,7 @@ Handle<Value> TTestOutputStream::New(const Arguments& args)
     HandleScope scope;
 
     assert(args.Length() == 1);
+    EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSOutputStream);
 
     TTestOutputStream* host = new TTestOutputStream(
         ObjectWrap::Unwrap<TNodeJSOutputStream>(Local<Object>::Cast(args[0])));
@@ -376,11 +354,7 @@ Handle<Value> TTestOutputStream::WriteSynchronously(const Arguments& args)
 
     // Validate arguments.
     assert(args.Length() == 1);
-
-    if (!args[0]->IsString()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be a String")));
-    }
+    EXPECT_THAT_IS(args[0], String);
 
     // Do the work.
     String::Utf8Value value(args[0]);
@@ -396,15 +370,8 @@ Handle<Value> TTestOutputStream::Write(const Arguments& args)
 
     // Validate arguments.
     assert(args.Length() == 2);
-
-    if (!args[0]->IsString()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected first argument to be an Uint32")));
-    }
-    if (!args[1]->IsFunction()) {
-        return ThrowException(Exception::TypeError(
-            String::New("Expected second argument to be a Function")));
-    }
+    EXPECT_THAT_IS(args[0], String);
+    EXPECT_THAT_IS(args[1], Function);
 
     // Do the work.
     TWriteRequest* request = new TWriteRequest(
@@ -523,13 +490,11 @@ void ExportTestOutputStream(Handle<Object> target)
     target->Set(String::NewSymbol("TTestOutputStream"), tpl->GetFunction());
 }
 
-void ExportYT(Handle<Object> target)
+void ExportTestStreams(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    ExportInputStream(target);
-    ExportOutputStream(target);
     ExportTestInputStream(target);
     ExportTestOutputStream(target);
 }
@@ -538,4 +503,4 @@ void ExportYT(Handle<Object> target)
 
 } // namespace NYT
 
-NODE_MODULE(yt_test, NYT::ExportYT)
+NODE_MODULE(test_streams, NYT::ExportTestStreams)

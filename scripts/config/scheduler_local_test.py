@@ -7,7 +7,7 @@ import cfglib.opts as opts
 import yson
 from copy import deepcopy
 
-BIN_DIR = '/home/psushin/yt2/yt/bin/'
+BIN_DIR = '/home/psushin/github/yt/bin/'
 localhost = 'build01-01g'
 
 Logging = {
@@ -55,8 +55,8 @@ class Master(UnixNode, Server):
             'cell' : {
                 'addresses' : MasterAddresses
             },
-            'snapshot_path' : '%(work_dir)s/snapshots',
-            'log_path' : '%(work_dir)s/changelogs',
+            'snapshots' : { 'path' : '%(work_dir)s/snapshots' },
+            'changelogs' : { 'path' : '%(work_dir)s/changelogs' },
             'max_changes_between_snapshots' : 1000000,
             'change_log_downloader' : {
                 'records_per_request' : 10240
@@ -97,7 +97,7 @@ class Holder(UnixNode, Server):
     proxyLogging = deepcopy(Logging)
     proxyLogging['writers']['raw']['file_name'] = 'raw.log'
     proxyLogging['writers']['file']['file_name'] = 'file.log'
-    proxyLogging['rules'][0]['min_level'] = 'trace'
+    #proxyLogging['rules'][0]['min_level'] = 'trace'
 
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024

@@ -75,7 +75,7 @@ private:
     {
         return PendingWeight == 0
             ? 0
-            : TotalJobCount - CompletedJobCount;
+            : TotalJobCount - RunningJobCount - CompletedJobCount;
     }
 
 
@@ -107,10 +107,10 @@ private:
             false);
         YASSERT(jip->ExtractResult);
 
-        LOG_DEBUG("Extracted %d chunks, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+        LOG_DEBUG("Extracted %d chunks for map at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
             static_cast<int>(jip->ExtractResult->Chunks.size()),
-            jip->ExtractResult->LocalCount,
             ~node->GetAddress(),
+            jip->ExtractResult->LocalCount,
             jip->ExtractResult->Weight,
             weightThreshold);
 
@@ -191,8 +191,6 @@ private:
             
             // Compute statistics and populate the pool.
             i64 totalRowCount = 0;
-            i64 totalDataSize = 0;
-
             ChunkPool = CreateUnorderedChunkPool();
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
@@ -217,14 +215,10 @@ private:
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
 
                     i64 rowCount = miscExt->row_count();
-                    i64 dataSize = miscExt->uncompressed_data_size();
-
                     // TODO(babenko): make customizable
-                    // Plus one is to ensure that weights are positive.
-                    i64 weight = dataSize + 1;
+                    i64 weight = miscExt->data_weight();
 
                     totalRowCount += rowCount;
-                    totalDataSize += dataSize;
                     ++TotalChunkCount;
                     TotalWeight += weight;
 
@@ -241,7 +235,11 @@ private:
             }
 
             // Init counters.
-            ChooseJobCount();
+            TotalJobCount = GetJobCount(
+                TotalWeight,
+                Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
+                Spec->JobCount,
+                TotalChunkCount);
             PendingWeight = TotalWeight;
             PendingChunkCount = TotalChunkCount;
 
@@ -250,22 +248,12 @@ private:
 
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (RowCount: %" PRId64 ", DataSize: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
+            LOG_INFO("Inputs processed (RowCount: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
                 totalRowCount,
-                totalDataSize,
                 TotalWeight,
                 TotalChunkCount,
                 TotalJobCount);
         }
-    }
-
-    void ChooseJobCount()
-    {
-        TotalJobCount = GetJobCount(
-            TotalWeight,
-            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
-            Spec->JobCount,
-            TotalChunkCount);
     }
 
     // Progress reporting.

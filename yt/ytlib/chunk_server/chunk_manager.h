@@ -76,7 +76,14 @@ public:
     TChunk& CreateChunk();
     TChunkList& CreateChunkList();
 
-    void AttachToChunkList(TChunkList& chunkList, const std::vector<TChunkTreeRef> &children);
+    void AttachToChunkList(
+        TChunkList& chunkList,
+        const TChunkTreeRef* childrenBegin,
+        const TChunkTreeRef* childrenEnd);
+    void AttachToChunkList(
+        TChunkList& chunkList,
+        const std::vector<TChunkTreeRef>& children);
+
 
     void ScheduleJobs(
         THolder& holder,

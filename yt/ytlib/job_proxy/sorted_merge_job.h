@@ -16,15 +16,16 @@ class TSortedMergeJob
 {
 public:
     TSortedMergeJob(
-        const TJobIOConfigPtr& config,
-        const NElection::TLeaderLookup::TConfigPtr& masterConfig,
-        const NScheduler::NProto::TMergeJobSpec& mergeJobSpec);
+        TJobIOConfigPtr ioConfig,
+        NElection::TLeaderLookup::TConfigPtr masterConfig,
+        const NScheduler::NProto::TMergeJobSpec& jobSpec);
 
     NScheduler::NProto::TJobResult Run();
 
 private:
     std::vector<NTableClient::TChunkReaderPtr> ChunkReaders;
     NTableClient::ISyncWriterPtr Writer;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

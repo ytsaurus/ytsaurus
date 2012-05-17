@@ -7,6 +7,8 @@ namespace NYT {
 
 COMMON_V8_USES
 
+Persistent<FunctionTemplate> TNodeJSInputStream::ConstructorTemplate;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeJSInputStream::TNodeJSInputStream()
@@ -23,8 +25,7 @@ TNodeJSInputStream::TNodeJSInputStream()
 
 TNodeJSInputStream::~TNodeJSInputStream()
 {
-    // Affinity: any?
-    TRACE_CURRENT_THREAD("??");
+    T_THREAD_AFFINITY_IS_V8();
 
     {
         TGuard guard(&Mutex);
@@ -33,6 +34,38 @@ TNodeJSInputStream::~TNodeJSInputStream()
 
     CHECK_RETURN_VALUE(pthread_mutex_destroy(&Mutex));
     CHECK_RETURN_VALUE(pthread_cond_destroy(&Conditional));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNodeJSInputStream::Initialize(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    ConstructorTemplate = Persistent<FunctionTemplate>::New(
+        FunctionTemplate::New(TNodeJSInputStream::New));
+
+    ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
+    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSInputStream"));
+
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Push",  TNodeJSInputStream::Push );
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Sweep", TNodeJSInputStream::Sweep);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Close", TNodeJSInputStream::Close);
+
+    target->Set(
+        String::NewSymbol("TNodeJSInputStream"),
+        ConstructorTemplate->GetFunction());
+}
+
+bool TNodeJSInputStream::HasInstance(Handle<Value> value)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    return
+        value->IsObject() &&
+        ConstructorTemplate->HasInstance(value->ToObject());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,9 +94,9 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
     // Validate arguments.
     assert(args.Length() == 3);
 
-    assert(node::Buffer::HasInstance(args[0]));
-    assert(args[1]->IsUint32());
-    assert(args[2]->IsUint32());
+    EXPECT_THAT_HAS_INSTANCE(args[0], node::Buffer);
+    EXPECT_THAT_IS(args[1], Uint32);
+    EXPECT_THAT_IS(args[2], Uint32);
 
     // Do the work.
     assert(stream);
@@ -257,24 +290,6 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
     EnqueueSweep();
 
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ExportInputStream(Handle<Object> target)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSInputStream::New);
-
-    tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Push",  TNodeJSInputStream::Push );
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Sweep", TNodeJSInputStream::Sweep);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Close", TNodeJSInputStream::Close);
-
-    tpl->SetClassName(String::NewSymbol("TNodeJSInputStream"));
-    target->Set(String::NewSymbol("TNodeJSInputStream"), tpl->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,10 +1,10 @@
 #include "stdafx.h"
-#include "chunk_writer.h"
+#include "table_chunk_writer.h"
 #include "private.h"
 #include "config.h"
 #include "channel_writer.h"
 #include "chunk_meta_extensions.h"
-#include "limits.h"
+#include "size_limits.h"
 
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/chunk_client/async_writer.h>
@@ -27,7 +27,7 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkWriter::TChunkWriter(
+TTableChunkWriter::TTableChunkWriter(
     TChunkWriterConfigPtr config,
     NChunkClient::IAsyncWriterPtr chunkWriter,
     const std::vector<TChannel>& channels,
@@ -42,9 +42,7 @@ TChunkWriter::TChunkWriter(
     , CurrentSize(0)
     , SentSize(0)
     , UncompressedSize(0)
-    , DataSize(0)
-    , RowCountSinceLastSample(0)
-    , DataSizeSinceLastSample(0)
+    , DataWeight(0)
     , SamplesSize(0)
     , IndexSize(0)
     , CompressionRatio(config->EstimatedCompressionRatio)
@@ -93,7 +91,7 @@ TChunkWriter::TChunkWriter(
     BasicMetaSize = ChannelsExt.ByteSize() + MiscExt.ByteSize();
 }
 
-TAsyncError TChunkWriter::AsyncOpen()
+TAsyncError TTableChunkWriter::AsyncOpen()
 {
     // No thread affinity check here:
     // TChunkSequenceWriter may call it from different threads.
@@ -104,21 +102,21 @@ TAsyncError TChunkWriter::AsyncOpen()
     return MakeFuture(TError());
 }
 
-TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
+TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
 
-    i64 rowDataSize = 0;
+    i64 rowDataWeight = 1;
     FOREACH (const auto& pair, row) {
         auto it = ColumnIndexes.find(pair.first);
         auto columnIndex = it == ColumnIndexes.end() 
             ? TChannelWriter::UnknownIndex 
             : it->second;
 
-        rowDataSize += pair.first.size();
-        rowDataSize += pair.second.size();
+        rowDataWeight += pair.first.size();
+        rowDataWeight += pair.second.size();
 
         FOREACH (const auto& writer, ChannelWriters) {
             writer->Write(columnIndex, pair.first, pair.second);
@@ -143,32 +141,27 @@ TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
         } 
     }
 
-    DataSize += rowDataSize;
-    if (SamplesSize < Config->SampleRate * DataSize * CompressionRatio) {
+    DataWeight += rowDataWeight;
+    if (SamplesSize < Config->SampleRate * DataWeight * CompressionRatio) {
         EmitSample(row);
-        RowCountSinceLastSample = 0;
-        DataSizeSinceLastSample = 0;
-    } else {
-        ++RowCountSinceLastSample;
-        DataSizeSinceLastSample += rowDataSize;
     }
 
     if (KeyColumns) {
+        LastKey = key;
+
         if (MiscExt.row_count() == 1) {
             *BoundaryKeysExt.mutable_left() = key.ToProto();
         }
 
-        if (IndexSize < Config->IndexRate * DataSize * CompressionRatio) {
-            EmitIndexEntry(key);
+        if (IndexSize < Config->IndexRate * DataWeight * CompressionRatio) {
+            EmitIndexEntry();
         }
     }
-
-    LastKey.Swap(key);
 
     return ChunkWriter->AsyncWriteBlocks(completedBlocks);
 }
 
-TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
+TSharedRef TTableChunkWriter::PrepareBlock(int channelIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -185,37 +178,37 @@ TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 
     SentSize += data.Size();
 
-    CompressionRatio = SentSize / double(DataSize + 1);
+    CompressionRatio = SentSize / double(DataWeight + 1);
 
     ++CurrentBlockIndex;
 
     return data;
 }
 
-TChunkWriter::~TChunkWriter()
+TTableChunkWriter::~TTableChunkWriter()
 { }
 
-i64 TChunkWriter::GetCurrentSize() const
+i64 TTableChunkWriter::GetCurrentSize() const
 {
     return CurrentSize;
 }
 
-TKey& TChunkWriter::GetLastKey()
+const TKey<TBlobOutput>& TTableChunkWriter::GetLastKey() const 
 {
     return LastKey;
 }
 
-const TNullable<TKeyColumns>& TChunkWriter::GetKeyColumns() const
+const TNullable<TKeyColumns>& TTableChunkWriter::GetKeyColumns() const
 {
     return KeyColumns;
 }
 
-i64 TChunkWriter::GetRowCount() const
+i64 TTableChunkWriter::GetRowCount() const
 {
     return MiscExt.row_count();
 }
 
-TAsyncError TChunkWriter::AsyncClose()
+TAsyncError TTableChunkWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -261,16 +254,17 @@ TAsyncError TChunkWriter::AsyncClose()
     {
         MiscExt.set_uncompressed_data_size(UncompressedSize);
         MiscExt.set_compressed_data_size(SentSize);
+        MiscExt.set_data_weight(DataWeight);
         MiscExt.set_meta_size(Meta.ByteSize());
         SetProtoExtension(Meta.mutable_extensions(), MiscExt);
     }
 
     return ChunkWriter
         ->AsyncWriteBlocks(finalBlocks)
-        .Apply(BIND(&TChunkWriter::OnFinalBlocksWritten, MakeStrong(this)));
+        .Apply(BIND(&TTableChunkWriter::OnFinalBlocksWritten, MakeStrong(this)));
 }
 
-TAsyncError TChunkWriter::OnFinalBlocksWritten(TError error)
+TAsyncError TTableChunkWriter::OnFinalBlocksWritten(TError error)
 {
     if (!error.IsOK()) {
         return MakeFuture(error);
@@ -279,20 +273,20 @@ TAsyncError TChunkWriter::OnFinalBlocksWritten(TError error)
     return ChunkWriter->AsyncClose(Meta);
 }
 
-void TChunkWriter::EmitIndexEntry(const TKey& key)
+void TTableChunkWriter::EmitIndexEntry()
 {
     auto* item = IndexExt.add_items();
-    *item->mutable_key() = key.ToProto();
+    *item->mutable_key() = LastKey.ToProto();
     item->set_row_index(MiscExt.row_count() - 1);
-    IndexSize += key.GetSize();
+    IndexSize += LastKey.GetSize();
 }
 
-void TChunkWriter::EmitSample(TRow& row)
+void TTableChunkWriter::EmitSample(TRow& row)
 {
     auto item = SamplesExt.add_items();
 
     std::sort(row.begin(), row.end());
-
+    
     TLexer lexer;
     FOREACH (const auto& pair, row) {
         auto* part = item->add_parts();
@@ -306,7 +300,8 @@ void TChunkWriter::EmitSample(TRow& row)
         auto& token = lexer.GetToken();
         switch (token.GetType()) {
             case ETokenType::Integer:
-                *part->mutable_key_part() = TKeyPart::CreateValue(token.GetIntegerValue()).ToProto();
+                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
+                    token.GetIntegerValue()).ToProto();
                 SamplesSize += sizeof(i64);
                 break;
 
@@ -320,21 +315,19 @@ void TChunkWriter::EmitSample(TRow& row)
             }
 
             case ETokenType::Double:
-                *part->mutable_key_part() = TKeyPart::CreateValue(token.GetDoubleValue()).ToProto();
+                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
+                    token.GetDoubleValue()).ToProto();
                 SamplesSize += sizeof(double);
                 break;
 
             default:
-                *part->mutable_key_part() = TKeyPart::CreateComposite().ToProto();
+                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateComposite().ToProto();
                 break;
         }
     }
-
-    item->set_row_count_since_previous(RowCountSinceLastSample);
-    item->set_data_size_since_previous(DataSizeSinceLastSample);
 }
 
-NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const
+NChunkHolder::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 {
     YASSERT(IsClosed);
 
@@ -348,7 +341,7 @@ NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const
     return meta;
 }
 
-i64 TChunkWriter::GetMetaSize() const
+i64 TTableChunkWriter::GetMetaSize() const
 {
     return BasicMetaSize + SamplesSize + IndexSize + (CurrentBlockIndex + 1) * sizeof(NProto::TBlockInfo);
 }

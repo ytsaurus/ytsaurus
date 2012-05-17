@@ -28,7 +28,7 @@ class TMyProxy
 public:
     static const Stroka ServiceName;
 
-    TMyProxy(IChannel* channel)
+    TMyProxy(IChannelPtr channel)
         : TProxyBase(channel, ServiceName)
     { }
 
@@ -58,7 +58,7 @@ public:
 
     static const Stroka ServiceName;
 
-    TNonExistingServiceProxy(IChannel* channel)
+    TNonExistingServiceProxy(IChannelPtr channel)
         : TProxyBase(channel, ServiceName)
     { }
 

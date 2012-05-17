@@ -14,6 +14,8 @@ void DeleteCallback(char* data, void* hint)
 
 COMMON_V8_USES
 
+Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
+
 static Persistent<String> OnWriteSymbol;
 static Persistent<String> OnFlushSymbol;
 static Persistent<String> OnFinishSymbol;
@@ -27,8 +29,39 @@ TNodeJSOutputStream::TNodeJSOutputStream()
 
 TNodeJSOutputStream::~TNodeJSOutputStream()
 {
-    // Affinity: any?
-    TRACE_CURRENT_THREAD("??");
+    T_THREAD_AFFINITY_IS_V8();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNodeJSOutputStream::Initialize(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    OnWriteSymbol  = NODE_PSYMBOL("on_write");
+    OnFlushSymbol  = NODE_PSYMBOL("on_flush");
+    OnFinishSymbol = NODE_PSYMBOL("on_Finish");
+
+    ConstructorTemplate = Persistent<FunctionTemplate>::New(
+        FunctionTemplate::New(TNodeJSOutputStream::New));
+
+    ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
+    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
+
+    target->Set(
+        String::NewSymbol("TNodeJSOutputStream"),
+        ConstructorTemplate->GetFunction());
+}
+
+bool TNodeJSOutputStream::HasInstance(Handle<Value> value)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    return
+        value->IsObject() &&
+        ConstructorTemplate->HasInstance(value->ToObject());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,25 +167,6 @@ void TNodeJSOutputStream::Finish()
 {
     THREAD_AFFINITY_IS_ANY();
     EnqueueOnFinish();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ExportOutputStream(Handle<Object> target)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    OnWriteSymbol  = NODE_PSYMBOL("on_write");
-    OnFlushSymbol  = NODE_PSYMBOL("on_flush");
-    OnFinishSymbol = NODE_PSYMBOL("on_Finish");
-
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSOutputStream::New);
-
-    tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    tpl->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
-
-    target->Set(String::NewSymbol("TNodeJSOutputStream"), tpl->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

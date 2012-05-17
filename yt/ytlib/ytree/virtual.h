@@ -17,7 +17,7 @@ protected:
     virtual IYPathServicePtr GetItemService(const TStringBuf& key) const = 0;
 
 private:
-    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context);
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);

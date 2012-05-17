@@ -316,7 +316,7 @@ INodePtr TMapNodeProxy::DoFindChild(const TStringBuf& key, bool skipCurrentTrans
 }
 
 
-void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
+void TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(List);
     TBase::DoInvoke(context);

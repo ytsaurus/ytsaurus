@@ -21,7 +21,7 @@ public:
         return "SupervisorService";
     }
 
-    TSupervisorServiceProxy(NRpc::IChannel* channel)
+    TSupervisorServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

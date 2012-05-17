@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/misc/mpl.h"
+#include <ytlib/misc/mpl.h>
 
 #include <contrib/testing/framework.h>
 

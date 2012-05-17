@@ -81,7 +81,7 @@ struct TSequentialReaderConfig
     TSequentialReaderConfig()
     {
         Register("window_size", WindowSize)
-            .Default(16 * 1024 * 1024)
+            .Default(64 * 1024 * 1024)
             .GreaterThan(0);
         Register("group_size", GroupSize)
             .Default(8 * 1024 * 1024)

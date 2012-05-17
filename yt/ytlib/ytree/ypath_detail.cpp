@@ -64,12 +64,12 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(const TYPath& 
     ythrow yexception() << "Object cannot have children";
 }
 
-void TYPathServiceBase::Invoke(IServiceContext* context)
+void TYPathServiceBase::Invoke(IServiceContextPtr context)
 {
     GuardedInvoke(context);
 }
 
-void TYPathServiceBase::GuardedInvoke(IServiceContext* context)
+void TYPathServiceBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {
         DoInvoke(context);
@@ -81,7 +81,7 @@ void TYPathServiceBase::GuardedInvoke(IServiceContext* context)
     }
 }
 
-void TYPathServiceBase::DoInvoke(IServiceContext* context)
+void TYPathServiceBase::DoInvoke(IServiceContextPtr context)
 {
     UNUSED(context);
     ythrow TServiceException(EErrorCode::NoSuchVerb) <<
@@ -93,7 +93,7 @@ Stroka TYPathServiceBase::GetLoggingCategory() const
     return Logger.GetCategory();
 }
 
-bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
+bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
 {
     UNUSED(context);
     return false;
@@ -718,7 +718,7 @@ protected:
 
 };
 
-NRpc::IServiceContext::TPtr CreateYPathContext(
+IServiceContextPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     const TYPath& path,
     const Stroka& verb,
@@ -745,7 +745,7 @@ public:
         : UnderlyingService(underlyingService)
     { }
 
-    virtual void Invoke(NRpc::IServiceContext* context)
+    virtual void Invoke(NRpc::IServiceContextPtr context)
     {
         UNUSED(context);
         YUNREACHABLE();
@@ -769,7 +769,7 @@ public:
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
     {
         UNUSED(context);
         YUNREACHABLE();

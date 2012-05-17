@@ -83,3 +83,9 @@ add_custom_target(package touch package-stamp
   COMMENT "Packaging YT..."
 )
 
+add_custom_target(version touch version-stamp
+  COMMAND echo
+    "${YT_VERSION}" > ytversion
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  COMMENT "Stamping YT..."
+)

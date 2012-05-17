@@ -51,7 +51,7 @@ private:
     virtual void InvokeHandler(
         TRuntimeMethodInfo* runtimeInfo,
         const TClosure& handler,
-        NRpc::IServiceContext* context);
+        NRpc::IServiceContextPtr context);
 
     void CheckStatus(NMetaState::EPeerStatus status);
     void CheckQuorum();

@@ -134,7 +134,7 @@ TFuture<NBus::IMessage::TPtr>
 ExecuteVerb(IYPathServicePtr service, NBus::IMessage* requestMessage);
 
 //! Asynchronously executes a request against the given service.
-void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContext* context);
+void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContextPtr context);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
@@ -169,6 +169,8 @@ void SyncYPathRemove(IYPathServicePtr service, const TYPath& path);
 yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
 
 void ForceYPath(IMapNodePtr root, const TYPath& path);
+
+TYPath GetYPath(INodePtr node, INodePtr* root = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 

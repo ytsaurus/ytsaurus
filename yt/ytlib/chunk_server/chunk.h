@@ -22,6 +22,9 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(NChunkHolder::NProto::TChunkInfo, ChunkInfo);
     DEFINE_BYVAL_RW_PROPERTY(i32, ReplicationFactor);
 
+    typedef TSmallVector<TChunkList*, 2> TParents;
+    DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
+
     // This is usually small, e.g. has the length of 3.
     typedef TSmallVector<THolderId, 3> TStoredLocations;
     DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);

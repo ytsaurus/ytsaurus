@@ -10,23 +10,30 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFormat::TFormat(EFormatType type)
-    : Type(type)
+TFormat::TFormat(EFormatType type, IAttributeDictionary* attributes)
+    : Type_(type)
+    , Attributes(attributes ? attributes->Clone() : CreateEphemeralAttributes())
 { }
 
 TFormat TFormat::FromYson(INodePtr node)
 {
-    TFormat format(EFormatType::FromString(node->GetValue<Stroka>()));
-    format.Attributes = &node->Attributes();
-    return format;
+    return TFormat(
+        EFormatType::FromString(node->GetValue<Stroka>()),
+        &node->Attributes());
 }
 
 void TFormat::ToYson(IYsonConsumer* consumer) const
 {
     BuildYsonFluently(consumer)
         .BeginAttributes()
+            .Items(~Attributes)
         .EndAttributes()
-        .Scalar(Type.ToString());
+        .Scalar(Type_.ToString());
+}
+
+IAttributeDictionary* NYT::NDriver::TFormat::GetAttributes() const
+{
+    return ~Attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,9 +51,9 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
 
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
 {
-    switch (format.Type) {
+    switch (format.GetType()) {
         case EFormatType::Yson:
-            return CreateConsumerForYson(~format.Attributes, output);
+            return CreateConsumerForYson(format.GetAttributes(), output);
         default:
             YUNIMPLEMENTED();
     }
@@ -56,7 +63,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType
 
 TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType, TInputStream* input)
 {
-    switch (format.Type) {
+    switch (format.GetType()) {
         case EFormatType::Yson:
             return ProducerFromYson(input);
         default:

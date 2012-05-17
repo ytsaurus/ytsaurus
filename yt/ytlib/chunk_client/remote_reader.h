@@ -13,7 +13,7 @@ namespace NChunkClient {
 IAsyncReaderPtr CreateRemoteReader(
     TRemoteReaderConfigPtr config,
     IBlockCachePtr blockCache,
-    NRpc::IChannel* masterChannel,
+    NRpc::IChannelPtr masterChannel,
     const TChunkId& chunkId,
     const std::vector<Stroka>& seedAddresses = std::vector<Stroka>());
 

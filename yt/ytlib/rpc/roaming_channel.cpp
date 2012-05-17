@@ -16,7 +16,7 @@ public:
     typedef TIntrusivePtr<TResponseHandlerWrapper> TPtr;
 
     TResponseHandlerWrapper(
-        IClientResponseHandler::TPtr underlyingHandler,
+        IClientResponseHandlerPtr underlyingHandler,
         TClosure onFailed)
         : UnderlyingHandler(underlyingHandler)
         , OnFailed(onFailed)
@@ -46,7 +46,7 @@ public:
     }
 
 private:
-    IClientResponseHandler::TPtr UnderlyingHandler;
+    IClientResponseHandlerPtr UnderlyingHandler;
     TClosure OnFailed;
 
 };
@@ -71,8 +71,8 @@ public:
     }
 
     virtual void Send(
-        IClientRequest* request,
-        IClientResponseHandler* responseHandler,
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout)
     {
         YASSERT(request);
@@ -81,8 +81,8 @@ public:
         GetChannel().Subscribe(BIND(
             &TRoamingChannel::OnGotChannel,
             MakeStrong(this),
-            MakeStrong(request),
-            MakeStrong(responseHandler),
+            request,
+            responseHandler,
             timeout));
     }
 
@@ -136,8 +136,8 @@ private:
     }
          
     void OnGotChannel(
-        IClientRequest::TPtr request,
-        IClientResponseHandler::TPtr responseHandler,
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         TValueOrError<IChannelPtr> result)
     {

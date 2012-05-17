@@ -3,6 +3,10 @@
 #include <ytlib/misc/common.h>
 
 namespace NYT {
+
+class TBlobOutput;
+class TFakeStringBufStore;
+
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,19 +23,23 @@ typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
 struct IAsyncReader;
 typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
 
-class TKey;
-
 struct TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
-class TChunkWriter;
-typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
+class TTableChunkWriter;
+typedef TIntrusivePtr<TTableChunkWriter> TTableChunkWriterPtr;
+
+class TPartitionChunkWriter;
+typedef TIntrusivePtr<TPartitionChunkWriter> TPartitionChunkWriterPtr;
 
 class TChunkReader;
 typedef TIntrusivePtr<TChunkReader> TChunkReaderPtr;
 
-class TChunkSequenceWriter;
-typedef TIntrusivePtr<TChunkSequenceWriter> TChunkSequenceWriterPtr;
+class TTableChunkSequenceWriter;
+typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
+
+class TPartitionChunkSequenceWriter;
+typedef TIntrusivePtr<TPartitionChunkSequenceWriter> TPartitionChunkSequenceWriterPtr;
 
 class TChunkSequenceReader;
 typedef TIntrusivePtr<TChunkSequenceReader> TChunkSequenceReaderPtr;
@@ -54,8 +62,14 @@ class TTableConsumer;
 typedef std::vector< std::pair<TStringBuf, TStringBuf> > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
+template <class TBuffer>
 class TKey;
+
+template <class TStrType>
 class TKeyPart;
+
+typedef TKey<TBlobOutput> TOwningKey;
+typedef TKey<TFakeStringBufStore> TNonOwningKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 

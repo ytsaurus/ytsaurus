@@ -29,8 +29,8 @@ struct IChannel
      *  \param timeout Request processing timeout.
      */
     virtual void Send(
-        IClientRequest* request,
-        IClientResponseHandler* responseHandler,
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout) = 0;
 
     //! Shuts down the channel.

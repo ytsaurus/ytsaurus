@@ -30,7 +30,7 @@ public:
     //! Initializes an instance.
     TFileReaderBase(
         TFileReaderConfigPtr config,
-        NRpc::IChannel* masterChannel,
+        NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCache* blockCache);
 
     //! Opens the reader.

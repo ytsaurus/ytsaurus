@@ -21,7 +21,7 @@ public:
         return "OrchidService";
     }
 
-    TOrchidServiceProxy(NRpc::IChannel* channel)
+    TOrchidServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -1,10 +1,9 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "schema.h"
-#include "async_writer.h"
-#include "chunk_writer.h"
+#include "config.h"
 
+#include <ytlib/table_client/table_reader.pb.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
@@ -21,39 +20,33 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkSequenceWriter
-    : public IAsyncWriter
+template <class TChunkWriter>
+class TChunkSequenceWriterBase
+    : virtual public TRefCounted
 {
 public:
-    TChunkSequenceWriter(
+    TChunkSequenceWriterBase(
         TChunkSequenceWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkServer::TChunkListId& parentChunkList,
-        const std::vector<TChannel>& channels,
-        const TNullable<TKeyColumns>& keyColumns = Null);
+        const NChunkServer::TChunkListId& parentChunkList);
 
-    ~TChunkSequenceWriter();
+    ~TChunkSequenceWriterBase();
 
     TAsyncError AsyncOpen();
-
-    TAsyncError AsyncWriteRow(TRow& row, TKey& key);
     TAsyncError AsyncClose();
 
     void SetProgress(double progress);
 
-    TKey& GetLastKey();
+    /*! 
+     *  To get consistent data, should be called only when the writer is closed.
+     */
+    const std::vector<NProto::TInputChunk>& GetWrittenChunks() const;
 
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
-
-    //! Current row count.
-    i64 GetRowCount() const;
-
-private:
-    // Tools for writing single chunk.
+protected:
     struct TSession
     {
-        TChunkWriterPtr ChunkWriter;
+        TIntrusivePtr<TChunkWriter> ChunkWriter;
         NChunkClient::TRemoteWriterPtr RemoteWriter;
 
         TSession()
@@ -74,8 +67,10 @@ private:
     };
 
     void CreateNextSession();
-    void InitCurrentSession(TSession nextSession);
+    virtual void InitCurrentSession(TSession nextSession);
+
     void OnChunkCreated(NTransactionServer::TTransactionYPathProxy::TRspCreateObject::TPtr rsp);
+    virtual void PrepareChunkWriter(TSession& newSession) = 0;
 
     void FinishCurrentSession();
 
@@ -101,14 +96,11 @@ private:
 
     TChunkSequenceWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
-    const std::vector<TChannel> Channels;
-    const TNullable<TKeyColumns> KeyColumns;
 
     volatile double Progress;
 
     //! Total compressed size of data in the completed chunks.
     i64 CompleteChunkSize;
-    i64 RowCount;
 
     const NObjectServer::TTransactionId TransactionId;
     const NChunkServer::TChunkListId ParentChunkList;
@@ -120,10 +112,21 @@ private:
 
     TParallelAwaiter::TPtr CloseChunksAwaiter;
 
+    TSpinLock WrittenChunksGuard;
+    std::vector<NProto::TInputChunk> WrittenChunks;
+
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+
+private:
+    NLog::TLogger& Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
 } // namespace NYT
+
+#define CHUNK_SEQUENCE_WRITER_BASE_INL_H_
+#include "chunk_sequence_writer_base-inl.h"
+#undef CHUNK_SEQUENCE_WRITER_BASE_INL_H_
+

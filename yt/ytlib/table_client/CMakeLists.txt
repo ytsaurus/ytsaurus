@@ -5,20 +5,20 @@ set( SRCS
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_reader.cpp
   ${BASE}/chunk_sequence_reader.cpp
-  ${BASE}/chunk_sequence_writer.cpp
-  ${BASE}/chunk_writer.cpp
+  ${BASE}/table_chunk_sequence_writer.cpp
+  ${BASE}/partition_chunk_sequence_writer.cpp
+  ${BASE}/table_chunk_writer.cpp
+  ${BASE}/partition_chunk_writer.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
   ${BASE}/sync_reader.cpp
-  ${BASE}/sync_writer.cpp
   ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/table_consumer.cpp
   ${BASE}/value.cpp
   ${BASE}/key.cpp
-  ${BASE}/value_consumer.cpp
   ${BASE}/table_producer.cpp
-  ${BASE}/limits.cpp
+  ${BASE}/size_limits.cpp
 )
 
 set( HDRS
@@ -29,8 +29,12 @@ set( HDRS
   ${BASE}/channel_writer.h
   ${BASE}/chunk_reader.h
   ${BASE}/chunk_sequence_reader.h
-  ${BASE}/chunk_sequence_writer.h
-  ${BASE}/chunk_writer.h
+  ${BASE}/chunk_sequence_writer_base.h
+  ${BASE}/chunk_sequence_writer_base-inl.h
+  ${BASE}/table_chunk_sequence_writer.h
+  ${BASE}/partition_chunk_sequence_writer.h
+  ${BASE}/table_chunk_writer.h
+  ${BASE}/partition_chunk_writer.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/schema.h
@@ -41,10 +45,9 @@ set( HDRS
   ${BASE}/table_consumer.h
   ${BASE}/value.h
   ${BASE}/key.h
-  ${BASE}/value_consumer.h
   ${BASE}/table_producer.h
   ${BASE}/chunk_meta_extensions.h
-  ${BASE}/limits.h
+  ${BASE}/size_limits.h
 )
 
 list(APPEND YT_SOURCE_FILES

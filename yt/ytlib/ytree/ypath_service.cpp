@@ -40,15 +40,15 @@ private:
     IYPathServicePtr UnderlyingService;
     IInvoker::TPtr Invoker;
 
-    virtual void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         Invoker->Invoke(BIND(
             &TViaYPathService::ExecuteRequest,
             MakeStrong(this),
-            MakeStrong(context)));
+            context));
     }
 
-    void ExecuteRequest(NRpc::IServiceContext::TPtr context)
+    void ExecuteRequest(NRpc::IServiceContextPtr context)
     {
         try {
             ExecuteVerb(UnderlyingService, ~context);
@@ -85,7 +85,7 @@ public:
 private:
     TYPathServiceProducer Producer;
 
-    virtual void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         auto service = Producer.Run();
         ExecuteVerb(~service, context);

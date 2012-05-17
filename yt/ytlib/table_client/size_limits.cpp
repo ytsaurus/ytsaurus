@@ -1,5 +1,5 @@
 ﻿#include "stdafx.h"
-#include "limits.h"
+#include "size_limits.h"
 
 namespace NYT {
 namespace NTableClient {

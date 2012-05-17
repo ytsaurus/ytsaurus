@@ -58,6 +58,13 @@ void IAttributeDictionary::MergeFrom(const IAttributeDictionary& other)
     }
 }
 
+TAutoPtr<IAttributeDictionary> IAttributeDictionary::Clone()
+{
+    auto attributes = CreateEphemeralAttributes();
+    attributes->MergeFrom(*this);
+    return attributes;
+}
+
 void IAttributeDictionary::Clear()
 {
     auto keys = List();

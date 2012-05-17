@@ -2,19 +2,24 @@
 ################################################################################
 
 function shout() {
+    set +x
     echo '*' $@ >&2
+    set -x
 }
 
 function tc() {
+    set +x
     echo "##teamcity[$*]"
+    set -x
 }
 
 function usage() {
     echo "$0: effortlessly build yt source tree on TeamCity build farm"
-    echo "$0: <checkout-directory> <working-directory> <build-type> <build-package>"
+    echo "$0: <checkout-directory> <working-directory> <build-type> <with-package> <with-deploy>"
     echo ""
     echo "<build-type> have to be compliant with CMAKE_BUILD_TYPE"
-    echo "<build-package> have to be either YES or NO"
+    echo "<with-package> have to be either YES or NO"
+    echo "<with-deploy> have to be either YES or NO"
     echo ""
     echo "Following environment variables must be set:"
     echo "  TEAMCITY_VERSION"
@@ -34,15 +39,21 @@ tc "progressMessage 'Setting up...'"
 [[ -z "$BUILD_NUMBER" ]] && usage && exit 2
 [[ -z "$BUILD_VCS_NUMBER" ]] && usage && exit 2
 
-[[ -z "$1" || -z "$2" || -z "$3" || -z "$4" ]] && usage && exit 3
+[[ -z "$1" || -z "$2" || -z "$3" || -z "$4" || -z "$5" ]] && usage && exit 3
 
 CHECKOUT_DIRECTORY=$1
 WORKING_DIRECTORY=$2
 BUILD_TYPE=$3
-BUILD_PACKAGE=$4
+WITH_PACKAGE=$4
+WITH_DEPLOY=$5
 
-if [[ ( $BUILD_PACKAGE != "YES" ) && ( $BUILD_PACKAGE != "NO" ) ]]; then
-    shout "BUILD_PACKAGE have to be either YES or NO."
+if [[ ( $WITH_PACKAGE != "YES" ) && ( $WITH_PACKAGE != "NO" ) ]]; then
+    shout "WITH_PACKAGE have to be either YES or NO."
+    exit 1
+fi
+
+if [[ ( $WITH_DEPLOY != "YES" ) && ( $WITH_DEPLOY != "NO" ) ]]; then
+    shout "WITH_DEPLOY have to be either YES or NO."
     exit 1
 fi
 
@@ -80,6 +91,7 @@ tc "blockOpened name='CMake'"
 shout "Running CMake..."
 tc "progressMessage 'Running CMake...'"
 cmake \
+    -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
     -DCMAKE_COLOR_MAKEFILE:BOOL=OFF \
     -DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON \
@@ -88,26 +100,9 @@ cmake \
     -DYT_BUILD_TAG=$(echo $BUILD_VCS_NUMBER | cut -c 1-7) \
     $CHECKOUT_DIRECTORY
 
-#trap '(cd $WORKING_DIRECTORY ; make clean ; find . -name "default.log" -delete)' 0
+trap '(cd $WORKING_DIRECTORY ; find . -name "default.log" -delete)' 0
 
 tc "blockClosed name='CMake'"
-
-if [[ $BUILD_PACKAGE = "YES" ]]; then
-    tc "blockOpened name='Package'"
-    tc "progressMessage 'Building package...'"
-
-    cmake \
-        -DCMAKE_INSTALL_PREFIX=/usr \
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DCMAKE_COLOR_MAKEFILE:BOOL=OFF \
-        -DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=OFF \
-        -DYT_BUILD_ENABLE_TESTS:BOOL=OFF \
-        .
-
-    make package && dupload --to common --nomail ARTIFACTS/*.changes
-
-    tc "blockClosed name='Package'"
-fi
 
 tc "blockOpened name='make'"
 
@@ -120,6 +115,54 @@ tc "progressMessage 'Running make (2/2; slow)...'"
 make -j 1
 
 tc "blockClosed name='make'"
+
+package_name=yandex-yt
+package_version=
+package_ticket=
+
+if [[ ( $WITH_PACKAGE = "YES" ) ]]; then
+    tc "progressMessage 'Packing...'"
+
+    make package
+    make version
+
+    package_version=$(cat ytversion)
+
+    changes_file=ARTIFACTS/${package_name}_${package_version}_amd64.changes
+    dupload --to common --nomail ${changes_file}
+
+    tc "setParameter name='yt.package_built' value='1'"
+    tc "setParameter name='yt.package_version' value='$package_version'"
+fi
+
+if [[ ( $WITH_PACKAGE = "YES" ) && ( $WITH_DEPLOY = "YES" ) ]]; then
+    tc "progressMessage 'Deploying...'"
+
+    comment_file=$(mktemp)
+    deploy_file=ARTIFACTS/${package_name}_${package_version}.deploy
+
+    # TODO(sandello): More verbose commentary is always better.
+    trap 'rm -f $comment_file ; exit $?' INT TERM EXIT
+    echo "Auto-generated ticket posted by $(hostname) on $(date)" > $comment_file
+    echo "See http://teamcity.yandex.ru/viewLog.html?buildTypeId=bt1364&buildNumber=${BUILD_NUMBER}" >> $comment_file
+
+    curl http://c.yandex-team.ru/auth_update/ticket_add/ \
+        --silent --get \
+        --data-urlencode "package[0]=${package_name}" \
+        --data-urlencode "version[0]=${package_version}" \
+        --data-urlencode "ticket[branch]=testing" \
+        --data-urlencode "ticket[mailcc]=sandello@yandex-team.ru" \
+        --data-urlencode "ticket[comment]@${comment_file}" \
+        --cookie "conductor_auth=$(cat ~/.conductor_auth)" \
+        --header "Accept: application/xml" \
+        --write-out "\nHTTP %{http_code} (done in %{time_total}s)\n" \
+        --output "${deploy_file}" \
+        --show-error
+
+    package_ticket=$(cat ${deploy_file} | grep URL | cut -d : -f 2- | cut -c 2-)
+
+    tc "setParameter name='yt.package_ticket' value='$package_ticket'"
+fi
 
 set +e
 a=0

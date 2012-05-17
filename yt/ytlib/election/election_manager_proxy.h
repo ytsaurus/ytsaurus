@@ -35,7 +35,7 @@ public:
         ((InvalidEpoch)(3))
     );
 
-    TElectionManagerProxy(NRpc::IChannel* channel)
+    TElectionManagerProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

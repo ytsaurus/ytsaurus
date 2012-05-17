@@ -99,6 +99,7 @@ public:
         auto& chunkList = chunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
+        YVERIFY(chunkList.OwningNodes().insert(~node).second);
         objectManager->RefObject(chunkListId);
 
         yvector<TChunkTreeRef> children;
@@ -124,6 +125,8 @@ public:
 protected:
     virtual void DoDestroy(TFileNode& node)
     {
+        auto& chunkList = Bootstrap->GetChunkManager()->GetChunkList(node.GetChunkListId());
+        YVERIFY(chunkList.OwningNodes().erase(&node) == 1);
         Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkListId());
     }
 
@@ -134,6 +137,9 @@ protected:
         // branchedNode is a copy of originatingNode.
         // Reference the list chunk from branchedNode.
         Bootstrap->GetObjectManager()->RefObject(branchedNode.GetChunkListId());
+        auto& chunkList = Bootstrap->GetChunkManager()->GetChunkList(
+            branchedNode.GetChunkListId());
+        YVERIFY(chunkList.OwningNodes().insert(&branchedNode).second);
     }
 
     virtual void DoMerge(TFileNode& originatingNode, TFileNode& branchedNode)
@@ -142,6 +148,9 @@ protected:
 
         // Drop the reference from branchedNode.
         Bootstrap->GetObjectManager()->UnrefObject(branchedNode.GetChunkListId());
+        auto& chunkList = Bootstrap->GetChunkManager()->GetChunkList(
+            branchedNode.GetChunkListId());
+        YVERIFY(chunkList.OwningNodes().erase(&branchedNode) == 1);
     }
 
 };
