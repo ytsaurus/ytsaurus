@@ -380,7 +380,7 @@ private:
     template <class TLhsBuffer, class TRhsBuffer>
     friend int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs);
 
-    friend Stroka ToString(const TKey& key);
+    friend Stroka ToString<>(const TKey& key);
 
     // This is required for correct compilation of operator =.
     template <class TOtherBuffer>
