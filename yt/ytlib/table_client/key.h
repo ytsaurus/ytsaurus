@@ -146,25 +146,6 @@ private:
 
 };
 
-template <class TStrType>
-Stroka ToString(const TKeyPart<TStrType>& keyPart)
-{
-    switch (keyPart.GetType()) {
-    case EKeyType::Null:
-        return "<null>";
-    case EKeyType::Composite:
-        return "<composite>";
-    case EKeyType::String:
-        return keyPart.GetString().ToString();
-    case EKeyType::Integer:
-        return ::ToString(keyPart.GetInteger());
-    case EKeyType::Double:
-        return ::ToString(keyPart.GetDouble());
-    default:
-        YUNREACHABLE();
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
@@ -427,4 +408,23 @@ int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs)
 
 } // namespace NTableClient
 } // namespace NYT
+
+template <class TStrType>
+Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
+{
+    switch (keyPart.GetType()) {
+        case EKeyType::Null:
+            return "<null>";
+        case EKeyType::Composite:
+            return "<composite>";
+        case EKeyType::String:
+            return keyPart.GetString().ToString();
+        case EKeyType::Integer:
+            return ::ToString(keyPart.GetInteger());
+        case EKeyType::Double:
+            return ::ToString(keyPart.GetDouble());
+        default:
+            YUNREACHABLE();
+    }
+}
 
