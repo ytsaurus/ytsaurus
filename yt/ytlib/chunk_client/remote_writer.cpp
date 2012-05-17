@@ -458,13 +458,13 @@ TRemoteWriter::~TRemoteWriter()
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Writer canceled");
+    LOG_INFO("Writer canceled");
     State.Cancel(TError(TError::Fail, "Writer canceled"));
 }
 
 void TRemoteWriter::Open()
 {
-    LOG_DEBUG("Opening writer (Addresses: [%s])", ~JoinToString(Addresses));
+    LOG_INFO("Opening writer (Addresses: [%s])", ~JoinToString(Addresses));
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto holder, Holders) {
@@ -646,7 +646,7 @@ void TRemoteWriter::CheckResponse(
         metric->AddDelta(rsp->GetStartTime());
         onSuccess.Run(rsp);
     } else {
-        // TODO: retry?
+        // TODO(babenko): retry?
         LOG_ERROR("Error reported by node %s\n%s",
             ~holder->Address, 
             ~rsp->GetError().ToString());
@@ -683,7 +683,7 @@ void TRemoteWriter::OnSessionStarted()
         return;
     }
 
-    LOG_DEBUG("Writer is ready");
+    LOG_INFO("Writer is ready");
 
     IsInitComplete = true;
     FOREACH (auto& group, Window) {
@@ -702,7 +702,7 @@ void TRemoteWriter::CloseSession()
 
     YASSERT(IsCloseRequested);
 
-    LOG_DEBUG("Closing writer");
+    LOG_INFO("Closing writer");
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto holder, Holders) {
@@ -728,7 +728,7 @@ void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto& chunkInfo = rsp->chunk_info();
-    LOG_DEBUG("Chunk is finished at %s (Size: %" PRId64 ")",
+    LOG_INFO("Chunk is finished at %s (Size: %" PRId64 ")",
         ~holder->Address,
         chunkInfo.size());
 
@@ -772,7 +772,7 @@ void TRemoteWriter::OnSessionFinished()
 
     CancelAllPings();
 
-    LOG_DEBUG("Writer closed");
+    LOG_INFO("Writer closed");
 
     State.FinishOperation();
 }
