@@ -278,7 +278,7 @@ void TOperationControllerBase::AbortTransactions()
     LOG_INFO("Aborting transactions")
 
     if (PrimaryTransaction) {
-        // This method is async, no problem in using it here.
+        // The call is async.
         PrimaryTransaction->Abort();
     }
 

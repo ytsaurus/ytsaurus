@@ -996,12 +996,14 @@ private:
             return;
         }
 
-        operation->SetState(EOperationState::Failed);
-        *operation->Result().mutable_error() = error.ToProto();
-
         LOG_INFO("Operation %s failed\n%s",
             ~operation->GetOperationId().ToString(),
             ~error.GetMessage());
+
+        operation->GetController()->OnOperationAborted();
+
+        operation->SetState(EOperationState::Failed);
+        *operation->Result().mutable_error() = error.ToProto();
 
         FinalizeOperationNode(operation);
 
