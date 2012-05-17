@@ -37,9 +37,18 @@ TChunkSequenceReader::TChunkSequenceReader(
     , NextReader(NewPromise<TChunkReaderPtr>())
     , PartitionTag(partitionTag)
     , Options(options)
+    , TotalValueCount(0)
+    , TotalRowCount(0)
+    , CurrentRowIndex(0)
 {
     // Current reader is not set.
     Readers.push_back(TChunkReaderPtr());
+    for (int i = 0; i < InputChunks.size(); ++i) {
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
+        TotalRowCount += miscExt->row_count();
+        TotalValueCount += miscExt->value_count();
+    }
+
     PrepareNextChunk();
 }
 
@@ -120,6 +129,17 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReaderPtr nextReader)
     Readers.push_back(nextReader);
 
     if (nextReader) {
+        {
+            // Update row count after opening new reader.
+            // Take actual number of rows from used readers, estimated from just opened and
+            // misc estimation for pending ones.
+            TotalRowCount = CurrentRowIndex + nextReader->GetRowCount();
+            for (int i = NextChunkIndex + 1; i < InputChunks.size(); ++i) {
+                auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
+                TotalRowCount += miscExt->row_count();
+            }
+        }
+
         NextReader = NewPromise<TChunkReaderPtr>();
         PrepareNextChunk();
 
@@ -149,6 +169,7 @@ void TChunkSequenceReader::OnRowFetched(TError error)
         return;
     }
 
+    ++ChunkRowCount;
     State.FinishOperation();
 }
 
@@ -209,7 +230,17 @@ const TNonOwningKey& TChunkSequenceReader::GetKey() const
 
 double TChunkSequenceReader::GetProgress() const
 {
-    YUNIMPLEMENTED();
+    return CurrentRowIndex / double(TotalRowCount);
+}
+
+i64 TChunkSequenceReader::GetRowCount() const
+{
+    return TotalRowCount;
+}
+
+i64 TChunkSequenceReader::GetValueCount() const
+{
+    return TotalValueCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

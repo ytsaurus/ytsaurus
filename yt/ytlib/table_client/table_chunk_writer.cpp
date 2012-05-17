@@ -52,6 +52,8 @@ TTableChunkWriter::TTableChunkWriter(
     YASSERT(chunkWriter);
 
     Codec = GetCodec(ECodecId(Config->CodecId));
+    MiscExt.set_row_count(0);
+    MiscExt.set_value_count(0);
     MiscExt.set_codec_id(Config->CodecId);
 
     {
@@ -117,6 +119,8 @@ TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key
 
         rowDataWeight += pair.first.size();
         rowDataWeight += pair.second.size();
+
+        MiscExt.set_value_count(MiscExt.value_count() + 1);
 
         FOREACH (const auto& writer, ChannelWriters) {
             writer->Write(columnIndex, pair.first, pair.second);

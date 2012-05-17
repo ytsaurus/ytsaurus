@@ -36,7 +36,7 @@ message TMiscExt
     // Total size of blocks with data sent to holder.
     optional int64 compressed_data_size = 5 [default = 0];
 
-    // Total size of (key column names + data size + 1) in each row.
+    // Total size of (key column names + values + 1) in each row.
     optional int64 data_weight = 7 [default = 1]; // Must be greater than zero.
 
     // Size of chunk meta (without TMiscExt), obtained via ByteSize.
@@ -49,6 +49,9 @@ message TMiscExt
 
     // Indicates if the chunk contains a sorted rowset (tables only).
     optional bool sorted = 4 [default = false];
+
+    // Number of key-value pairs across all rows in the chunk.
+    optional int64 value_count = 8 [default = 0];
 }
 
 // TChunkMeta is stored in *.meta files on chunk holders
