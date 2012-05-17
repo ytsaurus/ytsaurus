@@ -37,9 +37,9 @@ INodePtr CloneNode(
     INodePtr node,
     INodeFactory* factory = GetEphemeralNodeFactory());
 
-TYsonProducer ProducerFromYson(TInputStream* input);
+TYsonProducer ProducerFromYson(TInputStream* input, EYsonType type = EYsonType::Node);
 
-TYsonProducer ProducerFromYson(const TYson& data);
+TYsonProducer ProducerFromYson(const TYson& data, EYsonType type = EYsonType::Node);
 
 TYsonProducer ProducerFromNode(INodePtr node);
 

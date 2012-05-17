@@ -13,17 +13,17 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonProducer ProducerFromYson(TInputStream* input)
+TYsonProducer ProducerFromYson(TInputStream* input, EYsonType type)
 {
     return BIND([=] (IYsonConsumer* consumer) {
-        ParseYson(input, consumer);
+        ParseYson(input, consumer, type);
     });
 }
 
-TYsonProducer ProducerFromYson(const TYson& data)
+TYsonProducer ProducerFromYson(const TYson& data, EYsonType type)
 {
     return BIND([=] (IYsonConsumer* consumer) {
-        ParseYson(data, consumer);
+        ParseYson(data, consumer, type);
     });
 }
 

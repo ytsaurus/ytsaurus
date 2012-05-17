@@ -24,7 +24,7 @@ class TDownloadCommand
     : public TTypedCommandBase<TDownloadRequest>
 {
 public:
-    explicit TDownloadCommand(ICommandHost* host)
+    explicit TDownloadCommand(ICommandContext* host)
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
@@ -54,7 +54,7 @@ class TUploadCommand
     : public TTypedCommandBase<TUploadRequest>
 {
 public:
-    explicit TUploadCommand(ICommandHost* host)
+    explicit TUploadCommand(ICommandContext* host)
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }

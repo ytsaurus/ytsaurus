@@ -44,36 +44,31 @@ public:
 
     virtual TError Execute(const std::vector<std::string>& args);
 
-    typedef TNullable<NYTree::EYsonFormat> TFormat;
-    TFormat GetOutputFormat();
+    //typedef TNullable<NYTree::EYsonFormat> TFormat;
+    //TFormat GetOutputFormat();
 
     void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
 
 protected:
-    class TPassthroughDriverHost;
-    class TInterceptingDriverHost;
-
-    // useful typedefs
     typedef TCLAP::UnlabeledValueArg<Stroka> TUnlabeledStringArg;
 
     TCLAP::CmdLine CmdLine;
 
-    // config related
     TCLAP::ValueArg<Stroka> ConfigArg;
 
-    typedef TCLAP::ValueArg<TFormat> TOutputFormatArg;
-    TOutputFormatArg OutputFormatArg;
+    //typedef TCLAP::ValueArg<TFormat> TOutputFormatArg;
+    //TOutputFormatArg OutputFormatArg;
 
     TCLAP::MultiArg<Stroka> ConfigSetArg;
 
     TCLAP::MultiArg<Stroka> OptsArg;
 
-    NYTree::INodePtr ParseArgs(const std::vector<std::string>& args);
+    NYTree::IMapNodePtr ParseArgs(const std::vector<std::string>& args);
     TConfig::TPtr ParseConfig();
 
     void BuildOptions(NYTree::IYsonConsumer* consumer);
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const = 0;
 };
 
@@ -90,7 +85,7 @@ public:
 protected:
     TCLAP::ValueArg<Stroka> TxArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,12 +99,13 @@ public:
 private:
     TUnlabeledStringArg PathArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 class TSetArgsParser
     : public TTransactedArgsParser
 {
@@ -400,7 +396,7 @@ private:
     virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
 };
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

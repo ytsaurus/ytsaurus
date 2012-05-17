@@ -25,22 +25,22 @@ struct TGetRequest
 typedef TIntrusivePtr<TGetRequest> TGetRequestPtr;
 
 class TGetCommand
-    : public TTypedCommandBase<TGetRequest>
+    : public TTransactedCommandBase<TGetRequest>
 {
 public:
-    explicit TGetCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TGetCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
    { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TGetRequestPtr request);
+    virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 struct TSetRequest
     : public TTransactedRequest
 {
@@ -60,9 +60,9 @@ class TSetCommand
     : public TTypedCommandBase<TSetRequest>
 {
 public:
-    explicit TSetCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TSetCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
     virtual TCommandDescriptor GetDescriptor();
@@ -90,9 +90,9 @@ class TRemoveCommand
     : public TTypedCommandBase<TRemoveRequest>
 {
 public:
-    explicit TRemoveCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TRemoveCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
     virtual TCommandDescriptor GetDescriptor();
@@ -120,9 +120,9 @@ class TListCommand
     : public TTypedCommandBase<TListRequest>
 {
 public:
-    explicit TListCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TListCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
     virtual TCommandDescriptor GetDescriptor();
@@ -152,9 +152,9 @@ class TCreateCommand
     : public TTypedCommandBase<TCreateRequest>
 {
 public:
-    explicit TCreateCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TCreateCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TUntypedCommandBase(context)
    { }
 
     virtual TCommandDescriptor GetDescriptor();
@@ -185,9 +185,9 @@ class TLockCommand
     : public TTypedCommandBase<TLockRequest>
 {
 public:
-    explicit TLockCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TLockCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
     virtual TCommandDescriptor GetDescriptor();
@@ -195,7 +195,7 @@ public:
 private:
     virtual void DoExecute(TLockRequestPtr request);
 };
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 

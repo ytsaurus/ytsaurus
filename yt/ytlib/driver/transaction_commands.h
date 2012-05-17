@@ -17,7 +17,7 @@ class TStartTransactionCommand
     : public TTypedCommandBase<TStartTransactionRequest>
 {
 public:
-    explicit TStartTransactionCommand(ICommandHost* host)
+    explicit TStartTransactionCommand(ICommandContext* host)
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
@@ -40,7 +40,7 @@ class TRenewTransactionCommand
     : public TTypedCommandBase<TRenewTransactionRequest>
 {
 public:
-    explicit TRenewTransactionCommand(ICommandHost* host)
+    explicit TRenewTransactionCommand(ICommandContext* host)
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
@@ -63,7 +63,7 @@ class TCommitTransactionCommand
     : public TTypedCommandBase<TCommitTransactionRequest>
 {
 public:
-    explicit TCommitTransactionCommand(ICommandHost* host)
+    explicit TCommitTransactionCommand(ICommandContext* host)
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
@@ -86,7 +86,7 @@ class TAbortTransactionCommand
     : public TTypedCommandBase<TAbortTransactionRequest>
 {
 public:
-    explicit TAbortTransactionCommand(ICommandHost* host)
+    explicit TAbortTransactionCommand(ICommandContext* host)
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }

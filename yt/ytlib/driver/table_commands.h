@@ -27,7 +27,7 @@ class TReadCommand
     : public TTypedCommandBase<TReadRequest>
 {
 public:
-    explicit TReadCommand(ICommandHost* host)
+    explicit TReadCommand(ICommandContext* host)
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
@@ -76,7 +76,7 @@ class TWriteCommand
     : public TTypedCommandBase<TWriteRequest>
 {
 public:
-    explicit TWriteCommand(ICommandHost* host)
+    explicit TWriteCommand(ICommandContext* host)
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }

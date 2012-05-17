@@ -39,106 +39,20 @@ static const char* SystemConfigPath = "/etc/";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TArgsParserBase::TPassthroughDriverHost
-    : public IDriverHost
-{
-public:
-    TPassthroughDriverHost()
-        : InputStream(new TBufferedInput(&StdInStream()))
-        , OutputStream(new TBufferedOutput(&StdOutStream()))
-        , ErrorStream(new TBufferedOutput(&StdErrStream()))
-    { }
-
-private:
-    virtual TSharedPtr<TInputStream> GetInputStream()
-    {
-        return InputStream;
-    }
-
-    virtual TSharedPtr<TOutputStream> GetOutputStream()
-    {
-        return OutputStream;
-    }
-
-    virtual TSharedPtr<TOutputStream> GetErrorStream()
-    {
-        return ErrorStream;
-    }
-
-    TSharedPtr<TInputStream> InputStream;
-    TSharedPtr<TOutputStream> OutputStream;
-    TSharedPtr<TOutputStream> ErrorStream;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TArgsParserBase::TInterceptingDriverHost
-    : public IDriverHost
-{
-public:
-    TInterceptingDriverHost(const TYson& input = "")
-        : Input(input)
-        , InputStream(new TStringInput(Input))
-        , OutputStream(new TStringOutput(Output))
-        , ErrorStream(new TStringOutput(Error))
-    { }
-
-    const TYson& GetInput()
-    {
-        return Input;
-    }
-
-    const TYson& GetOutput()
-    {
-        return Output;
-    }
-    
-    const TYson& GetError()
-    {
-        return Error;
-    }
-
-private:
-    virtual TSharedPtr<TInputStream> GetInputStream()
-    {
-        return InputStream;
-    }
-
-    virtual TSharedPtr<TOutputStream> GetOutputStream()
-    {
-        return OutputStream;
-    }
-
-    virtual TSharedPtr<TOutputStream> GetErrorStream()
-    {
-        return ErrorStream;
-    }
-
-    TYson Input;
-    TYson Output;
-    TYson Error;
-
-    TSharedPtr<TInputStream> InputStream;
-    TSharedPtr<TOutputStream> OutputStream;
-    TSharedPtr<TOutputStream> ErrorStream;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TArgsParserBase::TArgsParserBase()
     : CmdLine("Command line", ' ', YT_VERSION)
     , ConfigArg("", "config", "configuration file", false, "", "file_name")
-    , OutputFormatArg("", "format", "output format", false, TFormat(), "text, pretty, binary")
+    //, OutputFormatArg("", "format", "output format", false, TFormat(), "text, pretty, binary")
     , ConfigSetArg("", "config_set", "set configuration value", false, "ypath=yson")
     , OptsArg("", "opts", "other options", false, "key=yson")
 {
     CmdLine.add(ConfigArg);
     CmdLine.add(OptsArg);
-    CmdLine.add(OutputFormatArg);
+    //CmdLine.add(OutputFormatArg);
     CmdLine.add(ConfigSetArg);
 }
 
-INodePtr TArgsParserBase::ParseArgs(const std::vector<std::string>& args)
+IMapNodePtr TArgsParserBase::ParseArgs(const std::vector<std::string>& args)
 {
     auto argsCopy = args;
     CmdLine.parse(argsCopy);
@@ -146,9 +60,9 @@ INodePtr TArgsParserBase::ParseArgs(const std::vector<std::string>& args)
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
     builder->OnBeginMap();
-    BuildRequest(~builder);
+    BuildArgs(~builder);
     builder->OnEndMap();
-    return builder->EndTree();
+    return builder->EndTree()->AsMap();
 }
 
 TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
@@ -158,6 +72,7 @@ TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
     Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
     Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
 
+    // TODO(babenko): refactor me
     auto configName = configFromCmd;
     if (configName.empty()) {
         configName = configFromEnv;
@@ -197,27 +112,38 @@ TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
 
     NLog::TLogManager::Get()->Configure(~config->Logging);
 
-    auto outputFormat = GetOutputFormat();
-    if (outputFormat) {
-        config->OutputFormat = outputFormat.Get();
-    }
+    //auto outputFormat = GetOutputFormat();
+    //if (outputFormat) {
+    //    config->OutputFormat = outputFormat.Get();
+    //}
 
     return config;
 }
 
 TError TArgsParserBase::Execute(const std::vector<std::string>& args)
 {
-    auto request = ParseArgs(args);
     auto config = ParseConfig();
-    TPassthroughDriverHost driverHost;
-    auto driver = CreateDriver(config, &driverHost);
-    return driver->Execute(GetDriverCommandName(), request);
+    
+    auto driver = CreateDriver(config);
+
+    TDriverRequest request;
+    request.CommandName = GetDriverCommandName();
+    request.InputStream = &StdInStream();
+    // TODO(babenko): fixme
+    request.InputFormat = TFormat(EFormatType::Yson);
+    request.OutputStream = &StdOutStream();
+    // TODO(babenko): fixme
+    request.OutputFormat = TFormat(EFormatType::Yson);
+    request.Arguments = ParseArgs(args);
+
+    auto response = driver->Execute(request);
+    return response.Error;
 }
 
-TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
-{
-    return OutputFormatArg.getValue();
-}
+//TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
+//{
+//    return OutputFormatArg.getValue();
+//}
 
 void TArgsParserBase::ApplyConfigUpdates(IYPathServicePtr service)
 {
@@ -247,7 +173,7 @@ void TArgsParserBase::BuildOptions(IYsonConsumer* consumer)
     }
 }
 
-void TArgsParserBase::BuildRequest(IYsonConsumer* consumer)
+void TArgsParserBase::BuildArgs(IYsonConsumer* consumer)
 {
     UNUSED(consumer);
 }
@@ -260,7 +186,7 @@ TTransactedArgsParser::TTransactedArgsParser()
     CmdLine.add(TxArg);
 }
 
-void TTransactedArgsParser::BuildRequest(IYsonConsumer* consumer)
+void TTransactedArgsParser::BuildArgs(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
@@ -269,7 +195,7 @@ void TTransactedArgsParser::BuildRequest(IYsonConsumer* consumer)
             fluent.Item("transaction_id").Node(txYson);
         });
 
-    TArgsParserBase::BuildRequest(consumer);
+    TArgsParserBase::BuildArgs(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,14 +206,14 @@ TGetArgsParser::TGetArgsParser()
     CmdLine.add(PathArg);
 }
 
-void TGetArgsParser::BuildRequest(IYsonConsumer* consumer)
+void TGetArgsParser::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Scalar(path);
 
-    TTransactedArgsParser::BuildRequest(consumer);
+    TTransactedArgsParser::BuildArgs(consumer);
     BuildOptions(consumer);
 }
 
@@ -298,6 +224,7 @@ Stroka TGetArgsParser::GetDriverCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 TSetArgsParser::TSetArgsParser()
     : PathArg("path", "path to an object in Cypress that must be set", true, "", "path")
     , ValueArg("value", "value to set", true, "", "yson")
@@ -969,6 +896,7 @@ Stroka TAbortOpArgsParser::GetDriverCommandName() const
 {
     return "abort_op";
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -45,29 +45,29 @@ public:
     TDriverProgram()
         : ExitCode(0)
     {
-        RegisterParser("start_tx", New<TStartTxArgsParser>());
-        RegisterParser("renew_tx", New<TRenewTxArgsParser>());
-        RegisterParser("commit_tx", New<TCommitTxArgsParser>());
-        RegisterParser("abort_tx", New<TAbortTxArgsParser>());
+        //RegisterParser("start_tx", New<TStartTxArgsParser>());
+        //RegisterParser("renew_tx", New<TRenewTxArgsParser>());
+        //RegisterParser("commit_tx", New<TCommitTxArgsParser>());
+        //RegisterParser("abort_tx", New<TAbortTxArgsParser>());
 
         RegisterParser("get", New<TGetArgsParser>());
-        RegisterParser("set", New<TSetArgsParser>());
-        RegisterParser("remove", New<TRemoveArgsParser>());
-        RegisterParser("list", New<TListArgsParser>());
-        RegisterParser("create", New<TCreateArgsParser>());
-        RegisterParser("lock", New<TLockArgsParser>());
+        //RegisterParser("set", New<TSetArgsParser>());
+        //RegisterParser("remove", New<TRemoveArgsParser>());
+        //RegisterParser("list", New<TListArgsParser>());
+        //RegisterParser("create", New<TCreateArgsParser>());
+        //RegisterParser("lock", New<TLockArgsParser>());
 
-        RegisterParser("download", New<TDownloadArgsParser>());
-        RegisterParser("upload", New<TUploadArgsParser>());
+        //RegisterParser("download", New<TDownloadArgsParser>());
+        //RegisterParser("upload", New<TUploadArgsParser>());
 
-        RegisterParser("read", New<TReadArgsParser>());
-        RegisterParser("write", New<TWriteArgsParser>());
+        //RegisterParser("read", New<TReadArgsParser>());
+        //RegisterParser("write", New<TWriteArgsParser>());
 
-        RegisterParser("map", New<TMapArgsParser>());
-        RegisterParser("merge", New<TMergeArgsParser>());
-        RegisterParser("sort", New<TSortArgsParser>());
-        RegisterParser("erase", New<TEraseArgsParser>());
-        RegisterParser("abort_op", New<TAbortOpArgsParser>());
+        //RegisterParser("map", New<TMapArgsParser>());
+        //RegisterParser("merge", New<TMergeArgsParser>());
+        //RegisterParser("sort", New<TSortArgsParser>());
+        //RegisterParser("erase", New<TEraseArgsParser>());
+        //RegisterParser("abort_op", New<TAbortOpArgsParser>());
     }
 
     int Main(int argc, const char* argv[])

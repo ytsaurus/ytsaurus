@@ -30,7 +30,7 @@ class TSchedulerCommandBase
 protected:
     typedef TSchedulerCommandBase TThis;
 
-    explicit TSchedulerCommandBase(ICommandHost* host);
+    explicit TSchedulerCommandBase(ICommandContext* host);
 
     void StartOperation(
         TTransactedRequestPtr request,
@@ -46,7 +46,7 @@ class TMapCommand
     , public TTypedCommandBase<TSchedulerRequest>
 {
 public:
-    explicit TMapCommand(ICommandHost* commandHost);
+    explicit TMapCommand(ICommandContext* commandHost);
 
     virtual TCommandDescriptor GetDescriptor();
 
@@ -61,7 +61,7 @@ class TMergeCommand
     , public TTypedCommandBase<TSchedulerRequest>
 {
 public:
-    explicit TMergeCommand(ICommandHost* commandHost);
+    explicit TMergeCommand(ICommandContext* commandHost);
 
     virtual TCommandDescriptor GetDescriptor();
 
@@ -76,7 +76,7 @@ class TSortCommand
     , public TTypedCommandBase<TSchedulerRequest>
 {
 public:
-    explicit TSortCommand(ICommandHost* commandHost);
+    explicit TSortCommand(ICommandContext* commandHost);
 
     virtual TCommandDescriptor GetDescriptor();
 
@@ -91,7 +91,7 @@ class TEraseCommand
     , public TTypedCommandBase<TSchedulerRequest>
 {
 public:
-    explicit TEraseCommand(ICommandHost* commandHost);
+    explicit TEraseCommand(ICommandContext* commandHost);
 
     virtual TCommandDescriptor GetDescriptor();
 
@@ -118,7 +118,7 @@ class TAbortOperationCommand
     : public TTypedCommandBase<TAbortOperationRequest>
 {
 public:
-    explicit TAbortOperationCommand(ICommandHost* commandHost);
+    explicit TAbortOperationCommand(ICommandContext* commandHost);
 
     virtual TCommandDescriptor GetDescriptor();
 

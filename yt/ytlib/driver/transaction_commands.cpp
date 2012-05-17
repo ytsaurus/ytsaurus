@@ -25,12 +25,12 @@ TCommandDescriptor TStartTransactionCommand::GetDescriptor()
 void TStartTransactionCommand::DoExecute(TStartRequestPtr request)
 {
     auto attributes = IAttributeDictionary::FromMap(request->GetOptions());
-    auto transactionManager = Host->GetTransactionManager();
+    auto transactionManager = Context->GetTransactionManager();
     auto newTransaction = transactionManager->Start(
         ~attributes,
         request->TransactionId);
 
-    BuildYsonFluently(~Host->CreateOutputConsumer())
+    BuildYsonFluently(~Context->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
 }
 
@@ -43,14 +43,14 @@ TCommandDescriptor TRenewTransactionCommand::GetDescriptor()
 
 void TRenewTransactionCommand::DoExecute(TRenewRequestPtr request)
 {
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(request->TransactionId));
     auto response = proxy.Execute(req).Get();
 
     if (response->IsOK()) {
-        Host->ReplySuccess();
+        Context->ReplySuccess();
     } else {
-        Host->ReplyError(response->GetError());
+        Context->ReplyError(response->GetError());
     }
 }
 
@@ -63,9 +63,9 @@ TCommandDescriptor TCommitTransactionCommand::GetDescriptor()
 
 void TCommitTransactionCommand::DoExecute(TCommitRequestPtr request)
 {
-    auto transaction = Host->GetTransaction(request, true);
+    auto transaction = Context->GetTransaction(request, true);
     transaction->Commit();
-    Host->ReplySuccess();
+    Context->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,9 +77,9 @@ TCommandDescriptor TAbortTransactionCommand::GetDescriptor()
 
 void TAbortTransactionCommand::DoExecute(TAbortTransactionRequestPtr request)
 {
-    auto transaction = Host->GetTransaction(request, true);
+    auto transaction = Context->GetTransaction(request, true);
     transaction->Abort(true);
-    Host->ReplySuccess();
+    Context->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

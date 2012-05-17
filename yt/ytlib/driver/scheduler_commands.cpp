@@ -24,7 +24,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerCommandBase::TSchedulerCommandBase(ICommandHost* host)
+TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* host)
     : TUntypedCommandBase(host)
 { }
 
@@ -33,9 +33,9 @@ void TSchedulerCommandBase::StartOperation(
     EOperationType type,
     const NYTree::TYson& spec)
 {
-    auto transaction = Host->GetTransaction(request);
+    auto transaction = Context->GetTransaction(request);
 
-    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
 
     TOperationId operationId;
     {
@@ -52,12 +52,12 @@ void TSchedulerCommandBase::StartOperation(
         operationId = TOperationId::FromProto(startOpRsp->operation_id());
     }
 
-    Host->ReplySuccess(BuildYsonFluently().Scalar(operationId.ToString()));
+    Context->ReplySuccess(BuildYsonFluently().Scalar(operationId.ToString()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapCommand::TMapCommand(ICommandHost* host)
+TMapCommand::TMapCommand(ICommandContext* host)
     : TTypedCommandBase(host)
     , TUntypedCommandBase(host)
     , TSchedulerCommandBase(host)
@@ -79,7 +79,7 @@ void TMapCommand::DoExecute(TSchedulerRequestPtr request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMergeCommand::TMergeCommand(ICommandHost* host)
+TMergeCommand::TMergeCommand(ICommandContext* host)
     : TTypedCommandBase(host)
     , TUntypedCommandBase(host)
     , TSchedulerCommandBase(host)
@@ -100,7 +100,7 @@ void TMergeCommand::DoExecute(TSchedulerRequestPtr request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortCommand::TSortCommand(ICommandHost* host)
+TSortCommand::TSortCommand(ICommandContext* host)
     : TTypedCommandBase(host)
     , TUntypedCommandBase(host)
     , TSchedulerCommandBase(host)
@@ -121,7 +121,7 @@ void TSortCommand::DoExecute(TSchedulerRequestPtr request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEraseCommand::TEraseCommand(ICommandHost* host)
+TEraseCommand::TEraseCommand(ICommandContext* host)
     : TTypedCommandBase(host)
     , TUntypedCommandBase(host)
     , TSchedulerCommandBase(host)
@@ -142,7 +142,7 @@ void TEraseCommand::DoExecute(TSchedulerRequestPtr request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortOperationCommand::TAbortOperationCommand(ICommandHost* host)
+TAbortOperationCommand::TAbortOperationCommand(ICommandContext* host)
     : TTypedCommandBase(host)
     , TUntypedCommandBase(host)
 { }
@@ -154,7 +154,7 @@ TCommandDescriptor TAbortOperationCommand::GetDescriptor()
 
 void TAbortOperationCommand::DoExecute(TAbortOperationRequestPtr request)
 {
-    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
     auto abortOpReq = proxy.AbortOperation();
     *abortOpReq->mutable_operation_id() = request->OperationId.ToProto();
     abortOpReq->Invoke().Get();

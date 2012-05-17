@@ -14,16 +14,6 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Data type that can be read or written by a driver command.
-DECLARE_ENUM(EDataType,
-    (Null)
-    (Binary)
-    (Node)
-    (Table)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! An instance of driver request.
 struct TDriverRequest
 {
@@ -31,13 +21,15 @@ struct TDriverRequest
     Stroka CommandName;
 
     //! Stream used for reading command input.
-    TSharedPtr<TInputStream> InputStream;
+    //! The stream must stay alive for the duration of #IDriver::Execute.
+    TInputStream* InputStream;
 
     //! Format used for reading the input.
     TFormat InputFormat;
 
     //! Stream where the command output is written.
-    TSharedPtr<TOutputStream> OutputStream;
+    //! The stream must stay alive for the duration of #IDriver::Execute.
+    TOutputStream* OutputStream;
 
     //! Format used for writing the output.
     TFormat OutputFormat;
@@ -72,8 +64,12 @@ struct TCommandDescriptor
     //! Type of data written by the command to #TDriverRequest::OutputStream.
     EDataType OutputType;
 
-    TCommandDescriptor(EDataType inputType, EDataType outputType)
-        : InputType(inputType)
+    TCommandDescriptor()
+    { }
+
+    TCommandDescriptor(const Stroka& commandName, EDataType inputType, EDataType outputType)
+        : CommandName(commandName)
+        , InputType(inputType)
         , OutputType(outputType)
     { }
 };
@@ -95,8 +91,12 @@ struct IDriver
     //! Synchronously executes a given request.
     virtual TDriverResponse Execute(const TDriverRequest& request) = 0;
 
-    //! Returns a descriptor for a command with a given name.
-    virtual TCommandDescriptor GetDescriptor(const Stroka& commandName) = 0;
+    //! Returns a descriptor for a command with a given name or
+    //! |Null| if no command with this name is registered.
+    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) = 0;
+
+    //! Returns the list of descriptors for all supported commands.
+    virtual std::vector<TCommandDescriptor> GetCommandDescriptors() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

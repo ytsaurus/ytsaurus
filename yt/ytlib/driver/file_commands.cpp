@@ -21,19 +21,19 @@ TCommandDescriptor TDownloadCommand::GetDescriptor()
 
 void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 {
-    auto config = Host->GetConfig()->FileReader;
+    auto config = Context->GetConfig()->FileReader;
 
     auto reader = New<TFileReader>(
         ~config,
-        ~Host->GetMasterChannel(),
-        ~Host->GetTransaction(request),
-        ~Host->GetBlockCache(),
+        ~Context->GetMasterChannel(),
+        ~Context->GetTransaction(request),
+        ~Context->GetBlockCache(),
         request->Path);
     reader->Open();
 
     // TODO(babenko): use FileName and Executable values
 
-    auto output = Host->GetOutputStream();
+    auto output = Context->GetOutputStream();
 
     while (true) {
         auto block = reader->Read();
@@ -53,17 +53,17 @@ TCommandDescriptor TUploadCommand::GetDescriptor()
 
 void TUploadCommand::DoExecute(TUploadRequestPtr request)
 {
-    auto config = Host->GetConfig()->FileWriter;
+    auto config = Context->GetConfig()->FileWriter;
 
     auto writer = New<TFileWriter>(
         ~config,
-        ~Host->GetMasterChannel(),
-        ~Host->GetTransaction(request),
-        ~Host->GetTransactionManager(),
+        ~Context->GetMasterChannel(),
+        ~Context->GetTransaction(request),
+        ~Context->GetTransactionManager(),
         request->Path);
     writer->Open();
 
-    auto input = Host->GetInputStream();
+    auto input = Context->GetInputStream();
     
     TBlob buffer(config->BlockSize);
     while (true) {
@@ -77,7 +77,7 @@ void TUploadCommand::DoExecute(TUploadRequestPtr request)
     writer->Close();
 
     auto id = writer->GetNodeId();
-    BuildYsonFluently(~Host->CreateOutputConsumer())
+    BuildYsonFluently(~Context->CreateOutputConsumer())
         .BeginMap()
             .Item("object_id").Scalar(id.ToString())
         .EndMap();

@@ -25,21 +25,21 @@ TCommandDescriptor TReadCommand::GetDescriptor()
 
 void TReadCommand::DoExecute(TReadRequestPtr request)
 {
-    auto stream = Host->GetOutputStream();
+    auto stream = Context->GetOutputStream();
 
     auto reader = New<TTableReader>(
-        Host->GetConfig()->ChunkSequenceReader,
-        Host->GetMasterChannel(),
-        Host->GetTransaction(request),
-        Host->GetBlockCache(),
+        Context->GetConfig()->ChunkSequenceReader,
+        Context->GetMasterChannel(),
+        Context->GetTransaction(request),
+        Context->GetBlockCache(),
         request->Path);
     reader->Open();
 
     TYsonWriter writer(
         stream,
-        Host->GetConfig()->OutputFormat,
+        Context->GetConfig()->OutputFormat,
         EYsonType::ListFragment,
-        Host->GetConfig()->OutputFormat != EYsonFormat::Binary);
+        Context->GetConfig()->OutputFormat != EYsonFormat::Binary);
     ProduceYson(reader, &writer);
 }
 
@@ -58,10 +58,10 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
     }
 
     auto writer = New<TTableWriter>(
-        Host->GetConfig()->ChunkSequenceWriter,
-        Host->GetMasterChannel(),
-        Host->GetTransaction(request),
-        Host->GetTransactionManager(),
+        Context->GetConfig()->ChunkSequenceWriter,
+        Context->GetMasterChannel(),
+        Context->GetTransaction(request),
+        Context->GetTransactionManager(),
         request->Path,
         keyColumns);
 
@@ -87,12 +87,12 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
                 YUNREACHABLE();
         }
     } else {
-        auto stream = Host->GetInputStream();
+        auto stream = Context->GetInputStream();
         ParseYson(stream, &consumer, EYsonType::ListFragment);
     }
 
     writer->Close();
-    Host->ReplySuccess();
+    Context->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
