@@ -4,6 +4,10 @@
 #include "private.h"
 #include "chunk_meta_extensions.h"
 
+#include <ytlib/misc/string.h>
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/sync.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
@@ -11,9 +15,6 @@
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/ytree/tokenizer.h>
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/sync.h>
-#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/logging/tagged_logger.h>
 
