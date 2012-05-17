@@ -321,22 +321,22 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
 
 void TInputPipe::Finish()
 {
-    if (HasData) {
-        ythrow yexception() << 
-            Sprintf("Not all data was consumed by job (fd: %d, job fd: %d)",
-                Pipe.WriteFd,
-                JobDescriptor);
-    }
+    //if (HasData) {
+    //    ythrow yexception() << 
+    //        Sprintf("Not all data was consumed by job (fd: %d, job fd: %d)",
+    //            Pipe.WriteFd,
+    //            JobDescriptor);
+    //}
 
-    // Try to read some data from the pipe.
-    char buffer;
-    ssize_t res = read(Pipe.ReadFd, &buffer, 1);
-    if (res > 0) {
-        ythrow yexception() << 
-            Sprintf("Not all data was consumed by job (fd: %d, job fd: %d)",
-            Pipe.WriteFd,
-            JobDescriptor);
-    }
+    //// Try to read some data from the pipe.
+    //char buffer;
+    //ssize_t res = read(Pipe.ReadFd, &buffer, 1);
+    //if (res > 0) {
+    //    ythrow yexception() << 
+    //        Sprintf("Not all data was consumed by job (fd: %d, job fd: %d)",
+    //        Pipe.WriteFd,
+    //        JobDescriptor);
+    //}
 
     SafeClose(Pipe.ReadFd);
     IsFinished = true;
