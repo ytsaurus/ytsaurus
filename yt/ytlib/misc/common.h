@@ -37,9 +37,6 @@ using std::string; // hack for guid.h to work
 #include <util/string/cast.h>
 #include <util/string/split.h>
 
-// TODO(babenko): get rid of this
-#include <util/autoarray.h>
-
 // This define enables tracking of reference-counted objects to provide
 // various insightful information on memory usage and object creation patterns.
 #define ENABLE_REF_COUNTED_TRACKING
