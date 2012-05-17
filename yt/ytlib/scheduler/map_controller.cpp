@@ -298,12 +298,11 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::Map);
 
-        TUserJobSpec userJobSpec;
-        userJobSpec.set_shell_command(Spec->Mapper);
+        auto* userJobSpec = JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec);
+        userJobSpec->set_shell_command(Spec->Mapper);
         FOREACH (const auto& file, Files) {
-            *userJobSpec.add_files() = *file.FetchResponse;
+            *userJobSpec->add_files() = *file.FetchResponse;
         }
-        *JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
 
         TMapJobSpec mapJobSpec;
         *mapJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
