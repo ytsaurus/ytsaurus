@@ -3,12 +3,12 @@
 #include "public.h"
 #include "size_limits.h"
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/ytree/lexer.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/ytree/lexer.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -152,22 +152,22 @@ template <class TStrType>
 Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
 {
     switch (keyPart.GetType()) {
-    case NYT::NTableClient::EKeyType::Null:
-        return "<null>";
-    case NYT::NTableClient::EKeyType::Composite:
-        return "<composite>";
-    case NYT::NTableClient::EKeyType::String:
-        return keyPart.GetString().ToString();
-    case NYT::NTableClient::EKeyType::Integer:
-        return ::ToString(keyPart.GetInteger());
-    case NYT::NTableClient::EKeyType::Double:
-        return ::ToString(keyPart.GetDouble());
-    default:
-        YUNREACHABLE();
+        case NYT::NTableClient::EKeyType::Null:
+            return "<null>";
+        case NYT::NTableClient::EKeyType::Composite:
+            return "<composite>";
+        case NYT::NTableClient::EKeyType::String:
+            return keyPart.GetString().ToString();
+        case NYT::NTableClient::EKeyType::Integer:
+            return ::ToString(keyPart.GetInteger());
+        case NYT::NTableClient::EKeyType::Double:
+            return ::ToString(keyPart.GetDouble());
+        default:
+            YUNREACHABLE();
     }
 }
 
-template<class TLhsStrType, class TRhsStrType>
+template <class TLhsStrType, class TRhsStrType>
 int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType>& rhs)
 {
     if (rhs.GetType() != lhs.GetType()) {
@@ -203,20 +203,11 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
-} // namespace NYT
-
-
-namespace NYT {
-namespace NTableClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TBuffer>
 class TKey;
 
-template <class TBuffer>
-Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key);
+//template <class TBuffer>
+//Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key);
 
 template <class TBuffer>
 class TKey
