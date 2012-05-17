@@ -42,6 +42,8 @@ public:
     virtual const TNonOwningKey& GetKey() const;
     virtual const NYTree::TYson& GetRowAttributes() const;
 
+    i64 GetRowCount() const;
+
 private:
     class TKeyValidator;
     template <template <typename T> class TComparator>
@@ -91,6 +93,7 @@ private:
     yhash_set<TStringBuf> UsedRangeColumns;
 
     i64 CurrentRowIndex;
+    i64 StartRowIndex;
     i64 EndRowIndex;
 
     int PartitionTag;

@@ -197,11 +197,10 @@ private:
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
             result.Value().extensions());
 
-        StartRowIndex = 0;
         chunkReader->EndRowIndex = miscExt->row_count();
 
         if (StartLimit.has_row_index()) {
-            StartRowIndex = std::max(StartRowIndex, StartLimit.row_index());
+            chunkReader->StartRowIndex = std::max(chunkReader->StartRowIndex, StartLimit.row_index());
         }
 
         if (EndLimit.has_row_index()) {
@@ -250,7 +249,7 @@ private:
                     TIndexComparator<std::greater>());
 
                 if (it != rend) {
-                    StartRowIndex = std::max(it->row_index() + 1, StartRowIndex);
+                    chunkReader->StartRowIndex = std::max(it->row_index() + 1, chunkReader->StartRowIndex);
                 }
             }
 
@@ -272,10 +271,10 @@ private:
         }
 
         LOG_DEBUG("Reading rows %" PRId64 "-%" PRId64,
-            StartRowIndex,
+            chunkReader->StartRowIndex,
             chunkReader->EndRowIndex);
 
-        chunkReader->CurrentRowIndex = StartRowIndex;
+        chunkReader->CurrentRowIndex = chunkReader->StartRowIndex;
         if (chunkReader->CurrentRowIndex >= chunkReader->EndRowIndex) {
             LOG_WARNING("Nothing to read from the current chunk");
             chunkReader->Initializer.Reset();
@@ -378,7 +377,7 @@ private:
                 startRow = lastRow;
                 lastRow += protoBlock.row_count();
 
-                if (lastRow > StartRowIndex) {
+                if (lastRow > chunkReader->StartRowIndex) {
                     blockHeap.push_back(TBlockInfo(
                         protoBlock.block_index(),
                         blockIndex,
@@ -469,7 +468,7 @@ private:
         channelReader->SetBlock(decompressedBlock);
 
         for (i64 rowIndex = StartRows[selectedChannelIndex]; 
-            rowIndex < StartRowIndex; 
+            rowIndex < chunkReader->StartRowIndex; 
             ++rowIndex) 
         {
             YVERIFY(channelReader->NextRow());
@@ -538,8 +537,6 @@ private:
     NProto::TReadLimit StartLimit;
     NProto::TReadLimit EndLimit;
 
-    i64 StartRowIndex;
-
     THolder<TKeyValidator> StartValidator;
 
     TAutoPtr<NProto::TChannelsExt> ChannelsExt;
@@ -606,9 +603,8 @@ public:
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
             result.Value().extensions());
 
-        chunkReader->EndRowIndex = miscExt->row_count();
-        YASSERT(chunkReader->EndRowIndex > 0);
-        
+        YASSERT(miscExt->row_count() > 0);
+
         chunkReader->Codec = GetCodec(ECodecId(miscExt->codec_id()));
 
         auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(
@@ -617,18 +613,23 @@ public:
         YASSERT(channelsExt->items_size() == 1);
 
         std::vector<int> blockIndexSequence;
-        for (int i = 0; i < channelsExt->items(0).blocks_size(); ++i) {
-            const auto& blockInfo = channelsExt->items(0).blocks(i);
-            if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
-                blockIndexSequence.push_back(i);
+        {
+            i64 rowCount;
+            for (int i = 0; i < channelsExt->items(0).blocks_size(); ++i) {
+                const auto& blockInfo = channelsExt->items(0).blocks(i);
+                if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
+                    blockIndexSequence.push_back(i);
+                    rowCount += blockInfo.row_count();
+                }
             }
+
+            chunkReader->EndRowIndex = rowCount;
         }
 
         if (blockIndexSequence.empty()) {
             LOG_DEBUG("Nothing to read for partition %d", chunkReader->PartitionTag);
             chunkReader->Initializer.Reset();
             chunkReader->State.FinishOperation();
-            chunkReader->CurrentRowIndex = chunkReader->EndRowIndex;
             return;
         }
 
@@ -645,7 +646,6 @@ public:
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(
             TChannel::FromProto(channelsExt->items(0).channel())));
 
-        chunkReader->CurrentRowIndex = -1;
         chunkReader->DoNextRow().Subscribe(BIND(
             &TChunkReader::OnRowFetched, 
             chunkReader));
@@ -674,6 +674,7 @@ TChunkReader::TChunkReader(TSequentialReaderConfigPtr config,
     , Channel(channel)
     , CurrentRowIndex(-1)
     , PartitionTag(partitionTag)
+    , StartRowIndex(0)
     , EndRowIndex(0)
     , Options(options)
     , RowAttributes(rowAttributes)
@@ -779,18 +780,7 @@ TAsyncError TChunkReader::ContinueNextRow(
     while (channelIndex < ChannelReaders.size()) {
         auto& channel = ChannelReaders[channelIndex];
         if (!channel->NextRow()) {
-
-            if (PartitionTag == DefaultPartitionTag) {
-                YASSERT(SequentialReader->HasNext());
-            } else {
-                // Only one channel in partition chunk.
-                YASSERT(channelIndex == 0);
-                if (!SequentialReader->HasNext()) {
-                    // All blocks from this partition are read.
-                    CurrentRowIndex = EndRowIndex; // IsValid will now return false.
-                    break;
-                }
-            }
+            YASSERT(SequentialReader->HasNext());
 
             if (result.IsSet()) {
                 // Possible when called directly from DoNextRow
@@ -806,8 +796,6 @@ TAsyncError TChunkReader::ContinueNextRow(
         }
         ++channelIndex;
     }
-
-    YASSERT(CurrentRowIndex < EndRowIndex || PartitionTag != DefaultPartitionTag);
 
     if (CurrentRowIndex < EndRowIndex) 
         MakeCurrentRow();
@@ -882,6 +870,11 @@ bool TChunkReader::IsValid() const
 const TYson& TChunkReader::GetRowAttributes() const
 {
     return RowAttributes;
+}
+
+i64 TChunkReader::GetRowCount() const
+{
+    return EndRowIndex - StartRowIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
