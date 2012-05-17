@@ -158,6 +158,33 @@ bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
+} // namespace NYT
+
+template <class TStrType>
+Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
+{
+    switch (keyPart.GetType()) {
+    case NYT::NTableClient::EKeyType::Null:
+        return "<null>";
+    case NYT::NTableClient::EKeyType::Composite:
+        return "<composite>";
+    case NYT::NTableClient::EKeyType::String:
+        return keyPart.GetString().ToString();
+    case NYT::NTableClient::EKeyType::Integer:
+        return ::ToString(keyPart.GetInteger());
+    case NYT::NTableClient::EKeyType::Double:
+        return ::ToString(keyPart.GetDouble());
+    default:
+        YUNREACHABLE();
+    }
+}
+
+namespace NYT {
+namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TBuffer>
 class TKey
 {
@@ -408,23 +435,4 @@ int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs)
 
 } // namespace NTableClient
 } // namespace NYT
-
-template <class TStrType>
-Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
-{
-    switch (keyPart.GetType()) {
-        case NYT::NTableClient::EKeyType::Null:
-            return "<null>";
-        case NYT::NTableClient::EKeyType::Composite:
-            return "<composite>";
-        case NYT::NTableClient::EKeyType::String:
-            return keyPart.GetString().ToString();
-        case NYT::NTableClient::EKeyType::Integer:
-            return ::ToString(keyPart.GetInteger());
-        case NYT::NTableClient::EKeyType::Double:
-            return ::ToString(keyPart.GetDouble());
-        default:
-            YUNREACHABLE();
-    }
-}
 
