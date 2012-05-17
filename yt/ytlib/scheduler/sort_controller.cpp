@@ -6,6 +6,7 @@
 #include "chunk_list_pool.h"
 #include "samples_fetcher.h"
 
+#include <ytlib/misc/string.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/key.h>
@@ -253,6 +254,11 @@ private:
             GetPendingSortJobCount();
     }
 
+    bool IsPartitionComplete()
+    {
+        return CompletedPartitionChunkCount == TotalPartitionChunkCount;
+    }
+
     int GetPendingPartitionJobCount()
     {
         return PendingPartitionChunkCount == 0
@@ -273,9 +279,10 @@ private:
     {
         i64 weight = partition->SortChunkPool->GetPendingWeight();
         i64 weightPerChunk = Config->MaxSortJobDataSize;
-        return GetPendingPartitionJobCount() > 0
-            ? static_cast<int>(floor((double) weight / weightPerChunk))
-            : static_cast<int>(ceil((double) weight / weightPerChunk));
+        double fractionJobCount = (double) weight / weightPerChunk;
+        return IsPartitionComplete()
+            ? static_cast<int>(ceil(fractionJobCount))
+            : static_cast<int>(floor(fractionJobCount));
     }
 
     void CompletePartition(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
