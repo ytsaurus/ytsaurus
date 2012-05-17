@@ -113,7 +113,7 @@ void TSamplesFetcher::SendRequests()
 
         // Send the request, if not empty.
         if (!chunkIndexes.empty()) {
-            LOG_INFO("Requesting samples for %d chunks from %s",
+            LOG_DEBUG("Requesting samples for %d chunks from %s",
                 req->chunk_ids_size(),
                 ~address);
 
@@ -161,11 +161,11 @@ void TSamplesFetcher::OnResponse(
                 YVERIFY(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             }
         }
-        LOG_INFO("Received %d samples from %s",
+        LOG_DEBUG("Received %d samples from %s",
             samplesAdded,
             ~address);
     } else {
-        LOG_INFO("Error requesting samples from %s\n%s",
+        LOG_DEBUG("Error requesting samples from %s\n%s",
             ~address,
             ~rsp->GetError().ToString());
         YVERIFY(DeadNodes.insert(address).second);
