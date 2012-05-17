@@ -99,7 +99,7 @@ public:
                 address);
         }
 
-        if (result->LocalCount == 0 && needLocal) {
+        if (result->LocalChunkCount == 0 && needLocal) {
             // Could not find any local chunks but requested to do so.
             // Don't look at remote ones.
             return NULL;
@@ -108,7 +108,7 @@ public:
         // Unregister taken local chunks.
         // We have to do this right away, otherwise we risk getting same chunks
         // in the next phase.
-        for (int index = 0; index < result->LocalCount; ++index) {
+        for (int index = 0; index < result->LocalChunkCount; ++index) {
             Unregister(result->Stripes[index]);
         }
 
@@ -121,7 +121,7 @@ public:
             address);
 
         // Unregister taken remote chunks.
-        for (int index = result->LocalCount; index < result->LocalCount + result->RemoteCount; ++index) {
+        for (int index = result->LocalChunkCount; index < result->LocalChunkCount + result->RemoteChunkCount; ++index) {
             Unregister(result->Stripes[index]);
         }
 
