@@ -413,15 +413,15 @@ template <class TStrType>
 Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
 {
     switch (keyPart.GetType()) {
-        case EKeyType::Null:
+        case NYT::NTableClient::EKeyType::Null:
             return "<null>";
-        case EKeyType::Composite:
+        case NYT::NTableClient::EKeyType::Composite:
             return "<composite>";
-        case EKeyType::String:
+        case NYT::NTableClient::EKeyType::String:
             return keyPart.GetString().ToString();
-        case EKeyType::Integer:
+        case NYT::NTableClient::EKeyType::Integer:
             return ::ToString(keyPart.GetInteger());
-        case EKeyType::Double:
+        case NYT::NTableClient::EKeyType::Double:
             return ::ToString(keyPart.GetDouble());
         default:
             YUNREACHABLE();
