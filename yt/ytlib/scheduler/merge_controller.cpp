@@ -355,11 +355,6 @@ protected:
         return result;
     }
 
-    virtual std::vector<TYPath> GetFilePaths()
-    {
-        return std::vector<TYPath>();
-    }
-
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
     {
         return pipeline->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
