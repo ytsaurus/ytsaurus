@@ -213,7 +213,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBuffer>
-class TKey
+class TKey;
 
 template <class TBuffer>
 Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key);
