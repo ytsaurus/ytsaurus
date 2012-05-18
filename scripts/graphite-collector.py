@@ -27,6 +27,7 @@ class YtCollector(Collector):
             self.sources.append({
                 'endpoint': endpoint,
                 'status': False,
+                'last_metric_sync': 0,
                 'metrics': {}})            
 
         self.window = int(self.config['window'])
@@ -40,7 +41,8 @@ class YtCollector(Collector):
                 'meta01-002g.yt.yandex.net:10000', 
                 'meta01-003g.yt.yandex.net:10000'
             ],
-            'window': 30 # aggregation window size in seconds
+            'window': 30, # aggregation window size in seconds
+            'metric_sync_period': 10 # reload metric names each N collect cycles
         }
 
     def load_metric_names(self, source):
@@ -71,7 +73,7 @@ class YtCollector(Collector):
                     new_metrics[name]['last_time'] = metric['last_time']
 
         source['metrics'] = new_metrics
-
+        source['last_metric_sync'] = 0
         self.log.info('NewYtCollector: Loaded %d metric names from %s in %f sec', 
             len(source['metrics']), source['endpoint'], time.time() - start_time)
 
@@ -87,7 +89,7 @@ class YtCollector(Collector):
                 self.publish_with_timestamp(name + '.max', int(v['max']), v['time'])
                 last_time = v['time']
                 value_count += 2
-            metric['last_time'] = last_time        
+            metric['last_time'] = last_time
         
         self.log.info('NewYtCollector: Collected %d values for %d metrics from %s in %f sec', 
             value_count, len(source['metrics']), source['endpoint'], time.time() - start_time)
@@ -134,8 +136,10 @@ class YtCollector(Collector):
         iter_start = time.time()
 
         for source in self.sources:
+            source['last_metric_sync'] += 1
             try: 
-                if source['status'] is False: # unknown or failed
+                if (source['status'] is False or 
+                    source['last_metric_sync'] >= self.config['metric_sync_period']):
                     self.load_metric_names(source)
                     source['status'] = True # available
                 if source['status'] is True:
@@ -143,7 +147,7 @@ class YtCollector(Collector):
             except Exception, e:
                 self.log.error('NewYtCollector: Failed to collect data from ' 
                     + source['endpoint'] + '\n' + traceback.format_exc())
-                source['status'] = False # failed
+                source['status'] = False # failed            
 
         self.log.info('NewYtCollector: Collected metrics in %f sec', time.time() - iter_start)
 
