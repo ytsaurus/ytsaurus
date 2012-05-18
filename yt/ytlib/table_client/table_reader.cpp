@@ -50,6 +50,9 @@ void TTableReader::Open()
 
     LOG_INFO("Fetching table info");
     auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
+
+    // ToDo(psushin): in fact only TMiscExt is required.
+    fetchReq->set_fetch_all_meta_extensions(true);
     fetchReq->set_fetch_holder_addresses(true);
 
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
