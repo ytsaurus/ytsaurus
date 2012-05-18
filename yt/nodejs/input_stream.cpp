@@ -92,7 +92,7 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
     // Do the work.
     return stream->DoPush(
         /* handle */ Persistent<Value>::New(args[0]),
-        /* data   */ node::Buffer::Data(Local<Object>::Cast(args[0])),
+        /* data   */ node::Buffer::Data(args[0].As<Object>()),
         /* offset */ args[1]->Uint32Value(),
         /* length */ args[2]->Uint32Value());
 }

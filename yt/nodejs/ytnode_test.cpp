@@ -154,7 +154,7 @@ Handle<Value> TTestInputStream::New(const Arguments& args)
     EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSInputStream);
 
     TTestInputStream* host = new TTestInputStream(
-        ObjectWrap::Unwrap<TNodeJSInputStream>(Local<Object>::Cast(args[0])));
+        ObjectWrap::Unwrap<TNodeJSInputStream>(args[0].As<Object>()));
     host->Wrap(args.This());
     return args.This();
 }
@@ -199,8 +199,8 @@ Handle<Value> TTestInputStream::Read(const Arguments& args)
     // Do the work.
     TReadRequest* request = new TReadRequest(
         ObjectWrap::Unwrap<TTestInputStream>(args.This()),
-        Local<Integer>::Cast(args[0]),
-        Local<Function>::Cast(args[1]));
+        args[0].As<Integet>(),
+        args[1].As<Function>());
 
     uv_queue_work(
         uv_default_loop(), &request->Request,
@@ -334,7 +334,7 @@ Handle<Value> TTestOutputStream::New(const Arguments& args)
     EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSOutputStream);
 
     TTestOutputStream* host = new TTestOutputStream(
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(Local<Object>::Cast(args[0])));
+        ObjectWrap::Unwrap<TNodeJSOutputStream>(args[0].As<Object>()));
     host->Wrap(args.This());
     return args.This();
 }
@@ -374,8 +374,8 @@ Handle<Value> TTestOutputStream::Write(const Arguments& args)
     // Do the work.
     TWriteRequest* request = new TWriteRequest(
         ObjectWrap::Unwrap<TTestOutputStream>(args.This()),
-        Local<String>::Cast(args[0]),
-        Local<Function>::Cast(args[1]));
+        args[0].As<String>(),
+        args[1].As<Function>());
 
     uv_queue_work(
         uv_default_loop(), &request->Request,

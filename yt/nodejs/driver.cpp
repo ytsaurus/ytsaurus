@@ -127,13 +127,13 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // Unwrap arguments.
     String::AsciiValue commandName(args[0]);
     TNodeJSInputStream* inputStream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args[1]->ToObject());
+        ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
     String::AsciiValue inputFormat(args[2]);
     TNodeJSOutputStream* outputStream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3]->ToObject());
+        ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3].As<Object>());
     String::AsciiValue outputFormat(args[4]);
-    Local<Object> parameters = args[5]->ToObject();
-    Local<Function> callback = Local<Function>::Cast(args[6]);
+    Local<Object> parameters = args[5].As<Object>();
+    Local<Function> callback = args[6].As<Function>();
 
     // Build an atom of work.
     TExecuteRequest* request = new TExecuteRequest(
