@@ -19,7 +19,7 @@ public:
     using node::ObjectWrap::Ref;
     using node::ObjectWrap::Unref;
 
-    struct TPart
+    struct TJSPart
     {
         uv_work_t Request;
         TNodeJSStreamBase* Stream;
@@ -30,7 +30,7 @@ public:
         size_t Length;
     };
 
-    typedef std::deque<TPart*> TQueue;
+    typedef std::deque<TJSPart*> TQueue;
 
 private:
     TNodeJSStreamBase(const TNodeJSStreamBase&);

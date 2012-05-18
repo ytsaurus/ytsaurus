@@ -97,12 +97,17 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
 
 } // namespace
 
-INodePtr ConvertV8ToYson(Handle<Value> value)
+INodePtr ConvertV8ValueToYson(Handle<Value> value)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
     ConsumeV8Value(value, ~builder);
     return builder->EndTree();
+}
+
+INodePtr ConvertV8AsciiToYson(const String::AsciiValue& value)
+{
+    return DeserializeFromYson(TStringBuf(*value, value.length()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

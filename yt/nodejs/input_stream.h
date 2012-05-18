@@ -11,10 +11,11 @@ namespace NYT {
 //! thus effectively acting as a bridge from JS to C++.
 class TNodeJSInputStream
     : public TNodeJSStreamBase
+    , public TInputStream
 {
 protected:
     TNodeJSInputStream();
-    ~TNodeJSInputStream();
+    ~TNodeJSInputStream() throw();
 
 public:
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
@@ -38,8 +39,9 @@ public:
     void EnqueueClose();
     void DoClose();
 
+protected:
     // C++ API.
-    size_t Read(void* buffer, size_t length);
+    size_t DoRead(void* buffer, size_t length);
 
 private:
     bool IsAlive;

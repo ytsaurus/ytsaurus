@@ -11,10 +11,11 @@ namespace NYT {
 //! thus effectively acting as a bridge from C++ to JS.
 class TNodeJSOutputStream
     : public TNodeJSStreamBase
+    , public TOutputStream
 {
 protected:
     TNodeJSOutputStream();
-    ~TNodeJSOutputStream();
+    ~TNodeJSOutputStream() throw();
 
 public:
     using node::ObjectWrap::Ref;
@@ -29,8 +30,8 @@ public:
 
     // Asynchronous JS API.
     static void AsyncOnWrite(uv_work_t* request);
-    void EnqueueOnWrite(TPart* part);
-    void DoOnWrite(TPart* part);
+    void EnqueueOnWrite(TJSPart* part);
+    void DoOnWrite(TJSPart* part);
 
     static void AsyncOnFlush(uv_work_t* request);
     void EnqueueOnFlush();
@@ -40,10 +41,11 @@ public:
     void EnqueueOnFinish();
     void DoOnFinish();
 
+protected:
     // C++ API.
-    void Write(const void* buffer, size_t length);
-    void Flush();
-    void Finish();
+    void DoWrite(const void* buffer, size_t length);
+    void DoFlush();
+    void DoFinish();
 
 private:
     uv_work_t FlushRequest;
@@ -54,7 +56,7 @@ private:
     TNodeJSOutputStream& operator=(const TNodeJSOutputStream&);
 };
 
-inline void TNodeJSOutputStream::EnqueueOnWrite(TPart* part)
+inline void TNodeJSOutputStream::EnqueueOnWrite(TJSPart* part)
 {
     // Post to V8 thread.
     uv_queue_work(

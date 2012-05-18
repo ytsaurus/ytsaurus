@@ -1,6 +1,7 @@
 #include "driver.h"
 
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/driver/format.h>
 
 #include <string>
 
@@ -12,6 +13,47 @@ COMMON_V8_USES
 
 using v8::Context;
 using v8::TryCatch;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// XXX(sandello): This is temporary; awaiting merge of 
+// "babenko/new_driver" into mainline.
+
+//! An instance of driver request.
+struct TDriverRequest
+{
+    //! Command name to execute.
+    std::string CommandName;
+
+    //! Stream used for reading command input.
+    TInputStream* InputStream;
+
+    //! Format used for reading the input.
+    NDriver::TFormat InputFormat;
+
+    //! Stream where the command output is written.
+    TOutputStream* OutputStream;
+
+    //! Format used for writing the output.
+    NDriver::TFormat OutputFormat;
+
+    //! A map containing command arguments.
+    NYTree::IMapNodePtr Parameters;
+};
+
+//! An instance of driver request.
+struct TDriverResponse
+{
+    //! An error returned by the command, if any.
+    int Error;
+};
+
+struct IDriver
+{
+    TDriverResponse Execute(const TDriverRequest& request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 struct TExecuteRequest
@@ -128,15 +170,17 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     String::AsciiValue commandName(args[0]);
     TNodeJSInputStream* inputStream =
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
-    String::AsciiValue inputFormat(args[2]);
+    String::AsciiValue inputFormatValue(args[2]);
     TNodeJSOutputStream* outputStream =
         ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3].As<Object>());
-    String::AsciiValue outputFormat(args[4]);
+    String::AsciiValue outputFormatValue(args[4]);
     Local<Object> parameters = args[5].As<Object>();
     Local<Function> callback = args[6].As<Function>();
 
     // Build an atom of work.
-    NYTree::INodePtr node = ConvertV8ToYson(parameters);
+    NYTree::INodePtr node = ConvertV8ValueToYson(parameters);
+    NYTree::INodePtr inputFormat = ConvertV8AsciiToYson(inputFormatValue);
+    NYTree::INodePtr outputFormat = ConvertV8AsciiToYson(outputFormatValue);
 
     YASSERT(node->GetType() == NYTree::ENodeType::Map);
 
@@ -147,9 +191,9 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // Fill in TDriverRequest structure.
     request->DriverRequest.CommandName = std::string(*commandName, commandName.length());
     request->DriverRequest.InputStream = inputStream;
-    // request->DriverRequest.InputFormat =
+    request->DriverRequest.InputFormat = NDriver::TFormat::FromYson(inputFormat);
     request->DriverRequest.OutputStream = outputStream;
-    // request->DriverRequest.OutputFormat =
+    request->DriverRequest.OutputFormat = NDriver::TFormat::FromYson(outputFormat);
     request->DriverRequest.Parameters = node->AsMap();
 
     fprintf(stderr, "WOOHOO! We are executing %s [%p->%p]!\n",

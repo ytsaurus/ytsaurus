@@ -17,7 +17,7 @@ TNodeJSInputStream::TNodeJSInputStream()
     T_THREAD_AFFINITY_IS_V8();
 }
 
-TNodeJSInputStream::~TNodeJSInputStream()
+TNodeJSInputStream::~TNodeJSInputStream() throw()
 {
     T_THREAD_AFFINITY_IS_V8();
 
@@ -102,12 +102,12 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, s
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TPart* part  = new TPart(); YASSERT(part);
-    part->Stream = this;
-    part->Handle = handle;
-    part->Data   = data;
-    part->Offset = offset;
-    part->Length = length;
+    TJSPart* part = new TJSPart(); YASSERT(part);
+    part->Stream  = this;
+    part->Handle  = handle;
+    part->Data    = data;
+    part->Offset  = offset;
+    part->Length  = length;
 
     {
         TGuard<TMutex> guard(&Mutex);
@@ -181,7 +181,7 @@ void TNodeJSInputStream::DoSweep()
         jt = Queue.end();
 
     while (it != jt) {
-        TPart* part = *it;
+        TJSPart* part = *it;
 
         if (part->Length > 0) {
             break;
@@ -237,7 +237,7 @@ void TNodeJSInputStream::DoClose()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TNodeJSInputStream::Read(void* buffer, size_t length)
+size_t TNodeJSInputStream::DoRead(void* buffer, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
@@ -253,7 +253,7 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
         bool canReadSomething = false;
 
         while (length > 0 && it != jt) {
-            TPart* part = *it;
+            TJSPart* part = *it;
 
             canRead = std::min(length, part->Length);
             canReadSomething |= (canRead > 0);

@@ -77,7 +77,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 void DoNothing(uv_work_t* request);
-NYTree::INodePtr ConvertV8ToYson(v8::Handle<v8::Value> value);
+
+NYTree::INodePtr ConvertV8ValueToYson(v8::Handle<v8::Value> value);
+NYTree::INodePtr ConvertV8AsciiToYson(const v8::String::AsciiValue& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

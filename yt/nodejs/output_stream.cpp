@@ -26,7 +26,7 @@ TNodeJSOutputStream::TNodeJSOutputStream()
     T_THREAD_AFFINITY_IS_V8();
 }
 
-TNodeJSOutputStream::~TNodeJSOutputStream()
+TNodeJSOutputStream::~TNodeJSOutputStream() throw()
 {
     T_THREAD_AFFINITY_IS_V8();
 }
@@ -80,12 +80,12 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
 void TNodeJSOutputStream::AsyncOnWrite(uv_work_t* request)
 {
     THREAD_AFFINITY_IS_V8();
-    TPart* part = container_of(request, TPart, Request);
+    TJSPart* part = container_of(request, TJSPart, Request);
     TNodeJSOutputStream* stream = (TNodeJSOutputStream*)(part->Stream);
     stream->DoOnWrite(part);
 }
 
-void TNodeJSOutputStream::DoOnWrite(TPart* part)
+void TNodeJSOutputStream::DoOnWrite(TJSPart* part)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -140,14 +140,14 @@ void TNodeJSOutputStream::DoOnFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSOutputStream::Write(const void *buffer, size_t length)
+void TNodeJSOutputStream::DoWrite(const void *buffer, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
     char* data = new char[length]; YASSERT(data);
     ::memcpy(data, buffer, length);
 
-    TPart* part  = new TPart(); YASSERT(part);
+    TJSPart* part  = new TJSPart(); YASSERT(part);
     part->Stream = this;
     part->Data   = data;
     part->Offset = 0;
@@ -156,13 +156,13 @@ void TNodeJSOutputStream::Write(const void *buffer, size_t length)
     EnqueueOnWrite(part);
 }
 
-void TNodeJSOutputStream::Flush()
+void TNodeJSOutputStream::DoFlush()
 {
     THREAD_AFFINITY_IS_ANY();
     EnqueueOnFlush();
 }
 
-void TNodeJSOutputStream::Finish()
+void TNodeJSOutputStream::DoFinish()
 {
     THREAD_AFFINITY_IS_ANY();
     EnqueueOnFinish();

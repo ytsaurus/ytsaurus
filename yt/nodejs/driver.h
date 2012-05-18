@@ -6,44 +6,7 @@
 
 namespace NYT {
 
-////////////////////////////////////////////////////////////////////////////////
-
-// XXX(sandello): This is temporary; awaiting merge of 
-// "babenko/new_driver" into mainline.
-
-//! An instance of driver request.
-struct TDriverRequest
-{
-    //! Command name to execute.
-    std::string CommandName;
-
-    //! Stream used for reading command input.
-    TNodeJSInputStream* InputStream;
-
-    //! Format used for reading the input.
-    // TFormat InputFormat;
-
-    //! Stream where the command output is written.
-    TNodeJSOutputStream* OutputStream;
-
-    //! Format used for writing the output.
-    // TFormat OutputFormat;
-
-    //! A map containing command arguments.
-    NYTree::IMapNodePtr Parameters;
-};
-
-//! An instance of driver request.
-struct TDriverResponse
-{
-    //! An error returned by the command, if any.
-    int Error;
-};
-
-struct IDriver
-{
-    TDriverResponse Execute(const TDriverRequest& request);
-};
+struct IDriver;
 
 ////////////////////////////////////////////////////////////////////////////////
 
