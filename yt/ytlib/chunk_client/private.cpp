@@ -6,7 +6,8 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger ChunkClientLogger("ChunkClient");
+NLog::TLogger ChunkReaderLogger("ChunkReader");
+NLog::TLogger ChunkWriterLogger("ChunkWriter");
 
 TLazyPtr<TActionQueue> WriterThread(TActionQueue::CreateFactory("ChunkWriter"));
 

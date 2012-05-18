@@ -57,7 +57,7 @@ public:
         : Config(config)
         , BlockCache(blockCache)
         , ChunkId(chunkId)
-        , Logger(ChunkClientLogger)
+        , Logger(ChunkReaderLogger)
         , GetSeedsPromise(Null)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
@@ -195,7 +195,7 @@ protected:
     TSessionBase(TRemoteReader* reader)
         : Reader(reader)
         , RetryIndex(0)
-        , Logger(ChunkClientLogger)
+        , Logger(ChunkReaderLogger)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~reader->ChunkId.ToString()));
     }

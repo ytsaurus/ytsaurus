@@ -23,7 +23,7 @@ using namespace NChunkServer;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkClientLogger;
+static NLog::TLogger& Logger = ChunkWriterLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -434,7 +434,7 @@ TRemoteWriter::TRemoteWriter(
     , SendBlocksTiming(0, 1000, 20)
     , FlushBlockTiming(0, 1000, 20)
     , FinishChunkTiming(0, 1000, 20)
-    , Logger(ChunkClientLogger)
+    , Logger(ChunkWriterLogger)
 {
     YASSERT(AliveHolderCount > 0);
 
