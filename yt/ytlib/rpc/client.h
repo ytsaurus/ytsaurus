@@ -166,7 +166,7 @@ public:
     bool IsOK() const;
 
 protected:
-    TClientResponseBase(const TRequestId& requestId);
+    explicit TClientResponseBase(const TRequestId& requestId);
 
     virtual void FireCompleted() = 0;
 
@@ -200,7 +200,7 @@ public:
     const NYTree::IAttributeDictionary& Attributes() const;
 
 protected:
-    TClientResponse(const TRequestId& requestId);
+    explicit TClientResponse(const TRequestId& requestId);
 
     virtual void DeserializeBody(const TRef& data) = 0;
 
@@ -227,7 +227,7 @@ class TTypedClientResponse
 public:
     typedef TIntrusivePtr<TTypedClientResponse> TPtr;
 
-    TTypedClientResponse(const TRequestId& requestId)
+    explicit TTypedClientResponse(const TRequestId& requestId)
         : TClientResponse(requestId)
         , Promise(NewPromise<TPtr>())
     { }
@@ -262,7 +262,7 @@ class TOneWayClientResponse
 public:
     typedef TIntrusivePtr<TOneWayClientResponse> TPtr;
 
-    TOneWayClientResponse(const TRequestId& requestId);
+    explicit TOneWayClientResponse(const TRequestId& requestId);
 
     TFuture<TPtr> GetAsyncResult();
 
