@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
+#include <ytlib/ytree/public.h>
 
 #include <uv.h>
 #include <v8.h>
@@ -37,11 +38,14 @@
 
 #define COMMON_V8_USES \
     using v8::Arguments; \
+    using v8::Array; \
+    using v8::Boolean; \
     using v8::Local; \
     using v8::Persistent; \
     using v8::Handle; \
     using v8::HandleScope; \
     using v8::Value; \
+    using v8::Number;
     using v8::Integer;
     using v8::String; \
     using v8::Object; \
@@ -49,7 +53,8 @@
     using v8::FunctionTemplate; \
     using v8::Undefined; \
     using v8::Null; \
-    using v8::Exception;
+    using v8::Exception; \
+    using v8::ThrowException;
 
 #define EXPECT_THAT_IS(value, type) \
     do { \
@@ -71,7 +76,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DoNothing(uv_work_t*);
+void DoNothing(uv_work_t* request);
+NYTree::INodePtr ConvertV8ToYson(v8::Handle<v8::Value> value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

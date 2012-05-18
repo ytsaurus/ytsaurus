@@ -1,5 +1,7 @@
 #include "driver.h"
 
+#include <ytlib/ytree/ytree.h>
+
 #include <string>
 
 namespace NYT {
@@ -9,8 +11,6 @@ namespace NYT {
 COMMON_V8_USES
 
 using v8::Context;
-using v8::Exception;
-using v8::ThrowException;
 using v8::TryCatch;
 
 namespace {
@@ -136,6 +136,10 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     Local<Function> callback = args[6].As<Function>();
 
     // Build an atom of work.
+    NYTree::INodePtr node = ConvertV8ToYson(parameters);
+
+    YASSERT(node->GetType() == NYTree::ENodeType::Map);
+
     TExecuteRequest* request = new TExecuteRequest(
         ObjectWrap::Unwrap<TNodeJSDriver>(args.This()),
         callback);
@@ -146,7 +150,7 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // request->DriverRequest.InputFormat =
     request->DriverRequest.OutputStream = outputStream;
     // request->DriverRequest.OutputFormat =
-    // request->DriverRequest.Parameters =
+    request->DriverRequest.Parameters = node->AsMap();
 
     fprintf(stderr, "WOOHOO! We are executing %s [%p->%p]!\n",
         *commandName,

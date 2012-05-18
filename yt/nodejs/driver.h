@@ -30,7 +30,7 @@ struct TDriverRequest
     // TFormat OutputFormat;
 
     //! A map containing command arguments.
-    // NYTree::IMapNodePtr Arguments;
+    NYTree::IMapNodePtr Parameters;
 };
 
 //! An instance of driver request.
