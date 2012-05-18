@@ -151,12 +151,16 @@ TJobResult TSortJob::Run()
             Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
             TRow row;
-            size_t valueIndex = 0;
             for (size_t i = 0; i < indexBuffer.size(); ++i) {
                 size_t index = indexBuffer[i];
                 row.clear();
+
+                ;
                 auto& sortRow = rowBuffer[index];
-                for (; valueIndex < sortRow.EndValueIndex; ++valueIndex) {
+                for (size_t valueIndex = index > 0 ? rowBuffer[index - 1].EndValueIndex : 0; 
+                    valueIndex < rowBuffer[index].EndValueIndex; 
+                    ++valueIndex) 
+                {
                     row.push_back(valueBuffer[valueIndex]);
                 }
 
