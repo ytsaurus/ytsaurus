@@ -2,7 +2,7 @@ import collections
 import json
 import math
 import re
-import requests
+import urllib2
 import socket
 import sys
 import time
@@ -48,7 +48,7 @@ class YtCollector(Collector):
 
         # get service name
         service_name_url = 'http://' + source['endpoint'] + '/orchid/@service_name'
-        service = requests.get(service_name_url, timeout=5).text.replace('"', '')
+        service = urllib2.urlopen(service_name_url, timeout=5).read().replace('"', '')
         
         # get metric paths
         new_metrics = {}
@@ -125,13 +125,9 @@ class YtCollector(Collector):
             self.log.error('NewYtCollector: Unexpected reply from %s', metric_url)
             return []
 
-    def get_metric_path(self, name):
-        return name
-
     def publish_with_timestamp(self, name, value, timestamp, precision=0):
-        path = self.get_metric_path(name)
-        metric = Metric(path, value, timestamp, precision)
-        #self.log.info('NewYtCollector: >> %s %d %d' % (path, timestamp, value))
+        metric = Metric(name, value, timestamp, precision)
+        #self.log.info('NewYtCollector: >> %s %d %d' % (name, timestamp, value))
         self.publish_metric(metric)
 
     def collect(self):
@@ -175,8 +171,8 @@ class YtCollector(Collector):
 
     @staticmethod
     def get_json(url):
-        r = requests.get(url, timeout=5)
-        return json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(r.text)
+        resp = urllib2.urlopen(url, timeout=5).read()
+        return json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(resp)
 
     @staticmethod
     def get_paths(data, root =''):
