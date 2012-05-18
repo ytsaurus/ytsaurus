@@ -2,11 +2,11 @@ import collections
 import json
 import math
 import re
-import urllib2
 import socket
 import sys
 import time
 import traceback
+import urllib2
 from diamond.collector import Collector
 from diamond.metric import Metric
 
@@ -28,7 +28,7 @@ class YtCollector(Collector):
                 'endpoint': endpoint,
                 'status': False,
                 'last_metric_sync': 0,
-                'metrics': {}})            
+                'metrics': {}})
 
         self.window = int(self.config['window'])
         self.regex = re.compile("[^a-zA-Z0-9_/]")
@@ -51,7 +51,7 @@ class YtCollector(Collector):
         # get service name
         service_name_url = 'http://' + source['endpoint'] + '/orchid/@service_name'
         service = urllib2.urlopen(service_name_url, timeout=5).read().replace('"', '')
-        
+
         # get metric paths
         new_metrics = {}
         profiling_url = 'http://' + source['endpoint'] + '/orchid/profiling'
@@ -65,7 +65,7 @@ class YtCollector(Collector):
             cleaned_path = self.regex.sub('_', path)
             g_metric = 'yt.%s.%s.%s%s' % (host, service, port, cleaned_path.replace('/', '.'))
             new_metrics[g_metric] = {'path': self.quote_path(path), 'last_time': 0}
-        
+
         # update existing metrics
         if len(new_metrics) > 0:
             for (name, metric) in source['metrics'].items():
@@ -90,12 +90,12 @@ class YtCollector(Collector):
                 last_time = v['time']
                 value_count += 2
             metric['last_time'] = last_time
-        
+
         self.log.info('NewYtCollector: Collected %d values for %d metrics from %s in %f sec', 
             value_count, len(source['metrics']), source['endpoint'], time.time() - start_time)
 
     def get_metric_values(self, source, metric):
-        metric_url = 'http://' + source['endpoint'] + '/orchid/profiling' + metric['path']        
+        metric_url = 'http://' + source['endpoint'] + '/orchid/profiling' + metric['path']
         last_time = metric['last_time']
         if last_time > 0:
             from_time = last_time + self.window
@@ -109,7 +109,7 @@ class YtCollector(Collector):
             cur_bucket = from_time / self.window
             cur_vals = []
             for d in data:
-                time = long(d['time']/1E6)                
+                time = long(d['time']/1E6)
                 val = d['value']
                 bucket = time / self.window
                 #self.log.info('NewYtCollector: << %s %d %d' % (metric['path'], time, val))
@@ -147,7 +147,7 @@ class YtCollector(Collector):
             except Exception, e:
                 self.log.error('NewYtCollector: Failed to collect data from ' 
                     + source['endpoint'] + '\n' + traceback.format_exc())
-                source['status'] = False # failed            
+                source['status'] = False # failed
 
         self.log.info('NewYtCollector: Collected metrics in %f sec', time.time() - iter_start)
 
