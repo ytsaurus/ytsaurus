@@ -167,8 +167,8 @@ function _dispatch(driver, req, rsp) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplication() {
-    var driver = new yt.YtDriver();
+function YtApplication(configuration) {
+    var driver = new yt.YtDriver(configuration);
     return function(req, rsp) {
         return _dispatch(driver, req, rsp);
     };

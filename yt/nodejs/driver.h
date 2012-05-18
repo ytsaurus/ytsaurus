@@ -4,9 +4,13 @@
 #include "input_stream.h"
 #include "output_stream.h"
 
+#include <ytlib/driver/public.h>
+#include <ytlib/ytree/public.h>
+
 namespace NYT {
 
 struct IDriver;
+typedef TIntrusivePtr<IDriver> IDriverPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,7 +18,7 @@ class TNodeJSDriver
     : public node::ObjectWrap
 {
 protected:
-    TNodeJSDriver();
+    TNodeJSDriver(const NYTree::TYson& configuration);
     ~TNodeJSDriver();
 
 public:
@@ -34,9 +38,8 @@ public:
     static void ExecuteAfter(uv_work_t* workRequest);
 
 private:
-    // TODO(sandello): Store by smart pointer.
-    // TODO(sandello): Initialized this at some moment.
-    IDriver* Driver;
+    IDriverPtr Driver;
+    Stroka Message;
 
 private:
     TNodeJSDriver(const TNodeJSDriver&);

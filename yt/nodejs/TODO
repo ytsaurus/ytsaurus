@@ -17,3 +17,4 @@
 - Implement write queue threshold to limit memory usage.
 - Callbacks throughout the interface.
 - Investigate all 'new' call sites for potential memory leaks due to exceptions.
+- We can pass as HTTP configuration some JS structure and modify it in real-time.

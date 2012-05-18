@@ -1,6 +1,7 @@
 #include "driver.h"
 
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/driver/config.h>
 #include <ytlib/driver/format.h>
 
 #include <string>
@@ -13,6 +14,9 @@ COMMON_V8_USES
 
 using v8::Context;
 using v8::TryCatch;
+
+using namespace NYTree;
+using namespace NDriver;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,13 +33,13 @@ struct TDriverRequest
     TInputStream* InputStream;
 
     //! Format used for reading the input.
-    NDriver::TFormat InputFormat;
+    TFormat InputFormat;
 
     //! Stream where the command output is written.
     TOutputStream* OutputStream;
 
     //! Format used for writing the output.
-    NDriver::TFormat OutputFormat;
+    TFormat OutputFormat;
 
     //! A map containing command arguments.
     NYTree::IMapNodePtr Parameters;
@@ -52,6 +56,8 @@ struct IDriver
 {
     TDriverResponse Execute(const TDriverRequest& request);
 };
+
+IDriverPtr CreateDriver(TDriverConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,10 +101,28 @@ Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSDriver::TNodeJSDriver()
+TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
     : node::ObjectWrap()
 {
     T_THREAD_AFFINITY_IS_V8();
+
+    INodePtr configNode;
+    try {
+        configNode = DeserializeFromYson(configuration);
+    } catch (const std::exception& ex) {
+        Driver = NULL;
+        Message = Sprintf("Error reading configuration\n%s", ex.what());
+    }
+
+    auto config = New<TDriverConfig>();
+    try {
+        config->Load(~configNode);
+    } catch (const std::exception& ex) {
+        Driver = NULL;
+        Message = Sprintf("Error parsing configuration\n%s", ex.what());
+    }
+
+    Driver = CreateDriver(config);
 }
 
 TNodeJSDriver::~TNodeJSDriver()
@@ -141,11 +165,20 @@ Handle<Value> TNodeJSDriver::New(const Arguments& args)
     T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0);
+    YASSERT(args.Length() == 1);
+    EXPECT_THAT_IS(args[0], String);
 
-    TNodeJSDriver* host = new TNodeJSDriver();
+    String::AsciiValue configuration(args[0]);
+
+    TNodeJSDriver* host = new TNodeJSDriver(
+        Stroka(*configuration, configuration.length()));
     host->Wrap(args.This());
-    return args.This();
+
+    if (host->Driver) {
+        return args.This();
+    } else {
+        return ThrowException(Exception::Error(String::New(~host->Message)));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,18 +205,18 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     String::AsciiValue commandName(args[0]);
     TNodeJSInputStream* inputStream =
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
-    NYTree::INodePtr inputFormat =
+    INodePtr inputFormat =
         ConvertV8StringToYson(args[2].As<String>());
     TNodeJSOutputStream* outputStream =
         ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3].As<Object>());
-    NYTree::INodePtr outputFormat =
+    INodePtr outputFormat =
         ConvertV8StringToYson(args[4].As<String>());
-    NYTree::INodePtr parameters =
+    INodePtr parameters =
         ConvertV8ValueToYson(args[5].As<Object>());
     Local<Function> callback = args[6].As<Function>();
 
     // Build an atom of work.
-    YASSERT(parameters->GetType() == NYTree::ENodeType::Map);
+    YASSERT(parameters->GetType() == ENodeType::Map);
 
     TExecuteRequest* request = new TExecuteRequest(
         ObjectWrap::Unwrap<TNodeJSDriver>(args.This()),
@@ -192,9 +225,9 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // Fill in TDriverRequest structure.
     request->DriverRequest.CommandName = std::string(*commandName, commandName.length());
     request->DriverRequest.InputStream = inputStream;
-    request->DriverRequest.InputFormat = NDriver::TFormat::FromYson(inputFormat);
+    request->DriverRequest.InputFormat = TFormat::FromYson(inputFormat);
     request->DriverRequest.OutputStream = outputStream;
-    request->DriverRequest.OutputFormat = NDriver::TFormat::FromYson(outputFormat);
+    request->DriverRequest.OutputFormat = TFormat::FromYson(outputFormat);
     request->DriverRequest.Parameters = parameters->AsMap();
 
     fprintf(stderr, "WOOHOO! We are executing %s [%p->%p]!\n",

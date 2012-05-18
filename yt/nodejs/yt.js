@@ -191,10 +191,10 @@ YtWritableStream.prototype.destroy = function() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtDriver() {
+function YtDriver(configuration) {
     __DBG("Driver -> New");
 
-    this._binding = new binding.TNodeJSDriver();
+    this._binding = new binding.TNodeJSDriver(configuration);
 }
 
 YtDriver.prototype.execute = function(name,
