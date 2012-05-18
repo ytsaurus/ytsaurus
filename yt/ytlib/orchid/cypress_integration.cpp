@@ -81,7 +81,7 @@ public:
             BIND(
                 &TOrchidYPathService::OnResponse,
                 MakeStrong(this),
-                IServiceContextPtr(context),
+                context,
                 manifest,
                 path,
                 verb)
