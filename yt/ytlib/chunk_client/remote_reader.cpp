@@ -258,8 +258,6 @@ protected:
         auto hostName = Sprintf("%s:", GetHostName());
 
         // Prefer local holder if in seeds.
-        // ToDo(psushin): consider using more effective container?
-
         for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it)
         {
             if (it->has_prefix(hostName)) {
@@ -634,6 +632,12 @@ private:
 
     std::vector<int> ExtensionTags;
     bool AllExtensionTags;
+
+    virtual void NewRetry()
+    {
+        SeedIndex = 0;
+        TSessionBase::NewRetry();
+    }
 
     void RequestInfo()
     {
