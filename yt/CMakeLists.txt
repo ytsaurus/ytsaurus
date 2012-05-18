@@ -22,3 +22,10 @@ if (YT_BUILD_ENABLE_TESTS)
 else()
   message(STATUS "Omitting tests from build (YT_BUILD_ENABLE_TESTS = OFF)")
 endif()
+
+if (YT_BUILD_ENABLE_NODEJS)
+  add_subdirectory(nodejs)
+else()
+  message(STATUS "Omitting NodeJS extensions from build (YT_BUILD_ENABLE_NODEJS = OFF)")
+endif()
+
