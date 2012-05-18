@@ -236,7 +236,7 @@ class TClientDispatcher
 
         LOG_DEBUG("Bus is unregistered (SessionId: %s, Bus: %p)",
             ~sessionId.ToString(),
-            bus);
+            ~bus);
 
         FOREACH (const auto& requestId, bus->PendingRequestIds()) {
             Requester->CancelRequest((TGUID) requestId);
