@@ -39,6 +39,12 @@ public:
 
     double GetProgress() const;
 
+    //! Upper estimate. Becomes more and more precise as reading goes.
+    i64 GetRowCount() const;
+
+    //! Rough upper estimate.
+    i64 GetValueCount() const;
+
 private:
     void PrepareNextChunk();
     void OnNextReaderOpened(TChunkReaderPtr reader, TError error);
@@ -49,6 +55,15 @@ private:
     NChunkClient::IBlockCachePtr BlockCache;
     std::vector<NProto::TInputChunk> InputChunks;
     TReaderOptions Options;
+
+    //! Upper bound estimation.
+    i64 TotalValueCount;
+
+    //! Upper bound, estimation, becomes more precise as we start actually reading chunk.
+    //! Is precise and equal to CurrentRowIndex when reading is complete.
+    i64 TotalRowCount;
+
+    i64 CurrentRowIndex;
 
     NRpc::IChannelPtr MasterChannel;
     TAsyncStreamState State;

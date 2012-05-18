@@ -25,8 +25,6 @@ class TRetriableChannel
     DEFINE_BYVAL_RO_PROPERTY(TRetryConfigPtr, Config);
 
 public:
-    typedef TIntrusivePtr<TRetriableChannel> TPtr;
-
     TRetriableChannel(
         TRetryConfig* config,
         IChannelPtr underlyingChannel);
@@ -57,8 +55,6 @@ class TRetriableRequest
     : public IClientResponseHandler
 {
 public:
-    typedef TIntrusivePtr<TRetriableRequest> TPtr;
-
     TRetriableRequest(
         TRetriableChannel* channel,
         IClientRequestPtr request,
@@ -97,7 +93,7 @@ public:
 private:
     //! The current attempt number (starting from 0).
     TAtomic CurrentAttempt;
-    TRetriableChannel::TPtr Channel;
+    TRetriableChannelPtr Channel;
     IClientRequestPtr Request;
     IClientResponseHandlerPtr OriginalHandler;
     TNullable<TDuration> Timeout;

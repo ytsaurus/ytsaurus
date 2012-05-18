@@ -131,7 +131,7 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
     return result;
 }
 
-void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
+void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolderPtr response)
 {
     if (!response->IsOK()) {
         Disconnect();
@@ -227,7 +227,7 @@ TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
     return info;
 }
 
-void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeat::TPtr response)
+void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr response)
 {
     ScheduleHeartbeat();
     
@@ -241,7 +241,7 @@ void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeat::TPtr r
     State = EState::Online;
 }
 
-void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeat::TPtr response)
+void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeatPtr response)
 {
     ScheduleHeartbeat();
 

@@ -68,7 +68,7 @@ void TSchedulerConnector::SendHeartbeat()
         req->utilization().free_slot_count());
 }
 
-void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp)
+void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeatPtr rsp)
 {
     HeartbeatInvoker->ScheduleNext();
 

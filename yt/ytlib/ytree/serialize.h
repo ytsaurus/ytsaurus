@@ -59,6 +59,10 @@ INodePtr DeserializeFromYson(
     const TYson& yson,
     INodeFactory* factory = GetEphemeralNodeFactory());
 
+INodePtr DeserializeFromYson(
+    const TStringBuf& yson,
+    INodeFactory* factory = GetEphemeralNodeFactory());
+
 template <class T>
 typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson);
 

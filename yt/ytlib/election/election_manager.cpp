@@ -89,7 +89,7 @@ private:
             ElectionManager->Config->FollowerPingInterval);
     }
 
-    void OnPingResponse(TPeerId id, TProxy::TRspPingFollower::TPtr response)
+    void OnPingResponse(TPeerId id, TProxy::TRspPingFollowerPtr response)
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
         YASSERT(ElectionManager->State == TProxy::EState::Leading);
@@ -251,7 +251,7 @@ private:
         return CheckForLeader();
     }
 
-    void OnResponse(TPeerId id, TProxy::TRspGetStatus::TPtr response)
+    void OnResponse(TPeerId id, TProxy::TRspGetStatusPtr response)
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 

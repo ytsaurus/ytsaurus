@@ -91,7 +91,7 @@ protected:
             , Sorted(false)
         { }
 
-        NTableServer::TTableYPathProxy::TRspFetch::TPtr FetchResponse;
+        NTableServer::TTableYPathProxy::TRspFetchPtr FetchResponse;
         bool NegateFetch;
         bool Sorted;
         std::vector<Stroka> KeyColumns;
@@ -124,7 +124,7 @@ protected:
     struct TFile
     {
         NYTree::TYPath Path;
-        NFileServer::TFileYPathProxy::TRspFetch::TPtr FetchResponse;
+        NFileServer::TFileYPathProxy::TRspFetchPtr FetchResponse;
     };
 
     std::vector<TFile> Files;
@@ -190,7 +190,7 @@ protected:
 
     NObjectServer::TObjectServiceProxy::TInvExecuteBatch StartPrimaryTransaction();
 
-    void OnPrimaryTransactionStarted(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnPrimaryTransactionStarted(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     // Round 2:
     // - Start input transaction.
@@ -198,14 +198,14 @@ protected:
 
     NObjectServer::TObjectServiceProxy::TInvExecuteBatch StartSeconaryTransactions();
 
-    void OnSecondaryTransactionsStarted(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnSecondaryTransactionsStarted(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     // Round 3:
     // - Get input table ids
     // - Get output table ids
     NObjectServer::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
 
-    void OnObjectIdsReceived(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnObjectIdsReceived(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     // Round 4:
     // - Fetch input tables.
@@ -217,13 +217,13 @@ protected:
     // - (Custom)
 
     NObjectServer::TObjectServiceProxy::TInvExecuteBatch RequestInputs();
-    void OnInputsReceived(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnInputsReceived(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
-    virtual void CustomRequestInputs(NObjectServer::TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    virtual void CustomRequestInputs(NObjectServer::TObjectServiceProxy::TReqExecuteBatchPtr batchReq);
 
     //! Extensibility point for handling additional info from master.
-    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 
     // Round 4.
@@ -247,13 +247,13 @@ protected:
     // - Commit primary transaction.
 
     NObjectServer::TObjectServiceProxy::TInvExecuteBatch CommitOutputs();
-    void OnOutputsCommitted(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnOutputsCommitted(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     //! Extensibility point for additional finalization logic.
-    virtual void CommitCustomOutputs(NObjectServer::TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    virtual void CommitCustomOutputs(NObjectServer::TObjectServiceProxy::TReqExecuteBatchPtr batchReq);
 
     //! Extensibility point for handling additional finalization outcome.
-    virtual void OnCustomOutputsCommitted(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    virtual void OnCustomOutputsCommitted(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 
     virtual void CustomInitialize();
@@ -301,7 +301,7 @@ protected:
     bool CheckChunkListsPoolSize(int minSize);
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
-    void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
     static i64 GetJobWeightThreshold(int pendingJobCount, i64 pendingWeight);
     static int GetJobCount(
         i64 totalWeight,

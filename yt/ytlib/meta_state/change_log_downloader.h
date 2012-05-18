@@ -47,7 +47,7 @@ private:
         TPromise<TPeerId> promise,
         TPeerId peerId,
         TMetaVersion version,
-        TProxy::TRspGetChangeLogInfo::TPtr response);
+        TProxy::TRspGetChangeLogInfoPtr response);
     static void OnComplete(
         TPromise<TPeerId> promise);
 

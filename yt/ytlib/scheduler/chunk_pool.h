@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/misc/small_vector.h>
 #include <ytlib/table_client/table_reader.pb.h>
 
 namespace NYT {
@@ -9,19 +10,26 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPooledChunk
+struct TChunkStripe
     : public TIntrinsicRefCounted
 {
-    TPooledChunk(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight)
-        : InputChunk(inputChunk)
-        , Weight(weight)
-    { }
+    TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight)
+        : Weight(weight)
+    {
+        InputChunks.push_back(inputChunk);
+    }
 
-    NTableClient::NProto::TInputChunk InputChunk;
+    TChunkStripe(const std::vector<NTableClient::NProto::TInputChunk>& inputChunks, i64 weight)
+        : Weight(weight)
+    {
+        InputChunks.insert(InputChunks.end(), inputChunks.begin(), inputChunks.end());
+    }
+
+    TSmallVector<NTableClient::NProto::TInputChunk, 1> InputChunks;
     i64 Weight;
 };
 
-typedef TIntrusivePtr<TPooledChunk> TPooledChunkPtr;
+typedef TIntrusivePtr<TChunkStripe> TChunkStripePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,34 +38,20 @@ struct IChunkPool
     virtual ~IChunkPool()
     { }
 
-    virtual void Add(TPooledChunkPtr chunk) = 0;
+    virtual void Add(TChunkStripePtr stripe) = 0;
 
     struct TExtractResult
         : public TIntrinsicRefCounted
     {
-        TExtractResult()
-            : Weight(0)
-            , LocalCount(0)
-            , RemoteCount(0)
-        { }
+        TExtractResult();
 
+        void Add(TChunkStripePtr stripe, const Stroka& address);
 
-        void Add(TPooledChunkPtr chunk, bool local)
-        {
-            Chunks.push_back(chunk);
-            Weight += chunk->Weight;
-            if (local) {
-                ++LocalCount;
-            } else {
-                ++RemoteCount;
-            }
-        }
-
-        
-        std::vector<TPooledChunkPtr> Chunks;
-        i64 Weight;
-        int LocalCount;
-        int RemoteCount;
+        std::vector<TChunkStripePtr> Stripes;
+        i64 TotalChunkWeight;
+        int TotalChunkCount;
+        int LocalChunkCount;
+        int RemoteChunkCount;
 
     };
 
@@ -66,7 +60,6 @@ struct IChunkPool
     virtual TExtractResultPtr Extract(
         const Stroka& address,
         i64 weightThreshold,
-        int maxCount,
         bool needLocal) = 0;
 
     virtual void PutBack(TExtractResultPtr result) = 0;
@@ -79,14 +72,11 @@ struct IChunkPool
 
 ////////////////////////////////////////////////////////////////////
 
-//! Unordered chunk pool may return an arbitrary subset of pooled chunks.
+//! Unordered chunk pool may return an arbitrary subset of pooled stripes.
 TAutoPtr<IChunkPool> CreateUnorderedChunkPool();
 
-//! Atomic chunk pool always returns all pooled chunks in the order of their insertion.
+//! Atomic chunk pool always returns all pooled stripes in the order of their insertion.
 TAutoPtr<IChunkPool> CreateAtomicChunkPool();
-
-//! Merge chunk pool tries to ensure that the weights of returned chunks are close.
-TAutoPtr<IChunkPool> CreateMergeChunkPool();
 
 ////////////////////////////////////////////////////////////////////
 

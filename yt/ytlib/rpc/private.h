@@ -1,9 +1,14 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern NLog::TLogger RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,9 +29,13 @@ template <class TResponseMessage>
 class TTypedClientResponse;
 
 class TOneWayClientResponse;
+typedef TIntrusivePtr<TOneWayClientResponse> TOneWayClientResponsePtr;
 
 struct TRetryConfig;
 typedef TIntrusivePtr<TRetryConfig> TRetryConfigPtr;
+
+class TRetriableChannel;
+typedef TIntrusivePtr<TRetriableChannel> TRetriableChannelPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
             

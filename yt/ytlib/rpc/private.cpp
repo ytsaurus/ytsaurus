@@ -2,17 +2,13 @@
 #include "private.h"
 
 namespace NYT {
-namespace NTableClient {
+namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger TableReaderLogger("TableReader");
-NLog::TLogger TableWriterLogger("TableWriter");
-
-int DefaultPartitionTag = -1;
+NLog::TLogger RpcLogger("Rpc");
 
 ////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NTableClient
+            
+} // namespace NRpc
 } // namespace NYT
-

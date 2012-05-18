@@ -742,7 +742,7 @@ void TMapArgsParser::BuildRequest(IYsonConsumer* consumer)
             .Item("mapper").Scalar(MapperArg.getValue())
             .Item("input_table_paths").List(input)
             .Item("output_table_paths").List(output)
-            .Item("files").List(files)
+            .Item("file_paths").List(files)
             .Do(BIND(&TMapArgsParser::BuildOptions, Unretained(this)))
         .EndMap();
 

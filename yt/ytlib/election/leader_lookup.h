@@ -85,7 +85,7 @@ private:
         TParallelAwaiter::TPtr awaiter,
         TPromise<TResult> promise,
         const Stroka& address,
-        TProxy::TRspGetStatus::TPtr response);
+        TProxy::TRspGetStatusPtr response);
     void OnComplete(TPromise<TResult> promise);
 };
 

@@ -227,7 +227,7 @@ void TOneWayClientResponse::OnResponse(IMessage* message)
     YUNREACHABLE();
 }
 
-TFuture<TOneWayClientResponse::TPtr> TOneWayClientResponse::GetAsyncResult()
+TFuture<TOneWayClientResponsePtr> TOneWayClientResponse::GetAsyncResult()
 {
     return Promise;
 }

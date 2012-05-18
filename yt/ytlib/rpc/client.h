@@ -97,8 +97,6 @@ class TTypedClientRequest
     , public TRequestMessage
 {
 public:
-    typedef TIntrusivePtr<TTypedClientRequest> TPtr;
-
     TTypedClientRequest(
         IChannelPtr channel,
         const Stroka& path,
@@ -284,9 +282,13 @@ private:
 #define DEFINE_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
-    typedef ::NYT::TFuture<TRsp##method::TPtr> TInv##method; \
     \
-    TReq##method::TPtr method() \
+    typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
+    typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
+    \
+    typedef ::NYT::TFuture< TRsp##method##Ptr > TInv##method; \
+    \
+    TReq##method##Ptr method() \
     { \
         return \
             New<TReq##method>(~Channel, ServiceName, #method, false) \
@@ -298,9 +300,13 @@ private:
 #define DEFINE_ONE_WAY_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TOneWayClientResponse TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
-    typedef ::NYT::TFuture<TRsp##method::TPtr> TInv##method; \
     \
-    TReq##method::TPtr method() \
+    typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
+    typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
+    \
+    typedef ::NYT::TFuture< TRsp##method##Ptr > TInv##method; \
+    \
+    TReq##method##Ptr method() \
     { \
         return \
             New<TReq##method>(~Channel, ServiceName, #method, true) \

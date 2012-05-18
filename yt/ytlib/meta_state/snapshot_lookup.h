@@ -32,7 +32,7 @@ private:
 
     void OnLookupSnapshotResponse(
         TPeerId peerId,
-        TProxy::TRspLookupSnapshot::TPtr response);
+        TProxy::TRspLookupSnapshotPtr response);
     void OnLookupSnapshotComplete();
 };
 

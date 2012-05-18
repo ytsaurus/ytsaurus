@@ -14,6 +14,7 @@ using std::string; // hack for guid.h to work
 #include <util/system/defaults.h>
 #include <util/system/spinlock.h>
 #include <util/system/mutex.h>
+#include <util/system/condvar.h>
 #include <util/system/event.h>
 #include <util/system/thread.h>
 
@@ -36,9 +37,6 @@ using std::string; // hack for guid.h to work
 #include <util/string/printf.h>
 #include <util/string/cast.h>
 #include <util/string/split.h>
-
-// TODO(babenko): get rid of this
-#include <util/autoarray.h>
 
 // This define enables tracking of reference-counted objects to provide
 // various insightful information on memory usage and object creation patterns.

@@ -2,11 +2,11 @@ import collections
 import json
 import math
 import re
-import requests
 import socket
 import sys
 import time
 import traceback
+import urllib2
 from diamond.collector import Collector
 from diamond.metric import Metric
 
@@ -27,7 +27,8 @@ class YtCollector(Collector):
             self.sources.append({
                 'endpoint': endpoint,
                 'status': False,
-                'metrics': {}})            
+                'last_metric_sync': 0,
+                'metrics': {}})
 
         self.window = int(self.config['window'])
         self.regex = re.compile("[^a-zA-Z0-9_/]")
@@ -40,7 +41,8 @@ class YtCollector(Collector):
                 'meta01-002g.yt.yandex.net:10000', 
                 'meta01-003g.yt.yandex.net:10000'
             ],
-            'window': 30 # aggregation window size in seconds
+            'window': 30, # aggregation window size in seconds
+            'metric_sync_period': 10 # reload metric names each N collect cycles
         }
 
     def load_metric_names(self, source):
@@ -48,8 +50,8 @@ class YtCollector(Collector):
 
         # get service name
         service_name_url = 'http://' + source['endpoint'] + '/orchid/@service_name'
-        service = requests.get(service_name_url, timeout=5).text.replace('"', '')
-        
+        service = urllib2.urlopen(service_name_url, timeout=5).read().replace('"', '')
+
         # get metric paths
         new_metrics = {}
         profiling_url = 'http://' + source['endpoint'] + '/orchid/profiling'
@@ -63,7 +65,7 @@ class YtCollector(Collector):
             cleaned_path = self.regex.sub('_', path)
             g_metric = 'yt.%s.%s.%s%s' % (host, service, port, cleaned_path.replace('/', '.'))
             new_metrics[g_metric] = {'path': self.quote_path(path), 'last_time': 0}
-        
+
         # update existing metrics
         if len(new_metrics) > 0:
             for (name, metric) in source['metrics'].items():
@@ -71,7 +73,7 @@ class YtCollector(Collector):
                     new_metrics[name]['last_time'] = metric['last_time']
 
         source['metrics'] = new_metrics
-
+        source['last_metric_sync'] = 0
         self.log.info('NewYtCollector: Loaded %d metric names from %s in %f sec', 
             len(source['metrics']), source['endpoint'], time.time() - start_time)
 
@@ -87,13 +89,13 @@ class YtCollector(Collector):
                 self.publish_with_timestamp(name + '.max', int(v['max']), v['time'])
                 last_time = v['time']
                 value_count += 2
-            metric['last_time'] = last_time        
-        
+            metric['last_time'] = last_time
+
         self.log.info('NewYtCollector: Collected %d values for %d metrics from %s in %f sec', 
             value_count, len(source['metrics']), source['endpoint'], time.time() - start_time)
 
     def get_metric_values(self, source, metric):
-        metric_url = 'http://' + source['endpoint'] + '/orchid/profiling' + metric['path']        
+        metric_url = 'http://' + source['endpoint'] + '/orchid/profiling' + metric['path']
         last_time = metric['last_time']
         if last_time > 0:
             from_time = last_time + self.window
@@ -107,7 +109,7 @@ class YtCollector(Collector):
             cur_bucket = from_time / self.window
             cur_vals = []
             for d in data:
-                time = long(d['time']/1E6)                
+                time = long(d['time']/1E6)
                 val = d['value']
                 bucket = time / self.window
                 #self.log.info('NewYtCollector: << %s %d %d' % (metric['path'], time, val))
@@ -125,21 +127,19 @@ class YtCollector(Collector):
             self.log.error('NewYtCollector: Unexpected reply from %s', metric_url)
             return []
 
-    def get_metric_path(self, name):
-        return name
-
     def publish_with_timestamp(self, name, value, timestamp, precision=0):
-        path = self.get_metric_path(name)
-        metric = Metric(path, value, timestamp, precision)
-        #self.log.info('NewYtCollector: >> %s %d %d' % (path, timestamp, value))
+        metric = Metric(name, value, timestamp, precision)
+        #self.log.info('NewYtCollector: >> %s %d %d' % (name, timestamp, value))
         self.publish_metric(metric)
 
     def collect(self):
         iter_start = time.time()
 
         for source in self.sources:
+            source['last_metric_sync'] += 1
             try: 
-                if source['status'] is False: # unknown or failed
+                if (source['status'] is False or 
+                    source['last_metric_sync'] >= self.config['metric_sync_period']):
                     self.load_metric_names(source)
                     source['status'] = True # available
                 if source['status'] is True:
@@ -175,8 +175,8 @@ class YtCollector(Collector):
 
     @staticmethod
     def get_json(url):
-        r = requests.get(url, timeout=5)
-        return json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(r.text)
+        resp = urllib2.urlopen(url, timeout=5).read()
+        return json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(resp)
 
     @staticmethod
     def get_paths(data, root =''):

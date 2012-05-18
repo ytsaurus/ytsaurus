@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/client.cpp
   ${BASE}/common.cpp
   ${BASE}/message.cpp
+  ${BASE}/private.cpp
   ${BASE}/redirector_service.cpp
   ${BASE}/retriable_channel.cpp
   ${BASE}/roaming_channel.cpp

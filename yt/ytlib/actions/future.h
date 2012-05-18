@@ -201,6 +201,9 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
+    //! Synchronously waits unitl #Set is called.
+    void Get() const;
+
     //! Attaches a listener.
     /*!
      *  \param callback A callback to call when the value gets set
@@ -428,6 +431,12 @@ public:
      *  Calling this method also invokes all the subscribers.
      */
     void Set();
+
+    //! Gets the value.
+    /*!
+     *  This call will block until the value is set.
+     */
+    void Get() const;
 
     //! Attaches a listener.
     /*!

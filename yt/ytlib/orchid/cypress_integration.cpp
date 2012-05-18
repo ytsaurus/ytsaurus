@@ -81,7 +81,7 @@ public:
             BIND(
                 &TOrchidYPathService::OnResponse,
                 MakeStrong(this),
-                IServiceContextPtr(context),
+                context,
                 manifest,
                 path,
                 verb)
@@ -121,7 +121,7 @@ private:
         TOrchidManifest::TPtr manifest,
         TYPath path,
         const Stroka& verb,
-        TOrchidServiceProxy::TRspExecute::TPtr response)
+        TOrchidServiceProxy::TRspExecutePtr response)
     {
         LOG_INFO("Reply from a remote Orchid received (RequestId: %s): %s",
             ~response->GetRequestId().ToString(),

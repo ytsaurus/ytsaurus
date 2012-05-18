@@ -278,7 +278,7 @@ void TOperationControllerBase::AbortTransactions()
     LOG_INFO("Aborting transactions")
 
     if (PrimaryTransaction) {
-        // This method is async, no problem in using it here.
+        // The call is async.
         PrimaryTransaction->Abort();
     }
 
@@ -361,7 +361,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -394,12 +394,12 @@ void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecu
     LOG_INFO("Outputs committed");
 }
 
-void TOperationControllerBase::CommitCustomOutputs(TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq)
+void TOperationControllerBase::CommitCustomOutputs(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
 {
     UNUSED(batchReq);
 }
 
-void TOperationControllerBase::OnCustomOutputsCommitted(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnCustomOutputsCommitted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     UNUSED(batchRsp);
 }
@@ -424,7 +424,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTran
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnPrimaryTransactionStarted(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnPrimaryTransactionStarted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -462,7 +462,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTra
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnSecondaryTransactionsStarted(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnSecondaryTransactionsStarted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -508,7 +508,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -612,7 +612,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -718,12 +718,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     LOG_INFO("Inputs received");
 }
 
-void TOperationControllerBase::CustomRequestInputs(TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq)
+void TOperationControllerBase::CustomRequestInputs(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
 {
     UNUSED(batchReq);
 }
 
-void TOperationControllerBase::OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     UNUSED(batchRsp);
 }
@@ -776,7 +776,7 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
         BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
 }
 
-void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     if (batchRsp->IsOK()) {
         LOG_INFO("Chunk lists released successfully");

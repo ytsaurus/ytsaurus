@@ -126,13 +126,13 @@ private:
 
     TProxy::TInvFlushBlock FlushBlock(THolderPtr holder, int blockIndex);
 
-    void OnBlockFlushed(THolderPtr holder, int blockIndex, TProxy::TRspFlushBlock::TPtr rsp);
+    void OnBlockFlushed(THolderPtr holder, int blockIndex, TProxy::TRspFlushBlockPtr rsp);
 
     void OnWindowShifted(int blockIndex);
 
     TProxy::TInvStartChunk StartChunk(THolderPtr holder);
 
-    void OnChunkStarted(THolderPtr holder, TProxy::TRspStartChunk::TPtr rsp);
+    void OnChunkStarted(THolderPtr holder, TProxy::TRspStartChunkPtr rsp);
 
     void OnSessionStarted();
 
@@ -140,7 +140,7 @@ private:
 
     TProxy::TInvFinishChunk FinishChunk(THolderPtr holder);
 
-    void OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::TPtr rsp);
+    void OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunkPtr rsp);
 
     void OnSessionFinished();
 

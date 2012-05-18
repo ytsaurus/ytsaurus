@@ -75,7 +75,7 @@ protected:
     struct TMergeGroup
         : public TIntrinsicRefCounted
     {
-        explicit TMergeGroup(TAutoPtr<IChunkPool> chunkPool, int groupIndex, int partitionIndex = -1)
+        TMergeGroup(TAutoPtr<IChunkPool> chunkPool, int groupIndex, int partitionIndex = -1)
             : ChunkPool(chunkPool)
             , GroupIndex(groupIndex)
             , PartitionIndex(partitionIndex)
@@ -142,28 +142,29 @@ protected:
     yhash_map<Stroka, yhash_set<TMergeGroupPtr> > AddressToActiveGroups;
     yhash_set<TMergeGroupPtr> ActiveGroups;
 
-    void RegisterPendingChunk(TMergeGroupPtr group, TPooledChunkPtr chunk)
+    void RegisterPendingStripe(TMergeGroupPtr group, TChunkStripePtr stripe)
     {
         ActiveGroups.insert(group);
-        FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-            AddressToActiveGroups[address].insert(group);
+        FOREACH (const auto& chunk, stripe->InputChunks) {
+            FOREACH (const auto& address, chunk.holder_addresses()) {
+                AddressToActiveGroups[address].insert(group);
+            }
         }
     }
 
     //! Add chunk to the current group's pool.
-    void AddPendingChunk(TPooledChunkPtr chunk)
+    void AddPendingChunk(const TInputChunk& chunk, i64 weight)
     {
         YASSERT(CurrentGroup);
 
-        auto chunkId = TChunkId::FromProto(chunk->InputChunk.slice().chunk_id());
-
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
-            chunk->InputChunk.extensions());
+        auto stripe = New<TChunkStripe>(chunk, weight);
+        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
 
         TotalWeight += miscExt->data_weight();
         ++TotalChunkCount;
-        CurrentGroup->ChunkPool->Add(chunk);
-        RegisterPendingChunk(CurrentGroup, chunk);
+        CurrentGroup->ChunkPool->Add(stripe);
+        RegisterPendingStripe(CurrentGroup, stripe);
 
         LOG_DEBUG("Added pending chunk %s in partition %d, group %d",
             ~chunkId.ToString(),
@@ -187,24 +188,23 @@ protected:
         TMergeGroupPtr group,
         const Stroka& address,
         i64 weightThreshold,
-        int maxCount,
         bool needLocal)
     {
         auto result = group->ChunkPool->Extract(
             address,
             weightThreshold,
-            maxCount,
             needLocal);
-        YASSERT(result);
 
         if (!group->ChunkPool->HasPendingChunks()) {
             YVERIFY(ActiveGroups.erase(group) == 1);
         }
 
-        FOREACH (const auto& chunk, result->Chunks) {
-            FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-                if (!group->ChunkPool->HasPendingLocalChunksFor(address)) {
-                    AddressToActiveGroups[address].erase(group);
+        FOREACH (const auto& stripe, result->Stripes) {
+            FOREACH (const auto& chunk, stripe->InputChunks) {
+                FOREACH (const auto& address, chunk.holder_addresses()) {
+                    if (!group->ChunkPool->HasPendingLocalChunksFor(address)) {
+                        AddressToActiveGroups[address].erase(group);
+                    }
                 }
             }
         }
@@ -215,8 +215,8 @@ protected:
     void ReturnChunksForMerge(TMergeGroupPtr group, IChunkPool::TExtractResultPtr result)
     {
         group->ChunkPool->PutBack(result);
-        FOREACH (const auto& chunk, result->Chunks) {
-            RegisterPendingChunk(group, chunk);
+        FOREACH (const auto& chunk, result->Stripes) {
+            RegisterPendingStripe(group, chunk);
         }
     }
 
@@ -284,31 +284,30 @@ protected:
             group,
             node->GetAddress(),
             weightThreshold,
-            std::numeric_limits<int>::max(),
             false);
-        YASSERT(!jip->ExtractResult->Chunks.empty());
 
         LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-            static_cast<int>(jip->ExtractResult->Chunks.size()),
+            jip->ExtractResult->TotalChunkCount,
             ~node->GetAddress(),
-            jip->ExtractResult->LocalCount,
-            jip->ExtractResult->Weight,
+            jip->ExtractResult->LocalChunkCount,
+            jip->ExtractResult->TotalChunkWeight,
             weightThreshold);
 
-        YUNREACHABLE();
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
-        // TODO(babenko): use multiple input_spec
-        //auto* mergeJobSpec = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
-        //FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
-        //    *mergeJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
-        //}
-        //jip->ChunkListId = ChunkListPool->Extract();
-        //*mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
+        auto* mergeJobSpec = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
+        FOREACH (const auto& stripe, jip->ExtractResult->Stripes) {
+            auto* inputSpec = mergeJobSpec->add_input_spec();
+            FOREACH (const auto& chunk, stripe->InputChunks) {
+                *inputSpec->add_chunks() = chunk;
+            }
+        }
+        jip->ChunkListId = ChunkListPool->Extract();
+        *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
 
         // Update counters.
-        PendingChunkCount -= jip->ExtractResult->Chunks.size();
-        PendingWeight -= jip->ExtractResult->Weight;
+        PendingChunkCount -= jip->ExtractResult->TotalChunkCount;
+        PendingWeight -= jip->ExtractResult->TotalChunkWeight;
 
         return CreateJob(
             jip,
@@ -320,8 +319,8 @@ protected:
 
     virtual void OnJobCompleted(TMergeJobInProgress* jip)
     {
-        CompletedChunkCount += jip->ExtractResult->Chunks.size();
-        CompletedWeight += jip->ExtractResult->Weight;
+        CompletedChunkCount += jip->ExtractResult->TotalChunkCount;
+        CompletedWeight += jip->ExtractResult->TotalChunkWeight;
 
         auto group = jip->Group;
         auto& table = OutputTables[0];
@@ -330,11 +329,10 @@ protected:
 
     virtual void OnJobFailed(TMergeJobInProgress* jip)
     {
-        PendingChunkCount += jip->ExtractResult->Chunks.size();
-        PendingWeight += jip->ExtractResult->Weight;
+        PendingChunkCount += jip->ExtractResult->TotalChunkCount;
+        PendingWeight += jip->ExtractResult->TotalChunkWeight;
 
-        LOG_DEBUG("Returned %d chunks into pool",
-            static_cast<int>(jip->ExtractResult->Chunks.size()));
+        LOG_DEBUG("Returned %d chunks into pool", jip->ExtractResult->TotalChunkCount);
         ReturnChunksForMerge(jip->Group, jip->ExtractResult);
 
         ReleaseChunkList(jip->ChunkListId);
@@ -355,11 +353,6 @@ protected:
         return result;
     }
 
-    virtual std::vector<TYPath> GetFilePaths()
-    {
-        return std::vector<TYPath>();
-    }
-
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
     {
         return pipeline->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
@@ -376,7 +369,7 @@ protected:
                 const auto& table = InputTables[tableIndex];
                 FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                     i64 weight = miscExt->data_weight();
                     i64 rowCount = miscExt->row_count();
                     LOG_DEBUG("Processing chunk %s (DataWeight: %" PRId64 ", RowCount: %" PRId64 ")",
@@ -494,10 +487,10 @@ protected:
             return true;
         }
 
-        auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * misc->compressed_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (0.9 * miscExt->compressed_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -559,9 +552,9 @@ private:
         }
 
         // Merge is IO-bound, use data size as weight.
-        auto misc = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-        auto pooledChunk = New<TPooledChunk>(chunk, misc->data_weight());
-        AddPendingChunk(pooledChunk);
+        auto misc = GetProtoExtension<TMiscExt>(chunk.extensions());
+        i64 weight = misc->data_weight();
+        AddPendingChunk(chunk, weight);
     }
 
     virtual void ChooseJobCount()
@@ -602,7 +595,7 @@ private:
         }
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         UNUSED(batchRsp);
 
@@ -638,9 +631,9 @@ private:
         }
 
         // Merge is IO-bound, use data size as weight.
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-        auto pooledChunk = New<TPooledChunk>(chunk, miscExt->data_weight());
-        AddPendingChunk(pooledChunk);
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+        i64 weight = miscExt->data_weight();
+        AddPendingChunk(chunk, weight);
 
         EndGroupIfLarge();
     }
@@ -680,7 +673,7 @@ private:
 
     virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         YASSERT(miscExt->sorted());
 
         // Construct endpoints and place it into the list.
@@ -761,18 +754,18 @@ private:
             BeginGroup(CreateAtomicChunkPool());
         }
 
-        FOREACH (auto chunk, chunks) {
-            auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->extensions());
+        FOREACH (const auto& chunk, chunks) {
+            auto miscExt = GetProtoExtension<TMiscExt>(chunk->extensions());
             // Merge is IO-bound, use data size as weight.
-            auto pooledChunk = New<TPooledChunk>(*chunk, miscExt->data_weight());
-            AddPendingChunk(pooledChunk);
+            i64 weight = miscExt->data_weight();
+            AddPendingChunk(*chunk, weight);
         }
 
         EndGroupIfLarge();
     }
 
 
-    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         UNUSED(batchRsp);
 

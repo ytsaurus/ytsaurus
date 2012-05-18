@@ -192,8 +192,6 @@ class TTypedServiceContextBase
     : public TRefCounted
 {
 public:
-    typedef TTypedServiceContextBase<TRequestMessage> TThis;
-    typedef TIntrusivePtr<TThis> TPtr;
     typedef TTypedServiceRequest<TRequestMessage> TTypedRequest;
 
     DEFINE_BYREF_RW_PROPERTY(TTypedRequest, Request);
@@ -509,6 +507,7 @@ private:
 
 #define DECLARE_RPC_SERVICE_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
+    typedef TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest  TReq##method; \
     typedef TCtx##method::TTypedResponse TRsp##method; \
     \
@@ -525,13 +524,13 @@ private:
     void method( \
         TReq##method* request, \
         TRsp##method* response, \
-        TCtx##method::TPtr context)
+        TCtx##method##Ptr context)
 
 #define DEFINE_RPC_SERVICE_METHOD(type, method) \
     void type::method( \
         TReq##method* request, \
         TRsp##method* response, \
-        TCtx##method::TPtr context)
+        TCtx##method##Ptr context)
 
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
@@ -543,6 +542,7 @@ private:
 
 #define DECLARE_ONE_WAY_RPC_SERVICE_METHOD(ns, method) \
     typedef ::NYT::NRpc::TOneWayTypedServiceContext<ns::TReq##method> TCtx##method; \
+    typedef TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest  TReq##method; \
     \
     void method##Thunk(::NYT::NRpc::IServiceContextPtr context) \
@@ -556,12 +556,12 @@ private:
     \
     void method( \
         TReq##method* request, \
-        TCtx##method::TPtr context)
+        TCtx##method##Ptr context)
 
 #define DEFINE_ONE_WAY_RPC_SERVICE_METHOD(type, method) \
     void type::method( \
         TReq##method* request, \
-        TCtx##method::TPtr context)
+        TCtx##method##Ptr context)
 
 #define ONE_WAY_RPC_SERVICE_METHOD_DESC(method) \
     TMethodDescriptor( \

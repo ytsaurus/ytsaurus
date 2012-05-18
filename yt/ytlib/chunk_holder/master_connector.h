@@ -81,7 +81,7 @@ private:
     NChunkServer::NProto::THolderStatistics ComputeStatistics();
 
     //! Handles registration response.
-    void OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response);
+    void OnRegisterResponse(TProxy::TRspRegisterHolderPtr response);
 
     //! Sends out a full heartbeat.
     void SendFullHeartbeat();
@@ -96,10 +96,10 @@ private:
     static NChunkServer::NProto::TChunkRemoveInfo GetRemoveInfo(const TChunkPtr chunk);
 
     //! Handles full heartbeat response.
-    void OnFullHeartbeatResponse(TProxy::TRspFullHeartbeat::TPtr response);
+    void OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr response);
 
     //! Handles incremental heartbeat response.
-    void OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeat::TPtr response);
+    void OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeatPtr response);
 
     //! Handles errors occurring during heartbeats.
     void OnHeartbeatError(const TError& error);

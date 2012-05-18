@@ -74,7 +74,7 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
     outerRequest->Attachments() = innerRequestMessage->GetParts();
 
     return outerRequest->Invoke().Apply(BIND(
-        [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse> {
+        [] (TRspExecutePtr outerResponse) -> TIntrusivePtr<TTypedResponse> {
             auto innerResponse = New<TTypedResponse>();
             auto error = outerResponse->GetError();
             if (error.IsOK()) {

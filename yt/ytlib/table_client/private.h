@@ -7,7 +7,8 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger TableClientLogger;
+extern NLog::TLogger TableReaderLogger;
+extern NLog::TLogger TableWriterLogger;
 
 extern int DefaultPartitionTag;
 

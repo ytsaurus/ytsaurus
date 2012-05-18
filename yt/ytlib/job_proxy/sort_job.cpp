@@ -34,7 +34,7 @@ namespace {
 
 struct TSortRow
 {
-    TRow Row;
+    size_t EndValueIndex;
     TNonOwningKey Key;
 };
 
@@ -89,36 +89,45 @@ TJobResult TSortJob::Run()
     PROFILE_TIMING ("/sort_time") {
         LOG_INFO("Initializing");
 
-        std::vector<TSortRow> sortBuffer;
         yhash_map<TStringBuf, int> keyColumnToIndex;
 
-        // TODO(babenko): call sortBuffer.reserve
-        {
-            for (int i = 0; i < KeyColumns.size(); ++i) {
-                TStringBuf name(~KeyColumns[i], KeyColumns[i].size());
-                keyColumnToIndex[name] = i;
-            }
-
-            Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+        for (int i = 0; i < KeyColumns.size(); ++i) {
+            TStringBuf name(~KeyColumns[i], KeyColumns[i].size());
+            keyColumnToIndex[name] = i;
         }
+
+        Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+
         PROFILE_TIMING_CHECKPOINT("init");
+
+        std::vector< std::pair<TStringBuf, TStringBuf> > valueBuffer;
+        valueBuffer.reserve(Reader->GetValueCount());
+
+        std::vector<TSortRow> rowBuffer;
+        rowBuffer.reserve(Reader->GetRowCount());
+
+        std::vector<size_t> indexBuffer;
+        indexBuffer.reserve(Reader->GetRowCount());
 
         LOG_INFO("Reading");
         {
             TLexer lexer;
             while (Reader->IsValid()) {
-                sortBuffer.push_back(TSortRow());
-                auto& sortRow = sortBuffer.back();
-
-                sortRow.Row.swap(Reader->GetRow());
+                TSortRow sortRow;
                 sortRow.Key.Reset(KeyColumns.size());
 
-                FOREACH (const auto& pair, sortRow.Row) {
+                FOREACH (const auto& pair, Reader->GetRow()) {
                     auto it = keyColumnToIndex.find(pair.first);
                     if (it != keyColumnToIndex.end()) {
                         sortRow.Key.SetKeyPart(it->second, pair.second, lexer);
                     }
+                    valueBuffer.push_back(pair);
                 }
+
+                sortRow.EndValueIndex = valueBuffer.size();
+
+                indexBuffer.push_back(rowBuffer.size());
+                rowBuffer.push_back(sortRow);
 
                 Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
             }
@@ -126,22 +135,39 @@ TJobResult TSortJob::Run()
         PROFILE_TIMING_CHECKPOINT("read");
 
         LOG_INFO("Sorting");
-        std::sort(sortBuffer.begin(), sortBuffer.end());
+
+        std::sort(
+            indexBuffer.begin(), 
+            indexBuffer.end(),
+            [&] (size_t lhs, size_t rhs) {
+                return CompareKeys(rowBuffer[lhs].Key, rowBuffer[rhs].Key) < 0;
+            }
+        );
+
         PROFILE_TIMING_CHECKPOINT("sort");
 
         LOG_INFO("Writing");
         {
-            // Required for Sync calls with MSVC.
-            typedef TChunkSequenceWriterBase<TTableChunkWriter> TWriterBase;
+            Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
-            Sync(static_cast<TWriterBase*>(~Writer), &TWriterBase::AsyncOpen);
+            TRow row;
+            for (size_t i = 0; i < indexBuffer.size(); ++i) {
+                size_t index = indexBuffer[i];
+                row.clear();
 
-            for (int i = 0; i < sortBuffer.size(); ++i) {
-                Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, sortBuffer[i].Row, sortBuffer[i].Key);
-                // ToDo(psushin): Writer->SetProgress();
+                auto& sortRow = rowBuffer[index];
+                for (size_t valueIndex = index > 0 ? rowBuffer[index - 1].EndValueIndex : 0; 
+                    valueIndex < sortRow.EndValueIndex; 
+                    ++valueIndex) 
+                {
+                    row.push_back(valueBuffer[valueIndex]);
+                }
+
+                Writer->SetProgress(double(i) / indexBuffer.size());
+                Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, row, sortRow.Key);
             }
 
-            Sync(static_cast<TWriterBase*>(~Writer), &TWriterBase::AsyncClose);
+            Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
         }
 
         PROFILE_TIMING_CHECKPOINT("write");

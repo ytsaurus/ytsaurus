@@ -167,7 +167,7 @@ public:
             ? New<TReplyInterceptorContext>(
                 context,
                 BIND(&TWriteBackService::SaveFile, MakeStrong(this)))
-            : IServiceContextPtr(context);
+            : context;
         UnderlyingService->Invoke(~wrappedContext);
     }
 

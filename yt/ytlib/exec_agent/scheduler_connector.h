@@ -30,7 +30,7 @@ private:
     TPeriodicInvoker::TPtr HeartbeatInvoker;
 
     void SendHeartbeat();
-    void OnHeartbeatResponse(NScheduler::TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp);
+    void OnHeartbeatResponse(NScheduler::TSchedulerServiceProxy::TRspHeartbeatPtr rsp);
 
     void StartJob(const NScheduler::NProto::TStartJobInfo& info);
     void AbortJob(const TJobId& jobId);

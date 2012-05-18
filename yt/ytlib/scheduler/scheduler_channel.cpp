@@ -17,7 +17,7 @@ using namespace NYTree;
 
 namespace {
 
-TValueOrError<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGet::TPtr rsp)
+TValueOrError<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGetPtr rsp)
 {
     if (!rsp->IsOK()) {
         return rsp->GetError();

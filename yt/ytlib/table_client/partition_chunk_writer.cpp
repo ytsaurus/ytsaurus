@@ -17,7 +17,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NYTree;
 
-static NLog::TLogger& Logger = TableClientLogger;
+static NLog::TLogger& Logger = TableWriterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +92,8 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         PartitionsExt.add_sizes(0);
     }
 
+    MiscExt.set_value_count(0);
+
     BasicMetaSize = ChannelsExt.ByteSize() + sizeof(i64) * PartitionKeys.size() + 
         sizeof(NChunkHolder::NProto::TMiscExt) + 
         sizeof(NChunkHolder::NProto::TChunkMeta);
@@ -129,6 +131,8 @@ TAsyncError TPartitionChunkWriter::AsyncWriteRow(const TRow& row)
 
         rowDataSize += pair.first.size();
         rowDataSize += pair.second.size();
+
+        MiscExt.set_value_count(MiscExt.value_count() + 1);
     }
     channelWriter->EndRow();
 

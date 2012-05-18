@@ -95,7 +95,7 @@ void TFollowerPinger::SchedulePing(TPeerId followerId)
         Config->PingInterval);
 }
 
-void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollower::TPtr response)
+void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowerPtr response)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

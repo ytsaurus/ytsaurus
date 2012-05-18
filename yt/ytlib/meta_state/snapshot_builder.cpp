@@ -165,7 +165,7 @@ private:
         Checksums[Owner->CellManager->GetSelfId()] = result.Checksum;
     }
 
-    void OnChangeLogRotated(TPeerId id, TProxy::TRspAdvanceSegment::TPtr response)
+    void OnChangeLogRotated(TPeerId id, TProxy::TRspAdvanceSegmentPtr response)
     {
         if (!response->IsOK()) {
             LOG_WARNING("Error rotating the changelog at follower %d\n%s",
@@ -174,7 +174,7 @@ private:
         }
     }
 
-    void OnSnapshotCreated(TPeerId id, TProxy::TRspAdvanceSegment::TPtr response)
+    void OnSnapshotCreated(TPeerId id, TProxy::TRspAdvanceSegmentPtr response)
     {
         if (!response->IsOK()) {
             LOG_WARNING("Error creating the snapshot at follower %d\n%s",

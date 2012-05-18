@@ -53,7 +53,7 @@ private:
         TParallelAwaiter::TPtr awaiter,
         TPromise<TSnapshotInfo> promise,
         TPeerId peerId,
-        TProxy::TRspGetSnapshotInfo::TPtr response);
+        TProxy::TRspGetSnapshotInfoPtr response);
     static void OnSnapshotInfoComplete(
         i32 snapshotId,
         TPromise<TSnapshotInfo> promise);

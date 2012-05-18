@@ -39,7 +39,7 @@ TTableWriter::TTableWriter(
     , IsOpen(false)
     , IsClosed(false)
     , ObjectProxy(masterChannel)
-    , Logger(TableClientLogger)
+    , Logger(TableWriterLogger)
     , KeyColumns(keyColumns)
 {
     YASSERT(config);

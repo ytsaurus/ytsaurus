@@ -18,7 +18,7 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     : TClientRequest(channel, path, verb, false)
 { }
 
-TFuture<TObjectServiceProxy::TRspExecuteBatch::TPtr>
+TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
     auto response = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
@@ -27,7 +27,7 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
     return asyncResult;
 }
 
-TObjectServiceProxy::TReqExecuteBatch::TPtr
+TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     TYPathRequestPtr innerRequest,
     const Stroka& key)
@@ -68,7 +68,7 @@ TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     , Promise(NewPromise<TPtr>())
 { }
 
-TFuture<TObjectServiceProxy::TRspExecuteBatch::TPtr>
+TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TRspExecuteBatch::GetAsyncResult()
 {
     return Promise;
@@ -114,7 +114,7 @@ std::vector<NYTree::TYPathResponse::TPtr> TObjectServiceProxy::TRspExecuteBatch:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceProxy::TReqExecuteBatch::TPtr TObjectServiceProxy::ExecuteBatch()
+TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {
     // Keep this in sync with DEFINE_RPC_PROXY_METHOD.
     return

@@ -25,8 +25,6 @@ class TServiceContext
     : public TServiceContextBase
 {
 public:
-    typedef TIntrusivePtr<TServiceContext> TPtr;
-
     TServiceContext(
         const NProto::TRequestHeader& header,
         IMessage::TPtr requestMessage,
@@ -85,8 +83,6 @@ class TRpcServer
     , public IMessageHandler
 {
 public:
-    typedef TIntrusivePtr<TRpcServer> TPtr;
-
     TRpcServer(IBusServer::TPtr busServer)
         : BusServer(busServer)
         , Started(false)

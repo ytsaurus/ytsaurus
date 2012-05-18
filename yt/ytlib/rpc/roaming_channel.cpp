@@ -13,8 +13,6 @@ class TResponseHandlerWrapper
     : public IClientResponseHandler
 {
 public:
-    typedef TIntrusivePtr<TResponseHandlerWrapper> TPtr;
-
     TResponseHandlerWrapper(
         IClientResponseHandlerPtr underlyingHandler,
         TClosure onFailed)

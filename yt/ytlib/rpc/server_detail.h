@@ -15,8 +15,6 @@ class TServiceContextBase
     : public IServiceContext
 {
 public:
-    typedef TIntrusivePtr<TServiceContextBase> TPtr;
-
     virtual NBus::IMessage::TPtr GetRequestMessage() const;
 
     virtual const TRequestId& GetRequestId() const;

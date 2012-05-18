@@ -9,34 +9,52 @@ namespace NScheduler {
 
 namespace {
 
-bool IsChunkLocal(TPooledChunkPtr chunk, const Stroka& address)
-{
-    FOREACH (const auto& chunkAddress, chunk->InputChunk.holder_addresses()) {
-        if (chunkAddress == address) {
-            return true;
-        }
-    }
-    return false;
-}
-
 template <class TIterator>
-void AddChunks(
+void AddStripes(
     IChunkPool::TExtractResultPtr result,
     const TIterator& begin,
     const TIterator& end,
     i64 weightThreshold,
-    int maxCount,
-    bool local)
+    const Stroka& address)
 {
     for (auto it = begin; it != end; ++it) {
-        if (result->Chunks.size() >= maxCount || result->Weight >= weightThreshold) {
+        if (result->TotalChunkWeight >= weightThreshold) {
             break;
         }
-        result->Add(*it, local);
+        result->Add(*it, address);
     }
 }
 
+
 } // namespace
+
+////////////////////////////////////////////////////////////////////
+
+IChunkPool::TExtractResult::TExtractResult()
+    : TotalChunkWeight(0)
+    , TotalChunkCount(0)
+    , LocalChunkCount(0)
+    , RemoteChunkCount(0)
+{ }
+
+void IChunkPool::TExtractResult::Add(TChunkStripePtr stripe, const Stroka& address)
+{
+    Stripes.push_back(stripe);
+    TotalChunkWeight += stripe->Weight;
+    FOREACH (const auto& chunk, stripe->InputChunks) {
+        ++TotalChunkCount;
+        if (std::find_if(
+            chunk.holder_addresses().begin(),
+            chunk.holder_addresses().end(),
+            [&] (const Stroka& chunkAddress) { return address == chunkAddress; })
+            != chunk.holder_addresses().end())
+        {
+            ++LocalChunkCount;
+        } else {
+            ++RemoteChunkCount;
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -49,21 +67,22 @@ public:
         , PendingWeight(0)
     { }
 
-    virtual void Add(TPooledChunkPtr chunk)
+    virtual void Add(TChunkStripePtr stripe)
     {
-        YASSERT(chunk->Weight > 0);
-        TotalWeight += chunk->Weight;
-        PendingWeight += chunk->Weight;
-        FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-            YVERIFY(LocalChunks[address].insert(chunk).second);
+        YASSERT(stripe->Weight > 0);
+        TotalWeight += stripe->Weight;
+        PendingWeight += stripe->Weight;
+        FOREACH (const auto& inputChunk, stripe->InputChunks) {
+            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+                YVERIFY(LocalChunks[address].insert(stripe).second);
+            }
         }
-        YVERIFY(GlobalChunks.insert(chunk).second);
+        YVERIFY(GlobalChunks.insert(stripe).second);
     }
 
     virtual TExtractResultPtr Extract(
         const Stroka& address,
         i64 weightThreshold,
-        int maxCount,
         bool needLocal)
     {
         auto result = New<TExtractResult>();
@@ -72,16 +91,15 @@ public:
         auto addressIt = LocalChunks.find(address);
         if (addressIt != LocalChunks.end()) {
             const auto& localChunks = addressIt->second;
-            AddChunks(
+            AddStripes(
                 result,
                 localChunks.begin(),
                 localChunks.end(),
                 weightThreshold,
-                maxCount,
-                true);
+                address);
         }
 
-        if (result->LocalCount == 0 && needLocal) {
+        if (result->LocalChunkCount == 0 && needLocal) {
             // Could not find any local chunks but requested to do so.
             // Don't look at remote ones.
             return NULL;
@@ -90,22 +108,21 @@ public:
         // Unregister taken local chunks.
         // We have to do this right away, otherwise we risk getting same chunks
         // in the next phase.
-        for (int index = 0; index < result->LocalCount; ++index) {
-            Unregister(result->Chunks[index]);
+        for (int index = 0; index < result->LocalChunkCount; ++index) {
+            Unregister(result->Stripes[index]);
         }
 
         // Take remote chunks.
-        AddChunks(
+        AddStripes(
             result,
             GlobalChunks.begin(),
             GlobalChunks.end(),
             weightThreshold,
-            maxCount,
-            false);
+            address);
 
         // Unregister taken remote chunks.
-        for (int index = result->LocalCount; index < result->LocalCount + result->RemoteCount; ++index) {
-            Unregister(result->Chunks[index]);
+        for (int index = result->LocalChunkCount; index < result->LocalChunkCount + result->RemoteChunkCount; ++index) {
+            Unregister(result->Stripes[index]);
         }
 
         return result;
@@ -113,8 +130,8 @@ public:
 
     virtual void PutBack(TExtractResultPtr result)
     {
-        FOREACH (const auto& chunk, result->Chunks) {
-            Add(chunk);
+        FOREACH (const auto& stripe, result->Stripes) {
+            Add(stripe);
         }
     }
 
@@ -142,16 +159,18 @@ public:
 private:
     i64 TotalWeight;
     i64 PendingWeight;
-    yhash_map<Stroka, yhash_set<TPooledChunkPtr> > LocalChunks;
-    yhash_set<TPooledChunkPtr> GlobalChunks;
+    yhash_map<Stroka, yhash_set<TChunkStripePtr> > LocalChunks;
+    yhash_set<TChunkStripePtr> GlobalChunks;
     
-    void Unregister(TPooledChunkPtr chunk)
+    void Unregister(TChunkStripePtr stripe)
     {
-        FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-            YVERIFY(LocalChunks[address].erase(chunk) == 1);
+        FOREACH (const auto& inputChunk, stripe->InputChunks) {
+            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+                YVERIFY(LocalChunks[address].erase(stripe) == 1);
+            }
         }
-        YVERIFY(GlobalChunks.erase(chunk) == 1);
-        PendingWeight -= chunk->Weight;
+        YVERIFY(GlobalChunks.erase(stripe) == 1);
+        PendingWeight -= stripe->Weight;
     }
 };
 
@@ -172,33 +191,33 @@ public:
         , Initialized(false)
     { }
 
-    virtual void Add(TPooledChunkPtr chunk)
+    virtual void Add(TChunkStripePtr stripe)
     {
         YASSERT(!Initialized);
-        TotalWeight += chunk->Weight;
-        Chunks.push_back(chunk);
-        FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-            Addresses.insert(address);
+        TotalWeight += stripe->Weight;
+        Stripes.push_back(stripe);
+        FOREACH (const auto& inputChunk, stripe->InputChunks) {
+            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+                Addresses.insert(address);
+            }
         }
     }
 
     virtual TExtractResultPtr Extract(
         const Stroka& address,
         i64 weightThreshold,
-        int maxCount,
         bool needLocal)
     {
         UNUSED(address);
         UNUSED(weightThreshold);
-        UNUSED(maxCount);
         UNUSED(needLocal);
         
         Initialized = true;
         YASSERT(!Extracted);
 
         auto result = New<TExtractResult>();
-        FOREACH (const auto& chunk, Chunks) {
-            result->Add(chunk, IsChunkLocal(chunk, address));
+        FOREACH (const auto& stripe, Stripes) {
+            result->Add(stripe, address);
         }
         Extracted = true;
         return result;
@@ -223,7 +242,7 @@ public:
 
     virtual bool HasPendingChunks() const
     {
-        return !Extracted && !Chunks.empty();
+        return !Extracted && !Stripes.empty();
     }
 
     virtual bool HasPendingLocalChunksFor(const Stroka& address) const
@@ -236,10 +255,10 @@ public:
 
 private:
     i64 TotalWeight;
-    std::vector<TPooledChunkPtr> Chunks;
+    std::vector<TChunkStripePtr> Stripes;
     //! Addresses of added chunks.
     yhash_set<Stroka> Addresses;
-    //! Have the chunks been #Extract'ed?
+    //! Have the stripes been #Extract'ed?
     bool Extracted;
     //! Has any #Extract call been made already?
     bool Initialized;
@@ -248,166 +267,6 @@ private:
 TAutoPtr<IChunkPool> CreateAtomicChunkPool()
 {
     return new TAtomicChunkPool();
-}
-
-////////////////////////////////////////////////////////////////////
-
-class TMergeChunkPool
-    : public IChunkPool
-{
-public:
-    TMergeChunkPool()
-        : TotalWeight(0)
-    { }
-
-    virtual void Add(TPooledChunkPtr chunk)
-    {
-        YASSERT(chunk->Weight > 0);
-        TotalWeight += chunk->Weight;
-        TChunkIterators its;
-        FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-            its.LocalIterators.push_back(LocalChunks[address].insert(chunk));
-        }
-        its.GlobalIterator = GlobalChunks.insert(chunk);
-        YVERIFY(Iterators.insert(MakePair(chunk, its)).second);
-    }
-
-    virtual TExtractResultPtr Extract(
-        const Stroka& address,
-        i64 weightThreshold,
-        int maxCount,
-        bool needLocal)
-    {
-        auto result = New<TExtractResult>();
-
-        // Take local chunks first.
-        auto addressIt = LocalChunks.find(address);
-        if (addressIt != LocalChunks.end()) {
-            const auto& localChunks = addressIt->second;
-            AddChunks(
-                result,
-                localChunks.begin(),
-                localChunks.end(),
-                weightThreshold,
-                maxCount,
-                true);
-        }
-
-        if (result->LocalCount == 0 && needLocal) {
-            // Could not find any local chunks but requested so.
-            // Don't look at remote ones.
-            return NULL;
-        }
-
-        // Unregister taken local chunks.
-        // We have to do this right away, otherwise we risk getting same chunks
-        // in the next phase.
-        for (int index = 0; index < result->LocalCount; ++index) {
-            Unregister(result->Chunks[index]);
-        }
-
-        // Take remote chunks.
-
-        // Compute pivot based on the last picked chunk.
-        auto pivotIt =
-            result->Chunks.empty()
-            ? GlobalChunks.begin()
-            : GlobalChunks.upper_bound(result->Chunks.back());
-
-        // Take remote chunks larger than pivot.
-        AddChunks(
-            result,
-            pivotIt,
-            GlobalChunks.end(),
-            weightThreshold,
-            maxCount,
-            false);
-
-        // Take remote chunks smaller than pivot.
-        AddChunks(
-            result,
-            std::reverse_iterator<TOrderedChunkSet::iterator>(pivotIt),
-            std::reverse_iterator<TOrderedChunkSet::iterator>(GlobalChunks.begin()),
-            weightThreshold,
-            maxCount,
-            false);
-
-        // Unregister taken remote chunks.
-        for (int index = result->LocalCount; index < result->LocalCount + result->RemoteCount; ++index) {
-            Unregister(result->Chunks[index]);
-        }
-
-        return result;
-    }
-
-    virtual void PutBack(TExtractResultPtr result)
-    {
-        FOREACH (const auto& chunk, result->Chunks) {
-            Add(chunk);
-        }
-    }
-
-    virtual i64 GetTotalWeight() const
-    {
-        return TotalWeight;
-    }
-
-    virtual i64 GetPendingWeight() const
-    {
-        YUNREACHABLE();
-    }
-
-    virtual bool HasPendingChunks() const
-    {
-        return !GlobalChunks.empty();
-    }
-
-    virtual bool HasPendingLocalChunksFor(const Stroka& address) const
-    {
-        auto it = LocalChunks.find(address);
-        return it == LocalChunks.end() ? false : !it->second.empty();
-    }
-
-private:
-    i64 TotalWeight;
-
-    struct TChunkWeightComparer
-    {
-        bool operator ()(TPooledChunkPtr lhs, TPooledChunkPtr rhs) const
-        {
-            return lhs->Weight < rhs->Weight;
-        }
-    };
-
-    typedef std::multiset<TPooledChunkPtr, TChunkWeightComparer> TOrderedChunkSet;
-
-    struct TChunkIterators
-    {
-        TPooledChunkPtr Chunk;
-        std::vector<TOrderedChunkSet::iterator> LocalIterators;
-        TOrderedChunkSet::iterator GlobalIterator;
-    };
-
-    yhash_map<TPooledChunkPtr, TChunkIterators> Iterators;
-    yhash_map<Stroka, TOrderedChunkSet> LocalChunks;
-    TOrderedChunkSet GlobalChunks;
-
-    void Unregister(TPooledChunkPtr chunk)
-    {
-        auto& its = Iterators[chunk];
-        for (int index = 0; index < static_cast<int>(chunk->InputChunk.holder_addresses_size()); ++index) {
-            auto address = chunk->InputChunk.holder_addresses(index);
-            auto localIt = its.LocalIterators[index];
-            LocalChunks[address].erase(localIt);
-        }
-        GlobalChunks.erase(its.GlobalIterator);
-        YVERIFY(Iterators.erase(chunk) == 1);
-    }
-};
-
-TAutoPtr<IChunkPool> CreateMergeChunkPool()
-{
-    return new TMergeChunkPool();
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -62,7 +62,7 @@ i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
 
 void TSnapshotLookup::OnLookupSnapshotResponse(
     TPeerId peerId,
-    TProxy::TRspLookupSnapshot::TPtr response)
+    TProxy::TRspLookupSnapshotPtr response)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

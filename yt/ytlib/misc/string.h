@@ -19,8 +19,9 @@ namespace NYT {
 template <class TIterator>
 Stroka JoinToString(const TIterator& begin, const TIterator& end, Stroka delimiter = ", ")
 {
+    using ::ToString;
     Stroka result;
-    for (TIterator current = begin; current != end; ++current) {
+    for (auto current = begin; current != end; ++current) {
         if (current != begin) {
             result.append(delimiter);
         }

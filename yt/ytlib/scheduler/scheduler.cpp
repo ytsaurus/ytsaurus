@@ -190,7 +190,7 @@ private:
 
     TValueOrError<TOperationPtr> OnOperationNodeCreated(
         TOperationPtr operation,
-        NYTree::TYPathProxy::TRspSet::TPtr rsp)
+        NYTree::TYPathProxy::TRspSetPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -633,7 +633,7 @@ private:
 
     void OnTransactionsRefreshed(
         const std::vector<TTransactionId>& transactionIds,
-        NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr rsp)
+        NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -703,7 +703,7 @@ private:
             .Via(GetControlInvoker()));
     }
 
-    void OnExecNodesRefreshed(NYTree::TYPathProxy::TRspGet::TPtr rsp)
+    void OnExecNodesRefreshed(NYTree::TYPathProxy::TRspGetPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -762,7 +762,7 @@ private:
 
     void AddOperationUpdateRequests(
         TOperationPtr operation,
-        TObjectServiceProxy::TReqExecuteBatch::TPtr batchReq)
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         auto operationPath = GetOperationPath(operation->GetOperationId());
         
@@ -790,7 +790,7 @@ private:
         }
     }
 
-    void OnOperationNodesUpdated(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    void OnOperationNodesUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -888,7 +888,7 @@ private:
 
     void OnOperationNodeRemoved(
         TOperationPtr operation,
-        TYPathProxy::TRspRemove::TPtr rsp)
+        TYPathProxy::TRspRemovePtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -920,7 +920,7 @@ private:
 
     void OnOperationNodeFinalized(
         TOperationPtr operation,
-        TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         // TODO(babenko): add retries
         if (!batchRsp->IsOK()) {
@@ -996,12 +996,14 @@ private:
             return;
         }
 
-        operation->SetState(EOperationState::Failed);
-        *operation->Result().mutable_error() = error.ToProto();
-
         LOG_INFO("Operation %s failed\n%s",
             ~operation->GetOperationId().ToString(),
             ~error.GetMessage());
+
+        operation->GetController()->OnOperationAborted();
+
+        operation->SetState(EOperationState::Failed);
+        *operation->Result().mutable_error() = error.ToProto();
 
         FinalizeOperationNode(operation);
 

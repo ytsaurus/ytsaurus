@@ -31,8 +31,6 @@ class TChannel
     , public IMessageHandler
 {
 public:
-    typedef TIntrusivePtr<TChannel> TPtr;
-
     TChannel(IBusClient* client, TNullable<TDuration> defaultTimeout)
         : DefaultTimeout(defaultTimeout)
         , Terminated(false)

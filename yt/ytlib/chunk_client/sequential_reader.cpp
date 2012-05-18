@@ -8,7 +8,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkClientLogger;
+static NLog::TLogger& Logger = ChunkReaderLogger;
 
 using namespace NChunkHolder::NProto;
 

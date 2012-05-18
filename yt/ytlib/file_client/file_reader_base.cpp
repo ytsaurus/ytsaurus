@@ -34,7 +34,7 @@ TFileReaderBase::TFileReaderBase(
     , BlockCount(0)
     , BlockIndex(0)
     , Proxy(masterChannel)
-    , Logger(FileClientLogger)
+    , Logger(FileReaderLogger)
 {
     YASSERT(config);
     YASSERT(masterChannel);

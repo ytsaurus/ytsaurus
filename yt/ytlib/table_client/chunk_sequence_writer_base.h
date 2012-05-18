@@ -69,7 +69,7 @@ protected:
     void CreateNextSession();
     virtual void InitCurrentSession(TSession nextSession);
 
-    void OnChunkCreated(NTransactionServer::TTransactionYPathProxy::TRspCreateObject::TPtr rsp);
+    void OnChunkCreated(NTransactionServer::TTransactionYPathProxy::TRspCreateObjectPtr rsp);
     virtual void PrepareChunkWriter(TSession& newSession) = 0;
 
     void FinishCurrentSession();
@@ -82,7 +82,7 @@ protected:
     void OnChunkRegistered(
         NChunkServer::TChunkId chunkId,
         TAsyncErrorPromise finishResult,
-        NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+        NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     void OnChunkFinished(
         NChunkServer::TChunkId chunkId,

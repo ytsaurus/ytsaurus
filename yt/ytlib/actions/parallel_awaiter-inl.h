@@ -44,6 +44,23 @@ inline void TParallelAwaiter::Init(
     }
 }
 
+template <class Signature>
+bool TParallelAwaiter::WrapOnResult(TCallback<Signature> onResult, TCallback<Signature>& wrappedOnResult)
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    YASSERT(!Completed);
+
+    if (Canceled || Terminated)
+        return false;
+
+    ++RequestCount;
+
+    if (!onResult.IsNull()) {
+        wrappedOnResult = onResult.Via(CancelableInvoker);
+    }
+    return true;
+}
+
 template <class T>
 void TParallelAwaiter::Await(
     TFuture<T> result,
@@ -53,25 +70,30 @@ void TParallelAwaiter::Await(
     YASSERT(!result.IsNull());
 
     TCallback<void(T)> wrappedOnResult;
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        YASSERT(!Completed);
-
-        if (Canceled || Terminated)
-            return;
-
-        ++RequestCount;
-
-        if (!onResult.IsNull()) {
-            wrappedOnResult = onResult.Via(CancelableInvoker);
-        }
+    if (WrapOnResult(onResult, wrappedOnResult)) {
+        result.Subscribe(BIND(
+            &TParallelAwaiter::OnResult<T>,
+            MakeStrong(this),
+            timerPathSuffix,
+            Passed(MoveRV(wrappedOnResult))));
     }
+}
 
-    result.Subscribe(BIND(
-        &TParallelAwaiter::OnResult<T>,
-        MakeStrong(this),
-        timerPathSuffix,
-        Passed(MoveRV(wrappedOnResult))));
+inline void TParallelAwaiter::Await(
+    TFuture<void> result,
+    const NYTree::TYPath& timerPathSuffix,
+    TCallback<void(void)> onResult)
+{
+    YASSERT(!result.IsNull());
+
+    TCallback<void(void)> wrappedOnResult;
+    if (WrapOnResult(onResult, wrappedOnResult)) {
+        result.Subscribe(BIND(
+            (void(TParallelAwaiter::*)(const NYTree::TYPath&, TCallback<void()>))&TParallelAwaiter::OnResult,
+            MakeStrong(this),
+            timerPathSuffix,
+            Passed(MoveRV(wrappedOnResult))));
+    }
 }
 
 template <class T>
@@ -82,16 +104,8 @@ void TParallelAwaiter::Await(
     Await(MoveRV(result), "", MoveRV(onResult));
 }
 
-template <class T>
-void TParallelAwaiter::OnResult(
-    const NYTree::TYPath& timerPathSuffix,
-    TCallback<void(T)> onResult,
-    T result)
+inline void TParallelAwaiter::MaybeInvokeOnComplete(const NYTree::TYPath& timerPathSuffix)
 {
-    if (!onResult.IsNull()) {
-        onResult.Run(result);
-    }
-
     bool invokeOnComplete = false;
     TClosure onComplete;
     {
@@ -105,7 +119,7 @@ void TParallelAwaiter::OnResult(
         }
 
         ++ResponseCount;
-        
+
         onComplete = OnComplete;
         invokeOnComplete = ResponseCount == RequestCount && Completed;
         if (invokeOnComplete) {
@@ -117,6 +131,30 @@ void TParallelAwaiter::OnResult(
         onComplete.Run();
     }
 }
+
+template <class T>
+void TParallelAwaiter::OnResult(
+    const NYTree::TYPath& timerPathSuffix,
+    TCallback<void(T)> onResult,
+    T result)
+{
+    if (!onResult.IsNull()) {
+        onResult.Run(result);
+    }
+
+    MaybeInvokeOnComplete(timerPathSuffix);
+}
+
+inline void TParallelAwaiter::OnResult(
+    const NYTree::TYPath& timerPathSuffix,
+    TCallback<void()> onResult)
+{
+    if (!onResult.IsNull()) {
+        onResult.Run();
+    }
+    MaybeInvokeOnComplete(timerPathSuffix);
+}
+
 
 inline void TParallelAwaiter::Complete(TClosure onComplete)
 {
