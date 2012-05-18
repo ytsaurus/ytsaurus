@@ -30,7 +30,7 @@ struct TNLBusServerConfig
         Register("sleep_quantum", SleepQuantum)
             .Default(TDuration::MilliSeconds(10));
         Register("message_rearrange_timeout", MessageRearrangeTimeout)
-            .Default(TDuration::MilliSeconds(100));
+            .Default(TDuration::MilliSeconds(1000));
         Register("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(60));
     }
