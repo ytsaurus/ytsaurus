@@ -35,7 +35,7 @@ TFileWriterBase::TFileWriterBase(
     , IsOpen(false)
     , Size(0)
     , BlockCount(0)
-    , Logger(FileClientLogger)
+    , Logger(FileWriterLogger)
 {
     YASSERT(config);
     YASSERT(masterChannel);
