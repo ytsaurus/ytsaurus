@@ -62,9 +62,12 @@ public:
             "/" + request->GetVerb() +
             "/time");
 
-        if (timeout && !request->IsOneWay()) {
+        if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
-                BIND(&TChannel::OnTimeout, MakeStrong(this), requestId),
+                BIND(
+                    &TChannel::OnTimeout,
+                    MakeStrong(this),
+                    requestId),
                 timeout.Get());
         }
 
@@ -262,7 +265,7 @@ IChannelPtr CreateBusChannel(
     TNullable<TDuration> defaultTimeout)
 {
     return CreateBusChannel(
-        ~CreateNLBusClient(New<TNLBusClientConfig>(address)),
+        ~CreateNLBusClient(~New<TNLBusClientConfig>(address)),
         defaultTimeout);
 }
 

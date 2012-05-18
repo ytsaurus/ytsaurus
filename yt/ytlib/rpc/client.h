@@ -42,7 +42,6 @@ struct IClientRequest
 {
     virtual NBus::IMessage::TPtr Serialize() const = 0;
 
-    virtual bool IsOneWay() const = 0;
     virtual const TRequestId& GetRequestId() const = 0;
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
@@ -57,12 +56,12 @@ class TClientRequest
     : public IClientRequest
 {
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYVAL_RO_PROPERTY(bool, OneWay);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
 public:
     virtual NBus::IMessage::TPtr Serialize() const;
 
-    virtual bool IsOneWay() const;
     virtual const TRequestId& GetRequestId() const;
     virtual const Stroka& GetPath() const;
     virtual const Stroka& GetVerb() const;
@@ -75,7 +74,6 @@ protected:
     Stroka Path;
     Stroka Verb;
     TRequestId RequestId;
-    bool OneWay;
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(

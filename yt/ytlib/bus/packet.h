@@ -65,7 +65,7 @@ bool DecodeMessagePacket(
     TSequenceId* sequenceId);
 
 bool EncodeMessagePacket(
-    IMessage::TPtr message,
+    IMessage* message,
     const TSessionId& sessionId,
     TSequenceId sequenceId,
     TBlob* data);

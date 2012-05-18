@@ -37,7 +37,7 @@ struct TNLBusClientConfig
  *
  *  \param address An address where all buses will point to.
  */
-IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig::TPtr config);
+IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig* config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
