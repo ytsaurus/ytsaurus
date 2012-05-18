@@ -37,14 +37,14 @@ class TNLBusClient
 public:
     typedef TIntrusivePtr<TNLBusClient> TPtr;
 
-    TNLBusClient(TNLBusClientConfig* config);
+    TNLBusClient(TNLBusClientConfig::TPtr config);
 
     void Start();
 
     virtual ~TNLBusClient()
     { }
 
-    virtual IBus::TPtr CreateBus(IMessageHandler* handler);
+    virtual IBus::TPtr CreateBus(IMessageHandler::TPtr handler);
 
 private:
     class TBus;
@@ -54,7 +54,7 @@ private:
     TUdpAddress ServerAddress;
 };
 
-IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig* config)
+IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig::TPtr config)
 {
     auto client = New<TNLBusClient>(config);
     client->Start();
@@ -70,7 +70,7 @@ public:
     typedef TIntrusivePtr<TBus> TPtr;
     typedef yhash_set<TGuid> TRequestIdSet;
 
-    TBus(const TUdpAddress& address, IMessageHandler* handler)
+    TBus(const TUdpAddress& address, IMessageHandler::TPtr handler)
         : Address(address)
         , Handler(handler)
         , Terminated(false)
@@ -84,7 +84,7 @@ public:
         return Address;
     }
 
-    void ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
+    void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
     {
         UNUSED(sequenceId);
         Handler->OnMessage(message, this);
@@ -108,7 +108,7 @@ public:
 
     TSequenceId GenerateSequenceId()
     {
-        return AtomicIncrement(SequenceId) - 1;
+        return SequenceId++;
     }
 
 
@@ -136,25 +136,20 @@ class TClientDispatcher
     {
         typedef TIntrusivePtr<TRequest> TPtr;
 
-        TRequest(
-            const TSessionId& sessionId,
-            IMessage* message,
-            TBlob&& data,
-            TSequenceId sequenceId)
+        TRequest(const TSessionId& sessionId, IMessage::TPtr message)
             : SessionId(sessionId)
-            , Message(message)
+            , Message(MoveRV(message))
             , Promise(NewPromise<IBus::TSendPromise::TValueType>())
-            , SequenceId(sequenceId)
-        {
-            // TODO(babenko): replace with movement ctor
-            Data.swap(data);
-        }
+            , SequenceId(-1)
+        { }
 
+        // Initialized when the request is created.
         TSessionId SessionId;
         TGuid RequestId;
         IMessage::TPtr Message;
         IBus::TSendPromise Promise;
-        TBlob Data;
+        
+        // Initialized when the request is sent.
         TSequenceId SequenceId;
     };
 
@@ -171,7 +166,7 @@ class TClientDispatcher
     yhash_map<TSessionId, TNLBusClient::TBus::TPtr> BusMap;
     yhash_map<TGuid, TRequest::TPtr> RequestMap;
 
-    TLockFreeQueue<TRequest::TPtr> RequestQueue;
+    TLockFreeQueue<TRequest::TPtr> OutcomingRequestQueue;
     TLockFreeQueue<TNLBusClient::TBus::TPtr> BusRegisterQueue;
     TLockFreeQueue<TNLBusClient::TBus::TPtr> BusUnregisterQueue;
 
@@ -207,7 +202,7 @@ class TClientDispatcher
         TNLBusClient::TBus::TPtr bus;
         while (BusRegisterQueue.Dequeue(&bus)) {
             result = true;
-            RegisterBus(~bus);
+            RegisterBus(bus);
         }
         return result;
     }
@@ -220,12 +215,12 @@ class TClientDispatcher
         TNLBusClient::TBus::TPtr bus;
         while (BusUnregisterQueue.Dequeue(&bus)) {
             result = true;
-            UnregisterBus(~bus);
+            UnregisterBus(bus);
         }
         return result;
     }
 
-    void RegisterBus(TNLBusClient::TBus* bus)
+    void RegisterBus(TNLBusClient::TBus::TPtr bus)
     {
         const auto& sessionId = bus->GetSessionId();
         BusMap.insert(MakePair(sessionId, bus));
@@ -235,7 +230,7 @@ class TClientDispatcher
             ~GetAddressAsString(bus->GetAddress()));
     }
 
-    void UnregisterBus(TNLBusClient::TBus* bus)
+    void UnregisterBus(TNLBusClient::TBus::TPtr bus)
     {
         const auto& sessionId = bus->GetSessionId();
 
@@ -437,10 +432,13 @@ class TClientDispatcher
             auto oldRequestId = request->RequestId;
 
             auto newSequenceId = bus->GenerateSequenceId();
-            YVERIFY(EncodeMessagePacket(~request->Message, newSessionId, newSequenceId, &request->Data));
+            TBlob data;
+            if (EncodeMessagePacket(request->Message, newSessionId, newSequenceId, &data)) {
+                LOG_FATAL("Failed to encode a message");
+            }
             Requester->CancelRequest(oldRequestId);
-            ProfileOut(request->Data.size());
-            TGuid newRequestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
+            ProfileOut(data.size());
+            TGuid newRequestId = Requester->SendRequest(bus->GetAddress(), "", &data);
 
             request->SequenceId = newSequenceId;
             request->RequestId = newRequestId;
@@ -500,7 +498,7 @@ class TClientDispatcher
             dataSize);
 
         auto& bus = busIt->second;
-        bus->ProcessIncomingMessage(~message, sequenceId);
+        bus->ProcessIncomingMessage(message, sequenceId);
 
         if (!isRequest) {
             YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
@@ -523,7 +521,7 @@ class TClientDispatcher
         int callCount = 0;
         while (callCount < MaxNLCallsPerIteration) {
             TRequest::TPtr request;
-            if (!RequestQueue.Dequeue(&request))
+            if (!OutcomingRequestQueue.Dequeue(&request))
                 break;
 
             ++callCount;
@@ -550,15 +548,23 @@ class TClientDispatcher
 
         auto& bus = busIt->second;
 
-        ProfileOut(request->Data.size());
-        TGuid requestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
+        request->SequenceId = bus->GenerateSequenceId();
+
+        TBlob data;
+        if (!EncodeMessagePacket(request->Message, request->SessionId, request->SequenceId, &data)) {
+            LOG_FATAL("Failed to encode a message");
+        }
+
+        ProfileOut(data.size());
+        TGuid requestId = Requester->SendRequest(bus->GetAddress(), "", &data);
         request->RequestId = requestId;
         bus->PendingRequestIds().insert(requestId);
         RequestMap.insert(MakePair(requestId, request));
 
-        LOG_DEBUG("Request sent (SessionId: %s, RequestId: %s, Request: %p)",
+        LOG_DEBUG("Request sent (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Request: %p)",
             ~request->SessionId.ToString(),
             ~requestId.ToString(),
+            request->SequenceId,
             ~request);
     }
 
@@ -624,25 +630,17 @@ public:
         // NB: Cannot use log here!
     }
 
-    IBus::TSendResult EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
+    IBus::TSendResult EnqueueRequest(TNLBusClient::TBus::TPtr bus, IMessage::TPtr message)
     {
-        auto sequenceId = bus->GenerateSequenceId();
         const auto& sessionId = bus->GetSessionId();
 
-        TBlob data;
-        if (!EncodeMessagePacket(message, sessionId, sequenceId, &data))
-            ythrow yexception() << "Failed to encode a message";
-
-        int dataSize = data.ysize();
-        auto request = New<TRequest>(sessionId, message, MoveRV(data), sequenceId);
-        RequestQueue.Enqueue(request);
+        auto request = New<TRequest>(sessionId, message);
+        OutcomingRequestQueue.Enqueue(request);
         GetEvent().Signal();
 
-        LOG_DEBUG("Request enqueued (SessionId: %s, Request: %p, SequenceId: %" PRId64 ", PacketSize: %d)",
+        LOG_DEBUG("Request enqueued (SessionId: %s, Request: %p)",
             ~sessionId.ToString(),
-            ~request,
-            sequenceId,
-            dataSize);
+            ~request);
 
         return request->Promise;
     }
@@ -694,7 +692,7 @@ Stroka GetClientDispatcherDebugInfo()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNLBusClient::TNLBusClient(TNLBusClientConfig* config)
+TNLBusClient::TNLBusClient(TNLBusClientConfig::TPtr config)
     : Config(config)
 { }
 
@@ -707,7 +705,7 @@ void TNLBusClient::Start()
     }
 }
 
-IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
+IBus::TPtr TNLBusClient::CreateBus(IMessageHandler::TPtr handler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
@@ -726,7 +724,7 @@ IBus::TSendResult TNLBusClient::TBus::Send(IMessage::TPtr message)
     // since Terminate is used for debugging purposes mainly, we omit it.
     YASSERT(!Terminated);
 
-    return TClientDispatcher::Get()->EnqueueRequest(this, ~message);
+    return TClientDispatcher::Get()->EnqueueRequest(this, message);
 }
 
 void TNLBusClient::TBus::Terminate()
