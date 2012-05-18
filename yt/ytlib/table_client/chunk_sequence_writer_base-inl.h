@@ -30,7 +30,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , ParentChunkList(parentChunkList)
     , NextSession(Null)
     , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::WriterThread->GetInvoker()))
-    , Logger(TableClientLogger)
+    , Logger(TableWriterLogger)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(config);

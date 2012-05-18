@@ -17,7 +17,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NYTree;
 
-static NLog::TLogger& Logger = TableClientLogger;
+static NLog::TLogger& Logger = TableWriterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

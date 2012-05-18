@@ -29,7 +29,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TableClientLogger;
+static NLog::TLogger& Logger = TableReaderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,7 +135,7 @@ public:
         , StartLimit(startLimit)
         , EndLimit(endLimit)
         , HasRangeRequest(false)
-        , Logger(TableClientLogger)
+        , Logger(TableReaderLogger)
     { }
 
     void Initialize()
@@ -564,7 +564,7 @@ public:
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
-        , Logger(TableClientLogger)
+        , Logger(TableReaderLogger)
     { }
 
     void Initialize()

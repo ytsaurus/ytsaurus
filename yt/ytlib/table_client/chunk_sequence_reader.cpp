@@ -18,7 +18,7 @@ namespace NTableClient {
 
 using namespace NChunkServer;
 
-static NLog::TLogger& Logger = TableClientLogger;
+static NLog::TLogger& Logger = TableReaderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

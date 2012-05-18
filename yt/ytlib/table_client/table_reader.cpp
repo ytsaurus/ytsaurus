@@ -32,7 +32,7 @@ TTableReader::TTableReader(
     , Path(path)
     , IsOpen(false)
     , Proxy(masterChannel)
-    , Logger(TableClientLogger)
+    , Logger(TableReaderLogger)
 {
     YASSERT(masterChannel);
 
