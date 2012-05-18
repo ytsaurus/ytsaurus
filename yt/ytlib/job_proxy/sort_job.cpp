@@ -100,14 +100,19 @@ TJobResult TSortJob::Run()
 
         PROFILE_TIMING_CHECKPOINT("init");
 
+        // TODO(babenko): fix reserve below once the reader can provide per-partition statistics
+
         std::vector< std::pair<TStringBuf, TStringBuf> > valueBuffer;
-        valueBuffer.reserve(Reader->GetValueCount());
+        //valueBuffer.reserve(Reader->GetValueCount());
+        valueBuffer.reserve(1000000);
 
         std::vector<TSortRow> rowBuffer;
-        rowBuffer.reserve(Reader->GetRowCount());
+        //rowBuffer.reserve(Reader->GetRowCount());
+        rowBuffer.reserve(1000000);
 
         std::vector<size_t> indexBuffer;
-        indexBuffer.reserve(Reader->GetRowCount());
+        //indexBuffer.reserve(Reader->GetRowCount());
+        indexBuffer.reserve(1000000);
 
         LOG_INFO("Reading");
         {
