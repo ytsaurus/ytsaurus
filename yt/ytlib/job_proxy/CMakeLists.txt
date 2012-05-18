@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/table_output.cpp
   ${BASE}/user_job.cpp
   ${BASE}/user_job_io.cpp
+  ${BASE}/stderr_output.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -29,6 +30,7 @@ set( HDRS
   ${BASE}/table_output.h
   ${BASE}/user_job.h
   ${BASE}/user_job_io.h
+  ${BASE}/stderr_output.h
 )
 
 list(APPEND YT_SOURCE_FILES

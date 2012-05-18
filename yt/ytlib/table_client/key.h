@@ -209,6 +209,8 @@ class TKey;
 template <class TBuffer>
 Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key);
 
+//ToDo(psushin): make key-inl.h
+
 template <class TBuffer>
 class TKey
 {

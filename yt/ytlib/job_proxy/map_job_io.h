@@ -6,8 +6,6 @@
 #include "user_job_io.h"
 
 #include <ytlib/scheduler/job.pb.h>
-
-// ToDo: replace with public.
 #include <ytlib/table_client/public.h>
 
 namespace NYT {
