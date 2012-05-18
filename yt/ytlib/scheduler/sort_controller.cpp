@@ -617,8 +617,6 @@ private:
             ? Spec->PartitionCount.Get()
             : static_cast<int>(ceil((double) TotalSortWeight / Config->MinSortPartitionSize));
 
-        // Don't create more partitions that we have nodes.
-        partitionCount = std::min(partitionCount, ExecNodeCount);
         // Don't create more partitions than we have samples.
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
 
