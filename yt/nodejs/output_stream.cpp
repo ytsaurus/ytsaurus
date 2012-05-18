@@ -1,9 +1,8 @@
 #include "output_stream.h"
 
-#include <node.h>
-#include <node_buffer.h>
-
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 void DeleteCallback(char* data, void* hint)

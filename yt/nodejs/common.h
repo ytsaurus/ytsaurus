@@ -6,6 +6,11 @@
 #include <node.h>
 #include <node_buffer.h>
 
+// Do not conflict with util/.
+#ifdef STATIC_ASSERT
+#undef STATIC_ASSERT
+#endif
+
 #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
@@ -63,33 +68,6 @@
     } while(0)
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-/*!
- * Common guidelines for developing a V8-shared object.
- *
- *   - Don't use mutexes while working in V8 thread.
- *   - V8-side functions _have to be_ fast.
- */
-class TGuard {
-public:
-    TGuard(pthread_mutex_t* mutex, bool acquire = true)
-        : Mutex(mutex)
-    {
-        if (acquire) {
-            pthread_mutex_lock(Mutex);
-        }
-    }
-
-    ~TGuard()
-    {
-        pthread_mutex_unlock(Mutex);
-    }
-
-private:
-    pthread_mutex_t* Mutex;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

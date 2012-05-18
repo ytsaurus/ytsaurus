@@ -1,9 +1,8 @@
 #include "input_stream.h"
 
-#include <node.h>
-#include <node_buffer.h>
-
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 COMMON_V8_USES
 
@@ -13,14 +12,9 @@ Persistent<FunctionTemplate> TNodeJSInputStream::ConstructorTemplate;
 
 TNodeJSInputStream::TNodeJSInputStream()
     : TNodeJSStreamBase()
-    , IsAlive(false)
+    , IsAlive(true)
 {
     T_THREAD_AFFINITY_IS_V8();
-
-    CHECK_RETURN_VALUE(pthread_mutex_init(&Mutex, NULL));
-    CHECK_RETURN_VALUE(pthread_cond_init(&Conditional, NULL));
-
-    IsAlive = true;
 }
 
 TNodeJSInputStream::~TNodeJSInputStream()
@@ -28,12 +22,9 @@ TNodeJSInputStream::~TNodeJSInputStream()
     T_THREAD_AFFINITY_IS_V8();
 
     {
-        TGuard guard(&Mutex);
+        TGuard<TMutex> guard(&Mutex);
         assert(Queue.empty());
     }
-
-    CHECK_RETURN_VALUE(pthread_mutex_destroy(&Mutex));
-    CHECK_RETURN_VALUE(pthread_cond_destroy(&Conditional));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,9 +111,9 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, s
     part->Length = length;
 
     {
-        TGuard guard(&Mutex);
+        TGuard<TMutex> guard(&Mutex);
         Queue.push_back(part);
-        pthread_cond_broadcast(&Conditional);
+        Conditional.BroadCast();
     }
 
     // TODO(sandello): Think about OnSuccess & OnError callbacks.
@@ -130,6 +121,16 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, s
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TAlreadyLockedOps {
+    static inline void Acquire(T* t)
+    { }
+    static inline void Release(T* t)
+    {
+        t->Release();
+    }
+};
 
 Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
 {
@@ -169,14 +170,13 @@ void TNodeJSInputStream::DoSweep()
     // all blocking operations. For example, it is better to reschedule
     // the sweep, if the mutex is already acquired.
     {
-        int rv  = pthread_mutex_trylock(&Mutex);
-        if (rv != 0) {
+        if (!Mutex.TryAcquire()) {
             EnqueueSweep();
             return;
         }
     }
 
-    TGuard guard(&Mutex, false);
+    TGuard< TMutex, TAlreadyLockedOps<TMutex> > guard(&Mutex);
 
     TQueue::iterator
         it = Queue.begin(),
@@ -232,10 +232,10 @@ void TNodeJSInputStream::DoClose()
 {
     THREAD_AFFINITY_IS_UV();
 
-    TGuard guard(&Mutex);
+    TGuard<TMutex> guard(&Mutex);
 
     IsAlive = false;
-    pthread_cond_broadcast(&Conditional);
+    Conditional.BroadCast();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,7 +244,7 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    TGuard guard(&Mutex);
+    TGuard<TMutex> guard(&Mutex);
 
     size_t result = 0;
     while (length > 0 && result == 0) {
@@ -279,7 +279,7 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
 
         if (!canReadSomething) {
             if (IsAlive) {
-                CHECK_RETURN_VALUE(pthread_cond_wait(&Conditional, &Mutex));
+                Conditional.WaitI(Mutex);
                 continue;
             } else {
                 return 0;

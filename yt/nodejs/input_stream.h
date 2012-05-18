@@ -2,6 +2,10 @@
 
 #include "stream_base.h"
 
+#include <util/system/mutex.h>
+#include <util/system/condvar.h>
+#include <util/system/guard.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,8 +48,8 @@ public:
 private:
     bool IsAlive;
 
-    pthread_mutex_t Mutex;
-    pthread_cond_t Conditional;
+    TMutex Mutex;
+    TCondVar Conditional;
     TQueue Queue;
 
     uv_work_t SweepRequest;
