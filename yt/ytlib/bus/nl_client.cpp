@@ -433,7 +433,7 @@ class TClientDispatcher
 
             auto newSequenceId = bus->GenerateSequenceId();
             TBlob data;
-            if (EncodeMessagePacket(request->Message, newSessionId, newSequenceId, &data)) {
+            if (!EncodeMessagePacket(request->Message, newSessionId, newSequenceId, &data)) {
                 LOG_FATAL("Failed to encode a message");
             }
             Requester->CancelRequest(oldRequestId);
