@@ -201,7 +201,7 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
-    //! Synchronously waits unitl the method #Set is called.
+    //! Synchronously waits unitl #Set is called.
     void Get() const;
 
     //! Attaches a listener.
