@@ -119,7 +119,7 @@ private:
     TCommitResult BatchChange(
         const TMetaVersion& version,
         const TSharedRef& changeData,
-        TFuture<TVoid> changeLogResult);
+        TFuture<void> changeLogResult);
     void FlushCurrentBatch(bool rotateChangeLog);
 
     TLeaderCommitterConfigPtr Config;

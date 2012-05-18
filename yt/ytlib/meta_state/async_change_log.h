@@ -30,8 +30,8 @@ public:
     TAsyncChangeLog(const TChangeLogPtr& changeLog);
     ~TAsyncChangeLog();
 
-    typedef TFuture<TVoid> TAppendResult;
-    typedef TPromise<TVoid> TAppendPromise;
+    typedef TFuture<void> TAppendResult;
+    typedef TPromise<void> TAppendPromise;
 
     //! Enqueues record to be appended to the changelog.
     /*!

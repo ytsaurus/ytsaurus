@@ -237,6 +237,24 @@ public:
         }
     }
 
+    void Get() const
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        if (ValueIsInitialized) {
+            return;
+        }
+
+        if (!ReadyEvent) {
+            ReadyEvent.Reset(new Event());
+        }
+
+        guard.Release();
+        ReadyEvent->Wait();
+
+        YASSERT(ValueIsInitialized);
+    }
+
     void Subscribe(const TListener& listener);
     void Subscribe(
         TDuration timeout,
@@ -524,6 +542,12 @@ inline bool TFuture<void>::IsSet() const
 {
     YASSERT(Impl);
     return Impl->IsSet();
+}
+
+inline void TFuture<void>::Get() const
+{
+    YASSERT(Impl);
+    Impl->Get();
 }
 
 inline void TFuture<void>::Subscribe(const TClosure& listener)
@@ -823,6 +847,12 @@ inline void TPromise<void>::Set()
 {
     YASSERT(Impl);
     Impl->Set();
+}
+
+inline void TPromise<void>::Get() const
+{
+    YASSERT(Impl);
+    Impl->Get();
 }
 
 inline void TPromise<void>::Subscribe(const TClosure& listener)

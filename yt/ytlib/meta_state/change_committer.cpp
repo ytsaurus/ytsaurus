@@ -81,7 +81,7 @@ public:
         return Promise;
     }
 
-    void SetLastChangeLogResult(TFuture<TVoid> result)
+    void SetLastChangeLogResult(TFuture<void> result)
     {
         LogResult = result;
     }
@@ -196,7 +196,7 @@ private:
         }
     }
     
-    void OnLocalCommit(TVoid)
+    void OnLocalCommit()
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
@@ -225,7 +225,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     TParallelAwaiter::TPtr Awaiter;
-    TFuture<TVoid> LogResult;
+    TFuture<void> LogResult;
     std::vector<TSharedRef> BatchedChanges;
 
 };
@@ -316,10 +316,9 @@ TLeaderCommitter::TCommitResult TLeaderCommitter::Commit(
     }
 }
 
-TLeaderCommitter::TCommitResult TLeaderCommitter::BatchChange(
-    const TMetaVersion& version,
+TLeaderCommitter::TCommitResult TLeaderCommitter::BatchChange(const TMetaVersion& version,
     const TSharedRef& changeData,
-    TFuture<TVoid> changeLogResult)
+    TFuture<void> changeLogResult)
 {
     TGuard<TSpinLock> guard(BatchSpinLock);
     auto batch = GetOrCreateBatch(version);
@@ -442,7 +441,7 @@ TCommitter::TCommitResult TFollowerCommitter::DoCommit(
         ++currentVersion.RecordCount;
     }
 
-    return result.Apply(BIND([] (TVoid) -> TCommitter::EResult {
+    return result.Apply(BIND([] () -> TCommitter::EResult {
         return TCommitter::EResult::Committed;
     }));
 }
