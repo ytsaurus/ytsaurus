@@ -14,6 +14,7 @@ using std::string; // hack for guid.h to work
 #include <util/system/defaults.h>
 #include <util/system/spinlock.h>
 #include <util/system/mutex.h>
+#include <util/system/condvar.h>
 #include <util/system/event.h>
 #include <util/system/thread.h>
 

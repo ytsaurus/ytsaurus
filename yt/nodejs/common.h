@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ytlib/misc/common.h>
+
 #include <uv.h>
 #include <v8.h>
 
@@ -30,10 +32,8 @@
 #define THREAD_AFFINITY_IS_UV()
 #define THREAD_AFFINITY_IS_ANY()
 
-#define PRISZT "lu"
-
 #define CHECK_RETURN_VALUE(expr) \
-    do { int rv = (expr); assert(rv == 0 && #expr); } while (0)
+    do { int rv = (expr); YASSERT(rv == 0 && #expr); } while (0)
 
 #define COMMON_V8_USES \
     using v8::Arguments; \

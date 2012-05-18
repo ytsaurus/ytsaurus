@@ -23,7 +23,7 @@ TNodeJSInputStream::~TNodeJSInputStream()
 
     {
         TGuard<TMutex> guard(&Mutex);
-        assert(Queue.empty());
+        YASSERT(Queue.empty());
     }
 }
 
@@ -83,14 +83,13 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
         ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 3);
+    YASSERT(args.Length() == 3);
 
     EXPECT_THAT_HAS_INSTANCE(args[0], node::Buffer);
     EXPECT_THAT_IS(args[1], Uint32);
     EXPECT_THAT_IS(args[2], Uint32);
 
     // Do the work.
-    assert(stream);
     return stream->DoPush(
         /* handle */ Persistent<Value>::New(args[0]),
         /* data   */ node::Buffer::Data(Local<Object>::Cast(args[0])),
@@ -103,7 +102,7 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, s
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TPart* part  = new TPart(); assert(part);
+    TPart* part  = new TPart(); YASSERT(part);
     part->Stream = this;
     part->Handle = handle;
     part->Data   = data;
@@ -142,10 +141,9 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
         ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 0);
+    YASSERT(args.Length() == 0);
 
     // Do the work.
-    assert(stream);
     stream->EnqueueSweep();
 
     // TODO(sandello): Think about OnSuccess & OnError callbacks.
@@ -211,10 +209,9 @@ Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
         ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 0);
+    YASSERT(args.Length() == 0);
 
     // Do the work.
-    assert(stream);
     stream->EnqueueClose();
 
     return Undefined();
@@ -272,7 +269,7 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
             part->Offset += canRead;
             part->Length -= canRead;
 
-            assert(length == 0 || part->Length == 0);
+            YASSERT(length == 0 || part->Length == 0);
 
             ++it;
         }

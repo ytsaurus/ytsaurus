@@ -1,9 +1,10 @@
 var expect = require("chai").expect;
 var assert = require("chai").assert;
 
-var ybinding = require("ytnode_streams");
-var tbinding = require("ytnode_test_streams");
-var yt_streams = require("./yt_streams");
+var ybinding = require("ytnode");
+var tbinding = require("ytnode_test");
+
+var yt = require("./yt");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,8 +176,8 @@ describe("output stream interface", function() {
 
 describe("high-level streams", function() {
     it("should play nice together", function(done) {
-        var readable = new yt_streams.YtReadableStream();
-        var writable = new yt_streams.YtWritableStream();
+        var readable = new yt.YtReadableStream();
+        var writable = new yt.YtWritableStream();
 
         var reader = new tbinding.TTestInputStream(writable._binding);
         var writer = new tbinding.TTestOutputStream(readable._binding);

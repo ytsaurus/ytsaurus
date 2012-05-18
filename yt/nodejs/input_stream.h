@@ -2,10 +2,6 @@
 
 #include "stream_base.h"
 
-#include <util/system/mutex.h>
-#include <util/system/condvar.h>
-#include <util/system/guard.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,6 +50,10 @@ private:
 
     uv_work_t SweepRequest;
     uv_work_t CloseRequest;
+
+private:
+    TNodeJSInputStream(const TNodeJSInputStream&);
+    TNodeJSInputStream& operator=(const TNodeJSInputStream&);
 };
 
 inline void TNodeJSInputStream::EnqueueSweep()

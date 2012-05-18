@@ -17,6 +17,9 @@ protected:
     ~TNodeJSOutputStream();
 
 public:
+    using node::ObjectWrap::Ref;
+    using node::ObjectWrap::Unref;
+
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
     static void Initialize(v8::Handle<v8::Object> target);
     static bool HasInstance(v8::Handle<v8::Value> value);
@@ -45,6 +48,10 @@ public:
 private:
     uv_work_t FlushRequest;
     uv_work_t FinishRequest;
+
+private:
+    TNodeJSOutputStream(const TNodeJSOutputStream&);
+    TNodeJSOutputStream& operator=(const TNodeJSOutputStream&);
 };
 
 inline void TNodeJSOutputStream::EnqueueOnWrite(TPart* part)

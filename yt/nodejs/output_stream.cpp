@@ -4,14 +4,14 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+COMMON_V8_USES
+
 namespace {
 void DeleteCallback(char* data, void* hint)
 {
     delete[] data;
 }
 } // namespace
-
-COMMON_V8_USES
 
 Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
 
@@ -144,10 +144,10 @@ void TNodeJSOutputStream::Write(const void *buffer, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    char* data = new char[length]; assert(data);
+    char* data = new char[length]; YASSERT(data);
     ::memcpy(data, buffer, length);
 
-    TPart* part  = new TPart(); assert(part);
+    TPart* part  = new TPart(); YASSERT(part);
     part->Stream = this;
     part->Data   = data;
     part->Offset = 0;

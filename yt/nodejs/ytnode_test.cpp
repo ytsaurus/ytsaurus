@@ -104,7 +104,7 @@ private:
                 Buffer = new char[Length];
             }
 
-            assert(Buffer || !Length);
+            YASSERT(Buffer || !Length);
 
             Host->Ref();
             Host->Slave->Ref();
@@ -150,7 +150,7 @@ Handle<Value> TTestInputStream::New(const Arguments& args)
     T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    assert(args.Length() == 1);
+    YASSERT(args.Length() == 1);
     EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSInputStream);
 
     TTestInputStream* host = new TTestInputStream(
@@ -171,7 +171,7 @@ Handle<Value> TTestInputStream::ReadSynchronously(const Arguments& args)
         ObjectWrap::Unwrap<TTestInputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 1);
+    YASSERT(args.Length() == 1);
     EXPECT_THAT_IS(args[0], Uint32);
 
     // Do the work.
@@ -192,7 +192,7 @@ Handle<Value> TTestInputStream::Read(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    assert(args.Length() == 2);
+    YASSERT(args.Length() == 2);
     EXPECT_THAT_IS(args[0], Uint32);
     EXPECT_THAT_IS(args[1], Function);
 
@@ -330,7 +330,7 @@ Handle<Value> TTestOutputStream::New(const Arguments& args)
     T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    assert(args.Length() == 1);
+    YASSERT(args.Length() == 1);
     EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSOutputStream);
 
     TTestOutputStream* host = new TTestOutputStream(
@@ -351,7 +351,7 @@ Handle<Value> TTestOutputStream::WriteSynchronously(const Arguments& args)
         ObjectWrap::Unwrap<TTestOutputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 1);
+    YASSERT(args.Length() == 1);
     EXPECT_THAT_IS(args[0], String);
 
     // Do the work.
@@ -367,7 +367,7 @@ Handle<Value> TTestOutputStream::Write(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    assert(args.Length() == 2);
+    YASSERT(args.Length() == 2);
     EXPECT_THAT_IS(args[0], String);
     EXPECT_THAT_IS(args[1], Function);
 
@@ -426,7 +426,7 @@ Handle<Value> TTestOutputStream::Flush(const Arguments& args)
         ObjectWrap::Unwrap<TTestOutputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 0);
+    YASSERT(args.Length() == 0);
 
     // Do the work.
     host->Slave->Flush();
@@ -446,7 +446,7 @@ Handle<Value> TTestOutputStream::Finish(const Arguments& args)
         ObjectWrap::Unwrap<TTestOutputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 0);
+    YASSERT(args.Length() == 0);
 
     // Do the work.
     host->Slave->Finish();
@@ -488,7 +488,7 @@ void ExportTestOutputStream(Handle<Object> target)
     target->Set(String::NewSymbol("TTestOutputStream"), tpl->GetFunction());
 }
 
-void ExportTestStreams(Handle<Object> target)
+void ExportYTTest(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -501,4 +501,4 @@ void ExportTestStreams(Handle<Object> target)
 
 } // namespace NYT
 
-NODE_MODULE(ytnode_test_streams, NYT::ExportTestStreams)
+NODE_MODULE(ytnode_test, NYT::ExportYTTest)

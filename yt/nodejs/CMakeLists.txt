@@ -1,8 +1,9 @@
 set( SRCS
   common.cpp
+  stream_base.cpp
   input_stream.cpp
   output_stream.cpp
-  stream_base.cpp
+  driver.cpp
 )
 
 configure_file(
@@ -10,9 +11,8 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/run_tests.sh
 )
 
-add_library( ytnode_streams MODULE ${SRCS} yt_streams.cpp )
-add_library( ytnode_driver MODULE yt_driver.cpp )
-add_library( ytnode_test_streams MODULE test_streams.cpp )
+add_library( ytnode MODULE ${SRCS} ytnode.cpp )
+add_library( ytnode_test MODULE ytnode_test.cpp )
 
 macro( NODE target )
   set_target_properties( ${target}
@@ -29,7 +29,6 @@ include_directories(
   "/usr/local/Cellar/node/0.6.18/include/node"
 )
 
-NODE( ytnode_streams )
-NODE( ytnode_driver )
-NODE( ytnode_test_streams )
+NODE( ytnode )
+NODE( ytnode_test )
 

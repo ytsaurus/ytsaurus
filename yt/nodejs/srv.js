@@ -2,8 +2,7 @@ var url = require("url");
 var querystring = require("querystring");
 
 var utils = require("./utils");
-var yt_streams = require("./yt_streams");
-var yt_driver = require("./yt_driver");
+var yt = require("./yt");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,16 +156,10 @@ function _dispatch(driver, req, rsp) {
 
     _rspSetFormatHeaders(rsp, input_format, output_format);
 
-    var input_stream = new yt_streams.YtWritableStream();
-    var output_stream = new yt_streams.YtReadableStream();
-
-    req.pipe(input_stream);
-    output_stream.pipe(rsp);
-
     // TODO(sandello): Handle various return-types here.
     driver.execute(name,
-        input_stream, input_format,
-        output_stream, output_format,
+        req, input_format,
+        rsp, output_format,
         parameters, function() {
             rsp.end();
         });
@@ -175,7 +168,7 @@ function _dispatch(driver, req, rsp) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplication() {
-    var driver = new yt_driver.YtDriver();
+    var driver = new yt.YtDriver();
     return function(req, rsp) {
         return _dispatch(driver, req, rsp);
     };
