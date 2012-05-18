@@ -1,8 +1,8 @@
 var expect = require("chai").expect;
 var assert = require("chai").assert;
 
-var ybinding = require("./build/Release/yt_streams");
-var tbinding = require("./build/Release/test_streams");
+var ybinding = require("ytnode_streams");
+var tbinding = require("ytnode_test_streams");
 var yt_streams = require("./yt_streams");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,13 +23,6 @@ function TraceUVTicks(n) {
 }
 
 // TraceUVTicks(24);
-
-////////////////////////////////////////////////////////////////////////////////
-
-var binding = require("./build/Release/yt_streams");
-
-var expect = require("chai").expect;
-var assert = require("chai").assert;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,10 +2,6 @@
 #include "input_stream.h"
 #include "output_stream.h"
 
-#ifndef _GLIBCXX_PURE
-#define _GLIBCXX_PURE inline
-#endif
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -505,4 +501,4 @@ void ExportTestStreams(Handle<Object> target)
 
 } // namespace NYT
 
-NODE_MODULE(test_streams, NYT::ExportTestStreams)
+NODE_MODULE(ytnode_test_streams, NYT::ExportTestStreams)

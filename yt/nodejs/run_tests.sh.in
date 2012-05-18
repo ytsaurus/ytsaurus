@@ -1,5 +1,7 @@
 #!/bin/bash
-mocha -R spec -s 250 -t 2500 \
+
+export NODE_PATH=@LIBRARY_OUTPUT_PATH@:$NODE_PATH
+cd @CMAKE_CURRENT_SOURCE_DIR@ && mocha -R spec -s 250 -t 2500 \
     test_streams.js \
     test_http.js \
     test_utils.js

@@ -3,7 +3,7 @@ var stream = require('stream');
 var assert = require('assert');
 
 var yt_streams = require("./yt_streams")
-var binding = require('./build/Release/yt_driver');
+var binding = require('ytnode_driver');
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,13 +2,11 @@
 #include "input_stream.h"
 #include "output_stream.h"
 
-#ifndef _GLIBCXX_PURE
-#define _GLIBCXX_PURE inline
-#endif
-
 #include <string>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 COMMON_V8_USES
 
@@ -258,4 +256,4 @@ void ExportYTDriver(Handle<Object> target)
 
 } // namespace NYT
 
-NODE_MODULE(yt_driver, NYT::ExportYTDriver)
+NODE_MODULE(ytnode_driver, NYT::ExportYTDriver)

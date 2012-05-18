@@ -2,7 +2,7 @@ var util = require('util');
 var stream = require('stream');
 var assert = require('assert');
 
-var binding = require('./build/Release/yt_streams');
+var binding = require('ytnode_streams');
 
 ////////////////////////////////////////////////////////////////////////////////
 
