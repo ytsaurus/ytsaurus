@@ -140,26 +140,26 @@ class TTransactedCommandBase
 {
 public:
     explicit TTransactedCommandBase(ICommandContext* context)
-        : TTypedCommandBase(context)
+        : TTypedCommandBase<TRequest>(context)
         , TUntypedCommandBase(context)
     { }
 
 protected:
     NTransactionClient::TTransactionId GetTransactionId(bool required)
     {
-        if (required && Request->TransactionId == NullTransactionId) {
+        if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
             ythrow yexception() << "Transaction is required";
         }
-        return Request->TransactionId;
+        return this->Request->TransactionId;
     }
 
     NTransactionClient::ITransaction::TPtr GetTransaction(bool required)
     {
         auto transactionId = GetTransactionId(required);
-        if (transactionId == NullTransactionId) {
+        if (transactionId == NTransactionClient::NullTransactionId) {
             return NULL;
         }
-        return Context->GetTransactionManager()->Attach(transactionId);
+        return this->Context->GetTransactionManager()->Attach(transactionId);
     }
 
 };

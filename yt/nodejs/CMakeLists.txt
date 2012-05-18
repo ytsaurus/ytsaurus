@@ -27,6 +27,7 @@ endmacro()
 
 include_directories(
   "/usr/local/Cellar/node/0.6.18/include/node"
+  "/usr/include/nodejs"
 )
 
 NODE( ytnode )
