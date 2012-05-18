@@ -134,7 +134,7 @@ void TSamplesFetcher::SendRequests()
 void TSamplesFetcher::OnResponse(
     const Stroka& address,
     std::vector<int> chunkIndexes,
-    TChunkHolderServiceProxy::TRspGetTableSamples::TPtr rsp)
+    TChunkHolderServiceProxy::TRspGetTableSamplesPtr rsp)
 {
     if (rsp->IsOK()) {
         YASSERT(chunkIndexes.size() == rsp->samples_size());

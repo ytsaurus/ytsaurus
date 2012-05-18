@@ -367,7 +367,7 @@ void TTransactionManager::SendPing(const TTransactionId& id)
 
 void TTransactionManager::OnPingResponse(
     const TTransactionId& id,
-    TTransactionYPathProxy::TRspRenewLease::TPtr rsp)
+    TTransactionYPathProxy::TRspRenewLeasePtr rsp)
 {
     auto transaction = FindTransaction(id);
     if (!transaction) {

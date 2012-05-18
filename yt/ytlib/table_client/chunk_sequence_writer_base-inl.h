@@ -69,7 +69,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 
 template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
-    NTransactionServer::TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
+    NTransactionServer::TTransactionYPathProxy::TRspCreateObjectPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(!NextSession.IsNull());
@@ -289,7 +289,7 @@ template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::OnChunkRegistered(
     NChunkServer::TChunkId chunkId,
     TAsyncErrorPromise finishResult,
-    NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

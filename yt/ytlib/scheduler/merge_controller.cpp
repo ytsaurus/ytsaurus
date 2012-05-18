@@ -595,7 +595,7 @@ private:
         }
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         UNUSED(batchRsp);
 
@@ -765,7 +765,7 @@ private:
     }
 
 
-    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         UNUSED(batchRsp);
 

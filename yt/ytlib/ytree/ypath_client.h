@@ -105,8 +105,10 @@ protected:
 #define DEFINE_YPATH_PROXY_METHOD(ns, method) \
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
+    typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
+    typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
     \
-    static TReq##method::TPtr method(const NYT::NYTree::TYPath& path  = "") \
+    static TReq##method##Ptr method(const NYT::NYTree::TYPath& path  = "") \
     { \
         auto req = New<TReq##method>(#method); \
         req->SetPath(path); \

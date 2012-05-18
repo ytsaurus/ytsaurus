@@ -174,7 +174,7 @@ void TChangeLogDownloader::OnResponse(
     TPromise<TPeerId> promise,
     TPeerId peerId,
     TMetaVersion version,
-    TProxy::TRspGetChangeLogInfo::TPtr response)
+    TProxy::TRspGetChangeLogInfoPtr response)
 {
     if (!response->IsOK()) {
         LOG_INFO("Error %s requesting info on changelog %d from peer %d",

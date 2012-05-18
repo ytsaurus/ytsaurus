@@ -24,9 +24,13 @@ template <class TResponseMessage>
 class TTypedClientResponse;
 
 class TOneWayClientResponse;
+typedef TIntrusivePtr<TOneWayClientResponse> TOneWayClientResponsePtr;
 
 struct TRetryConfig;
 typedef TIntrusivePtr<TRetryConfig> TRetryConfigPtr;
+
+class TRetriableChannel;
+typedef TIntrusivePtr<TRetriableChannel> TRetriableChannelPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
             

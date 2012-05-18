@@ -51,14 +51,14 @@ void TPeerBlockUpdater::Update()
 
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();
 
-    yhash_map<Stroka, TProxy::TReqUpdatePeer::TPtr> requests;
+    yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 
     auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
     auto peerAddress = Bootstrap->GetPeerAddress();
     FOREACH (auto block, blocks) {
         const auto& source = block->Source();
         if (!source.Empty()) {
-            TProxy::TReqUpdatePeer::TPtr request;
+            TProxy::TReqUpdatePeerPtr request;
             auto it = requests.find(source);
             if (it != requests.end()) {
                 request = it->second;

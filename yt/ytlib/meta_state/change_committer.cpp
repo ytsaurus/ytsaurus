@@ -175,7 +175,7 @@ private:
         return true;
     }
 
-    void OnRemoteCommit(TPeerId peerId, TProxy::TRspApplyChanges::TPtr response)
+    void OnRemoteCommit(TPeerId peerId, TProxy::TRspApplyChangesPtr response)
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 

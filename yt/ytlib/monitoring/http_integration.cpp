@@ -22,7 +22,7 @@ using namespace NHttp;
 
 namespace {
 
-Stroka OnResponse(TYPathProxy::TRspGet::TPtr rsp)
+Stroka OnResponse(TYPathProxy::TRspGetPtr rsp)
 {
     if (!rsp->IsOK()) {
         // TODO(sandello): Proper JSON escaping here.

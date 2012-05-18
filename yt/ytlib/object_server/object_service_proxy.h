@@ -143,11 +143,14 @@ public:
 
     };
 
+    // TODO(panin): think about introducing macros
     //! Mimics the type introduced by DEFINE_RPC_PROXY_METHOD.
-    typedef TFuture<TRspExecuteBatch::TPtr> TInvExecuteBatch;
+    typedef TIntrusivePtr<TRspExecuteBatch> TRspExecuteBatchPtr;
+    typedef TIntrusivePtr<TReqExecuteBatch> TReqExecuteBatchPtr;
+    typedef TFuture<TRspExecuteBatchPtr> TInvExecuteBatch;
 
     //! Executes a batched Cypress request.
-    TReqExecuteBatch::TPtr ExecuteBatch();
+    TReqExecuteBatchPtr ExecuteBatch();
 
 };
 

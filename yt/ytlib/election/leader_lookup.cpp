@@ -62,7 +62,7 @@ void TLeaderLookup::OnResponse(
     TParallelAwaiter::TPtr awaiter,
     TPromise<TResult> promise,
     const Stroka& address,
-    TProxy::TRspGetStatus::TPtr response)
+    TProxy::TRspGetStatusPtr response)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

@@ -143,7 +143,7 @@ private:
             .Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
     }
 
-    void OnChunkFetched(TChunkYPathProxy::TRspFetch::TPtr rsp)
+    void OnChunkFetched(TChunkYPathProxy::TRspFetchPtr rsp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(!GetSeedsPromise.IsNull());
@@ -497,8 +497,8 @@ private:
 
     void OnGotBlocks(
         const Stroka& address,
-        TChunkHolderServiceProxy::TReqGetBlocks::TPtr request,
-        TChunkHolderServiceProxy::TRspGetBlocks::TPtr response)
+        TChunkHolderServiceProxy::TReqGetBlocksPtr request,
+        TChunkHolderServiceProxy::TRspGetBlocksPtr response)
     {
         if (response->IsOK()) {
             ProcessReceivedBlocks(address, ~request, ~response);
@@ -657,7 +657,7 @@ private:
         request->Invoke().Subscribe(BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this)));
     }
 
-    void OnGotChunkMeta(TChunkHolderServiceProxy::TRspGetChunkMeta::TPtr response)
+    void OnGotChunkMeta(TChunkHolderServiceProxy::TRspGetChunkMetaPtr response)
     {
         if (response->IsOK()) {
             OnSessionSucceeded(response->chunk_meta());

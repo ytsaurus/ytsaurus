@@ -215,7 +215,7 @@ public:
 
     Event Event_;
 
-    void CheckReply(int expected, TMyProxy::TRspSomeCall::TPtr response)
+    void CheckReply(int expected, TMyProxy::TRspSomeCallPtr response)
     {
         EXPECT_IS_TRUE(response->IsOK());
         EXPECT_EQ(expected, response->b());

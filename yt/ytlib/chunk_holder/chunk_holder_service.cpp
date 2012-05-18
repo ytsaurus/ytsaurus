@@ -204,7 +204,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
     }
 
     putRequest->Invoke().Subscribe(
-        BIND([=] (TProxy::TRspPutBlocks::TPtr putResponse) {
+        BIND([=] (TProxy::TRspPutBlocksPtr putResponse) {
             if (putResponse->IsOK()) {
                 context->Reply();
             } else {

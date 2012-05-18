@@ -58,9 +58,10 @@ private:
 
     void SchedulePing(TTransactionPtr transaction);
     void SendPing(const TTransactionId& id);
+
     void OnPingResponse(
         const TTransactionId& id,
-        NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp);
+        TIntrusivePtr<NTransactionServer::TTransactionYPathProxy::TRspRenewLease> rsp);
 
     TTransactionManagerConfigPtr Config;
     NRpc::IChannelPtr Channel;

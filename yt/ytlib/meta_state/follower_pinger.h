@@ -32,7 +32,7 @@ private:
 
     void SendPing(TPeerId followerId);
     void SchedulePing(TPeerId followerId);
-    void OnPingResponse(TPeerId followerId, TProxy::TRspPingFollower::TPtr response);
+    void OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowerPtr response);
 
     TFollowerPingerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;

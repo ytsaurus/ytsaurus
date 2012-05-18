@@ -87,7 +87,7 @@ void TSnapshotDownloader::OnSnapshotInfoResponse(
     TParallelAwaiter::TPtr awaiter,
     TPromise<TSnapshotInfo> promise,
     TPeerId peerId,
-    TProxy::TRspGetSnapshotInfo::TPtr response)
+    TProxy::TRspGetSnapshotInfoPtr response)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

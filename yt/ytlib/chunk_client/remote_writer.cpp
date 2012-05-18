@@ -108,7 +108,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    void OnPutBlocks(THolderPtr holder, TProxy::TRspPutBlocks::TPtr rsp);
+    void OnPutBlocks(THolderPtr holder, TProxy::TRspPutBlocksPtr rsp);
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -126,12 +126,12 @@ private:
     void CheckSendResponse(
         THolderPtr srcHolder, 
         THolderPtr dstHolder,
-        TRemoteWriter::TProxy::TRspSendBlocks::TPtr rsp);
+        TRemoteWriter::TProxy::TRspSendBlocksPtr rsp);
 
     /*!
      * \note Thread affinity: WriterThread.
      */
-    void OnSentBlocks(THolderPtr srcHolder, THolderPtr dstHolder, TProxy::TRspSendBlocks::TPtr rsp);
+    void OnSentBlocks(THolderPtr srcHolder, THolderPtr dstHolder, TProxy::TRspSendBlocksPtr rsp);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -236,7 +236,7 @@ TRemoteWriter::TGroup::PutBlocks(THolderPtr holder)
     return req->Invoke();
 }
 
-void TRemoteWriter::TGroup::OnPutBlocks(THolderPtr holder, TProxy::TRspPutBlocks::TPtr rsp)
+void TRemoteWriter::TGroup::OnPutBlocks(THolderPtr holder, TProxy::TRspPutBlocksPtr rsp)
 {
     auto writer = Writer.Lock();
     if (!writer)
@@ -305,7 +305,7 @@ TRemoteWriter::TGroup::SendBlocks(
 void TRemoteWriter::TGroup::CheckSendResponse(
     THolderPtr srcHolder,
     THolderPtr dstHolder,
-    TRemoteWriter::TProxy::TRspSendBlocks::TPtr rsp)
+    TRemoteWriter::TProxy::TRspSendBlocksPtr rsp)
 {
     auto writer = Writer.Lock();
     if (!writer)
@@ -332,7 +332,7 @@ void TRemoteWriter::TGroup::CheckSendResponse(
 void TRemoteWriter::TGroup::OnSentBlocks(
     THolderPtr srcHolder, 
     THolderPtr dstHolder,
-    TProxy::TRspSendBlocks::TPtr rsp)
+    TProxy::TRspSendBlocksPtr rsp)
 {
     auto writer = Writer.Lock();
     YASSERT(writer);
@@ -549,7 +549,7 @@ TRemoteWriter::FlushBlock(THolderPtr holder, int blockIndex)
     return req->Invoke();
 }
 
-void TRemoteWriter::OnBlockFlushed(THolderPtr holder, int blockIndex, TProxy::TRspFlushBlock::TPtr rsp)
+void TRemoteWriter::OnBlockFlushed(THolderPtr holder, int blockIndex, TProxy::TRspFlushBlockPtr rsp)
 {
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -664,7 +664,7 @@ TRemoteWriter::StartChunk(THolderPtr holder)
     return req->Invoke();
 }
 
-void TRemoteWriter::OnChunkStarted(THolderPtr holder, TProxy::TRspStartChunk::TPtr rsp)
+void TRemoteWriter::OnChunkStarted(THolderPtr holder, TProxy::TRspStartChunkPtr rsp)
 {
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -723,7 +723,7 @@ void TRemoteWriter::CloseSession()
     awaiter->Complete(BIND(&TRemoteWriter::OnSessionFinished, MakeWeak(this)));
 }
 
-void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::TPtr rsp)
+void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunkPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 

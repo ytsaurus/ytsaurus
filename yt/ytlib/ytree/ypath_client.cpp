@@ -261,7 +261,7 @@ TFuture< TValueOrError<TYson> > AsyncYPathGet(IYPathServicePtr service, const TY
     auto request = TYPathProxy::Get(path);
     return
         ExecuteVerb(service, ~request)
-            .Apply(BIND([] (TYPathProxy::TRspGet::TPtr response) {
+            .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
                 return
                     response->IsOK()
                     ? TValueOrError<TYson>(response->value())

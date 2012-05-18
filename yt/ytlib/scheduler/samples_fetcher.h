@@ -59,7 +59,7 @@ private:
     void OnResponse(
         const Stroka& addresss,
         std::vector<int> chunkIndexes,
-        NChunkHolder::TChunkHolderServiceProxy::TRspGetTableSamples::TPtr rsp);
+        NChunkHolder::TChunkHolderServiceProxy::TRspGetTableSamplesPtr rsp);
     void OnEndRound();
 
 };

@@ -37,7 +37,7 @@ private:
     bool RequestInProgress;
     std::vector<NChunkServer::TChunkListId> Ids;
 
-    void OnChunkListsCreated(NObjectServer::TObjectServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnChunkListsCreated(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
