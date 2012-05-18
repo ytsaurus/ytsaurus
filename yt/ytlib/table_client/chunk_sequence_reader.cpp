@@ -169,7 +169,7 @@ void TChunkSequenceReader::OnRowFetched(TError error)
         return;
     }
 
-    ++ChunkRowCount;
+    ++CurrentRowIndex;
     State.FinishOperation();
 }
 
