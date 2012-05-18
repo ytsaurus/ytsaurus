@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "message.h"
+#include "private.h"
 
 #include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/misc/protobuf_helpers.h>

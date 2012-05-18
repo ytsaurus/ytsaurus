@@ -1,15 +1,14 @@
 #include "stdafx.h"
-#include "common.h"
+#include "private.h"
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestId NullRequestId(0, 0, 0, 0);
+NLog::TLogger RpcLogger("Rpc");
 
 ////////////////////////////////////////////////////////////////////////////////
-
+            
 } // namespace NRpc
 } // namespace NYT
-
