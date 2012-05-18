@@ -62,7 +62,7 @@ public:
             "/" + request->GetVerb() +
             "/time");
 
-        if (timeout && !request->IsOneWay()) {
+        if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
                 BIND(&TChannel::OnTimeout, MakeStrong(this), requestId),
                 timeout.Get());
@@ -159,6 +159,10 @@ private:
                 EErrorCode::TransportError,
                 "Unable to deliver the message"));
         } else {
+            if (activeRequest.ClientRequest->IsOneWay()) {
+                CompleteRequest(it);
+            }
+
             // Don't need the guard anymore.
             guard.Release();
 
