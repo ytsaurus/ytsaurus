@@ -226,7 +226,7 @@ class TClientDispatcher
         BusMap.insert(MakePair(sessionId, bus));
         LOG_DEBUG("Bus is registered (SessionId: %s, Bus: %p, Address: %s)",
             ~sessionId.ToString(),
-            bus,
+            ~bus,
             ~GetAddressAsString(bus->GetAddress()));
     }
 
