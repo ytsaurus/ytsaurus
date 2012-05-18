@@ -55,8 +55,6 @@ class TRetriableRequest
     : public IClientResponseHandler
 {
 public:
-    typedef TIntrusivePtr<TRetriableRequest> TPtr;
-
     TRetriableRequest(
         TRetriableChannel* channel,
         IClientRequestPtr request,

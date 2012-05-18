@@ -192,8 +192,6 @@ class TTypedServiceContextBase
     : public TRefCounted
 {
 public:
-    typedef TTypedServiceContextBase<TRequestMessage> TThis;
-    typedef TIntrusivePtr<TThis> TPtr;
     typedef TTypedServiceRequest<TRequestMessage> TTypedRequest;
 
     DEFINE_BYREF_RW_PROPERTY(TTypedRequest, Request);
