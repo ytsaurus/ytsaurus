@@ -153,7 +153,7 @@ TEST(TYTreeFluentMapTest, Items)
     StrictMock<TMockYsonConsumer> mock;
     InSequence dummy;
 
-    auto node = DeserializeFromYson("{bar = 10}");
+    auto node = DeserializeFromYson(Stroka("{bar = 10}"));
 
     EXPECT_CALL(mock, OnBeginMap());
     EXPECT_CALL(mock, OnKeyedItem("bar"));
@@ -241,7 +241,7 @@ TEST(TYTreeFluentListTest, Items)
     StrictMock<TMockYsonConsumer> mock;
     InSequence dummy;
 
-    auto node = DeserializeFromYson("[10; 20; 30]");
+    auto node = DeserializeFromYson(Stroka("[10; 20; 30]"));
 
     EXPECT_CALL(mock, OnBeginList());
     EXPECT_CALL(mock, OnListItem());
