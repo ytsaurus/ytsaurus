@@ -62,12 +62,9 @@ public:
             "/" + request->GetVerb() +
             "/time");
 
-        if (timeout) {
+        if (timeout && !request->IsOneWay()) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
-                BIND(
-                    &TChannel::OnTimeout,
-                    MakeStrong(this),
-                    requestId),
+                BIND(&TChannel::OnTimeout, MakeStrong(this), requestId),
                 timeout.Get());
         }
 

@@ -32,7 +32,7 @@ TClientRequest::TClientRequest(
     : Path(path)
     , Verb(verb)
     , RequestId(TRequestId::Create())
-    , OneWay_(oneWay)
+    , OneWay(oneWay)
     , Channel(channel)
     , Attributes_(CreateEphemeralAttributes())
 {
@@ -45,7 +45,7 @@ IMessage::TPtr TClientRequest::Serialize() const
     *header.mutable_request_id() = RequestId.ToProto();
     header.set_path(Path);
     header.set_verb(Verb);
-    header.set_one_way(OneWay_);
+    header.set_one_way(OneWay);
     ToProto(header.mutable_attributes(), *Attributes_);
 
     auto bodyData = SerializeBody();
@@ -71,6 +71,11 @@ const Stroka& TClientRequest::GetPath() const
 const Stroka& TClientRequest::GetVerb() const
 {
     return Verb;
+}
+
+bool TClientRequest::IsOneWay() const
+{
+    return OneWay;
 }
 
 const TRequestId& TClientRequest::GetRequestId() const
