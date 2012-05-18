@@ -46,6 +46,10 @@ function _rspSetFormatHeaders(rsp, input_format, output_format) {
     }
 }
 
+function _rspSetTrailers(rsp) {
+    rsp.setHeader("Trailer", "X-YT-Response");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // REQ Utilities
 
@@ -117,7 +121,7 @@ function _reqExtractOutputFormat(req) {
 
     // Lastly, provide a default option, i. e. YSON.
     if (typeof(result) === "undefined") {
-        result = "yson";
+        result = "<format=pretty>yson";
     }
 
     return result;
@@ -155,12 +159,14 @@ function _dispatch(driver, req, rsp) {
     __DBG("Cmd output_format=" + output_format);
 
     _rspSetFormatHeaders(rsp, input_format, output_format);
+    _rspSetTrailers(rsp);
 
     // TODO(sandello): Handle various return-types here.
     driver.execute(name,
         req, input_format,
         rsp, output_format,
-        parameters, function() {
+        parameters, function(code, message) {
+            rsp.addTrailers({ "X-YT-Response" : code + " " + message });
             rsp.end();
         });
 }

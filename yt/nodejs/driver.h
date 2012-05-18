@@ -9,9 +9,6 @@
 
 namespace NYT {
 
-struct IDriver;
-typedef TIntrusivePtr<IDriver> IDriverPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeJSDriver
@@ -38,7 +35,7 @@ public:
     static void ExecuteAfter(uv_work_t* workRequest);
 
 private:
-    IDriverPtr Driver;
+    NDriver::IDriverPtr Driver;
     Stroka Message;
 
 private:

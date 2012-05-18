@@ -20,7 +20,7 @@ macro( NODE target )
     PREFIX ""
     SUFFIX ".node"
     COMPILE_DEFINITIONS "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64"
-    LINK_FLAGS "-bundle -undefined dynamic_lookup"
+    #LINK_FLAGS "-bundle -undefined dynamic_lookup"
   )
   target_link_libraries( ${target} ytlib )
 endmacro()

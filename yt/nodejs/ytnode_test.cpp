@@ -199,7 +199,7 @@ Handle<Value> TTestInputStream::Read(const Arguments& args)
     // Do the work.
     TReadRequest* request = new TReadRequest(
         ObjectWrap::Unwrap<TTestInputStream>(args.This()),
-        args[0].As<Integet>(),
+        args[0].As<Integer>(),
         args[1].As<Function>());
 
     uv_queue_work(

@@ -23,7 +23,7 @@ TFormat::TFormat(EFormatType type, IAttributeDictionary* attributes)
 TFormat TFormat::FromYson(INodePtr node)
 {
     return TFormat(
-        EFormatType::FromString(node->GetValue<Stroka>()),
+        ParseEnum<EFormatType>(node->GetValue<Stroka>()),
         &node->Attributes());
 }
 

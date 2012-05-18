@@ -208,7 +208,7 @@ YtDriver.prototype.execute = function(name,
     var wrapped_output_stream = new YtReadableStream();
 
     input_stream.pipe(wrapped_input_stream);
-    output_stream.pipe(wrapped_output_stream);
+    wrapped_output_stream.pipe(output_stream);
 
     this._binding.Execute(name,
         wrapped_input_stream._binding, input_format,
