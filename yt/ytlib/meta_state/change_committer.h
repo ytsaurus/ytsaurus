@@ -21,8 +21,8 @@ class TCommitter
 public:
     TCommitter(
         TDecoratedMetaState* metaState,
-        IInvoker* epochControlInvoker,
-        IInvoker* epochStateInvoker);
+        IInvoker::TPtr epochControlInvoker,
+        IInvoker::TPtr epochStateInvoker);
 
     ~TCommitter();
 
@@ -64,8 +64,8 @@ public:
         TChangeLogCache* changeLogCache,
         TFollowerTracker* followerTracker,
         const TEpoch& epoch,
-        IInvoker* epochControlInvoker,
-        IInvoker* epochStateInvoker);
+        IInvoker::TPtr epochControlInvoker,
+        IInvoker::TPtr epochStateInvoker);
 
     ~TLeaderCommitter();
 
@@ -144,8 +144,8 @@ public:
     //! Creates an instance.
     TFollowerCommitter(
         TDecoratedMetaState* metaState,
-        IInvoker* epochControlInvoker,
-        IInvoker* epochStateInvoker);
+        IInvoker::TPtr epochControlInvoker,
+        IInvoker::TPtr epochStateInvoker);
 
     ~TFollowerCommitter();
 

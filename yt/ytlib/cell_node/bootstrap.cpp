@@ -85,9 +85,9 @@ void TBootstrap::Run()
     auto controlQueue = New<TActionQueue>("Control");
     ControlInvoker = controlQueue->GetInvoker();
 
-    BusServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
+    BusServer = CreateNLBusServer(New<TNLBusServerConfig>(Config->RpcPort));
 
-    RpcServer = CreateRpcServer(~BusServer);
+    RpcServer = CreateRpcServer(BusServer);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -100,24 +100,24 @@ void TBootstrap::Run()
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SyncYPathSetNode(
-        ~OrchidRoot,
+        OrchidRoot,
         "/monitoring",
         ~NYTree::CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
-        ~OrchidRoot,
+        OrchidRoot,
         "/profiling",
         ~CreateVirtualNode(
-            ~TProfilingManager::Get()->GetRoot()
+            TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
-        ~OrchidRoot,
+        OrchidRoot,
         "/config",
         ~NYTree::CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(
-        ~OrchidRoot,
+        OrchidRoot,
         controlQueue->GetInvoker());
-    RpcServer->RegisterService(~orchidService);
+    RpcServer->RegisterService(orchidService);
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(

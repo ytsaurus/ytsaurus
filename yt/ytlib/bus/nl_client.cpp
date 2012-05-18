@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "nl_client.h"
-#include <ytlib/rpc/rpc.pb.h>
 #include "message_rearranger.h"
 #include "packet.h"
 
@@ -8,6 +7,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/thread.h>
 #include <ytlib/profiling/profiler.h>
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <quality/netliba_v6/udp_http.h>
 
@@ -26,7 +26,6 @@ static NProfiling::TProfiler Profiler("/bus/client");
 // TODO: make configurable
 static const int MaxNLCallsPerIteration = 10;
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
-static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,7 +14,7 @@ class TSyncInvoker
 public:
     virtual void Invoke(const TClosure& action);
 
-    static IInvoker* Get();
+    static IInvoker::TPtr Get();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

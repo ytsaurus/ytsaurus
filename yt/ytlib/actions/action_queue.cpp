@@ -191,9 +191,9 @@ bool TActionQueue::DequeueAndExecute()
     return QueueInvoker->DequeueAndExecute();
 }
 
-IInvoker* TActionQueue::GetInvoker()
+IInvoker::TPtr TActionQueue::GetInvoker()
 {
-    return ~QueueInvoker;
+    return QueueInvoker;
 }
 
 TCallback<TActionQueue::TPtr()> TActionQueue::CreateFactory(const Stroka& threadName)
@@ -242,10 +242,10 @@ public:
         TActionQueueBase::Shutdown();
     }
 
-    IInvoker* GetInvoker(int queueIndex)
+    IInvoker::TPtr GetInvoker(int queueIndex)
     {
         YASSERT(0 <= queueIndex && queueIndex < static_cast<int>(Queues.size()));
-        return ~Queues[queueIndex].Invoker;
+        return Queues[queueIndex].Invoker;
     }
 
 private:
@@ -306,7 +306,7 @@ TMultiActionQueue::TMultiActionQueue(int queueCount, const Stroka& threadName)
 TMultiActionQueue::~TMultiActionQueue()
 { }
 
-IInvoker* TMultiActionQueue::GetInvoker(int queueIndex)
+IInvoker::TPtr TMultiActionQueue::GetInvoker(int queueIndex)
 {
     return Impl->GetInvoker(queueIndex);
 }
