@@ -144,7 +144,7 @@ public:
     };
 
     // TODO(panin): think about introducing macros
-    //! Mimics the type introduced by DEFINE_RPC_PROXY_METHOD.
+    //! Mimics the types introduced by |DEFINE_RPC_PROXY_METHOD|.
     typedef TIntrusivePtr<TRspExecuteBatch> TRspExecuteBatchPtr;
     typedef TIntrusivePtr<TReqExecuteBatch> TReqExecuteBatchPtr;
     typedef TFuture<TRspExecuteBatchPtr> TInvExecuteBatch;
