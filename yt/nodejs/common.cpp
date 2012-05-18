@@ -105,8 +105,9 @@ INodePtr ConvertV8ValueToYson(Handle<Value> value)
     return builder->EndTree();
 }
 
-INodePtr ConvertV8AsciiToYson(const String::AsciiValue& value)
+INodePtr ConvertV8StringToYson(Handle<String> string)
 {
+    String::AsciiValue value(string);
     return DeserializeFromYson(TStringBuf(*value, value.length()));
 }
 

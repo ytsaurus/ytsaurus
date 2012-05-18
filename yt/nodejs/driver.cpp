@@ -60,6 +60,8 @@ struct TExecuteRequest
 {
     uv_work_t Request;
     TNodeJSDriver* Host;
+    TNodeJSInputStream* InputStream;
+    TNodeJSOutputStream* OutputStream;
 
     Persistent<Function> Callback;
 
@@ -170,19 +172,18 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     String::AsciiValue commandName(args[0]);
     TNodeJSInputStream* inputStream =
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
-    String::AsciiValue inputFormatValue(args[2]);
+    NYTree::INodePtr inputFormat =
+        ConvertV8StringToYson(args[2].As<String>());
     TNodeJSOutputStream* outputStream =
         ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3].As<Object>());
-    String::AsciiValue outputFormatValue(args[4]);
-    Local<Object> parameters = args[5].As<Object>();
+    NYTree::INodePtr outputFormat =
+        ConvertV8StringToYson(args[4].As<String>());
+    NYTree::INodePtr parameters =
+        ConvertV8ValueToYson(args[5].As<Object>());
     Local<Function> callback = args[6].As<Function>();
 
     // Build an atom of work.
-    NYTree::INodePtr node = ConvertV8ValueToYson(parameters);
-    NYTree::INodePtr inputFormat = ConvertV8AsciiToYson(inputFormatValue);
-    NYTree::INodePtr outputFormat = ConvertV8AsciiToYson(outputFormatValue);
-
-    YASSERT(node->GetType() == NYTree::ENodeType::Map);
+    YASSERT(parameters->GetType() == NYTree::ENodeType::Map);
 
     TExecuteRequest* request = new TExecuteRequest(
         ObjectWrap::Unwrap<TNodeJSDriver>(args.This()),
@@ -194,7 +195,7 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     request->DriverRequest.InputFormat = NDriver::TFormat::FromYson(inputFormat);
     request->DriverRequest.OutputStream = outputStream;
     request->DriverRequest.OutputFormat = NDriver::TFormat::FromYson(outputFormat);
-    request->DriverRequest.Parameters = node->AsMap();
+    request->DriverRequest.Parameters = parameters->AsMap();
 
     fprintf(stderr, "WOOHOO! We are executing %s [%p->%p]!\n",
         *commandName,
