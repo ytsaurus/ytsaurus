@@ -13,10 +13,7 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/object_server/object_manager.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/chunk_server/chunk_manager.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/chunk_server/holder_authority.h>
+#include <ytlib/chunk_server/public.h>
 
 namespace NYT {
 namespace NCellMaster {
