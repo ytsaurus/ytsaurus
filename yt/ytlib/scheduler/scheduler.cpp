@@ -368,8 +368,6 @@ private:
         YVERIFY(Operations.erase(operation->GetOperationId()) == 1);
         Strategy->OnOperationFinished(operation);
 
-        RemoveOperationNode(operation);
-
         LOG_DEBUG("Unregistered operation %s", ~operation->GetOperationId().ToString());
     }
 
@@ -686,7 +684,7 @@ private:
                 default:
                     YUNREACHABLE();
             }
-            UnregisterOperation(operation);
+            RemoveOperationNode(operation);
         }
     }
 
@@ -965,9 +963,7 @@ private:
 
         LOG_INFO("Operation %s completed", ~operation->GetOperationId().ToString());
 
-        FinalizeOperationNode(operation);
-
-        // The operation will remain in this state until it is swept.
+        DoOperationFinished(operation);
     }
     
 
@@ -1005,9 +1001,14 @@ private:
         operation->SetState(EOperationState::Failed);
         *operation->Result().mutable_error() = error.ToProto();
 
-        FinalizeOperationNode(operation);
+        DoOperationFinished(operation);
+    }
 
-        // The operation will remain in this state until it is swept.
+
+    void DoOperationFinished(TOperationPtr operation)
+    {
+        FinalizeOperationNode(operation);
+        UnregisterOperation(operation);
     }
 
 
