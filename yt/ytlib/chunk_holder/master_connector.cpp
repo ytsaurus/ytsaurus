@@ -38,6 +38,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TMasterConnector::TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , ControlInvoker(bootstrap->GetControlInvoker(NCellNode::EControlThreadQueue::Heartbeat))
     , State(EState::Offline)
     , HolderId(InvalidHolderId)
 {
@@ -64,7 +65,7 @@ void TMasterConnector::Start()
 
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
-        .Via(Bootstrap->GetControlInvoker()),
+        .Via(ControlInvoker),
         RandomDuration(Config->HeartbeatSplay));
 }
 
@@ -72,7 +73,7 @@ void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
-        .Via(Bootstrap->GetControlInvoker()),
+        .Via(ControlInvoker),
         Config->HeartbeatPeriod);
 }
 
@@ -101,7 +102,7 @@ void TMasterConnector::SendRegister()
     *request->mutable_incarnation_id() = Bootstrap->GetIncarnationId().ToProto();
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
-        .Via(Bootstrap->GetControlInvoker()));
+        .Via(ControlInvoker));
 
     LOG_INFO("Register request sent (%s)",
         ~ToString(*request->mutable_statistics()));
@@ -168,7 +169,7 @@ void TMasterConnector::SendFullHeartbeat()
 
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
-        .Via(Bootstrap->GetControlInvoker()));
+        .Via(ControlInvoker));
 
     LOG_INFO("Full heartbeat sent (%s)", ~ToString(request->statistics()));
 }
@@ -200,7 +201,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
 
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
-        .Via(Bootstrap->GetControlInvoker()));
+        .Via(ControlInvoker));
 
     LOG_INFO("Incremental heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~ToString(request->statistics()),
