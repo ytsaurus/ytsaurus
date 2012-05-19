@@ -75,7 +75,7 @@ struct TChunkManagerConfig
     TChunkManagerConfig()
     {
         Register("online_holder_timeout", OnlineHolderTimeout)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(20));
         Register("registered_holder_timeout", RegisteredHolderTimeout)
             .Default(TDuration::Seconds(60));
         Register("unconfirmed_holder_timeout", UnconfirmedHolderTimeout)
