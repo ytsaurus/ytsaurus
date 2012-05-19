@@ -60,7 +60,7 @@ struct TSchedulerConfig
         Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));
         Register("failed_jobs_limit", FailedJobsLimit)
-            .Default(10)
+            .Default(100)
             .GreaterThanOrEqual(0);
         Register("spare_chunk_list_count", SpareChunkListCount)
             .Default(5)
