@@ -15,6 +15,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/lazy_ptr.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/key.h>
@@ -140,7 +141,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
 
     Bootstrap
         ->GetSessionManager()
-        ->FinishSession(~session, meta)
+        ->FinishSession(session, meta)
         .Subscribe(BIND([=] (TChunkPtr chunk) {
             auto chunkInfo = session->GetChunkInfo();
             *response->mutable_chunk_info() = chunkInfo;

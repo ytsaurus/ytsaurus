@@ -8,6 +8,7 @@
 #include <ytlib/object_server/id.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {

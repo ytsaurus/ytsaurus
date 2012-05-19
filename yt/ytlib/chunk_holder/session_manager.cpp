@@ -264,8 +264,8 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
         }
     }
 
-    return CloseFile(chunkMeta)
-        .Apply(BIND(&TSession::OnFileClosed, MakeStrong(this))
+    return CloseFile(chunkMeta).Apply(
+        BIND(&TSession::OnFileClosed, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
@@ -280,10 +280,7 @@ void TSession::Cancel(const TError& error)
 TFuture<TVoid> TSession::DeleteFile(const TError& error)
 {
     return
-        BIND(
-            &TSession::DoDeleteFile,
-            MakeStrong(this),
-            error)
+        BIND(&TSession::DoDeleteFile, MakeStrong(this), error)
         .AsyncVia(GetIOInvoker())
         .Run();
 }
@@ -307,10 +304,7 @@ TVoid TSession::OnFileDeleted(TVoid)
 TFuture<TVoid> TSession::CloseFile(const TChunkMeta& chunkMeta)
 {
     return
-        BIND(
-            &TSession::DoCloseFile,
-            MakeStrong(this),
-            chunkMeta)
+        BIND(&TSession::DoCloseFile,MakeStrong(this), chunkMeta)
         .AsyncVia(GetIOInvoker())
         .Run();
 }

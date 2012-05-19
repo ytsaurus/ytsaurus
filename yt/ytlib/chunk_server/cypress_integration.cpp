@@ -11,6 +11,7 @@
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_manager.h>
+#include <ytlib/chunk_server/holder_authority.h>
 #include <ytlib/orchid/cypress_integration.h>
 #include <ytlib/cell_master/bootstrap.h>
 

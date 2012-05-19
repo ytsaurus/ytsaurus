@@ -10,6 +10,7 @@
 #include <ytlib/ytree/ypath_format.h>
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/key.h>

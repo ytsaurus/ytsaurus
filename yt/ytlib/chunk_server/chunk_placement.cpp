@@ -8,6 +8,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 
 #include <util/random/random.h>
 

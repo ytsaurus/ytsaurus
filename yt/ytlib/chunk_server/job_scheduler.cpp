@@ -12,6 +12,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/profiling/profiler.h>
 #include <ytlib/profiling/timing.h>
 
