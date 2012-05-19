@@ -167,8 +167,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
     FOREACH (const auto& attachment, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
-        auto data = attachment.ToBlob();
-        session->PutBlock(blockIndex, MoveRV(data));
+        // TODO(babenko): switched off for now
+//        auto data = attachment.ToBlob();
+        auto data = attachment;
+        session->PutBlock(blockIndex, data);
         ++blockIndex;
     }
     

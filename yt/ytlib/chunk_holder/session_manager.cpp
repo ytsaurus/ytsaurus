@@ -143,15 +143,17 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        if (TRef::CompareContent(slot.Block->GetData(), data)) {
-            LOG_WARNING("Block %d is already received", blockIndex);
-            return;
-        }
+        return;
+        // TODO(babenko): switched off for now
+        //if (TRef::CompareContent(slot.Block->GetData(), data)) {
+        //    LOG_WARNING("Block %d is already received", blockIndex);
+        //    return;
+        //}
 
-        ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
-            Sprintf("Block %d with a different content already received (WindowStart: %d)",
-                blockIndex,
-                WindowStart);
+        //ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
+        //    Sprintf("Block %d with a different content already received (WindowStart: %d)",
+        //        blockIndex,
+        //        WindowStart);
     }
 
     slot.State = ESlotState::Received;
