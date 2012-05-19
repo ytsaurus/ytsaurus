@@ -163,7 +163,7 @@ THolder* TChunkPlacement::GetReplicationSource(const TChunk& chunk)
     // Right now we are just picking a random location (including cached ones).
     auto locations = chunk.GetLocations();
     int index = RandomNumber<size_t>(locations.size());
-    return Bootstrap->GetChunkManager()->FindHolder(locations[index]);
+    return Bootstrap->GetChunkManager()->FindHolderByAddress(locations[index]);
 }
 
 yvector<THolder*> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int count)

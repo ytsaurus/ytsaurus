@@ -33,6 +33,7 @@
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/host_name.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
@@ -238,9 +239,15 @@ public:
     DEFINE_SIGNAL(void(const THolder&), HolderUnregistered);
 
 
-    THolder* FindHolder(const Stroka& address)
+    THolder* FindHolderByAddresss(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
+        return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
+    }
+
+    THolder* FindHolderByHostName(const Stroka& hostName)
+    {
+        auto it = HolderHostNameMap.find(hostName);
         return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
     }
 
@@ -441,6 +448,7 @@ private:
 
     TMetaStateMap<THolderId, THolder> HolderMap;
     yhash_map<Stroka, THolderId> HolderAddressMap;
+    yhash_multimap<Stroka, THolderId> HolderHostNameMap;
 
     TMetaStateMap<TChunkId, TJobList> JobListMap;
     TMetaStateMap<TJobId, TJob> JobMap;
@@ -698,7 +706,7 @@ private:
     
         THolderId holderId = HolderIdGenerator.Next();
     
-        auto* existingHolder = FindHolder(address);
+        auto* existingHolder = FindHolderByAddresss(address);
         if (existingHolder) {
             LOG_INFO_IF(!IsRecovery(), "Holder kicked out due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
@@ -721,6 +729,7 @@ private:
 
         HolderMap.Insert(holderId, newHolder);
         HolderAddressMap.insert(MakePair(address, holderId));
+        HolderHostNameMap.insert(MakePair(GetServiceHostName(address), holderId));
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder, false);
@@ -908,9 +917,13 @@ private:
 
         // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
+        HolderHostNameMap.clear();
         FOREACH (const auto& pair, HolderMap) {
             const auto* holder = pair.second;
-            YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).second);
+            auto id = holder->GetId();
+            const auto& address = holder->GetAddress();
+            YVERIFY(HolderAddressMap.insert(MakePair(address, id)).second);
+            HolderHostNameMap.insert(MakePair(GetServiceHostName(address), id));
         }
 
         // Reconstruct ReplicationSinkMap.
@@ -931,6 +944,8 @@ private:
         JobListMap.Clear();
 
         HolderAddressMap.clear();
+        HolderHostNameMap.clear();
+
         ReplicationSinkMap.clear();
     }
 
@@ -1024,7 +1039,17 @@ private:
                 RemoveJob(job, false, true);
             }
 
-            YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
+            const auto& address = holder.GetAddress();
+            YVERIFY(HolderAddressMap.erase(address) == 1);
+            {
+                auto hostNameRange = HolderHostNameMap.equal_range(GetServiceHostName(address));
+                for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
+                    if (it->second == holderId) {
+                        HolderHostNameMap.erase(it);
+                        break;
+                    }
+                }
+            }
             HolderMap.Remove(holderId);
         }
     }
@@ -1185,7 +1210,7 @@ private:
         }
 
         if (removeFromHolder) {
-            auto* holder = FindHolder(job->GetRunnerAddress());
+            auto* holder = FindHolderByAddresss(job->GetRunnerAddress());
             if (holder) {
                 holder->RemoveJob(job);
             }
@@ -1631,7 +1656,7 @@ private:
         chunk.ChunkInfo().CopyFrom(request->chunk_info());
 
         FOREACH (const auto& address, holderAddresses) {
-            auto* holder = Owner->FindHolder(address);
+            auto* holder = Owner->FindHolderByAddresss(address);
             if (!holder) {
                 LOG_DEBUG_IF(!Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown holder %s",
                     ~Id.ToString(),
@@ -1918,9 +1943,14 @@ TChunkManager::TChunkManager(
 TChunkManager::~TChunkManager()
 { }
 
-THolder* TChunkManager::FindHolder(const Stroka& address)
+THolder* TChunkManager::FindHolderByAddress(const Stroka& address)
 {
-    return Impl->FindHolder(address);
+    return Impl->FindHolderByAddresss(address);
+}
+
+THolder* TChunkManager::FindHolderByHostName(const Stroka& hostName)
+{
+    return Impl->FindHolderByHostName(hostName);
 }
 
 const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address)

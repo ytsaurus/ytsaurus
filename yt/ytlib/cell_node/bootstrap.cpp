@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "config.h"
 
+#include <ytlib/misc/host_name.h>
 #include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/actions/action_queue.h>
@@ -37,8 +38,6 @@
 #include <ytlib/exec_agent/bootstrap.h>
 #include <ytlib/exec_agent/config.h>
 
-#include <util/system/hostname.h>
-
 namespace NYT {
 namespace NCellNode {
 
@@ -70,7 +69,7 @@ TBootstrap::~TBootstrap()
 void TBootstrap::Run()
 {
     IncarnationId = TIncarnationId::Create();
-    PeerAddress = Sprintf("%s:%d", GetHostName(), Config->RpcPort);
+    PeerAddress = BuildServiceAddress(GetHostName(), Config->RpcPort);
 
     LOG_INFO("Starting node (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
         ~IncarnationId.ToString(),

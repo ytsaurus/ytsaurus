@@ -67,7 +67,8 @@ public:
      */
     DECLARE_SIGNAL(void(const THolder&), HolderUnregistered);
 
-    THolder* FindHolder(const Stroka& address);
+    THolder* FindHolderByAddress(const Stroka& address);
+    THolder* FindHolderByHostName(const Stroka& hostName);
 
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 

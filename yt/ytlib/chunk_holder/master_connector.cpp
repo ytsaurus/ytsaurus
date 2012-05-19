@@ -20,7 +20,6 @@
 #include <ytlib/election/leader_channel.h>
 #include <ytlib/logging/tagged_logger.h>
 
-#include <util/system/hostname.h>
 #include <util/random/random.h>
 
 namespace NYT {

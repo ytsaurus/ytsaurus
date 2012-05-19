@@ -7,12 +7,12 @@
 #include "schema.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/host_name.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 
-#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NTableClient {

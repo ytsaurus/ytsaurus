@@ -242,7 +242,7 @@ private:
     const THolder* GetHolder() const
     {
         auto address = GetParent()->AsMap()->GetChildKey(this);
-        return Bootstrap->GetChunkManager()->FindHolder(address);
+        return Bootstrap->GetChunkManager()->FindHolderByAddress(address);
     }
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
@@ -448,7 +448,7 @@ private:
         if (name == "offline") {
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
-                    if (!chunkManager->FindHolder(address)) {
+                    if (!chunkManager->FindHolderByAddress(address)) {
                         fluent.Item().Scalar(address);
                     }
             });

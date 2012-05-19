@@ -32,6 +32,7 @@ set( SRCS
   ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
   ${BASE}/url.cpp
+  ${BASE}/host_name.cpp
 )
 set( HDRS
   ${BASE}/arcadia_helper.h
@@ -94,6 +95,7 @@ set( HDRS
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
   ${BASE}/zigzag.h
+  ${BASE}/host_name.h
 )
 
 list(APPEND YT_SOURCE_FILES

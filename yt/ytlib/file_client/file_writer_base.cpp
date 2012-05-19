@@ -6,14 +6,13 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/misc/host_name.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
-
-#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NFileClient {

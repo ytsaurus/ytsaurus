@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "config.h"
 
+#include <ytlib/misc/host_name.h>
 #include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/actions/action_queue.h>
@@ -28,8 +29,6 @@
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/job_proxy/config.h>
-
-#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -62,7 +61,7 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
-    PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
+    PeerAddress = BuildServiceAddress(GetHostName(), Config->RpcPort);
 
     LOG_INFO("Starting scheduler (PeerAddress: %s, MasterAddresses: [%s])",
         ~PeerAddress,
