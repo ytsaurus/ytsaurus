@@ -67,7 +67,9 @@ public:
      */
     DECLARE_SIGNAL(void(const THolder&), HolderUnregistered);
 
+    //! Returns a holder registered at the given address (|NULL| if none).
     THolder* FindHolderByAddress(const Stroka& address);
+    //! Returns an arbitrary holder registered at the host (|NULL| if none).
     THolder* FindHolderByHostName(const Stroka& hostName);
 
     const TReplicationSink* FindReplicationSink(const Stroka& address);
