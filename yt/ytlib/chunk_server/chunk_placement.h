@@ -27,8 +27,10 @@ public:
     double GetFillCoeff(THolder& holder) const;
 
     // TODO(babenko): consider using small vectors here
-    std::vector<THolder*> GetUploadTargets(int count);
-    std::vector<THolder*> GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses);
+    std::vector<THolder*> GetUploadTargets(
+        int count,
+        const yhash_set<Stroka>* forbiddenAddresses,
+        Stroka* preferredHostName);
     std::vector<THolder*> GetReplicationTargets(const TChunk& chunk, int count);
     std::vector<THolder*> GetRemovalTargets(const TChunk& chunk, int count);
     THolder* GetReplicationSource(const TChunk& chunk);

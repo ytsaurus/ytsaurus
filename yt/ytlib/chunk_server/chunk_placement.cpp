@@ -83,41 +83,55 @@ void TChunkPlacement::OnSessionHinted(THolder& holder)
     ++HintedSessionsMap[&holder];
 }
 
-std::vector<THolder*> TChunkPlacement::GetUploadTargets(int count)
-{
-    return GetUploadTargets(count, yhash_set<Stroka>());
-}
-
-std::vector<THolder*> TChunkPlacement::GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses)
+std::vector<THolder*> TChunkPlacement::GetUploadTargets(
+    int count,
+    const yhash_set<Stroka>* forbiddenAddresses,
+    Stroka* preferredHostName)
 {
     // TODO: check replication fan-in in case this is a replication job
-    std::vector<THolder*> holders;
-    holders.reserve(LoadFactorMap.size());
+
+    std::vector<THolder*> resultHolders;
+    resultHolders.reserve(count);
+
+    std::vector<THolder*> feasibleHolders;
+    feasibleHolders.reserve(LoadFactorMap.size());
+
+    THolder* preferredHolder = NULL;
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto& pair, LoadFactorMap) {
-        auto* holder = pair.second;
-        if (IsValidUploadTarget(*holder) &&
-            forbiddenAddresses.find(holder->GetAddress()) == forbiddenAddresses.end()) {
-            holders.push_back(holder);
+
+    // Look for preferred holder first.
+    if (preferredHostName) {
+        preferredHolder = chunkManager->FindHolderByHostName(*preferredHostName);
+        if (preferredHolder && IsValidUploadTarget(*preferredHolder)) {
+            resultHolders.push_back(preferredHolder);
         }
     }
 
+    // Put other feasible holders in |feasibleHolders|.
+    FOREACH (auto& pair, LoadFactorMap) {
+        auto* holder = pair.second;
+        if (holder != preferredHolder &&
+            IsValidUploadTarget(*holder) &&
+            (!forbiddenAddresses || forbiddenAddresses->find(holder->GetAddress()) == forbiddenAddresses->end()))
+        {
+            feasibleHolders.push_back(holder);
+        }
+    }
+
+    // Take a sample from |feasibleHolders|.
     std::sort(
-        holders.begin(),
-        holders.end(),
+        feasibleHolders.begin(),
+        feasibleHolders.end(),
         [&] (THolder* lhs, THolder* rhs) {
             return GetSessionCount(*lhs) < GetSessionCount(*rhs);
         });
 
-    std::vector<THolder*> holdersSample;
-    holdersSample.reserve(count);
-
-    auto beginGroupIt = holders.begin();
-    while (beginGroupIt != holders.end() && count > 0) {
+    auto beginGroupIt = feasibleHolders.begin();
+    while (beginGroupIt != feasibleHolders.end() && count > 0) {
         auto endGroupIt = beginGroupIt;
         int groupSize = 0;
-        while (endGroupIt != holders.end() && GetSessionCount(*(*beginGroupIt)) == GetSessionCount(*(*endGroupIt))) {
+        while (endGroupIt != feasibleHolders.end() && GetSessionCount(**beginGroupIt) == GetSessionCount(**endGroupIt)) {
             ++endGroupIt;
             ++groupSize;
         }
@@ -126,14 +140,14 @@ std::vector<THolder*> TChunkPlacement::GetUploadTargets(int count, const yhash_s
         RandomSampleN(
             beginGroupIt,
             endGroupIt,
-            std::back_inserter(holdersSample),
+            std::back_inserter(resultHolders),
             sampleCount);
 
         beginGroupIt = endGroupIt;
         count -= sampleCount;
     }
 
-    return holdersSample;
+    return resultHolders;
 }
 
 std::vector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, int count)
@@ -155,7 +169,7 @@ std::vector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk& chunk
         }
     }
 
-    return GetUploadTargets(count, forbiddenAddresses);
+    return GetUploadTargets(count, &forbiddenAddresses, NULL);
 }
 
 THolder* TChunkPlacement::GetReplicationSource(const TChunk& chunk)

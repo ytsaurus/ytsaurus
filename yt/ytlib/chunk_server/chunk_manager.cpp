@@ -261,7 +261,10 @@ public:
         int nodeCount,
         TNullable<Stroka> preferredHostName)
     {
-        auto holders = ChunkPlacement->GetUploadTargets(nodeCount);
+        auto holders = ChunkPlacement->GetUploadTargets(
+            nodeCount,
+            NULL,
+            preferredHostName.GetPtr());
         FOREACH (auto holder, holders) {
             ChunkPlacement->OnSessionHinted(*holder);
         }
@@ -1720,14 +1723,20 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 
     if (Owner->IsLeader()) {
         int nodeCount = requestExt->upload_replication_factor();
-        auto nodes = Owner->AllocateUploadTargets(nodeCount, Null);
+        auto preferredHostName =
+            requestExt->has_preferred_host_name()
+            ? TNullable<Stroka>(requestExt->preferred_host_name())
+            : Null;
+
+        auto nodes = Owner->AllocateUploadTargets(nodeCount, preferredHostName);
         FOREACH (auto node, nodes) {
             responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s",
+        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s)",
             ~JoinToString(responseExt->node_addresses()),
-            ~chunk.GetId().ToString());
+            ~chunk.GetId().ToString(),
+            ~ToString(preferredHostName));
     }
 
     return chunk.GetId();
