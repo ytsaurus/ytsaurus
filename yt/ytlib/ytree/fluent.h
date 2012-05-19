@@ -31,12 +31,17 @@ private:
         consumer->OnIntegerScalar(value);
     }
 
+    static void WriteScalar(IYsonConsumer* consumer, ui32 value)
+    {
+        consumer->OnIntegerScalar(value);
+    }
+
     static void WriteScalar(IYsonConsumer* consumer, i64 value)
     {
         consumer->OnIntegerScalar(value);
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, size_t value)
+    static void WriteScalar(IYsonConsumer* consumer, ui64 value)
     {
         WriteScalar(consumer, static_cast<i64>(value));
     }
