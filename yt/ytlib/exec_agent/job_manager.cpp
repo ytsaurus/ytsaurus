@@ -36,9 +36,9 @@ TJobManager::TJobManager(
 
     // Init job slots.
     for (int slotIndex = 0; slotIndex < Config->SlotCount; ++slotIndex) {
-        auto slotName = Sprintf("%d", slotIndex);
+        auto slotName = ToString(slotIndex);
         auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
-        Slots.push_back(New<TSlot>(slotPath, slotName));
+        Slots.push_back(New<TSlot>(slotPath, slotIndex));
     }
 }
 

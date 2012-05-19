@@ -13,7 +13,7 @@ class TSlot
     : public TRefCounted
 {
 public:
-    TSlot(const Stroka& path, const Stroka& name);
+    TSlot(const Stroka& path, int id);
 
     bool IsFree() const;
 

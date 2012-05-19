@@ -16,11 +16,11 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 // ToDo(psushin): think about more complex logic of handling fs errors.
 
-TSlot::TSlot(const Stroka& path, const Stroka& name)
+TSlot::TSlot(const Stroka& path, int id)
     : IsFree_(true)
     , IsClean(true)
     , Path(path)
-    , SlotThread(New<TActionQueue>(name))
+    , SlotThread(New<TActionQueue>(Sprintf("ExecSlot_%d", id)))
 {
     try {
         NFS::ForcePath(Path);
