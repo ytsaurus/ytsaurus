@@ -54,7 +54,7 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
 
 
     LOG_INFO("Creating chunk");
-    yvector<Stroka> holderAddresses;
+    std::vector<Stroka> addresses;
     {
         TObjectServiceProxy objectProxy(MasterChannel);
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
@@ -69,19 +69,19 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         }
         ChunkId = TChunkId::FromProto(rsp->object_id());
         const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
-        holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
-        if (holderAddresses.size() < Config->UploadReplicationFactor) {
-            ythrow yexception() << "Not enough holders available";
+        addresses = FromProto<Stroka>(rspExt.node_addresses());
+        if (addresses.size() < Config->UploadReplicationFactor) {
+            ythrow yexception() << "Not enough data nodes available";
         }
     }
-    LOG_INFO("Chunk created (ChunkId: %s, HolderAddresses: [%s])",
+    LOG_INFO("Chunk created (ChunkId: %s, NodeAddresses: [%s])",
         ~ChunkId.ToString(),
-        ~JoinToString(holderAddresses));
+        ~JoinToString(addresses));
 
     Writer = New<TRemoteWriter>(
         ~Config->RemoteWriter,
         ChunkId,
-        holderAddresses);
+        addresses);
     Writer->Open();
 
     IsOpen = true;
@@ -185,7 +185,7 @@ void TFileWriterBase::Close()
         TObjectServiceProxy proxy(MasterChannel);
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = Writer->GetChunkInfo();
-        ToProto(req->mutable_holder_addresses(), Writer->GetHolders());
+        ToProto(req->mutable_node_addresses(), Writer->GetNodeAddresses());
         *req->mutable_chunk_meta() = meta;
 
         auto rsp = proxy.Execute(req).Get();

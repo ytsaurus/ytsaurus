@@ -86,7 +86,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
     auto chunkId = NChunkServer::TChunkId::FromProto(rsp->object_id());
     const auto& rspExt = rsp->GetExtension(
         NChunkServer::NProto::TRspCreateChunk::create_chunk);
-    auto holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
+    auto holderAddresses = FromProto<Stroka>(rspExt.node_addresses());
 
     if (holderAddresses.size() < Config->UploadReplicationFactor) {
         State.Fail(TError("Not enough holders available"));
@@ -242,7 +242,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         auto req = NChunkServer::TChunkYPathProxy::Confirm(
             NCypress::FromObjectId(currentSession.RemoteWriter->GetChunkId()));
         *req->mutable_chunk_info() = currentSession.RemoteWriter->GetChunkInfo();
-        ToProto(req->mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
+        ToProto(req->mutable_node_addresses(), currentSession.RemoteWriter->GetNodeAddresses());
         *req->mutable_chunk_meta() = currentSession.ChunkWriter->GetMasterMeta();
 
         batchReq->AddRequest(req);
@@ -269,7 +269,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         slice->mutable_end_limit();
         *slice->mutable_chunk_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
-        ToProto(inputChunk.mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
+        ToProto(inputChunk.mutable_node_addresses(), currentSession.RemoteWriter->GetNodeAddresses());
         *inputChunk.mutable_channel() = TChannel::CreateUniversal().ToProto();
         *inputChunk.mutable_extensions() = 
             currentSession.ChunkWriter->GetMasterMeta().extensions();

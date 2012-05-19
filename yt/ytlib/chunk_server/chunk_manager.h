@@ -93,11 +93,11 @@ public:
 
     bool IsJobSchedulerEnabled();
 
-    //! Fills a given protobuf structure with the list of holder addresses.
+    //! Fills a given protobuf structure with the list of data node addresses.
     /*!
      *  Not too nice but seemingly fast.
      */
-    void FillHolderAddresses(
+    void FillNodeAddresses(
         ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
         const TChunk& chunk);
 

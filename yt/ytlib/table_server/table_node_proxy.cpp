@@ -636,8 +636,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
                 ~chunkId.ToString());
         }
 
-        if (request->fetch_holder_addresses()) {
-            chunkManager->FillHolderAddresses(inputChunk->mutable_holder_addresses(), chunk);
+        if (request->fetch_node_addresses()) {
+            chunkManager->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
         }
 
         if (request->fetch_all_meta_extensions()) {

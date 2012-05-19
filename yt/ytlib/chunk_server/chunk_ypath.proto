@@ -10,14 +10,14 @@ message TReqFetch
 
 message TRspFetch
 {
-    repeated bytes holder_addresses = 1;
+    repeated string node_addresses = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqConfirm
 {
-    repeated bytes holder_addresses = 1;
+    repeated string node_addresses = 1;
     required NYT.NChunkHolder.NProto.TChunkMeta chunk_meta = 2;
     required NYT.NChunkHolder.NProto.TChunkInfo chunk_info = 3;
 }
@@ -47,7 +47,7 @@ message TRspCreateChunk
         optional TRspCreateChunk create_chunk = 100;
     }
 
-    repeated bytes holder_addresses = 1;
+    repeated string node_addresses = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

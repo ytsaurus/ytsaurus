@@ -53,7 +53,7 @@ void TTableReader::Open()
 
     // ToDo(psushin): in fact only TMiscExt is required.
     fetchReq->set_fetch_all_meta_extensions(true);
-    fetchReq->set_fetch_holder_addresses(true);
+    fetchReq->set_fetch_node_addresses(true);
 
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
     if (!fetchRsp->IsOK()) {

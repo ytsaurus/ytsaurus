@@ -55,7 +55,7 @@ TSortedMergeJob::TSortedMergeJob(
     //    // ToDo(psushin): validate that input chunks are sorted.
 
     //    const auto& inputChunk = jobSpec.input_spec().chunks(i);
-    //    yvector<Stroka> seedAddresses = FromProto<Stroka>(inputChunk.holder_addresses());
+    //    yvector<Stroka> seedAddresses = FromProto<Stroka>(inputChunk.node_addresses());
 
     //    auto remoteReader = CreateRemoteReader(
     //        ioConfig->ChunkSequenceReader->RemoteReader,

@@ -72,7 +72,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         BlockCache,
         ~MasterChannel,
         chunkId,
-        FromProto<Stroka>(inputChunk.holder_addresses()));
+        FromProto<Stroka>(inputChunk.node_addresses()));
 
     auto chunkReader = New<TChunkReader>(
         Config->SequentialReader,

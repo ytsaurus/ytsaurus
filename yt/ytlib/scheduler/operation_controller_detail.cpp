@@ -563,7 +563,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         {
             // NB: Use table.Path not ypath here, otherwise path suffix is ignored.
             auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path, PrimaryTransaction->GetId()));
-            req->set_fetch_holder_addresses(true);
+            req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
             req->set_negate(table.NegateFetch);
             batchReq->AddRequest(req, "fetch_in");
@@ -639,7 +639,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.FetchResponse = rsp;
                 FOREACH (const auto& chunk, rsp->chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    if (chunk.holder_addresses_size() == 0) {
+                    if (chunk.node_addresses_size() == 0) {
                         ythrow yexception() << Sprintf("Chunk %s in input table %s is lost",
                             ~chunkId.ToString(),
                             ~table.Path);

@@ -1599,10 +1599,10 @@ private:
         UNUSED(request);
 
         const auto& chunk = GetTypedImpl();
-        Owner->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
+        Owner->FillHolderAddresses(response->mutable_node_addresses(), chunk);
 
-        context->SetResponseInfo("HolderAddresses: [%s]",
-            ~JoinToString(response->holder_addresses()));
+        context->SetResponseInfo("NodeAddresses: [%s]",
+            ~JoinToString(response->node_addresses()));
 
         context->Reply();
     }
@@ -1611,7 +1611,7 @@ private:
     {
         UNUSED(response);
 
-        auto& holderAddresses = request->holder_addresses();
+        auto& holderAddresses = request->node_addresses();
         YASSERT(holderAddresses.size() != 0);
 
         context->SetRequestInfo("Size: %" PRId64 ", HolderAddresses: [%s]",
@@ -1699,14 +1699,14 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
     chunk.SetReplicationFactor(requestExt->replication_factor());
 
     if (Owner->IsLeader()) {
-        int holderCount = requestExt->upload_replication_factor();
-        auto holders = Owner->AllocateUploadTargets(holderCount);
-        FOREACH (auto holder, holders) {
-            responseExt->add_holder_addresses(holder->GetAddress());
+        int nodeCount = requestExt->upload_replication_factor();
+        auto nodes = Owner->AllocateUploadTargets(nodeCount);
+        FOREACH (auto node, nodes) {
+            responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated holders [%s] for chunk %s",
-            ~JoinToString(responseExt->holder_addresses()),
+        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s",
+            ~JoinToString(responseExt->node_addresses()),
             ~chunk.GetId().ToString());
     }
 
@@ -2017,7 +2017,7 @@ bool TChunkManager::IsJobSchedulerEnabled()
     return Impl->IsJobSchedulerEnabled();
 }
 
-void TChunkManager::FillHolderAddresses(
+void TChunkManager::FillNodeAddresses(
     ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
     const TChunk& chunk)
 {

@@ -159,7 +159,7 @@ private:
         if (IsPartitionActive(partition)) {
             ActivePartitions.insert(partition);
             FOREACH (const auto& chunk, stripe->InputChunks) {
-                FOREACH (const auto& address, chunk.holder_addresses()) {
+                FOREACH (const auto& address, chunk.node_addresses()) {
                     if (IsPartitionActiveFor(partition, address)) {
                         AddressToActivePartitions[address].insert(partition);
                     }
@@ -208,7 +208,7 @@ private:
 
         FOREACH (const auto& stripe, result->Stripes) {
             FOREACH (const auto& chunk, stripe->InputChunks) {
-                FOREACH (const auto& address, chunk.holder_addresses()) {
+                FOREACH (const auto& address, chunk.node_addresses()) {
                     if (!IsPartitionActiveFor(partition, address)) {
                         AddressToActivePartitions[address].erase(partition);
                     }

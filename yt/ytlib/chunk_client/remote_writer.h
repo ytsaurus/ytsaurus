@@ -57,7 +57,7 @@ public:
     Stroka GetDebugInfo();
 
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
-    const std::vector<Stroka> GetHolders() const;
+    const std::vector<Stroka> GetNodeAddresses() const;
     const TChunkId& GetChunkId() const;
 
 private:

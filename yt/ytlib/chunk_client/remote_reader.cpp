@@ -154,7 +154,7 @@ private:
         }
 
         if (rsp->IsOK()) {
-            auto seedAddresses = FromProto<Stroka>(rsp->holder_addresses());
+            auto seedAddresses = FromProto<Stroka>(rsp->node_addresses());
 
             // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
             Shuffle(seedAddresses.begin(), seedAddresses.end());
@@ -257,7 +257,7 @@ protected:
     {
         auto hostName = Sprintf("%s:", GetHostName());
 
-        // Prefer local holder if in seeds.
+        // Prefer local node if in seeds.
         for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it)
         {
             if (it->has_prefix(hostName)) {
@@ -368,7 +368,7 @@ private:
 
     Stroka PickNextPeer()
     {
-        // When the time comes to fetch from a non-seeding holder, pick a random one.
+        // When the time comes to fetch from a non-seeding node, pick a random one.
         if (PeerIndex >= SeedAddresses.size()) {
             size_t count = PeerAddressList.size() - PeerIndex;
             size_t randomIndex = PeerIndex + RandomNumber(count);
@@ -647,7 +647,7 @@ private:
 
         auto address = SeedAddresses[SeedIndex];
 
-        LOG_INFO("Requesting chunk info from holder (Address: %s)", ~address);
+        LOG_INFO("Requesting chunk info from node (Address: %s)", ~address);
 
         auto channel = HolderChannelCache->GetChannel(address);
 
@@ -666,7 +666,7 @@ private:
         if (response->IsOK()) {
             OnSessionSucceeded(response->chunk_meta());
         } else {
-            LOG_WARNING("Error getting chunk info from holder\n%s", ~response->GetError().ToString());
+            LOG_WARNING("Error getting chunk info from node\n%s", ~response->GetError().ToString());
 
             ++SeedIndex;
             if (SeedIndex < SeedAddresses.size()) {

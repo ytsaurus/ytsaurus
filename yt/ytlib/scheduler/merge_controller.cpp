@@ -146,7 +146,7 @@ protected:
     {
         ActiveGroups.insert(group);
         FOREACH (const auto& chunk, stripe->InputChunks) {
-            FOREACH (const auto& address, chunk.holder_addresses()) {
+            FOREACH (const auto& address, chunk.node_addresses()) {
                 AddressToActiveGroups[address].insert(group);
             }
         }
@@ -201,7 +201,7 @@ protected:
 
         FOREACH (const auto& stripe, result->Stripes) {
             FOREACH (const auto& chunk, stripe->InputChunks) {
-                FOREACH (const auto& address, chunk.holder_addresses()) {
+                FOREACH (const auto& address, chunk.node_addresses()) {
                     if (!group->ChunkPool->HasPendingLocalChunksFor(address)) {
                         AddressToActiveGroups[address].erase(group);
                     }

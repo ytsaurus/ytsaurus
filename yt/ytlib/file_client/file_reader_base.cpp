@@ -41,7 +41,9 @@ TFileReaderBase::TFileReaderBase(
     YASSERT(blockCache);
 }
 
-void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<Stroka>& holderAddresses)
+void TFileReaderBase::Open(
+    const TChunkId& chunkId,
+    const std::vector<Stroka>& nodeAddresses)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(!IsOpen);
@@ -51,7 +53,7 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
         ~BlockCache,
         ~MasterChannel,
         chunkId,
-        holderAddresses);
+        nodeAddresses);
 
     LOG_INFO("Requesting chunk info");
 

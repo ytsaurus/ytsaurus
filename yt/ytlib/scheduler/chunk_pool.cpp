@@ -44,10 +44,10 @@ void IChunkPool::TExtractResult::Add(TChunkStripePtr stripe, const Stroka& addre
     FOREACH (const auto& chunk, stripe->InputChunks) {
         ++TotalChunkCount;
         if (std::find_if(
-            chunk.holder_addresses().begin(),
-            chunk.holder_addresses().end(),
+            chunk.node_addresses().begin(),
+            chunk.node_addresses().end(),
             [&] (const Stroka& chunkAddress) { return address == chunkAddress; })
-            != chunk.holder_addresses().end())
+            != chunk.node_addresses().end())
         {
             ++LocalChunkCount;
         } else {
@@ -73,7 +73,7 @@ public:
         TotalWeight += stripe->Weight;
         PendingWeight += stripe->Weight;
         FOREACH (const auto& inputChunk, stripe->InputChunks) {
-            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+            FOREACH (const auto& address, inputChunk.node_addresses()) {
                 YVERIFY(LocalChunks[address].insert(stripe).second);
             }
         }
@@ -165,7 +165,7 @@ private:
     void Unregister(TChunkStripePtr stripe)
     {
         FOREACH (const auto& inputChunk, stripe->InputChunks) {
-            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+            FOREACH (const auto& address, inputChunk.node_addresses()) {
                 YVERIFY(LocalChunks[address].erase(stripe) == 1);
             }
         }
@@ -197,7 +197,7 @@ public:
         TotalWeight += stripe->Weight;
         Stripes.push_back(stripe);
         FOREACH (const auto& inputChunk, stripe->InputChunks) {
-            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+            FOREACH (const auto& address, inputChunk.node_addresses()) {
                 Addresses.insert(address);
             }
         }

@@ -34,7 +34,9 @@ public:
         NChunkClient::IBlockCache* blockCache);
 
     //! Opens the reader.
-    void Open(const NChunkServer::TChunkId&, const yvector<Stroka>&);
+    void Open(
+        const NChunkServer::TChunkId& chunkId,
+        const std::vector<Stroka>& nodeAddresses);
 
     //! Returns the size of the file.
     i64 GetSize() const;

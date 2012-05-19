@@ -941,7 +941,7 @@ const NChunkHolder::NProto::TChunkInfo& TRemoteWriter::GetChunkInfo() const
     return ChunkInfo;
 }
 
-const std::vector<Stroka> TRemoteWriter::GetHolders() const
+const std::vector<Stroka> TRemoteWriter::GetNodeAddresses() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     std::vector<Stroka> addresses;
