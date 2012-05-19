@@ -30,23 +30,6 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-struct TSortRow
-{
-    size_t EndValueIndex;
-    TNonOwningKey Key;
-};
-
-bool operator < (const TSortRow& lhs, const TSortRow& rhs)
-{
-    return CompareKeys(lhs.Key, rhs.Key) < 0;
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSortJob::TSortJob(
     TJobIOConfigPtr ioConfig,
     NElection::TLeaderLookup::TConfigPtr masterConfig,
@@ -87,38 +70,56 @@ TSortJob::TSortJob(
 TJobResult TSortJob::Run()
 {
     PROFILE_TIMING ("/sort_time") {
-        LOG_INFO("Initializing");
+        struct TSortRow
+        {
+            size_t EndValueIndex;
+            TNonOwningKey Key;
+        };
 
         yhash_map<TStringBuf, int> keyColumnToIndex;
+        std::vector< std::pair<TStringBuf, TStringBuf> > valueBuffer;
+        std::vector<TSortRow> rowBuffer;
+        std::vector<ui32> indexBuffer;
 
-        for (int i = 0; i < KeyColumns.size(); ++i) {
-            TStringBuf name(~KeyColumns[i], KeyColumns[i].size());
-            keyColumnToIndex[name] = i;
+        LOG_INFO("Initializing");
+        {
+            for (int i = 0; i < KeyColumns.size(); ++i) {
+                TStringBuf name(~KeyColumns[i], KeyColumns[i].size());
+                keyColumnToIndex[name] = i;
+            }
+
+            Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+
+            // TODO(babenko): fix reserve below once the reader can provide per-partition statistics
+
+            //valueBuffer.reserve(Reader->GetValueCount());
+            valueBuffer.reserve(1000000);
+
+            //rowBuffer.reserve(Reader->GetRowCount());
+            rowBuffer.reserve(1000000);
+
+            //indexBuffer.reserve(Reader->GetRowCount());
+            indexBuffer.reserve(1000000);
+
+            // Add fake row.
+            TSortRow firstFakeRow;
+            firstFakeRow.EndValueIndex = 0;
+            rowBuffer.push_back(firstFakeRow);
         }
 
-        Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
-
         PROFILE_TIMING_CHECKPOINT("init");
-
-        // TODO(babenko): fix reserve below once the reader can provide per-partition statistics
-
-        std::vector< std::pair<TStringBuf, TStringBuf> > valueBuffer;
-        //valueBuffer.reserve(Reader->GetValueCount());
-        valueBuffer.reserve(1000000);
-
-        std::vector<TSortRow> rowBuffer;
-        //rowBuffer.reserve(Reader->GetRowCount());
-        rowBuffer.reserve(1000000);
-
-        std::vector<size_t> indexBuffer;
-        //indexBuffer.reserve(Reader->GetRowCount());
-        indexBuffer.reserve(1000000);
 
         LOG_INFO("Reading");
         {
             TLexer lexer;
             while (Reader->IsValid()) {
-                TSortRow sortRow;
+                size_t rowIndex = rowBuffer.size();
+
+                // Avoid constructing row on stack and then copying it into the buffer.
+                // TODO(babenko): consider using emplace_back
+                rowBuffer.push_back(TSortRow());
+                auto& sortRow = rowBuffer.back();
+
                 sortRow.Key.Reset(KeyColumns.size());
 
                 FOREACH (const auto& pair, Reader->GetRow()) {
@@ -131,8 +132,8 @@ TJobResult TSortJob::Run()
 
                 sortRow.EndValueIndex = valueBuffer.size();
 
-                indexBuffer.push_back(rowBuffer.size());
-                rowBuffer.push_back(sortRow);
+                YASSERT(rowIndex <= std::numeric_limits<ui32>::max());
+                indexBuffer.push_back(rowIndex);
 
                 Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
             }
@@ -144,7 +145,7 @@ TJobResult TSortJob::Run()
         std::sort(
             indexBuffer.begin(), 
             indexBuffer.end(),
-            [&] (size_t lhs, size_t rhs) {
+            [&] (ui32 lhs, ui32 rhs) {
                 return CompareKeys(rowBuffer[lhs].Key, rowBuffer[rhs].Key) < 0;
             }
         );
@@ -156,20 +157,23 @@ TJobResult TSortJob::Run()
             Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
             TRow row;
-            for (size_t i = 0; i < indexBuffer.size(); ++i) {
-                size_t index = indexBuffer[i];
+            for (size_t progressIndex = 0; progressIndex < indexBuffer.size(); ++progressIndex) {
+                size_t rowIndex = indexBuffer[progressIndex];
                 row.clear();
 
-                auto& sortRow = rowBuffer[index];
-                for (size_t valueIndex = index > 0 ? rowBuffer[index - 1].EndValueIndex : 0; 
-                    valueIndex < sortRow.EndValueIndex; 
-                    ++valueIndex) 
+                const auto& sortRow = rowBuffer[rowIndex];
+                for (size_t valueIndex = rowBuffer[rowIndex - 1].EndValueIndex;
+                     valueIndex < sortRow.EndValueIndex; 
+                     ++valueIndex) 
                 {
                     row.push_back(valueBuffer[valueIndex]);
                 }
 
-                Writer->SetProgress(double(i) / indexBuffer.size());
                 Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, row, sortRow.Key);
+
+                if (progressIndex % 1000 == 0) {
+                    Writer->SetProgress(double(progressIndex) / indexBuffer.size());
+                }
             }
 
             Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
