@@ -12,6 +12,7 @@
 #include <quality/netliba_v6/udp_http.h>
 
 #include <util/thread/lfqueue.h>
+#include <util/generic/singleton.h>
 
 namespace NYT {
 namespace NBus {
@@ -28,8 +29,6 @@ static const int MaxNLCallsPerIteration = 10;
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TClientDispatcher;
 
 class TNLBusClient
     : public IBusClient
@@ -48,7 +47,7 @@ public:
 
 private:
     class TBus;
-    friend class TClientDispatcher;
+    friend class TNLClientManager::TImpl;
 
     TNLBusClientConfig::TPtr Config;
     TUdpAddress ServerAddress;
@@ -129,7 +128,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClientDispatcher
+class TNLClientManager::TImpl
 {
     struct TRequest
         : public TIntrinsicRefCounted
@@ -177,8 +176,8 @@ class TClientDispatcher
 
     static void* ThreadFunc(void* param)
     {
-        auto* dispatcher = reinterpret_cast<TClientDispatcher*>(param);
-        dispatcher->ThreadMain();
+        auto* impl = reinterpret_cast<TImpl*>(param);
+        impl->ThreadMain();
         return NULL;
     }
 
@@ -580,7 +579,7 @@ class TClientDispatcher
     }
 
 public:
-    TClientDispatcher()
+    TImpl()
         : Thread(ThreadFunc, (void*) this)
         , Terminated(false)
         , InCounter("/in_rate")
@@ -598,14 +597,9 @@ public:
         LOG_DEBUG("Client dispatcher is started");
     }
 
-    ~TClientDispatcher()
+    ~TImpl()
     {
         Shutdown();
-    }
-
-    static TClientDispatcher* Get()
-    {
-        return Singleton<TClientDispatcher>();
     }
 
     void Shutdown()
@@ -670,26 +664,22 @@ public:
             ~sessionId.ToString(),
             ~bus);
     }
-
-    Stroka GetDebugInfo()
-    {
-        return
-            "ClientDispatcher info:\n" + Requester->GetDebugInfo() + "\n" +
-            "Pending data size: " + ToString(Requester->GetPendingDataSize());
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: hack
-void ShutdownClientDispatcher()
+TNLClientManager::TNLClientManager()
+    : Impl(new TImpl())
+{ }
+
+TNLClientManager* TNLClientManager::Get()
 {
-    TClientDispatcher::Get()->Shutdown();
+    return Singleton<TNLClientManager>();
 }
 
-Stroka GetClientDispatcherDebugInfo()
+void TNLClientManager::Shutdown()
 {
-    return TClientDispatcher::Get()->GetDebugInfo();
+    Impl->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -713,7 +703,7 @@ IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
     YASSERT(handler);
 
     auto bus = New<TBus>(ServerAddress, handler);
-    TClientDispatcher::Get()->EnqueueBusRegister(bus);
+    TNLClientManager::Get()->Impl->EnqueueBusRegister(bus);
     return bus;
 }
 
@@ -726,7 +716,7 @@ IBus::TSendResult TNLBusClient::TBus::Send(IMessage::TPtr message)
     // since Terminate is used for debugging purposes mainly, we omit it.
     YASSERT(!Terminated);
 
-    return TClientDispatcher::Get()->EnqueueRequest(this, ~message);
+    return TNLClientManager::Get()->Impl->EnqueueRequest(this, ~message);
 }
 
 void TNLBusClient::TBus::Terminate()
@@ -736,7 +726,7 @@ void TNLBusClient::TBus::Terminate()
 
     Terminated = true;
 
-    TClientDispatcher::Get()->EnqueueBusUnregister(this);
+    TNLClientManager::Get()->Impl->EnqueueBusUnregister(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

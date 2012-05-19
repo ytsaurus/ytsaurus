@@ -41,5 +41,28 @@ IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig* config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNLBusClient;
+
+class TNLClientManager
+{
+public:
+    // TODO(babenko): make private, required for Singleton
+    TNLClientManager();
+
+    static TNLClientManager* Get();
+
+    void Shutdown();
+
+private:
+    friend class TNLBusClient;
+
+    class TImpl;
+
+    TAutoPtr<TImpl> Impl;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NBus
 } // namespace NYT

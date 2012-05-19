@@ -14,8 +14,6 @@ public:
     TRpcManager();
 
     static TRpcManager* Get();
-    Stroka GetDebugInfo();
-    void Shutdown();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

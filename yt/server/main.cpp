@@ -2,7 +2,7 @@
 
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
-#include <ytlib/rpc/rpc_manager.h>
+#include <ytlib/bus/nl_client.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
@@ -267,7 +267,7 @@ int Main(int argc, const char* argv[])
     // TODO: refactor system shutdown
     NMetaState::TAsyncChangeLog::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
-    NRpc::TRpcManager::Get()->Shutdown();
+    NBus::TNLClientManager::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 
