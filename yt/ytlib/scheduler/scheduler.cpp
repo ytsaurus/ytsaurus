@@ -358,13 +358,18 @@ private:
         LOG_DEBUG("Registered operation %s", ~operation->GetOperationId().ToString());
     }
 
-    void UnregisterOperation(TOperationPtr operation)
+    void CancelOperationJobs(TOperationPtr operation)
     {
         // Take a copy, the collection will be modified.
         auto jobs = operation->Jobs();
         FOREACH (auto job, jobs) {
             UnregisterJob(job);
         }
+        YASSERT(operation->Jobs().empty());
+    }
+
+    void UnregisterOperation(TOperationPtr operation)
+    {
         YVERIFY(Operations.erase(operation->GetOperationId()) == 1);
         Strategy->OnOperationFinished(operation);
 
@@ -684,6 +689,8 @@ private:
                 default:
                     YUNREACHABLE();
             }
+
+            UnregisterOperation(operation);
             RemoveOperationNode(operation);
         }
     }
@@ -1008,7 +1015,7 @@ private:
     void DoOperationFinished(TOperationPtr operation)
     {
         FinalizeOperationNode(operation);
-        UnregisterOperation(operation);
+        CancelOperationJobs(operation);
     }
 
 
