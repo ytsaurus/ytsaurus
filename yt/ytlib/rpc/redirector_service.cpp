@@ -126,10 +126,7 @@ void TRedirectorService::OnBeginRequest(IServiceContextPtr context)
 
             context->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
                 ~params.Address,
-                // TODO(babenko): get rid of this once ToString works for TNullable
-                params.Timeout
-                ? ~ToString(params.Timeout.Get().MilliSeconds())
-                : "None"));
+                ~ToString(params.Timeout)));
 
             auto channel = ChannelCache.GetChannel(params.Address);
 
