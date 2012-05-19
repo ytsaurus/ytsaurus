@@ -83,15 +83,15 @@ void TChunkPlacement::OnSessionHinted(THolder& holder)
     ++HintedSessionsMap[&holder];
 }
 
-yvector<THolder*> TChunkPlacement::GetUploadTargets(int count)
+std::vector<THolder*> TChunkPlacement::GetUploadTargets(int count)
 {
     return GetUploadTargets(count, yhash_set<Stroka>());
 }
 
-yvector<THolder*> TChunkPlacement::GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses)
+std::vector<THolder*> TChunkPlacement::GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses)
 {
     // TODO: check replication fan-in in case this is a replication job
-    yvector<THolder*> holders;
+    std::vector<THolder*> holders;
     holders.reserve(LoadFactorMap.size());
 
     auto chunkManager = Bootstrap->GetChunkManager();
@@ -110,7 +110,7 @@ yvector<THolder*> TChunkPlacement::GetUploadTargets(int count, const yhash_set<S
             return GetSessionCount(*lhs) < GetSessionCount(*rhs);
         });
 
-    yvector<THolder*> holdersSample;
+    std::vector<THolder*> holdersSample;
     holdersSample.reserve(count);
 
     auto beginGroupIt = holders.begin();
@@ -136,7 +136,7 @@ yvector<THolder*> TChunkPlacement::GetUploadTargets(int count, const yhash_set<S
     return holdersSample;
 }
 
-yvector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, int count)
+std::vector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, int count)
 {
     yhash_set<Stroka> forbiddenAddresses;
 
@@ -161,16 +161,17 @@ yvector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, in
 THolder* TChunkPlacement::GetReplicationSource(const TChunk& chunk)
 {
     // Right now we are just picking a random location (including cached ones).
-    auto locations = chunk.GetLocations();
+    const auto& locations = chunk.GetLocations();
+    YASSERT(!locations.empty());
     int index = RandomNumber<size_t>(locations.size());
-    return Bootstrap->GetChunkManager()->FindHolderByAddress(locations[index]);
+    return &Bootstrap->GetChunkManager()->GetHolder(locations[index]);
 }
 
-yvector<THolder*> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int count)
+std::vector<THolder*> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int count)
 {
     // Construct a list of (holderId, loadFactor) pairs.
     typedef TPair<THolder*, double> TCandidatePair;
-    yvector<TCandidatePair> candidates;
+    std::vector<TCandidatePair> candidates;
     auto chunkManager = Bootstrap->GetChunkManager();
     candidates.reserve(chunk.StoredLocations().size());
     FOREACH (auto holderId, chunk.StoredLocations()) {
@@ -180,17 +181,18 @@ yvector<THolder*> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int co
     }
 
     // Sort by loadFactor in descending order.
-    std::sort(candidates.begin(), candidates.end(),
-        [] (const TCandidatePair& lhs, const TCandidatePair& rhs)
-        {
+    std::sort(
+        candidates.begin(),
+        candidates.end(),
+        [] (const TCandidatePair& lhs, const TCandidatePair& rhs) {
             return lhs.second > rhs.second;
         });
 
     // Take first count holders.
-    yvector<THolder*> result;
+    std::vector<THolder*> result;
     result.reserve(count);
-    FOREACH (auto pair, candidates) {
-        if (result.ysize() >= count) {
+    FOREACH (const auto& pair, candidates) {
+        if (static_cast<int>(result.size()) >= count) {
             break;
         }
         result.push_back(pair.first);
@@ -268,7 +270,7 @@ bool TChunkPlacement::IsValidBalancingTarget(THolder& targetHolder, TChunk* chun
     return true;
 }
 
-yvector<TChunkId> TChunkPlacement::GetBalancingChunks(THolder& holder, int count)
+std::vector<TChunkId> TChunkPlacement::GetBalancingChunks(THolder& holder, int count)
 {
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
@@ -278,10 +280,10 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(THolder& holder, int count
     }
 
     // Right now we just pick some (not even random!) chunks.
-    yvector<TChunkId> result;
+    std::vector<TChunkId> result;
     result.reserve(count);
     FOREACH (auto& chunk, holder.StoredChunks()) {
-        if (result.ysize() >= count)
+        if (static_cast<int>(result.size()) >= count)
             break;
         if (forbiddenChunkIds.find(chunk->GetId()) == forbiddenChunkIds.end()) {
             result.push_back(chunk->GetId());

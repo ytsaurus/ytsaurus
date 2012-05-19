@@ -257,9 +257,11 @@ public:
         return it == ReplicationSinkMap.end() ? NULL : &it->second;
     }
 
-    yvector<THolder*> AllocateUploadTargets(int replicaCount)
+    std::vector<THolder*> AllocateUploadTargets(
+        int nodeCount,
+        TNullable<Stroka> preferredHostName)
     {
-        auto holders = ChunkPlacement->GetUploadTargets(replicaCount);
+        auto holders = ChunkPlacement->GetUploadTargets(nodeCount);
         FOREACH (auto holder, holders) {
             ChunkPlacement->OnSessionHinted(*holder);
         }
@@ -333,9 +335,9 @@ public:
 
     void ScheduleJobs(
         THolder& holder,
-        const yvector<TJobInfo>& runningJobs,
-        yvector<TJobStartInfo>* jobsToStart,
-        yvector<TJobStopInfo>* jobsToStop)
+        const std::vector<TJobInfo>& runningJobs,
+        std::vector<TJobStartInfo>* jobsToStart,
+        std::vector<TJobStopInfo>* jobsToStop)
     {
         JobScheduler->ScheduleJobs(
             holder,
@@ -1718,7 +1720,7 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 
     if (Owner->IsLeader()) {
         int nodeCount = requestExt->upload_replication_factor();
-        auto nodes = Owner->AllocateUploadTargets(nodeCount);
+        auto nodes = Owner->AllocateUploadTargets(nodeCount, Null);
         FOREACH (auto node, nodes) {
             responseExt->add_node_addresses(node->GetAddress());
         }
@@ -1957,9 +1959,11 @@ const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address
     return Impl->FindReplicationSink(address);
 }
 
-yvector<THolder*> TChunkManager::AllocateUploadTargets(int replicaCount)
+std::vector<THolder*> TChunkManager::AllocateUploadTargets(
+    int nodeCount,
+    TNullable<Stroka> preferredHostName)
 {
-    return Impl->AllocateUploadTargets(replicaCount);
+    return Impl->AllocateUploadTargets(nodeCount, preferredHostName);
 }
 
 TMetaChange<THolderId>::TPtr TChunkManager::InitiateRegisterHolder(
@@ -2019,9 +2023,9 @@ void TChunkManager::AttachToChunkList(
 
 void TChunkManager::ScheduleJobs(
     THolder& holder,
-    const yvector<TJobInfo>& runningJobs,
-    yvector<TJobStartInfo>* jobsToStart,
-    yvector<TJobStopInfo>* jobsToStop)
+    const std::vector<TJobInfo>& runningJobs,
+    std::vector<TJobStartInfo>* jobsToStart,
+    std::vector<TJobStopInfo>* jobsToStop)
 {
     Impl->ScheduleJobs(
         holder,

@@ -44,7 +44,7 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
 
  void TChunkService::ValidateHolderId(THolderId holderId)
 {
-    if (!Bootstrap->GetChunkManager()->FindHolderByAddress(holderId)) {
+    if (!Bootstrap->GetChunkManager()->FindHolder(holderId)) {
         ythrow TServiceException(EErrorCode::NoSuchHolder) <<
             Sprintf("Invalid or expired holder id %d", holderId);
     }

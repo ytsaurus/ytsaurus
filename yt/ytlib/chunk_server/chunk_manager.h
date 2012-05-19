@@ -74,7 +74,9 @@ public:
 
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
-    yvector<THolder*> AllocateUploadTargets(int replicaCount);
+    std::vector<THolder*> AllocateUploadTargets(
+        int nodeCount,
+        TNullable<Stroka> preferredHostName);
 
     TChunk& CreateChunk();
     TChunkList& CreateChunkList();
@@ -90,9 +92,9 @@ public:
 
     void ScheduleJobs(
         THolder& holder,
-        const yvector<NProto::TJobInfo>& runningJobs,
-        yvector<NProto::TJobStartInfo>* jobsToStart,
-        yvector<NProto::TJobStopInfo>* jobsToStop);
+        const std::vector<NProto::TJobInfo>& runningJobs,
+        std::vector<NProto::TJobStartInfo>* jobsToStart,
+        std::vector<NProto::TJobStopInfo>* jobsToStop);
 
     bool IsJobSchedulerEnabled();
 

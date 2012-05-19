@@ -27,12 +27,12 @@ public:
     double GetFillCoeff(THolder& holder) const;
 
     // TODO(babenko): consider using small vectors here
-    yvector<THolder*> GetUploadTargets(int count);
-    yvector<THolder*> GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses);
-    yvector<THolder*> GetReplicationTargets(const TChunk& chunk, int count);
-    yvector<THolder*> GetRemovalTargets(const TChunk& chunk, int count);
+    std::vector<THolder*> GetUploadTargets(int count);
+    std::vector<THolder*> GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses);
+    std::vector<THolder*> GetReplicationTargets(const TChunk& chunk, int count);
+    std::vector<THolder*> GetRemovalTargets(const TChunk& chunk, int count);
     THolder* GetReplicationSource(const TChunk& chunk);
-    yvector<TChunkId> GetBalancingChunks(THolder& holder, int count);
+    std::vector<TChunkId> GetBalancingChunks(THolder& holder, int count);
     THolder* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:
