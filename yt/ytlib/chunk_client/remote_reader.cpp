@@ -138,9 +138,9 @@ private:
         LOG_INFO("Requesting chunk seeds from the master");
 
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
-        ObjectProxy
-            ->Execute(req)
-            .Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
+        ObjectProxy->Execute(req).Subscribe(
+            BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this))
+            .Via(ReaderThread->GetInvoker()));
     }
 
     void OnChunkFetched(TChunkYPathProxy::TRspFetchPtr rsp)
@@ -211,7 +211,9 @@ protected:
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
         GetSeedsResult = reader->AsyncGetSeeds();
-        GetSeedsResult.Subscribe(BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
+        GetSeedsResult.Subscribe(
+            BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this))
+            .Via(ReaderThread->GetInvoker()));
     }
 
     void OnGetSeedsReply(TRemoteReader::TGetSeedsResult result)
@@ -461,7 +463,7 @@ private:
 
             auto requestBlockIndexes = GetRequestBlockIndexes(address, unfetchedBlockIndexes);
             if (!requestBlockIndexes.empty()) {
-                LOG_INFO("Requesting blocks from peer (Address: %s, BlockIndexes: [%s])",
+                LOG_INFO("Requesting blocks from %s (BlockIndexes: [%s])",
                     ~address,
                     ~JoinToString(unfetchedBlockIndexes));
 
@@ -478,15 +480,17 @@ private:
                     request->set_peer_expiration_time((TInstant::Now() + reader->Config->PeerExpirationTimeout).GetValue());
                 }
 
-                request->Invoke().Subscribe(BIND(
-                    &TReadSession::OnGotBlocks,
-                    MakeStrong(this),
-                    address,
-                    request));
+                request->Invoke().Subscribe(
+                    BIND(
+                        &TReadSession::OnGotBlocks,
+                        MakeStrong(this),
+                        address,
+                        request)
+                    .Via(ReaderThread->GetInvoker()));
                 return;
             }
 
-            LOG_INFO("Skipping peer (Address: %s)", ~address);
+            LOG_INFO("Skipping peer %s", ~address);
         }
     }
 
@@ -498,7 +502,7 @@ private:
         if (response->IsOK()) {
             ProcessReceivedBlocks(address, ~request, ~response);
         } else {
-            LOG_WARNING("Error getting blocks from peer (Address: %s)\n%s",
+            LOG_WARNING("Error getting blocks from %s\n%s",
                 ~address,
                 ~response->GetError().ToString());
         }
@@ -527,7 +531,7 @@ private:
             TBlockId blockId(reader->ChunkId, blockIndex);
             const auto& blockInfo = response->blocks(index);
             if (blockInfo.data_attached()) {
-                LOG_INFO("Block received (Address: %s, BlockIndex: %d)",
+                LOG_INFO("Block received from %s (BlockIndex: %d)",
                     ~address,
                     blockIndex);
                 auto block = response->Attachments()[index];
@@ -644,7 +648,7 @@ private:
 
         auto address = SeedAddresses[SeedIndex];
 
-        LOG_INFO("Requesting chunk info from node (Address: %s)", ~address);
+        LOG_INFO("Requesting chunk info from %s", ~address);
 
         auto channel = HolderChannelCache->GetChannel(address);
 
@@ -655,7 +659,9 @@ private:
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
         request->set_all_extension_tags(AllExtensionTags);
         ToProto(request->mutable_extension_tags(), ExtensionTags);
-        request->Invoke().Subscribe(BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this)));
+        request->Invoke().Subscribe(
+            BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this))
+            .Via(ReaderThread->GetInvoker()));
     }
 
     void OnGotChunkMeta(TChunkHolderServiceProxy::TRspGetChunkMetaPtr response)
