@@ -64,7 +64,7 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         req->set_type(EObjectType::Chunk);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
-        reqExt->set_preferred_node_address(GetHostName());
+        reqExt->set_preferred_host_name(GetHostName());
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Config->ReplicationFactor);
 
