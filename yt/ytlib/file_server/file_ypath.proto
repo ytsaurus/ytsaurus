@@ -10,7 +10,7 @@ message TReqFetch
 message TRspFetch
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    repeated bytes holder_addresses = 2;
+    repeated string node_addresses = 2;
     required string file_name = 3;
     required bool executable = 4;
 }
