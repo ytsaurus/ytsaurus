@@ -411,6 +411,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
         request->key_columns_size(),
         request->chunk_ids_size());
 
+    // TODO(babenko): consider using separate thread
     auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
