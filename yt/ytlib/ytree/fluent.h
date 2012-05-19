@@ -21,24 +21,24 @@ class TFluentYsonBuilder
     : private TNonCopyable
 {
 private:
-    static void WriteScalar(IYsonConsumer* consumer, const char* value)
+    static void WriteScalar(IYsonConsumer* consumer, double value)
     {
-        WriteScalar(consumer, Stroka(value));
+        consumer->OnDoubleScalar(value);
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, i32 value)
+    //static void WriteScalar(IYsonConsumer* consumer, i32 value)
+    //{
+    //    consumer->OnIntegerScalar(value);
+    //}
+
+    static void WriteScalar(IYsonConsumer* consumer, i64 value)
+    {
+        consumer->OnIntegerScalar(value);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, size_t value)
     {
         WriteScalar(consumer, static_cast<i64>(value));
-    }
-
-    static void WriteScalar(IYsonConsumer* consumer, ui32 value)
-    {
-        WriteScalar(consumer, static_cast<i64>(value));
-    }
-
-    static void WriteScalar(IYsonConsumer* consumer, float value)
-    {
-        WriteScalar(consumer, static_cast<double>(value));
     }
 
     static void WriteScalar(IYsonConsumer* consumer, bool value)
@@ -66,14 +66,9 @@ private:
         consumer->OnStringScalar(value);
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, double value)
+    static void WriteScalar(IYsonConsumer* consumer, const char* value)
     {
-        consumer->OnDoubleScalar(value);
-    }
-
-    static void WriteScalar(IYsonConsumer* consumer, i64 value)
-    {
-        consumer->OnIntegerScalar(value);
+        WriteScalar(consumer, Stroka(value));
     }
 
 public:
