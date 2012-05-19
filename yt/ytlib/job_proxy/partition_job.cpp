@@ -67,20 +67,22 @@ TJobResult TPartitionJob::Run()
 {
     PROFILE_TIMING ("/partition_time") {
         LOG_INFO("Initializing");
-
-        Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
-
-        Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncOpen);
-
-        LOG_INFO("Partitioning.");
-//        Sleep(TDuration::Seconds(60));
-
-        while (Reader->IsValid()) {
-            Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncWriteRow, Reader->GetRow());
-            Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+        {
+            Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+            Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncOpen);
         }
+        PROFILE_TIMING_CHECKPOINT("init");
 
-        Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncClose);
+        LOG_INFO("Partitioning");
+        {
+            while (Reader->IsValid()) {
+                Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncWriteRow, Reader->GetRow());
+                Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+            }
+
+            Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncClose);
+        }
+        PROFILE_TIMING_CHECKPOINT("partition");
 
         LOG_INFO("Finalizing");
         {
