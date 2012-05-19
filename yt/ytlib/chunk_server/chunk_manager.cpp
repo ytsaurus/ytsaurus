@@ -238,12 +238,6 @@ public:
     DEFINE_SIGNAL(void(const THolder&), HolderUnregistered);
 
 
-    const THolder* FindHolder(const Stroka& address) const
-    {
-        auto it = HolderAddressMap.find(address);
-        return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
-    }
-
     THolder* FindHolder(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
@@ -1923,11 +1917,6 @@ TChunkManager::TChunkManager(
 
 TChunkManager::~TChunkManager()
 { }
-
-const THolder* TChunkManager::FindHolder(const Stroka& address) const
-{
-    return Impl->FindHolder(address);
-}
 
 THolder* TChunkManager::FindHolder(const Stroka& address)
 {

@@ -222,28 +222,16 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_METAMAP_ACCESSORS(entityName, entityType, idType) \
-    const entityType* Find ## entityName(const idType& id) const; \
     entityType* Find ## entityName(const idType& id); \
-    const entityType& Get ## entityName(const idType& id) const; \
     entityType& Get ## entityName(const idType& id); \
     yvector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
     yvector<entityType*> Get ## entityName ## s(size_t sizeLimit = Max<size_t>()); \
     int Get ## entityName ## Count() const;
 
 #define DEFINE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \
-    const entityType* declaringType::Find ## entityName(const idType& id) const \
-    { \
-        return (map).Find(id); \
-    } \
-    \
     entityType* declaringType::Find ## entityName(const idType& id) \
     { \
         return (map).Find(id); \
-    } \
-    \
-    const entityType& declaringType::Get ## entityName(const idType& id) const \
-    { \
-        return (map).Get(id); \
     } \
     \
     entityType& declaringType::Get ## entityName(const idType& id) \
@@ -267,19 +255,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     }
 
 #define DELEGATE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, delegateTo) \
-    const entityType* declaringType::Find ## entityName(const idType& id) const \
-    { \
-        return (delegateTo).Find ## entityName(id); \
-    } \
-    \
     entityType* declaringType::Find ## entityName(const idType& id) \
     { \
         return (delegateTo).Find ## entityName(id); \
-    } \
-    \
-    const entityType& declaringType::Get ## entityName(const idType& id) const \
-    { \
-        return (delegateTo).Get ## entityName(id); \
     } \
     \
     entityType& declaringType::Get ## entityName(const idType& id) \

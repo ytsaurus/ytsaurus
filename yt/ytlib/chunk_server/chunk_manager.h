@@ -67,8 +67,8 @@ public:
      */
     DECLARE_SIGNAL(void(const THolder&), HolderUnregistered);
 
-    const THolder* FindHolder(const Stroka& address) const;
     THolder* FindHolder(const Stroka& address);
+
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
     yvector<THolder*> AllocateUploadTargets(int replicaCount);
