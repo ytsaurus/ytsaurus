@@ -26,10 +26,10 @@ private:
         consumer->OnDoubleScalar(value);
     }
 
-    //static void WriteScalar(IYsonConsumer* consumer, i32 value)
-    //{
-    //    consumer->OnIntegerScalar(value);
-    //}
+    static void WriteScalar(IYsonConsumer* consumer, i32 value)
+    {
+        consumer->OnIntegerScalar(value);
+    }
 
     static void WriteScalar(IYsonConsumer* consumer, i64 value)
     {
