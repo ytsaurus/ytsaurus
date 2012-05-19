@@ -123,7 +123,7 @@ TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
             WindowStart);
     }
 
-    LOG_DEBUG("Chunk block %d is retrieved", blockIndex);
+    LOG_DEBUG("Chunk block %d retrieved", blockIndex);
 
     return slot.Block;
 }
@@ -160,7 +160,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
     Location->UpdateUsedSpace(data.Size());
     Size += data.Size();
 
-    LOG_DEBUG("Chunk block %d is received", blockIndex);
+    LOG_DEBUG("Chunk block %d received", blockIndex);
 
     EnqueueWrites();
 }
@@ -206,7 +206,7 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
             ex.what());
     }
 
-    LOG_DEBUG("Chunk block %d is written", blockIndex);
+    LOG_DEBUG("Chunk block %d written", blockIndex);
 
     return TVoid();
 }
