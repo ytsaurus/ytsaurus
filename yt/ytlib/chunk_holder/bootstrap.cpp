@@ -128,9 +128,9 @@ TJobExecutorPtr TBootstrap::GetJobExecutor() const
     return JobExecutor;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker() const
+IInvoker::TPtr TBootstrap::GetControlInvoker(NCellNode::EControlThreadQueue queueIndex) const
 {
-    return NodeBootstrap->GetControlInvoker();
+    return NodeBootstrap->GetControlInvoker(queueIndex);
 }
 
 TBlockStorePtr TBootstrap::GetBlockStore()

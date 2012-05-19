@@ -29,7 +29,7 @@ public:
     TChunkCachePtr GetChunkCache() const;
     TSessionManagerPtr GetSessionManager() const;
     TJobExecutorPtr GetJobExecutor() const;
-    IInvoker::TPtr GetControlInvoker() const;
+    IInvoker::TPtr GetControlInvoker(NCellNode::EControlThreadQueue queueIndex = NCellNode::EControlThreadQueue::Default) const;
     TBlockStorePtr GetBlockStore();
     NBus::IBusServer::TPtr GetBusServer() const;
     TPeerBlockTablePtr GetPeerBlockTable() const;

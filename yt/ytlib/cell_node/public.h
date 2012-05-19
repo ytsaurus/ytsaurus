@@ -13,6 +13,15 @@ struct TCellNodeConfig;
 typedef TIntrusivePtr<TCellNodeConfig> TCellNodeConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const int ControlThreadQueueCount = 2;
+
+DECLARE_ENUM(EControlThreadQueue,
+    (Default)
+    (Heartbeat)
+);
+
+////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NCellNode
 } // namespace NYT

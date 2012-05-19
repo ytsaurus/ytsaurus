@@ -81,8 +81,7 @@ void TBootstrap::Run()
     // TODO(babenko): for now we use the same timeout both for masters and scheduler
     SchedulerChannel = CreateSchedulerChannel(Config->Masters->RpcTimeout, MasterChannel);
 
-    auto controlQueue = New<TActionQueue>("Control");
-    ControlInvoker = controlQueue->GetInvoker();
+    ControlQueue = New<TMultiActionQueue>(ControlThreadQueueCount, "Control");
 
     BusServer = CreateNLBusServer(New<TNLBusServerConfig>(Config->RpcPort));
 
@@ -115,13 +114,13 @@ void TBootstrap::Run()
 
     auto orchidService = New<TOrchidService>(
         OrchidRoot,
-        controlQueue->GetInvoker());
+        GetControlInvoker());
     RpcServer->RegisterService(orchidService);
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(controlQueue->GetInvoker())));
+        NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
     ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->ChunkHolder, this));
     ChunkHolderBootstrap->Init();
@@ -148,9 +147,9 @@ TIncarnationId TBootstrap::GetIncarnationId() const
     return IncarnationId;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker() const
+IInvoker::TPtr TBootstrap::GetControlInvoker(EControlThreadQueue queueIndex) const
 {
-    return ControlInvoker;
+    return ControlQueue->GetInvoker(queueIndex);
 }
 
 IBusServer::TPtr TBootstrap::GetBusServer() const
