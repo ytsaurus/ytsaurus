@@ -25,6 +25,7 @@ private:
 
     TSchedulerConnectorConfigPtr Config;
     TBootstrap* Bootstrap;
+    IInvoker::TPtr ControlInvoker;
 
     NScheduler::TSchedulerServiceProxy Proxy;
     TPeriodicInvoker::TPtr HeartbeatInvoker;
