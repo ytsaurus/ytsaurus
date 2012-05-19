@@ -266,7 +266,7 @@ IChannelPtr CreateBusChannel(
     TNullable<TDuration> defaultTimeout)
 {
     return CreateBusChannel(
-        ~CreateNLBusClient(~New<TNLBusClientConfig>(address)),
+        ~CreateNLBusClient(New<TNLBusClientConfig>(address)),
         defaultTimeout);
 }
 

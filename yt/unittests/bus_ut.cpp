@@ -115,7 +115,7 @@ private:
 void TestReplies(int numRequests, int numParts)
 {
     auto server = StartBusServer(~New<TReplying42BusHandler>(numParts));
-    auto client = CreateNLBusClient(~New<TNLBusClientConfig>("localhost:2000"));
+    auto client = CreateNLBusClient(New<TNLBusClientConfig>("localhost:2000"));
     auto handler = New<TChecking42BusHandler>(numRequests);
     auto bus = client->CreateBus(~handler);
     auto message = CreateMessage(numParts);
@@ -138,7 +138,7 @@ void TestReplies(int numRequests, int numParts)
 TEST(TBusTest, OK)
 {
     auto server = StartBusServer(~New<TEmptyBusHandler>());
-    auto client = CreateNLBusClient(~New<TNLBusClientConfig>("localhost:2000"));
+    auto client = CreateNLBusClient(New<TNLBusClientConfig>("localhost:2000"));
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message).Get();
@@ -148,7 +148,7 @@ TEST(TBusTest, OK)
 
 TEST(TBusTest, Failed)
 {
-    auto client = CreateNLBusClient(~New<TNLBusClientConfig>("localhost:2000"));
+    auto client = CreateNLBusClient(New<TNLBusClientConfig>("localhost:2000"));
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message).Get();
