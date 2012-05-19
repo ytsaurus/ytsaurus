@@ -290,7 +290,7 @@ private:
         auto& table = OutputTables[0];
         YASSERT(table.PartitionTreeIds[partition->Index] == NullChunkTreeId);
         table.PartitionTreeIds[partition->Index] = chunkTreeId;
-        ++CompletedPartitionChunkCount;
+        ++CompletedPartitionCount;
         LOG_INFO("Partition %d is complete", partition->Index);
     }
 
@@ -735,6 +735,7 @@ private:
     {
         LOG_DEBUG("Progress: "
             "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
+            "Partitions = {T: %d, C: %d}, "
             "PartitionJobs = {T: %d, R: %d, C: %d, P: %d}, "
             "PartitionChunks = {T: %d, C: %d, P: %d}, "
             "PartitionWeight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}, "
@@ -745,6 +746,9 @@ private:
             CompletedJobCount,
             GetPendingJobCount(),
             FailedJobCount,
+            // Partitions
+            static_cast<int>(Partitions.size()),
+            CompletedPartitionCount,
             // PartitionJobs
             TotalPartitionJobCount,
             RunningPartitionJobCount,
@@ -782,6 +786,10 @@ private:
             .Item("merge_jobs").BeginMap()
                 .Item("total").Scalar(0)
                 .Item("completed").Scalar(0)
+            .EndMap()
+            .Item("partitions").BeginMap()
+                .Item("total").Scalar(Partitions.size())
+                .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap();
     }
 
