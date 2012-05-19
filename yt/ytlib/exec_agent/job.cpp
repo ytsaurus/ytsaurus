@@ -81,14 +81,14 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         auto ioConfig = New<TJobIOConfig>();
         {
             auto node = DeserializeFromYson(JobSpec.io_config());
-            ioConfig->Load(~node);
+            ioConfig->Load(node);
             ioConfig->Validate();
         }
 
         auto proxyConfig = New<TJobProxyConfig>();
         {
             auto node = DeserializeFromYson(ProxyConfig);
-            proxyConfig->Load(~node);
+            proxyConfig->Load(node);
             proxyConfig->Validate();
         }
         proxyConfig->JobIO = ioConfig;
@@ -130,7 +130,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     // ToDo(psushin): create job proxy config.
 
-    auto awaiter = New<TParallelAwaiter>(~Slot->GetInvoker());
+    auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
 
     if (JobSpec.HasExtension(NScheduler::NProto::TUserJobSpec::user_job_spec)) {
         const auto& userSpec = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpec::user_job_spec);
