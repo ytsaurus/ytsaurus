@@ -242,13 +242,13 @@ public:
     THolder* FindHolderByAddresss(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
-        return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
+        return it == HolderAddressMap.end() ? NULL : it->second;
     }
 
     THolder* FindHolderByHostName(const Stroka& hostName)
     {
         auto it = HolderHostNameMap.find(hostName);
-        return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
+        return it == HolderAddressMap.end() ? NULL : it->second;
     }
 
     const TReplicationSink* FindReplicationSink(const Stroka& address)
@@ -447,8 +447,8 @@ private:
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
 
     TMetaStateMap<THolderId, THolder> HolderMap;
-    yhash_map<Stroka, THolderId> HolderAddressMap;
-    yhash_multimap<Stroka, THolderId> HolderHostNameMap;
+    yhash_map<Stroka, THolder*> HolderAddressMap;
+    yhash_multimap<Stroka, THolder*> HolderHostNameMap;
 
     TMetaStateMap<TChunkId, TJobList> JobListMap;
     TMetaStateMap<TJobId, TJob> JobMap;
@@ -728,8 +728,8 @@ private:
             statistics);
 
         HolderMap.Insert(holderId, newHolder);
-        HolderAddressMap.insert(MakePair(address, holderId));
-        HolderHostNameMap.insert(MakePair(GetServiceHostName(address), holderId));
+        HolderAddressMap.insert(MakePair(address, newHolder));
+        HolderHostNameMap.insert(MakePair(GetServiceHostName(address), newHolder));
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder, false);
@@ -919,11 +919,10 @@ private:
         HolderAddressMap.clear();
         HolderHostNameMap.clear();
         FOREACH (const auto& pair, HolderMap) {
-            const auto* holder = pair.second;
-            auto id = holder->GetId();
+            auto* holder = pair.second;
             const auto& address = holder->GetAddress();
-            YVERIFY(HolderAddressMap.insert(MakePair(address, id)).second);
-            HolderHostNameMap.insert(MakePair(GetServiceHostName(address), id));
+            YVERIFY(HolderAddressMap.insert(MakePair(address, holder)).second);
+            HolderHostNameMap.insert(MakePair(GetServiceHostName(address), holder));
         }
 
         // Reconstruct ReplicationSinkMap.
@@ -1044,7 +1043,7 @@ private:
             {
                 auto hostNameRange = HolderHostNameMap.equal_range(GetServiceHostName(address));
                 for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
-                    if (it->second == holderId) {
+                    if (it->second == &holder) {
                         HolderHostNameMap.erase(it);
                         break;
                     }
