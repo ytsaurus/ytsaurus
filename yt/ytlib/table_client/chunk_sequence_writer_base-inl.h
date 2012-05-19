@@ -5,11 +5,14 @@
 
 #include "private.h"
 #include "schema.h"
+
 #include <ytlib/misc/string.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
+
+#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -56,12 +59,16 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
         Config->UploadReplicationFactor);
 
     NObjectServer::TObjectServiceProxy objectProxy(MasterChannel);
+
     auto req = NTransactionServer::TTransactionYPathProxy::CreateObject(
         NCypress::FromObjectId(TransactionId));
     req->set_type(NObjectServer::EObjectType::Chunk);
+
     auto* reqExt = req->MutableExtension(NChunkServer::NProto::TReqCreateChunk::create_chunk);
+    reqExt->set_preferred_node_address(GetHostName());
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
+
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriterBase::OnChunkCreated, MakeWeak(this))
         .Via(NChunkClient::WriterThread->GetInvoker()));

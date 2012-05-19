@@ -36,8 +36,14 @@ message TReqCreateChunk
         optional TReqCreateChunk create_chunk = 100;
     }
 
+    // Requested number of nodes to write.
     required int32 upload_replication_factor = 1;
+ 
+    // Desired number of copies (including those created by background replication).
     required int32 replication_factor = 2;
+ 
+    // FQDN (without port number) to be preffered.
+    optional string preferred_node_address = 3;
 }
 
 message TRspCreateChunk

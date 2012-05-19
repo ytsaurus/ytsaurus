@@ -13,6 +13,8 @@
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 
+#include <util/system/hostname.h>
+
 namespace NYT {
 namespace NFileClient {
 
@@ -57,16 +59,21 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
     std::vector<Stroka> addresses;
     {
         TObjectServiceProxy objectProxy(MasterChannel);
+
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
         req->set_type(EObjectType::Chunk);
+
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
+        reqExt->set_preferred_node_address(GetHostName());
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Config->ReplicationFactor);
+
         auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
                 ~rsp->GetError().ToString());
         }
+
         ChunkId = TChunkId::FromProto(rsp->object_id());
         const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
         addresses = FromProto<Stroka>(rspExt.node_addresses());
