@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
-#include <ytlib/misc/enum.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/cypress/public.h>

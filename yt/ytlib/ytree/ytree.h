@@ -5,8 +5,6 @@
 #include "ypath_service.h"
 #include "yson_consumer.h"
 
-#include <ytlib/misc/enum.h>
-
 namespace NYT {
 namespace NYTree {
 

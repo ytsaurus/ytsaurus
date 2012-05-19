@@ -2,7 +2,6 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/guid.h>
-#include <ytlib/misc/enum.h>
 #include <ytlib/transaction_server/public.h>
 
 namespace NYT {

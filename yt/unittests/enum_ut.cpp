@@ -1,10 +1,10 @@
 #include "stdafx.h"
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/enum.h>
 
 #include <util/stream/buffer.h>
 #include <util/ysaveload.h>
+
 #include <contrib/testing/framework.h>
 
 namespace NYT {

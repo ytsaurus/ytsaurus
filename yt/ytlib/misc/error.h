@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "enum.h"
 #include "property.h"
 
 #include <ytlib/misc/error.pb.h>

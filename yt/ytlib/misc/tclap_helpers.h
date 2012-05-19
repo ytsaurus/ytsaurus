@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "guid.h"
-#include "enum.h"
 #include "string.h"
 #include "nullable.h"
 

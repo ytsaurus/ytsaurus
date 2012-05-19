@@ -1,8 +1,7 @@
 #pragma once
 
-#include <ytlib/actions/callback_forward.h>
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/enum.h>
+#include <ytlib/actions/callback_forward.h>
 
 namespace NYT {
 namespace NYTree {

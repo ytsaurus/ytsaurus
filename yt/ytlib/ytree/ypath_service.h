@@ -5,7 +5,6 @@
 
 #include <ytlib/rpc/public.h>
 #include <ytlib/misc/property.h>
-#include <ytlib/misc/enum.h>
 
 namespace NYT {
 namespace NYTree {

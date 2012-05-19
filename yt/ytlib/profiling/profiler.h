@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <ytlib/ytree/public.h>
-#include <ytlib/misc/enum.h>
 #include <ytlib/misc/property.h>
 
 namespace NYT {

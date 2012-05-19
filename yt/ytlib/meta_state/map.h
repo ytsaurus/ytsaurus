@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <ytlib/misc/enum.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/future.h>
 

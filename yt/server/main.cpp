@@ -1,6 +1,5 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/bus/nl_client.h>
 #include <ytlib/logging/log_manager.h>

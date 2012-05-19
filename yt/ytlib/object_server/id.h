@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <ytlib/misc/enum.h>
 #include <ytlib/misc/guid.h>
 
 namespace NYT {
