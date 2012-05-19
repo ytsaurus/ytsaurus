@@ -82,3 +82,4 @@ using std::string; // hack for guid.h to work
 #include "new.h"
 #include "arcadia_helper.h"
 #include "hash.h"
+#include "enum.h"
