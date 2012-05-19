@@ -32,7 +32,7 @@ message TInputChunk
     required TChunkSlice slice = 1;
 
     // Initial seed addresses. The reader may ask the master for additional ones.
-    repeated string holder_addresses = 2;
+    repeated string node_addresses = 2;
 
     // Column filter.
     required TChannel channel = 3;
