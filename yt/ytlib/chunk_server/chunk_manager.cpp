@@ -1729,7 +1729,7 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             : Null;
 
         auto nodes = Owner->AllocateUploadTargets(nodeCount, preferredHostName);
-        FOREACH (auto node, nodes) {
+        FOREACH (auto* node, nodes) {
             responseExt->add_node_addresses(node->GetAddress());
         }
 
