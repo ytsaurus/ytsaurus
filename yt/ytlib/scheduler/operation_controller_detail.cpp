@@ -138,16 +138,12 @@ TFuture<void> TOperationControllerBase::Revive()
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
 {
-    LOG_DEBUG("Job %s is running", ~job->GetId().ToString());
+    UNUSED(job);
 }
 
 void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Job %s completed\n%s",
-        ~job->GetId().ToString(),
-        ~TError::FromProto(job->Result().error()).ToString());
 
     --RunningJobCount;
     ++CompletedJobCount;
@@ -167,10 +163,6 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Job %s failed\n%s",
-        ~job->GetId().ToString(),
-        ~TError::FromProto(job->Result().error()).ToString());
 
     --RunningJobCount;
     ++FailedJobCount;
