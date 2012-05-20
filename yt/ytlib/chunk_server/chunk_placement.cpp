@@ -106,6 +106,7 @@ std::vector<THolder*> TChunkPlacement::GetUploadTargets(
         preferredHolder = chunkManager->FindHolderByHostName(*preferredHostName);
         if (preferredHolder && IsValidUploadTarget(*preferredHolder)) {
             resultHolders.push_back(preferredHolder);
+            --count;
         }
     }
 
