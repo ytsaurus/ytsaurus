@@ -56,11 +56,9 @@ IMessage::TPtr TClientRequest::Serialize() const
         Attachments_);
 }
 
-void TClientRequest::DoInvoke(
-    IClientResponseHandlerPtr responseHandler,
-    TNullable<TDuration> timeout)
+void TClientRequest::DoInvoke(IClientResponseHandlerPtr responseHandler)
 {
-    Channel->Send(this, responseHandler, timeout);
+    Channel->Send(this, responseHandler, Timeout_);
 }
 
 const Stroka& TClientRequest::GetPath() const

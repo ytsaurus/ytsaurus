@@ -86,9 +86,7 @@ protected:
 
     virtual TBlob SerializeBody() const = 0;
 
-    void DoInvoke(
-        IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout);
+    void DoInvoke(IClientResponseHandlerPtr responseHandler);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,7 +109,7 @@ public:
     {
         auto response = NYT::New<TResponse>(GetRequestId());
         auto asyncResult = response->GetAsyncResult();
-        DoInvoke(response, Timeout_);
+        DoInvoke(response);
         return asyncResult;
     }
 
@@ -141,11 +139,13 @@ struct IClientResponseHandler
 {
     //! Request delivery has been acknowledged.
     virtual void OnAcknowledgement() = 0;
+    
     //! The request has been replied with #EErrorCode::OK.
     /*!
      *  \param message A message containing the response.
      */
     virtual void OnResponse(NBus::IMessage* message) = 0;
+
     //! The request has failed.
     /*!
      *  \param error An error that has occurred.
