@@ -144,7 +144,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(~configNode, false);
+            config->Load(configNode, false);
 
             // Override RPC port.
             // TODO(babenko): enable overriding arbitrary options from the command line
@@ -172,7 +172,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(~configNode, false);
+            config->Load(configNode, false);
 
             // Override RPC port.
             if (port >= 0) {
@@ -199,7 +199,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(~configNode);
+            config->Load(configNode);
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing cell scheduler configuration\n%s",
                 ex.what());
@@ -217,23 +217,22 @@ EExitCode GuardedMain(int argc, const char* argv[])
             return EExitCode::OK;
         }
 
-        NJobProxy::TJobId jobId;
+        TJobId jobId;
         try {
             jobId = TGuid::FromString(parser.JobId.getValue());
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Invalid job-id value: %s",
+            ythrow yexception() << Sprintf("Error parsing job id\n%s",
                 ex.what());
-            return EExitCode::OptionsError;
         }
 
         try {
-            config->Load(~configNode);
+            config->Load(configNode);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing job-proxy configuration\n%s",
+            ythrow yexception() << Sprintf("Error parsing job proxy configuration\n%s",
                 ex.what());
         }
 
-        TJobProxy jobProxy(~config, jobId);
+        TJobProxy jobProxy(config, jobId);
         jobProxy.Start();
     }
 
