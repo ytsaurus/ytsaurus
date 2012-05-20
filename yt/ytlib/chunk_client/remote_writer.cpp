@@ -599,7 +599,7 @@ void TRemoteWriter::AddGroup(TGroupPtr group)
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Added blocks %d-%d",
+    LOG_DEBUG("Added block group %d-%d",
         group->GetStartBlockIndex(),
         group->GetEndBlockIndex());
 
