@@ -1249,7 +1249,8 @@ private:
 
                     case EJobState::Failed:
                         if (job) {
-                            LOG_INFO("Job failed, removal scheduled");
+                            LOG_INFO("Job failed, removal scheduled\n%s",
+                                ~TError::FromProto(job->Result().error()).ToString());
                             OnJobFailed(job, jobStatus.result());
                         } else {
                             LOG_INFO("Unknown job has failed, removal scheduled");
