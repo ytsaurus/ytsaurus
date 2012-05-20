@@ -861,7 +861,9 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     YASSERT(!IsClosing);
 
     FOREACH (const auto& block, blocks) {
-        LOG_DEBUG("Block %d added", BlockCount);
+        LOG_DEBUG("Block %d added (Size: %" PRISZT ")",
+            BlockCount,
+            block.Size());
 
         CurrentGroup->AddBlock(block);
         ++BlockCount;
