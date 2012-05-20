@@ -53,6 +53,10 @@ TPartitionJob::TPartitionJob(
         jobSpec.partition_keys().begin(), 
         jobSpec.partition_keys().end());
 
+    // TODO(babenko): hack! remove this once io_config, which is passed from the scheduler,
+    // works properly.
+    ioConfig->ChunkSequenceWriter->ReplicationFactor = 1;
+    ioConfig->ChunkSequenceWriter->UploadReplicationFactor = 1;
     Writer = New<TPartitionChunkSequenceWriter>(
         ioConfig->ChunkSequenceWriter,
         masterChannel,
