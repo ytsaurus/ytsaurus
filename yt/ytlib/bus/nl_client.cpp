@@ -484,17 +484,17 @@ class TNLClientManager::TImpl
 
     void DoProcessMessage(TPacketHeader* header, const TGuid& requestId, TBlob&& data, bool isRequest)
     {
-        size_t dataSize = data.size();
+        size_t size = data.size();
         const auto& sessionId = header->SessionId;
 
-        ProfileIn(dataSize);
+        ProfileIn(size);
 
         auto busIt = FindBus(sessionId);
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, Size: %" PRISZT ")",
                 ~sessionId.ToString(),
                 ~requestId.ToString(),
-                dataSize);
+                size);
             return;
         }
 
@@ -505,12 +505,12 @@ class TNLClientManager::TImpl
             return;
         }
 
-        LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
+        LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Size: %" PRISZT ")",
             (int) isRequest,
             ~sessionId.ToString(),
             ~requestId.ToString(),
             sequenceId,
-            dataSize);
+            size);
 
         auto& bus = busIt->second;
         bus->ProcessIncomingMessage(message, sequenceId);
