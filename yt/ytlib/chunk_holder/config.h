@@ -142,7 +142,7 @@ struct TChunkHolderConfig
             .GreaterThan(0)
             .Default(10);
         Register("session_timeout", SessionTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(30));
         Register("holder_rpc_timeout", HolderRpcTimeout)
             .Default(TDuration::Seconds(15));
         Register("peer_update_period", PeerUpdatePeriod)
