@@ -32,14 +32,11 @@ private:
     NScheduler::NProto::TJobSpec GetJobSpec();
     void ReportResult(const NScheduler::NProto::TJobResult& result);
 
-    typedef NExecAgent::TSupervisorServiceProxy TProxy;
-
     TJobProxyConfigPtr Config;
-    TProxy Proxy;
+    NExecAgent::TSupervisorServiceProxy Proxy;
+    NScheduler::TJobId JobId;
+
     TAutoPtr<IJob> Job;
-
-    const NScheduler::TJobId JobId;
-
     TPeriodicInvoker::TPtr HeartbeatInvoker;
 };
 

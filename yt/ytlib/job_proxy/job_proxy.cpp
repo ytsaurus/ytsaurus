@@ -27,7 +27,7 @@ TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
     const TJobId& jobId)
     : Config(config)
-    , Proxy(~NRpc::CreateBusChannel(config->ExecAgentAddress))
+    , Proxy(NRpc::CreateBusChannel(config->ExecAgentAddress))
     , JobId(jobId)
 {
     Proxy.SetDefaultTimeout(config->RpcTimeout);
@@ -62,7 +62,7 @@ TJobSpec TJobProxy::GetJobSpec()
     auto rsp = req->Invoke().Get();
 
     if (!rsp->IsOK()) {
-        ythrow yexception() << Sprintf("Failed to get job spec (JobId: %s, Error: %s)",
+        ythrow yexception() << Sprintf("Failed to get job spec (JobId: %s)\n%s",
             ~JobId.ToString(),
             ~rsp->GetError().ToString());
     }
