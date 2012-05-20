@@ -1733,10 +1733,12 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s)",
+        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
             ~JoinToString(responseExt->node_addresses()),
             ~chunk.GetId().ToString(),
-            ~ToString(preferredHostName));
+            ~ToString(preferredHostName),
+            requestExt->replication_factor(),
+            requestExt->upload_replication_factor());
     }
 
     return chunk.GetId();
