@@ -469,7 +469,7 @@ private:
 
         // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
         // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-        auto ioConfig = GetJobIOCOnfig(partition->Small);
+        auto ioConfig = GetJobIOConfig(partition->Small);
         jobSpec.set_io_config(SerializeToYson(ioConfig));
 
         // Update counters.
@@ -796,7 +796,7 @@ private:
 
     // Unsorted helpers.
 
-    TJobIOConfigPtr GetJobIOCOnfig(bool replicateOutput)
+    TJobIOConfigPtr GetJobIOConfig(bool replicateOutput)
     {
         if (replicateOutput) {
             return Spec->JobIO;
@@ -822,7 +822,7 @@ private:
             *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = specExt;
 
             // Don't replicate partition chunks.
-            PartitionJobSpecTemplate.set_io_config(SerializeToYson(GetJobIOCOnfig(false)));
+            PartitionJobSpecTemplate.set_io_config(SerializeToYson(GetJobIOConfig(false)));
         }
         {
             SortJobSpecTemplate.set_type(EJobType::Sort);
