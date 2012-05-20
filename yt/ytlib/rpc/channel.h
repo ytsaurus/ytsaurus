@@ -43,7 +43,7 @@ struct IChannel
 
 //! Creates a channel implemented via NBus.
 IChannelPtr CreateBusChannel(
-    NBus::IBusClient* client,
+    NBus::IBusClient::TPtr client,
     TNullable<TDuration> defaultTimeout = Null);
 
 //! Creates a channel implemented via NBus.
