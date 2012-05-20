@@ -39,7 +39,7 @@ TChunkHolderService::TChunkHolderService(
     TChunkHolderConfigPtr config,
     TBootstrap* bootstrap)
     : NRpc::TServiceBase(
-        ~bootstrap->GetControlInvoker(),
+        bootstrap->GetControlInvoker(),
         TProxy::GetServiceName(),
         ChunkHolderLogger.GetCategory())
     , Config(config)
@@ -196,8 +196,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
 
     auto startBlock = session->GetBlock(startBlockIndex);
 
-    TProxy proxy(~ChannelCache.GetChannel(address));
-    auto putRequest = proxy.PutBlocks();
+    TProxy proxy(ChannelCache.GetChannel(address));
+    auto putRequest = proxy.PutBlocks()
+        ->SetTimeout(Config->HolderRpcTimeout);
     *putRequest->mutable_chunk_id() = chunkId.ToProto();
     putRequest->set_start_block_index(startBlockIndex);
     
@@ -234,7 +235,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     response->Attachments().resize(blockCount);
 
     // NB: All callbacks should be handled in the control thread.
-    auto awaiter = New<TParallelAwaiter>(~Bootstrap->GetControlInvoker());
+    auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
 
     auto peerBlockTable = Bootstrap->GetPeerBlockTable();
     for (int index = 0; index < blockCount; ++index) {
