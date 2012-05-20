@@ -118,7 +118,7 @@ void TClientResponseBase::OnError(const TError& error)
         ~error.ToString());
 
     {
-        TGuard<TSpinLock> guard(&SpinLock);
+        TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done) {
             // Ignore the error.
             // Most probably this is a late timeout.
@@ -173,7 +173,7 @@ void TClientResponse::OnAcknowledgement()
 {
     LOG_DEBUG("Request acknowledged (RequestId: %s)", ~RequestId_.ToString());
 
-    TGuard<TSpinLock> guard(&SpinLock);
+    TGuard<TSpinLock> guard(SpinLock);
     if (State == EState::Sent) {
         State = EState::Ack;
     }
@@ -184,7 +184,7 @@ void TClientResponse::OnResponse(IMessage* message)
     LOG_DEBUG("Response received (RequestId: %s)", ~RequestId_.ToString());
 
     {
-        TGuard<TSpinLock> guard(&SpinLock);
+        TGuard<TSpinLock> guard(SpinLock);
         YASSERT(State == EState::Sent || State == EState::Ack);
         State = EState::Done;
     }
@@ -215,7 +215,7 @@ void TOneWayClientResponse::OnAcknowledgement()
     LOG_DEBUG("Request acknowledged (RequestId: %s)", ~RequestId_.ToString());
 
     {
-        TGuard<TSpinLock> guard(&SpinLock);
+        TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done) {
             // Ignore the ack.
             return;
