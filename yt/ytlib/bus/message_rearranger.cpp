@@ -10,7 +10,7 @@ namespace NBus {
 
 TMessageRearranger::TMessageRearranger(
     const TSessionId& sessionId,
-    TCallback<void(IMessage*)> onMessage,
+    TCallback<void(IMessage::TPtr)> onMessage,
     TDuration timeout)
     : SessionId(sessionId)
     , OnMessageDequeued(onMessage)
@@ -24,7 +24,7 @@ TMessageRearranger::TMessageRearranger(
 }
 
 void TMessageRearranger::EnqueueMessage(
-    IMessage* message,
+    IMessage::TPtr message,
     const TGuid& requestId,
     TSequenceId sequenceId)
 {
