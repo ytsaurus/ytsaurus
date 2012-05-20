@@ -293,7 +293,7 @@ private:
     TReq##method##Ptr method() \
     { \
         return \
-            New<TReq##method>(~Channel, ServiceName, #method, false) \
+            New<TReq##method>(Channel, ServiceName, #method, false) \
             ->SetTimeout(DefaultTimeout_); \
     }
 
@@ -311,7 +311,7 @@ private:
     TReq##method##Ptr method() \
     { \
         return \
-            New<TReq##method>(~Channel, ServiceName, #method, true) \
+            New<TReq##method>(Channel, ServiceName, #method, true) \
             ->SetTimeout(DefaultTimeout_); \
     }
 
