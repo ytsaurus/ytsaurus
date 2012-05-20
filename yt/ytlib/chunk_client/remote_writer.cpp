@@ -599,7 +599,8 @@ void TRemoteWriter::AddGroup(TGroupPtr group)
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Added block group %d-%d",
+    LOG_DEBUG("Added block group (Group: %p, BlockIndexes: %d-%d)",
+        ~group,
         group->GetStartBlockIndex(),
         group->GetEndBlockIndex());
 
@@ -861,13 +862,14 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     YASSERT(!IsClosing);
 
     FOREACH (const auto& block, blocks) {
-        LOG_DEBUG("Block %d added (Size: %" PRISZT ")",
-            BlockCount,
-            block.Size());
 
         CurrentGroup->AddBlock(block);
         ++BlockCount;
 
+        LOG_DEBUG("Added block %d (Group: %p, Size: %" PRISZT ")",
+            BlockCount,
+            ~CurrentGroup,
+            block.Size());
         if (CurrentGroup->GetSize() >= Config->GroupSize) {
             WriterThread->GetInvoker()->Invoke(BIND(
                 &TRemoteWriter::AddGroup,
