@@ -82,7 +82,7 @@ TSessionPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
     auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
     if (!session) {
         ythrow TServiceException(EErrorCode::NoSuchSession) <<
-            Sprintf("Session %s is invalid or expired", ~chunkId.ToString());
+            Sprintf("Chunk upload session %s is invalid or expired", ~chunkId.ToString());
     }
     return session;
 }
