@@ -467,7 +467,7 @@ private:
                     ~address,
                     ~JoinToString(unfetchedBlockIndexes));
 
-                auto channel = HolderChannelCache->GetChannel(address);
+                auto channel = NodeChannelCache->GetChannel(address);
 
                 TChunkHolderServiceProxy proxy(~channel);
                 proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
@@ -650,7 +650,7 @@ private:
 
         LOG_INFO("Requesting chunk info from %s", ~address);
 
-        auto channel = HolderChannelCache->GetChannel(address);
+        auto channel = NodeChannelCache->GetChannel(address);
 
         TChunkHolderServiceProxy proxy(~channel);
         proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);

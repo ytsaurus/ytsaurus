@@ -65,8 +65,8 @@ private:
     class TGroup;
     typedef TIntrusivePtr<TGroup> TGroupPtr;
 
-    struct THolder;
-    typedef TIntrusivePtr<THolder> THolderPtr;
+    struct TNode;
+    typedef TIntrusivePtr<TNode> TNodePtr;
     
     typedef ydeque<TGroupPtr> TWindow;
 
@@ -91,10 +91,10 @@ private:
     TWindow Window;
     TAsyncSemaphore WindowSlots;
 
-    std::vector<THolderPtr> Holders;
+    std::vector<TNodePtr> Nodes;
 
-    //! Number of holders that are still alive.
-    int AliveHolderCount;
+    //! Number of nodes that are still alive.
+    int AliveNodeCount;
 
     //! A new group of blocks that is currently being filled in by the client.
     //! All access to this field happens from client thread.
@@ -103,7 +103,7 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
-    //! Returned from holder in Finish.
+    //! Returned from node in Finish.
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
 
     TMetric StartChunkTiming;
@@ -120,38 +120,38 @@ private:
 
     void RegisterReadyEvent(TFuture<void> windowReady);
 
-    void OnHolderFailed(THolderPtr holder);
+    void OnNodeFailed(TNodePtr node);
 
     void ShiftWindow();
 
-    TProxy::TInvFlushBlock FlushBlock(THolderPtr holder, int blockIndex);
+    TProxy::TInvFlushBlock FlushBlock(TNodePtr node, int blockIndex);
 
-    void OnBlockFlushed(THolderPtr holder, int blockIndex, TProxy::TRspFlushBlockPtr rsp);
+    void OnBlockFlushed(TNodePtr node, int blockIndex, TProxy::TRspFlushBlockPtr rsp);
 
     void OnWindowShifted(int blockIndex);
 
-    TProxy::TInvStartChunk StartChunk(THolderPtr holder);
+    TProxy::TInvStartChunk StartChunk(TNodePtr node);
 
-    void OnChunkStarted(THolderPtr holder, TProxy::TRspStartChunkPtr rsp);
+    void OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkPtr rsp);
 
     void OnSessionStarted();
 
     void CloseSession();
 
-    TProxy::TInvFinishChunk FinishChunk(THolderPtr holder);
+    TProxy::TInvFinishChunk FinishChunk(TNodePtr node);
 
-    void OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunkPtr rsp);
+    void OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkPtr rsp);
 
     void OnSessionFinished();
 
-    void PingSession(THolderPtr holder);
-    void SchedulePing(THolderPtr holder);
-    void CancelPing(THolderPtr holder);
+    void SendPing(TNodePtr node);
+    void StartPing(TNodePtr node);
+    void CancelPing(TNodePtr node);
     void CancelAllPings();
 
     template <class TResponse>
     void CheckResponse(
-        THolderPtr holder, 
+        TNodePtr node, 
         TCallback<void(TIntrusivePtr<TResponse>)> onSuccess,
         TMetric* metric,
         TIntrusivePtr<TResponse> rsp);
