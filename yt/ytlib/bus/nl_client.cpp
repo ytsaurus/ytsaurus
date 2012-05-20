@@ -546,6 +546,7 @@ class TNLClientManager::TImpl
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Outcoming request via an obsolete session is dropped (RequestId: %s)",
                 ~request->RequestId.ToString());
+            return;
         }
 
         auto& bus = busIt->second;
