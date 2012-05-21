@@ -19,6 +19,12 @@ var opts = require("optimist")
     .default("i", "0.0.0.0")
     .describe("i", "Specify interface to listen")
 
+    .alias("u", "user")
+    .describe("u", "Specify a user to setuid() to")
+
+    .alias("g", "group")
+    .describe("g", "Specify a group to setgid() to")
+
     .alias("h", "help")
     .boolean("h")
     .describe("h", "Show help message")
@@ -33,9 +39,26 @@ fs.readFile(opts.argv.c, function(err, configuration) {
     if (err) {
         throw err;
     }
-    connect()
-        .use(connect.favicon())
-        .use(connect.logger("dev"))
-        .use("/api", yt.YtApplication(configuration.toString()))
-        .listen(opts.argv.p, opts.argv.i);
+    try {
+        connect()
+            .use(connect.favicon())
+            .use(connect.logger("dev"))
+            .use("/api", yt.YtApplication(configuration.toString()))
+            .listen(opts.argv.p, opts.argv.i, function() {
+                if (opts.argv.u) {
+                    process.setuid(opts.argv.u);
+                }
+                if (opts.argv.g) {
+                    process.setgid(opts.argv.g);
+                }
+
+                if (process.getuid() == 0 || process.getgid() == 0) {
+                    console.error("Error: [Failed to drop privileges; aborting.]");
+                    process.exit(100);
+                }
+            });
+    } catch(ex) {
+        console.error("Error: [%s] Call: [%s]", err.message, err.syscall);
+        process.exit(200);
+    }
 });
