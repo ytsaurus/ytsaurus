@@ -285,7 +285,7 @@ class TNLClientManager::TImpl
         if (requestIt == RequestMap.end()) {
             LOG_DEBUG("Response is unmatched (RequestId: %s)",
                 ~requestId.ToString());
-            YVERIFY(UnmatchedResponseMap.insert(MakePair(requestId, ~nlResponse)).second);
+            YVERIFY(UnmatchedResponseMap.insert(MakePair(requestId, nlResponse.Release())).second);
             return;
         }
 
