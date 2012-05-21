@@ -170,6 +170,8 @@ private:
 
     void AddPendingChunkForSort(TPartitionPtr partition, const TInputChunk& chunk, i64 weight)
     {
+        // TODO(babenko): avoid excessive copying
+
         auto stripe = New<TChunkStripe>(chunk, weight);
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
 
@@ -389,8 +391,13 @@ private:
         CompletedPartitionWeight += jip->ExtractResult->TotalChunkWeight;
 
         auto result = jip->Job->Result().GetExtension(TPartitionJobResult::partition_job_result);
-        FOREACH (const auto& partitionChunk, result.chunks()) {
+        FOREACH (auto& partitionChunk, *result.mutable_chunks()) {
+            // We're keeping chunk information received from partition jobs to populate sort pools.
+            // TPartitionsExt is, however, quite heavy.
+            // Deserialize it and then drop its protobuf copy immediately.
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
+            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.mutable_extensions());
+
             YASSERT(partitionsExt->sizes_size() == Partitions.size());
             LOG_DEBUG("Partition sizes are [%s]", ~JoinToString(partitionsExt->sizes()));
             for (int index = 0; index < partitionsExt->sizes_size(); ++index) {
@@ -398,7 +405,6 @@ private:
                 if (weight > 0) {
                 	auto partition = Partitions[index];
                 	i64 weight = partitionsExt->sizes(index);
-            	    // TODO(babenko): avoid excessive copying
          	       AddPendingChunkForSort(partition, partitionChunk, weight);                }
             }
         }
