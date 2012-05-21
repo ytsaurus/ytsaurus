@@ -43,6 +43,7 @@ private:
 
     static void WriteScalar(IYsonConsumer* consumer, ui64 value)
     {
+        YASSERT(value <= std::numeric_limits<i64>::max());
         WriteScalar(consumer, static_cast<i64>(value));
     }
 
