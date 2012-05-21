@@ -71,6 +71,23 @@ void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value)
     extension->set_tag(tag);
 }
 
+template <class T>
+bool RemoveProtoExtension(NProto::TExtensionSet* extensions)
+{
+    i32 tag = GetProtoExtensionTag<T>();
+    for (int index = 0; index < extensions->extensions_size(); ++index) {
+        const auto& currentExtension = extensions->extensions(index);
+        if (currentExtension.tag() == tag) {
+            // Make it the last one.
+            extensions->mutable_extensions()->SwapElements(index, extensions->extensions_size() - 1);
+            // And then drop.
+            extensions->mutable_extensions()->RemoveLast();
+            return true;
+        }
+    }
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
