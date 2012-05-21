@@ -96,6 +96,7 @@ cmake \
     -DCMAKE_COLOR_MAKEFILE:BOOL=OFF \
     -DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON \
     -DYT_BUILD_ENABLE_TESTS:BOOL=ON \
+    -DYT_BUILD_ENABLE_NODEJS:BOOL=ON \
     -DYT_BUILD_NUMBER=$BUILD_NUMBER \
     -DYT_BUILD_TAG=$(echo $BUILD_VCS_NUMBER | cut -c 1-7) \
     $CHECKOUT_DIRECTORY
@@ -128,8 +129,10 @@ if [[ ( $WITH_PACKAGE = "YES" ) ]]; then
 
     package_version=$(cat ytversion)
 
-    changes_file=ARTIFACTS/${package_name}_${package_version}_amd64.changes
-    dupload --to common --nomail ${changes_file}
+    # TODO(sandello): Fix me, we have to support multiple packages.
+    #changes_file=ARTIFACTS/${package_name}_${package_version}_amd64.changes
+    #dupload --to common --nomail ${changes_file}
+    dupload --to common --nomail ARTIFACTS/*.changes
 
     tc "setParameter name='yt.package_built' value='1'"
     tc "setParameter name='yt.package_version' value='$package_version'"
