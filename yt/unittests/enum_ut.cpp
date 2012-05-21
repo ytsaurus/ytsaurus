@@ -160,6 +160,12 @@ TEST(TEnumTest, SaveAndLoad)
     EXPECT_EQ(second, fourth);
 }
 
+TEST(TEnumTest, DomainSize)
+{
+    EXPECT_EQ(3, ESimple::GetDomainSize());
+    EXPECT_EQ(5, EColor::GetDomainSize());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
