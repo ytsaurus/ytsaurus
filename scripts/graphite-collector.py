@@ -74,7 +74,7 @@ class YtCollector(Collector):
 
         source['metrics'] = new_metrics
         source['last_metric_sync'] = 0
-        self.log.info('NewYtCollector: Loaded %d metric names from %s in %f sec', 
+        self.log.info('YtCollector: Loaded %d metric names from %s in %f sec', 
             len(source['metrics']), source['endpoint'], time.time() - start_time)
 
     def collect_from_source(self, source):
@@ -91,7 +91,7 @@ class YtCollector(Collector):
                 value_count += 2
             metric['last_time'] = last_time
 
-        self.log.info('NewYtCollector: Collected %d values for %d metrics from %s in %f sec', 
+        self.log.info('YtCollector: Collected %d values for %d metrics from %s in %f sec', 
             value_count, len(source['metrics']), source['endpoint'], time.time() - start_time)
 
     def get_metric_values(self, source, metric):
@@ -112,7 +112,7 @@ class YtCollector(Collector):
                 time = long(d['time']/1E6)
                 val = d['value']
                 bucket = time / self.window
-                #self.log.info('NewYtCollector: << %s %d %d' % (metric['path'], time, val))
+                #self.log.info('YtCollector: << %s %d %d' % (metric['path'], time, val))
                 if bucket != cur_bucket:
                     if len(cur_vals) > 0:
                         values.append({ 'time': cur_bucket * self.window, 
@@ -124,12 +124,12 @@ class YtCollector(Collector):
             return values
         else:
             # Error...
-            self.log.error('NewYtCollector: Unexpected reply from %s', metric_url)
+            self.log.error('YtCollector: Unexpected reply from %s', metric_url)
             return []
 
     def publish_with_timestamp(self, name, value, timestamp, precision=0):
         metric = Metric(name, value, timestamp, precision)
-        #self.log.info('NewYtCollector: >> %s %d %d' % (name, timestamp, value))
+        #self.log.info('YtCollector: >> %s %d %d' % (name, timestamp, value))
         self.publish_metric(metric)
 
     def collect(self):
@@ -145,11 +145,11 @@ class YtCollector(Collector):
                 if source['status'] is True:
                     self.collect_from_source(source)
             except Exception, e:
-                self.log.error('NewYtCollector: Failed to collect data from ' 
+                self.log.error('YtCollector: Failed to collect data from ' 
                     + source['endpoint'] + '\n' + traceback.format_exc())
                 source['status'] = False # failed
 
-        self.log.info('NewYtCollector: Collected metrics in %f sec', time.time() - iter_start)
+        self.log.info('YtCollector: Collected metrics in %f sec', time.time() - iter_start)
 
     @staticmethod
     def aggregate_avg(vals):
