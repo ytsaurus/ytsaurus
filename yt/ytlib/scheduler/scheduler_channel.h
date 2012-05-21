@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/rpc/public.h>
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NScheduler {

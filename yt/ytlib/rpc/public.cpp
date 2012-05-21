@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "common.h"
+#include "public.h"
 
 namespace NYT {
 namespace NRpc {
@@ -9,7 +9,6 @@ namespace NRpc {
 TRequestId NullRequestId(0, 0, 0, 0);
 
 ////////////////////////////////////////////////////////////////////////////////
-
+            
 } // namespace NRpc
 } // namespace NYT
-

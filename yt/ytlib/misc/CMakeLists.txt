@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/guid.cpp
   ${BASE}/high_resolution_clock.cpp
   ${BASE}/home.cpp
+  ${BASE}/host_name.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/linux.cpp
   ${BASE}/metric.cpp
@@ -32,7 +33,6 @@ set( SRCS
   ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
   ${BASE}/url.cpp
-  ${BASE}/host_name.cpp
 )
 set( HDRS
   ${BASE}/arcadia_helper.h
@@ -59,6 +59,7 @@ set( HDRS
   ${BASE}/hash.h
   ${BASE}/high_resolution_clock.h
   ${BASE}/home.h
+  ${BASE}/host_name.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h
   ${BASE}/lazy_holder.h
@@ -95,7 +96,6 @@ set( HDRS
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
   ${BASE}/zigzag.h
-  ${BASE}/host_name.h
 )
 
 list(APPEND YT_SOURCE_FILES

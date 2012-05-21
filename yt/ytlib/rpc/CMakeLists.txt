@@ -4,9 +4,9 @@ set( SRCS
   ${BASE}/channel.cpp
   ${BASE}/channel_cache.cpp
   ${BASE}/client.cpp
-  ${BASE}/common.cpp
   ${BASE}/message.cpp
   ${BASE}/private.cpp
+  ${BASE}/public.cpp
   ${BASE}/redirector_service.cpp
   ${BASE}/retriable_channel.cpp
   ${BASE}/roaming_channel.cpp
@@ -19,7 +19,6 @@ set( HDRS
   ${BASE}/channel.h
   ${BASE}/channel_cache.h
   ${BASE}/client.h
-  ${BASE}/common.h
   ${BASE}/error.h
   ${BASE}/message.h
   ${BASE}/private.h

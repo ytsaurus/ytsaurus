@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "service.h"
 #include <ytlib/rpc/rpc.pb.h>
 
