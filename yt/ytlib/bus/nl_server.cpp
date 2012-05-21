@@ -192,7 +192,7 @@ public:
             "",
             &data);
 
-        LOG_DEBUG("Response enqueued (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Size: %" PRISZT ")",
+        LOG_DEBUG("Response sent (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Size: %" PRISZT ")",
             ~SessionId.ToString(),
             ~requestId.ToString(),
             sequenceId,
