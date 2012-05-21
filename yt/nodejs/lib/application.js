@@ -2,7 +2,7 @@ var url = require("url");
 var querystring = require("querystring");
 
 var utils = require("./utils");
-var yt = require("./yt");
+var ytnode_wrappers = require("./ytnode_wrappers");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,7 +174,7 @@ function _dispatch(driver, req, rsp) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplication(configuration) {
-    var driver = new yt.YtDriver(configuration);
+    var driver = new ytnode_wrappers.YtDriver(configuration);
     return function(req, rsp) {
         return _dispatch(driver, req, rsp);
     };
@@ -183,3 +183,4 @@ function YtApplication(configuration) {
 ////////////////////////////////////////////////////////////////////////////////
 
 exports.YtApplication = YtApplication;
+

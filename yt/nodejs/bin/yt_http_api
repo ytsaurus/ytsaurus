@@ -36,6 +36,6 @@ fs.readFile(opts.argv.c, function(err, configuration) {
     connect()
         .use(connect.favicon())
         .use(connect.logger("dev"))
-        .use("/api", app.YtApplication(configuration.toString()))
+        .use("/api", yt.YtApplication(configuration.toString()))
         .listen(opts.argv.p, opts.argv.i);
 });

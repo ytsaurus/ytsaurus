@@ -1,2 +1,6 @@
-exports.foo = "1";
-exports.bar = "2";
+var application = require("./lib/application");
+
+for (var key in application) {
+    exports[key] = application[key];
+}
+
