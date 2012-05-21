@@ -30,7 +30,7 @@ function TraceUVTicks(n) {
 describe("input stream interface", function() {
     beforeEach(function() {
         this.stream = new ybinding.TNodeJSInputStream();
-        this.reader = new tbinding.TTestInputStream(this.stream);
+        this.reader = new tbinding.TInputStreamStub(this.stream);
     });
 
     it("should be able to read whole input byte-by-byte", function() {
@@ -127,7 +127,7 @@ describe("input stream interface", function() {
 describe("output stream interface", function() {
     beforeEach(function() {
         this.stream = new ybinding.TNodeJSOutputStream();
-        this.writer = new tbinding.TTestOutputStream(this.stream);
+        this.writer = new tbinding.TOutputStreamStub(this.stream);
 
         this.stream.on_write  = function(){};
         this.stream.on_flush  = function(){};
@@ -179,8 +179,8 @@ describe("high-level streams", function() {
         var readable = new yt.YtReadableStream();
         var writable = new yt.YtWritableStream();
 
-        var reader = new tbinding.TTestInputStream(writable._binding);
-        var writer = new tbinding.TTestOutputStream(readable._binding);
+        var reader = new tbinding.TInputStreamStub(writable._binding);
+        var writer = new tbinding.TOutputStreamStub(readable._binding);
 
         readable.pipe(writable);
 
