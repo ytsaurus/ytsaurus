@@ -12,7 +12,7 @@ configure_file(
 )
 
 add_library( ytnode MODULE ${SRCS} ytnode.cpp )
-add_library( ytnode_test MODULE ytnode_test.cpp )
+add_library( ytnode_stubs MODULE ytnode_stubs.cpp )
 
 macro( NODE target )
   set_target_properties( ${target}
@@ -31,5 +31,5 @@ include_directories(
 )
 
 NODE( ytnode )
-NODE( ytnode_test )
+NODE( ytnode_stubs )
 

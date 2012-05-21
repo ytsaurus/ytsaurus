@@ -2,7 +2,7 @@ var expect = require("chai").expect;
 var assert = require("chai").assert;
 
 var ybinding = require("ytnode");
-var tbinding = require("ytnode_test");
+var tbinding = require("ytnode_stubs");
 
 var yt = require("./yt");
 
