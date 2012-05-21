@@ -19,8 +19,6 @@ class TLoadContext;
 
 ////////////////////////////////////////////////////////////////////////////////
             
-const int StateThreadQueueCount = 2;
-
 DECLARE_ENUM(EStateThreadQueue,
     (Default)
     (ChunkRefresh)

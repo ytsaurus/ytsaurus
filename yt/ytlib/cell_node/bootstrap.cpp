@@ -81,7 +81,7 @@ void TBootstrap::Run()
     // TODO(babenko): for now we use the same timeout both for masters and scheduler
     SchedulerChannel = CreateSchedulerChannel(Config->Masters->RpcTimeout, MasterChannel);
 
-    ControlQueue = New<TMultiActionQueue>(ControlThreadQueueCount, "Control");
+    ControlQueue = New<TMultiActionQueue>(EControlThreadQueue::GetDomainSize(), "Control");
 
     BusServer = CreateNLBusServer(New<TNLBusServerConfig>(Config->RpcPort));
 

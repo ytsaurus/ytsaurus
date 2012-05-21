@@ -142,7 +142,7 @@ void TBootstrap::Run()
     MetaState = New<TCompositeMetaState>();
 
     ControlQueue = New<TActionQueue>("Control");
-    StateQueue = New<TMultiActionQueue>(StateThreadQueueCount, "MetaState");
+    StateQueue = New<TMultiActionQueue>(EStateThreadQueue::GetDomainSize(), "MetaState");
 
     auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->MetaState->Cell->RpcPort));
 
