@@ -559,10 +559,10 @@ class TNLClientManager::TImpl
         auto unmatchedIt = UnmatchedResponseMap.find(requestId);
         if (unmatchedIt == UnmatchedResponseMap.end()) {
             LOG_DEBUG("Outcoming request registered (RequestId: %s)",
-                ~request->RequestId.ToString());
+                ~requestId.ToString());
         } else {
             LOG_DEBUG("Outcoming request matched (RequestId: %s)",
-                ~request->RequestId.ToString());
+                ~requestId.ToString());
 
             TAutoPtr<TUdpHttpResponse> nlResponse(unmatchedIt->second);
             UnmatchedResponseMap.erase(unmatchedIt);
