@@ -5,7 +5,7 @@
 #include "transaction_commands.h"
 #include "cypress_commands.h"
 #include "file_commands.h"
-//#include "table_commands.h"
+#include "table_commands.h"
 //#include "scheduler_commands.h"
 
 #include <ytlib/ytree/fluent.h>
@@ -96,8 +96,8 @@ public:
         RegisterCommand<TDownloadCommand>(TCommandDescriptor("download", EDataType::Null, EDataType::Binary));
         RegisterCommand<TUploadCommand>(TCommandDescriptor("upload", EDataType::Binary, EDataType::Null));
 
-        //RegisterCommand("read", New<TReadCommand>(this));
-        //RegisterCommand("write", New<TWriteCommand>(this));
+        RegisterCommand<TWriteCommand>(TCommandDescriptor("write", EDataType::Tabular, EDataType::Null));
+        RegisterCommand<TReadCommand>(TCommandDescriptor("read", EDataType::Null, EDataType::Tabular));
 
         //RegisterCommand("map", New<TMapCommand>(this));
         //RegisterCommand("merge", New<TMergeCommand>(this));
