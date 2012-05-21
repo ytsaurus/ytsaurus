@@ -76,7 +76,7 @@ add_custom_target( package touch package-stamp
     --check-dirname-level 0
     -b
   COMMAND mv
-    ../yandex-yt_${YT_VERSION}*
+    ../yandex-yt*${YT_VERSION}*
     ARTIFACTS
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Packaging YT..."
