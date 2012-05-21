@@ -88,19 +88,17 @@ add_custom_target( version touch version-stamp
   COMMENT "Stamping YT..."
 )
 
-add_custom_target( install_core
+add_custom_target( install-debian-yandex-yt
   ${CMAKE_COMMAND}
     -DCOMPONENT=Unspecified
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-  COMMENT "Installing YT core..."
+  COMMENT "Installing for package 'yandex-yt'..."
 )
 
-if (YT_BUILD_ENABLE_NODEJS)
-  add_custom_target( install_nodejs
-    ${CMAKE_COMMAND}
-      -DCOMPONENT=nodejs
-      -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-    COMMENT "Installing YT NodeJS bindings..."
-  )
-endif()
+add_custom_target( install-debian-yandex-yt-http-api
+  ${CMAKE_COMMAND}
+    -DCOMPONENT=nodejs
+    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  COMMENT "Installing for package 'yandex-yt-http-api'..."
+)
 
