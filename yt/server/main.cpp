@@ -232,11 +232,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ex.what());
         }
 
-        TJobProxy jobProxy(config, jobId);
-        jobProxy.Start();
+        auto jobProxy = New<TJobProxy>(config, jobId);
+        jobProxy->Run();
     }
 
-    // Actually this will never happen.
     return EExitCode::OK;
 }
 

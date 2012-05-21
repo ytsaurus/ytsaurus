@@ -18,17 +18,19 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxy
-    : public TNonCopyable
+    : public TRefCounted
 {
 public:
     TJobProxy(
         TJobProxyConfigPtr config,
         const NScheduler::TJobId& jobId);
 
-    void Start();
+    //! Runs the job. Blocks until the job is complete.
+    void Run();
 
 private:
     void SendHeartbeat();
+    void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
 
     NScheduler::NProto::TJobSpec GetJobSpec();
     void ReportResult(const NScheduler::NProto::TJobResult& result);

@@ -15,6 +15,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NScheduler;
+using namespace NExecAgent;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,18 +38,26 @@ void TJobProxy::SendHeartbeat()
 
     auto req = Proxy.OnJobProgress();
     *req->mutable_job_id() = JobId.ToProto();
+    req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
-    auto rsp = req->Invoke().Get();
+    LOG_DEBUG("Supervisor heartbeat sent");
+}
 
+void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPtr rsp)
+{
     if (!rsp->IsOK()) {
         // NB: user process is not killed here.
         // Good user processes are supposed to die themselves 
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
-        LOG_ERROR("Failed to report progress for job %s", ~JobId.ToString());
+        LOG_ERROR("Error sending heartbeat to supervisor\n%s",
+            ~rsp->GetError().ToString());
+
         // TODO(babenko): extract error code constant
         _exit(122);
     }
+
+    LOG_DEBUG("Successfully reported heartbeat to supervisor")
 }
 
 TJobSpec TJobProxy::GetJobSpec()
@@ -67,7 +76,7 @@ TJobSpec TJobProxy::GetJobSpec()
     return rsp->job_spec();
 }
 
-void TJobProxy::Start()
+void TJobProxy::Run()
 {
     HeartbeatInvoker = New<TPeriodicInvoker>(
         TSyncInvoker::Get(),
@@ -139,7 +148,8 @@ void TJobProxy::ReportResult(const NScheduler::NProto::TJobResult& result)
 
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
-        LOG_ERROR("Failed to report result");
+        LOG_ERROR("Failed to report job result");
+
         // TODO(babenko): extract error code constant
         _exit(123);
     }
