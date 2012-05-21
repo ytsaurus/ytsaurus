@@ -1,0 +1,4 @@
+execute_process(
+  COMMAND npm install
+  WORKING_DIRECTORY "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/node_modules/yt"
+)

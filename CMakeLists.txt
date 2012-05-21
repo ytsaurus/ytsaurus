@@ -61,9 +61,8 @@ add_subdirectory(library/json)
 
 add_subdirectory(yt)
 
-add_custom_target(package touch package-stamp
-  COMMAND mkdir -p
-    ARTIFACTS
+add_custom_target( package touch package-stamp
+  COMMAND mkdir -p ARTIFACTS
   COMMAND dch
     --distributor "yandex"
     --distribution "unstable"
@@ -83,9 +82,25 @@ add_custom_target(package touch package-stamp
   COMMENT "Packaging YT..."
 )
 
-add_custom_target(version touch version-stamp
-  COMMAND echo
-    "${YT_VERSION}" > ytversion
+add_custom_target( version touch version-stamp
+  COMMAND echo "${YT_VERSION}" > ytversion
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Stamping YT..."
 )
+
+add_custom_target( install_core
+  ${CMAKE_COMMAND}
+    -DCOMPONENT=Unspecified
+    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  COMMENT "Installing YT core..."
+)
+
+if (YT_BUILD_ENABLE_NODEJS)
+  add_custom_target( install_nodejs
+    ${CMAKE_COMMAND}
+      -DCOMPONENT=nodejs
+      -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+    COMMENT "Installing YT NodeJS bindings..."
+  )
+endif()
+

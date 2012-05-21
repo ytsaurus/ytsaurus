@@ -1,0 +1,41 @@
+#!/usr/bin/env node
+
+var fs = require("fs");
+var connect = require("connect");
+var yt = require("yt");
+
+var opts = require("optimist")
+    .usage("Provide HTTP API for YT.\nUsage: $0")
+
+    .alias("c", "config")
+    .default("c", "/etc/yt_http_api.conf")
+    .describe("c", "Specify configuration file")
+
+    .alias("p", "port")
+    .default("p", "80")
+    .describe("p", "Specify port to listen")
+
+    .alias("i", "interface")
+    .default("i", "0.0.0.0")
+    .describe("i", "Specify interface to listen")
+
+    .alias("h", "help")
+    .boolean("h")
+    .describe("h", "Show help message")
+    ;
+
+if (opts.argv.h) {
+    opts.showHelp();
+    process.exit(0);
+}
+
+fs.readFile(opts.argv.c, function(err, configuration) {
+    if (err) {
+        throw err;
+    }
+    connect()
+        .use(connect.favicon())
+        .use(connect.logger("dev"))
+        .use("/api", app.YtApplication(configuration.toString()))
+        .listen(opts.argv.p, opts.argv.i);
+});
