@@ -55,7 +55,11 @@ void TSchedulerConnector::SendHeartbeat()
         jobStatus->set_state(state);
         jobStatus->set_progress(job->GetProgress());
         if (state == EJobState::Completed || state == EJobState::Failed) {
-            *jobStatus->mutable_result() = job->GetResult();
+            auto& jobResult = job->GetResult();
+            LOG_DEBUG("Extracting job result for heartbeat (JobId: %s, Result: %s)",
+                ~job->GetId().ToString(),
+                jobResult.DebugString().c_str());
+            *jobStatus->mutable_result() = jobResult;
         }
     }
 
