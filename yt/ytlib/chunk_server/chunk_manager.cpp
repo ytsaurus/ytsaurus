@@ -1046,7 +1046,7 @@ private:
             const auto& address = holder.GetAddress();
             YVERIFY(HolderAddressMap.erase(address) == 1);
             {
-                auto hostNameRange = HolderHostNameMap.equal_range(GetServiceHostName(address));
+                auto hostNameRange = HolderHostNameMap.equal_range(Stroka(GetServiceHostName(address)));
                 for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                     if (it->second == &holder) {
                         HolderHostNameMap.erase(it);
