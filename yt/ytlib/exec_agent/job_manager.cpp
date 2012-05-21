@@ -126,7 +126,7 @@ TJobPtr TJobManager::StartJob(
 
     YVERIFY(Jobs.insert(MakePair(jobId, job)).second);
 
-    LOG_DEBUG("Job started (JobId: %s, JobType: %s)",
+    LOG_DEBUG("Job created, preparing (JobId: %s, JobType: %s)",
         ~jobId.ToString(),
         ~EJobType(jobSpec.type()).ToString());
 

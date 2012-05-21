@@ -43,7 +43,7 @@ TJob::TJob(
     , Slot(slot)
     , JobState(EJobState::Running)
     , JobProgress(EJobProgress::Created)
-    , JobResult(NewPromise<NScheduler::NProto::TJobResult>())
+    , JobResult(Null)
     , JobFinished(NewPromise<void>())
     , ProxyConfig(proxyConfig)
 {
@@ -127,8 +127,6 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     JobProgress = NScheduler::EJobProgress::PreparingSandbox;
     Slot->InitSandbox();
-
-    // ToDo(psushin): create job proxy config.
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
 
@@ -222,9 +220,19 @@ void TJob::RunJobProxy()
         MakeWeak(this)).Via(Slot->GetInvoker()));
 }
 
+bool TJob::IsResultSet() const
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    return JobResult.IsInitialized();
+}
+
 void TJob::OnJobExit(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    // NB: we expect that
+    //  1. job proxy process finished
+    //  2. proxy controller already cleaned up possible child processes.
 
     if (JobProgress > EJobProgress::Cleanup)
         return;
@@ -236,7 +244,7 @@ void TJob::OnJobExit(TError error)
         return;
     }
 
-    if (!JobResult.IsSet()) {
+    if (!IsResultSet()) {
         DoAbort(TError(
             "Job proxy successfully exited but job result has not been set."),
             EJobState::Failed);
@@ -268,15 +276,22 @@ const TJobSpec& TJob::GetSpec()
 
 void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 {
-    // ToDo: improve here. If jobResult is set to true replace it with error.
-    if (!JobResult.IsSet()) {
-        JobResult.Set(jobResult);
+    TGuard<TSpinLock> guard(SpinLock);
+
+    if (!JobResult.IsInitialized()) {
+        JobResult.Assign(jobResult);
+        return;
+    }
+
+    if (JobResult->error().code() == TError::OK)  {
+        JobResult.Assign(jobResult);
     }
 }
 
-NScheduler::NProto::TJobResult TJob::GetResult() const
+const NScheduler::NProto::TJobResult& TJob::GetResult() const
 {
-    YASSERT(JobResult.IsSet());
+    TGuard<TSpinLock> guard(SpinLock);
+    YASSERT(JobResult.IsInitialized());
     return JobResult.Get();
 }
 
@@ -304,10 +319,11 @@ void TJob::Abort()
         &TJob::DoAbort,
         MakeStrong(this),
         TError("Job aborted by scheduler"),
-        EJobState::Aborted));
+        EJobState::Aborted,
+        true));
 }
 
-void TJob::DoAbort(const TError& error, EJobState resultState)
+void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -322,9 +338,9 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
     LOG_DEBUG("Aborting job (JobId: %s)", 
         ~JobId.ToString());
 
-    if (jobProgress >= EJobProgress::StartedProxy) {
+    if (jobProgress >= EJobProgress::StartedProxy && killJobProxy) {
         try {
-            LOG_DEBUG("Killing job (JobId: %s)", 
+            LOG_DEBUG("Asking proxy controller to kill job (JobId: %s)", 
                 ~JobId.ToString());
             ProxyController->Kill(error);
         } catch (const std::exception& e) {
@@ -340,9 +356,9 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
         Slot->Clean();
     }
 
+    SetResult(error);
     JobProgress = EJobProgress::Failed;
     JobState = resultState;
-    SetResult(error);
     JobFinished.Set();
 }
 

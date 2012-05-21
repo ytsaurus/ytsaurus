@@ -43,7 +43,7 @@ public:
     NScheduler::EJobState GetState() const;
     NScheduler::EJobProgress GetProgress() const;
 
-    NScheduler::NProto::TJobResult GetResult() const;
+    const NScheduler::NProto::TJobResult& GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
     DECLARE_SIGNAL(void(), Finished);
@@ -57,10 +57,15 @@ private:
     void RunJobProxy();
     void SetResult(const TError& error);
 
+    bool IsResultSet() const;
+
     //! Called by ProxyController when proxy process finishes.
     void OnJobExit(TError error);
 
-    void DoAbort(const TError& error, NScheduler::EJobState resultState);
+    void DoAbort(
+        const TError& error, 
+        NScheduler::EJobState resultState, 
+        bool killJobProxy = false);
 
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
@@ -79,7 +84,7 @@ private:
 
     // Protects #JobResult.
     TSpinLock SpinLock;
-    TPromise<NScheduler::NProto::TJobResult> JobResult;
+    TNullable<NScheduler::NProto::TJobResult> JobResult;
     TPromise<void> JobFinished;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

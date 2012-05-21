@@ -125,7 +125,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         
-        LOG_INFO("Killing job\n%s", ~error.ToString());
+        LOG_INFO("Unsafe environment: killing job\n%s", ~error.ToString());
 
         SetError(error);
 
