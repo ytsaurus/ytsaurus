@@ -80,7 +80,7 @@ void TJobProxy::Run()
 {
     HeartbeatInvoker = New<TPeriodicInvoker>(
         TSyncInvoker::Get(),
-        BIND(&TJobProxy::SendHeartbeat, this), 
+        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)), 
         Config->HeartbeatPeriod);
     HeartbeatInvoker->Start();
 
