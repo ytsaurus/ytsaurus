@@ -10,6 +10,7 @@
 #include <ytlib/exec_agent/public.h>
 #include <ytlib/exec_agent/supervisor_service_proxy.h>
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -35,6 +36,7 @@ private:
     TJobProxyConfigPtr Config;
     NExecAgent::TSupervisorServiceProxy Proxy;
     NScheduler::TJobId JobId;
+    NLog::TTaggedLogger Logger;
 
     TAutoPtr<IJob> Job;
     TPeriodicInvoker::TPtr HeartbeatInvoker;

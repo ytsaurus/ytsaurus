@@ -19,17 +19,15 @@ using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = JobProxyLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
     const TJobId& jobId)
     : Config(config)
     , Proxy(NRpc::CreateBusChannel(config->ExecAgentAddress))
     , JobId(jobId)
+    , Logger(JobProxyLogger)
 {
+    Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
     Proxy.SetDefaultTimeout(config->RpcTimeout);
 }
 
@@ -55,15 +53,14 @@ void TJobProxy::SendHeartbeat()
 
 TJobSpec TJobProxy::GetJobSpec()
 {
-    LOG_DEBUG("Requesting spec for job %s", ~JobId.ToString());
+    LOG_INFO("Requesting job spec");
     auto req = Proxy.GetJobSpec();
     *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke().Get();
 
     if (!rsp->IsOK()) {
-        ythrow yexception() << Sprintf("Failed to get job spec (JobId: %s)\n%s",
-            ~JobId.ToString(),
+        ythrow yexception() << Sprintf("Failed to get job spec\n%s",
             ~rsp->GetError().ToString());
     }
 
@@ -123,10 +120,7 @@ void TJobProxy::Start()
         ReportResult(result);
 
     } catch (const std::exception& ex) {
-        LOG_DEBUG(
-            "Job failed (JobId: %s, error: %s)", 
-            ~JobId.ToString(),
-            ex.what());
+        LOG_WARNING("Job failed\n%s", ex.what());
 
         TJobResult result;
         result.mutable_error()->set_code(TError::Fail);
@@ -135,18 +129,17 @@ void TJobProxy::Start()
     }
 }
 
-void TJobProxy::ReportResult(
-    const NScheduler::NProto::TJobResult& result)
+void TJobProxy::ReportResult(const NScheduler::NProto::TJobResult& result)
 {
     HeartbeatInvoker->Stop();
 
     auto req = Proxy.OnJobFinished();
-    *(req->mutable_result()) = result;
-    *(req->mutable_job_id()) = JobId.ToProto();
+    *req->mutable_result() = result;
+    *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
-        LOG_ERROR("Failed to report result for job %s", ~JobId.ToString());
+        LOG_ERROR("Failed to report result");
         // TODO(babenko): extract error code constant
         _exit(123);
     }
