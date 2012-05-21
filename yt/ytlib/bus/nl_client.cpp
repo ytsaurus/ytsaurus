@@ -137,12 +137,12 @@ private:
 
 class TNLClientManager::TImpl
 {
-    struct TRequest
+    struct TOutcomingRequest
         : public TIntrinsicRefCounted
     {
-        typedef TIntrusivePtr<TRequest> TPtr;
+        typedef TIntrusivePtr<TOutcomingRequest> TPtr;
 
-        TRequest(
+        TOutcomingRequest(
             const TSessionId& sessionId,
             TSequenceId sequenceId,
             const TGuid& requestId,
@@ -174,10 +174,11 @@ class TNLClientManager::TImpl
     typedef yhash_map<TSessionId, TNLBusClient::TBus::TPtr> TBusMap;
     TBusMap BusMap;
 
-    typedef yhash_map<TGuid, TRequest::TPtr> TRequestMap;
+    typedef yhash_map<TGuid, TOutcomingRequest::TPtr> TRequestMap;
     TRequestMap RequestMap;
 
-    TLockFreeQueue<TRequest::TPtr> OutcomingRequestQueue;
+    TLockFreeQueue<TOutcomingRequest::TPtr> OutcomingRequestQueue;
+    yhash_map<TGuid, TUdpHttpResponse*> UnmatchedResponseMap;
     TLockFreeQueue<TNLBusClient::TBus::TPtr> BusRegisterQueue;
     TLockFreeQueue<TNLBusClient::TBus::TPtr> BusUnregisterQueue;
 
@@ -249,9 +250,8 @@ class TNLClientManager::TImpl
         FOREACH (const auto& requestId, bus->PendingRequestIds()) {
             Requester->CancelRequest((TGUID) requestId);
             auto requestIt = FindRequest(requestId);
-            if (requestIt != RequestMap.end()) {
-                RequestMap.erase(requestIt);
-            }
+            YASSERT(requestIt != RequestMap.end());
+            RequestMap.erase(requestIt);
         }
         bus->PendingRequestIds().clear();
 
@@ -273,16 +273,25 @@ class TNLClientManager::TImpl
                 break;
 
             ++callCount;
-            ProcessIncomingNLResponse(~nlResponse);
+            ProcessIncomingNLResponse(nlResponse);
         }
         return callCount > 0;
     }
 
-    void ProcessIncomingNLResponse(NNetliba::TUdpHttpResponse* nlResponse)
+    void ProcessIncomingNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse)
     {
+        TGuid requestId = nlResponse->ReqId;
+        auto requestIt = FindRequest(requestId);
+        if (requestIt == RequestMap.end()) {
+            LOG_DEBUG("Response is unmatched (RequestId: %s)",
+                ~requestId.ToString());
+            YVERIFY(UnmatchedResponseMap.insert(MakePair(requestId, ~nlResponse)).second);
+            return;
+        }
+
         if (nlResponse->Ok != TUdpHttpResponse::OK)
         {
-            ProcessFailedNLResponse(nlResponse);
+            ProcessFailedNLResponse(requestIt, nlResponse);
             return;
         }
 
@@ -292,7 +301,7 @@ class TNLClientManager::TImpl
 
         switch (header->Type) {
             case TPacketHeader::EType::Ack:
-                ProcessAck(header, nlResponse);
+                ProcessAck(header, requestIt, nlResponse);
                 break;
 
             case TPacketHeader::EType::Message:
@@ -311,18 +320,11 @@ class TNLClientManager::TImpl
         }
     }
 
-    void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
+    void ProcessFailedNLResponse(TRequestMap::iterator requestIt, TAutoPtr<TUdpHttpResponse> nlResponse)
     {
-        TGuid requestId = nlResponse->ReqId;
-        auto requestIt = FindRequest(requestId);
-        if (requestIt == RequestMap.end()) {
-            LOG_DEBUG("An obsolete request failed (RequestId: %s)",
-                ~requestId.ToString());
-            return;
-        }
-
         auto& request = requestIt->second;
         const auto& sessionId = request->SessionId;
+        const auto& requestId = request->RequestId;
         auto busIt = FindBus(sessionId);
         YASSERT(busIt != BusMap.end());
         auto& bus = busIt->second;
@@ -349,12 +351,12 @@ class TNLClientManager::TImpl
                 break;
 
             ++callCount;
-            ProcessIncomingNLRequest(~nlRequest);
+            ProcessIncomingNLRequest(nlRequest);
         }
         return callCount > 0;
     }
 
-    void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
+    void ProcessIncomingNLRequest(TAutoPtr<TUdpHttpRequest> nlRequest)
     {
         auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
         if (!header)
@@ -373,13 +375,14 @@ class TNLClientManager::TImpl
         }
     }
 
-    void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+    void ProcessAck(TPacketHeader* header, TRequestMap::iterator requestIt, TAutoPtr<TUdpHttpResponse> nlResponse)
     {
+        auto& request = requestIt->second;
         const auto& sessionId = header->SessionId;
-        TGuid requestId = nlResponse->ReqId;
-        auto requestIt = FindRequest(requestId);
+        const auto& requestId = request->RequestId;
+
         auto busIt = FindBus(sessionId);
-        if (requestIt == RequestMap.end() || busIt == BusMap.end()) {
+        if (busIt == BusMap.end()) {
             LOG_DEBUG("Ack for obsolete request received (SessionId: %s, RequestId: %s)",
                 ~header->SessionId.ToString(),
                 ~requestId.ToString());
@@ -391,7 +394,6 @@ class TNLClientManager::TImpl
             ~requestId.ToString());
 
         auto& bus = busIt->second;
-        auto& request = requestIt->second;
 
         request->Promise.Set(ESendResult::OK);
 
@@ -399,7 +401,7 @@ class TNLClientManager::TImpl
         RequestMap.erase(requestIt);
     }
 
-    void ProcessBrokenSession(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+    void ProcessBrokenSession(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse)
     {
         const auto& oldSessionId = header->SessionId;
         TGuid brokenRequestId = nlResponse->ReqId;
@@ -423,7 +425,7 @@ class TNLClientManager::TImpl
             ~brokenRequestId.ToString(),
             ~newSessionId.ToString());
 
-        std::vector<TRequest*> pendingRequests;
+        std::vector<TOutcomingRequest*> pendingRequests;
         pendingRequests.reserve(bus->PendingRequestIds().size());
         FOREACH (const auto& requestId, bus->PendingRequestIds()) {
             auto pendingRequestIt = FindRequest(requestId);
@@ -434,7 +436,7 @@ class TNLClientManager::TImpl
         std::sort(
             pendingRequests.begin(),
             pendingRequests.end(),
-            [] (TRequest* lhs, TRequest* rhs) { return lhs->SequenceId < rhs->SequenceId; });
+            [] (TOutcomingRequest* lhs, TOutcomingRequest* rhs) { return lhs->SequenceId < rhs->SequenceId; });
 
         bus->PendingRequestIds().clear();
 
@@ -472,12 +474,12 @@ class TNLClientManager::TImpl
         }
     }
 
-    void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
+    void ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpRequest> nlRequest)
     {
         DoProcessMessage(header, nlRequest->ReqId, MoveRV(nlRequest->Data), true);
     }
 
-    void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+    void ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse)
     {
         DoProcessMessage(header, nlResponse->ReqId, MoveRV(nlResponse->Data), false);
     }
@@ -534,13 +536,13 @@ class TNLClientManager::TImpl
     {
         LOG_TRACE("Processing outcoming client NetLiba requests");
 
-        TRequest::TPtr request;
+        TOutcomingRequest::TPtr request;
         while (OutcomingRequestQueue.Dequeue(&request)) {
             ProcessOutcomingRequest(request);
         }
     }
 
-    void ProcessOutcomingRequest(TRequest::TPtr request)
+    void ProcessOutcomingRequest(TOutcomingRequest::TPtr request)
     {
         auto busIt = FindBus(request->SessionId);
         if (busIt == BusMap.end()) {
@@ -554,8 +556,19 @@ class TNLClientManager::TImpl
         bus->PendingRequestIds().insert(requestId);
         RequestMap.insert(MakePair(requestId, request));
 
-        LOG_DEBUG("Outcoming request registered (RequestId: %s)",
-            ~request->RequestId.ToString());
+        auto unmatchedIt = UnmatchedResponseMap.find(requestId);
+        if (unmatchedIt == UnmatchedResponseMap.end()) {
+            LOG_DEBUG("Outcoming request registered (RequestId: %s)",
+                ~request->RequestId.ToString());
+        } else {
+            LOG_DEBUG("Outcoming request matched (RequestId: %s)",
+                ~request->RequestId.ToString());
+
+            TAutoPtr<TUdpHttpResponse> nlResponse(unmatchedIt->second);
+            UnmatchedResponseMap.erase(unmatchedIt);
+
+            ProcessIncomingNLResponse(nlResponse);
+        }
     }
 
 
@@ -614,6 +627,10 @@ public:
     ~TImpl()
     {
         Shutdown();
+
+        FOREACH (const auto& pair, UnmatchedResponseMap) {
+            delete pair.second;
+        }
     }
 
     void Shutdown()
@@ -648,7 +665,7 @@ public:
 
         TGuid requestId = Requester->SendRequest(bus->GetAddress(), "", &data);
 
-        auto request = New<TRequest>(
+        auto request = New<TOutcomingRequest>(
             sessionId,
             sequenceId,
             requestId,
