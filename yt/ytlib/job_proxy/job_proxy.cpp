@@ -8,6 +8,7 @@
 #include "sort_job.h"
 #include "partition_job.h"
 
+#include <ytlib/logging/log_manager.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/scheduler/public.h>
 
@@ -53,6 +54,7 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
         LOG_ERROR("Error sending heartbeat to supervisor\n%s",
             ~rsp->GetError().ToString());
 
+        NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant
         _exit(122);
     }
@@ -150,6 +152,7 @@ void TJobProxy::ReportResult(const NScheduler::NProto::TJobResult& result)
     if (!rsp->IsOK()) {
         LOG_ERROR("Failed to report job result");
 
+        NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant
         _exit(123);
     }
