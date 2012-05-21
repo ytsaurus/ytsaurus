@@ -66,14 +66,14 @@ private:
         WriteScalar(consumer, static_cast<i64>(value.MilliSeconds()));
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, const Stroka& value)
+    static void WriteScalar(IYsonConsumer* consumer, const TStringBuf& value)
     {
         consumer->OnStringScalar(value);
     }
 
     static void WriteScalar(IYsonConsumer* consumer, const char* value)
     {
-        WriteScalar(consumer, Stroka(value));
+        consumer->OnStringScalar(TStringBuf(value));
     }
 
 public:
