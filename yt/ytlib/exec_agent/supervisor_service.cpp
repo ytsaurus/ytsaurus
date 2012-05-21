@@ -54,7 +54,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
-    UNUSED(request);
+    auto jobId = TJobId::FromProto(request->job_id());
+
+    context->SetRequestInfo("JobId: %s",
+        ~jobId.ToString());
 
     // Progress tracking is not implemented yet.
 }

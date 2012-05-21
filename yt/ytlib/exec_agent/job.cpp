@@ -13,6 +13,7 @@
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/misc/fs.h>
+#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -254,7 +255,7 @@ void TJob::OnJobExit(TError error)
 
         JobProgress = EJobProgress::Completed;
         
-        if (TError::FromProto(JobResult.Get().error()).IsOK()) {
+        if (JobResult->error().code() == TError::OK) {
             JobState = EJobState::Completed;
         } else {
             JobState = EJobState::Failed;
@@ -278,12 +279,8 @@ void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
-    if (!JobResult.IsInitialized()) {
-        JobResult.Assign(jobResult);
-        return;
-    }
-
-    if (JobResult->error().code() == TError::OK)  {
+    if (!JobResult.IsInitialized() || JobResult->error().code() == TError::OK) {
+        LOG_DEBUG("Setting job result: %s", jobResult.DebugString().c_str());
         JobResult.Assign(jobResult);
     }
 }
@@ -291,7 +288,7 @@ void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 const NScheduler::NProto::TJobResult& TJob::GetResult() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YASSERT(JobResult.IsInitialized());
+    YCHECK(JobResult.IsInitialized());
     return JobResult.Get();
 }
 
