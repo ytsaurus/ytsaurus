@@ -72,18 +72,18 @@ private:
     void ThreadMain();
 
     bool ProcessIncomingNLRequests();
-    void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest);
+    void ProcessIncomingNLRequest(TAutoPtr<TUdpHttpRequest> nlRequest);
 
     bool ProcessIncomingNLResponses();
-    void ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse);
-    void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse);
+    void ProcessIncomingNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse);
+    void ProcessFailedNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse);
 
     void ProcessExpiredSessions();
     void ProcessExpiredSession(TSessionPtr session);
 
-    void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest);
-    void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse);
-    void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse);
+    void ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpRequest> nlRequest);
+    void ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse);
+    void ProcessAck(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse);
 
     TSessionPtr DoProcessMessage(
         TPacketHeader* header,
@@ -338,12 +338,12 @@ bool TNLBusServer::ProcessIncomingNLRequests()
             break;
 
         ++callCount;
-        ProcessIncomingNLRequest(~nlRequest);
+        ProcessIncomingNLRequest(nlRequest);
     }
     return callCount > 0;
 }
 
-void TNLBusServer::ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
+void TNLBusServer::ProcessIncomingNLRequest(TAutoPtr<TUdpHttpRequest> nlRequest)
 {
     auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
     if (!header)
@@ -373,12 +373,12 @@ bool TNLBusServer::ProcessIncomingNLResponses()
             break;
 
         ++callCount;
-        ProcessIncomingNLResponse(~nlResponse);
+        ProcessIncomingNLResponse(nlResponse);
     }
     return callCount > 0;
 }
 
-void TNLBusServer::ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
+void TNLBusServer::ProcessIncomingNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse)
 {
     if (nlResponse->Ok != TUdpHttpResponse::OK) {
         ProcessFailedNLResponse(nlResponse);
@@ -405,7 +405,7 @@ void TNLBusServer::ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
     }
 }
 
-void TNLBusServer::ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
+void TNLBusServer::ProcessFailedNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse)
 {
     TGuid requestId = nlResponse->ReqId;
     LOG_DEBUG("Request failed (RequestId: %s)", ~requestId.ToString());
@@ -430,7 +430,7 @@ void TNLBusServer::ProcessExpiredSession(TSessionPtr session)
     UnregisterSession(MoveRV(session));
 }
 
-void TNLBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+void TNLBusServer::ProcessAck(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse)
 {
     TGuid requestId = nlResponse->ReqId;
     LOG_DEBUG("Ack received (SessionId: %s, RequestId: %s)",
@@ -438,7 +438,7 @@ void TNLBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlRespons
         ~requestId.ToString());
 }
 
-void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
+void TNLBusServer::ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpRequest> nlRequest)
 {
     TGuid requestId = nlRequest->ReqId;
     auto sessionId = header->SessionId;
@@ -473,7 +473,7 @@ void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequ
     //}
 }
 
-void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+void TNLBusServer::ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse)
 {
     DoProcessMessage(
         header,
