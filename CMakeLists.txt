@@ -74,7 +74,7 @@ add_custom_target( package touch package-stamp
     --no-tgz-check
     --no-lintian
     --check-dirname-level 0
-    -b -j8
+    -b
   COMMAND mv
     ../yandex-yt_${YT_VERSION}*
     ARTIFACTS
