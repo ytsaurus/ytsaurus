@@ -6,7 +6,7 @@
 #include "cypress_commands.h"
 #include "file_commands.h"
 #include "table_commands.h"
-//#include "scheduler_commands.h"
+#include "scheduler_commands.h"
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/serialize.h>
@@ -99,11 +99,11 @@ public:
         RegisterCommand<TWriteCommand>(TCommandDescriptor("write", EDataType::Tabular, EDataType::Null));
         RegisterCommand<TReadCommand>(TCommandDescriptor("read", EDataType::Null, EDataType::Tabular));
 
-        //RegisterCommand("map", New<TMapCommand>(this));
-        //RegisterCommand("merge", New<TMergeCommand>(this));
-        //RegisterCommand("sort", New<TSortCommand>(this));
-        //RegisterCommand("erase", New<TEraseCommand>(this));
-        //RegisterCommand("abort_op", New<TAbortOperationCommand>(this));
+        RegisterCommand<TMapCommand>(TCommandDescriptor("map", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TMergeCommand>(TCommandDescriptor("merge", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TSortCommand>(TCommandDescriptor("sort", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TEraseCommand>(TCommandDescriptor("erase", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TAbortOperationCommand>(TCommandDescriptor("abort_op", EDataType::Null, EDataType::Null));
     }
 
     virtual TDriverResponse Execute(const TDriverRequest& request)
