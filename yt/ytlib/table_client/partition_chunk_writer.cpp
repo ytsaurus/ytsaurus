@@ -194,7 +194,7 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
     std::vector<TSharedRef> finalBlocks;
     for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
         auto& channelWriter = ChannelWriters[partitionTag];
-        if (channelWriter->GetCurrentRowCount()) {
+        if (channelWriter->GetCurrentRowCount() > 0) {
             auto block = PrepareBlock(partitionTag);
             finalBlocks.push_back(block);
         }
