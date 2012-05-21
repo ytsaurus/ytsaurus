@@ -280,8 +280,13 @@ void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
     TGuard<TSpinLock> guard(SpinLock);
 
     if (!JobResult.IsInitialized() || JobResult->error().code() == TError::OK) {
-        LOG_DEBUG("Setting job result: %s", jobResult.DebugString().c_str());
+        LOG_DEBUG("Setting job result: %s (JobId: %s)", 
+            jobResult.DebugString().c_str(),
+            ~JobId.ToString());
         JobResult.Assign(jobResult);
+        LOG_DEBUG("Current result: %s (JobId: %s)", 
+            JobResult.Get().DebugString().c_str(),
+            ~JobId.ToString());
     }
 }
 
