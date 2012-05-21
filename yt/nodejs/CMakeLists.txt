@@ -1,9 +1,9 @@
 set( SRCS
-  common.cpp
-  stream_base.cpp
-  input_stream.cpp
-  output_stream.cpp
-  driver.cpp
+  src/common.cpp
+  src/stream_base.cpp
+  src/input_stream.cpp
+  src/output_stream.cpp
+  src/driver.cpp
 )
 
 configure_file(
@@ -11,25 +11,33 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/run_tests.sh
 )
 
-add_library( ytnode MODULE ${SRCS} ytnode.cpp )
-add_library( ytnode_stubs MODULE ytnode_stubs.cpp )
+function( NODE target )
+  add_library( ${target} MODULE ${ARGN} )
+  target_link_libraries( ${target} ytlib )
 
-macro( NODE target )
+  set( _node_compile_definitions
+    "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64")
+  set( _node_link_flags
+    "")
+
+  if (APPLE)
+    set( _node_link_flags "${_node_link_flags} -bundle -undefined dynamic_lookup" )
+  endif()
+
   set_target_properties( ${target}
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"
-    COMPILE_DEFINITIONS "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64"
-    #LINK_FLAGS "-bundle -undefined dynamic_lookup"
+    COMPILE_DEFINITIONS "${_node_compile_definitions}"
+    LINK_FLAGS "${_node_link_flags}"
   )
-  target_link_libraries( ${target} ytlib )
-endmacro()
+endfunction()
 
 include_directories(
   "/usr/local/Cellar/node/0.6.18/include/node"
   "/usr/include/nodejs"
 )
 
-NODE( ytnode )
-NODE( ytnode_stubs )
+NODE( ytnode ${SRCS} )
+NODE( ytnode_stubs src/ytnode_stubs.cpp )
 
