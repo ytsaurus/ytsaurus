@@ -4,7 +4,7 @@
 #include "command.h"
 #include "transaction_commands.h"
 #include "cypress_commands.h"
-//#include "file_commands.h"
+#include "file_commands.h"
 //#include "table_commands.h"
 //#include "scheduler_commands.h"
 
@@ -93,8 +93,8 @@ public:
         RegisterCommand<TCreateCommand>(TCommandDescriptor("create", EDataType::Null, EDataType::Structured));
         RegisterCommand<TLockCommand>(TCommandDescriptor("lock", EDataType::Null, EDataType::Structured));
 
-        //RegisterCommand("download", New<TDownloadCommand>(this));
-        //RegisterCommand("upload", New<TUploadCommand>(this));
+        RegisterCommand<TDownloadCommand>(TCommandDescriptor("download", EDataType::Null, EDataType::Binary));
+        RegisterCommand<TUploadCommand>(TCommandDescriptor("upload", EDataType::Binary, EDataType::Null));
 
         //RegisterCommand("read", New<TReadCommand>(this));
         //RegisterCommand("write", New<TWriteCommand>(this));
