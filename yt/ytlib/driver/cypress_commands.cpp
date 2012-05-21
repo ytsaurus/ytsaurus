@@ -82,11 +82,6 @@ void TRemoveCommand::DoExecute()
 
 //////////////////////////////////////////////////////////////////////////////////
 
-//TCommandDescriptor TListCommand::GetDescriptor()
-//{
-//    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-//}
-
 void TListCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());

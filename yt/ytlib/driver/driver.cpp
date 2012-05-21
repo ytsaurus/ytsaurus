@@ -2,7 +2,7 @@
 #include "driver.h"
 #include "config.h"
 #include "command.h"
-//#include "transaction_commands.h"
+#include "transaction_commands.h"
 #include "cypress_commands.h"
 //#include "file_commands.h"
 //#include "table_commands.h"
@@ -81,17 +81,17 @@ public:
             MasterChannel);
 
         // Register all commands.
+        RegisterCommand<TStartTransactionCommand>(TCommandDescriptor("start_tx", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TRenewTransactionCommand>(TCommandDescriptor("renew_tx", EDataType::Null, EDataType::Null));
+        RegisterCommand<TCommitTransactionCommand>(TCommandDescriptor("commit_tx", EDataType::Null, EDataType::Null));
+        RegisterCommand<TAbortTransactionCommand>(TCommandDescriptor("abort_tx", EDataType::Null, EDataType::Null));
+
         RegisterCommand<TGetCommand>(TCommandDescriptor("get", EDataType::Null, EDataType::Structured));
         RegisterCommand<TSetCommand>(TCommandDescriptor("set", EDataType::Structured, EDataType::Null));
         RegisterCommand<TRemoveCommand>(TCommandDescriptor("remove", EDataType::Null, EDataType::Null));
         RegisterCommand<TListCommand>(TCommandDescriptor("list", EDataType::Null, EDataType::Structured));
         RegisterCommand<TCreateCommand>(TCommandDescriptor("create", EDataType::Null, EDataType::Structured));
         RegisterCommand<TLockCommand>(TCommandDescriptor("lock", EDataType::Null, EDataType::Structured));
-
-        //RegisterCommand("start_tx", New<TStartTransactionCommand>(this));
-        //RegisterCommand("renew_tx", New<TRenewTransactionCommand>(this));
-        //RegisterCommand("commit_tx", New<TCommitTransactionCommand>(this));
-        //RegisterCommand("abort_tx", New<TAbortTransactionCommand>(this));
 
         //RegisterCommand("download", New<TDownloadCommand>(this));
         //RegisterCommand("upload", New<TUploadCommand>(this));

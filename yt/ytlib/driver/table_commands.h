@@ -9,83 +9,79 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReadRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
+//struct TReadRequest
+//    : public TTransactedRequest
+//{
+//    NYTree::TYPath Path;
+//    NYTree::INodePtr Stream;
 
-    TReadRequest()
-    {
-        Register("path", Path);
-    }
-};
+//    TReadRequest()
+//    {
+//        Register("path", Path);
+//    }
+//};
 
-typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
+//typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
 
-class TReadCommand
-    : public TTypedCommandBase<TReadRequest>
-{
-public:
-    explicit TReadCommand(ICommandContext* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
-    { }
+//class TReadCommand
+//    : public TTransactedCommandBase<TReadRequest>
+//{
+//public:
+//    explicit TReadCommand(ICommandContext* host)
+//        : TTransactedCommandBase(host)
+//        , TUntypedCommandBase(host)
+//    { }
 
-    virtual TCommandDescriptor GetDescriptor();
+//private:
+//    virtual void DoExecute();
+//};
 
-private:
-    virtual void DoExecute(TReadRequestPtr request);
-};
+//////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
+//struct TWriteRequest
+//    : public TTransactedRequest
+//{
+//    NYTree::TYPath Path;
+//    NYTree::INodePtr Stream;
+//    NYTree::INodePtr Value;
+//    bool Sorted;
+//    yvector<Stroka> KeyColumns;
 
-struct TWriteRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
-    NYTree::INodePtr Value;
-    bool Sorted;
-    yvector<Stroka> KeyColumns;
+//    TWriteRequest()
+//    {
+//        Register("path", Path);
+//        Register("value", Value)
+//            .Default();
+//        Register("sorted", Sorted)
+//            .Default(false);
+//        Register("key_columns", KeyColumns).Default();
+//    }
 
-    TWriteRequest()
-    {
-        Register("path", Path);
-        Register("value", Value)
-            .Default();
-        Register("sorted", Sorted)
-            .Default(false);
-        Register("key_columns", KeyColumns).Default();
-    }
+//    virtual void DoValidate() const
+//    {
+//        if (Value) {
+//            auto type = Value->GetType();
+//            if (type != NYTree::ENodeType::List && type != NYTree::ENodeType::Map) {
+//                ythrow yexception() << "\"value\" must be a list or a map";
+//            }
+//        }
+//    }
+//};
 
-    virtual void DoValidate() const
-    {
-        if (Value) {
-            auto type = Value->GetType();
-            if (type != NYTree::ENodeType::List && type != NYTree::ENodeType::Map) {
-                ythrow yexception() << "\"value\" must be a list or a map";
-            }
-        }
-    }
-};
+//typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
 
-typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
+//class TWriteCommand
+//    : public TTransactedCommandBase<TWriteRequest>
+//{
+//public:
+//    explicit TWriteCommand(ICommandContext* host)
+//        : TTransactedCommandBase(host)
+//        , TUntypedCommandBase(host)
+//    { }
 
-class TWriteCommand
-    : public TTypedCommandBase<TWriteRequest>
-{
-public:
-    explicit TWriteCommand(ICommandContext* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
-    { }
-
-    virtual TCommandDescriptor GetDescriptor();
-
-private:
-    virtual void DoExecute(TWriteRequestPtr request);
-};
+//private:
+//    virtual void DoExecute();
+//};
 
 ////////////////////////////////////////////////////////////////////////////////
 

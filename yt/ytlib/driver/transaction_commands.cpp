@@ -17,18 +17,18 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TStartTransactionCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
+//TCommandDescriptor TStartTransactionCommand::GetDescriptor()
+//{
+//    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+//}
 
-void TStartTransactionCommand::DoExecute(TStartRequestPtr request)
+void TStartTransactionCommand::DoExecute()
 {
-    auto attributes = IAttributeDictionary::FromMap(request->GetOptions());
+    auto attributes = IAttributeDictionary::FromMap(Request->GetOptions());
     auto transactionManager = Context->GetTransactionManager();
     auto newTransaction = transactionManager->Start(
         ~attributes,
-        request->TransactionId);
+        Request->TransactionId);
 
     BuildYsonFluently(~Context->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
@@ -36,50 +36,50 @@ void TStartTransactionCommand::DoExecute(TStartRequestPtr request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TRenewTransactionCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
+//TCommandDescriptor TRenewTransactionCommand::GetDescriptor()
+//{
+//    return TCommandDescriptor(EDataType::Null, EDataType::Null);
+//}
 
-void TRenewTransactionCommand::DoExecute(TRenewRequestPtr request)
+void TRenewTransactionCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(request->TransactionId));
-    auto response = proxy.Execute(req).Get();
+    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(Request->TransactionId));
+    auto rsp = proxy.Execute(req).Get();
 
-    if (response->IsOK()) {
-        Context->ReplySuccess();
+    if (rsp->IsOK()) {
+        ReplySuccess();
     } else {
-        Context->ReplyError(response->GetError());
+        ReplyError(rsp->GetError());
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TCommitTransactionCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
+//TCommandDescriptor TCommitTransactionCommand::GetDescriptor()
+//{
+//    return TCommandDescriptor(EDataType::Null, EDataType::Null);
+//}
 
-void TCommitTransactionCommand::DoExecute(TCommitRequestPtr request)
+void TCommitTransactionCommand::DoExecute()
 {
-    auto transaction = Context->GetTransaction(request, true);
+    auto transaction = GetTransaction(true);
     transaction->Commit();
-    Context->ReplySuccess();
+    ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TAbortTransactionCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
+//TCommandDescriptor TAbortTransactionCommand::GetDescriptor()
+//{
+//    return TCommandDescriptor(EDataType::Null, EDataType::Null);
+//}
 
-void TAbortTransactionCommand::DoExecute(TAbortTransactionRequestPtr request)
+void TAbortTransactionCommand::DoExecute()
 {
-    auto transaction = Context->GetTransaction(request, true);
+    auto transaction = GetTransaction(true);
     transaction->Abort(true);
-    Context->ReplySuccess();
+    ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,75 +13,74 @@ using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//TCommandDescriptor TDownloadCommand::GetDescriptor()
+//{
+//    return TCommandDescriptor(EDataType::Null, EDataType::Binary);
+//}
 
-TCommandDescriptor TDownloadCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Binary);
-}
+//void TDownloadCommand::DoExecute()
+//{
+//    auto config = Context->GetConfig()->FileReader;
 
-void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
-{
-    auto config = Context->GetConfig()->FileReader;
+//    auto reader = New<TFileReader>(
+//        ~config,
+//        ~Context->GetMasterChannel(),
+//        GetTransaction(false),
+//        ~Context->GetBlockCache(),
+//        Request->Path);
+//    reader->Open();
 
-    auto reader = New<TFileReader>(
-        ~config,
-        ~Context->GetMasterChannel(),
-        ~Context->GetTransaction(request),
-        ~Context->GetBlockCache(),
-        request->Path);
-    reader->Open();
+//    // TODO(babenko): use FileName and Executable values
 
-    // TODO(babenko): use FileName and Executable values
+//    auto output = Context->GetOutputStream();
 
-    auto output = Context->GetOutputStream();
+//    while (true) {
+//        auto block = reader->Read();
+//        if (!block) {
+//            break;
+//        }
+//        output->Write(block.Begin(), block.Size());
+//    }
+//}
 
-    while (true) {
-        auto block = reader->Read();
-        if (!block) {
-            break;
-        }
-        output->Write(block.Begin(), block.Size());
-    }
-}
+//////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
+////TCommandDescriptor TUploadCommand::GetDescriptor()
+////{
+////    return TCommandDescriptor(EDataType::Binary, EDataType::Null);
+////}
 
-TCommandDescriptor TUploadCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Binary, EDataType::Null);
-}
+//void TUploadCommand::DoExecute()
+//{
+//    auto config = Context->GetConfig()->FileWriter;
 
-void TUploadCommand::DoExecute(TUploadRequestPtr request)
-{
-    auto config = Context->GetConfig()->FileWriter;
+//    auto writer = New<TFileWriter>(
+//        ~config,
+//        ~Context->GetMasterChannel(),
+//        GetTransaction(false),
+//        ~Context->GetTransactionManager(),
+//        Request->Path);
+//    writer->Open();
 
-    auto writer = New<TFileWriter>(
-        ~config,
-        ~Context->GetMasterChannel(),
-        ~Context->GetTransaction(request),
-        ~Context->GetTransactionManager(),
-        request->Path);
-    writer->Open();
-
-    auto input = Context->GetInputStream();
+//    auto input = Context->GetInputStream();
     
-    TBlob buffer(config->BlockSize);
-    while (true) {
-        size_t bytesRead = input->Read(buffer.begin(), buffer.size());
-        if (bytesRead == 0)
-            break;
-        TRef block(buffer.begin(), bytesRead);
-        writer->Write(block);
-    }
+//    TBlob buffer(config->BlockSize);
+//    while (true) {
+//        size_t bytesRead = input->Read(buffer.begin(), buffer.size());
+//        if (bytesRead == 0)
+//            break;
+//        TRef block(buffer.begin(), bytesRead);
+//        writer->Write(block);
+//    }
 
-    writer->Close();
+//    writer->Close();
 
-    auto id = writer->GetNodeId();
-    BuildYsonFluently(~Context->CreateOutputConsumer())
-        .BeginMap()
-            .Item("object_id").Scalar(id.ToString())
-        .EndMap();
-}
+//    auto id = writer->GetNodeId();
+//    BuildYsonFluently(~Context->CreateOutputConsumer())
+//        .BeginMap()
+//            .Item("object_id").Scalar(id.ToString())
+//        .EndMap();
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 
