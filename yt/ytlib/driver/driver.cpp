@@ -82,18 +82,16 @@ public:
 
         // Register all commands.
         RegisterCommand<TGetCommand>(TCommandDescriptor("get", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TSetCommand>(TCommandDescriptor("set", EDataType::Structured, EDataType::Null));
+        RegisterCommand<TRemoveCommand>(TCommandDescriptor("remove", EDataType::Null, EDataType::Null));
+        RegisterCommand<TListCommand>(TCommandDescriptor("list", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TCreateCommand>(TCommandDescriptor("create", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TLockCommand>(TCommandDescriptor("lock", EDataType::Null, EDataType::Structured));
 
         //RegisterCommand("start_tx", New<TStartTransactionCommand>(this));
         //RegisterCommand("renew_tx", New<TRenewTransactionCommand>(this));
         //RegisterCommand("commit_tx", New<TCommitTransactionCommand>(this));
         //RegisterCommand("abort_tx", New<TAbortTransactionCommand>(this));
-
-        //RegisterCommand("get", New<TGetCommand>(this));
-        //RegisterCommand("set", New<TSetCommand>(this));
-        //RegisterCommand("remove", New<TRemoveCommand>(this));
-        //RegisterCommand("list", New<TListCommand>(this));
-        //RegisterCommand("create", New<TCreateCommand>(this));
-        //RegisterCommand("lock", New<TLockCommand>(this));
 
         //RegisterCommand("download", New<TDownloadCommand>(this));
         //RegisterCommand("upload", New<TUploadCommand>(this));

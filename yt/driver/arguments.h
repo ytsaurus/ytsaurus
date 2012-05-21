@@ -105,7 +105,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
 class TSetArgsParser
     : public TTransactedArgsParser
 {
@@ -116,11 +115,11 @@ private:
     TUnlabeledStringArg PathArg;
     TUnlabeledStringArg ValueArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
 class TRemoveArgsParser
     : public TTransactedArgsParser
@@ -131,7 +130,7 @@ public:
 private:
     TUnlabeledStringArg PathArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
 };
 
@@ -146,7 +145,7 @@ public:
 private:
     TUnlabeledStringArg PathArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
 };
 
@@ -164,7 +163,7 @@ private:
 
     TUnlabeledStringArg PathArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
 };
 
@@ -182,221 +181,221 @@ private:
     typedef TCLAP::ValueArg<NCypress::ELockMode> TModeArg;
     TModeArg ModeArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TStartTxArgsParser
-    : public TTransactedArgsParser
-{
-private:
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-};
+//class TStartTxArgsParser
+//    : public TTransactedArgsParser
+//{
+//private:
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TRenewTxArgsParser
-    : public TTransactedArgsParser
-{
-private:
-    virtual Stroka GetDriverCommandName() const;
-};
+//class TRenewTxArgsParser
+//    : public TTransactedArgsParser
+//{
+//private:
+//    virtual Stroka GetDriverCommandName() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TCommitTxArgsParser
-    : public TTransactedArgsParser
-{
-private:
-    virtual Stroka GetDriverCommandName() const;
-};
+//class TCommitTxArgsParser
+//    : public TTransactedArgsParser
+//{
+//private:
+//    virtual Stroka GetDriverCommandName() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TAbortTxArgsParser
-    : public TTransactedArgsParser
-{
-private:
-    virtual Stroka GetDriverCommandName() const;
-};
+//class TAbortTxArgsParser
+//    : public TTransactedArgsParser
+//{
+//private:
+//    virtual Stroka GetDriverCommandName() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TReadArgsParser
-    : public TTransactedArgsParser
-{
-public:
-    TReadArgsParser();
+//class TReadArgsParser
+//    : public TTransactedArgsParser
+//{
+//public:
+//    TReadArgsParser();
 
-private:
-    TUnlabeledStringArg PathArg;
+//private:
+//    TUnlabeledStringArg PathArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-};
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TWriteArgsParser
-    : public TTransactedArgsParser
-{
-public:
-    TWriteArgsParser();
+//class TWriteArgsParser
+//    : public TTransactedArgsParser
+//{
+//public:
+//    TWriteArgsParser();
 
-private:
-    TUnlabeledStringArg PathArg;
-    TUnlabeledStringArg ValueArg;
-    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
+//private:
+//    TUnlabeledStringArg PathArg;
+//    TUnlabeledStringArg ValueArg;
+//    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
     
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-};
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TUploadArgsParser
-    : public TTransactedArgsParser
-{
-public:
-    TUploadArgsParser();
+//class TUploadArgsParser
+//    : public TTransactedArgsParser
+//{
+//public:
+//    TUploadArgsParser();
 
-private:
-    TUnlabeledStringArg PathArg;
+//private:
+//    TUnlabeledStringArg PathArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-};
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TDownloadArgsParser
-    : public TTransactedArgsParser
-{
-public:
-    TDownloadArgsParser();
+//class TDownloadArgsParser
+//    : public TTransactedArgsParser
+//{
+//public:
+//    TDownloadArgsParser();
 
-private:
-    TUnlabeledStringArg PathArg;
+//private:
+//    TUnlabeledStringArg PathArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-};
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TStartOpArgsParser
-    : public TTransactedArgsParser
-{
-public:
-    TStartOpArgsParser();
+//class TStartOpArgsParser
+//    : public TTransactedArgsParser
+//{
+//public:
+//    TStartOpArgsParser();
 
-    virtual TError Execute(const std::vector<std::string>& args);
+//    virtual TError Execute(const std::vector<std::string>& args);
 
-private:
-    class TOperationTracker;
+//private:
+//    class TOperationTracker;
 
-    TCLAP::SwitchArg NoTrackArg;
+//    TCLAP::SwitchArg NoTrackArg;
 
-    virtual NScheduler::EOperationType GetOperationType() const = 0;
-};
+//    virtual NScheduler::EOperationType GetOperationType() const = 0;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TMapArgsParser
-    : public TStartOpArgsParser
-{
-public:
-    TMapArgsParser();
+//class TMapArgsParser
+//    : public TStartOpArgsParser
+//{
+//public:
+//    TMapArgsParser();
 
-private:
-    TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::MultiArg<Stroka> OutArg;
-    TCLAP::MultiArg<Stroka> FilesArg;
-    TCLAP::ValueArg<Stroka> MapperArg;
+//private:
+//    TCLAP::MultiArg<Stroka> InArg;
+//    TCLAP::MultiArg<Stroka> OutArg;
+//    TCLAP::MultiArg<Stroka> FilesArg;
+//    TCLAP::ValueArg<Stroka> MapperArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
-};
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//    virtual NScheduler::EOperationType GetOperationType() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TMergeArgsParser
-    : public TStartOpArgsParser
-{
-public:
-    TMergeArgsParser();
+//class TMergeArgsParser
+//    : public TStartOpArgsParser
+//{
+//public:
+//    TMergeArgsParser();
 
-private:
-    TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::ValueArg<Stroka> OutArg;
+//private:
+//    TCLAP::MultiArg<Stroka> InArg;
+//    TCLAP::ValueArg<Stroka> OutArg;
 
-    typedef TNullable<NScheduler::EMergeMode> TMode;
-    typedef TCLAP::ValueArg<TMode> TModeArg;
-    TModeArg ModeArg;
+//    typedef TNullable<NScheduler::EMergeMode> TMode;
+//    typedef TCLAP::ValueArg<TMode> TModeArg;
+//    TModeArg ModeArg;
 
-    TCLAP::SwitchArg CombineArg;
+//    TCLAP::SwitchArg CombineArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
-};
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//    virtual NScheduler::EOperationType GetOperationType() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TSortArgsParser
-    : public TStartOpArgsParser
-{
-public:
-    TSortArgsParser();
+//class TSortArgsParser
+//    : public TStartOpArgsParser
+//{
+//public:
+//    TSortArgsParser();
 
-private:
-    TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::ValueArg<Stroka> OutArg;
-    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
+//private:
+//    TCLAP::MultiArg<Stroka> InArg;
+//    TCLAP::ValueArg<Stroka> OutArg;
+//    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
-};
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//    virtual NScheduler::EOperationType GetOperationType() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TEraseArgsParser
-    : public TStartOpArgsParser
-{
-public:
-    TEraseArgsParser();
+//class TEraseArgsParser
+//    : public TStartOpArgsParser
+//{
+//public:
+//    TEraseArgsParser();
 
-private:
-    TCLAP::ValueArg<Stroka> InArg;
-    TCLAP::ValueArg<Stroka> OutArg;
+//private:
+//    TCLAP::ValueArg<Stroka> InArg;
+//    TCLAP::ValueArg<Stroka> OutArg;
 
-    TCLAP::SwitchArg CombineArg;
+//    TCLAP::SwitchArg CombineArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
-};
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//    virtual NScheduler::EOperationType GetOperationType() const;
+//};
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-class TAbortOpArgsParser
-    : public TArgsParserBase
-{
-public:
-    TAbortOpArgsParser();
+//class TAbortOpArgsParser
+//    : public TArgsParserBase
+//{
+//public:
+//    TAbortOpArgsParser();
 
-private:
-    TCLAP::ValueArg<Stroka> OpArg;
+//private:
+//    TCLAP::ValueArg<Stroka> OpArg;
 
-    virtual void BuildRequest(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
-};
-*/
+//    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+//    virtual Stroka GetDriverCommandName() const;
+//};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

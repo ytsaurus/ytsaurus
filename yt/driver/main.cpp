@@ -51,11 +51,11 @@ public:
         //RegisterParser("abort_tx", New<TAbortTxArgsParser>());
 
         RegisterParser("get", New<TGetArgsParser>());
-        //RegisterParser("set", New<TSetArgsParser>());
-        //RegisterParser("remove", New<TRemoveArgsParser>());
-        //RegisterParser("list", New<TListArgsParser>());
-        //RegisterParser("create", New<TCreateArgsParser>());
-        //RegisterParser("lock", New<TLockArgsParser>());
+        RegisterParser("set", New<TSetArgsParser>());
+        RegisterParser("remove", New<TRemoveArgsParser>());
+        RegisterParser("list", New<TListArgsParser>());
+        RegisterParser("create", New<TCreateArgsParser>());
+        RegisterParser("lock", New<TLockArgsParser>());
 
         //RegisterParser("download", New<TDownloadArgsParser>());
         //RegisterParser("upload", New<TUploadArgsParser>());

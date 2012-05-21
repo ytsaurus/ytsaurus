@@ -34,145 +34,125 @@ void TGetCommand::DoExecute()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/*
-TCommandDescriptor TSetCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Node, EDataType::Null);
-}
 
-void TSetCommand::DoExecute(TSetRequestPtr request)
+void TSetCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto ypathRequest = TYPathProxy::Set(WithTransaction(
-        request->Path,
-        Context->GetTransactionId(request)));
+    auto req = TYPathProxy::Set(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
     TYson value;
-    if (request->Value) {
-        value = SerializeToYson(~request->Value);
+    if (Request->Value) {
+        value = SerializeToYson(Request->Value);
     } else {
         auto producer = Context->CreateInputProducer();
         value = SerializeToYson(producer);
     }
-    ypathRequest->set_value(value);
+    req->set_value(value);
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    if (ypathResponse->IsOK()) {
-        Context->ReplySuccess();
+    if (rsp->IsOK()) {
+        ReplySuccess();
     } else {
-        Context->ReplyError(ypathResponse->GetError());
+        ReplyError(rsp->GetError());
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TRemoveCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
-
-void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
+void TRemoveCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto ypathRequest = TYPathProxy::Remove(WithTransaction(
-        request->Path,
-        Context->GetTransactionId(request)));
+    auto req = TYPathProxy::Remove(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    if (ypathResponse->IsOK()) {
-        Context->ReplySuccess();
+    if (rsp->IsOK()) {
+        ReplySuccess();
     } else {
-        Context->ReplyError(ypathResponse->GetError());
+        ReplyError(rsp->GetError());
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TListCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
+//TCommandDescriptor TListCommand::GetDescriptor()
+//{
+//    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+//}
 
-void TListCommand::DoExecute(TListRequestPtr request)
+void TListCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto ypathRequest = TYPathProxy::List(WithTransaction(
-        request->Path,
-        Context->GetTransactionId(request)));
+    auto req = TYPathProxy::List(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    req->Attributes().MergeFrom(~Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    if (ypathResponse->IsOK()) {
+    if (rsp->IsOK()) {
          auto consumer = Context->CreateOutputConsumer();
          BuildYsonFluently(~consumer)
-            .List(ypathResponse->keys());
+            .List(rsp->keys());
     } else {
-        Context->ReplyError(ypathResponse->GetError());
+        ReplyError(rsp->GetError());
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TCreateCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
-
-void TCreateCommand::DoExecute(TCreateRequestPtr request)
+void TCreateCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
-        request->Path,
-        Context->GetTransactionId(request)));
+    auto req = TCypressYPathProxy::Create(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-    ypathRequest->set_type(request->Type);
+    req->set_type(Request->Type);
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    if (ypathResponse->IsOK()) {
+    if (rsp->IsOK()) {
         auto consumer = Context->CreateOutputConsumer();
-        auto nodeId = TNodeId::FromProto(ypathResponse->object_id());
+        auto nodeId = TNodeId::FromProto(rsp->object_id());
         BuildYsonFluently(~consumer)
             .Scalar(nodeId.ToString());
     } else {
-        Context->ReplyError(ypathResponse->GetError());
+        ReplyError(rsp->GetError());
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TLockCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
-
-void TLockCommand::DoExecute(TLockRequestPtr request)
+void TLockCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
-        request->Path,
-        Context->GetTransactionId(request)));
+    auto req = TCypressYPathProxy::Lock(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-    ypathRequest->set_mode(request->Mode);
+    req->set_mode(Request->Mode);
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    if (ypathResponse->IsOK()) {
-        auto lockId = TLockId::FromProto(ypathResponse->lock_id());
+    if (rsp->IsOK()) {
+        auto lockId = TLockId::FromProto(rsp->lock_id());
         BuildYsonFluently(~Context->CreateOutputConsumer())
             .Scalar(lockId.ToString());
     } else {
-        Context->ReplyError(ypathResponse->GetError());
+        ReplyError(rsp->GetError());
     }
 }
-*/
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver
