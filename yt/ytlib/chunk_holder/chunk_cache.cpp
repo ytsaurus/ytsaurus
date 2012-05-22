@@ -252,9 +252,8 @@ private:
 
             LOG_INFO("Writing block (BlockIndex: %d)", BlockIndex);
             // NB: This is always done synchronously.
-            std::vector<TSharedRef> blocks;
-            blocks.push_back(SequentialReader->GetBlock());
-            auto writeResult = FileWriter->AsyncWriteBlocks(MoveRV(blocks)).Get();
+            auto block = SequentialReader->GetBlock();
+            auto writeResult = FileWriter->AsyncWriteBlock(block).Get();
             if (!writeResult.IsOK()) {
                 OnError(writeResult);
                 return;

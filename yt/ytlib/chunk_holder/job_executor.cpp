@@ -185,11 +185,9 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
                     return;
                 } 
 
-                // XXX(babenko): changing yvector to std::vector causes ICE under VC
-                yvector<TSharedRef> blocks;
-                blocks.push_back(result.Value()->GetData());
+                auto block = result.Value()->GetData();
                 Writer
-                    ->AsyncWriteBlocks(blocks)
+                    ->AsyncWriteBlock(block)
                     .Subscribe(BIND(
                         &TJob::ReplicateBlock,
                         this_,

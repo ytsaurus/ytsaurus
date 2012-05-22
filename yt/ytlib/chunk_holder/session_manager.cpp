@@ -199,9 +199,7 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
         blockIndex);
 
     try {
-        std::vector<TSharedRef> blocks;
-        blocks.push_back(block->GetData());
-        Sync(~Writer, &TFileWriter::AsyncWriteBlocks, blocks);
+        Sync(~Writer, &TFileWriter::AsyncWriteBlock, block->GetData());
     } catch (const std::exception& ex) {
         LOG_FATAL("Error writing chunk block %d\n%s",
             blockIndex,

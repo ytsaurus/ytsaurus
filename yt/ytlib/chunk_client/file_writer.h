@@ -23,7 +23,7 @@ public:
 
     virtual void Open();
 
-    virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
+    virtual TAsyncError AsyncWriteBlock(const TSharedRef& block);
 
     virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 

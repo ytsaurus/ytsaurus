@@ -808,7 +808,7 @@ void TRemoteWriter::CancelAllPings()
     }
 }
 
-TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
+TAsyncError TRemoteWriter::AsyncWriteBlock(const TSharedRef& block)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -816,51 +816,43 @@ TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& block
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
-    i64 blocksSize = 0;
-    FOREACH (const auto& block, blocks) {
-        blocksSize += block.Size();
-    }
-
     State.StartOperation();
 
-    WindowSlots.AsyncAcquire(blocksSize).Subscribe(BIND(
-        &TRemoteWriter::DoWriteBlocks,
+    WindowSlots.AsyncAcquire(block.Size()).Subscribe(BIND(
+        &TRemoteWriter::DoWriteBlock,
         MakeWeak(this),
-        blocks));
+        block));
 
     return State.GetOperationError();
 }
 
-void TRemoteWriter::DoWriteBlocks(const std::vector<TSharedRef>& blocks)
+void TRemoteWriter::DoWriteBlock(const TSharedRef& block)
 {
     if (State.IsActive()) {
-        AddBlocks(blocks);
+        AddBlock(block);
     }
 
     State.FinishOperation();
 }
 
-void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
+void TRemoteWriter::AddBlock(const TSharedRef& block)
 {
     YASSERT(!IsClosing);
 
-    FOREACH (const auto& block, blocks) {
+    CurrentGroup->AddBlock(block);
+    ++BlockCount;
 
-        CurrentGroup->AddBlock(block);
-        ++BlockCount;
-
-        LOG_DEBUG("Added block %d (Group: %p, Size: %" PRISZT ")",
-            BlockCount,
-            ~CurrentGroup,
-            block.Size());
-        if (CurrentGroup->GetSize() >= Config->GroupSize) {
-            WriterThread->GetInvoker()->Invoke(BIND(
-                &TRemoteWriter::AddGroup,
-                MakeWeak(this),
-                CurrentGroup));
-            // Construct a new (empty) group.
-            CurrentGroup = New<TGroup>(Nodes.size(), BlockCount, this);
-        }
+    LOG_DEBUG("Added block %d (Group: %p, Size: %" PRISZT ")",
+        BlockCount,
+        ~CurrentGroup,
+        block.Size());
+    if (CurrentGroup->GetSize() >= Config->GroupSize) {
+        WriterThread->GetInvoker()->Invoke(BIND(
+            &TRemoteWriter::AddGroup,
+            MakeWeak(this),
+            CurrentGroup));
+        // Construct a new (empty) group.
+        CurrentGroup = New<TGroup>(Nodes.size(), BlockCount, this);
     }
 }
 

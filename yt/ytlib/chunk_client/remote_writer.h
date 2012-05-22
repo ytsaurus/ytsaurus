@@ -42,7 +42,7 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
+    virtual TAsyncError AsyncWriteBlock(const TSharedRef& block);
 
     /*!
      * \note Thread affinity: ClientThread.
@@ -156,8 +156,8 @@ private:
         TMetric* metric,
         TIntrusivePtr<TResponse> rsp);
 
-    void AddBlocks(const std::vector<TSharedRef>& blocks);
-    void DoWriteBlocks(const std::vector<TSharedRef>& blocks);
+    void AddBlock(const TSharedRef& block);
+    void DoWriteBlock(const TSharedRef& block);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);

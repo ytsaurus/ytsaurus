@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_client )
 set( SRCS
+  ${BASE}/async_writer.cpp
   ${BASE}/client_block_cache.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp

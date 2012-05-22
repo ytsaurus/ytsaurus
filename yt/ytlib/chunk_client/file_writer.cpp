@@ -38,22 +38,20 @@ void TFileWriter::Open()
     IsOpen = true;
 }
 
-TAsyncError TFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
+TAsyncError TFileWriter::AsyncWriteBlock(const TSharedRef& block)
 {
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
 
     try {
-        FOREACH (auto& data, blocks) {
-            auto* blockInfo = BlocksExt.add_blocks();
-            blockInfo->set_offset(DataFile->GetPosition());
-            blockInfo->set_size(static_cast<int>(data.Size()));
-            blockInfo->set_checksum(GetChecksum(data));
+        auto* blockInfo = BlocksExt.add_blocks();
+        blockInfo->set_offset(DataFile->GetPosition());
+        blockInfo->set_size(static_cast<int>(block.Size()));
+        blockInfo->set_checksum(GetChecksum(block));
 
-            DataFile->Write(data.Begin(), data.Size());
+        DataFile->Write(block.Begin(), block.Size());
 
-            DataSize += data.Size();
-        }
+        DataSize += block.Size();
     } catch (yexception& e) {
         return MakeFuture(TError(
             "Failed to write block to file: %s",

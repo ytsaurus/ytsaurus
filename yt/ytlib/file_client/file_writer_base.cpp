@@ -214,16 +214,14 @@ void TFileWriterBase::FlushBlock()
 
     LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
     try {
-        std::vector<TSharedRef> blocks;
-        blocks.push_back(Codec->Compress(MoveRV(Buffer)));
-        Sync(~Writer, &TRemoteWriter::AsyncWriteBlocks, blocks);
+        auto compressedBuffer = Codec->Compress(MoveRV(Buffer));
+        Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, compressedBuffer);
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error writing file block\n%s",
             ex.what());
     }
     LOG_INFO("Block written (BlockIndex: %d)", BlockCount);
 
-    // AsyncWriteBlock has likely cleared the buffer by swapping it out, but let's make it sure.
     Buffer.clear();
     ++BlockCount;
 }
