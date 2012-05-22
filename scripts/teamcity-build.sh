@@ -32,6 +32,11 @@ function usage() {
 ################################################################################
 tc "progressMessage 'Setting up...'"
 
+export LANG=en_US.UTF-8
+export LANGUAGE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+export LC_CTYPE=C
+
 [[ -z "$TEAMCITY_VERSION"        ]] && usage && exit 1
 [[ -z "$TEAMCITY_BUILDCONF_NAME" ]] && usage && exit 1
 [[ -z "$TEAMCITY_PROJECT_NAME"   ]] && usage && exit 1
@@ -117,7 +122,6 @@ make -j 1
 
 tc "blockClosed name='make'"
 
-package_name=yandex-yt
 package_version=
 package_ticket=
 
@@ -139,17 +143,22 @@ if [[ ( $WITH_PACKAGE = "YES" ) && ( $WITH_DEPLOY = "YES" ) ]]; then
     tc "progressMessage 'Deploying...'"
 
     comment_file=$(mktemp)
-    deploy_file=ARTIFACTS/${package_name}_${package_version}.deploy
+    deploy_file=ARTIFACTS/deploy_${package_version}
 
     # TODO(sandello): More verbose commentary is always better.
+    # TODO(sandello): Insert proper buildTypeId here.
+
     trap 'rm -f $comment_file ; exit $?' INT TERM EXIT
+
     echo "Auto-generated ticket posted by $(hostname) on $(date)" > $comment_file
     echo "See http://teamcity.yandex.ru/viewLog.html?buildTypeId=bt1364&buildNumber=${BUILD_NUMBER}" >> $comment_file
 
     curl http://c.yandex-team.ru/auth_update/ticket_add/ \
         --silent --get \
-        --data-urlencode "package[0]=${package_name}" \
+        --data-urlencode "package[0]=yandex-yt" \
         --data-urlencode "version[0]=${package_version}" \
+        --data-urlencode "package[1]=yandex-yt-http-api" \
+        --data-urlencode "version[1]=${package_version}" \
         --data-urlencode "ticket[branch]=testing" \
         --data-urlencode "ticket[mailcc]=sandello@yandex-team.ru" \
         --data-urlencode "ticket[comment]@${comment_file}" \
