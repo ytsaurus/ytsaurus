@@ -3,6 +3,7 @@
 
 #include "attributes.h"
 #include "forwarding_yson_consumer.h"
+#include "attribute_consumer.h"
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/misc/assert.h>
@@ -11,43 +12,6 @@
 
 namespace NYT {
 namespace NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAttributeConsumer
-    : public TForwardingYsonConsumer
-{
-public:
-    TAttributeConsumer()
-        : Attributes(CreateEphemeralAttributes())
-        , Output(Value)
-        , Writer(&Output)
-    { }
-
-    const IAttributeDictionary& GetAttributes() const
-    {
-        return *Attributes;
-    }
-
-    virtual void OnMyKeyedItem(const TStringBuf& key)
-    {
-        Key = key;
-        ForwardNode(&Writer, BIND([=] () mutable {
-            Attributes->SetYson(Key, Value);
-            // TODO(babenko): "this" is needed by VC
-            this->Key.clear();
-            this->Value.clear();
-        }));
-    }
-
-private:
-    THolder<IAttributeDictionary> Attributes;
-    TStringOutput Output;
-    TYsonWriter Writer;
-
-    Stroka Key;
-    TYson Value;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

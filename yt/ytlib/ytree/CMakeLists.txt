@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree )
 set( SRCS
+  ${BASE}/attribute_consumer.cpp
   ${BASE}/attribute_provider_detail.cpp
   ${BASE}/attributes.cpp
   ${BASE}/ephemeral.cpp
@@ -25,6 +26,7 @@ set( SRCS
   ${BASE}/ytree.cpp
 )
 set( HDRS
+  ${BASE}/attribute_consumer.h
   ${BASE}/attribute_provider.h
   ${BASE}/attribute_provider_detail.h
   ${BASE}/attributes-inl.h
