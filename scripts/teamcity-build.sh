@@ -148,7 +148,7 @@ if [[ ( $WITH_PACKAGE = "YES" ) && ( $WITH_DEPLOY = "YES" ) ]]; then
     # TODO(sandello): More verbose commentary is always better.
     # TODO(sandello): Insert proper buildTypeId here.
 
-    trap 'rm -f $comment_file ; exit $?' INT TERM EXIT
+    trap 'rm -f $comment_file' INT TERM EXIT
 
     echo "Auto-generated ticket posted by $(hostname) on $(date)" > $comment_file
     echo "See http://teamcity.yandex.ru/viewLog.html?buildTypeId=bt1364&buildNumber=${BUILD_NUMBER}" >> $comment_file
