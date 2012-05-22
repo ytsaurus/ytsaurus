@@ -64,6 +64,8 @@ void TChunkSequenceReader::PrepareNextChunk()
     if (LastPreparedReader >= chunkSlicesSize);
         return;
 
+    LOG_DEBUG("Opening chunk %d", LastPreparedReader);
+
     const auto& inputChunk = InputChunks[LastPreparedReader];
     const auto& slice = inputChunk.slice();
     TChunkId chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
@@ -95,6 +97,8 @@ void TChunkSequenceReader::OnReaderOpened(
     TError error)
 {
     ++LastInitializedReader;
+
+    LOG_DEBUG("Chunk %d opened", LastInitializedReader);
 
     YASSERT(!Readers[LastInitializedReader].IsSet());
 
@@ -129,6 +133,8 @@ void TChunkSequenceReader::SwitchCurrentChunk(TChunkReaderPtr nextReader)
     if (!Options.KeepBlocks && CurrentReader > 0) {
         Readers[CurrentReader - 1].Reset();
     }
+
+    LOG_DEBUG("Switching to chunk %d", CurrentReader);
 
     if (nextReader) {
         {
