@@ -129,10 +129,7 @@ if [[ ( $WITH_PACKAGE = "YES" ) ]]; then
 
     package_version=$(cat ytversion)
 
-    # TODO(sandello): Fix me, we have to support multiple packages.
-    #changes_file=ARTIFACTS/${package_name}_${package_version}_amd64.changes
-    #dupload --to common --nomail ${changes_file}
-    dupload --to common --nomail ARTIFACTS/*.changes
+    dupload --to common --nomail ARTIFACTS/yandex-yt*${YT_VERSION}*.changes
 
     tc "setParameter name='yt.package_built' value='1'"
     tc "setParameter name='yt.package_version' value='$package_version'"
