@@ -132,6 +132,7 @@ TSortJob::TSortJob(
 
     TReaderOptions options;
     options.KeepBlocks = true;
+    options.IsUnordered = true;
 
     std::vector<NTableClient::NProto::TInputChunk> chunks(
         jobSpec.input_spec().chunks().begin(),

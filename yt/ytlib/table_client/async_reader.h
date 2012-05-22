@@ -20,9 +20,12 @@ struct TReaderOptions
     // If set, reader keeps all memory buffers valid until destruction.
     bool KeepBlocks;
 
+    bool IsUnordered;
+
     TReaderOptions()
         : ReadKey(false)
         , KeepBlocks(false)
+        , IsUnordered(false)
     { }
 };
 

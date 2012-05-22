@@ -47,8 +47,8 @@ public:
 
 private:
     void PrepareNextChunk();
-    void OnNextReaderOpened(TChunkReaderPtr reader, TError error);
-    void SetCurrentChunk(TChunkReaderPtr nextReader);
+    void OnReaderOpened(TChunkReaderPtr reader, TError error);
+    void SwitchCurrentChunk(TChunkReaderPtr nextReader);
     void OnRowFetched(TError error);
 
     TChunkSequenceReaderConfigPtr Config;
@@ -68,17 +68,16 @@ private:
     NRpc::IChannelPtr MasterChannel;
     TAsyncStreamState State;
 
-    int NextChunkIndex;
+    int CurrentReader;
     int PartitionTag;
-    TPromise<TChunkReaderPtr> NextReader;
 
     /*!
-    *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
-    *  to all chunk readers it has opened during its lifetime.
-    *  
-     * The current reader is always |Readers.back()|.
+     *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
+     *  to all chunk readers it has opened during its lifetime.
      */
-    std::vector<TChunkReaderPtr> Readers;
+    std::vector< TPromise<TChunkReaderPtr> > Readers;
+    int LastInitializedReader;
+    int LastPreparedReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
