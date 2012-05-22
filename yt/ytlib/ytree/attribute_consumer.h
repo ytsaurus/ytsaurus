@@ -13,14 +13,18 @@ class TAttributeConsumer
     : public TForwardingYsonConsumer
 {
 public:
-    TAttributeConsumer();
-    const IAttributeDictionary& GetAttributes() const;
+    TAttributeConsumer(IAttributeDictionary* attributes);
+    IAttributeDictionary* GetAttributes() const;
 
 protected:
     virtual void OnMyKeyedItem(const TStringBuf& key);
+    virtual void OnMyBeginMap();
+    virtual void OnMyEndMap();
+    virtual void OnMyBeginAttributes();
+    virtual void OnMyEndAttributes();
 
 private:
-    THolder<IAttributeDictionary> Attributes;
+    IAttributeDictionary* Attributes;
     TStringOutput Output;
     TYsonWriter Writer;
 

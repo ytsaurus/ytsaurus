@@ -8,15 +8,15 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAttributeConsumer::TAttributeConsumer()
-    : Attributes(CreateEphemeralAttributes())
+TAttributeConsumer::TAttributeConsumer(IAttributeDictionary* attributes)
+    : Attributes(attributes)
     , Output(Value)
     , Writer(&Output)
 { }
 
-const IAttributeDictionary& TAttributeConsumer::GetAttributes() const
+IAttributeDictionary* TAttributeConsumer::GetAttributes() const
 {
-    return *Attributes;
+    return Attributes;
 }
 
 void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
@@ -29,6 +29,18 @@ void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
         this->Value.clear();
     }));
 }
+
+void TAttributeConsumer::OnMyBeginMap()
+{ }
+
+void TAttributeConsumer::OnMyEndMap()
+{ }
+
+void TAttributeConsumer::OnMyBeginAttributes()
+{ }
+
+void TAttributeConsumer::OnMyEndAttributes()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
             
