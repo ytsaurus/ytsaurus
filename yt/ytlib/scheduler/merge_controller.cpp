@@ -131,7 +131,7 @@ protected:
     //! Finish the current group if the size is large enough.
     void EndGroupIfLarge()
     {
-        if (CurrentGroup->ChunkPool->GetTotalWeight() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (CurrentGroup->ChunkPool->GetTotalWeight() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
             EndGroup();
         }
     }
@@ -490,7 +490,7 @@ protected:
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * miscExt->compressed_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (0.9 * miscExt->compressed_data_size() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -514,7 +514,7 @@ protected:
         mergeJobSpec.mutable_output_spec()->set_channels(OutputTables[0].Channels);
         *JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec) = mergeJobSpec;
 
-        JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
+        JobSpecTemplate.set_io_config(SerializeToYson(Config->MergeJobIO));
     }
 
 };
@@ -561,7 +561,7 @@ private:
     {
         TotalJobCount = GetJobCount(
             TotalWeight,
-            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
+            Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize,
             Spec->JobCount,
             TotalChunkCount);
     }

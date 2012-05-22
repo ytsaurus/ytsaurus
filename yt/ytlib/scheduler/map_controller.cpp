@@ -234,7 +234,7 @@ private:
             // Init counters.
             TotalJobCount = GetJobCount(
                 TotalWeight,
-                Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
+                Config->MapJobIO->ChunkSequenceWriter->DesiredChunkSize,
                 Spec->JobCount,
                 TotalChunkCount);
             PendingWeight = TotalWeight;
@@ -309,7 +309,7 @@ private:
         }
         *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
 
-        JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
+        JobSpecTemplate.set_io_config(SerializeToYson(Config->MapJobIO));
 
         // TODO(babenko): stderr
     }

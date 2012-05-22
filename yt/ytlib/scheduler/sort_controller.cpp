@@ -475,7 +475,7 @@ private:
 
         // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
         // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-        auto ioConfig = GetJobIOConfig(partition->Small);
+        auto ioConfig = PrepareJobIOConfig(Config->SortJobIO, partition->Small);
         jobSpec.set_io_config(SerializeToYson(ioConfig));
 
         // Update counters.
@@ -704,7 +704,7 @@ private:
         // Init counters.
         TotalPartitionJobCount = GetJobCount(
             TotalPartitionWeight,
-            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
+            Config->PartitionJobIO->ChunkSequenceWriter->DesiredChunkSize,
             Spec->PartitionJobCount,
             TotalPartitionChunkCount);
         PendingPartitionWeight = TotalPartitionWeight;
@@ -802,15 +802,15 @@ private:
 
     // Unsorted helpers.
 
-    TJobIOConfigPtr GetJobIOConfig(bool replicateOutput)
+    TJobIOConfigPtr PrepareJobIOConfig(TJobIOConfigPtr config, bool replicateOutput)
     {
         if (replicateOutput) {
-            return Spec->JobIO;
-        } else {
-            auto config = CloneConfigurable(Spec->JobIO);
-            config->ChunkSequenceWriter->ReplicationFactor = 1;
-            config->ChunkSequenceWriter->UploadReplicationFactor = 1;
             return config;
+        } else {
+            auto newConfig = CloneConfigurable(config);
+            newConfig->ChunkSequenceWriter->ReplicationFactor = 1;
+            newConfig->ChunkSequenceWriter->UploadReplicationFactor = 1;
+            return newConfig;
         }
     }
 
@@ -828,7 +828,8 @@ private:
             *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = specExt;
 
             // Don't replicate partition chunks.
-            PartitionJobSpecTemplate.set_io_config(SerializeToYson(GetJobIOConfig(false)));
+            PartitionJobSpecTemplate.set_io_config(SerializeToYson(
+                PrepareJobIOConfig(Config->PartitionJobIO, false)));
         }
         {
             SortJobSpecTemplate.set_type(EJobType::Sort);
