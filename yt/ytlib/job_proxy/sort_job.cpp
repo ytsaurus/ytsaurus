@@ -90,7 +90,6 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
     if (lhs.Type != rhs.Type) 
         return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
 
-
     switch (lhs.Type) {
         case EKeyType::Integer:
             if (lhs.Value.Int > rhs.Value.Int)
@@ -202,7 +201,7 @@ TJobResult TSortJob::Run()
             while (Reader->IsValid()) {
                 // Avoid constructing row on stack and then copying it into the buffer.
                 // TODO(babenko): consider using emplace_back
-                rowIndexBuffer.push_back(valueIndexBuffer.size());
+                rowIndexBuffer.push_back(rowIndexBuffer.size());
                 YASSERT(rowIndexBuffer.back() <= std::numeric_limits<ui32>::max());
 
                 keyBuffer.resize(keyBuffer.size() + keyColumnCount);
@@ -210,7 +209,7 @@ TJobResult TSortJob::Run()
                 FOREACH (const auto& pair, Reader->GetRow()) {
                     auto it = keyColumnToIndex.find(pair.first);
                     if (it != keyColumnToIndex.end()) {
-                        auto& keyPart = keyBuffer[(rowIndexBuffer.back() - 1) * keyColumnCount + it->second];
+                        auto& keyPart = keyBuffer[rowIndexBuffer.back() * keyColumnCount + it->second];
                         SetSmallKeyPart(keyPart, pair.second, lexer);
                     }
                     valueBuffer.push_back(pair);
@@ -231,8 +230,8 @@ TJobResult TSortJob::Run()
             [&] (ui32 lhs, ui32 rhs) -> bool {
                 for (int i = 0; i < keyColumnCount; ++i) {
                     auto res = CompareSmallKeyParts(
-                        keyBuffer[(lhs - 1) * keyColumnCount + i], 
-                        keyBuffer[(rhs - 1) * keyColumnCount + i]);
+                        keyBuffer[lhs * keyColumnCount + i], 
+                        keyBuffer[rhs * keyColumnCount + i]);
 
                     if (res < 0)
                         return true;
@@ -257,15 +256,15 @@ TJobResult TSortJob::Run()
                 key.Reset(keyColumnCount);
 
                 auto rowIndex = rowIndexBuffer[progressIndex];
-                for (auto valueIndex = valueIndexBuffer[rowIndex - 1];
-                     valueIndex < valueIndexBuffer[rowIndex]; 
+                for (auto valueIndex = valueIndexBuffer[rowIndex];
+                     valueIndex < valueIndexBuffer[rowIndex + 1]; 
                      ++valueIndex)
                 {
                     row.push_back(valueBuffer[valueIndex]);
                 }
 
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
-                    auto& keyPart = keyBuffer[(rowIndex - 1) * keyColumnCount + keyIndex];
+                    auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
                     switch (keyPart.Type) {
                         case EKeyType::Integer:
                             key.SetValue(keyIndex, keyPart.Value.Int);
