@@ -42,7 +42,7 @@ TChunkSequenceReader::TChunkSequenceReader(
     , TotalRowCount(0)
     , CurrentRowIndex(0)
 {
-    for (int i = 0; i < InputChunks.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
         TotalRowCount += miscExt->row_count();
         TotalValueCount += miscExt->value_count();
@@ -61,7 +61,7 @@ void TChunkSequenceReader::PrepareNextChunk()
     int chunkSlicesSize = static_cast<int>(InputChunks.size());
 
     ++LastPreparedReader;
-    if (LastPreparedReader >= chunkSlicesSize);
+    if (LastPreparedReader >= chunkSlicesSize)
         return;
 
     LOG_DEBUG("Opening chunk %d", LastPreparedReader);
