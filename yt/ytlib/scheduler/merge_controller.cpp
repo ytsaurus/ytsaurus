@@ -75,13 +75,12 @@ protected:
     struct TMergeGroup
         : public TIntrinsicRefCounted
     {
-        TMergeGroup(TAutoPtr<IChunkPool> chunkPool, int groupIndex, int partitionIndex = -1)
-            : ChunkPool(chunkPool)
-            , GroupIndex(groupIndex)
+        TMergeGroup(int groupIndex, int partitionIndex = -1)
+            : GroupIndex(groupIndex)
             , PartitionIndex(partitionIndex)
         { }
 
-        TAutoPtr<IChunkPool> ChunkPool;
+        TChunkPool ChunkPool;
 
         //! The position in |Groups|. 
         int GroupIndex;
@@ -97,14 +96,13 @@ protected:
     TMergeGroupPtr CurrentGroup;
 
     //! Start a new group.
-    TMergeGroupPtr BeginGroup(TAutoPtr<IChunkPool> chunkPool)
+    TMergeGroupPtr BeginGroup()
     {
         YASSERT(!CurrentGroup);
 
         auto& table = OutputTables[0];
 
         auto group = New<TMergeGroup>(
-            chunkPool,
             static_cast<int>(Groups.size()),
             static_cast<int>(table.PartitionTreeIds.size()));
 
@@ -124,14 +122,14 @@ protected:
         YASSERT(CurrentGroup);
         LOG_DEBUG("Finished group %d (DataSize: %" PRId64 ")",
             static_cast<int>(Groups.size()) - 1,
-            CurrentGroup->ChunkPool->GetTotalWeight());
+            CurrentGroup->ChunkPool.GetTotalWeight());
         CurrentGroup.Reset();
     }
 
     //! Finish the current group if the size is large enough.
     void EndGroupIfLarge()
     {
-        if (CurrentGroup->ChunkPool->GetTotalWeight() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (CurrentGroup->ChunkPool.GetTotalWeight() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
             EndGroup();
         }
     }
@@ -163,7 +161,7 @@ protected:
 
         TotalWeight += miscExt->data_weight();
         ++TotalChunkCount;
-        CurrentGroup->ChunkPool->Add(stripe);
+        CurrentGroup->ChunkPool.Add(stripe);
         RegisterPendingStripe(CurrentGroup, stripe);
 
         LOG_DEBUG("Added pending chunk %s in partition %d, group %d",
@@ -184,25 +182,25 @@ protected:
         table.PartitionTreeIds.push_back(chunkId);
     }
 
-    IChunkPool::TExtractResultPtr ExtractChunksForMerge(
+    TPoolExtractionResultPtr ExtractChunksForMerge(
         TMergeGroupPtr group,
         const Stroka& address,
         i64 weightThreshold,
         bool needLocal)
     {
-        auto result = group->ChunkPool->Extract(
+        auto result = group->ChunkPool.Extract(
             address,
             weightThreshold,
             needLocal);
 
-        if (!group->ChunkPool->HasPendingChunks()) {
+        if (!group->ChunkPool.HasPendingChunks()) {
             YVERIFY(ActiveGroups.erase(group) == 1);
         }
 
         FOREACH (const auto& stripe, result->Stripes) {
             FOREACH (const auto& chunk, stripe->InputChunks) {
                 FOREACH (const auto& address, chunk.node_addresses()) {
-                    if (!group->ChunkPool->HasPendingLocalChunksFor(address)) {
+                    if (!group->ChunkPool.HasPendingLocalChunksFor(address)) {
                         AddressToActiveGroups[address].erase(group);
                     }
                 }
@@ -212,9 +210,9 @@ protected:
         return result;
     }
 
-    void ReturnChunksForMerge(TMergeGroupPtr group, IChunkPool::TExtractResultPtr result)
+    void ReturnChunksForMerge(TMergeGroupPtr group, TPoolExtractionResultPtr result)
     {
-        group->ChunkPool->PutBack(result);
+        group->ChunkPool.PutBack(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterPendingStripe(group, chunk);
         }
@@ -261,7 +259,7 @@ protected:
     struct TMergeJobInProgress
         : public TJobInProgress
     {
-        IChunkPool::TExtractResultPtr ExtractResult;
+        TPoolExtractionResultPtr PoolResult;
         TChunkListId ChunkListId;
         TMergeGroupPtr Group;
     };
@@ -280,23 +278,23 @@ protected:
         i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
         auto jip = New<TMergeJobInProgress>();
         jip->Group = group;
-        jip->ExtractResult = ExtractChunksForMerge(
+        jip->PoolResult = ExtractChunksForMerge(
             group,
             node->GetAddress(),
             weightThreshold,
             false);
 
         LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-            jip->ExtractResult->TotalChunkCount,
+            jip->PoolResult->TotalChunkCount,
             ~node->GetAddress(),
-            jip->ExtractResult->LocalChunkCount,
-            jip->ExtractResult->TotalChunkWeight,
+            jip->PoolResult->LocalChunkCount,
+            jip->PoolResult->TotalChunkWeight,
             weightThreshold);
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
         auto* mergeJobSpec = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
-        FOREACH (const auto& stripe, jip->ExtractResult->Stripes) {
+        FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
             auto* inputSpec = mergeJobSpec->add_input_spec();
             FOREACH (const auto& chunk, stripe->InputChunks) {
                 *inputSpec->add_chunks() = chunk;
@@ -306,8 +304,8 @@ protected:
         *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
 
         // Update counters.
-        PendingChunkCount -= jip->ExtractResult->TotalChunkCount;
-        PendingWeight -= jip->ExtractResult->TotalChunkWeight;
+        PendingChunkCount -= jip->PoolResult->TotalChunkCount;
+        PendingWeight -= jip->PoolResult->TotalChunkWeight;
 
         return CreateJob(
             jip,
@@ -319,8 +317,8 @@ protected:
 
     virtual void OnJobCompleted(TMergeJobInProgress* jip)
     {
-        CompletedChunkCount += jip->ExtractResult->TotalChunkCount;
-        CompletedWeight += jip->ExtractResult->TotalChunkWeight;
+        CompletedChunkCount += jip->PoolResult->TotalChunkCount;
+        CompletedWeight += jip->PoolResult->TotalChunkWeight;
 
         auto group = jip->Group;
         auto& table = OutputTables[0];
@@ -329,11 +327,11 @@ protected:
 
     virtual void OnJobFailed(TMergeJobInProgress* jip)
     {
-        PendingChunkCount += jip->ExtractResult->TotalChunkCount;
-        PendingWeight += jip->ExtractResult->TotalChunkWeight;
+        PendingChunkCount += jip->PoolResult->TotalChunkCount;
+        PendingWeight += jip->PoolResult->TotalChunkWeight;
 
-        LOG_DEBUG("Returned %d chunks into pool", jip->ExtractResult->TotalChunkCount);
-        ReturnChunksForMerge(jip->Group, jip->ExtractResult);
+        LOG_DEBUG("Returned %d chunks into pool", jip->PoolResult->TotalChunkCount);
+        ReturnChunksForMerge(jip->Group, jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -548,7 +546,7 @@ private:
 
         // Create a merge group if not exists.
         if (!CurrentGroup) {
-            BeginGroup(CreateUnorderedChunkPool());
+            BeginGroup();
         }
 
         // Merge is IO-bound, use data size as weight.
@@ -627,7 +625,7 @@ private:
 
         // Ensure that the current group exists.
         if (!CurrentGroup) {
-            BeginGroup(CreateAtomicChunkPool());
+            BeginGroup();
         }
 
         // Merge is IO-bound, use data size as weight.
@@ -751,7 +749,7 @@ private:
         // Ensure that the current group exists.
         if (!CurrentGroup) {
             // TODO(babenko): use merge pool instead
-            BeginGroup(CreateAtomicChunkPool());
+            BeginGroup();
         }
 
         FOREACH (const auto& chunk, chunks) {

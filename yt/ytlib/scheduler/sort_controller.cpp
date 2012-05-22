@@ -105,7 +105,6 @@ private:
         explicit TPartition(int index)
             : Index(index)
             , Small(false)
-            , SortChunkPool(CreateUnorderedChunkPool())
         { }
 
         //! Sequential index (zero based).
@@ -115,7 +114,7 @@ private:
         bool Small;
 
         //! Pool storing all chunks awaiting sort job.
-        TAutoPtr<IChunkPool> SortChunkPool;
+        TChunkPool SortChunkPool;
     };
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
@@ -127,7 +126,7 @@ private:
     std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
     
     //! Pool storing all chunks awaiting partition job.
-    TAutoPtr<IChunkPool> PartitionChunkPool;
+    TChunkPool PartitionChunkPool;
     
     //! List of all partitions.
     std::vector<TPartitionPtr> Partitions;
@@ -143,15 +142,15 @@ private:
     bool IsPartitionActive(TPartitionPtr partition)
     {
         return GetPendingPartitionJobCount() > 0
-            ? partition->SortChunkPool->GetTotalWeight() > Config->MaxSortJobDataSize
-            : partition->SortChunkPool->HasPendingChunks();
+            ? partition->SortChunkPool.GetTotalWeight() > Config->MaxSortJobDataSize
+            : partition->SortChunkPool.HasPendingChunks();
     }
 
     bool IsPartitionActiveFor(TPartitionPtr partition, const Stroka& address)
     {
         return
             IsPartitionActive(partition) &&
-            partition->SortChunkPool->HasPendingLocalChunksFor(address);
+            partition->SortChunkPool.HasPendingLocalChunksFor(address);
     }
 
     void RegisterPendingStripeForSort(TPartitionPtr partition, TChunkStripePtr stripe)
@@ -175,7 +174,7 @@ private:
         auto stripe = New<TChunkStripe>(chunk, weight);
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
 
-        partition->SortChunkPool->Add(stripe);
+        partition->SortChunkPool.Add(stripe);
         RegisterPendingStripeForSort(partition, stripe);
 
         LOG_DEBUG("Added pending chunk %s for sort in partition %d",
@@ -184,22 +183,22 @@ private:
 
         if (Partitions.size() > 1 &&
             GetPendingPartitionJobCount() == 0 &&
-            partition->SortChunkPool->GetTotalWeight() <= Config->MaxSortJobDataSize)
+            partition->SortChunkPool.GetTotalWeight() <= Config->MaxSortJobDataSize)
         {
             partition->Small = true;
             LOG_DEBUG("Partition %d is small (Weight: %" PRId64 ")",
                 partition->Index,
-                partition->SortChunkPool->GetTotalWeight());
+                partition->SortChunkPool.GetTotalWeight());
         }
     }
 
-    IChunkPool::TExtractResultPtr ExtractChunksForSort(
+    TPoolExtractionResultPtr ExtractChunksForSort(
         TPartitionPtr partition,
         const Stroka& address,
         i64 weightThreshold,
         bool needLocal)
     {
-        auto result = partition->SortChunkPool->Extract(
+        auto result = partition->SortChunkPool.Extract(
             address,
             weightThreshold,
             needLocal);
@@ -223,9 +222,9 @@ private:
 
     void ReturnChunksForSort(
         TPartitionPtr partition,
-        IChunkPool::TExtractResultPtr result)
+        TPoolExtractionResultPtr result)
     {
-        partition->SortChunkPool->PutBack(result);
+        partition->SortChunkPool.PutBack(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterPendingStripeForSort(partition, chunk);
         }
@@ -279,7 +278,7 @@ private:
 
     int GetPendingSortJobCount(TPartitionPtr partition)
     {
-        i64 weight = partition->SortChunkPool->GetPendingWeight();
+        i64 weight = partition->SortChunkPool.GetPendingWeight();
         i64 weightPerChunk = Config->MaxSortJobDataSize;
         double fractionJobCount = (double) weight / weightPerChunk;
         return IsPartitionComplete()
@@ -325,25 +324,25 @@ private:
     struct TPartitionJobInProgress
         : public TJobInProgress
     {
-        IChunkPool::TExtractResultPtr ExtractResult;
+        TPoolExtractionResultPtr ExtractResult;
         TChunkListId ChunkListId;
     };
 
     TJobPtr TrySchedulePartitionJob(TExecNodePtr node)
     {
-        if (!PartitionChunkPool) {
+        if (Partitions.size() < 2) {
             // Single partition case.
             return NULL;
         }
 
-        if (!PartitionChunkPool->HasPendingChunks()) {
+        if (!PartitionChunkPool.HasPendingChunks()) {
             return NULL;
         }
 
         // Allocate chunks for the job.
         auto jip = New<TPartitionJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(GetPendingPartitionJobCount(), PendingPartitionWeight);
-        jip->ExtractResult = PartitionChunkPool->Extract(
+        jip->ExtractResult = PartitionChunkPool.Extract(
             node->GetAddress(),
             weightThreshold,
             false);
@@ -417,7 +416,7 @@ private:
         PendingPartitionWeight  += jip->ExtractResult->TotalChunkWeight;
 
         LOG_DEBUG("Returned %d chunks into partition pool", jip->ExtractResult->TotalChunkCount);
-        PartitionChunkPool->PutBack(jip->ExtractResult);
+        PartitionChunkPool.PutBack(jip->ExtractResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -429,7 +428,7 @@ private:
         : public TJobInProgress
     {
         TPartitionPtr Partition;
-        IChunkPool::TExtractResultPtr ExtractResult;
+        TPoolExtractionResultPtr ExtractResult;
         TChunkListId ChunkListId;
     };
 
@@ -547,7 +546,6 @@ private:
             LOG_INFO("Processing inputs");
 
             // Compute statistics, populate partition pool, and prepare the fetcher.
-            PartitionChunkPool = CreateUnorderedChunkPool();
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
 
@@ -562,7 +560,7 @@ private:
                     SamplesFetcher->AddChunk(chunk);
 
                     auto stripe = New<TChunkStripe>(chunk, weight);
-                    PartitionChunkPool->Add(stripe);
+                    PartitionChunkPool.Add(stripe);
                 }
             }
 
@@ -654,7 +652,6 @@ private:
         // There will be no partition jobs, reset partition counters.
         TotalPartitionChunkCount = 0;
         TotalPartitionWeight = 0;
-        PartitionChunkPool.Destroy();
 
         // Put all input chunks into this unique partition.
         TotalSortWeight = 0;

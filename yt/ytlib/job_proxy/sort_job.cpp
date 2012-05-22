@@ -38,14 +38,12 @@ struct TSmallKeyPart
     union {
         i64 Int;
         double Double;
-        const void* Ptr;
+        const char* Str;
     } Value;
 
     TStringBuf GetString() const
     {
-        return TStringBuf(
-            static_cast<const char*>(Value.Ptr), 
-            static_cast<const char*>(Value.Ptr) + Length);
+        return TStringBuf(Value.Str, Value.Str + Length);
     }
 
     TSmallKeyPart() 
@@ -74,7 +72,7 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, TLexer& lex
         case ETokenType::String: {
             keyPart.Type = EKeyType::String;
             auto& value = token.GetStringValue();
-            keyPart.Value.Ptr = ~value;
+            keyPart.Value.Str = ~value;
             keyPart.Length = static_cast<ui32>(value.size());
             break;
         }
@@ -87,8 +85,9 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, TLexer& lex
 
 int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
 {
-    if (lhs.Type != rhs.Type) 
+    if (lhs.Type != rhs.Type) {
         return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+    }
 
     switch (lhs.Type) {
         case EKeyType::Integer:

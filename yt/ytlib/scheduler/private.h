@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "operation.h"
 #include "operation_controller.h"
 #include "job.h"
@@ -14,6 +15,15 @@ namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
+
+struct TChunkStripe;
+typedef TIntrusivePtr<TChunkStripe> TChunkStripePtr;
+
+struct TPoolExtractionResult;
+typedef TIntrusivePtr<TPoolExtractionResult> TPoolExtractionResultPtr;
+
+class TChunkPool;
+typedef TIntrusivePtr<TChunkPool> TChunkPoolPtr;
 
 class TChunkListPool;
 typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;

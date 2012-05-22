@@ -64,7 +64,7 @@ private:
     int PendingChunkCount;
     int CompletedChunkCount;
     
-    TAutoPtr<IChunkPool> ChunkPool;
+    TChunkPool ChunkPool;
 
     // A template for starting new jobs.
     TJobSpec JobSpecTemplate;
@@ -84,7 +84,7 @@ private:
     struct TMapJobInProgress
         : public TJobInProgress
     {
-        IChunkPool::TExtractResultPtr ExtractResult;
+        TPoolExtractionResultPtr PoolResult;
         std::vector<TChunkListId> ChunkListIds;
     };
 
@@ -100,22 +100,22 @@ private:
         // Allocate chunks for the job.
         auto jip = New<TMapJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
-        jip->ExtractResult = ChunkPool->Extract(
+        jip->PoolResult = ChunkPool.Extract(
             node->GetAddress(),
             weightThreshold,
             false);
 
         LOG_DEBUG("Extracted %d chunks for map at node %s (LocalChunkCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-            jip->ExtractResult->LocalChunkCount,
+            jip->PoolResult->LocalChunkCount,
             ~node->GetAddress(),
-            jip->ExtractResult->LocalChunkCount,
-            jip->ExtractResult->TotalChunkWeight,
+            jip->PoolResult->LocalChunkCount,
+            jip->PoolResult->TotalChunkWeight,
             weightThreshold);
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
         auto* mapJobSpec = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
-        FOREACH (const auto& stripe, jip->ExtractResult->Stripes) {
+        FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
             *mapJobSpec->mutable_input_spec()->add_chunks() = stripe->InputChunks[0];
         }
         FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
@@ -125,8 +125,8 @@ private:
         }
 
         // Update running counters.
-        PendingChunkCount -= jip->ExtractResult->LocalChunkCount;
-        PendingWeight -= jip->ExtractResult->TotalChunkWeight;
+        PendingChunkCount -= jip->PoolResult->LocalChunkCount;
+        PendingWeight -= jip->PoolResult->TotalChunkWeight;
 
         return CreateJob(
             jip,
@@ -138,8 +138,8 @@ private:
 
     void OnJobCompleted(TMapJobInProgress* jip)
     {
-        CompletedChunkCount += jip->ExtractResult->TotalChunkCount;
-        CompletedWeight += jip->ExtractResult->TotalChunkWeight;
+        CompletedChunkCount += jip->PoolResult->TotalChunkCount;
+        CompletedWeight += jip->PoolResult->TotalChunkWeight;
 
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jip->ChunkListIds[index];
@@ -149,11 +149,11 @@ private:
 
     void OnJobFailed(TMapJobInProgress* jip)
     {
-        PendingChunkCount += jip->ExtractResult->TotalChunkCount;
-        PendingWeight += jip->ExtractResult->TotalChunkWeight;
+        PendingChunkCount += jip->PoolResult->TotalChunkCount;
+        PendingWeight += jip->PoolResult->TotalChunkWeight;
 
-        LOG_DEBUG("Returned %d chunks into pool", jip->ExtractResult->TotalChunkCount);
-        ChunkPool->PutBack(jip->ExtractResult);
+        LOG_DEBUG("Returned %d chunks into pool", jip->PoolResult->TotalChunkCount);
+        ChunkPool.PutBack(jip->PoolResult);
 
         ReleaseChunkLists(jip->ChunkListIds);
     }
@@ -188,7 +188,6 @@ private:
             
             // Compute statistics and populate the pool.
             i64 totalRowCount = 0;
-            ChunkPool = CreateUnorderedChunkPool();
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
@@ -220,7 +219,7 @@ private:
                     TotalWeight += weight;
 
                     auto stripe = New<TChunkStripe>(chunk, weight);
-                    ChunkPool->Add(stripe);
+                    ChunkPool.Add(stripe);
                 }
             }
 
