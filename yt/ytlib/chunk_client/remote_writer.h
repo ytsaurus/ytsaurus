@@ -26,39 +26,23 @@ class TRemoteWriter
     : public IAsyncWriter
 {
 public:
-    /*!
-     * \note Thread affinity: ClientThread.
-     */
     TRemoteWriter(
         const TRemoteWriterConfigPtr& config, 
         const TChunkId& chunkId,
         const std::vector<Stroka>& addresses);
 
-    /*!
-     * \note Thread affinity: ClientThread.
-     */
-    void Open();
-
-    /*!
-     * \note Thread affinity: ClientThread.
-     */
-    virtual TAsyncError AsyncWriteBlock(const TSharedRef& block);
-
-    /*!
-     * \note Thread affinity: ClientThread.
-     */
-    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
-
     ~TRemoteWriter();
 
-    /*!
-     * \note Thread affinity: any.
-     */
-    Stroka GetDebugInfo();
+    void Open();
+
+    virtual TAsyncError AsyncWriteBlock(const TSharedRef& block);
+    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
     const TChunkId& GetChunkId() const;
+
+    Stroka GetDebugInfo();
 
 private:
     //! A group is a bunch of blocks that is sent in a single RPC request.
@@ -159,7 +143,6 @@ private:
     void AddBlock(const TSharedRef& block);
     void DoWriteBlock(const TSharedRef& block);
 
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
 };

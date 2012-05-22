@@ -810,7 +810,6 @@ void TRemoteWriter::CancelAllPings()
 
 TAsyncError TRemoteWriter::AsyncWriteBlock(const TSharedRef& block)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
     YASSERT(!IsClosing);
     YASSERT(!State.HasRunningOperation());
