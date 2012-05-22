@@ -35,7 +35,7 @@ void TPoolExtractionResult::Add(TChunkStripePtr stripe, const Stroka& address)
 
 ////////////////////////////////////////////////////////////////////
 
-class TChunkPool::TImpl
+class TUnorderedChunkPool::TImpl
 {
 public:
     TImpl()
@@ -168,19 +168,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-TChunkPool::TChunkPool()
+TUnorderedChunkPool::TUnorderedChunkPool()
     : Impl(new TImpl())
 { }
 
-TChunkPool::~TChunkPool()
+TUnorderedChunkPool::~TUnorderedChunkPool()
 { }
 
-void TChunkPool::Add(TChunkStripePtr stripe)
+void TUnorderedChunkPool::Add(TChunkStripePtr stripe)
 {
     Impl->Add(stripe);
 }
 
-TPoolExtractionResultPtr TChunkPool::Extract(
+TPoolExtractionResultPtr TUnorderedChunkPool::Extract(
     const Stroka& address,
     i64 weightThreshold,
     bool needLocal)
@@ -191,27 +191,160 @@ TPoolExtractionResultPtr TChunkPool::Extract(
         needLocal);
 }
 
-void TChunkPool::PutBack(TPoolExtractionResultPtr result)
+void TUnorderedChunkPool::PutBack(TPoolExtractionResultPtr result)
 {
     Impl->PutBack(result);
 }
 
-i64 TChunkPool::GetTotalWeight() const
+i64 TUnorderedChunkPool::GetTotalWeight() const
 {
     return Impl->GetTotalWeight();
 }
 
-i64 TChunkPool::GetPendingWeight() const
+i64 TUnorderedChunkPool::GetPendingWeight() const
 {
     return Impl->GetPendingWeight();
 }
 
-bool TChunkPool::HasPendingChunks() const
+bool TUnorderedChunkPool::HasPendingChunks() const
 {
     return Impl->HasPendingChunks();
 }
 
-bool TChunkPool::HasPendingLocalChunksFor(const Stroka& address) const
+bool TUnorderedChunkPool::HasPendingLocalChunksFor(const Stroka& address) const
+{
+    return Impl->HasPendingLocalChunksFor(address);
+}
+
+////////////////////////////////////////////////////////////////////
+
+class TAtomicChunkPool::TImpl
+{
+public:
+    TImpl()
+        : TotalWeight(0)
+        , Extracted(false)
+        , Initialized(false)
+    { }
+
+    virtual void Add(TChunkStripePtr stripe)
+    {
+        YASSERT(!Initialized);
+        TotalWeight += stripe->Weight;
+        Stripes.push_back(stripe);
+        FOREACH (const auto& inputChunk, stripe->InputChunks) {
+            FOREACH (const auto& address, inputChunk.node_addresses()) {
+                Addresses.insert(address);
+            }
+        }
+    }
+
+    virtual TPoolExtractionResultPtr Extract(
+        const Stroka& address,
+        bool needLocal)
+    {
+        Initialized = true;
+        YASSERT(!Extracted);
+
+        if (needLocal && !HasPendingLocalChunksFor(address)) {
+            return NULL;
+        }
+
+        auto result = New<TPoolExtractionResult>();
+        FOREACH (const auto& stripe, Stripes) {
+            result->Add(stripe, address);
+        }
+
+        Extracted = true;
+        return result;
+    }
+
+    virtual void PutBack(TPoolExtractionResultPtr result)
+    {
+        YASSERT(Initialized);
+        YASSERT(Extracted);
+        Extracted = false;
+    }
+
+    virtual i64 GetTotalWeight() const
+    {
+        return TotalWeight;
+    }
+
+    virtual i64 GetPendingWeight() const
+    {
+        return Extracted ? 0 : TotalWeight;
+    }
+
+    virtual bool HasPendingChunks() const
+    {
+        return !Extracted && !Stripes.empty();
+    }
+
+    virtual bool HasPendingLocalChunksFor(const Stroka& address) const
+    {
+        return
+            Extracted
+            ? false
+            : Addresses.find(address) != Addresses.end();
+    }
+
+private:
+    i64 TotalWeight;
+    std::vector<TChunkStripePtr> Stripes;
+    //! Addresses of added chunks.
+    yhash_set<Stroka> Addresses;
+    //! Have the stripes been #Extract'ed?
+    bool Extracted;
+    //! Has any #Extract call been made already?
+    bool Initialized;
+
+};
+
+////////////////////////////////////////////////////////////////////
+
+TAtomicChunkPool::TAtomicChunkPool()
+    : Impl(new TImpl())
+{ }
+
+TAtomicChunkPool::~TAtomicChunkPool()
+{ }
+
+void TAtomicChunkPool::Add(TChunkStripePtr stripe)
+{
+    Impl->Add(stripe);
+}
+
+TPoolExtractionResultPtr TAtomicChunkPool::Extract(
+    const Stroka& address,
+    bool needLocal)
+{
+    return Impl->Extract(
+        address,
+        needLocal);
+}
+
+void TAtomicChunkPool::PutBack(TPoolExtractionResultPtr result)
+{
+    Impl->PutBack(result);
+}
+
+i64 TAtomicChunkPool::GetTotalWeight() const
+{
+    return Impl->GetTotalWeight();
+}
+
+i64 TAtomicChunkPool::GetPendingWeight() const
+{
+    return Impl->GetPendingWeight();
+}
+
+bool TAtomicChunkPool::HasPendingChunks() const
+{
+    return Impl->HasPendingChunks();
+}
+
+bool TAtomicChunkPool::HasPendingLocalChunksFor(const Stroka& address) const
 {
     return Impl->HasPendingLocalChunksFor(address);
 }

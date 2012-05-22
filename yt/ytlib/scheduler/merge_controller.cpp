@@ -80,7 +80,7 @@ protected:
             , PartitionIndex(partitionIndex)
         { }
 
-        TChunkPool ChunkPool;
+        TAtomicChunkPool ChunkPool;
 
         //! The position in |Groups|. 
         int GroupIndex;
@@ -185,17 +185,13 @@ protected:
     TPoolExtractionResultPtr ExtractChunksForMerge(
         TMergeGroupPtr group,
         const Stroka& address,
-        i64 weightThreshold,
         bool needLocal)
     {
         auto result = group->ChunkPool.Extract(
             address,
-            weightThreshold,
             needLocal);
 
-        if (!group->ChunkPool.HasPendingChunks()) {
-            YVERIFY(ActiveGroups.erase(group) == 1);
-        }
+        YVERIFY(ActiveGroups.erase(group) == 1);
 
         FOREACH (const auto& stripe, result->Stripes) {
             FOREACH (const auto& chunk, stripe->InputChunks) {
@@ -248,9 +244,7 @@ protected:
 
     virtual int GetPendingJobCount()
     {
-        return PendingWeight == 0
-            ? 0
-            : TotalJobCount - CompletedJobCount;
+        return TotalJobCount - CompletedJobCount;
     }
 
 
@@ -275,21 +269,18 @@ protected:
 
         // Allocate chunks for the job.
         auto group = GetActiveGroup(node->GetAddress());
-        i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
         auto jip = New<TMergeJobInProgress>();
         jip->Group = group;
         jip->PoolResult = ExtractChunksForMerge(
             group,
             node->GetAddress(),
-            weightThreshold,
             false);
 
-        LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+        LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ")",
             jip->PoolResult->TotalChunkCount,
             ~node->GetAddress(),
             jip->PoolResult->LocalChunkCount,
-            jip->PoolResult->TotalChunkWeight,
-            weightThreshold);
+            jip->PoolResult->TotalChunkWeight);
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
@@ -388,7 +379,7 @@ protected:
             }
 
             // Init counters.
-            ChooseJobCount();
+            TotalJobCount = static_cast<int>(Groups.size());
             PendingWeight = TotalWeight;
             PendingChunkCount = TotalChunkCount;
 
@@ -420,11 +411,6 @@ protected:
             EndGroup();
         }
     }
-
-
-    // Job count selection.
-
-    virtual void ChooseJobCount() = 0;
 
 
     // Progress reporting.
@@ -555,14 +541,6 @@ private:
         AddPendingChunk(chunk, weight);
     }
 
-    virtual void ChooseJobCount()
-    {
-        TotalJobCount = GetJobCount(
-            TotalWeight,
-            Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize,
-            Spec->JobCount,
-            TotalChunkCount);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -634,12 +612,6 @@ private:
         AddPendingChunk(chunk, weight);
 
         EndGroupIfLarge();
-    }
-
-    virtual void ChooseJobCount()
-    {
-        // Each group corresponds to a unique job.
-        TotalJobCount = Groups.size();
     }
 };
 
@@ -769,13 +741,6 @@ private:
 
         CheckInputTablesSorted();
         CheckOutputTablesEmpty();
-    }
-
-
-    virtual void ChooseJobCount()
-    {
-        // TODO(babenko): fixme, for now each group corresponds to a unique job.
-        TotalJobCount = Groups.size();
     }
 };
 

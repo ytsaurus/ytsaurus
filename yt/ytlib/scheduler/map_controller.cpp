@@ -64,7 +64,7 @@ private:
     int PendingChunkCount;
     int CompletedChunkCount;
     
-    TChunkPool ChunkPool;
+    TUnorderedChunkPool ChunkPool;
 
     // A template for starting new jobs.
     TJobSpec JobSpecTemplate;

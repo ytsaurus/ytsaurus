@@ -22,8 +22,8 @@ typedef TIntrusivePtr<TChunkStripe> TChunkStripePtr;
 struct TPoolExtractionResult;
 typedef TIntrusivePtr<TPoolExtractionResult> TPoolExtractionResultPtr;
 
-class TChunkPool;
-typedef TIntrusivePtr<TChunkPool> TChunkPoolPtr;
+class TUnorderedChunkPool;
+class TAtomicChunkPool;
 
 class TChunkListPool;
 typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;

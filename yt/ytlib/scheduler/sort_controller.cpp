@@ -114,7 +114,7 @@ private:
         bool Small;
 
         //! Pool storing all chunks awaiting sort job.
-        TChunkPool SortChunkPool;
+        TUnorderedChunkPool SortChunkPool;
     };
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
@@ -126,7 +126,7 @@ private:
     std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
     
     //! Pool storing all chunks awaiting partition job.
-    TChunkPool PartitionChunkPool;
+    TUnorderedChunkPool PartitionChunkPool;
     
     //! List of all partitions.
     std::vector<TPartitionPtr> Partitions;

@@ -48,11 +48,11 @@ struct TPoolExtractionResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkPool
+class TUnorderedChunkPool
 {
 public:
-    TChunkPool();
-    ~TChunkPool();
+    TUnorderedChunkPool();
+    ~TUnorderedChunkPool();
 
     void Add(TChunkStripePtr stripe);
 
@@ -64,9 +64,37 @@ public:
 
     i64 GetTotalWeight() const;
     i64 GetPendingWeight() const;
+
     bool HasPendingChunks() const;
     bool HasPendingLocalChunksFor(const Stroka& address) const;
 
+private:
+    class TImpl;
+    THolder<TImpl> Impl;
+
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TAtomicChunkPool
+{
+public:
+    TAtomicChunkPool();
+    ~TAtomicChunkPool();
+
+    void Add(TChunkStripePtr stripe);
+
+    TPoolExtractionResultPtr Extract(
+        const Stroka& address,
+        bool needLocal);
+    void PutBack(TPoolExtractionResultPtr result);
+
+    i64 GetTotalWeight() const;
+    i64 GetPendingWeight() const;
+
+    bool HasPendingChunks() const;
+    bool HasPendingLocalChunksFor(const Stroka& address) const;
+     
 private:
     class TImpl;
     THolder<TImpl> Impl;
