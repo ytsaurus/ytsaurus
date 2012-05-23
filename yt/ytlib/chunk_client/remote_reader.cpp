@@ -188,6 +188,7 @@ protected:
 
     TWeakPtr<TRemoteReader> Reader;
     int RetryIndex;
+    int PassIndex;
     TRemoteReader::TAsyncGetSeedsResult GetSeedsResult;
     NLog::TTaggedLogger Logger;
     std::vector<Stroka> SeedAddresses;
@@ -195,12 +196,13 @@ protected:
     TSessionBase(TRemoteReader* reader)
         : Reader(reader)
         , RetryIndex(0)
+        , PassIndex(0)
         , Logger(ChunkReaderLogger)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~reader->ChunkId.ToString()));
     }
 
-    virtual void NewRetry()
+    void NewRetry()
     {
         auto reader = Reader.Lock();
         if (!reader)
@@ -214,6 +216,13 @@ protected:
         GetSeedsResult.Subscribe(
             BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this))
             .Via(ReaderThread->GetInvoker()));
+
+        PassIndex = 0;
+    }
+
+    virtual void NewPass()
+    {
+        LOG_INFO("New pass started (PassIndex: %d)", PassIndex);
     }
 
     void OnGetSeedsReply(TRemoteReader::TGetSeedsResult result)
@@ -229,6 +238,23 @@ protected:
             OnSessionFailed(TError("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
                 RetryIndex,
                 ~result.ToString()));
+        }
+    }
+
+    void OnPassCompleted()
+    {
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
+        LOG_INFO("Pass completed (PassIndex: %d)", PassIndex);
+        ++PassIndex;
+        if (PassIndex >= reader->Config->PassCount) {
+            OnRetryFailed(TError("Unable to fetch all chunk blocks"));
+        } else {
+            TDelayedInvoker::Submit(
+                BIND(&TSessionBase::NewPass, MakeWeak(this)),
+                reader->Config->PassBackoffTime);
         }
     }
 
@@ -250,12 +276,13 @@ protected:
             ++RetryIndex;
             NewRetry();
         } else {
-            OnSessionFailed(TError("All retries failed (RetryCount: %d)",
-                RetryIndex));
+            OnSessionFailed(TError("All retries failed (RetryCount: %d, PassCount: %d)",
+                reader->Config->RetryCount,
+                reader->Config->PassCount));
         }
     }
 
-    virtual void OnGotSeeds()
+    void OnGotSeeds()
     {
         // Prefer local node if in seeds.
         for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it) {
@@ -266,6 +293,8 @@ protected:
                 break;
             }
         }
+
+        NewPass();
     }
 
     virtual void OnSessionFailed(const TError& error) = 0;
@@ -287,21 +316,22 @@ public:
     {
         Logger.AddTag(Sprintf("ReadSession: %p", this));
 
+    }
+
+    IAsyncReader::TAsyncReadResult Run()
+    {
         FetchBlocksFromCache();
 
         if (GetUnfetchedBlockIndexes().empty()) {
             LOG_INFO("All chunk blocks are fetched from cache");
             OnSessionSucceeded();
-            return;
+        } else {
+            NewRetry();
         }
 
-        NewRetry();
-    }
-
-    IAsyncReader::TAsyncReadResult GetAsyncResult() const
-    {
         return Promise;
     }
+
 
 private:
     //! Promise representing the session.
@@ -324,22 +354,13 @@ private:
     //! List of candidates to try.
     std::vector<Stroka> PeerAddressList;
 
-    //! Current pass index.
-    int PassIndex;
-
     //! Current index in #PeerAddressList.
     int PeerIndex;
 
 
-    virtual void NewRetry()
+    virtual void NewPass()
     {
-        PassIndex = 0;
-        TSessionBase::NewRetry();
-    }
-
-    void NewPass()
-    {
-        LOG_INFO("New pass started (PassIndex: %d)", PassIndex);
+        TSessionBase::NewPass();
 
         PeerAddressList.clear();
         PeerBlocksMap.clear();
@@ -425,12 +446,6 @@ private:
         }
     }
 
-    virtual void OnGotSeeds()
-    {
-        TSessionBase::OnGotSeeds();
-        NewPass();
-    }
-
     void RequestPeer()
     {
         auto reader = Reader.Lock();
@@ -447,15 +462,7 @@ private:
             }
 
             if (PeerIndex >= PeerAddressList.size()) {
-                LOG_INFO("Pass completed (PassIndex: %d)", PassIndex);
-                ++PassIndex;
-                if (PassIndex >= reader->Config->PassCount) {
-                    OnRetryFailed(TError("Unable to fetch all chunk blocks"));
-                } else {
-                    TDelayedInvoker::Submit(
-                        BIND(&TReadSession::NewPass, MakeStrong(this)),
-                        reader->Config->PassBackoffTime);
-                }
+                OnPassCompleted();
                 return;
             }
 
@@ -591,7 +598,7 @@ private:
 TRemoteReader::TAsyncReadResult TRemoteReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return New<TReadSession>(this, blockIndexes)->GetAsyncResult();
+    return New<TReadSession>(this, blockIndexes)->Run();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -615,12 +622,14 @@ public:
         } else {
             AllExtensionTags = true;
         }
+        
         Logger.AddTag(Sprintf("GetInfoSession: %p", this));
-        NewRetry();
     }
 
-    IAsyncReader::TAsyncGetMetaResult GetAsyncResult() const
+    
+    IAsyncReader::TAsyncGetMetaResult Run()
     {
+        NewRetry();
         return Promise;
     }
 
@@ -634,10 +643,10 @@ private:
     std::vector<int> ExtensionTags;
     bool AllExtensionTags;
 
-    virtual void NewRetry()
+    virtual void NewPass()
     {
-        SeedIndex = 0;
-        TSessionBase::NewRetry();
+        TSessionBase::NewPass();
+        RequestInfo();
     }
 
     void RequestInfo()
@@ -675,15 +684,9 @@ private:
             if (SeedIndex < SeedAddresses.size()) {
                 RequestInfo();
             } else {
-                OnRetryFailed(TError("Unable to get chunk info"));
+                OnPassCompleted();
             }
         }
-    }
-
-    virtual void OnGotSeeds()
-    {
-        TSessionBase::OnGotSeeds();
-        RequestInfo();
     }
 
     void OnSessionSucceeded(const TChunkMeta& chunkMeta)
@@ -706,7 +709,7 @@ private:
 TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(const std::vector<i32>* tags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return New<TGetMetaSession>(this, tags)->GetAsyncResult();
+    return New<TGetMetaSession>(this, tags)->Run();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
