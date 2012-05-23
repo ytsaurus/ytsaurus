@@ -87,7 +87,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     SaveObjectRefs(output, Locks_);
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
-    ::Save(output, CreationTime_);
+//    ::Save(output, CreationTime_);
 }
 
 void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
@@ -97,7 +97,7 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRefs(input, Locks_, context);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
-    ::Load(input, CreationTime_);
+//    ::Load(input, CreationTime_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
