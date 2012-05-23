@@ -202,7 +202,7 @@ YtDriver.prototype.execute = function(name,
     output_stream, output_format,
     parameters, callback
 ) {
-    __DBG("Driver -> Execute");
+    __DBG("Driver -> execute");
 
     var wrapped_input_stream = new YtWritableStream();
     var wrapped_output_stream = new YtReadableStream();
@@ -214,6 +214,16 @@ YtDriver.prototype.execute = function(name,
         wrapped_input_stream._binding, input_format,
         wrapped_output_stream._binding, output_format,
         parameters, callback);
+}
+
+YtDriver.prototype.find_command_descriptor = function(command_name) {
+    __DBG("Driver -> find_command_descriptor");
+    return this._binding.FindCommandDescriptor(command_name);
+}
+
+YtDriver.prototype.get_command_descriptors = function() {
+    __DBG("Driver -> get_command_descriptors");
+    return this._binding.GetCommandDescriptors();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

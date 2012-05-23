@@ -55,6 +55,24 @@ struct TExecuteRequest
         Host->Unref();
     }
 };
+
+Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descriptor)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    Local<Object> result = Object::New();
+    result->Set(
+        String::New("command_name"),
+        String::New(descriptor.CommandName.c_str()));
+    result->Set(
+        String::New("input_type"),
+        Integer::New(descriptor.InputType.ToValue()));
+    result->Set(
+        String::New("output_type"),
+        Integer::New(descriptor.OutputType.ToValue()));
+    return scope.Close(result);
+}
 } // namespace
 
 Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
@@ -104,10 +122,14 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
     ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSDriver"));
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Execute", TNodeJSDriver::Execute);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "FindCommandDescriptor", TNodeJSDriver::FindCommandDescriptor);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetCommandDescriptor", TNodeJSDriver::GetCommandDescriptors);
 
     target->Set(
         String::NewSymbol("TNodeJSDriver"),
         ConstructorTemplate->GetFunction());
+
+    // TODO(sandello): Export EDataType
 }
 
 bool TNodeJSDriver::HasInstance(Handle<Value> value)
@@ -143,14 +165,83 @@ Handle<Value> TNodeJSDriver::New(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Handle<Value> TNodeJSDriver::FindCommandDescriptor(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSDriver* driver =
+        ObjectWrap::Unwrap<TNodeJSDriver>(args.This());
+
+    // Validate arguments.
+    YASSERT(args.Length() == 1);
+
+    EXPECT_THAT_IS(args[0], String);
+
+    // Do the work.
+    return scope.Close(driver->DoFindCommandDescriptor(args[0].As<String>()));
+}
+
+Handle<Value> TNodeJSDriver::DoFindCommandDescriptor(Handle<String> commandNameHandle)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    String::AsciiValue commandNameValue(commandNameHandle);
+    Stroka commandName(*commandNameValue, commandNameValue.length());
+
+    auto maybeDescriptor = Driver->FindCommandDescriptor(commandName);
+    if (maybeDescriptor) {
+        Local<Object> result = ConvertCommandDescriptorToV8Object(*maybeDescriptor);
+        return scope.Close(result);
+    } else {
+        return v8::Null();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSDriver::GetCommandDescriptors(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSDriver* driver =
+        ObjectWrap::Unwrap<TNodeJSDriver>(args.This());
+
+    // Validate arguments.
+    YASSERT(args.Length() == 0);
+
+    // Do the work.
+    return scope.Close(driver->DoGetCommandDescriptors());
+}
+
+Handle<Value> TNodeJSDriver::DoGetCommandDescriptors()
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    Local<Array> result;
+
+    auto descriptors = Driver->GetCommandDescriptors();
+    FOREACH(const auto& descriptor, descriptors) {
+        Local<Object> resultItem = ConvertCommandDescriptorToV8Object(descriptor);
+        result->Set(result->Length(), resultItem);
+    }
+
+    return scope.Close(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Validate arguments.
-    // These arguments are used to fill TDriverRequest structure,
-    // hence we have to validate all the arguments as early as possible.
     YASSERT(args.Length() == 7);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
@@ -190,11 +281,6 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     request->DriverRequest.OutputFormat = TFormat::FromYson(outputFormat);
     // TODO(sandello): Arguments -> Parameters
     request->DriverRequest.Arguments = parameters->AsMap();
-
-    fprintf(stderr, "WOOHOO! We are executing %s [%p->%p]!\n",
-        *commandName,
-        inputStream,
-        outputStream);
 
     uv_queue_work(
         uv_default_loop(), &request->Request,

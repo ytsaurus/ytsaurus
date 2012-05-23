@@ -29,6 +29,12 @@ public:
     // Synchronous JS API.
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
+    static v8::Handle<v8::Value> FindCommandDescriptor(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoFindCommandDescriptor(v8::Handle<v8::String> commandNameHandle);
+
+    static v8::Handle<v8::Value> GetCommandDescriptors(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoGetCommandDescriptors();
+
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Execute(const v8::Arguments& args);
     static void ExecuteWork(uv_work_t* workRequest);

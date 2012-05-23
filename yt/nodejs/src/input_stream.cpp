@@ -90,11 +90,11 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
     EXPECT_THAT_IS(args[2], Uint32);
 
     // Do the work.
-    return stream->DoPush(
+    return scope.Close(stream->DoPush(
         /* handle */ Persistent<Value>::New(args[0]),
         /* data   */ node::Buffer::Data(args[0].As<Object>()),
         /* offset */ args[1]->Uint32Value(),
-        /* length */ args[2]->Uint32Value());
+        /* length */ args[2]->Uint32Value()));
 }
 
 Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, size_t offset, size_t length)
