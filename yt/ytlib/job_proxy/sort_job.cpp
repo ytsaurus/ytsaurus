@@ -132,11 +132,13 @@ TSortJob::TSortJob(
 
     TReaderOptions options;
     options.KeepBlocks = true;
-    options.IsUnordered = true;
 
     std::vector<NTableClient::NProto::TInputChunk> chunks(
         jobSpec.input_spec().chunks().begin(),
         jobSpec.input_spec().chunks().end());
+
+    srand(time(NULL));
+    std::random_shuffle(chunks.begin(), chunks.end());
 
     Reader = New<TChunkSequenceReader>(
         ioConfig->ChunkSequenceReader, 

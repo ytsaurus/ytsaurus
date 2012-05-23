@@ -111,6 +111,13 @@ protected:
         TReqRemove* request,
         TRspRemove* response,
         TCtxRemove* context);
+
+    // This method is called before the attribute with the corresponding key
+    // is updated (added, removed or changed).
+    virtual void OnUpdateAttribute(
+        const Stroka& key,
+        const TNullable<NYTree::TYson>& oldValue,
+        const TNullable<NYTree::TYson>& newValue);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

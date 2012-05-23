@@ -33,118 +33,32 @@ public:
 
     ~TRemoteWriter();
 
-    void Open();
+    virtual void Open();
 
     virtual TAsyncError AsyncWriteBlock(const TSharedRef& block);
     virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
-    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+    virtual const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
     const TChunkId& GetChunkId() const;
 
     Stroka GetDebugInfo();
 
 private:
+    class TImpl;
     //! A group is a bunch of blocks that is sent in a single RPC request.
     class TGroup;
     typedef TIntrusivePtr<TGroup> TGroupPtr;
 
     struct TNode;
     typedef TIntrusivePtr<TNode> TNodePtr;
-    
+
     typedef ydeque<TGroupPtr> TWindow;
 
     typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TRemoteWriterConfigPtr Config;
-    TChunkId ChunkId;
-    std::vector<Stroka> Addresses;
-
-    TAsyncStreamState State;
-
-    bool IsOpen;
-    bool IsInitComplete;
-    bool IsClosing;
-
-    //! This flag is raised whenever #Close is invoked.
-    //! All access to this flag happens from #WriterThread.
-    bool IsCloseRequested;
-    NChunkHolder::NProto::TChunkMeta ChunkMeta;
-
-    TWindow Window;
-    TAsyncSemaphore WindowSlots;
-
-    std::vector<TNodePtr> Nodes;
-
-    //! Number of nodes that are still alive.
-    int AliveNodeCount;
-
-    //! A new group of blocks that is currently being filled in by the client.
-    //! All access to this field happens from client thread.
-    TGroupPtr CurrentGroup;
-
-    //! Number of blocks that are already added via #AddBlock. 
-    int BlockCount;
-
-    //! Returned from node in Finish.
-    NChunkHolder::NProto::TChunkInfo ChunkInfo;
-
-    TMetric StartChunkTiming;
-    TMetric PutBlocksTiming;
-    TMetric SendBlocksTiming;
-    TMetric FlushBlockTiming;
-    TMetric FinishChunkTiming;
-
-    NLog::TTaggedLogger Logger;
-
-    void DoClose();
-
-    void AddGroup(TGroupPtr group);
-
-    void RegisterReadyEvent(TFuture<void> windowReady);
-
-    void OnNodeFailed(TNodePtr node);
-
-    void ShiftWindow();
-
-    TProxy::TInvFlushBlock FlushBlock(TNodePtr node, int blockIndex);
-
-    void OnBlockFlushed(TNodePtr node, int blockIndex, TProxy::TRspFlushBlockPtr rsp);
-
-    void OnWindowShifted(int blockIndex);
-
-    TProxy::TInvStartChunk StartChunk(TNodePtr node);
-
-    void OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkPtr rsp);
-
-    void OnSessionStarted();
-
-    void CloseSession();
-
-    TProxy::TInvFinishChunk FinishChunk(TNodePtr node);
-
-    void OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkPtr rsp);
-
-    void OnSessionFinished();
-
-    void SendPing(TNodePtr node);
-    void StartPing(TNodePtr node);
-    void CancelPing(TNodePtr node);
-    void CancelAllPings();
-
-    template <class TResponse>
-    void CheckResponse(
-        TNodePtr node, 
-        TCallback<void(TIntrusivePtr<TResponse>)> onSuccess,
-        TMetric* metric,
-        TIntrusivePtr<TResponse> rsp);
-
-    void AddBlock(const TSharedRef& block);
-    void DoWriteBlock(const TSharedRef& block);
-
-    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
-
+    TIntrusivePtr<TImpl> Impl;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

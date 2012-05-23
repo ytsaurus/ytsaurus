@@ -93,6 +93,28 @@ class TestCypressCommands(YTEnvSetup):
         # remove non existent child
         expect_error( remove('//b'))
 
+    def test_attributes(self):
+        expect_ok( set('//t', '<attr=100;mode=rw> {nodes=[1; 2]}'))
+        assert_eq( get('//t/@attr'), '100')
+        assert_eq( get('//t/@mode'), '"rw"')
+
+        expect_ok( remove('//t/@'))
+        expect_error( get('//t/@attr'))
+        expect_error( get('//t/@mode'))
+
+        # changing attributes
+        expect_ok( set('//t/a', '< author=ignat > []'))
+        assert_eq( get('//t/a'), '[]')
+        assert_eq( get('//t/a/@author'), '"ignat"')
+
+        expect_ok( set('//t/a/@author', '"not_ignat"'))
+        assert_eq( get('//t/a/@author'), '"not_ignat"')
+
+        #nested attributes (actually shows <>)
+        expect_ok( set('//t/b', '<dir = <file = <>-100> #> []'))
+        assert_eq( get('//t/b/@dir/@'), '{"file"=<>-100}') 
+        assert_eq( get('//t/b/@dir/@file'), '<>-100')
+        assert_eq( get('//t/b/@dir/@file/@'), '{}')
 
 class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 1

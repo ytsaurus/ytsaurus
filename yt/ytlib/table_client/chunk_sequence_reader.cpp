@@ -42,17 +42,20 @@ TChunkSequenceReader::TChunkSequenceReader(
     , TotalRowCount(0)
     , CurrentRowIndex(0)
 {
+
+    // ToDo(psushin): implement TotalRowCount update.
+
+    LOG_DEBUG("Created chunk sequence writer with %d chunks", 
+        static_cast<int>(InputChunks.size()));
+
     for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
-        TotalRowCount += miscExt->row_count();
+        //TotalRowCount += miscExt->row_count();
         TotalValueCount += miscExt->value_count();
         Readers.push_back(NewPromise<TChunkReaderPtr>());
-
-        if (Options.IsUnordered)
-            PrepareNextChunk();
     }
 
-    if (!Options.IsUnordered)
+    for (int i = 0; i < Config->PrefetchWindow; ++i)
         PrepareNextChunk();
 }
 
@@ -64,11 +67,14 @@ void TChunkSequenceReader::PrepareNextChunk()
     if (LastPreparedReader >= chunkSlicesSize)
         return;
 
-    LOG_DEBUG("Opening chunk %d", LastPreparedReader);
-
     const auto& inputChunk = InputChunks[LastPreparedReader];
     const auto& slice = inputChunk.slice();
     TChunkId chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+
+    LOG_DEBUG("Opening chunk number %d (ChunkId: %s)", 
+        LastPreparedReader,
+        ~chunkId.ToString());
+
     auto remoteReader = CreateRemoteReader(
         Config->RemoteReader,
         BlockCache,
@@ -89,16 +95,20 @@ void TChunkSequenceReader::PrepareNextChunk()
     chunkReader->AsyncOpen().Subscribe(BIND(
         &TChunkSequenceReader::OnReaderOpened,
         MakeWeak(this),
-        chunkReader).Via(NChunkClient::ReaderThread->GetInvoker()));
+        chunkReader,
+        LastPreparedReader).Via(NChunkClient::ReaderThread->GetInvoker()));
 }
 
 void TChunkSequenceReader::OnReaderOpened(
     TChunkReaderPtr reader,
+    int chunkIndex,
     TError error)
 {
     ++LastInitializedReader;
 
-    LOG_DEBUG("Chunk %d opened", LastInitializedReader);
+    LOG_DEBUG("Chunk number %d opened, reader index %d", 
+        chunkIndex, 
+        LastInitializedReader);
 
     YASSERT(!Readers[LastInitializedReader].IsSet());
 
@@ -134,7 +144,7 @@ void TChunkSequenceReader::SwitchCurrentChunk(TChunkReaderPtr nextReader)
         Readers[CurrentReader - 1].Reset();
     }
 
-    LOG_DEBUG("Switching to chunk %d", CurrentReader);
+    LOG_DEBUG("Switching to reader %d", CurrentReader);
 
     if (nextReader) {
         {
@@ -148,8 +158,7 @@ void TChunkSequenceReader::SwitchCurrentChunk(TChunkReaderPtr nextReader)
             }
         }
 
-        if (!Options.IsUnordered)
-            PrepareNextChunk();
+        PrepareNextChunk();
 
         if (!nextReader->IsValid()) {
             ++CurrentReader;

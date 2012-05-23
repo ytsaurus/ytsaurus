@@ -28,6 +28,122 @@ static NLog::TLogger& Logger = ChunkWriterLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TRemoteWriter::TImpl
+    : public TRefCounted
+{
+public:
+    TImpl(
+        const TRemoteWriterConfigPtr& config,
+        const TChunkId& chunkId,
+        const std::vector<Stroka>& addresses);
+
+    ~TImpl();
+
+    void Open();
+
+    TAsyncError AsyncWriteBlock(const TSharedRef& block);
+    TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+
+    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+    const std::vector<Stroka> GetNodeAddresses() const;
+    const TChunkId& GetChunkId() const;
+
+    Stroka GetDebugInfo();
+
+private:
+    friend class TRemoteWriter::TGroup;
+
+    TRemoteWriterConfigPtr Config;
+    TChunkId ChunkId;
+    std::vector<Stroka> Addresses;
+
+    TAsyncStreamState State;
+
+    bool IsOpen;
+    bool IsInitComplete;
+    bool IsClosing;
+
+    //! This flag is raised whenever #Close is invoked.
+    //! All access to this flag happens from #WriterThread.
+    bool IsCloseRequested;
+    NChunkHolder::NProto::TChunkMeta ChunkMeta;
+
+    TWindow Window;
+    TAsyncSemaphore WindowSlots;
+
+    std::vector<TNodePtr> Nodes;
+
+    //! Number of nodes that are still alive.
+    int AliveNodeCount;
+
+    //! A new group of blocks that is currently being filled in by the client.
+    //! All access to this field happens from client thread.
+    TGroupPtr CurrentGroup;
+
+    //! Number of blocks that are already added via #AddBlock.
+    int BlockCount;
+
+    //! Returned from node in Finish.
+    NChunkHolder::NProto::TChunkInfo ChunkInfo;
+
+    TMetric StartChunkTiming;
+    TMetric PutBlocksTiming;
+    TMetric SendBlocksTiming;
+    TMetric FlushBlockTiming;
+    TMetric FinishChunkTiming;
+
+    NLog::TTaggedLogger Logger;
+
+    void DoClose();
+
+    void AddGroup(TGroupPtr group);
+
+    void RegisterReadyEvent(TFuture<void> windowReady);
+
+    void OnNodeFailed(TNodePtr node);
+
+    void ShiftWindow();
+
+    TProxy::TInvFlushBlock FlushBlock(TNodePtr node, int blockIndex);
+
+    void OnBlockFlushed(TNodePtr node, int blockIndex, TProxy::TRspFlushBlockPtr rsp);
+
+    void OnWindowShifted(int blockIndex);
+
+    TProxy::TInvStartChunk StartChunk(TNodePtr node);
+
+    void OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkPtr rsp);
+
+    void OnSessionStarted();
+
+    void CloseSession();
+
+    TProxy::TInvFinishChunk FinishChunk(TNodePtr node);
+
+    void OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkPtr rsp);
+
+    void OnSessionFinished();
+
+    void SendPing(TNodePtr node);
+    void StartPing(TNodePtr node);
+    void CancelPing(TNodePtr node);
+    void CancelAllPings();
+
+    template <class TResponse>
+    void CheckResponse(
+        TNodePtr node,
+        TCallback<void(TIntrusivePtr<TResponse>)> onSuccess,
+        TMetric* metric,
+        TIntrusivePtr<TResponse> rsp);
+
+    void AddBlock(const TSharedRef& block);
+    void DoWriteBlock(const TSharedRef& block);
+
+    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 struct TRemoteWriter::TNode 
     : public TRefCounted
 {
@@ -54,7 +170,7 @@ public:
     TGroup(
         int nodeCount, 
         int startBlockIndex, 
-        TRemoteWriter* writer);
+        TRemoteWriter::TImpl* writer);
 
     void AddBlock(const TSharedRef& block);
     void Process();
@@ -90,7 +206,7 @@ private:
 
     i64 Size;
 
-    TWeakPtr<TRemoteWriter> Writer;
+    TWeakPtr<TRemoteWriter::TImpl> Writer;
 
     NLog::TTaggedLogger& Logger;
 
@@ -135,10 +251,9 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TRemoteWriter::TGroup::TGroup(
-    int nodeCount, 
-    int startBlockIndex, 
-    TRemoteWriter* writer)
+TRemoteWriter::TGroup::TGroup(int nodeCount,
+    int startBlockIndex,
+    TImpl* writer)
     : IsFlushing_(false)
     , IsSent(nodeCount, false)
     , StartBlockIndex(startBlockIndex)
@@ -203,7 +318,7 @@ void TRemoteWriter::TGroup::PutGroup()
         MakeWeak(this), 
         node);
     auto onResponse = BIND(
-        &TRemoteWriter::CheckResponse<TProxy::TRspPutBlocks>,
+        &TRemoteWriter::TImpl::CheckResponse<TProxy::TRspPutBlocks>,
         Writer,
         node, 
         onSuccess,
@@ -408,7 +523,7 @@ void TRemoteWriter::TGroup::Process()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TRemoteWriter::TRemoteWriter(
+TRemoteWriter::TImpl::TImpl(
     const TRemoteWriterConfigPtr& config, 
     const TChunkId& chunkId,
     const std::vector<Stroka>& addresses)
@@ -440,13 +555,13 @@ TRemoteWriter::TRemoteWriter(
         node->Proxy.SetDefaultTimeout(Config->HolderRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
             WriterThread->GetInvoker(),
-            BIND(&TRemoteWriter::SendPing, MakeWeak(this), node),
+            BIND(&TRemoteWriter::TImpl::SendPing, MakeWeak(this), node),
             Config->SessionPingInterval);
         Nodes.push_back(node);
     }
 }
 
-TRemoteWriter::~TRemoteWriter()
+TRemoteWriter::TImpl::~TImpl()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -458,30 +573,30 @@ TRemoteWriter::~TRemoteWriter()
     State.Cancel(TError(TError::Fail, "Writer canceled"));
 }
 
-void TRemoteWriter::Open()
+void TRemoteWriter::TImpl::Open()
 {
     LOG_DEBUG("Opening writer (Addresses: [%s])", ~JoinToString(Addresses));
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto node, Nodes) {
         auto onSuccess = BIND(
-            &TRemoteWriter::OnChunkStarted, 
+            &TRemoteWriter::TImpl::OnChunkStarted,
             MakeWeak(this), 
             node);
         auto onResponse = BIND(
-            &TRemoteWriter::CheckResponse<TProxy::TRspStartChunk>,
+            &TImpl::CheckResponse<TProxy::TRspStartChunk>,
             MakeWeak(this),
             node,
             onSuccess,
             &StartChunkTiming);
         awaiter->Await(StartChunk(node), onResponse);
     }
-    awaiter->Complete(BIND(&TRemoteWriter::OnSessionStarted, MakeWeak(this)));
+    awaiter->Complete(BIND(&TImpl::OnSessionStarted, MakeWeak(this)));
 
     IsOpen = true;
 }
 
-void TRemoteWriter::ShiftWindow()
+void TRemoteWriter::TImpl::ShiftWindow()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -510,12 +625,12 @@ void TRemoteWriter::ShiftWindow()
     FOREACH (auto node, Nodes) {
         if (node->IsAlive) {
             auto onSuccess = BIND(
-                &TRemoteWriter::OnBlockFlushed, 
+                &TImpl::OnBlockFlushed,
                 MakeWeak(this), 
                 node,
                 lastFlushableBlock);
             auto onResponse = BIND(
-                &TRemoteWriter::CheckResponse<TProxy::TRspFlushBlock>,
+                &TImpl::CheckResponse<TProxy::TRspFlushBlock>,
                 MakeWeak(this), 
                 node, 
                 onSuccess,
@@ -525,13 +640,13 @@ void TRemoteWriter::ShiftWindow()
     }
 
     awaiter->Complete(BIND(
-        &TRemoteWriter::OnWindowShifted, 
+        &TImpl::OnWindowShifted,
         MakeWeak(this),
         lastFlushableBlock));
 }
 
 TRemoteWriter::TProxy::TInvFlushBlock
-TRemoteWriter::FlushBlock(TNodePtr node, int blockIndex)
+TRemoteWriter::TImpl::FlushBlock(TNodePtr node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -545,7 +660,7 @@ TRemoteWriter::FlushBlock(TNodePtr node, int blockIndex)
     return req->Invoke();
 }
 
-void TRemoteWriter::OnBlockFlushed(TNodePtr node, int blockIndex, TProxy::TRspFlushBlockPtr rsp)
+void TRemoteWriter::TImpl::OnBlockFlushed(TNodePtr node, int blockIndex, TProxy::TRspFlushBlockPtr rsp)
 {
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -555,7 +670,7 @@ void TRemoteWriter::OnBlockFlushed(TNodePtr node, int blockIndex, TProxy::TRspFl
         ~node->Address);
 }
 
-void TRemoteWriter::OnWindowShifted(int lastFlushedBlock)
+void TRemoteWriter::TImpl::OnWindowShifted(int lastFlushedBlock)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -585,7 +700,7 @@ void TRemoteWriter::OnWindowShifted(int lastFlushedBlock)
     }
 }
 
-void TRemoteWriter::AddGroup(TGroupPtr group)
+void TRemoteWriter::TImpl::AddGroup(TGroupPtr group)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
@@ -605,7 +720,7 @@ void TRemoteWriter::AddGroup(TGroupPtr group)
     }
 }
 
-void TRemoteWriter::OnNodeFailed(TNodePtr node)
+void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -629,7 +744,7 @@ void TRemoteWriter::OnNodeFailed(TNodePtr node)
 }
 
 template <class TResponse>
-void TRemoteWriter::CheckResponse(
+void TRemoteWriter::TImpl::CheckResponse(
     TNodePtr node,
     TCallback<void(TIntrusivePtr<TResponse>)> onSuccess, 
     TMetric* metric,
@@ -650,7 +765,7 @@ void TRemoteWriter::CheckResponse(
 }
 
 TRemoteWriter::TProxy::TInvStartChunk
-TRemoteWriter::StartChunk(TNodePtr node)
+TRemoteWriter::TImpl::StartChunk(TNodePtr node)
 {
     LOG_DEBUG("Starting chunk session at %s", ~node->Address);
 
@@ -659,7 +774,7 @@ TRemoteWriter::StartChunk(TNodePtr node)
     return req->Invoke();
 }
 
-void TRemoteWriter::OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkPtr rsp)
+void TRemoteWriter::TImpl::OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkPtr rsp)
 {
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -669,7 +784,7 @@ void TRemoteWriter::OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkPtr rsp)
     StartPing(node);
 }
 
-void TRemoteWriter::OnSessionStarted()
+void TRemoteWriter::TImpl::OnSessionStarted()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -691,7 +806,7 @@ void TRemoteWriter::OnSessionStarted()
     }
 }
 
-void TRemoteWriter::CloseSession()
+void TRemoteWriter::TImpl::CloseSession()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -703,11 +818,11 @@ void TRemoteWriter::CloseSession()
     FOREACH (auto node, Nodes) {
         if (node->IsAlive) {
             auto onSuccess = BIND(
-                &TRemoteWriter::OnChunkFinished, 
+                &TImpl::OnChunkFinished,
                 MakeWeak(this), 
                 node);
             auto onResponse = BIND(
-                &TRemoteWriter::CheckResponse<TProxy::TRspFinishChunk>,
+                &TImpl::CheckResponse<TProxy::TRspFinishChunk>,
                 MakeWeak(this), 
                 node, 
                 onSuccess, 
@@ -715,10 +830,10 @@ void TRemoteWriter::CloseSession()
             awaiter->Await(FinishChunk(node), onResponse);
         }
     }
-    awaiter->Complete(BIND(&TRemoteWriter::OnSessionFinished, MakeWeak(this)));
+    awaiter->Complete(BIND(&TImpl::OnSessionFinished, MakeWeak(this)));
 }
 
-void TRemoteWriter::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkPtr rsp)
+void TRemoteWriter::TImpl::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -743,7 +858,7 @@ void TRemoteWriter::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkPtr rs
 }
 
 TRemoteWriter::TProxy::TInvFinishChunk
-TRemoteWriter::FinishChunk(TNodePtr node)
+TRemoteWriter::TImpl::FinishChunk(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -755,7 +870,7 @@ TRemoteWriter::FinishChunk(TNodePtr node)
     return req->Invoke();
 }
 
-void TRemoteWriter::OnSessionFinished()
+void TRemoteWriter::TImpl::OnSessionFinished()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -772,7 +887,7 @@ void TRemoteWriter::OnSessionFinished()
     State.FinishOperation();
 }
 
-void TRemoteWriter::SendPing(TNodePtr node)
+void TRemoteWriter::TImpl::SendPing(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -785,21 +900,21 @@ void TRemoteWriter::SendPing(TNodePtr node)
     node->PingInvoker->ScheduleNext();
 }
 
-void TRemoteWriter::StartPing( TNodePtr node )
+void TRemoteWriter::TImpl::StartPing( TNodePtr node )
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     node->PingInvoker->Start();
 }
 
-void TRemoteWriter::CancelPing(TNodePtr node)
+void TRemoteWriter::TImpl::CancelPing(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     node->PingInvoker->Stop();
 }
 
-void TRemoteWriter::CancelAllPings()
+void TRemoteWriter::TImpl::CancelAllPings()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -808,7 +923,7 @@ void TRemoteWriter::CancelAllPings()
     }
 }
 
-TAsyncError TRemoteWriter::AsyncWriteBlock(const TSharedRef& block)
+TAsyncError TRemoteWriter::TImpl::AsyncWriteBlock(const TSharedRef& block)
 {
     YASSERT(IsOpen);
     YASSERT(!IsClosing);
@@ -818,14 +933,14 @@ TAsyncError TRemoteWriter::AsyncWriteBlock(const TSharedRef& block)
     State.StartOperation();
 
     WindowSlots.AsyncAcquire(block.Size()).Subscribe(BIND(
-        &TRemoteWriter::DoWriteBlock,
+        &TImpl::DoWriteBlock,
         MakeWeak(this),
         block));
 
     return State.GetOperationError();
 }
 
-void TRemoteWriter::DoWriteBlock(const TSharedRef& block)
+void TRemoteWriter::TImpl::DoWriteBlock(const TSharedRef& block)
 {
     if (State.IsActive()) {
         AddBlock(block);
@@ -834,7 +949,7 @@ void TRemoteWriter::DoWriteBlock(const TSharedRef& block)
     State.FinishOperation();
 }
 
-void TRemoteWriter::AddBlock(const TSharedRef& block)
+void TRemoteWriter::TImpl::AddBlock(const TSharedRef& block)
 {
     YASSERT(!IsClosing);
 
@@ -847,7 +962,7 @@ void TRemoteWriter::AddBlock(const TSharedRef& block)
         block.Size());
     if (CurrentGroup->GetSize() >= Config->GroupSize) {
         WriterThread->GetInvoker()->Invoke(BIND(
-            &TRemoteWriter::AddGroup,
+            &TImpl::AddGroup,
             MakeWeak(this),
             CurrentGroup));
         // Construct a new (empty) group.
@@ -855,7 +970,7 @@ void TRemoteWriter::AddBlock(const TSharedRef& block)
     }
 }
 
-void TRemoteWriter::DoClose()
+void TRemoteWriter::TImpl::DoClose()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
@@ -878,7 +993,7 @@ void TRemoteWriter::DoClose()
     }
 }
 
-TAsyncError TRemoteWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
+TAsyncError TRemoteWriter::TImpl::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
     YASSERT(IsOpen);
     YASSERT(!IsClosing);
@@ -891,12 +1006,12 @@ TAsyncError TRemoteWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& ch
     LOG_DEBUG("Requesting writer to close");
     State.StartOperation();
 
-    WriterThread->GetInvoker()->Invoke(BIND(&TRemoteWriter::DoClose, MakeWeak(this)));
+    WriterThread->GetInvoker()->Invoke(BIND(&TImpl::DoClose, MakeWeak(this)));
 
     return State.GetOperationError();
 }
 
-Stroka TRemoteWriter::GetDebugInfo()
+Stroka TRemoteWriter::TImpl::GetDebugInfo()
 {
     return Sprintf(
         "ChunkId: %s; "
@@ -913,13 +1028,13 @@ Stroka TRemoteWriter::GetDebugInfo()
         ~FlushBlockTiming.GetDebugInfo());
 }
 
-const NChunkHolder::NProto::TChunkInfo& TRemoteWriter::GetChunkInfo() const
+const NChunkHolder::NProto::TChunkInfo& TRemoteWriter::TImpl::GetChunkInfo() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return ChunkInfo;
 }
 
-const std::vector<Stroka> TRemoteWriter::GetNodeAddresses() const
+const std::vector<Stroka> TRemoteWriter::TImpl::GetNodeAddresses() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     std::vector<Stroka> addresses;
@@ -931,9 +1046,56 @@ const std::vector<Stroka> TRemoteWriter::GetNodeAddresses() const
     return addresses;
 }
 
-const TChunkId& TRemoteWriter::GetChunkId() const
+const TChunkId& TRemoteWriter::TImpl::GetChunkId() const
 {
     return ChunkId;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+TRemoteWriter::TRemoteWriter(
+    const TRemoteWriterConfigPtr& config,
+    const TChunkId& chunkId,
+    const std::vector<Stroka>& addresses)
+    : Impl(New<TImpl>(config, chunkId, addresses))
+{ }
+
+TRemoteWriter::~TRemoteWriter()
+{ }
+
+void TRemoteWriter::Open()
+{
+    Impl->Open();
+}
+
+TAsyncError TRemoteWriter::AsyncWriteBlock(const TSharedRef& block)
+{
+    return Impl->AsyncWriteBlock(block);
+}
+
+TAsyncError TRemoteWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
+{
+    return Impl->AsyncClose(chunkMeta);
+}
+
+const NChunkHolder::NProto::TChunkInfo& TRemoteWriter::GetChunkInfo() const
+{
+    return Impl->GetChunkInfo();
+}
+
+const std::vector<Stroka> TRemoteWriter::GetNodeAddresses() const
+{
+    return Impl->GetNodeAddresses();
+}
+
+const TChunkId& TRemoteWriter::GetChunkId() const
+{
+    return Impl->GetChunkId();
+}
+
+Stroka TRemoteWriter::GetDebugInfo()
+{
+    return Impl->GetDebugInfo();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
