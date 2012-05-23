@@ -4,7 +4,7 @@ var assert = require("chai").assert;
 var ybinding = require("ytnode");
 var tbinding = require("ytnode_stubs");
 
-var yt = require("./yt");
+var yt = require("./ytnode_wrappers");
 
 ////////////////////////////////////////////////////////////////////////////////
 

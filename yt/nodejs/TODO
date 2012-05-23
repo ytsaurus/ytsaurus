@@ -1,3 +1,4 @@
+- Wrap possibly-throwing sites with try-catch; e. g. TNodeJSDriver::New.
 - Implement proper thread affinity.
 - There should be EventuallyUnref() method which is thread-safe and
   which eventually Unref()'s Ref()'ed object. Exactly this method
