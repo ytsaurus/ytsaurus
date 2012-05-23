@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <ytlib/misc/small_vector.h>
+#include <ytlib/chunk_server/public.h>
 #include <ytlib/table_client/table_reader.pb.h>
 
 namespace NYT {
@@ -13,17 +14,11 @@ namespace NScheduler {
 struct TChunkStripe
     : public TIntrinsicRefCounted
 {
-    TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight)
-        : Weight(weight)
-    {
-        InputChunks.push_back(inputChunk);
-    }
+    TChunkStripe();
+    TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
+    TChunkStripe(const std::vector<NTableClient::NProto::TInputChunk>& inputChunks, i64 weight);
 
-    TChunkStripe(const std::vector<NTableClient::NProto::TInputChunk>& inputChunks, i64 weight)
-        : Weight(weight)
-    {
-        InputChunks.insert(InputChunks.end(), inputChunks.begin(), inputChunks.end());
-    }
+    std::vector<NChunkServer::TChunkId> GetChunkIds() const;
 
     TSmallVector<NTableClient::NProto::TInputChunk, 1> InputChunks;
     i64 Weight;
@@ -60,13 +55,13 @@ public:
         const Stroka& address,
         i64 weightThreshold,
         bool needLocal);
-    void PutBack(TPoolExtractionResultPtr result);
+    void Return(TPoolExtractionResultPtr result);
 
     i64 GetTotalWeight() const;
     i64 GetPendingWeight() const;
 
     bool HasPendingChunks() const;
-    bool HasPendingLocalChunksFor(const Stroka& address) const;
+    bool HasPendingLocalChunksAt(const Stroka& address) const;
 
 private:
     class TImpl;
@@ -87,13 +82,13 @@ public:
     TPoolExtractionResultPtr Extract(
         const Stroka& address,
         bool needLocal);
-    void PutBack(TPoolExtractionResultPtr result);
+    void Return(TPoolExtractionResultPtr result);
 
     i64 GetTotalWeight() const;
     i64 GetPendingWeight() const;
 
     bool HasPendingChunks() const;
-    bool HasPendingLocalChunksFor(const Stroka& address) const;
+    bool HasPendingLocalChunksAt(const Stroka& address) const;
      
 private:
     class TImpl;

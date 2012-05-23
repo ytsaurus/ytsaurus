@@ -114,14 +114,16 @@ private:
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
-        auto* mapJobSpec = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
-        FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-            *mapJobSpec->mutable_input_spec()->add_chunks() = stripe->InputChunks[0];
-        }
-        FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
-            auto chunkListId = ChunkListPool->Extract();
-            jip->ChunkListIds.push_back(chunkListId);
-            *outputSpec.mutable_chunk_list_id() = chunkListId.ToProto();
+        {
+            auto* specExt = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+                *specExt->mutable_input_spec()->add_chunks() = stripe->InputChunks[0];
+            }
+            FOREACH (auto& outputSpec, *specExt->mutable_output_specs()) {
+                auto chunkListId = ChunkListPool->Extract();
+                jip->ChunkListIds.push_back(chunkListId);
+                *outputSpec.mutable_chunk_list_id() = chunkListId.ToProto();
+            }
         }
 
         // Update running counters.
@@ -153,7 +155,7 @@ private:
         PendingWeight += jip->PoolResult->TotalChunkWeight;
 
         LOG_DEBUG("Returned %d chunks into pool", jip->PoolResult->TotalChunkCount);
-        ChunkPool.PutBack(jip->PoolResult);
+        ChunkPool.Return(jip->PoolResult);
 
         ReleaseChunkLists(jip->ChunkListIds);
     }
@@ -202,7 +204,7 @@ private:
 
                 FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     // Currently fetch never returns row attributes.
-                    YASSERT(!chunk.has_row_attributes());
+                    YCHECK(!chunk.has_row_attributes());
 
                     if (rowAttributes) {
                         chunk.set_row_attributes(rowAttributes.Get());
@@ -294,19 +296,18 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::Map);
 
-        auto* userJobSpec = JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec);
-        userJobSpec->set_shell_command(Spec->Mapper);
+        auto* userExt = JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec);
+        userExt->set_shell_command(Spec->Mapper);
         FOREACH (const auto& file, Files) {
-            *userJobSpec->add_files() = *file.FetchResponse;
+            *userExt->add_files() = *file.FetchResponse;
         }
 
-        TMapJobSpec mapJobSpec;
-        *mapJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        auto* specExt = JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec);
+        *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
         FOREACH (const auto& table, OutputTables) {
-            auto* outputSpec = mapJobSpec.add_output_specs();
+            auto* outputSpec = specExt->add_output_specs();
             outputSpec->set_channels(table.Channels);
         }
-        *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
 
         JobSpecTemplate.set_io_config(SerializeToYson(Config->MapJobIO));
 

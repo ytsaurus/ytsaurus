@@ -63,6 +63,8 @@ public:
         , TotalSortWeight(0)
         , PendingSortWeight(0)
         , CompletedSortWeight(0)
+        , RunningMergeJobCount(0)
+        , CompletedMergeJobCount(0)
         , SamplesFetcher(New<TSamplesFetcher>(
             Config,
             Spec,
@@ -98,6 +100,10 @@ private:
     i64 PendingSortWeight;
     i64 CompletedSortWeight;
 
+    // Merge job counters.
+    int RunningMergeJobCount;
+    int CompletedMergeJobCount;
+
     // Samples and partitions.
     struct TPartition
         : public TIntrinsicRefCounted
@@ -105,6 +111,7 @@ private:
         explicit TPartition(int index)
             : Index(index)
             , Small(false)
+            , Completed(false)
         { }
 
         //! Sequential index (zero based).
@@ -113,8 +120,14 @@ private:
         //! Small partitions contain data that fits into a single sort job.
         bool Small;
 
-        //! Pool storing all chunks awaiting sort job.
+        //! Is partition completed?
+        bool Completed;
+
+        //! Pool containing all chunks awaiting sort.
         TUnorderedChunkPool SortChunkPool;
+
+        //! Pool containing all stripes awaiting merge.
+        TAtomicChunkPool MergeChunkPool;
     };
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
@@ -127,47 +140,48 @@ private:
     
     //! Pool storing all chunks awaiting partition job.
     TUnorderedChunkPool PartitionChunkPool;
-    
+
     //! List of all partitions.
     std::vector<TPartitionPtr> Partitions;
 
     //! Templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
     TJobSpec SortJobSpecTemplate;
+    TJobSpec MergeJobSpecTemplate;
 
-    //! Locality and active partitions management.
-    yhash_map<Stroka, yhash_set<TPartitionPtr> > AddressToActivePartitions;
-    yhash_set<TPartitionPtr> ActivePartitions;
+    // Locality management for partition phase.
+    yhash_map<Stroka, yhash_set<TPartitionPtr> > AddressToPartitionsAwaitingSort;
+    yhash_set<TPartitionPtr> PartitionsAwaitingSort;
 
-    bool IsPartitionActive(TPartitionPtr partition)
+    bool IsPartitionAwaitingSort(TPartitionPtr partition)
     {
         return GetPendingPartitionJobCount() > 0
             ? partition->SortChunkPool.GetTotalWeight() > Config->MaxSortJobDataSize
             : partition->SortChunkPool.HasPendingChunks();
     }
 
-    bool IsPartitionActiveFor(TPartitionPtr partition, const Stroka& address)
+    bool IsPartitionAwaitingSortAt(TPartitionPtr partition, const Stroka& address)
     {
         return
-            IsPartitionActive(partition) &&
-            partition->SortChunkPool.HasPendingLocalChunksFor(address);
+            IsPartitionAwaitingSort(partition) &&
+            partition->SortChunkPool.HasPendingLocalChunksAt(address);
     }
 
-    void RegisterPendingStripeForSort(TPartitionPtr partition, TChunkStripePtr stripe)
+    void RegisterStripeForSort(TPartitionPtr partition, TChunkStripePtr stripe)
     {
-        if (IsPartitionActive(partition)) {
-            ActivePartitions.insert(partition);
+        if (IsPartitionAwaitingSort(partition)) {
+            PartitionsAwaitingSort.insert(partition);
             FOREACH (const auto& chunk, stripe->InputChunks) {
                 FOREACH (const auto& address, chunk.node_addresses()) {
-                    if (IsPartitionActiveFor(partition, address)) {
-                        AddressToActivePartitions[address].insert(partition);
+                    if (IsPartitionAwaitingSortAt(partition, address)) {
+                        AddressToPartitionsAwaitingSort[address].insert(partition);
                     }
                 }
             }
         }
     }
 
-    void AddPendingChunkForSort(TPartitionPtr partition, const TInputChunk& chunk, i64 weight)
+    void AddChunkForSort(TPartitionPtr partition, const TInputChunk& chunk, i64 weight)
     {
         // TODO(babenko): avoid excessive copying
 
@@ -175,9 +189,9 @@ private:
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
 
         partition->SortChunkPool.Add(stripe);
-        RegisterPendingStripeForSort(partition, stripe);
+        RegisterStripeForSort(partition, stripe);
 
-        LOG_DEBUG("Added pending chunk %s for sort in partition %d",
+        LOG_DEBUG("Added pending chunk %s for sort (Partition: %d)",
             ~chunkId.ToString(),
             partition->Index);
 
@@ -186,7 +200,7 @@ private:
             partition->SortChunkPool.GetTotalWeight() <= Config->MaxSortJobDataSize)
         {
             partition->Small = true;
-            LOG_DEBUG("Partition %d is small (Weight: %" PRId64 ")",
+            LOG_DEBUG("Partition is small (Partition: %d, Weight: %" PRId64 ")",
                 partition->Index,
                 partition->SortChunkPool.GetTotalWeight());
         }
@@ -203,15 +217,15 @@ private:
             weightThreshold,
             needLocal);
 
-        if (!IsPartitionActive(partition)) {
-            YVERIFY(ActivePartitions.erase(partition) == 1);
+        if (!IsPartitionAwaitingSort(partition)) {
+            YVERIFY(PartitionsAwaitingSort.erase(partition) == 1);
         }
 
         FOREACH (const auto& stripe, result->Stripes) {
             FOREACH (const auto& chunk, stripe->InputChunks) {
                 FOREACH (const auto& address, chunk.node_addresses()) {
-                    if (!IsPartitionActiveFor(partition, address)) {
-                        AddressToActivePartitions[address].erase(partition);
+                    if (!IsPartitionAwaitingSortAt(partition, address)) {
+                        AddressToPartitionsAwaitingSort[address].erase(partition);
                     }
                 }
             }
@@ -224,17 +238,17 @@ private:
         TPartitionPtr partition,
         TPoolExtractionResultPtr result)
     {
-        partition->SortChunkPool.PutBack(result);
+        partition->SortChunkPool.Return(result);
         FOREACH (const auto& chunk, result->Stripes) {
-            RegisterPendingStripeForSort(partition, chunk);
+            RegisterStripeForSort(partition, chunk);
         }
     }
 
-    TPartitionPtr TryGetActivePartitionForSort(const Stroka& address)
+    TPartitionPtr FindPartitionAwaitingSort(const Stroka& address)
     {
         // Try to fetch a partition with local chunks.
-        auto it = AddressToActivePartitions.find(address);
-        if (it != AddressToActivePartitions.end()) {
+        auto it = AddressToPartitionsAwaitingSort.find(address);
+        if (it != AddressToPartitionsAwaitingSort.end()) {
             const auto& set = it->second;
             if (!set.empty()) {
                 return *set.begin();
@@ -242,22 +256,115 @@ private:
         }
 
         // Fetch any partition.
-        return ActivePartitions.empty() ? NULL : *ActivePartitions.begin();
+        return PartitionsAwaitingSort.empty() ? NULL : *PartitionsAwaitingSort.begin();
+    }
+
+
+    // Locality management for merge phase.
+    std::set<TPartitionPtr> PartitionsAwaitingMerge;
+    yhash_map<Stroka, yhash_set<TPartitionPtr> > AddressToPartitionsAwaitingMerge;
+
+    bool IsPartitionAwaitingMerge(TPartitionPtr partition)
+    {
+        return !partition->Small && partition->MergeChunkPool.HasPendingChunks();
+    }
+
+    bool IsPartitionAwaitingMergeAt(TPartitionPtr partition, const Stroka& address)
+    {
+        return
+            IsPartitionAwaitingMerge(partition) &&
+            partition->MergeChunkPool.HasPendingLocalChunksAt(address);
+    }
+
+    void RegisterStripeForMerge(TPartitionPtr partition, TChunkStripePtr stripe)
+    {
+        if (IsPartitionAwaitingMerge(partition)) {
+            PartitionsAwaitingMerge.insert(partition);
+            FOREACH (const auto& chunk, stripe->InputChunks) {
+                FOREACH (const auto& address, chunk.node_addresses()) {
+                    if (IsPartitionAwaitingMergeAt(partition, address)) {
+                        AddressToPartitionsAwaitingMerge[address].insert(partition);
+                    }
+                }
+            }
+        }
+    }
+
+    void AddStripeForMerge(TPartitionPtr partition, TChunkStripePtr stripe)
+    {
+        partition->SortChunkPool.Add(stripe);
+        RegisterStripeForMerge(partition, stripe);
+
+        LOG_DEBUG("Added pending stripe [%s] for merge in partition %d",
+            ~JoinToString(stripe->GetChunkIds()),
+            partition->Index);
+    }
+
+    TPoolExtractionResultPtr ExtractChunksForMerge(
+        TPartitionPtr partition,
+        const Stroka& address,
+        bool needLocal)
+    {
+        auto result = partition->MergeChunkPool.Extract(
+            address,
+            needLocal);
+
+        if (!IsPartitionAwaitingMerge(partition)) {
+            YVERIFY(PartitionsAwaitingMerge.erase(partition) == 1);
+        }
+
+        FOREACH (const auto& stripe, result->Stripes) {
+            FOREACH (const auto& chunk, stripe->InputChunks) {
+                FOREACH (const auto& address, chunk.node_addresses()) {
+                    if (!IsPartitionAwaitingMergeAt(partition, address)) {
+                        AddressToPartitionsAwaitingSort[address].erase(partition);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    void ReturnChunksForMerge(
+        TPartitionPtr partition,
+        TPoolExtractionResultPtr result)
+    {
+        partition->MergeChunkPool.Return(result);
+        FOREACH (const auto& chunk, result->Stripes) {
+            RegisterStripeForMerge(partition, chunk);
+        }
+    }
+
+    TPartitionPtr FindPartitionAwaitingMerge(const Stroka& address)
+    {
+        // Try to fetch a partition with local chunks.
+        auto it = AddressToPartitionsAwaitingMerge.find(address);
+        if (it != AddressToPartitionsAwaitingMerge.end()) {
+            const auto& set = it->second;
+            if (!set.empty()) {
+                return *set.begin();
+            }
+        }
+
+        // Fetch any partition.
+        return PartitionsAwaitingMerge.empty() ? NULL : *PartitionsAwaitingMerge.begin();
     }
 
 
     // Init/finish.
 
+    bool IsPartitionComplete()
+    {
+        return CompletedPartitionChunkCount == TotalPartitionChunkCount;
+    }
+
     virtual int GetPendingJobCount()
     {
         return
             GetPendingPartitionJobCount() +
-            GetPendingSortJobCount();
-    }
-
-    bool IsPartitionComplete()
-    {
-        return CompletedPartitionChunkCount == TotalPartitionChunkCount;
+            GetPendingSortJobCount() +
+            GetPendingMergeJobCount();
     }
 
     int GetPendingPartitionJobCount()
@@ -286,13 +393,31 @@ private:
             : static_cast<int>(floor(fractionJobCount));
     }
 
+    int GetPendingMergeJobCount()
+    {
+        if (!IsPartitionComplete()) {
+            return 0;
+        }
+        int result = 0;
+        FOREACH (auto partition, Partitions) {
+            result += GetPendingMergeJobCount(partition);
+        }
+        return result;
+    }
+
+    int GetPendingMergeJobCount(TPartitionPtr partition)
+    {
+        return !partition->Small && partition->MergeChunkPool.HasPendingChunks() ? 1 : 0;
+    }
+
     void CompletePartition(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
     {
         auto& table = OutputTables[0];
-        YASSERT(table.PartitionTreeIds[partition->Index] == NullChunkTreeId);
+        YCHECK(table.PartitionTreeIds[partition->Index] == NullChunkTreeId);
         table.PartitionTreeIds[partition->Index] = chunkTreeId;
         ++CompletedPartitionCount;
-        LOG_INFO("Partition %d is complete", partition->Index);
+        partition->Completed = true;
+        LOG_INFO("Partition %d completed", partition->Index);
     }
 
 
@@ -315,6 +440,11 @@ private:
             return sortJob;
         }
 
+        auto mergeJob = TryScheduleMergeJob(node);
+        if (mergeJob) {
+            return mergeJob;
+        }
+
         YUNREACHABLE();
     }
 
@@ -324,7 +454,7 @@ private:
     struct TPartitionJobInProgress
         : public TJobInProgress
     {
-        TPoolExtractionResultPtr ExtractResult;
+        TPoolExtractionResultPtr PoolResult;
         TChunkListId ChunkListId;
     };
 
@@ -342,23 +472,23 @@ private:
         // Allocate chunks for the job.
         auto jip = New<TPartitionJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(GetPendingPartitionJobCount(), PendingPartitionWeight);
-        jip->ExtractResult = PartitionChunkPool.Extract(
+        jip->PoolResult = PartitionChunkPool.Extract(
             node->GetAddress(),
             weightThreshold,
             false);
 
         LOG_DEBUG("Extracted %d chunks for partition at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-            jip->ExtractResult->TotalChunkCount,
+            jip->PoolResult->TotalChunkCount,
             ~node->GetAddress(),
-            jip->ExtractResult->LocalChunkCount,
-            jip->ExtractResult->TotalChunkWeight,
+            jip->PoolResult->LocalChunkCount,
+            jip->PoolResult->TotalChunkWeight,
             weightThreshold);
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = PartitionJobSpecTemplate;
         {
             auto* partitionJobSpec = jobSpec.MutableExtension(TPartitionJobSpec::partition_job_spec);
-            FOREACH (const auto& stripe, jip->ExtractResult->Stripes) {
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
                 const auto& chunk = stripe->InputChunks[0];
                 *partitionJobSpec->mutable_input_spec()->add_chunks() = chunk;
             }
@@ -371,8 +501,8 @@ private:
 
         // Update counters.
         ++RunningPartitionJobCount;
-        PendingPartitionChunkCount -= jip->ExtractResult->TotalChunkCount;
-        PendingPartitionWeight -= jip->ExtractResult->TotalChunkWeight;
+        PendingPartitionChunkCount -= jip->PoolResult->TotalChunkCount;
+        PendingPartitionWeight -= jip->PoolResult->TotalChunkWeight;
 
         return CreateJob(
             jip,
@@ -386,25 +516,25 @@ private:
     {
         --RunningPartitionJobCount;
         ++CompletedPartitionJobCount;
-        CompletedPartitionChunkCount += jip->ExtractResult->TotalChunkCount;
-        CompletedPartitionWeight += jip->ExtractResult->TotalChunkWeight;
+        CompletedPartitionChunkCount += jip->PoolResult->TotalChunkCount;
+        CompletedPartitionWeight += jip->PoolResult->TotalChunkWeight;
 
-        auto result = jip->Job->Result().GetExtension(TPartitionJobResult::partition_job_result);
-        FOREACH (auto& partitionChunk, *result.mutable_chunks()) {
+        auto* result = jip->Job->Result().MutableExtension(TPartitionJobResult::partition_job_result);
+        FOREACH (auto& partitionChunk, *result->mutable_chunks()) {
             // We're keeping chunk information received from partition jobs to populate sort pools.
             // TPartitionsExt is, however, quite heavy.
             // Deserialize it and then drop its protobuf copy immediately.
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
             RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.mutable_extensions());
 
-            YASSERT(partitionsExt->sizes_size() == Partitions.size());
+            YCHECK(partitionsExt->sizes_size() == Partitions.size());
             LOG_DEBUG("Partition sizes are [%s]", ~JoinToString(partitionsExt->sizes()));
             for (int index = 0; index < partitionsExt->sizes_size(); ++index) {
                 i64 weight = partitionsExt->sizes(index);
                 if (weight > 0) {
                 	auto partition = Partitions[index];
                 	i64 weight = partitionsExt->sizes(index);
-         	       AddPendingChunkForSort(partition, partitionChunk, weight);                }
+         	        AddChunkForSort(partition, partitionChunk, weight);                }
             }
         }
     }
@@ -412,11 +542,11 @@ private:
     void OnPartitionJobFailed(TPartitionJobInProgress* jip)
     {
         --RunningPartitionJobCount;
-        PendingPartitionChunkCount += jip->ExtractResult->TotalChunkCount;
-        PendingPartitionWeight  += jip->ExtractResult->TotalChunkWeight;
+        PendingPartitionChunkCount += jip->PoolResult->TotalChunkCount;
+        PendingPartitionWeight  += jip->PoolResult->TotalChunkWeight;
 
-        LOG_DEBUG("Returned %d chunks into partition pool", jip->ExtractResult->TotalChunkCount);
-        PartitionChunkPool.PutBack(jip->ExtractResult);
+        LOG_DEBUG("Returned %d chunks into partition pool", jip->PoolResult->TotalChunkCount);
+        PartitionChunkPool.Return(jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -428,14 +558,14 @@ private:
         : public TJobInProgress
     {
         TPartitionPtr Partition;
-        TPoolExtractionResultPtr ExtractResult;
+        TPoolExtractionResultPtr PoolResult;
         TChunkListId ChunkListId;
     };
 
     TJobPtr TryScheduleSortJob(TExecNodePtr node)
     {
         // Check for an active partition.
-        auto partition = TryGetActivePartitionForSort(node->GetAddress());
+        auto partition = FindPartitionAwaitingSort(node->GetAddress());
         if (!partition) {
             return NULL;
         }
@@ -444,25 +574,25 @@ private:
         auto jip = New<TSortJobInProgress>();
         jip->Partition = partition;
         i64 weightThreshold = Config->MaxSortJobDataSize;
-        jip->ExtractResult = ExtractChunksForSort(
+        jip->PoolResult = ExtractChunksForSort(
             partition,
             node->GetAddress(),
             weightThreshold,
             false);
 
-        LOG_DEBUG("Extracted %d chunks for sort at node %s (PartitionIndex: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-            jip->ExtractResult->TotalChunkCount,
+        LOG_DEBUG("Extracted %d chunks for sort at node %s (Partition: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+            jip->PoolResult->TotalChunkCount,
             ~node->GetAddress(),
             partition->Index,
-            jip->ExtractResult->LocalChunkCount,
-            jip->ExtractResult->TotalChunkWeight,
+            jip->PoolResult->LocalChunkCount,
+            jip->PoolResult->TotalChunkWeight,
             weightThreshold);
 
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = SortJobSpecTemplate;
         auto* sortJobSpec = jobSpec.MutableExtension(TSortJobSpec::sort_job_spec);
-        FOREACH (const auto& stripe, jip->ExtractResult->Stripes) {
+        FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
             const auto& chunk = stripe->InputChunks[0];
             *sortJobSpec->mutable_input_spec()->add_chunks() = chunk;
         }
@@ -479,7 +609,7 @@ private:
 
         // Update counters.
         ++RunningSortJobCount;
-        PendingSortWeight -= jip->ExtractResult->TotalChunkWeight;
+        PendingSortWeight -= jip->PoolResult->TotalChunkWeight;
 
         return CreateJob(
             jip,
@@ -493,27 +623,125 @@ private:
     {
         --RunningSortJobCount;
         ++CompletedSortJobCount;
-        CompletedSortWeight += jip->ExtractResult->TotalChunkWeight;
+        CompletedSortWeight += jip->PoolResult->TotalChunkWeight;
 
         auto partition = jip->Partition;
         if (partition->Small) {
             // Sort outputs in small partitions go directly to the output table.
             CompletePartition(partition, jip->ChunkListId);
         } else {
-            // TODO(babenko): handle large partitions
-            YUNREACHABLE();
+            // Sort outputs in large partitions are queued for further merge.
+            // 
+            // Construct a stripe consisting of sorted chunks.
+            const auto& result = jip->Job->Result().GetExtension(TSortJobResult::sort_job_result);
+            auto stripe = New<TChunkStripe>();
+            FOREACH (const auto& chunk, result.chunks()) {
+                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                stripe->InputChunks.push_back(chunk);
+                stripe->Weight += miscExt->data_weight();
+            }
+
+            // Put the stripe into the pool.
+            AddStripeForMerge(partition, stripe);
         }
     }
 
     void OnSortJobFailed(TSortJobInProgress* jip)
     {
         --RunningSortJobCount;
-        PendingSortWeight += jip->ExtractResult->TotalChunkWeight;
+        PendingSortWeight += jip->PoolResult->TotalChunkWeight;
 
-        LOG_DEBUG("Returned %d chunks into sort pool (PartitionIndex: %d)",
-            jip->ExtractResult->TotalChunkCount,
+        LOG_DEBUG("Returned %d chunks into sort pool (Partition: %d)",
+            jip->PoolResult->TotalChunkCount,
             jip->Partition->Index);
-        ReturnChunksForSort(jip->Partition, jip->ExtractResult);
+        ReturnChunksForSort(jip->Partition, jip->PoolResult);
+
+        ReleaseChunkList(jip->ChunkListId);
+    }
+
+
+    // Job scheduling and outcome handling for merge phase.
+
+    struct TMergeJobInProgress
+        : public TJobInProgress
+    {
+        TPartitionPtr Partition;
+        TPoolExtractionResultPtr PoolResult;
+        TChunkListId ChunkListId;
+    };
+
+    TJobPtr TryScheduleMergeJob(TExecNodePtr node)
+    {
+        auto partition = FindPartitionAwaitingMerge(node->GetAddress());
+        if (!partition) {
+            return NULL;
+        }
+
+        // Allocate chunks for the job.
+        auto jip = New<TMergeJobInProgress>();
+        jip->Partition = partition;
+        jip->PoolResult = partition->MergeChunkPool.Extract(
+            node->GetAddress(),
+            false);
+
+        LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ")",
+            jip->PoolResult->TotalChunkCount,
+            ~node->GetAddress(),
+            jip->PoolResult->LocalChunkCount,
+            jip->PoolResult->TotalChunkWeight);
+
+        // Make a copy of the generic spec and customize it.
+        auto jobSpec = MergeJobSpecTemplate;
+        {
+            auto* specExt = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+                auto* inputSpec = specExt->add_input_spec();
+                FOREACH (const auto& chunk, stripe->InputChunks) {
+                    *inputSpec->add_chunks() = chunk;
+                }
+            }
+            {
+                auto* outputSpec = specExt->mutable_output_spec();
+                const auto& ouputTable = OutputTables[0];
+                jip->ChunkListId = ChunkListPool->Extract();
+                *outputSpec->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
+                outputSpec->set_channels(ouputTable.Channels);
+            }
+        }
+
+        // Update counters.
+        ++RunningMergeJobCount;
+        //PendingPartitionChunkCount -= jip->PoolResult->TotalChunkCount;
+        //PendingPartitionWeight -= jip->PoolResult->TotalChunkWeight;
+
+        return CreateJob(
+            jip,
+            node,
+            jobSpec,
+            BIND(&TThis::OnMergeJobCompleted, MakeWeak(this)),
+            BIND(&TThis::OnMergeJobFailed, MakeWeak(this)));
+    }
+
+    void OnMergeJobCompleted(TMergeJobInProgress* jip)
+    {
+        --RunningMergeJobCount;
+        ++CompletedMergeJobCount;
+        //CompletedPartitionChunkCount += jip->PoolResult->TotalChunkCount;
+        //CompletedPartitionWeight += jip->PoolResult->TotalChunkWeight;
+
+        CompletePartition(jip->Partition, jip->ChunkListId);
+    }
+
+    void OnMergeJobFailed(TMergeJobInProgress* jip)
+    {
+        --RunningMergeJobCount;
+        //PendingPartitionChunkCount += jip->PoolResult->TotalChunkCount;
+        //PendingPartitionWeight  += jip->PoolResult->TotalChunkWeight;
+
+        LOG_DEBUG("Returned %d chunks into partition pool (Partition: %d)",
+            jip->PoolResult->TotalChunkCount,
+            jip->Partition->Index);
+        ReturnChunksForMerge(jip->Partition, jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -624,7 +852,7 @@ private:
         // Don't create more partitions than we have samples.
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
 
-        YASSERT(partitionCount > 0);
+        YCHECK(partitionCount > 0);
 
         if (partitionCount == 1) {
             BuildSinglePartition();
@@ -660,7 +888,7 @@ private:
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                 i64 weight = miscExt->uncompressed_data_size();
-                AddPendingChunkForSort(partition, chunk, weight);
+                AddChunkForSort(partition, chunk, weight);
                 TotalSortWeight += weight;
                 ++totalSortChunkCount;
             }
@@ -816,14 +1044,13 @@ private:
     {
         {
             PartitionJobSpecTemplate.set_type(EJobType::Partition);
+            auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec);
 
-            TPartitionJobSpec specExt;
             FOREACH (const auto* key, PartitionKeys) {
-                *specExt.add_partition_keys() = *key;
+                *specExt->add_partition_keys() = *key;
             }
-            *specExt.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            ToProto(specExt.mutable_key_columns(), Spec->KeyColumns);
-            *PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec) = specExt;
+            *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
             // Don't replicate partition chunks.
             PartitionJobSpecTemplate.set_io_config(SerializeToYson(
@@ -831,18 +1058,28 @@ private:
         }
         {
             SortJobSpecTemplate.set_type(EJobType::Sort);
+            auto* specExt = SortJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec);
 
-            TSortJobSpec specExt;
-            *specExt.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            ToProto(specExt.mutable_key_columns(), Spec->KeyColumns);
-            
-            *specExt.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);          
+            *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
             auto& table = OutputTables[0];
-            specExt.mutable_output_spec()->set_channels(table.Channels);
-            *SortJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec) = specExt;
+            specExt->mutable_output_spec()->set_channels(table.Channels);
 
             // Can't fill in io_config right away: some sort jobs need output replication
             // while others don't. Leave this customization to |TryScheduleSortJob|.
+        }
+        {
+            MergeJobSpecTemplate.set_type(EJobType::SortedMerge);
+            auto* specExt = MergeJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec);
+
+            *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            auto& table = OutputTables[0];
+            specExt->mutable_output_spec()->set_channels(table.Channels);
+
+            SortJobSpecTemplate.set_io_config(SerializeToYson(
+                PrepareJobIOConfig(Config->MergeJobIO, true)));
         }
     }
 };

@@ -5,6 +5,34 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NChunkServer;
+using namespace NTableClient::NProto;
+
+////////////////////////////////////////////////////////////////////
+
+TChunkStripe::TChunkStripe()
+    : Weight(0)
+{ }
+
+TChunkStripe::TChunkStripe(const TInputChunk& inputChunk, i64 weight )
+    : Weight(weight)
+{
+    InputChunks.push_back(inputChunk);
+}
+
+TChunkStripe::TChunkStripe(const std::vector<TInputChunk>& inputChunks, i64 weight)
+    : Weight(weight)
+{ }
+
+std::vector<NChunkServer::TChunkId> TChunkStripe::GetChunkIds() const
+{
+    std::vector<NChunkServer::TChunkId> result;
+    FOREACH (const auto& chunk, InputChunks) {
+        result.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TPoolExtractionResult::TPoolExtractionResult()
@@ -104,7 +132,7 @@ public:
         return result;
     }
 
-    void PutBack(TPoolExtractionResultPtr result)
+    void Return(TPoolExtractionResultPtr result)
     {
         FOREACH (const auto& stripe, result->Stripes) {
             Add(stripe);
@@ -126,7 +154,7 @@ public:
         return !GlobalChunks.empty();
     }
 
-    bool HasPendingLocalChunksFor(const Stroka& address) const
+    bool HasPendingLocalChunksAt(const Stroka& address) const
     {
         auto it = LocalChunks.find(address);
         return it == LocalChunks.end() ? false : !it->second.empty();
@@ -191,9 +219,9 @@ TPoolExtractionResultPtr TUnorderedChunkPool::Extract(
         needLocal);
 }
 
-void TUnorderedChunkPool::PutBack(TPoolExtractionResultPtr result)
+void TUnorderedChunkPool::Return(TPoolExtractionResultPtr result)
 {
-    Impl->PutBack(result);
+    Impl->Return(result);
 }
 
 i64 TUnorderedChunkPool::GetTotalWeight() const
@@ -211,9 +239,9 @@ bool TUnorderedChunkPool::HasPendingChunks() const
     return Impl->HasPendingChunks();
 }
 
-bool TUnorderedChunkPool::HasPendingLocalChunksFor(const Stroka& address) const
+bool TUnorderedChunkPool::HasPendingLocalChunksAt(const Stroka& address) const
 {
-    return Impl->HasPendingLocalChunksFor(address);
+    return Impl->HasPendingLocalChunksAt(address);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -246,7 +274,7 @@ public:
         Initialized = true;
         YASSERT(!Extracted);
 
-        if (needLocal && !HasPendingLocalChunksFor(address)) {
+        if (needLocal && !HasPendingLocalChunksAt(address)) {
             return NULL;
         }
 
@@ -259,7 +287,7 @@ public:
         return result;
     }
 
-    virtual void PutBack(TPoolExtractionResultPtr result)
+    virtual void Return(TPoolExtractionResultPtr result)
     {
         YASSERT(Initialized);
         YASSERT(Extracted);
@@ -281,7 +309,7 @@ public:
         return !Extracted && !Stripes.empty();
     }
 
-    virtual bool HasPendingLocalChunksFor(const Stroka& address) const
+    virtual bool HasPendingLocalChunksAt(const Stroka& address) const
     {
         return
             Extracted
@@ -324,9 +352,9 @@ TPoolExtractionResultPtr TAtomicChunkPool::Extract(
         needLocal);
 }
 
-void TAtomicChunkPool::PutBack(TPoolExtractionResultPtr result)
+void TAtomicChunkPool::Return(TPoolExtractionResultPtr result)
 {
-    Impl->PutBack(result);
+    Impl->Return(result);
 }
 
 i64 TAtomicChunkPool::GetTotalWeight() const
@@ -344,9 +372,9 @@ bool TAtomicChunkPool::HasPendingChunks() const
     return Impl->HasPendingChunks();
 }
 
-bool TAtomicChunkPool::HasPendingLocalChunksFor(const Stroka& address) const
+bool TAtomicChunkPool::HasPendingLocalChunksAt(const Stroka& address) const
 {
-    return Impl->HasPendingLocalChunksFor(address);
+    return Impl->HasPendingLocalChunksAt(address);
 }
 
 ////////////////////////////////////////////////////////////////////

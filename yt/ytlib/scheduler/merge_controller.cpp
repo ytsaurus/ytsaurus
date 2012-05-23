@@ -98,7 +98,7 @@ protected:
     //! Start a new group.
     TMergeGroupPtr BeginGroup()
     {
-        YASSERT(!CurrentGroup);
+        YCHECK(!CurrentGroup);
 
         auto& table = OutputTables[0];
 
@@ -119,7 +119,7 @@ protected:
     //! Finish the current group.
     void EndGroup()
     {
-        YASSERT(CurrentGroup);
+        YCHECK(CurrentGroup);
         LOG_DEBUG("Finished group %d (DataSize: %" PRId64 ")",
             static_cast<int>(Groups.size()) - 1,
             CurrentGroup->ChunkPool.GetTotalWeight());
@@ -137,15 +137,15 @@ protected:
 
     // Chunk pools and locality.
 
-    yhash_map<Stroka, yhash_set<TMergeGroupPtr> > AddressToActiveGroups;
-    yhash_set<TMergeGroupPtr> ActiveGroups;
+    yhash_map<Stroka, yhash_set<TMergeGroupPtr> > AddressToGroupsAwaitingMerge;
+    yhash_set<TMergeGroupPtr> GroupsAwatingMerge;
 
     void RegisterPendingStripe(TMergeGroupPtr group, TChunkStripePtr stripe)
     {
-        ActiveGroups.insert(group);
+        GroupsAwatingMerge.insert(group);
         FOREACH (const auto& chunk, stripe->InputChunks) {
             FOREACH (const auto& address, chunk.node_addresses()) {
-                AddressToActiveGroups[address].insert(group);
+                AddressToGroupsAwaitingMerge[address].insert(group);
             }
         }
     }
@@ -153,7 +153,7 @@ protected:
     //! Add chunk to the current group's pool.
     void AddPendingChunk(const TInputChunk& chunk, i64 weight)
     {
-        YASSERT(CurrentGroup);
+        YCHECK(CurrentGroup);
 
         auto stripe = New<TChunkStripe>(chunk, weight);
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
@@ -191,13 +191,13 @@ protected:
             address,
             needLocal);
 
-        YVERIFY(ActiveGroups.erase(group) == 1);
+        YVERIFY(GroupsAwatingMerge.erase(group) == 1);
 
         FOREACH (const auto& stripe, result->Stripes) {
             FOREACH (const auto& chunk, stripe->InputChunks) {
                 FOREACH (const auto& address, chunk.node_addresses()) {
-                    if (!group->ChunkPool.HasPendingLocalChunksFor(address)) {
-                        AddressToActiveGroups[address].erase(group);
+                    if (!group->ChunkPool.HasPendingLocalChunksAt(address)) {
+                        AddressToGroupsAwaitingMerge[address].erase(group);
                     }
                 }
             }
@@ -208,17 +208,17 @@ protected:
 
     void ReturnChunksForMerge(TMergeGroupPtr group, TPoolExtractionResultPtr result)
     {
-        group->ChunkPool.PutBack(result);
+        group->ChunkPool.Return(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterPendingStripe(group, chunk);
         }
     }
 
-    TMergeGroupPtr GetActiveGroup(const Stroka& address)
+    TMergeGroupPtr FindGroupAwaitingMerge(const Stroka& address)
     {
         // Try to fetch a group with local chunks.
-        auto it = AddressToActiveGroups.find(address);
-        if (it != AddressToActiveGroups.end()) {
+        auto it = AddressToGroupsAwaitingMerge.find(address);
+        if (it != AddressToGroupsAwaitingMerge.end()) {
             const auto& set = it->second;
             if (!set.empty()) {
                 return *set.begin();
@@ -226,8 +226,7 @@ protected:
         }
 
         // Fetch any group.
-        YASSERT(!ActiveGroups.empty());
-        return *ActiveGroups.begin();
+        return GroupsAwatingMerge.empty() ? NULL : *GroupsAwatingMerge.begin();
     }
 
 
@@ -267,8 +266,10 @@ protected:
 
         // We've got a job to do! :)
 
+        auto group = FindGroupAwaitingMerge(node->GetAddress());
+        YCHECK(group);
+
         // Allocate chunks for the job.
-        auto group = GetActiveGroup(node->GetAddress());
         auto jip = New<TMergeJobInProgress>();
         jip->Group = group;
         jip->PoolResult = ExtractChunksForMerge(
@@ -284,15 +285,19 @@ protected:
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
-        auto* mergeJobSpec = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
-        FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-            auto* inputSpec = mergeJobSpec->add_input_spec();
-            FOREACH (const auto& chunk, stripe->InputChunks) {
-                *inputSpec->add_chunks() = chunk;
+        {
+            auto* specExt = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+                auto* inputSpec = specExt->add_input_spec();
+                FOREACH (const auto& chunk, stripe->InputChunks) {
+                    *inputSpec->add_chunks() = chunk;
+                }
+            }
+            {
+                jip->ChunkListId = ChunkListPool->Extract();
+                *specExt->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
             }
         }
-        jip->ChunkListId = ChunkListPool->Extract();
-        *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
 
         // Update counters.
         PendingChunkCount -= jip->PoolResult->TotalChunkCount;
@@ -492,11 +497,9 @@ protected:
             ? EJobType::SortedMerge
             : EJobType::OrderedMerge);
 
-        TMergeJobSpec mergeJobSpec;
-        *mergeJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-
-        mergeJobSpec.mutable_output_spec()->set_channels(OutputTables[0].Channels);
-        *JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec) = mergeJobSpec;
+        auto* specExt = JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec);
+        *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        specExt->mutable_output_spec()->set_channels(OutputTables[0].Channels);
 
         JobSpecTemplate.set_io_config(SerializeToYson(Config->MergeJobIO));
     }
@@ -644,7 +647,7 @@ private:
     virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-        YASSERT(miscExt->sorted());
+        YCHECK(miscExt->sorted());
 
         // Construct endpoints and place it into the list.
         auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk.extensions());
