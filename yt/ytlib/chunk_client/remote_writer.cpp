@@ -29,7 +29,7 @@ static NLog::TLogger& Logger = ChunkWriterLogger;
 ///////////////////////////////////////////////////////////////////////////////
 
 class TRemoteWriter::TImpl
-    : public IAsyncWriter
+    : public TRefCounted
 {
 public:
     TImpl(
@@ -41,8 +41,8 @@ public:
 
     void Open();
 
-    virtual TAsyncError AsyncWriteBlock(const TSharedRef& block);
-    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+    TAsyncError AsyncWriteBlock(const TSharedRef& block);
+    TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
@@ -1070,32 +1070,32 @@ void TRemoteWriter::Open()
 
 TAsyncError TRemoteWriter::AsyncWriteBlock(const TSharedRef& block)
 {
-    Impl->AsyncWriteBlock(block);
+    return Impl->AsyncWriteBlock(block);
 }
 
 TAsyncError TRemoteWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
-    Impl->AsyncClose(chunkMeta);
+    return Impl->AsyncClose(chunkMeta);
 }
 
 const NChunkHolder::NProto::TChunkInfo& TRemoteWriter::GetChunkInfo() const
 {
-    Impl->GetChunkInfo();
+    return Impl->GetChunkInfo();
 }
 
 const std::vector<Stroka> TRemoteWriter::GetNodeAddresses() const
 {
-    Impl->GetNodeAddresses();
+    return Impl->GetNodeAddresses();
 }
 
 const TChunkId& TRemoteWriter::GetChunkId() const
 {
-    Impl->GetChunkId();
+    return Impl->GetChunkId();
 }
 
 Stroka TRemoteWriter::GetDebugInfo()
 {
-    Impl->GetDebugInfo();
+    return Impl->GetDebugInfo();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
