@@ -66,6 +66,8 @@ struct IAttributeDictionary
 TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
 const IAttributeDictionary& EmptyAttributes();
 
+TAutoPtr<IAttributeDictionary> DeserializeAttributesFromYson(const TYson& yson);
+
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
 TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
 

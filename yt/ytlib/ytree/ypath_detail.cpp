@@ -475,24 +475,43 @@ void TSupportsAttributes::SetAttribute(
     TTokenizer tokenizer(path);
 
     if (!tokenizer.ParseNext()) {
-        auto value = DeserializeFromYson(request->value());
-        if (value->GetType() != ENodeType::Map) {
-            ythrow yexception() << "Map value expected";
+        auto newAttributes = DeserializeAttributesFromYson(request->value());
+        auto newKeys = newAttributes->List();
+        yhash_set<Stroka> userKeys;
+        if (userAttributes) {
+            auto temp = userAttributes->List();
+            userKeys.swap(temp);
         }
 
-        if (userAttributes) {
-            const auto& userKeys = userAttributes->List();
-            FOREACH (const auto& key, userKeys) {
-                YVERIFY(userAttributes->Remove(key));
+        // Checking
+        FOREACH (const auto& key, newKeys) {
+            YASSERT(!key.empty());
+            OnUpdateAttribute(
+                key,
+                DoFindAttribute(userAttributes, systemAttributeProvider, key),
+                newAttributes->GetYson(key));
+        }
+        FOREACH (const auto& key, userKeys) {
+            if (newKeys.find(key) == newKeys.end()) {
+                OnUpdateAttribute(
+                    key,
+                    userAttributes->GetYson(key),
+                    Null);
             }
         }
 
-        auto mapValue = value->AsMap();
-        FOREACH (const auto& pair, mapValue->GetChildren()) {
-            auto key = pair.first;
-            YASSERT(!key.empty());
-            auto value = SerializeToYson(~pair.second);
-            DoSetAttribute(userAttributes, systemAttributeProvider, key, value);
+        // Removing
+        FOREACH (const auto& key, userKeys) {
+            userAttributes->Remove(key);
+        }
+
+        // Adding
+        FOREACH (const auto& key, newKeys) {
+            DoSetAttribute(
+                userAttributes,
+                systemAttributeProvider,
+                key,
+                newAttributes->GetYson(key));
         }
     } else {
         auto key = Stroka(tokenizer.CurrentToken().GetStringValue());
@@ -500,6 +519,10 @@ void TSupportsAttributes::SetAttribute(
             if (key.Empty()) {
                 ythrow yexception() << "Attribute key cannot be empty";
             }
+            OnUpdateAttribute(
+                key,
+                DoFindAttribute(userAttributes, systemAttributeProvider, key),
+                request->value());
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,
@@ -515,6 +538,11 @@ void TSupportsAttributes::SetAttribute(
                     &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
             SyncYPathSet(~wholeValue, TYPath(tokenizer.CurrentInput()), request->value());
+            auto updatedYson = SerializeToYson(~wholeValue);
+            OnUpdateAttribute(
+                key,
+                DoFindAttribute(userAttributes, systemAttributeProvider, key),
+                updatedYson);
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,
@@ -539,13 +567,22 @@ void TSupportsAttributes::RemoveAttribute(
     TTokenizer tokenizer(path);
 
     if (!tokenizer.ParseNext()) {
-        auto userKeys = userAttributes->List();
-        FOREACH (const auto& key, userKeys) {
-            YVERIFY(userAttributes->Remove(key));
+        if (userAttributes) {
+            auto userKeys = userAttributes->List();
+            FOREACH (const auto& key, userKeys) {
+                OnUpdateAttribute(key, userAttributes->GetYson(key), Null);
+            }
+            FOREACH (const auto& key, userKeys) {
+                YVERIFY(userAttributes->Remove(key));
+            }
         }
     } else {
         auto key = Stroka(tokenizer.CurrentToken().GetStringValue());
         if (!tokenizer.ParseNext()) {
+            OnUpdateAttribute(
+                key,
+                DoFindAttribute(userAttributes, systemAttributeProvider, key),
+                Null);
             if (!DoRemoveAttribute(userAttributes, systemAttributeProvider, key)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found",
                     ~Stroka(key).Quote());
@@ -559,6 +596,11 @@ void TSupportsAttributes::RemoveAttribute(
                 &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
             SyncYPathRemove(~wholeValue, TYPath(tokenizer.CurrentInput()));
+            auto updatedYson = SerializeToYson(~wholeValue);
+            OnUpdateAttribute(
+                key,
+                DoFindAttribute(userAttributes, systemAttributeProvider, key),
+                updatedYson);
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,
@@ -569,6 +611,16 @@ void TSupportsAttributes::RemoveAttribute(
     }
 
     context->Reply();
+}
+
+void TSupportsAttributes::OnUpdateAttribute(
+    const Stroka& key,
+    const TNullable<NYTree::TYson>& oldValue,
+    const TNullable<NYTree::TYson>& newValue)
+{
+    UNUSED(key);
+    UNUSED(oldValue);
+    UNUSED(newValue);
 }
 
 IAttributeDictionary& TSupportsAttributes::CombinedAttributes()
