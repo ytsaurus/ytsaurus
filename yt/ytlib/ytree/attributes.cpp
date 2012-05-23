@@ -153,6 +153,7 @@ TAutoPtr<IAttributeDictionary> DeserializeAttributesFromYson(const TYson& yson)
     auto attributes = CreateEphemeralAttributes();
     TAttributeConsumer consumer(attributes.Get());
     ParseYson(yson, &consumer, EYsonType::KeyedFragment);
+    return attributes;
 }
 
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
