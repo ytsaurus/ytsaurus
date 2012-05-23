@@ -114,6 +114,7 @@ NProto::TMsgChangeHeader GetMetaChangeHeader(const TMessage& message)
     header.set_change_type(message.GetTypeName());
     header.set_timestamp(TInstant::Now().GetValue());
     header.set_random_seed(RandomNumber<ui32>());
+    return header;
 }
 
 template <class TMessage, class TResult>
