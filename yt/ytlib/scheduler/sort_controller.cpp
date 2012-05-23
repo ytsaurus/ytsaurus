@@ -791,7 +791,8 @@ private:
                 .Item("completed").Scalar(0)
             .EndMap()
             .Item("partitions").BeginMap()
-                .Item("total").Scalar(Partitions.size())
+                // XXX(roizner): On Apple, size_t != ui64, ui32, so without casting it results in ambigous call
+                .Item("total").Scalar((ui64) Partitions.size())
                 .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap();
     }
