@@ -192,6 +192,8 @@ class TCypressNodeBase
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
 
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
+
 public:
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other);

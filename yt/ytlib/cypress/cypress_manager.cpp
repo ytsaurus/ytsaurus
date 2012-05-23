@@ -677,6 +677,7 @@ void TCypressManager::RegisterNode(
 {
     auto nodeId = node->GetId().ObjectId;
     YASSERT(node->GetId().TransactionId == NullTransactionId);
+    node->SetCreationTime(TInstant::Zero()); // TODO(roizner): fill in correctly
 
     auto node_ = node.Get();
     NodeMap.Insert(nodeId, node.Release());
