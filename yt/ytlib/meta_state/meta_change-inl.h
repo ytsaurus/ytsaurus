@@ -7,6 +7,8 @@
 
 #include <ytlib/misc/delayed_invoker.h>
 
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NMetaState {
 
@@ -105,6 +107,15 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TMessage>
+NProto::TMsgChangeHeader GetMetaChangeHeader(const TMessage& message)
+{
+    NProto::TMsgChangeHeader header;
+    header.set_change_type(message.GetTypeName());
+    header.set_timestamp(TInstant::Now().GetValue());
+    header.set_random_seed(RandomNumber<ui32>());
+}
+
 template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
     const IMetaStateManagerPtr& metaStateManager,
@@ -114,10 +125,7 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     YASSERT(metaStateManager);
     YASSERT(!func.IsNull());
 
-    NProto::TMsgChangeHeader header;
-    header.set_change_type(message.GetTypeName());
-
-    auto changeData = SerializeChange(header, message);
+    auto changeData = SerializeChange(GetMetaChangeHeader(message), message);
 
     return New< TMetaChange<TResult> >(
         metaStateManager,
@@ -135,10 +143,7 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     YASSERT(metaStateManager);
     YASSERT(!func.IsNull());
 
-    NProto::TMsgChangeHeader header;
-    header.set_change_type(message.GetTypeName());
-
-    auto changeData = SerializeChange(header, messageData);
+    auto changeData = SerializeChange(GetMetaChangeHeader(message), messageData);
 
     return New< TMetaChange<TResult> >(
         metaStateManager,
