@@ -54,20 +54,20 @@ void TResourceTracker::EnqueueUsage()
     for (i32 i = 0; i < size; ++i) {
         Stroka threadStatPath = NFS::CombinePaths(path, dirsList.Next());
         Stroka cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
-        VectorStrok fields;
+        VectorStrok cpuStatFields;
         try {
             TIFStream cpuStatFile(cpuStatPath);
-            fields = splitStroku(cpuStatFile.ReadLine(), " ");
+            cpuStatFields = splitStroku(cpuStatFile.ReadLine(), " ");
         } catch (const TIoException&) {
             // Ignore all IO exceptions.
             continue;
         }
 
-        Stroka threadName = fields[1].substr(1, fields[1].size() - 2);
+        Stroka threadName = cpuStatFields[1].substr(1, cpuStatFields[1].size() - 2);
         TYPath baseProfilingPath = "/resource_usage/" + EscapeYPathToken(threadName);
 
-        i64 userTicks = FromString<i64>(fields[13]); // utime
-        i64 kernelTicks = FromString<i64>(fields[14]); // stime
+        i64 userTicks = FromString<i64>(cpuStatFields[13]); // utime
+        i64 kernelTicks = FromString<i64>(cpuStatFields[14]); // stime
 
         auto it = PreviousUserTicks.find(threadName);
         if (it != PreviousUserTicks.end()) {
@@ -91,10 +91,16 @@ void TResourceTracker::EnqueueUsage()
         PreviousKernelTicks[threadName] = kernelTicks;
 
         Stroka memoryStat = NFS::CombinePaths(threadStatPath, "statm");
-        TIFStream memoryStatFile(memoryStat);
-        auto memoryFields = splitStroku(memoryStatFile.ReadLine(), " ");
+        VectorStrok memoryStatFields;
+        try {
+            TIFStream memoryStatFile(memoryStat);
+            memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
+        } catch (const TIoException&) {
+            // Ignore all IO exceptions.
+            continue;
+        }
 
-        i64 residentSetSize = FromString<i64>(memoryFields[1]);
+        i64 residentSetSize = FromString<i64>(memoryStatFields[1]);
         TQueuedSample memorySample;
         memorySample.Time = GetCpuInstant();
         memorySample.Path = baseProfilingPath + "/memory";
