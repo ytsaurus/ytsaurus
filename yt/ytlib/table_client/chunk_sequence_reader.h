@@ -47,7 +47,12 @@ public:
 
 private:
     void PrepareNextChunk();
-    void OnReaderOpened(TChunkReaderPtr reader, TError error);
+
+    void OnReaderOpened(
+        TChunkReaderPtr reader, 
+        int chunkIndex,
+        TError error);
+
     void SwitchCurrentChunk(TChunkReaderPtr nextReader);
     void OnRowFetched(TError error);
 

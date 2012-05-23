@@ -122,11 +122,16 @@ struct TChunkSequenceReaderConfig
 {
     NChunkClient::TRemoteReaderConfigPtr RemoteReader;
     NChunkClient::TSequentialReaderConfigPtr SequentialReader;
+    int PrefetchWindow;
 
     TChunkSequenceReaderConfig()
     {
         Register("remote_reader", RemoteReader).DefaultNew();
         Register("sequential_reader", SequentialReader).DefaultNew();
+        Register("prefetch_window", PrefetchWindow)
+            .GreaterThan(0)
+            .LessThan(100)
+            .Default(1);
     }
 };
 
