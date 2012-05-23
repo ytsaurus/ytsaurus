@@ -614,7 +614,7 @@ public:
 
         std::vector<int> blockIndexSequence;
         {
-            i64 rowCount;
+            i64 rowCount = 0;
             for (int i = 0; i < channelsExt->items(0).blocks_size(); ++i) {
                 const auto& blockInfo = channelsExt->items(0).blocks(i);
                 if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
