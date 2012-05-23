@@ -12,7 +12,7 @@
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/private.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
-#include <ytlib/table_client/chunk_reader.h>
+#include <ytlib/table_client/chunk_sequence_reader.h>
 #include <ytlib/misc/sync.h>
 
 namespace NYT {
@@ -34,7 +34,7 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 namespace {
 
-inline bool CompareReaders(const TChunkReaderPtr& lhs, const TChunkReaderPtr& rhs)
+inline bool CompareReaders(const TChunkSequenceReaderPtr& lhs, const TChunkSequenceReaderPtr& rhs)
 {
     return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
 }
@@ -49,40 +49,34 @@ TSortedMergeJob::TSortedMergeJob(
     auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
     auto masterChannel = CreateLeaderChannel(masterConfig);
 
-    YUNREACHABLE();
-    // TODO(babenko): use multiple input_spec
-    //for (int i = 0; i < jobSpec.input_spec().chunks_size(); ++i) {
-    //    // ToDo(psushin): validate that input chunks are sorted.
+    {
+        TReaderOptions options;
+        options.ReadKey = true;
 
-    //    const auto& inputChunk = jobSpec.input_spec().chunks(i);
-    //    yvector<Stroka> seedAddresses = FromProto<Stroka>(inputChunk.holder_addresses());
+        for (int i = 0; i < jobSpec.input_spec_size(); ++i) {
+            // ToDo(psushin): validate that input chunks are sorted.
 
-    //    auto remoteReader = CreateRemoteReader(
-    //        ioConfig->ChunkSequenceReader->RemoteReader,
-    //        blockCache,
-    //        ~masterChannel,
-    //        TChunkId::FromProto(inputChunk.slice().chunk_id()),
-    //        seedAddresses);
+            const auto& inputSpec = jobSpec.input_spec(i);
 
-    //    TReaderOptions options;
-    //    options.ReadKey = true;
+            std::vector<NTableClient::NProto::TInputChunk> chunks(
+                inputSpec.chunks().begin(),
+                inputSpec.chunks().end());
 
-    //    auto chunkReader = New<TChunkReader>(
-    //        ioConfig->ChunkSequenceReader->SequentialReader,
-    //        TChannel::CreateUniversal(),
-    //        remoteReader,
-    //        inputChunk.slice().start_limit(),
-    //        inputChunk.slice().end_limit(),
-    //        "", // No row attributes.
-    //        DefaultPartitionTag,
-    //        options); 
+            auto reader = New<TChunkSequenceReader>(
+                ioConfig->ChunkSequenceReader,
+                masterChannel,
+                blockCache,
+                chunks,
+                DefaultPartitionTag,
+                options);
 
-    //    ChunkReaders.push_back(chunkReader);
-    //}
+            Readers.push_back(reader);
+        }
+    }
 
     // ToDo(psushin): estimate row count for writer.
     auto asyncWriter = New<TTableChunkSequenceWriter>(
-        ~ioConfig->ChunkSequenceWriter,
+        ioConfig->ChunkSequenceWriter,
         ~masterChannel,
         TTransactionId::FromProto(jobSpec.output_transaction_id()),
         TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
@@ -97,16 +91,16 @@ TJobResult TSortedMergeJob::Run()
         // Open readers, remove invalid ones, and create the initial heap.
         LOG_INFO("Initializing");
         {
-            std::vector<TChunkReaderPtr> validChunkReaders;
-            FOREACH (auto reader, ChunkReaders) {
-                Sync(~reader, &TChunkReader::AsyncOpen);
+            std::vector<TChunkSequenceReaderPtr> validChunkReaders;
+            FOREACH (auto reader, Readers) {
+                Sync(~reader, &TChunkSequenceReader::AsyncOpen);
                 if (reader->IsValid()) {
                     validChunkReaders.push_back(reader);
                 }
             }
 
             std::make_heap(validChunkReaders.begin(), validChunkReaders.end(), CompareReaders);
-            ChunkReaders = MoveRV(validChunkReaders);
+            Readers = MoveRV(validChunkReaders);
 
             Writer->Open();
         }
@@ -114,15 +108,15 @@ TJobResult TSortedMergeJob::Run()
 
         // Run the actual merge.
         LOG_INFO("Merging");
-        while (!ChunkReaders.empty()) {
-            std::pop_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
-            Writer->WriteRow(ChunkReaders.back()->GetRow(), ChunkReaders.back()->GetKey());
+        while (!Readers.empty()) {
+            std::pop_heap(Readers.begin(), Readers.end(), CompareReaders);
+            Writer->WriteRow(Readers.back()->GetRow(), Readers.back()->GetKey());
 
-            Sync(~ChunkReaders.back(), &TChunkReader::AsyncNextRow);
-            if (ChunkReaders.back()->IsValid()) {
-                std::push_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
+            Sync(~Readers.back(), &TChunkSequenceReader::AsyncNextRow);
+            if (Readers.back()->IsValid()) {
+                std::push_heap(Readers.begin(), Readers.end(), CompareReaders);
             } else {
-                ChunkReaders.pop_back();
+                Readers.pop_back();
             }
         }
         PROFILE_TIMING_CHECKPOINT("merge");

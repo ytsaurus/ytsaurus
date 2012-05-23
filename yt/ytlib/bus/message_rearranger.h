@@ -19,18 +19,18 @@ public:
 
     TMessageRearranger(
         const TSessionId& sessionId,
-        TCallback<void(IMessage*)> onDequeuedMessage,
+        TCallback<void(IMessage::TPtr)> onDequeuedMessage,
         TDuration timeout);
 
     void EnqueueMessage(
-        IMessage* message,
+        IMessage::TPtr message,
         const TGuid& requestId,
         TSequenceId sequenceId);
 
 private:
     struct TPostponedMessage
     {
-        TPostponedMessage(const TGuid& requestId, IMessage* message)
+        TPostponedMessage(const TGuid& requestId, IMessage::TPtr message)
             : RequestId(requestId)
             , Message(message)
         { }
@@ -42,7 +42,7 @@ private:
     typedef ymap<TSequenceId, TPostponedMessage> TPostponedMessages;
 
     TSessionId SessionId;
-    TCallback<void(IMessage*)> OnMessageDequeued;
+    TCallback<void(IMessage::TPtr)> OnMessageDequeued;
     TDuration Timeout;
 
     NLog::TTaggedLogger Logger;

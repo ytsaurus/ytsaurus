@@ -1,9 +1,8 @@
 #include "stdafx.h"
 #include "cell_manager.h"
 
+#include <ytlib/misc/host_name.h>
 #include <ytlib/rpc/channel.h>
-
-#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NElection {
@@ -25,7 +24,7 @@ TCellManager::TCellManager(TCellConfigPtr config)
     OrderedAddresses = Config->Addresses;
     std::sort(OrderedAddresses.begin(), OrderedAddresses.end());
     
-    SelfAddress_ = Sprintf("%s:%d", GetHostName(), Config->RpcPort);
+    SelfAddress_ = BuildServiceAddress(GetHostName(), Config->RpcPort);
     SelfId_ = std::distance(
         OrderedAddresses.begin(),
         std::find(OrderedAddresses.begin(), OrderedAddresses.end(), SelfAddress_));

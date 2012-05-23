@@ -10,6 +10,7 @@
 #include <ytlib/exec_agent/public.h>
 #include <ytlib/exec_agent/supervisor_service_proxy.h>
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -17,29 +18,29 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxy
-    : public TNonCopyable
+    : public TRefCounted
 {
 public:
     TJobProxy(
         TJobProxyConfigPtr config,
         const NScheduler::TJobId& jobId);
 
-    void Start();
+    //! Runs the job. Blocks until the job is complete.
+    void Run();
 
 private:
     void SendHeartbeat();
+    void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
 
     NScheduler::NProto::TJobSpec GetJobSpec();
     void ReportResult(const NScheduler::NProto::TJobResult& result);
 
-    typedef NExecAgent::TSupervisorServiceProxy TProxy;
-
     TJobProxyConfigPtr Config;
-    TProxy Proxy;
+    NExecAgent::TSupervisorServiceProxy Proxy;
+    NScheduler::TJobId JobId;
+    NLog::TTaggedLogger Logger;
+
     TAutoPtr<IJob> Job;
-
-    const NScheduler::TJobId JobId;
-
     TPeriodicInvoker::TPtr HeartbeatInvoker;
 };
 

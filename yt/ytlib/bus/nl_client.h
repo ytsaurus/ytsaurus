@@ -37,7 +37,30 @@ struct TNLBusClientConfig
  *
  *  \param address An address where all buses will point to.
  */
-IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig* config);
+IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig::TPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNLBusClient;
+
+class TNLClientManager
+{
+public:
+    // TODO(babenko): make private, required for Singleton
+    TNLClientManager();
+
+    static TNLClientManager* Get();
+
+    void Shutdown();
+
+private:
+    friend class TNLBusClient;
+
+    class TImpl;
+
+    TAutoPtr<TImpl> Impl;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

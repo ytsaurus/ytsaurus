@@ -47,7 +47,7 @@ void TFileReader::Open()
             ~fetchRsp->GetError().ToString());
     }
     auto chunkId = TChunkId::FromProto(fetchRsp->chunk_id());
-    auto holderAddresses = FromProto<Stroka>(fetchRsp->holder_addresses());
+    auto holderAddresses = FromProto<Stroka>(fetchRsp->node_addresses());
     LOG_INFO("File info received (ChunkId: %s, HolderAddresses: [%s])",
         ~chunkId.ToString(),
         ~JoinToString(holderAddresses));

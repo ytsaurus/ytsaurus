@@ -5,11 +5,14 @@
 
 #include "private.h"
 #include "schema.h"
+
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/host_name.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
+
 
 namespace NYT {
 namespace NTableClient {
@@ -56,12 +59,16 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
         Config->UploadReplicationFactor);
 
     NObjectServer::TObjectServiceProxy objectProxy(MasterChannel);
+
     auto req = NTransactionServer::TTransactionYPathProxy::CreateObject(
         NCypress::FromObjectId(TransactionId));
     req->set_type(NObjectServer::EObjectType::Chunk);
+
     auto* reqExt = req->MutableExtension(NChunkServer::NProto::TReqCreateChunk::create_chunk);
+    reqExt->set_preferred_host_name(Stroka(GetHostName()));
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
+
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriterBase::OnChunkCreated, MakeWeak(this))
         .Via(NChunkClient::WriterThread->GetInvoker()));
@@ -86,7 +93,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
     auto chunkId = NChunkServer::TChunkId::FromProto(rsp->object_id());
     const auto& rspExt = rsp->GetExtension(
         NChunkServer::NProto::TRspCreateChunk::create_chunk);
-    auto holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
+    auto holderAddresses = FromProto<Stroka>(rspExt.node_addresses());
 
     if (holderAddresses.size() < Config->UploadReplicationFactor) {
         State.Fail(TError("Not enough holders available"));
@@ -242,7 +249,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         auto req = NChunkServer::TChunkYPathProxy::Confirm(
             NCypress::FromObjectId(currentSession.RemoteWriter->GetChunkId()));
         *req->mutable_chunk_info() = currentSession.RemoteWriter->GetChunkInfo();
-        ToProto(req->mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
+        ToProto(req->mutable_node_addresses(), currentSession.RemoteWriter->GetNodeAddresses());
         *req->mutable_chunk_meta() = currentSession.ChunkWriter->GetMasterMeta();
 
         batchReq->AddRequest(req);
@@ -269,10 +276,9 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         slice->mutable_end_limit();
         *slice->mutable_chunk_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
-        ToProto(inputChunk.mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
+        ToProto(inputChunk.mutable_node_addresses(), currentSession.RemoteWriter->GetNodeAddresses());
         *inputChunk.mutable_channel() = TChannel::CreateUniversal().ToProto();
-        *inputChunk.mutable_extensions() = 
-            currentSession.ChunkWriter->GetMasterMeta().extensions();
+        *inputChunk.mutable_extensions() = currentSession.ChunkWriter->GetMasterMeta().extensions();
 
         TGuard<TSpinLock> guard(WrittenChunksGuard);
         WrittenChunks.push_back(inputChunk);

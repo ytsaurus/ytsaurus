@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/enum.h>
 #include <ytlib/object_server/id.h>
 
 namespace NYT {

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/rpc/rpc_manager.h>
+#include <ytlib/bus/nl_client.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/meta_state/async_change_log.h>
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
     NYT::NMetaState::TAsyncChangeLog::Shutdown();
     NYT::NLog::TLogManager::Get()->Shutdown();
     NYT::NProfiling::TProfilingManager::Get()->Shutdown();
-    NYT::NRpc::TRpcManager::Get()->Shutdown();
+    NYT::NBus::TNLClientManager::Get()->Shutdown();
     NYT::TDelayedInvoker::Shutdown();
 
     return rv;

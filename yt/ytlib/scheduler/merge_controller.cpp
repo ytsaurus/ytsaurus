@@ -75,13 +75,12 @@ protected:
     struct TMergeGroup
         : public TIntrinsicRefCounted
     {
-        TMergeGroup(TAutoPtr<IChunkPool> chunkPool, int groupIndex, int partitionIndex = -1)
-            : ChunkPool(chunkPool)
-            , GroupIndex(groupIndex)
+        TMergeGroup(int groupIndex, int partitionIndex = -1)
+            : GroupIndex(groupIndex)
             , PartitionIndex(partitionIndex)
         { }
 
-        TAutoPtr<IChunkPool> ChunkPool;
+        TAtomicChunkPool ChunkPool;
 
         //! The position in |Groups|. 
         int GroupIndex;
@@ -97,14 +96,13 @@ protected:
     TMergeGroupPtr CurrentGroup;
 
     //! Start a new group.
-    TMergeGroupPtr BeginGroup(TAutoPtr<IChunkPool> chunkPool)
+    TMergeGroupPtr BeginGroup()
     {
-        YASSERT(!CurrentGroup);
+        YCHECK(!CurrentGroup);
 
         auto& table = OutputTables[0];
 
         auto group = New<TMergeGroup>(
-            chunkPool,
             static_cast<int>(Groups.size()),
             static_cast<int>(table.PartitionTreeIds.size()));
 
@@ -121,17 +119,17 @@ protected:
     //! Finish the current group.
     void EndGroup()
     {
-        YASSERT(CurrentGroup);
+        YCHECK(CurrentGroup);
         LOG_DEBUG("Finished group %d (DataSize: %" PRId64 ")",
             static_cast<int>(Groups.size()) - 1,
-            CurrentGroup->ChunkPool->GetTotalWeight());
+            CurrentGroup->ChunkPool.GetTotalWeight());
         CurrentGroup.Reset();
     }
 
     //! Finish the current group if the size is large enough.
     void EndGroupIfLarge()
     {
-        if (CurrentGroup->ChunkPool->GetTotalWeight() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (CurrentGroup->ChunkPool.GetTotalWeight() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
             EndGroup();
         }
     }
@@ -139,15 +137,15 @@ protected:
 
     // Chunk pools and locality.
 
-    yhash_map<Stroka, yhash_set<TMergeGroupPtr> > AddressToActiveGroups;
-    yhash_set<TMergeGroupPtr> ActiveGroups;
+    yhash_map<Stroka, yhash_set<TMergeGroupPtr> > AddressToGroupsAwaitingMerge;
+    yhash_set<TMergeGroupPtr> GroupsAwatingMerge;
 
     void RegisterPendingStripe(TMergeGroupPtr group, TChunkStripePtr stripe)
     {
-        ActiveGroups.insert(group);
+        GroupsAwatingMerge.insert(group);
         FOREACH (const auto& chunk, stripe->InputChunks) {
-            FOREACH (const auto& address, chunk.holder_addresses()) {
-                AddressToActiveGroups[address].insert(group);
+            FOREACH (const auto& address, chunk.node_addresses()) {
+                AddressToGroupsAwaitingMerge[address].insert(group);
             }
         }
     }
@@ -155,7 +153,7 @@ protected:
     //! Add chunk to the current group's pool.
     void AddPendingChunk(const TInputChunk& chunk, i64 weight)
     {
-        YASSERT(CurrentGroup);
+        YCHECK(CurrentGroup);
 
         auto stripe = New<TChunkStripe>(chunk, weight);
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
@@ -163,7 +161,7 @@ protected:
 
         TotalWeight += miscExt->data_weight();
         ++TotalChunkCount;
-        CurrentGroup->ChunkPool->Add(stripe);
+        CurrentGroup->ChunkPool.Add(stripe);
         RegisterPendingStripe(CurrentGroup, stripe);
 
         LOG_DEBUG("Added pending chunk %s in partition %d, group %d",
@@ -184,26 +182,22 @@ protected:
         table.PartitionTreeIds.push_back(chunkId);
     }
 
-    IChunkPool::TExtractResultPtr ExtractChunksForMerge(
+    TPoolExtractionResultPtr ExtractChunksForMerge(
         TMergeGroupPtr group,
         const Stroka& address,
-        i64 weightThreshold,
         bool needLocal)
     {
-        auto result = group->ChunkPool->Extract(
+        auto result = group->ChunkPool.Extract(
             address,
-            weightThreshold,
             needLocal);
 
-        if (!group->ChunkPool->HasPendingChunks()) {
-            YVERIFY(ActiveGroups.erase(group) == 1);
-        }
+        YVERIFY(GroupsAwatingMerge.erase(group) == 1);
 
         FOREACH (const auto& stripe, result->Stripes) {
             FOREACH (const auto& chunk, stripe->InputChunks) {
-                FOREACH (const auto& address, chunk.holder_addresses()) {
-                    if (!group->ChunkPool->HasPendingLocalChunksFor(address)) {
-                        AddressToActiveGroups[address].erase(group);
+                FOREACH (const auto& address, chunk.node_addresses()) {
+                    if (!group->ChunkPool.HasPendingLocalChunksAt(address)) {
+                        AddressToGroupsAwaitingMerge[address].erase(group);
                     }
                 }
             }
@@ -212,19 +206,19 @@ protected:
         return result;
     }
 
-    void ReturnChunksForMerge(TMergeGroupPtr group, IChunkPool::TExtractResultPtr result)
+    void ReturnChunksForMerge(TMergeGroupPtr group, TPoolExtractionResultPtr result)
     {
-        group->ChunkPool->PutBack(result);
+        group->ChunkPool.Return(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterPendingStripe(group, chunk);
         }
     }
 
-    TMergeGroupPtr GetActiveGroup(const Stroka& address)
+    TMergeGroupPtr FindGroupAwaitingMerge(const Stroka& address)
     {
         // Try to fetch a group with local chunks.
-        auto it = AddressToActiveGroups.find(address);
-        if (it != AddressToActiveGroups.end()) {
+        auto it = AddressToGroupsAwaitingMerge.find(address);
+        if (it != AddressToGroupsAwaitingMerge.end()) {
             const auto& set = it->second;
             if (!set.empty()) {
                 return *set.begin();
@@ -232,8 +226,7 @@ protected:
         }
 
         // Fetch any group.
-        YASSERT(!ActiveGroups.empty());
-        return *ActiveGroups.begin();
+        return GroupsAwatingMerge.empty() ? NULL : *GroupsAwatingMerge.begin();
     }
 
 
@@ -250,9 +243,7 @@ protected:
 
     virtual int GetPendingJobCount()
     {
-        return PendingWeight == 0
-            ? 0
-            : TotalJobCount - CompletedJobCount;
+        return TotalJobCount - CompletedJobCount;
     }
 
 
@@ -261,7 +252,7 @@ protected:
     struct TMergeJobInProgress
         : public TJobInProgress
     {
-        IChunkPool::TExtractResultPtr ExtractResult;
+        TPoolExtractionResultPtr PoolResult;
         TChunkListId ChunkListId;
         TMergeGroupPtr Group;
     };
@@ -275,39 +266,42 @@ protected:
 
         // We've got a job to do! :)
 
+        auto group = FindGroupAwaitingMerge(node->GetAddress());
+        YCHECK(group);
+
         // Allocate chunks for the job.
-        auto group = GetActiveGroup(node->GetAddress());
-        i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
         auto jip = New<TMergeJobInProgress>();
         jip->Group = group;
-        jip->ExtractResult = ExtractChunksForMerge(
+        jip->PoolResult = ExtractChunksForMerge(
             group,
             node->GetAddress(),
-            weightThreshold,
             false);
 
-        LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-            jip->ExtractResult->TotalChunkCount,
+        LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ")",
+            jip->PoolResult->TotalChunkCount,
             ~node->GetAddress(),
-            jip->ExtractResult->LocalChunkCount,
-            jip->ExtractResult->TotalChunkWeight,
-            weightThreshold);
+            jip->PoolResult->LocalChunkCount,
+            jip->PoolResult->TotalChunkWeight);
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
-        auto* mergeJobSpec = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
-        FOREACH (const auto& stripe, jip->ExtractResult->Stripes) {
-            auto* inputSpec = mergeJobSpec->add_input_spec();
-            FOREACH (const auto& chunk, stripe->InputChunks) {
-                *inputSpec->add_chunks() = chunk;
+        {
+            auto* specExt = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+                auto* inputSpec = specExt->add_input_spec();
+                FOREACH (const auto& chunk, stripe->InputChunks) {
+                    *inputSpec->add_chunks() = chunk;
+                }
+            }
+            {
+                jip->ChunkListId = ChunkListPool->Extract();
+                *specExt->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
             }
         }
-        jip->ChunkListId = ChunkListPool->Extract();
-        *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
 
         // Update counters.
-        PendingChunkCount -= jip->ExtractResult->TotalChunkCount;
-        PendingWeight -= jip->ExtractResult->TotalChunkWeight;
+        PendingChunkCount -= jip->PoolResult->TotalChunkCount;
+        PendingWeight -= jip->PoolResult->TotalChunkWeight;
 
         return CreateJob(
             jip,
@@ -319,8 +313,8 @@ protected:
 
     virtual void OnJobCompleted(TMergeJobInProgress* jip)
     {
-        CompletedChunkCount += jip->ExtractResult->TotalChunkCount;
-        CompletedWeight += jip->ExtractResult->TotalChunkWeight;
+        CompletedChunkCount += jip->PoolResult->TotalChunkCount;
+        CompletedWeight += jip->PoolResult->TotalChunkWeight;
 
         auto group = jip->Group;
         auto& table = OutputTables[0];
@@ -329,11 +323,11 @@ protected:
 
     virtual void OnJobFailed(TMergeJobInProgress* jip)
     {
-        PendingChunkCount += jip->ExtractResult->TotalChunkCount;
-        PendingWeight += jip->ExtractResult->TotalChunkWeight;
+        PendingChunkCount += jip->PoolResult->TotalChunkCount;
+        PendingWeight += jip->PoolResult->TotalChunkWeight;
 
-        LOG_DEBUG("Returned %d chunks into pool", jip->ExtractResult->TotalChunkCount);
-        ReturnChunksForMerge(jip->Group, jip->ExtractResult);
+        LOG_DEBUG("Returned %d chunks into pool", jip->PoolResult->TotalChunkCount);
+        ReturnChunksForMerge(jip->Group, jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -390,7 +384,7 @@ protected:
             }
 
             // Init counters.
-            ChooseJobCount();
+            TotalJobCount = static_cast<int>(Groups.size());
             PendingWeight = TotalWeight;
             PendingChunkCount = TotalChunkCount;
 
@@ -422,11 +416,6 @@ protected:
             EndGroup();
         }
     }
-
-
-    // Job count selection.
-
-    virtual void ChooseJobCount() = 0;
 
 
     // Progress reporting.
@@ -490,7 +479,7 @@ protected:
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * miscExt->compressed_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (0.9 * miscExt->compressed_data_size() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -508,13 +497,11 @@ protected:
             ? EJobType::SortedMerge
             : EJobType::OrderedMerge);
 
-        TMergeJobSpec mergeJobSpec;
-        *mergeJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        auto* specExt = JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec);
+        *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        specExt->mutable_output_spec()->set_channels(OutputTables[0].Channels);
 
-        mergeJobSpec.mutable_output_spec()->set_channels(OutputTables[0].Channels);
-        *JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec) = mergeJobSpec;
-
-        JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
+        JobSpecTemplate.set_io_config(SerializeToYson(Config->MergeJobIO));
     }
 
 };
@@ -548,7 +535,7 @@ private:
 
         // Create a merge group if not exists.
         if (!CurrentGroup) {
-            BeginGroup(CreateUnorderedChunkPool());
+            BeginGroup();
         }
 
         // Merge is IO-bound, use data size as weight.
@@ -557,14 +544,6 @@ private:
         AddPendingChunk(chunk, weight);
     }
 
-    virtual void ChooseJobCount()
-    {
-        TotalJobCount = GetJobCount(
-            TotalWeight,
-            Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize,
-            Spec->JobCount,
-            TotalChunkCount);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -627,7 +606,7 @@ private:
 
         // Ensure that the current group exists.
         if (!CurrentGroup) {
-            BeginGroup(CreateAtomicChunkPool());
+            BeginGroup();
         }
 
         // Merge is IO-bound, use data size as weight.
@@ -636,12 +615,6 @@ private:
         AddPendingChunk(chunk, weight);
 
         EndGroupIfLarge();
-    }
-
-    virtual void ChooseJobCount()
-    {
-        // Each group corresponds to a unique job.
-        TotalJobCount = Groups.size();
     }
 };
 
@@ -674,7 +647,7 @@ private:
     virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-        YASSERT(miscExt->sorted());
+        YCHECK(miscExt->sorted());
 
         // Construct endpoints and place it into the list.
         auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk.extensions());
@@ -751,7 +724,7 @@ private:
         // Ensure that the current group exists.
         if (!CurrentGroup) {
             // TODO(babenko): use merge pool instead
-            BeginGroup(CreateAtomicChunkPool());
+            BeginGroup();
         }
 
         FOREACH (const auto& chunk, chunks) {
@@ -771,13 +744,6 @@ private:
 
         CheckInputTablesSorted();
         CheckOutputTablesEmpty();
-    }
-
-
-    virtual void ChooseJobCount()
-    {
-        // TODO(babenko): fixme, for now each group corresponds to a unique job.
-        TotalJobCount = Groups.size();
     }
 };
 

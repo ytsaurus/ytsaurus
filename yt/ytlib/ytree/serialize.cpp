@@ -58,6 +58,12 @@ INodePtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
     return DeserializeFromYson(&input, factory);
 }
 
+INodePtr DeserializeFromYson(const TStringBuf& yson, INodeFactory* factory)
+{
+    TMemoryInput input(yson.data(), yson.length());
+    return DeserializeFromYson(&input, factory);
+}
+
 TOutputStream& SerializeToYson(
     INodePtr node,
     TOutputStream& output,

@@ -1,29 +1,29 @@
 #include "common.h"
 #include "input_stream.h"
 #include "output_stream.h"
-
-// TODO(sandello): Remove this.
-#ifndef _GLIBCXX_PURE
-#define _GLIBCXX_PURE inline
-#endif
+#include "driver.h"
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 COMMON_V8_USES
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExportYTStreams(Handle<Object> target)
+void ExportYT(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     TNodeJSInputStream::Initialize(target);
     TNodeJSOutputStream::Initialize(target);
+
+    TNodeJSDriver::Initialize(target);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-NODE_MODULE(yt_streams, NYT::ExportYTStreams)
+NODE_MODULE(ytnode, NYT::ExportYT)

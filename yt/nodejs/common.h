@@ -1,10 +1,18 @@
 #pragma once
 
+#include <ytlib/misc/common.h>
+#include <ytlib/ytree/public.h>
+
 #include <uv.h>
 #include <v8.h>
 
 #include <node.h>
 #include <node_buffer.h>
+
+// Do not conflict with util/.
+#ifdef STATIC_ASSERT
+#undef STATIC_ASSERT
+#endif
 
 #include <pthread.h>
 #include <string.h>
@@ -25,18 +33,19 @@
 #define THREAD_AFFINITY_IS_UV()
 #define THREAD_AFFINITY_IS_ANY()
 
-#define PRISZT "lu"
-
 #define CHECK_RETURN_VALUE(expr) \
-    do { int rv = (expr); assert(rv == 0 && #expr); } while (0)
+    do { int rv = (expr); YASSERT(rv == 0 && #expr); } while (0)
 
 #define COMMON_V8_USES \
     using v8::Arguments; \
+    using v8::Array; \
+    using v8::Boolean; \
     using v8::Local; \
     using v8::Persistent; \
     using v8::Handle; \
     using v8::HandleScope; \
     using v8::Value; \
+    using v8::Number;
     using v8::Integer;
     using v8::String; \
     using v8::Object; \
@@ -44,7 +53,8 @@
     using v8::FunctionTemplate; \
     using v8::Undefined; \
     using v8::Null; \
-    using v8::Exception;
+    using v8::Exception; \
+    using v8::ThrowException;
 
 #define EXPECT_THAT_IS(value, type) \
     do { \
@@ -66,34 +76,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*!
- * Common guidelines for developing a V8-shared object.
- *
- *   - Don't use mutexes while working in V8 thread.
- *   - V8-side functions _have to be_ fast.
- */
-class TGuard {
-public:
-    TGuard(pthread_mutex_t* mutex, bool acquire = true)
-        : Mutex(mutex)
-    {
-        if (acquire) {
-            pthread_mutex_lock(Mutex);
-        }
-    }
+void DoNothing(uv_work_t* request);
 
-    ~TGuard()
-    {
-        pthread_mutex_unlock(Mutex);
-    }
-
-private:
-    pthread_mutex_t* Mutex;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-void DoNothing(uv_work_t*);
+NYTree::INodePtr ConvertV8ValueToYson(v8::Handle<v8::Value> value);
+NYTree::INodePtr ConvertV8StringToYson(v8::Handle<v8::String> string);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -33,38 +33,40 @@ TChunkSequenceReader::TChunkSequenceReader(
     , BlockCache(blockCache)
     , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
-    , NextChunkIndex(-1)
-    , NextReader(NewPromise<TChunkReaderPtr>())
+    , CurrentReader(-1)
+    , LastInitializedReader(-1)
+    , LastPreparedReader(-1)
     , PartitionTag(partitionTag)
     , Options(options)
     , TotalValueCount(0)
     , TotalRowCount(0)
     , CurrentRowIndex(0)
 {
-    // Current reader is not set.
-    Readers.push_back(TChunkReaderPtr());
-    for (int i = 0; i < InputChunks.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
         TotalRowCount += miscExt->row_count();
         TotalValueCount += miscExt->value_count();
+        Readers.push_back(NewPromise<TChunkReaderPtr>());
+
+        if (Options.IsUnordered)
+            PrepareNextChunk();
     }
 
-    PrepareNextChunk();
+    if (!Options.IsUnordered)
+        PrepareNextChunk();
 }
 
 void TChunkSequenceReader::PrepareNextChunk()
 {
-    YASSERT(!NextReader.IsSet());
     int chunkSlicesSize = static_cast<int>(InputChunks.size());
-    YASSERT(NextChunkIndex < chunkSlicesSize);
 
-    ++NextChunkIndex;
-    if (NextChunkIndex == chunkSlicesSize) {
-        NextReader.Set(TIntrusivePtr<TChunkReader>());
+    ++LastPreparedReader;
+    if (LastPreparedReader >= chunkSlicesSize)
         return;
-    }
 
-    const auto& inputChunk = InputChunks[NextChunkIndex];
+    LOG_DEBUG("Opening chunk %d", LastPreparedReader);
+
+    const auto& inputChunk = InputChunks[LastPreparedReader];
     const auto& slice = inputChunk.slice();
     TChunkId chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
     auto remoteReader = CreateRemoteReader(
@@ -72,7 +74,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         BlockCache,
         ~MasterChannel,
         chunkId,
-        FromProto<Stroka>(inputChunk.holder_addresses()));
+        FromProto<Stroka>(inputChunk.node_addresses()));
 
     auto chunkReader = New<TChunkReader>(
         Config->SequentialReader,
@@ -85,48 +87,54 @@ void TChunkSequenceReader::PrepareNextChunk()
         Options); // ToDo(psushin): pass row attributes here.
 
     chunkReader->AsyncOpen().Subscribe(BIND(
-        &TChunkSequenceReader::OnNextReaderOpened,
+        &TChunkSequenceReader::OnReaderOpened,
         MakeWeak(this),
-        chunkReader));
+        chunkReader).Via(NChunkClient::ReaderThread->GetInvoker()));
 }
 
-void TChunkSequenceReader::OnNextReaderOpened(
+void TChunkSequenceReader::OnReaderOpened(
     TChunkReaderPtr reader,
     TError error)
 {
-    YASSERT(!NextReader.IsSet());
+    ++LastInitializedReader;
+
+    LOG_DEBUG("Chunk %d opened", LastInitializedReader);
+
+    YASSERT(!Readers[LastInitializedReader].IsSet());
 
     if (error.IsOK()) {
-        NextReader.Set(reader);
+        Readers[LastInitializedReader].Set(reader);
         return;
     }
 
     State.Fail(error);
-    NextReader.Set(TIntrusivePtr<TChunkReader>());
+    Readers[LastInitializedReader].Set(TChunkReaderPtr());
 }
 
 TAsyncError TChunkSequenceReader::AsyncOpen()
 {
-    YASSERT(NextChunkIndex == 0);
+    YASSERT(CurrentReader == -1);
     YASSERT(!State.HasRunningOperation());
 
-    if (InputChunks.size() != 0) {
+    ++CurrentReader;
+
+    if (CurrentReader < InputChunks.size()) {
         State.StartOperation();
-        NextReader.Subscribe(BIND(
-            &TChunkSequenceReader::SetCurrentChunk,
+        Readers[CurrentReader].Subscribe(BIND(
+            &TChunkSequenceReader::SwitchCurrentChunk,
             MakeWeak(this)));
     }
 
     return State.GetOperationError();
 }
 
-void TChunkSequenceReader::SetCurrentChunk(TChunkReaderPtr nextReader)
+void TChunkSequenceReader::SwitchCurrentChunk(TChunkReaderPtr nextReader)
 {
-    if (!Options.KeepBlocks) {
-        Readers.clear();
+    if (!Options.KeepBlocks && CurrentReader > 0) {
+        Readers[CurrentReader - 1].Reset();
     }
 
-    Readers.push_back(nextReader);
+    LOG_DEBUG("Switching to chunk %d", CurrentReader);
 
     if (nextReader) {
         {
@@ -134,22 +142,25 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReaderPtr nextReader)
             // Take actual number of rows from used readers, estimated from just opened and
             // misc estimation for pending ones.
             TotalRowCount = CurrentRowIndex + nextReader->GetRowCount();
-            for (int i = NextChunkIndex + 1; i < InputChunks.size(); ++i) {
+            for (int i = CurrentReader + 1; i < InputChunks.size(); ++i) {
                 auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
                 TotalRowCount += miscExt->row_count();
             }
         }
 
-        NextReader = NewPromise<TChunkReaderPtr>();
-        PrepareNextChunk();
+        if (!Options.IsUnordered)
+            PrepareNextChunk();
 
-        if (!Readers.back()->IsValid()) {
-            NextReader.Subscribe(BIND(
-                &TChunkSequenceReader::SetCurrentChunk,
-                MakeWeak(this)));
-            return;
+        if (!nextReader->IsValid()) {
+            ++CurrentReader;
+            if (CurrentReader < InputChunks.size()) {
+                Readers[CurrentReader].Subscribe(BIND(
+                    &TChunkSequenceReader::SwitchCurrentChunk,
+                    MakeWeak(this)));
+                return;
+            }
         }
-    } 
+    }
 
     // Finishing AsyncOpen.
     State.FinishOperation();
@@ -162,11 +173,14 @@ void TChunkSequenceReader::OnRowFetched(TError error)
         return;
     }
 
-    if (!Readers.back()->IsValid()) {
-        NextReader.Subscribe(BIND(
-            &TChunkSequenceReader::SetCurrentChunk,
-            MakeWeak(this)));
-        return;
+    if (!Readers[CurrentReader].Get()->IsValid()) {
+        ++CurrentReader;
+        if (CurrentReader < InputChunks.size()) {
+            Readers[CurrentReader].Subscribe(BIND(
+                &TChunkSequenceReader::SwitchCurrentChunk,
+                MakeWeak(this)));
+            return;
+        }
     }
 
     ++CurrentRowIndex;
@@ -176,28 +190,26 @@ void TChunkSequenceReader::OnRowFetched(TError error)
 bool TChunkSequenceReader::IsValid() const
 {
     YASSERT(!State.HasRunningOperation());
-    if (!Readers.back())
+    if (CurrentReader >= InputChunks.size())
         return false;
 
-    return Readers.back()->IsValid();
+    return Readers[CurrentReader].Get()->IsValid();
 }
 
 TRow& TChunkSequenceReader::GetRow()
 {
     YASSERT(!State.HasRunningOperation());
-    YASSERT(Readers.back());
-    YASSERT(Readers.back()->IsValid());
+    YASSERT(IsValid());
 
-    return Readers.back()->GetRow();
+    return Readers[CurrentReader].Get()->GetRow();
 }
 
 const NYTree::TYson& TChunkSequenceReader::GetRowAttributes() const
 {
     YASSERT(!State.HasRunningOperation());
-    YASSERT(Readers.back());
-    YASSERT(Readers.back()->IsValid());
+    YASSERT(IsValid());
 
-    return Readers.back()->GetRowAttributes();
+    return Readers[CurrentReader].Get()->GetRowAttributes();
 }
 
 TAsyncError TChunkSequenceReader::AsyncNextRow()
@@ -208,7 +220,7 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
     State.StartOperation();
     
     // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
-    auto asyncResult = Readers.back()->AsyncNextRow();
+    auto asyncResult = Readers[CurrentReader].Get()->AsyncNextRow();
     auto error = asyncResult.TryGet();
     if (error) {
         OnRowFetched(error.Get());
@@ -222,10 +234,9 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
 const TNonOwningKey& TChunkSequenceReader::GetKey() const
 {
     YASSERT(!State.HasRunningOperation());
-    YASSERT(Readers.back());
-    YASSERT(Readers.back()->IsValid());
+    YASSERT(IsValid());
 
-    return Readers.back()->GetKey();
+    return Readers[CurrentReader].Get()->GetKey();
 }
 
 double TChunkSequenceReader::GetProgress() const

@@ -33,6 +33,7 @@
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/host_name.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
@@ -238,16 +239,16 @@ public:
     DEFINE_SIGNAL(void(const THolder&), HolderUnregistered);
 
 
-    const THolder* FindHolder(const Stroka& address) const
+    THolder* FindHolderByAddresss(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
-        return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
+        return it == HolderAddressMap.end() ? NULL : it->second;
     }
 
-    THolder* FindHolder(const Stroka& address)
+    THolder* FindHolderByHostName(const Stroka& hostName)
     {
-        auto it = HolderAddressMap.find(address);
-        return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
+        auto it = HolderHostNameMap.find(hostName);
+        return it == HolderAddressMap.end() ? NULL : it->second;
     }
 
     const TReplicationSink* FindReplicationSink(const Stroka& address)
@@ -256,9 +257,14 @@ public:
         return it == ReplicationSinkMap.end() ? NULL : &it->second;
     }
 
-    yvector<THolder*> AllocateUploadTargets(int replicaCount)
+    std::vector<THolder*> AllocateUploadTargets(
+        int nodeCount,
+        TNullable<Stroka> preferredHostName)
     {
-        auto holders = ChunkPlacement->GetUploadTargets(replicaCount);
+        auto holders = ChunkPlacement->GetUploadTargets(
+            nodeCount,
+            NULL,
+            preferredHostName.GetPtr());
         FOREACH (auto holder, holders) {
             ChunkPlacement->OnSessionHinted(*holder);
         }
@@ -332,9 +338,9 @@ public:
 
     void ScheduleJobs(
         THolder& holder,
-        const yvector<TJobInfo>& runningJobs,
-        yvector<TJobStartInfo>* jobsToStart,
-        yvector<TJobStopInfo>* jobsToStop)
+        const std::vector<TJobInfo>& runningJobs,
+        std::vector<TJobStartInfo>* jobsToStart,
+        std::vector<TJobStopInfo>* jobsToStop)
     {
         JobScheduler->ScheduleJobs(
             holder,
@@ -446,7 +452,8 @@ private:
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
 
     TMetaStateMap<THolderId, THolder> HolderMap;
-    yhash_map<Stroka, THolderId> HolderAddressMap;
+    yhash_map<Stroka, THolder*> HolderAddressMap;
+    yhash_multimap<Stroka, THolder*> HolderHostNameMap;
 
     TMetaStateMap<TChunkId, TJobList> JobListMap;
     TMetaStateMap<TJobId, TJob> JobMap;
@@ -704,7 +711,7 @@ private:
     
         THolderId holderId = HolderIdGenerator.Next();
     
-        auto* existingHolder = FindHolder(address);
+        auto* existingHolder = FindHolderByAddresss(address);
         if (existingHolder) {
             LOG_INFO_IF(!IsRecovery(), "Holder kicked out due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
@@ -726,7 +733,8 @@ private:
             statistics);
 
         HolderMap.Insert(holderId, newHolder);
-        HolderAddressMap.insert(MakePair(address, holderId));
+        HolderAddressMap.insert(MakePair(address, newHolder));
+        HolderHostNameMap.insert(MakePair(GetServiceHostName(address), newHolder));
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder, false);
@@ -914,9 +922,12 @@ private:
 
         // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
+        HolderHostNameMap.clear();
         FOREACH (const auto& pair, HolderMap) {
-            const auto* holder = pair.second;
-            YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).second);
+            auto* holder = pair.second;
+            const auto& address = holder->GetAddress();
+            YVERIFY(HolderAddressMap.insert(MakePair(address, holder)).second);
+            HolderHostNameMap.insert(MakePair(GetServiceHostName(address), holder));
         }
 
         // Reconstruct ReplicationSinkMap.
@@ -937,6 +948,8 @@ private:
         JobListMap.Clear();
 
         HolderAddressMap.clear();
+        HolderHostNameMap.clear();
+
         ReplicationSinkMap.clear();
     }
 
@@ -1030,7 +1043,17 @@ private:
                 RemoveJob(job, false, true);
             }
 
-            YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
+            const auto& address = holder.GetAddress();
+            YVERIFY(HolderAddressMap.erase(address) == 1);
+            {
+                auto hostNameRange = HolderHostNameMap.equal_range(Stroka(GetServiceHostName(address)));
+                for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
+                    if (it->second == &holder) {
+                        HolderHostNameMap.erase(it);
+                        break;
+                    }
+                }
+            }
             HolderMap.Remove(holderId);
         }
     }
@@ -1191,7 +1214,7 @@ private:
         }
 
         if (removeFromHolder) {
-            auto* holder = FindHolder(job->GetRunnerAddress());
+            auto* holder = FindHolderByAddresss(job->GetRunnerAddress());
             if (holder) {
                 holder->RemoveJob(job);
             }
@@ -1599,10 +1622,10 @@ private:
         UNUSED(request);
 
         const auto& chunk = GetTypedImpl();
-        Owner->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
+        Owner->FillHolderAddresses(response->mutable_node_addresses(), chunk);
 
-        context->SetResponseInfo("HolderAddresses: [%s]",
-            ~JoinToString(response->holder_addresses()));
+        context->SetResponseInfo("NodeAddresses: [%s]",
+            ~JoinToString(response->node_addresses()));
 
         context->Reply();
     }
@@ -1611,7 +1634,7 @@ private:
     {
         UNUSED(response);
 
-        auto& holderAddresses = request->holder_addresses();
+        auto& holderAddresses = request->node_addresses();
         YASSERT(holderAddresses.size() != 0);
 
         context->SetRequestInfo("Size: %" PRId64 ", HolderAddresses: [%s]",
@@ -1637,7 +1660,7 @@ private:
         chunk.ChunkInfo().CopyFrom(request->chunk_info());
 
         FOREACH (const auto& address, holderAddresses) {
-            auto* holder = Owner->FindHolder(address);
+            auto* holder = Owner->FindHolderByAddresss(address);
             if (!holder) {
                 LOG_DEBUG_IF(!Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown holder %s",
                     ~Id.ToString(),
@@ -1699,15 +1722,23 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
     chunk.SetReplicationFactor(requestExt->replication_factor());
 
     if (Owner->IsLeader()) {
-        int holderCount = requestExt->upload_replication_factor();
-        auto holders = Owner->AllocateUploadTargets(holderCount);
-        FOREACH (auto holder, holders) {
-            responseExt->add_holder_addresses(holder->GetAddress());
+        int nodeCount = requestExt->upload_replication_factor();
+        auto preferredHostName =
+            requestExt->has_preferred_host_name()
+            ? TNullable<Stroka>(requestExt->preferred_host_name())
+            : Null;
+
+        auto nodes = Owner->AllocateUploadTargets(nodeCount, preferredHostName);
+        FOREACH (auto* node, nodes) {
+            responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated holders [%s] for chunk %s",
-            ~JoinToString(responseExt->holder_addresses()),
-            ~chunk.GetId().ToString());
+        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
+            ~JoinToString(responseExt->node_addresses()),
+            ~chunk.GetId().ToString(),
+            ~ToString(preferredHostName),
+            requestExt->replication_factor(),
+            requestExt->upload_replication_factor());
     }
 
     return chunk.GetId();
@@ -1924,14 +1955,14 @@ TChunkManager::TChunkManager(
 TChunkManager::~TChunkManager()
 { }
 
-const THolder* TChunkManager::FindHolder(const Stroka& address) const
+THolder* TChunkManager::FindHolderByAddress(const Stroka& address)
 {
-    return Impl->FindHolder(address);
+    return Impl->FindHolderByAddresss(address);
 }
 
-THolder* TChunkManager::FindHolder(const Stroka& address)
+THolder* TChunkManager::FindHolderByHostName(const Stroka& hostName)
 {
-    return Impl->FindHolder(address);
+    return Impl->FindHolderByHostName(hostName);
 }
 
 const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address)
@@ -1939,9 +1970,11 @@ const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address
     return Impl->FindReplicationSink(address);
 }
 
-yvector<THolder*> TChunkManager::AllocateUploadTargets(int replicaCount)
+std::vector<THolder*> TChunkManager::AllocateUploadTargets(
+    int nodeCount,
+    TNullable<Stroka> preferredHostName)
 {
-    return Impl->AllocateUploadTargets(replicaCount);
+    return Impl->AllocateUploadTargets(nodeCount, preferredHostName);
 }
 
 TMetaChange<THolderId>::TPtr TChunkManager::InitiateRegisterHolder(
@@ -2001,9 +2034,9 @@ void TChunkManager::AttachToChunkList(
 
 void TChunkManager::ScheduleJobs(
     THolder& holder,
-    const yvector<TJobInfo>& runningJobs,
-    yvector<TJobStartInfo>* jobsToStart,
-    yvector<TJobStopInfo>* jobsToStop)
+    const std::vector<TJobInfo>& runningJobs,
+    std::vector<TJobStartInfo>* jobsToStart,
+    std::vector<TJobStopInfo>* jobsToStop)
 {
     Impl->ScheduleJobs(
         holder,
@@ -2017,7 +2050,7 @@ bool TChunkManager::IsJobSchedulerEnabled()
     return Impl->IsJobSchedulerEnabled();
 }
 
-void TChunkManager::FillHolderAddresses(
+void TChunkManager::FillNodeAddresses(
     ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
     const TChunk& chunk)
 {

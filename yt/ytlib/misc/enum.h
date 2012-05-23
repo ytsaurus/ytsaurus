@@ -269,6 +269,10 @@ protected:
             } \
         } \
         \
+        static int GetDomainSize() \
+        { \
+            return PP_COUNT(seq); \
+        } \
         ENUM__RELATIONAL_OPERATORS(name)
 
 //! Ends the declaration of a strongly-typed enumeration.

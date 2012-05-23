@@ -36,8 +36,8 @@ public:
         TSnapshotStore* snapshotStore,
         const TEpoch& epoch,
         TPeerId leaderId,
-        IInvoker* epochControlInvoker,
-        IInvoker* epochStateInvoker);
+        IInvoker::TPtr epochControlInvoker,
+        IInvoker::TPtr epochStateInvoker);
 
     virtual TAsyncResult Run() = 0;
 
@@ -141,8 +141,8 @@ public:
         TChangeLogCache* changeLogCache,
         TSnapshotStore* snapshotStore,
         const TEpoch& epoch,
-        IInvoker* epochControlInvoker,
-        IInvoker* epochStateInvoker);
+        IInvoker::TPtr epochControlInvoker,
+        IInvoker::TPtr epochStateInvoker);
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
     /*!
@@ -174,8 +174,8 @@ public:
         TSnapshotStore* snapshotStore,
         const TEpoch& epoch,
         TPeerId leaderId,
-        IInvoker* epochControlInvoker,
-        IInvoker* epochStateInvoker,
+        IInvoker::TPtr epochControlInvoker,
+        IInvoker::TPtr epochStateInvoker,
         const TMetaVersion& targetVersion);
 
     //! Performs follower recovery brining the follower up-to-date and synchronized with the leader.

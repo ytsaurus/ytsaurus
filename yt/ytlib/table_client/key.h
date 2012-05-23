@@ -3,7 +3,7 @@
 #include "public.h"
 #include "size_limits.h"
 
-#include <ytlib/misc/enum.h>
+#include <ytlib/misc/small_vector.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/string.h>
@@ -381,7 +381,7 @@ private:
 
     int ColumnCount;
 
-    std::vector< TKeyPart<typename TBuffer::TStoredType> > Parts;
+    TSmallVector< TKeyPart<typename TBuffer::TStoredType>, 4> Parts;
     TBuffer Buffer;
 
     template <class TOtherBuffer>

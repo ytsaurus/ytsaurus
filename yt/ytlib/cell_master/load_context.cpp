@@ -6,6 +6,7 @@
 #include <ytlib/object_server/object_detail.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/cypress/lock.h>
 #include <ytlib/cypress/cypress_manager.h>
 

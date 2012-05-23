@@ -1,21 +1,22 @@
-#include "common.h"
-#include "input_stream.h"
-#include "output_stream.h"
+#include "driver.h"
 
-#ifndef _GLIBCXX_PURE
-#define _GLIBCXX_PURE inline
-#endif
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/driver/config.h>
+#include <ytlib/driver/format.h>
 
 #include <string>
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 COMMON_V8_USES
 
 using v8::Context;
-using v8::Exception;
-using v8::ThrowException;
 using v8::TryCatch;
+
+using namespace NYTree;
+using namespace NDriver;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,19 +30,19 @@ struct TDriverRequest
     std::string CommandName;
 
     //! Stream used for reading command input.
-    TNodeJSInputStream* InputStream;
+    TInputStream* InputStream;
 
     //! Format used for reading the input.
-    // TFormat InputFormat;
+    TFormat InputFormat;
 
     //! Stream where the command output is written.
-    TNodeJSOutputStream* OutputStream;
+    TOutputStream* OutputStream;
 
     //! Format used for writing the output.
-    // TFormat OutputFormat;
+    TFormat OutputFormat;
 
     //! A map containing command arguments.
-    // NYTree::IMapNodePtr Arguments;
+    NYTree::IMapNodePtr Parameters;
 };
 
 //! An instance of driver request.
@@ -56,75 +57,72 @@ struct IDriver
     TDriverResponse Execute(const TDriverRequest& request);
 };
 
+IDriverPtr CreateDriver(TDriverConfigPtr config);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeJSDriver
-    : public node::ObjectWrap
+namespace {
+struct TExecuteRequest
 {
-protected:
-    TNodeJSDriver();
-    ~TNodeJSDriver();
+    uv_work_t Request;
+    TNodeJSDriver* Host;
+    TNodeJSInputStream* InputStream;
+    TNodeJSOutputStream* OutputStream;
 
-public:
-    using node::ObjectWrap::Ref;
-    using node::ObjectWrap::Unref;
+    Persistent<Function> Callback;
 
-    // Synchronous JS API.
-    static Handle<Value> New(const Arguments& args);
+    TDriverRequest DriverRequest;
+    TDriverResponse DriverResponse;
 
-    // Asynchronous JS API.
-    static Handle<Value> Execute(const Arguments& args);
-    static void ExecuteWork(uv_work_t* workRequest);
-    static void ExecuteAfter(uv_work_t* workRequest);
-
-private:
-    // TODO(sandello): Store by smart pointer.
-    // TODO(sandello): Initialized this at some moment.
-    IDriver* Driver;
-
-    struct TExecuteRequest
+    TExecuteRequest(TNodeJSDriver* host, Handle<Function> callback)
+        : Host(host)
+        , Callback(Persistent<Function>::New(callback))
     {
-        uv_work_t Request;
-        TNodeJSDriver* Host;
+        THREAD_AFFINITY_IS_V8();
 
-        Persistent<Function> Callback;
+        Host->Ref();
+        // TODO(sandello): Ref streams here also.
+    }
 
-        TDriverRequest DriverRequest;
-        TDriverResponse DriverResponse;
+    ~TExecuteRequest()
+    {
+        THREAD_AFFINITY_IS_V8();
 
-        TExecuteRequest(TNodeJSDriver* host, Handle<Function> callback)
-            : Host(host)
-            , Callback(Persistent<Function>::New(callback))
-        {
-            THREAD_AFFINITY_IS_V8();
+        Callback.Dispose();
+        Callback.Clear();
 
-            Host->Ref();
-            // TODO(sandello): Ref streams here also.
-        }
-
-        ~TExecuteRequest()
-        {
-            THREAD_AFFINITY_IS_V8();
-
-            Callback.Dispose();
-            Callback.Clear();
-
-            // TODO(sandello): Unref streams here also.
-            Host->Unref();
-        }
-    };
-
-private:
-    TNodeJSDriver(const TNodeJSDriver&);
-    TNodeJSDriver& operator=(const TNodeJSDriver&);
+        // TODO(sandello): Unref streams here also.
+        Host->Unref();
+    }
 };
+} // namespace
+
+Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSDriver::TNodeJSDriver()
+TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
     : node::ObjectWrap()
 {
     T_THREAD_AFFINITY_IS_V8();
+
+    INodePtr configNode;
+    try {
+        configNode = DeserializeFromYson(configuration);
+    } catch (const std::exception& ex) {
+        Driver = NULL;
+        Message = Sprintf("Error reading configuration\n%s", ex.what());
+    }
+
+    auto config = New<TDriverConfig>();
+    try {
+        config->Load(~configNode);
+    } catch (const std::exception& ex) {
+        Driver = NULL;
+        Message = Sprintf("Error parsing configuration\n%s", ex.what());
+    }
+
+    Driver = CreateDriver(config);
 }
 
 TNodeJSDriver::~TNodeJSDriver()
@@ -132,16 +130,55 @@ TNodeJSDriver::~TNodeJSDriver()
     T_THREAD_AFFINITY_IS_V8();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void TNodeJSDriver::Initialize(Handle<Object> target)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    ConstructorTemplate = Persistent<FunctionTemplate>::New(
+        FunctionTemplate::New(TNodeJSDriver::New));
+
+    ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
+    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSDriver"));
+
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Execute", TNodeJSDriver::Execute);
+
+    target->Set(
+        String::NewSymbol("TNodeJSDriver"),
+        ConstructorTemplate->GetFunction());
+}
+
+bool TNodeJSDriver::HasInstance(Handle<Value> value)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    return
+        value->IsObject() &&
+        ConstructorTemplate->HasInstance(value->ToObject());
+}
+
 Handle<Value> TNodeJSDriver::New(const Arguments& args)
 {
     T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    assert(args.Length() == 0);
+    YASSERT(args.Length() == 1);
+    EXPECT_THAT_IS(args[0], String);
 
-    TNodeJSDriver* host = new TNodeJSDriver();
+    String::AsciiValue configuration(args[0]);
+
+    TNodeJSDriver* host = new TNodeJSDriver(
+        Stroka(*configuration, configuration.length()));
     host->Wrap(args.This());
-    return args.This();
+
+    if (host->Driver) {
+        return args.This();
+    } else {
+        return ThrowException(Exception::Error(String::New(~host->Message)));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +191,7 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // Validate arguments.
     // These arguments are used to fill TDriverRequest structure,
     // hence we have to validate all the arguments as early as possible.
-    assert(args.Length() == 7);
+    YASSERT(args.Length() == 7);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
     EXPECT_THAT_HAS_INSTANCE(args[1], TNodeJSInputStream); // InputStream
@@ -167,15 +204,20 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // Unwrap arguments.
     String::AsciiValue commandName(args[0]);
     TNodeJSInputStream* inputStream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args[1]->ToObject());
-    String::AsciiValue inputFormat(args[2]);
+        ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
+    INodePtr inputFormat =
+        ConvertV8StringToYson(args[2].As<String>());
     TNodeJSOutputStream* outputStream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3]->ToObject());
-    String::AsciiValue outputFormat(args[4]);
-    Local<Object> parameters = args[5]->ToObject();
-    Local<Function> callback = Local<Function>::Cast(args[6]);
+        ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3].As<Object>());
+    INodePtr outputFormat =
+        ConvertV8StringToYson(args[4].As<String>());
+    INodePtr parameters =
+        ConvertV8ValueToYson(args[5].As<Object>());
+    Local<Function> callback = args[6].As<Function>();
 
     // Build an atom of work.
+    YASSERT(parameters->GetType() == ENodeType::Map);
+
     TExecuteRequest* request = new TExecuteRequest(
         ObjectWrap::Unwrap<TNodeJSDriver>(args.This()),
         callback);
@@ -183,10 +225,10 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // Fill in TDriverRequest structure.
     request->DriverRequest.CommandName = std::string(*commandName, commandName.length());
     request->DriverRequest.InputStream = inputStream;
-    // request->DriverRequest.InputFormat =
+    request->DriverRequest.InputFormat = TFormat::FromYson(inputFormat);
     request->DriverRequest.OutputStream = outputStream;
-    // request->DriverRequest.OutputFormat =
-    // request->DriverRequest.Parameters =
+    request->DriverRequest.OutputFormat = TFormat::FromYson(outputFormat);
+    request->DriverRequest.Parameters = parameters->AsMap();
 
     fprintf(stderr, "WOOHOO! We are executing %s [%p->%p]!\n",
         *commandName,
@@ -240,22 +282,4 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExportYTDriver(Handle<Object> target)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TNodeJSDriver::New);
-
-    tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Execute", TNodeJSDriver::Execute);
-
-    tpl->SetClassName(String::NewSymbol("TNodeJSDriver"));
-    target->Set(String::NewSymbol("TNodeJSDriver"), tpl->GetFunction());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT
-
-NODE_MODULE(yt_driver, NYT::ExportYTDriver)

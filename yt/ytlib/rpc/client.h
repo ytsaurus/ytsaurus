@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "channel.h"
+#include "error.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/delayed_invoker.h>
@@ -42,6 +43,7 @@ struct IClientRequest
 {
     virtual NBus::IMessage::TPtr Serialize() const = 0;
 
+    virtual bool IsOneWay() const = 0;
     virtual const TRequestId& GetRequestId() const = 0;
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
@@ -56,12 +58,12 @@ class TClientRequest
     : public IClientRequest
 {
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RO_PROPERTY(bool, OneWay);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
 public:
     virtual NBus::IMessage::TPtr Serialize() const;
 
+    virtual bool IsOneWay() const;
     virtual const TRequestId& GetRequestId() const;
     virtual const Stroka& GetPath() const;
     virtual const Stroka& GetVerb() const;
@@ -74,6 +76,7 @@ protected:
     Stroka Path;
     Stroka Verb;
     TRequestId RequestId;
+    bool OneWay;
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(
@@ -84,9 +87,7 @@ protected:
 
     virtual TBlob SerializeBody() const = 0;
 
-    void DoInvoke(
-        IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout);
+    void DoInvoke(IClientResponseHandlerPtr responseHandler);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,7 +110,7 @@ public:
     {
         auto response = NYT::New<TResponse>(GetRequestId());
         auto asyncResult = response->GetAsyncResult();
-        DoInvoke(response, Timeout_);
+        DoInvoke(response);
         return asyncResult;
     }
 
@@ -139,11 +140,13 @@ struct IClientResponseHandler
 {
     //! Request delivery has been acknowledged.
     virtual void OnAcknowledgement() = 0;
+    
     //! The request has been replied with #EErrorCode::OK.
     /*!
      *  \param message A message containing the response.
      */
     virtual void OnResponse(NBus::IMessage* message) = 0;
+
     //! The request has failed.
     /*!
      *  \param error An error that has occurred.
@@ -166,7 +169,7 @@ public:
     bool IsOK() const;
 
 protected:
-    TClientResponseBase(const TRequestId& requestId);
+    explicit TClientResponseBase(const TRequestId& requestId);
 
     virtual void FireCompleted() = 0;
 
@@ -200,7 +203,7 @@ public:
     const NYTree::IAttributeDictionary& Attributes() const;
 
 protected:
-    TClientResponse(const TRequestId& requestId);
+    explicit TClientResponse(const TRequestId& requestId);
 
     virtual void DeserializeBody(const TRef& data) = 0;
 
@@ -227,7 +230,7 @@ class TTypedClientResponse
 public:
     typedef TIntrusivePtr<TTypedClientResponse> TPtr;
 
-    TTypedClientResponse(const TRequestId& requestId)
+    explicit TTypedClientResponse(const TRequestId& requestId)
         : TClientResponse(requestId)
         , Promise(NewPromise<TPtr>())
     { }
@@ -262,7 +265,7 @@ class TOneWayClientResponse
 public:
     typedef TIntrusivePtr<TOneWayClientResponse> TPtr;
 
-    TOneWayClientResponse(const TRequestId& requestId);
+    explicit TOneWayClientResponse(const TRequestId& requestId);
 
     TFuture<TPtr> GetAsyncResult();
 
@@ -291,7 +294,7 @@ private:
     TReq##method##Ptr method() \
     { \
         return \
-            New<TReq##method>(~Channel, ServiceName, #method, false) \
+            New<TReq##method>(Channel, ServiceName, #method, false) \
             ->SetTimeout(DefaultTimeout_); \
     }
 
@@ -309,7 +312,7 @@ private:
     TReq##method##Ptr method() \
     { \
         return \
-            New<TReq##method>(~Channel, ServiceName, #method, true) \
+            New<TReq##method>(Channel, ServiceName, #method, true) \
             ->SetTimeout(DefaultTimeout_); \
     }
 

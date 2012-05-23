@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/guid.cpp
   ${BASE}/high_resolution_clock.cpp
   ${BASE}/home.cpp
+  ${BASE}/host_name.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/linux.cpp
   ${BASE}/metric.cpp
@@ -58,6 +59,7 @@ set( HDRS
   ${BASE}/hash.h
   ${BASE}/high_resolution_clock.h
   ${BASE}/home.h
+  ${BASE}/host_name.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h
   ${BASE}/lazy_holder.h

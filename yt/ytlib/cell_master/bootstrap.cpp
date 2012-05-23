@@ -24,6 +24,7 @@
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/chunk_server/chunk_service.h>
 #include <ytlib/chunk_server/cypress_integration.h>
+#include <ytlib/chunk_server/holder_authority.h>
 
 #include <ytlib/monitoring/monitoring_manager.h>
 #include <ytlib/monitoring/ytree_integration.h>
@@ -141,7 +142,7 @@ void TBootstrap::Run()
     MetaState = New<TCompositeMetaState>();
 
     ControlQueue = New<TActionQueue>("Control");
-    StateQueue = New<TMultiActionQueue>(StateThreadQueueCount, "MetaState");
+    StateQueue = New<TMultiActionQueue>(EStateThreadQueue::GetDomainSize(), "MetaState");
 
     auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->MetaState->Cell->RpcPort));
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include <ytlib/misc/guid.h>
 
 namespace NYT {
 namespace NRpc {
@@ -22,6 +22,11 @@ typedef TIntrusivePtr<IChannel> IChannelPtr;
 class TChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
+typedef TGuid TRequestId;
+extern TRequestId NullRequestId;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpc
 } // namespace NYT

@@ -17,7 +17,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     : NRpc::TServiceBase(
-        ~bootstrap->GetControlInvoker(),
+        bootstrap->GetControlInvoker(NCellNode::EControlThreadQueue::Heartbeat),
         TSupervisorServiceProxy::GetServiceName(),
         Logger.GetCategory())
     , Bootstrap(bootstrap)
@@ -54,7 +54,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
-    UNUSED(request);
+    auto jobId = TJobId::FromProto(request->job_id());
+
+    context->SetRequestInfo("JobId: %s",
+        ~jobId.ToString());
 
     // Progress tracking is not implemented yet.
 }

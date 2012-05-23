@@ -160,6 +160,12 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 template <class T>
 void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 
+
+//! Tries to remove the extension.
+//! Returnes True iff the proper extension is found.
+template <class T>
+bool RemoveProtoExtension(NProto::TExtensionSet* extensions);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

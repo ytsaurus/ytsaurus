@@ -36,9 +36,9 @@ TJobManager::TJobManager(
 
     // Init job slots.
     for (int slotIndex = 0; slotIndex < Config->SlotCount; ++slotIndex) {
-        auto slotName = Sprintf("%d", slotIndex);
+        auto slotName = ToString(slotIndex);
         auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
-        Slots.push_back(New<TSlot>(slotPath, slotName));
+        Slots.push_back(New<TSlot>(slotPath, slotIndex));
     }
 }
 
@@ -126,7 +126,7 @@ TJobPtr TJobManager::StartJob(
 
     YVERIFY(Jobs.insert(MakePair(jobId, job)).second);
 
-    LOG_DEBUG("Job started (JobId: %s, JobType: %s)",
+    LOG_DEBUG("Job created, preparing (JobId: %s, JobType: %s)",
         ~jobId.ToString(),
         ~EJobType(jobSpec.type()).ToString());
 

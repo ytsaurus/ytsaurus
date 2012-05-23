@@ -19,7 +19,7 @@ public:
     TFollowerTracker(
         TFollowerTrackerConfig* config,
         NElection::TCellManager* cellManager,
-        IInvoker* epochControlInvoker);
+        IInvoker::TPtr epochControlInvoker);
 
     void Start();
     void Stop();

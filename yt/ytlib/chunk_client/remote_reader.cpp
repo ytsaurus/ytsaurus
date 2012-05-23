@@ -9,6 +9,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/host_name.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/chunk_server/block_id.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
@@ -18,7 +19,6 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 
 #include <util/random/shuffle.h>
-#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -138,9 +138,9 @@ private:
         LOG_INFO("Requesting chunk seeds from the master");
 
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
-        ObjectProxy
-            ->Execute(req)
-            .Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
+        ObjectProxy->Execute(req).Subscribe(
+            BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this))
+            .Via(ReaderThread->GetInvoker()));
     }
 
     void OnChunkFetched(TChunkYPathProxy::TRspFetchPtr rsp)
@@ -154,7 +154,7 @@ private:
         }
 
         if (rsp->IsOK()) {
-            auto seedAddresses = FromProto<Stroka>(rsp->holder_addresses());
+            auto seedAddresses = FromProto<Stroka>(rsp->node_addresses());
 
             // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
             Shuffle(seedAddresses.begin(), seedAddresses.end());
@@ -211,7 +211,9 @@ protected:
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
         GetSeedsResult = reader->AsyncGetSeeds();
-        GetSeedsResult.Subscribe(BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
+        GetSeedsResult.Subscribe(
+            BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this))
+            .Via(ReaderThread->GetInvoker()));
     }
 
     void OnGetSeedsReply(TRemoteReader::TGetSeedsResult result)
@@ -255,14 +257,9 @@ protected:
 
     virtual void OnGotSeeds()
     {
-        auto hostName = Sprintf("%s:", GetHostName());
-
-        // Prefer local holder if in seeds.
-        // ToDo(psushin): consider using more effective container?
-
-        for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it)
-        {
-            if (it->has_prefix(hostName)) {
+        // Prefer local node if in seeds.
+        for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it) {
+            if (GetServiceHostName(*it) == GetHostName()) {
                 auto localSeed = *it;
                 SeedAddresses.erase(it);
                 SeedAddresses.insert(SeedAddresses.begin(), localSeed);
@@ -370,7 +367,7 @@ private:
 
     Stroka PickNextPeer()
     {
-        // When the time comes to fetch from a non-seeding holder, pick a random one.
+        // When the time comes to fetch from a non-seeding node, pick a random one.
         if (PeerIndex >= SeedAddresses.size()) {
             size_t count = PeerAddressList.size() - PeerIndex;
             size_t randomIndex = PeerIndex + RandomNumber(count);
@@ -466,11 +463,11 @@ private:
 
             auto requestBlockIndexes = GetRequestBlockIndexes(address, unfetchedBlockIndexes);
             if (!requestBlockIndexes.empty()) {
-                LOG_INFO("Requesting blocks from peer (Address: %s, BlockIndexes: [%s])",
+                LOG_INFO("Requesting blocks from %s (BlockIndexes: [%s])",
                     ~address,
                     ~JoinToString(unfetchedBlockIndexes));
 
-                auto channel = HolderChannelCache->GetChannel(address);
+                auto channel = NodeChannelCache->GetChannel(address);
 
                 TChunkHolderServiceProxy proxy(~channel);
                 proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
@@ -483,15 +480,17 @@ private:
                     request->set_peer_expiration_time((TInstant::Now() + reader->Config->PeerExpirationTimeout).GetValue());
                 }
 
-                request->Invoke().Subscribe(BIND(
-                    &TReadSession::OnGotBlocks,
-                    MakeStrong(this),
-                    address,
-                    request));
+                request->Invoke().Subscribe(
+                    BIND(
+                        &TReadSession::OnGotBlocks,
+                        MakeStrong(this),
+                        address,
+                        request)
+                    .Via(ReaderThread->GetInvoker()));
                 return;
             }
 
-            LOG_INFO("Skipping peer (Address: %s)", ~address);
+            LOG_INFO("Skipping peer %s", ~address);
         }
     }
 
@@ -503,7 +502,7 @@ private:
         if (response->IsOK()) {
             ProcessReceivedBlocks(address, ~request, ~response);
         } else {
-            LOG_WARNING("Error getting blocks from peer (Address: %s)\n%s",
+            LOG_WARNING("Error getting blocks from %s\n%s",
                 ~address,
                 ~response->GetError().ToString());
         }
@@ -532,7 +531,7 @@ private:
             TBlockId blockId(reader->ChunkId, blockIndex);
             const auto& blockInfo = response->blocks(index);
             if (blockInfo.data_attached()) {
-                LOG_INFO("Block received (Address: %s, BlockIndex: %d)",
+                LOG_INFO("Block received from %s (BlockIndex: %d)",
                     ~address,
                     blockIndex);
                 auto block = response->Attachments()[index];
@@ -635,6 +634,12 @@ private:
     std::vector<int> ExtensionTags;
     bool AllExtensionTags;
 
+    virtual void NewRetry()
+    {
+        SeedIndex = 0;
+        TSessionBase::NewRetry();
+    }
+
     void RequestInfo()
     {
         auto reader = Reader.Lock();
@@ -643,9 +648,9 @@ private:
 
         auto address = SeedAddresses[SeedIndex];
 
-        LOG_INFO("Requesting chunk info from holder (Address: %s)", ~address);
+        LOG_INFO("Requesting chunk info from %s", ~address);
 
-        auto channel = HolderChannelCache->GetChannel(address);
+        auto channel = NodeChannelCache->GetChannel(address);
 
         TChunkHolderServiceProxy proxy(~channel);
         proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
@@ -654,7 +659,9 @@ private:
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
         request->set_all_extension_tags(AllExtensionTags);
         ToProto(request->mutable_extension_tags(), ExtensionTags);
-        request->Invoke().Subscribe(BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this)));
+        request->Invoke().Subscribe(
+            BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this))
+            .Via(ReaderThread->GetInvoker()));
     }
 
     void OnGotChunkMeta(TChunkHolderServiceProxy::TRspGetChunkMetaPtr response)
@@ -662,7 +669,7 @@ private:
         if (response->IsOK()) {
             OnSessionSucceeded(response->chunk_meta());
         } else {
-            LOG_WARNING("Error getting chunk info from holder\n%s", ~response->GetError().ToString());
+            LOG_WARNING("Error getting chunk info from node\n%s", ~response->GetError().ToString());
 
             ++SeedIndex;
             if (SeedIndex < SeedAddresses.size()) {

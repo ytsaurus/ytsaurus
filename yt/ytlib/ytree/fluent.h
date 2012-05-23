@@ -21,24 +21,30 @@ class TFluentYsonBuilder
     : private TNonCopyable
 {
 private:
-    static void WriteScalar(IYsonConsumer* consumer, const char* value)
+    static void WriteScalar(IYsonConsumer* consumer, double value)
     {
-        WriteScalar(consumer, Stroka(value));
+        consumer->OnDoubleScalar(value);
     }
 
     static void WriteScalar(IYsonConsumer* consumer, i32 value)
     {
-        WriteScalar(consumer, static_cast<i64>(value));
+        consumer->OnIntegerScalar(value);
     }
 
     static void WriteScalar(IYsonConsumer* consumer, ui32 value)
     {
-        WriteScalar(consumer, static_cast<i64>(value));
+        consumer->OnIntegerScalar(value);
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, float value)
+    static void WriteScalar(IYsonConsumer* consumer, i64 value)
     {
-        WriteScalar(consumer, static_cast<double>(value));
+        consumer->OnIntegerScalar(value);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, ui64 value)
+    {
+        YASSERT(value <= std::numeric_limits<i64>::max());
+        WriteScalar(consumer, static_cast<i64>(value));
     }
 
     static void WriteScalar(IYsonConsumer* consumer, bool value)
@@ -61,19 +67,14 @@ private:
         WriteScalar(consumer, static_cast<i64>(value.MilliSeconds()));
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, const Stroka& value)
+    static void WriteScalar(IYsonConsumer* consumer, const TStringBuf& value)
     {
         consumer->OnStringScalar(value);
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, double value)
+    static void WriteScalar(IYsonConsumer* consumer, const char* value)
     {
-        consumer->OnDoubleScalar(value);
-    }
-
-    static void WriteScalar(IYsonConsumer* consumer, i64 value)
-    {
-        consumer->OnIntegerScalar(value);
+        consumer->OnStringScalar(TStringBuf(value));
     }
 
 public:

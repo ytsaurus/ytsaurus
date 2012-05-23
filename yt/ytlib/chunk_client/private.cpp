@@ -10,7 +10,6 @@ NLog::TLogger ChunkReaderLogger("ChunkReader");
 NLog::TLogger ChunkWriterLogger("ChunkWriter");
 
 TLazyPtr<TActionQueue> WriterThread(TActionQueue::CreateFactory("ChunkWriter"));
-
 TLazyPtr<TActionQueue> ReaderThread(TActionQueue::CreateFactory("ChunkReader"));
 
 ////////////////////////////////////////////////////////////////////////////////

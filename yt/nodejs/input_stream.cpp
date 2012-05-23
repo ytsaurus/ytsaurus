@@ -1,9 +1,8 @@
 #include "input_stream.h"
 
-#include <node.h>
-#include <node_buffer.h>
-
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 COMMON_V8_USES
 
@@ -13,27 +12,19 @@ Persistent<FunctionTemplate> TNodeJSInputStream::ConstructorTemplate;
 
 TNodeJSInputStream::TNodeJSInputStream()
     : TNodeJSStreamBase()
-    , IsAlive(false)
+    , IsAlive(true)
 {
     T_THREAD_AFFINITY_IS_V8();
-
-    CHECK_RETURN_VALUE(pthread_mutex_init(&Mutex, NULL));
-    CHECK_RETURN_VALUE(pthread_cond_init(&Conditional, NULL));
-
-    IsAlive = true;
 }
 
-TNodeJSInputStream::~TNodeJSInputStream()
+TNodeJSInputStream::~TNodeJSInputStream() throw()
 {
     T_THREAD_AFFINITY_IS_V8();
 
     {
-        TGuard guard(&Mutex);
-        assert(Queue.empty());
+        TGuard<TMutex> guard(&Mutex);
+        YASSERT(Queue.empty());
     }
-
-    CHECK_RETURN_VALUE(pthread_mutex_destroy(&Mutex));
-    CHECK_RETURN_VALUE(pthread_cond_destroy(&Conditional));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,17 +83,16 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
         ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 3);
+    YASSERT(args.Length() == 3);
 
     EXPECT_THAT_HAS_INSTANCE(args[0], node::Buffer);
     EXPECT_THAT_IS(args[1], Uint32);
     EXPECT_THAT_IS(args[2], Uint32);
 
     // Do the work.
-    assert(stream);
     return stream->DoPush(
         /* handle */ Persistent<Value>::New(args[0]),
-        /* data   */ node::Buffer::Data(Local<Object>::Cast(args[0])),
+        /* data   */ node::Buffer::Data(args[0].As<Object>()),
         /* offset */ args[1]->Uint32Value(),
         /* length */ args[2]->Uint32Value());
 }
@@ -112,17 +102,17 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, s
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TPart* part  = new TPart(); assert(part);
-    part->Stream = this;
-    part->Handle = handle;
-    part->Data   = data;
-    part->Offset = offset;
-    part->Length = length;
+    TJSPart* part = new TJSPart(); YASSERT(part);
+    part->Stream  = this;
+    part->Handle  = handle;
+    part->Data    = data;
+    part->Offset  = offset;
+    part->Length  = length;
 
     {
-        TGuard guard(&Mutex);
+        TGuard<TMutex> guard(&Mutex);
         Queue.push_back(part);
-        pthread_cond_broadcast(&Conditional);
+        Conditional.BroadCast();
     }
 
     // TODO(sandello): Think about OnSuccess & OnError callbacks.
@@ -130,6 +120,16 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, s
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TAlreadyLockedOps {
+    static inline void Acquire(T* t)
+    { }
+    static inline void Release(T* t)
+    {
+        t->Release();
+    }
+};
 
 Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
 {
@@ -141,10 +141,9 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
         ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 0);
+    YASSERT(args.Length() == 0);
 
     // Do the work.
-    assert(stream);
     stream->EnqueueSweep();
 
     // TODO(sandello): Think about OnSuccess & OnError callbacks.
@@ -169,21 +168,20 @@ void TNodeJSInputStream::DoSweep()
     // all blocking operations. For example, it is better to reschedule
     // the sweep, if the mutex is already acquired.
     {
-        int rv  = pthread_mutex_trylock(&Mutex);
-        if (rv != 0) {
+        if (!Mutex.TryAcquire()) {
             EnqueueSweep();
             return;
         }
     }
 
-    TGuard guard(&Mutex, false);
+    TGuard< TMutex, TAlreadyLockedOps<TMutex> > guard(&Mutex);
 
     TQueue::iterator
         it = Queue.begin(),
         jt = Queue.end();
 
     while (it != jt) {
-        TPart* part = *it;
+        TJSPart* part = *it;
 
         if (part->Length > 0) {
             break;
@@ -211,10 +209,9 @@ Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
         ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
 
     // Validate arguments.
-    assert(args.Length() == 0);
+    YASSERT(args.Length() == 0);
 
     // Do the work.
-    assert(stream);
     stream->EnqueueClose();
 
     return Undefined();
@@ -232,19 +229,19 @@ void TNodeJSInputStream::DoClose()
 {
     THREAD_AFFINITY_IS_UV();
 
-    TGuard guard(&Mutex);
+    TGuard<TMutex> guard(&Mutex);
 
     IsAlive = false;
-    pthread_cond_broadcast(&Conditional);
+    Conditional.BroadCast();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TNodeJSInputStream::Read(void* buffer, size_t length)
+size_t TNodeJSInputStream::DoRead(void* buffer, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    TGuard guard(&Mutex);
+    TGuard<TMutex> guard(&Mutex);
 
     size_t result = 0;
     while (length > 0 && result == 0) {
@@ -256,7 +253,7 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
         bool canReadSomething = false;
 
         while (length > 0 && it != jt) {
-            TPart* part = *it;
+            TJSPart* part = *it;
 
             canRead = std::min(length, part->Length);
             canReadSomething |= (canRead > 0);
@@ -272,14 +269,14 @@ size_t TNodeJSInputStream::Read(void* buffer, size_t length)
             part->Offset += canRead;
             part->Length -= canRead;
 
-            assert(length == 0 || part->Length == 0);
+            YASSERT(length == 0 || part->Length == 0);
 
             ++it;
         }
 
         if (!canReadSomething) {
             if (IsAlive) {
-                CHECK_RETURN_VALUE(pthread_cond_wait(&Conditional, &Mutex));
+                Conditional.WaitI(Mutex);
                 continue;
             } else {
                 return 0;

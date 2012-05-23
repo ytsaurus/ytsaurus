@@ -138,16 +138,12 @@ TFuture<void> TOperationControllerBase::Revive()
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
 {
-    LOG_DEBUG("Job %s is running", ~job->GetId().ToString());
+    UNUSED(job);
 }
 
 void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Job %s completed\n%s",
-        ~job->GetId().ToString(),
-        ~TError::FromProto(job->Result().error()).ToString());
 
     --RunningJobCount;
     ++CompletedJobCount;
@@ -167,10 +163,6 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Job %s failed\n%s",
-        ~job->GetId().ToString(),
-        ~TError::FromProto(job->Result().error()).ToString());
 
     --RunningJobCount;
     ++FailedJobCount;
@@ -563,7 +555,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         {
             // NB: Use table.Path not ypath here, otherwise path suffix is ignored.
             auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path, PrimaryTransaction->GetId()));
-            req->set_fetch_holder_addresses(true);
+            req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
             req->set_negate(table.NegateFetch);
             batchReq->AddRequest(req, "fetch_in");
@@ -622,7 +614,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         auto fetchInRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in");
         auto lockInRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in");
         auto getInSortedRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_sorted");
-        auto getInKeyColumns = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_key_columnns");
+        auto getInKeyColumns = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_key_columns");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
             {
@@ -639,7 +631,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.FetchResponse = rsp;
                 FOREACH (const auto& chunk, rsp->chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    if (chunk.holder_addresses_size() == 0) {
+                    if (chunk.node_addresses_size() == 0) {
                         ythrow yexception() << Sprintf("Chunk %s in input table %s is lost",
                             ~chunkId.ToString(),
                             ~table.Path);

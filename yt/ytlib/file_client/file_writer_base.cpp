@@ -6,6 +6,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/misc/host_name.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
@@ -54,34 +55,39 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
 
 
     LOG_INFO("Creating chunk");
-    yvector<Stroka> holderAddresses;
+    std::vector<Stroka> addresses;
     {
         TObjectServiceProxy objectProxy(MasterChannel);
+
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
         req->set_type(EObjectType::Chunk);
+
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
+        reqExt->set_preferred_host_name(Stroka(GetHostName()));
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Config->ReplicationFactor);
+
         auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
                 ~rsp->GetError().ToString());
         }
+
         ChunkId = TChunkId::FromProto(rsp->object_id());
         const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
-        holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
-        if (holderAddresses.size() < Config->UploadReplicationFactor) {
-            ythrow yexception() << "Not enough holders available";
+        addresses = FromProto<Stroka>(rspExt.node_addresses());
+        if (addresses.size() < Config->UploadReplicationFactor) {
+            ythrow yexception() << "Not enough data nodes available";
         }
     }
-    LOG_INFO("Chunk created (ChunkId: %s, HolderAddresses: [%s])",
+    LOG_INFO("Chunk created (ChunkId: %s, NodeAddresses: [%s])",
         ~ChunkId.ToString(),
-        ~JoinToString(holderAddresses));
+        ~JoinToString(addresses));
 
     Writer = New<TRemoteWriter>(
         ~Config->RemoteWriter,
         ChunkId,
-        holderAddresses);
+        addresses);
     Writer->Open();
 
     IsOpen = true;
@@ -185,7 +191,7 @@ void TFileWriterBase::Close()
         TObjectServiceProxy proxy(MasterChannel);
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = Writer->GetChunkInfo();
-        ToProto(req->mutable_holder_addresses(), Writer->GetHolders());
+        ToProto(req->mutable_node_addresses(), Writer->GetNodeAddresses());
         *req->mutable_chunk_meta() = meta;
 
         auto rsp = proxy.Execute(req).Get();
@@ -208,16 +214,14 @@ void TFileWriterBase::FlushBlock()
 
     LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
     try {
-        std::vector<TSharedRef> blocks;
-        blocks.push_back(Codec->Compress(MoveRV(Buffer)));
-        Sync(~Writer, &TRemoteWriter::AsyncWriteBlocks, blocks);
+        auto compressedBuffer = Codec->Compress(MoveRV(Buffer));
+        Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, compressedBuffer);
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error writing file block\n%s",
             ex.what());
     }
     LOG_INFO("Block written (BlockIndex: %d)", BlockCount);
 
-    // AsyncWriteBlock has likely cleared the buffer by swapping it out, but let's make it sure.
     Buffer.clear();
     ++BlockCount;
 }

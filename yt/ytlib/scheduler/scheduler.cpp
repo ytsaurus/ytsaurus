@@ -358,17 +358,20 @@ private:
         LOG_DEBUG("Registered operation %s", ~operation->GetOperationId().ToString());
     }
 
-    void UnregisterOperation(TOperationPtr operation)
+    void CancelOperationJobs(TOperationPtr operation)
     {
         // Take a copy, the collection will be modified.
         auto jobs = operation->Jobs();
         FOREACH (auto job, jobs) {
             UnregisterJob(job);
         }
+        YASSERT(operation->Jobs().empty());
+    }
+
+    void UnregisterOperation(TOperationPtr operation)
+    {
         YVERIFY(Operations.erase(operation->GetOperationId()) == 1);
         Strategy->OnOperationFinished(operation);
-
-        RemoveOperationNode(operation);
 
         LOG_DEBUG("Unregistered operation %s", ~operation->GetOperationId().ToString());
     }
@@ -686,7 +689,9 @@ private:
                 default:
                     YUNREACHABLE();
             }
+
             UnregisterOperation(operation);
+            RemoveOperationNode(operation);
         }
     }
 
@@ -965,9 +970,7 @@ private:
 
         LOG_INFO("Operation %s completed", ~operation->GetOperationId().ToString());
 
-        FinalizeOperationNode(operation);
-
-        // The operation will remain in this state until it is swept.
+        DoOperationFinished(operation);
     }
     
 
@@ -1005,9 +1008,14 @@ private:
         operation->SetState(EOperationState::Failed);
         *operation->Result().mutable_error() = error.ToProto();
 
-        FinalizeOperationNode(operation);
+        DoOperationFinished(operation);
+    }
 
-        // The operation will remain in this state until it is swept.
+
+    void DoOperationFinished(TOperationPtr operation)
+    {
+        FinalizeOperationNode(operation);
+        CancelOperationJobs(operation);
     }
 
 
@@ -1241,7 +1249,8 @@ private:
 
                     case EJobState::Failed:
                         if (job) {
-                            LOG_INFO("Job failed, removal scheduled");
+                            LOG_INFO("Job failed, removal scheduled\n%s",
+                                ~TError::FromProto(jobStatus.result().error()).ToString());
                             OnJobFailed(job, jobStatus.result());
                         } else {
                             LOG_INFO("Unknown job has failed, removal scheduled");

@@ -409,7 +409,7 @@ protected:
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            IInvoker* invoker,
+            IInvoker::TPtr invoker,
             const NYTree::TYPath& profilingPath);
 
         TMethodDescriptor Descriptor;
@@ -468,7 +468,7 @@ protected:
      *  regarding service activity.
      */
     TServiceBase(
-        IInvoker* defaultInvoker,
+        IInvoker::TPtr defaultInvoker,
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
@@ -478,7 +478,7 @@ protected:
     void RegisterMethod(const TMethodDescriptor& descriptor);
 
     //! Registers a method with a supplied custom invoker.
-    void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker* invoker);
+    void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker::TPtr invoker);
 
 private:
     IInvoker::TPtr DefaultInvoker;

@@ -30,7 +30,7 @@ struct IBusServer
 {
     typedef TIntrusivePtr<IBusServer> TPtr;
 
-    virtual void Start(IMessageHandler* handler) = 0;
+    virtual void Start(IMessageHandler::TPtr handler) = 0;
     virtual void Stop() = 0;
 
     virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;

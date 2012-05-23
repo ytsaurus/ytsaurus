@@ -26,7 +26,7 @@ public:
      *  \return A new bus.
      *
      */
-    virtual IBus::TPtr CreateBus(IMessageHandler* handler) = 0;
+    virtual IBus::TPtr CreateBus(IMessageHandler::TPtr handler) = 0;
 };
 
 

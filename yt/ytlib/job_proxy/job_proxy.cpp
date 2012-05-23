@@ -8,6 +8,7 @@
 #include "sort_job.h"
 #include "partition_job.h"
 
+#include <ytlib/logging/log_manager.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/scheduler/public.h>
 
@@ -15,11 +16,8 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NScheduler;
+using namespace NExecAgent;
 using namespace NScheduler::NProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static NLog::TLogger& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,9 +25,11 @@ TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
     const TJobId& jobId)
     : Config(config)
-    , Proxy(~NRpc::CreateBusChannel(config->ExecAgentAddress))
+    , Proxy(NRpc::CreateBusChannel(config->ExecAgentAddress))
     , JobId(jobId)
+    , Logger(JobProxyLogger)
 {
+    Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
     Proxy.SetDefaultTimeout(config->RpcTimeout);
 }
 
@@ -39,42 +39,50 @@ void TJobProxy::SendHeartbeat()
 
     auto req = Proxy.OnJobProgress();
     *req->mutable_job_id() = JobId.ToProto();
+    req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
-    auto rsp = req->Invoke().Get();
+    LOG_DEBUG("Supervisor heartbeat sent");
+}
 
+void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPtr rsp)
+{
     if (!rsp->IsOK()) {
         // NB: user process is not killed here.
         // Good user processes are supposed to die themselves 
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
-        LOG_ERROR("Failed to report progress for job %s", ~JobId.ToString());
+        LOG_ERROR("Error sending heartbeat to supervisor\n%s",
+            ~rsp->GetError().ToString());
+
+        NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant
         _exit(122);
     }
+
+    LOG_DEBUG("Successfully reported heartbeat to supervisor")
 }
 
 TJobSpec TJobProxy::GetJobSpec()
 {
-    LOG_DEBUG("Requesting spec for job %s", ~JobId.ToString());
+    LOG_INFO("Requesting job spec");
     auto req = Proxy.GetJobSpec();
     *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke().Get();
 
     if (!rsp->IsOK()) {
-        ythrow yexception() << Sprintf("Failed to get job spec (JobId: %s, Error: %s)",
-            ~JobId.ToString(),
+        ythrow yexception() << Sprintf("Failed to get job spec\n%s",
             ~rsp->GetError().ToString());
     }
 
     return rsp->job_spec();
 }
 
-void TJobProxy::Start()
+void TJobProxy::Run()
 {
     HeartbeatInvoker = New<TPeriodicInvoker>(
         TSyncInvoker::Get(),
-        BIND(&TJobProxy::SendHeartbeat, this), 
+        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)), 
         Config->HeartbeatPeriod);
     HeartbeatInvoker->Start();
 
@@ -123,10 +131,7 @@ void TJobProxy::Start()
         ReportResult(result);
 
     } catch (const std::exception& ex) {
-        LOG_DEBUG(
-            "Job failed (JobId: %s, error: %s)", 
-            ~JobId.ToString(),
-            ex.what());
+        LOG_WARNING("Job failed\n%s", ex.what());
 
         TJobResult result;
         result.mutable_error()->set_code(TError::Fail);
@@ -135,18 +140,19 @@ void TJobProxy::Start()
     }
 }
 
-void TJobProxy::ReportResult(
-    const NScheduler::NProto::TJobResult& result)
+void TJobProxy::ReportResult(const NScheduler::NProto::TJobResult& result)
 {
     HeartbeatInvoker->Stop();
 
     auto req = Proxy.OnJobFinished();
-    *(req->mutable_result()) = result;
-    *(req->mutable_job_id()) = JobId.ToProto();
+    *req->mutable_result() = result;
+    *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
-        LOG_ERROR("Failed to report result for job %s", ~JobId.ToString());
+        LOG_ERROR("Failed to report job result");
+
+        NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant
         _exit(123);
     }

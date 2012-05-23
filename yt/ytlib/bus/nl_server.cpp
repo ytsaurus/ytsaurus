@@ -36,7 +36,7 @@ public:
     explicit TNLBusServer(TNLBusServerConfig::TPtr config);
     virtual ~TNLBusServer();
 
-    virtual void Start(IMessageHandler* handler);
+    virtual void Start(IMessageHandler::TPtr handler);
     virtual void Stop();
 
     virtual void GetMonitoringInfo(IYsonConsumer* consumer);
@@ -44,12 +44,9 @@ public:
 
 private:
     class TSession;
-    typedef TIntrusivePtr<TSession> TSessionPtr;
-
-    struct TOutcomingResponse;
-
     friend class TSession;
 
+    typedef TIntrusivePtr<TSession> TSessionPtr;
     typedef yhash_map<TSessionId, TSessionPtr> TSessionMap;
 
     TNLBusServerConfig::TPtr Config;
@@ -65,7 +62,6 @@ private:
     IMessageHandler::TPtr Handler;
     ::TIntrusivePtr<IRequester> Requester;
     TSessionMap SessionMap;
-    TLockFreeQueue<TSessionPtr> SessionsWithPendingResponses;
     TLockFreeQueue<TSessionId> ExpiredSessionIds;
 
     TSpinLock StatisticsLock;
@@ -75,25 +71,19 @@ private:
     static void* ThreadFunc(void* param);
     void ThreadMain();
 
-    Event& GetEvent();
-
     bool ProcessIncomingNLRequests();
-    void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest);
+    void ProcessIncomingNLRequest(TAutoPtr<TUdpHttpRequest> nlRequest);
 
     bool ProcessIncomingNLResponses();
-    void ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse);
-    void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse);
+    void ProcessIncomingNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse);
+    void ProcessFailedNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse);
 
-    void EnqueueOutcomingResponse(TSessionPtr session, TOutcomingResponse* response);
-    bool ProcessOutcomingResponses();
-    void ProcessOutcomingResponse(TSessionPtr session, TOutcomingResponse* response);
-
-    bool ProcessExpiredSessions();
+    void ProcessExpiredSessions();
     void ProcessExpiredSession(TSessionPtr session);
 
-    void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest);
-    void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse);
-    void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse);
+    void ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpRequest> nlRequest);
+    void ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse);
+    void ProcessAck(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse);
 
     TSessionPtr DoProcessMessage(
         TPacketHeader* header,
@@ -116,21 +106,6 @@ IBusServer::TPtr CreateNLBusServer(TNLBusServerConfig::TPtr config)
 {
     return New<TNLBusServer>(config);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TNLBusServer::TOutcomingResponse
-    : public TRefCounted
-{
-    typedef TIntrusivePtr<TOutcomingResponse> TPtr;
-
-    TOutcomingResponse(TBlob* data)
-    {
-        Data.swap(*data);
-    }
-
-    TBlob Data;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,7 +148,7 @@ public:
     }
 
     void EnqueueIncomingMessage(
-        IMessage* message,
+        IMessage::TPtr message,
         const TGuid& requestId,
         TSequenceId sequenceId)
     {
@@ -205,30 +180,25 @@ public:
         auto sequenceId = GenerateSequenceId();
 
         TBlob data;
-        EncodeMessagePacket(~message, SessionId, sequenceId, &data);
-        int dataSize = data.ysize();
+        if (!EncodeMessagePacket(~message, SessionId, sequenceId, &data)) {
+            LOG_FATAL("Failed to encode a message");
+        }
 
-        auto response = New<TOutcomingResponse>(&data);
-        server->EnqueueOutcomingResponse(this, ~response);
+        size_t size = data.size();
+        server->ProfileOut(size);
 
-        LOG_DEBUG("Response enqueued (SessionId: %s, Response: %p, PacketSize: %d)",
+        TGuid requestId = server->Requester->SendRequest(
+            Address,
+            "",
+            &data);
+
+        LOG_DEBUG("Response sent (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Size: %" PRISZT ")",
             ~SessionId.ToString(),
-            ~response,
-            dataSize);
+            ~requestId.ToString(),
+            sequenceId,
+            size);
 
         return TSendResult();
-    }
-
-    void EnqueueResponse(TOutcomingResponse* response)
-    {
-        PendingResponses.Enqueue(response);
-    }
-
-    TOutcomingResponse::TPtr DequeueResponse()
-    {
-        TOutcomingResponse::TPtr response;
-        PendingResponses.Dequeue(&response);
-        return response;
     }
 
     virtual void Terminate()
@@ -247,14 +217,12 @@ private:
     TMessageRearranger::TPtr MessageRearranger;
     TLeaseManager::TLease Lease;
 
-    TLockFreeQueue<TOutcomingResponse::TPtr> PendingResponses;
-
     TSequenceId GenerateSequenceId()
     {
         return AtomicIncrement(SequenceId);
     }
 
-    void OnMessageDequeued(IMessage* message)
+    void OnMessageDequeued(IMessage::TPtr message)
     {
         auto server = Server.Lock();
 
@@ -300,7 +268,7 @@ TNLBusServer::~TNLBusServer()
     Stop();
 }
 
-void TNLBusServer::Start(IMessageHandler* handler)
+void TNLBusServer::Start(IMessageHandler::TPtr handler)
 {
     YASSERT(handler);
     YASSERT(!Started);
@@ -343,23 +311,18 @@ void* TNLBusServer::ThreadFunc(void* param)
     return NULL;
 }
 
-Event& TNLBusServer::GetEvent()
-{
-    return Requester->GetAsyncEvent();
-}
-
 void TNLBusServer::ThreadMain()
 {
     NThread::SetCurrentThreadName("BusServer");
     while (!Stopped) {
+        ProcessExpiredSessions();
+
         // NB: "&", not "&&" since we want every type of processing to happen on each iteration.
         if (!ProcessIncomingNLRequests() &
-            !ProcessIncomingNLResponses() &
-            !ProcessOutcomingResponses() &
-            !ProcessExpiredSessions())
+            !ProcessIncomingNLResponses())
         {
             LOG_TRACE("Server is idle");
-            GetEvent().WaitT(Config->SleepQuantum);
+            Requester->GetAsyncEvent().WaitT(Config->SleepQuantum);
         }
     }
 }
@@ -375,12 +338,12 @@ bool TNLBusServer::ProcessIncomingNLRequests()
             break;
 
         ++callCount;
-        ProcessIncomingNLRequest(~nlRequest);
+        ProcessIncomingNLRequest(nlRequest);
     }
     return callCount > 0;
 }
 
-void TNLBusServer::ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
+void TNLBusServer::ProcessIncomingNLRequest(TAutoPtr<TUdpHttpRequest> nlRequest)
 {
     auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
     if (!header)
@@ -410,12 +373,12 @@ bool TNLBusServer::ProcessIncomingNLResponses()
             break;
 
         ++callCount;
-        ProcessIncomingNLResponse(~nlResponse);
+        ProcessIncomingNLResponse(nlResponse);
     }
     return callCount > 0;
 }
 
-void TNLBusServer::ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
+void TNLBusServer::ProcessIncomingNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse)
 {
     if (nlResponse->Ok != TUdpHttpResponse::OK) {
         ProcessFailedNLResponse(nlResponse);
@@ -442,49 +405,16 @@ void TNLBusServer::ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
     }
 }
 
-void TNLBusServer::ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
+void TNLBusServer::ProcessFailedNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse)
 {
     TGuid requestId = nlResponse->ReqId;
     LOG_DEBUG("Request failed (RequestId: %s)", ~requestId.ToString());
 }
 
-bool TNLBusServer::ProcessOutcomingResponses()
-{
-    LOG_TRACE("Processing outcoming server responses");
-
-    int callCount = 0;
-    while (callCount < Config->MaxNLCallsPerIteration) {
-        TSessionPtr session;
-        if (!SessionsWithPendingResponses.Dequeue(&session)) {
-            break;
-        }
-        auto response = session->DequeueResponse();
-        if (response) {
-            ++callCount;
-            ProcessOutcomingResponse(MoveRV(session), ~response);
-        }
-    }
-    return callCount > 0;
-}
-
-void TNLBusServer::ProcessOutcomingResponse(TSessionPtr session, TOutcomingResponse* response)
-{
-    ProfileOut(response->Data.size());
-    TGuid requestId = Requester->SendRequest(
-        session->GetAddress(),
-        "",
-        &response->Data);
-    LOG_DEBUG("Message sent (IsRequest: 1, SessionId: %s, RequestId: %s, Response: %p)",
-        ~session->GetSessionId().ToString(),
-        ~requestId.ToString(),
-        response);
-}
-
-bool TNLBusServer::ProcessExpiredSessions()
+void TNLBusServer::ProcessExpiredSessions()
 {
     LOG_TRACE("Processing expired sessions");
 
-    bool foundExpiredSessions = false;
     TSessionId sessionId;
     while (ExpiredSessionIds.Dequeue(&sessionId)) {
         auto it = SessionMap.find(sessionId);
@@ -492,9 +422,7 @@ bool TNLBusServer::ProcessExpiredSessions()
             auto session = it->second;
             ProcessExpiredSession(MoveRV(session));
         }
-        foundExpiredSessions = true;
     }
-    return foundExpiredSessions;
 }
 
 void TNLBusServer::ProcessExpiredSession(TSessionPtr session)
@@ -502,7 +430,7 @@ void TNLBusServer::ProcessExpiredSession(TSessionPtr session)
     UnregisterSession(MoveRV(session));
 }
 
-void TNLBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+void TNLBusServer::ProcessAck(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse)
 {
     TGuid requestId = nlResponse->ReqId;
     LOG_DEBUG("Ack received (SessionId: %s, RequestId: %s)",
@@ -510,7 +438,7 @@ void TNLBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlRespons
         ~requestId.ToString());
 }
 
-void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
+void TNLBusServer::ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpRequest> nlRequest)
 {
     TGuid requestId = nlRequest->ReqId;
     auto sessionId = header->SessionId;
@@ -545,7 +473,7 @@ void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequ
     //}
 }
 
-void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+void TNLBusServer::ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse)
 {
     DoProcessMessage(
         header,
@@ -563,9 +491,8 @@ TNLBusServer::TSessionPtr TNLBusServer::DoProcessMessage(
     bool isRequest)
 {
     // Save the size, data will be swapped out soon.
-    int dataSize = static_cast<int>(data.size());
-
-    ProfileIn(dataSize);
+    size_t size = data.size();
+    ProfileIn(size);
 
     IMessage::TPtr message;
     TSequenceId sequenceId;;
@@ -582,11 +509,11 @@ TNLBusServer::TSessionPtr TNLBusServer::DoProcessMessage(
             if (sequenceId == 0) {
                 session = RegisterSession(header->SessionId, address);
             } else {
-                LOG_DEBUG("Request message for broken session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
+                LOG_DEBUG("Request message for broken session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Size: %" PRISZT ")",
                     ~header->SessionId.ToString(),
                     ~requestId.ToString(),
                     sequenceId,
-                    dataSize);
+                    size);
 
                 TBlob errorData;
                 CreatePacket(header->SessionId, TPacketHeader::EType::BrokenSession, &errorData);
@@ -594,34 +521,27 @@ TNLBusServer::TSessionPtr TNLBusServer::DoProcessMessage(
                 return NULL;
             }
         } else {
-            LOG_DEBUG("Response message for unknown session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
+            LOG_DEBUG("Response message for unknown session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Size: %" PRISZT ")",
                 ~header->SessionId.ToString(),
                 ~requestId.ToString(),
                 sequenceId,
-                dataSize);
+                size);
             return NULL;
         }
     } else {
         session = sessionIt->second;
     }
 
-    LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64", PacketSize: %d)",
+    LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64", Size: %" PRISZT ")",
         (int) isRequest,
         ~header->SessionId.ToString(),
         ~requestId.ToString(),
         sequenceId,
-        dataSize);
+        size);
 
     session->EnqueueIncomingMessage(~message, requestId, sequenceId);
 
     return session;
-}
-
-void TNLBusServer::EnqueueOutcomingResponse(TSessionPtr session, TOutcomingResponse* response)
-{
-    session->EnqueueResponse(response);
-    SessionsWithPendingResponses.Enqueue(MoveRV(session));
-    GetEvent().Signal();
 }
 
 TNLBusServer::TSessionPtr TNLBusServer::RegisterSession(
@@ -659,7 +579,6 @@ void TNLBusServer::UnregisterSession(TSessionPtr session)
 void TNLBusServer::OnSessionExpired(TSessionPtr session)
 {
     ExpiredSessionIds.Enqueue(session->GetSessionId());
-    GetEvent().Signal();
 }
 
 void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)

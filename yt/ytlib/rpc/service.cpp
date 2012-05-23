@@ -44,7 +44,7 @@ void IServiceContext::Reply(NBus::IMessage* message)
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
-    IInvoker* invoker,
+    IInvoker::TPtr invoker,
     const NYTree::TYPath& profilingPath)
     : Descriptor(descriptor)
     , Invoker(invoker)
@@ -55,7 +55,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(
-    IInvoker* defaultInvoker,
+    IInvoker::TPtr defaultInvoker,
     const Stroka& serviceName,
     const Stroka& loggingCategory)
     : DefaultInvoker(defaultInvoker)
@@ -200,7 +200,7 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
     RegisterMethod(descriptor, ~DefaultInvoker);
 }
 
-void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker* invoker)
+void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker::TPtr invoker)
 {
     YASSERT(invoker);
 

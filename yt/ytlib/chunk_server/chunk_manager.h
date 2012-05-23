@@ -67,11 +67,16 @@ public:
      */
     DECLARE_SIGNAL(void(const THolder&), HolderUnregistered);
 
-    const THolder* FindHolder(const Stroka& address) const;
-    THolder* FindHolder(const Stroka& address);
+    //! Returns a holder registered at the given address (|NULL| if none).
+    THolder* FindHolderByAddress(const Stroka& address);
+    //! Returns an arbitrary holder registered at the host (|NULL| if none).
+    THolder* FindHolderByHostName(const Stroka& hostName);
+
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
-    yvector<THolder*> AllocateUploadTargets(int replicaCount);
+    std::vector<THolder*> AllocateUploadTargets(
+        int nodeCount,
+        TNullable<Stroka> preferredHostName);
 
     TChunk& CreateChunk();
     TChunkList& CreateChunkList();
@@ -87,17 +92,17 @@ public:
 
     void ScheduleJobs(
         THolder& holder,
-        const yvector<NProto::TJobInfo>& runningJobs,
-        yvector<NProto::TJobStartInfo>* jobsToStart,
-        yvector<NProto::TJobStopInfo>* jobsToStop);
+        const std::vector<NProto::TJobInfo>& runningJobs,
+        std::vector<NProto::TJobStartInfo>* jobsToStart,
+        std::vector<NProto::TJobStopInfo>* jobsToStop);
 
     bool IsJobSchedulerEnabled();
 
-    //! Fills a given protobuf structure with the list of holder addresses.
+    //! Fills a given protobuf structure with the list of data node addresses.
     /*!
      *  Not too nice but seemingly fast.
      */
-    void FillHolderAddresses(
+    void FillNodeAddresses(
         ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
         const TChunk& chunk);
 

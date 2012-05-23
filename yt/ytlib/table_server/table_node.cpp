@@ -4,6 +4,7 @@
 
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/table_client/schema.h>

@@ -342,12 +342,11 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//template <class T>
-//Stroka ToString(const TNullable<T>& nullable)
-//{
-//    return nullable ? ToString(*nullable) : "<NULL>";
-//}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } //namespace NYT
+
+template <class T>
+Stroka ToString(const NYT::TNullable<T>& nullable)
+{
+    return nullable ? ToString(*nullable) : "<Null>";
+}
+

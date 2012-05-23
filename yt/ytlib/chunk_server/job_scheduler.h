@@ -41,9 +41,9 @@ public:
 
     void ScheduleJobs(
         THolder& holder,
-        const yvector<NProto::TJobInfo>& runningJobs,
-        yvector<NProto::TJobStartInfo>* jobsToStart,
-        yvector<NProto::TJobStopInfo>* jobsToStop);
+        const std::vector<NProto::TJobInfo>& runningJobs,
+        std::vector<NProto::TJobStartInfo>* jobsToStart,
+        std::vector<NProto::TJobStopInfo>* jobsToStop);
 
     bool IsEnabled();
 
@@ -82,8 +82,8 @@ private:
 
     void ProcessExistingJobs(
         const THolder& holder,
-        const yvector<NProto::TJobInfo>& runningJobs,
-        yvector<NProto::TJobStopInfo>* jobsToStop,
+        const std::vector<NProto::TJobInfo>& runningJobs,
+        std::vector<NProto::TJobStopInfo>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
 
@@ -98,20 +98,20 @@ private:
     EScheduleFlags ScheduleReplicationJob(
         THolder& sourceHolder,
         const TChunkId& chunkId,
-        yvector<NProto::TJobStartInfo>* jobsToStart);
+        std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         THolder& sourceHolder,
         const TChunkId& chunkId,
-        yvector<NProto::TJobStartInfo>* jobsToStart);
+        std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         THolder& holder,
         const TChunkId& chunkId,
-        yvector<NProto::TJobStartInfo>* jobsToStart);
+        std::vector<NProto::TJobStartInfo>* jobsToStart);
     void ScheduleNewJobs(
         THolder& holder,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
-        yvector<NProto::TJobStartInfo>* jobsToStart);
+        std::vector<NProto::TJobStartInfo>* jobsToStart);
 
     void Refresh(const TChunk& chunk);
     int GetReplicationFactor(const TChunk& chunk);

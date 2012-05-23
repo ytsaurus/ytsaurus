@@ -1,14 +1,13 @@
 #pragma once
 
-#include <ytlib/chunk_holder/chunk.pb.h>
-
-#include <ytlib/chunk_holder/public.h>
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/ref.h>
-#include <ytlib/actions/future.h>
-#include <ytlib/misc/enum.h>
-
 #include <ytlib/misc/error.h>
+
+#include <ytlib/actions/future.h>
+
+#include <ytlib/chunk_holder/public.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 namespace NYT {
 namespace NChunkClient {

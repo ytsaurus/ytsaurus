@@ -32,7 +32,7 @@ TClientRequest::TClientRequest(
     : Path(path)
     , Verb(verb)
     , RequestId(TRequestId::Create())
-    , OneWay_(oneWay)
+    , OneWay(oneWay)
     , Channel(channel)
     , Attributes_(CreateEphemeralAttributes())
 {
@@ -45,7 +45,7 @@ IMessage::TPtr TClientRequest::Serialize() const
     *header.mutable_request_id() = RequestId.ToProto();
     header.set_path(Path);
     header.set_verb(Verb);
-    header.set_one_way(OneWay_);
+    header.set_one_way(OneWay);
     ToProto(header.mutable_attributes(), *Attributes_);
 
     auto bodyData = SerializeBody();
@@ -56,11 +56,9 @@ IMessage::TPtr TClientRequest::Serialize() const
         Attachments_);
 }
 
-void TClientRequest::DoInvoke(
-    IClientResponseHandlerPtr responseHandler,
-    TNullable<TDuration> timeout)
+void TClientRequest::DoInvoke(IClientResponseHandlerPtr responseHandler)
 {
-    Channel->Send(this, responseHandler, timeout);
+    Channel->Send(this, responseHandler, Timeout_);
 }
 
 const Stroka& TClientRequest::GetPath() const
@@ -71,6 +69,11 @@ const Stroka& TClientRequest::GetPath() const
 const Stroka& TClientRequest::GetVerb() const
 {
     return Verb;
+}
+
+bool TClientRequest::IsOneWay() const
+{
+    return OneWay;
 }
 
 const TRequestId& TClientRequest::GetRequestId() const
@@ -113,7 +116,7 @@ void TClientResponseBase::OnError(const TError& error)
         ~error.ToString());
 
     {
-        TGuard<TSpinLock> guard(&SpinLock);
+        TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done) {
             // Ignore the error.
             // Most probably this is a late timeout.
@@ -168,7 +171,7 @@ void TClientResponse::OnAcknowledgement()
 {
     LOG_DEBUG("Request acknowledged (RequestId: %s)", ~RequestId_.ToString());
 
-    TGuard<TSpinLock> guard(&SpinLock);
+    TGuard<TSpinLock> guard(SpinLock);
     if (State == EState::Sent) {
         State = EState::Ack;
     }
@@ -179,7 +182,7 @@ void TClientResponse::OnResponse(IMessage* message)
     LOG_DEBUG("Response received (RequestId: %s)", ~RequestId_.ToString());
 
     {
-        TGuard<TSpinLock> guard(&SpinLock);
+        TGuard<TSpinLock> guard(SpinLock);
         YASSERT(State == EState::Sent || State == EState::Ack);
         State = EState::Done;
     }
@@ -210,7 +213,7 @@ void TOneWayClientResponse::OnAcknowledgement()
     LOG_DEBUG("Request acknowledged (RequestId: %s)", ~RequestId_.ToString());
 
     {
-        TGuard<TSpinLock> guard(&SpinLock);
+        TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done) {
             // Ignore the ack.
             return;

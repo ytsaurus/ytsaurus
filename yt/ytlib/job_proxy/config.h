@@ -59,13 +59,19 @@ struct TJobProxyConfig
 
     TJobProxyConfig()
     {
-        Register("exec_agent_address", ExecAgentAddress).NonEmpty();
-        Register("sandbox_name", SandboxName).NonEmpty();
+        Register("exec_agent_address", ExecAgentAddress)
+            .NonEmpty();
+        Register("sandbox_name", SandboxName)
+            .NonEmpty();
         Register("masters", Masters);
-        Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
-        Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));
-        Register("job_io", JobIO).DefaultNew();
-        Register("logging", Logging).Default(NULL);
+        Register("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
+        Register("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(5));
+        Register("job_io", JobIO)
+            .DefaultNew();
+        Register("logging", Logging)
+            .Default();
     }
 };
 

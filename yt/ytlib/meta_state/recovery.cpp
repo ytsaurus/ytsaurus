@@ -37,8 +37,8 @@ TRecovery::TRecovery(
     TSnapshotStore* snapshotStore,
     const TEpoch& epoch,
     TPeerId leaderId,
-    IInvoker* epochControlInvoker,
-    IInvoker* epochStateInvoker)
+    IInvoker::TPtr epochControlInvoker,
+    IInvoker::TPtr epochStateInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)
@@ -345,8 +345,8 @@ TLeaderRecovery::TLeaderRecovery(
     TChangeLogCache* changeLogCache,
     TSnapshotStore* snapshotStore,
     const TEpoch& epoch,
-    IInvoker* epochControlInvoker,
-    IInvoker* epochStateInvoker)
+    IInvoker::TPtr epochControlInvoker,
+    IInvoker::TPtr epochStateInvoker)
     : TRecovery(
         config,
         cellManager,
@@ -392,8 +392,8 @@ TFollowerRecovery::TFollowerRecovery(
     TSnapshotStore* snapshotStore,
     const TEpoch& epoch,
     TPeerId leaderId,
-    IInvoker* epochControlInvoker,
-    IInvoker* epochStateInvoker,
+    IInvoker::TPtr epochControlInvoker,
+    IInvoker::TPtr epochStateInvoker,
     const TMetaVersion& targetVersion)
     : TRecovery(
         config,

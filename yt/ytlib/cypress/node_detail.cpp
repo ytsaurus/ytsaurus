@@ -44,6 +44,7 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNod
     : TObjectBase(other)
     , ParentId_(other.ParentId_)
     , LockMode_(other.LockMode_)
+    , CreationTime_(other.CreationTime_)
     , Id(id)
 { }
 
@@ -86,6 +87,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     SaveObjectRefs(output, Locks_);
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
+//    ::Save(output, CreationTime_);
 }
 
 void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
@@ -95,6 +97,7 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRefs(input, Locks_, context);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
+//    ::Load(input, CreationTime_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

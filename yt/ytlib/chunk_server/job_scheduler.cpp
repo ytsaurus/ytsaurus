@@ -12,6 +12,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/profiling/profiler.h>
 #include <ytlib/profiling/timing.h>
 
@@ -50,9 +51,9 @@ TJobScheduler::TJobScheduler(
 
 void TJobScheduler::ScheduleJobs(
     THolder& holder,
-    const yvector<TJobInfo>& runningJobs,
-    yvector<TJobStartInfo>* jobsToStart,
-    yvector<TJobStopInfo>* jobsToStop)
+    const std::vector<TJobInfo>& runningJobs,
+    std::vector<TJobStartInfo>* jobsToStart,
+    std::vector<TJobStopInfo>* jobsToStop)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -101,8 +102,8 @@ void TJobScheduler::ScheduleChunkRemoval(const THolder& holder, const TChunkId& 
 
 void TJobScheduler::ProcessExistingJobs(
     const THolder& holder,
-    const yvector<TJobInfo>& runningJobs,
-    yvector<TJobStopInfo>* jobsToStop,
+    const std::vector<TJobInfo>& runningJobs,
+    std::vector<TJobStopInfo>* jobsToStop,
     int* replicationJobCount,
     int* removalJobCount)
 {
@@ -201,7 +202,7 @@ bool TJobScheduler::IsRefreshScheduled(const TChunkId& chunkId)
 TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
     THolder& sourceHolder,
     const TChunkId& chunkId,
-    yvector<TJobStartInfo>* jobsToStart)
+    std::vector<TJobStartInfo>* jobsToStart)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto* chunk = chunkManager->FindChunk(chunkId);
@@ -245,7 +246,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
         return EScheduleFlags::None;
     }
 
-    yvector<Stroka> targetAddresses;
+    std::vector<Stroka> targetAddresses;
     FOREACH (auto holder, targets) {
         targetAddresses.push_back(holder->GetAddress());
         ChunkPlacement->OnSessionHinted(*holder);
@@ -267,7 +268,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
         ~JoinToString(targetAddresses));
 
     return
-        targetAddresses.ysize() == replicasNeeded
+        targetAddresses.size() == replicasNeeded
         // TODO: flagged enums
         ? (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled)
         : (EScheduleFlags) EScheduleFlags::Scheduled;
@@ -276,7 +277,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
 TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
     THolder& sourceHolder,
     const TChunkId& chunkId,
-    yvector<TJobStartInfo>* jobsToStart)
+    std::vector<TJobStartInfo>* jobsToStart)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunk = &chunkManager->GetChunk(chunkId);
@@ -321,7 +322,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
 TJobScheduler::EScheduleFlags TJobScheduler::ScheduleRemovalJob(
     THolder& holder,
     const TChunkId& chunkId,
-    yvector<TJobStartInfo>* jobsToStart)
+    std::vector<TJobStartInfo>* jobsToStart)
 {
     if (IsRefreshScheduled(chunkId)) {
         LOG_DEBUG("Chunk %s we're about to remove is scheduled for another refresh",
@@ -354,7 +355,7 @@ void TJobScheduler::ScheduleNewJobs(
     THolder& holder,
     int maxReplicationJobsToStart,
     int maxRemovalJobsToStart,
-    yvector<TJobStartInfo>* jobsToStart)
+    std::vector<TJobStartInfo>* jobsToStart)
 {
     auto* holderInfo = FindHolderInfo(holder.GetId());
     if (!holderInfo)
@@ -542,7 +543,7 @@ void TJobScheduler::Refresh(const TChunk& chunk)
             holderInfo.ChunksToRemove.insert(chunk.GetId());
         }
 
-        yvector<Stroka> holderAddresses;
+        std::vector<Stroka> holderAddresses;
         FOREACH (auto holder, holders) {
             holderAddresses.push_back(holder->GetAddress());
         }

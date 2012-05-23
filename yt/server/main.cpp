@@ -1,8 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
-#include <ytlib/rpc/rpc_manager.h>
+#include <ytlib/bus/nl_client.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
@@ -145,7 +144,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(~configNode, false);
+            config->Load(configNode, false);
 
             // Override RPC port.
             // TODO(babenko): enable overriding arbitrary options from the command line
@@ -173,7 +172,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(~configNode, false);
+            config->Load(configNode, false);
 
             // Override RPC port.
             if (port >= 0) {
@@ -200,7 +199,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(~configNode);
+            config->Load(configNode);
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing cell scheduler configuration\n%s",
                 ex.what());
@@ -218,27 +217,25 @@ EExitCode GuardedMain(int argc, const char* argv[])
             return EExitCode::OK;
         }
 
-        NJobProxy::TJobId jobId;
+        TJobId jobId;
         try {
             jobId = TGuid::FromString(parser.JobId.getValue());
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Invalid job-id value: %s",
+            ythrow yexception() << Sprintf("Error parsing job id\n%s",
                 ex.what());
-            return EExitCode::OptionsError;
         }
 
         try {
-            config->Load(~configNode);
+            config->Load(configNode);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing job-proxy configuration\n%s",
+            ythrow yexception() << Sprintf("Error parsing job proxy configuration\n%s",
                 ex.what());
         }
 
-        TJobProxy jobProxy(~config, jobId);
-        jobProxy.Start();
+        auto jobProxy = New<TJobProxy>(config, jobId);
+        jobProxy->Run();
     }
 
-    // Actually this will never happen.
     return EExitCode::OK;
 }
 
@@ -267,7 +264,7 @@ int Main(int argc, const char* argv[])
     // TODO: refactor system shutdown
     NMetaState::TAsyncChangeLog::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
-    NRpc::TRpcManager::Get()->Shutdown();
+    NBus::TNLClientManager::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 

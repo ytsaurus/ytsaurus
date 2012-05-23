@@ -163,9 +163,9 @@ public:
             tags.push_back(GetProtoExtensionTag<NProto::TKeyColumnsExt>());
         }
 
-        AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(BIND(
-            &TRegularInitializer::OnGotMeta, 
-            MakeStrong(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
+        AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(
+            BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
+            .Via(ReaderThread->GetInvoker()));
     }
 
 private:
@@ -614,7 +614,7 @@ public:
 
         std::vector<int> blockIndexSequence;
         {
-            i64 rowCount;
+            i64 rowCount = 0;
             for (int i = 0; i < channelsExt->items(0).blocks_size(); ++i) {
                 const auto& blockInfo = channelsExt->items(0).blocks(i);
                 if (chunkReader->PartitionTag == blockInfo.partition_tag()) {

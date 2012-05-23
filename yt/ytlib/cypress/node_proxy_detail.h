@@ -157,6 +157,7 @@ protected:
         attributes->push_back("lock_ids");
         attributes->push_back(TAttributeInfo("lock_mode", Transaction));
         attributes->push_back(TAttributeInfo("path", true, true));
+        attributes->push_back("creation_time");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -192,6 +193,12 @@ protected:
             auto path = Bootstrap->GetCypressManager()->GetNodePath(this);
             BuildYsonFluently(consumer)
                 .Scalar(path);
+            return true;
+        }
+
+        if (name == "creation_time") {
+            BuildYsonFluently(consumer)
+                .Scalar(node.GetCreationTime().ToString());
             return true;
         }
 

@@ -31,7 +31,7 @@ class TChannel
     , public IMessageHandler
 {
 public:
-    TChannel(IBusClient* client, TNullable<TDuration> defaultTimeout)
+    TChannel(IBusClient::TPtr client, TNullable<TDuration> defaultTimeout)
         : DefaultTimeout(defaultTimeout)
         , Terminated(false)
     {
@@ -64,10 +64,7 @@ public:
 
         if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
-                BIND(
-                    &TChannel::OnTimeout,
-                    MakeStrong(this),
-                    requestId),
+                BIND(&TChannel::OnTimeout, MakeStrong(this), requestId),
                 timeout.Get());
         }
 
@@ -87,10 +84,11 @@ public:
             MakeStrong(this),
             requestId));
     
-        LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s)",
+        LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
             ~requestId.ToString(),
             ~request->GetPath(),
-            ~request->GetVerb());
+            ~request->GetVerb(),
+            ~ToString(timeout));
     }
 
     virtual void Terminate()
@@ -131,8 +129,7 @@ private:
     //! Protects #ActiveRequests and #Terminated.
     TSpinLock SpinLock;
 
-    // TODO(babenko): make const&
-    void OnAcknowledgement(TRequestId requestId, ESendResult sendResult)
+    void OnAcknowledgement(const TRequestId& requestId, ESendResult sendResult)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -162,6 +159,10 @@ private:
                 EErrorCode::TransportError,
                 "Unable to deliver the message"));
         } else {
+            if (activeRequest.ClientRequest->IsOneWay()) {
+                CompleteRequest(it);
+            }
+
             // Don't need the guard anymore.
             guard.Release();
 
@@ -211,8 +212,7 @@ private:
     }
 
 
-    // TODO(babenko): make const&
-    void OnTimeout(TRequestId requestId)
+    void OnTimeout(const TRequestId& requestId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -252,7 +252,7 @@ private:
 };          
 
 IChannelPtr CreateBusChannel(
-    IBusClient* client,
+    IBusClient::TPtr client,
     TNullable<TDuration> defaultTimeout)
 {
     YASSERT(client);
@@ -265,7 +265,7 @@ IChannelPtr CreateBusChannel(
     TNullable<TDuration> defaultTimeout)
 {
     return CreateBusChannel(
-        ~CreateNLBusClient(~New<TNLBusClientConfig>(address)),
+        CreateNLBusClient(New<TNLBusClientConfig>(address)),
         defaultTimeout);
 }
 

@@ -109,15 +109,15 @@ struct TRemoteWriterConfig
         
     //! RPC requests timeout.
     /*!
-        *  This timeout is especially useful for PutBlocks calls to ensure that
-        *  uploading is not stalled.
-        */
+     *  This timeout is especially useful for PutBlocks calls to ensure that
+     *  uploading is not stalled.
+     */
     TDuration HolderRpcTimeout;
 
     //! Maximum allowed period of time without RPC requests to holders.
     /*!
-        *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
-        */
+     *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
+     */
     TDuration SessionPingInterval;
 
     TRemoteWriterConfig()

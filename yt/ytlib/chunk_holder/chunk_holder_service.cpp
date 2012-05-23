@@ -15,6 +15,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/lazy_ptr.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/key.h>
@@ -38,7 +39,7 @@ TChunkHolderService::TChunkHolderService(
     TChunkHolderConfigPtr config,
     TBootstrap* bootstrap)
     : NRpc::TServiceBase(
-        ~bootstrap->GetControlInvoker(),
+        bootstrap->GetControlInvoker(),
         TProxy::GetServiceName(),
         ChunkHolderLogger.GetCategory())
     , Config(config)
@@ -81,7 +82,7 @@ TSessionPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
     auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
     if (!session) {
         ythrow TServiceException(EErrorCode::NoSuchSession) <<
-            Sprintf("Session %s is invalid or expired", ~chunkId.ToString());
+            Sprintf("Chunk upload session %s is invalid or expired", ~chunkId.ToString());
     }
     return session;
 }
@@ -140,7 +141,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
 
     Bootstrap
         ->GetSessionManager()
-        ->FinishSession(~session, meta)
+        ->FinishSession(session, meta)
         .Subscribe(BIND([=] (TChunkPtr chunk) {
             auto chunkInfo = session->GetChunkInfo();
             *response->mutable_chunk_info() = chunkInfo;
@@ -166,8 +167,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
     FOREACH (const auto& attachment, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
-        auto data = attachment.ToBlob();
-        session->PutBlock(blockIndex, MoveRV(data));
+        // TODO(babenko): switched off for now
+//        auto data = attachment.ToBlob();
+        auto data = attachment;
+        session->PutBlock(blockIndex, data);
         ++blockIndex;
     }
     
@@ -193,8 +196,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
 
     auto startBlock = session->GetBlock(startBlockIndex);
 
-    TProxy proxy(~ChannelCache.GetChannel(address));
-    auto putRequest = proxy.PutBlocks();
+    TProxy proxy(ChannelCache.GetChannel(address));
+    auto putRequest = proxy.PutBlocks()
+        ->SetTimeout(Config->HolderRpcTimeout);
     *putRequest->mutable_chunk_id() = chunkId.ToProto();
     putRequest->set_start_block_index(startBlockIndex);
     
@@ -231,7 +235,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     response->Attachments().resize(blockCount);
 
     // NB: All callbacks should be handled in the control thread.
-    auto awaiter = New<TParallelAwaiter>(~Bootstrap->GetControlInvoker());
+    auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
 
     auto peerBlockTable = Bootstrap->GetPeerBlockTable();
     for (int index = 0; index < blockCount; ++index) {
@@ -411,6 +415,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
         request->key_columns_size(),
         request->chunk_ids_size());
 
+    // TODO(babenko): consider using separate thread
     auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     auto chunkIds = FromProto<TChunkId>(request->chunk_ids());

@@ -1,10 +1,11 @@
 #pragma once
 
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include "public.h"
 
-#include <ytlib/misc/common.h>
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/error.h>
+
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -28,11 +29,15 @@ struct IAsyncWriter
     /*!
      *  Subsequent calls to #AsyncWriteBlock or #AsyncClose are
      *  prohibited until the returned result is set.
+     *  
      *  If the result indicates some error then the whole upload session is failed.
      *  (e.g. all chunk-holders are down).
-     *  The client shouldn't retry writing the same block again.
+     *  The client must not retry and send the same block again.
      */
-    virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks) = 0;
+    virtual TAsyncError AsyncWriteBlock(const TSharedRef& block) = 0;
+    
+    //! A batched version of #AsyncWriteBlock.
+    TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
     //! Called when the client has added all blocks and is 
     //! willing to finalize the upload.

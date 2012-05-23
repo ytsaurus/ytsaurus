@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
-#include <ytlib/misc/enum.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/cypress/public.h>
@@ -13,22 +12,10 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/object_server/object_manager.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/chunk_server/chunk_manager.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/chunk_server/holder_authority.h>
+#include <ytlib/chunk_server/public.h>
 
 namespace NYT {
 namespace NCellMaster {
-
-////////////////////////////////////////////////////////////////////////////////
-
-const int StateThreadQueueCount = 2;
-
-DECLARE_ENUM(EStateThreadQueue,
-    (Default)
-    (ChunkRefresh)
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 

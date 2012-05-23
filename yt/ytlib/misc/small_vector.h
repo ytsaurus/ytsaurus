@@ -665,8 +665,7 @@ class TSmallVector : public SmallVectorImpl<T> {
     // NumInlineEltsElts - The number of elements actually in this array.  There
     // is already one in the parent class, and we have to round up to avoid
     // having a zero-element array.
-    //NumInlineEltsElts = MinUs > 1 ? (MinUs - 1) : 1,
-    NumInlineEltsElts = MinUs,
+    NumInlineEltsElts = MinUs > 1 ? (MinUs - 1) : 1,
 
     // NumTsAvailable - The number of T's we actually have space for, which may
     // be more than N due to rounding.

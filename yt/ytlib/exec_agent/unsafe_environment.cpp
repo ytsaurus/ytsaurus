@@ -125,7 +125,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         
-        LOG_INFO("Killing job\n%s", ~error.ToString());
+        LOG_INFO("Unsafe environment: killing job\n%s", ~error.ToString());
 
         SetError(error);
 
@@ -188,14 +188,14 @@ private:
             }
             YASSERT(result == ProcessId);
         }
-        
-        LOG_INFO("Job proxy finished");
 
         auto statusError = StatusToError(status);
         auto wrappedError = statusError.IsOK()
             ? TError()
             : TError(statusError.GetCode(), "Job proxy failed\n%s", ~statusError.GetMessage());
         SetError(wrappedError);
+
+        LOG_INFO("Job proxy finished with status: %s", ~wrappedError.ToString());
 
         {
             // Kill process group for sanity reasons.

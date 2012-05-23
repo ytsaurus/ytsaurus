@@ -57,6 +57,9 @@ struct ICypressNode
     //! Gets an mutable reference to the node's locks.
     virtual yhash_set<TLock*>& Locks() = 0;
 
+    virtual TInstant GetCreationTime() const = 0;
+    virtual void SetCreationTime(TInstant value) = 0;
+
     //! Increments the reference counter, returns the incremented value.
     virtual i32 RefObject() = 0;
     //! Decrements the reference counter, returns the decremented value.

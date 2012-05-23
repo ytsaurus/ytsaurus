@@ -53,6 +53,20 @@ namespace NYT {
     ::std::terminate()
 #endif
 
+
+// TODO(panin): extract common part from YASSERT and YCHECK
+//! Do the same as YASSERT but both in release and debug mode
+#define YCHECK( a ) \
+    do { \
+        try { \
+            if ( EXPECT_FALSE( !(a) ) ) { \
+                if (YaIsDebuggerPresent()) __debugbreak(); else assert(0&&(a)); \
+            } \
+        } catch (...) { \
+            if (YaIsDebuggerPresent()) __debugbreak(); else assert(false && "Exception during assert"); \
+        } \
+    } while (0)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

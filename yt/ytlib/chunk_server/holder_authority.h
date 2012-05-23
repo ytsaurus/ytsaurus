@@ -15,7 +15,6 @@ struct IHolderAuthority
     virtual bool IsHolderAuthorized(const Stroka& address) = 0;
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

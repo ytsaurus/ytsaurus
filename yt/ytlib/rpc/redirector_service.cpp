@@ -20,10 +20,12 @@ class TRedirectorService::TRequest
 public:
     TRequest(
         IMessage::TPtr message,
+        bool oneWay,
         const TRequestId& requestId,
         const Stroka& path,
         const Stroka& verb)
         : Message(message)
+        , OneWay(oneWay)
         , RequestId(requestId)
         , Path(path)
         , Verb(verb)
@@ -32,6 +34,11 @@ public:
     virtual IMessage::TPtr Serialize() const
     {
         return Message;
+    }
+
+    virtual bool IsOneWay() const
+    {
+        return OneWay;
     }
 
     virtual const TRequestId& GetRequestId() const
@@ -60,10 +67,11 @@ public:
     }
 
 private:
+    IMessage::TPtr Message;
+    bool OneWay;
     TRequestId RequestId;
     Stroka Path;
     Stroka Verb;
-    IMessage::TPtr Message;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,21 +126,19 @@ void TRedirectorService::OnBeginRequest(IServiceContextPtr context)
 
             context->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
                 ~params.Address,
-                // TODO(babenko): get rid of this once ToString works for TNullable
-                params.Timeout
-                ? ~ToString(params.Timeout.Get().MilliSeconds())
-                : "None"));
+                ~ToString(params.Timeout)));
 
             auto channel = ChannelCache.GetChannel(params.Address);
 
             auto request = New<TRequest>(
                 context->GetRequestMessage(),
+                context->IsOneWay(),
                 context->GetRequestId(),
                 context->GetPath(),
                 context->GetVerb());
 
-            auto responseHandler = New<TResponseHandler>(~context);
-            channel->Send(~request, ~responseHandler, params.Timeout);
+            auto responseHandler = New<TResponseHandler>(context);
+            channel->Send(request, responseHandler, params.Timeout);
         }));
 }
 

@@ -20,8 +20,8 @@ static NLog::TLogger& Logger(OrchidLogger);
 ////////////////////////////////////////////////////////////////////////////////
 
 TOrchidService::TOrchidService(
-    NYTree::INode* root,
-    IInvoker* invoker)
+    NYTree::INodePtr root,
+    IInvoker::TPtr invoker)
     : NRpc::TServiceBase(
         invoker,
         TOrchidServiceProxy::GetServiceName(),

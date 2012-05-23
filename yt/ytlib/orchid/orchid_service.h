@@ -19,8 +19,8 @@ public:
 
     //! Creates an instance.
     TOrchidService(
-        NYTree::INode* root,
-        IInvoker* invoker);
+        NYTree::INodePtr root,
+        IInvoker::TPtr invoker);
 
 private:
     typedef TOrchidService TThis;

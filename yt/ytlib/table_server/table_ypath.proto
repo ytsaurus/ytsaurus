@@ -20,7 +20,7 @@ message TRspGetChunkListForUpdate
 // Returns info describing a given portion of table.
 message TReqFetch
 {
-    optional bool fetch_holder_addresses = 1 [default = false];
+    optional bool fetch_node_addresses = 1 [default = false];
     optional bool fetch_all_meta_extensions = 2 [default = false];
 
     // Not yet supported.

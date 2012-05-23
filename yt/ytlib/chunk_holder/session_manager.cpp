@@ -123,7 +123,7 @@ TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
             WindowStart);
     }
 
-    LOG_DEBUG("Chunk block %d is retrieved", blockIndex);
+    LOG_DEBUG("Chunk block %d retrieved", blockIndex);
 
     return slot.Block;
 }
@@ -143,15 +143,17 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        if (TRef::CompareContent(slot.Block->GetData(), data)) {
-            LOG_WARNING("Block %d is already received", blockIndex);
-            return;
-        }
+        return;
+        // TODO(babenko): switched off for now
+        //if (TRef::CompareContent(slot.Block->GetData(), data)) {
+        //    LOG_WARNING("Block %d is already received", blockIndex);
+        //    return;
+        //}
 
-        ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
-            Sprintf("Block %d with a different content already received (WindowStart: %d)",
-                blockIndex,
-                WindowStart);
+        //ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
+        //    Sprintf("Block %d with a different content already received (WindowStart: %d)",
+        //        blockIndex,
+        //        WindowStart);
     }
 
     slot.State = ESlotState::Received;
@@ -160,7 +162,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
     Location->UpdateUsedSpace(data.Size());
     Size += data.Size();
 
-    LOG_DEBUG("Chunk block %d is received", blockIndex);
+    LOG_DEBUG("Chunk block %d received", blockIndex);
 
     EnqueueWrites();
 }
@@ -197,16 +199,14 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
         blockIndex);
 
     try {
-        std::vector<TSharedRef> blocks;
-        blocks.push_back(block->GetData());
-        Sync(~Writer, &TFileWriter::AsyncWriteBlocks, blocks);
+        Sync(~Writer, &TFileWriter::AsyncWriteBlock, block->GetData());
     } catch (const std::exception& ex) {
         LOG_FATAL("Error writing chunk block %d\n%s",
             blockIndex,
             ex.what());
     }
 
-    LOG_DEBUG("Chunk block %d is written", blockIndex);
+    LOG_DEBUG("Chunk block %d written", blockIndex);
 
     return TVoid();
 }
@@ -264,8 +264,8 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
         }
     }
 
-    return CloseFile(chunkMeta)
-        .Apply(BIND(&TSession::OnFileClosed, MakeStrong(this))
+    return CloseFile(chunkMeta).Apply(
+        BIND(&TSession::OnFileClosed, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
@@ -280,10 +280,7 @@ void TSession::Cancel(const TError& error)
 TFuture<TVoid> TSession::DeleteFile(const TError& error)
 {
     return
-        BIND(
-            &TSession::DoDeleteFile,
-            MakeStrong(this),
-            error)
+        BIND(&TSession::DoDeleteFile, MakeStrong(this), error)
         .AsyncVia(GetIOInvoker())
         .Run();
 }
@@ -307,10 +304,7 @@ TVoid TSession::OnFileDeleted(TVoid)
 TFuture<TVoid> TSession::CloseFile(const TChunkMeta& chunkMeta)
 {
     return
-        BIND(
-            &TSession::DoCloseFile,
-            MakeStrong(this),
-            chunkMeta)
+        BIND(&TSession::DoCloseFile,MakeStrong(this), chunkMeta)
         .AsyncVia(GetIOInvoker())
         .Run();
 }

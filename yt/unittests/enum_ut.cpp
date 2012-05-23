@@ -1,10 +1,10 @@
 #include "stdafx.h"
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/enum.h>
 
 #include <util/stream/buffer.h>
 #include <util/ysaveload.h>
+
 #include <contrib/testing/framework.h>
 
 namespace NYT {
@@ -158,6 +158,12 @@ TEST(TEnumTest, SaveAndLoad)
 
     EXPECT_EQ(first, third);
     EXPECT_EQ(second, fourth);
+}
+
+TEST(TEnumTest, DomainSize)
+{
+    EXPECT_EQ(3, ESimple::GetDomainSize());
+    EXPECT_EQ(5, EColor::GetDomainSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

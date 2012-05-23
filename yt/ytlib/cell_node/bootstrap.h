@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/invoker.h>
-//#include <ytlib/misc/guid.h>
+#include <ytlib/actions/action_queue.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>
 #include <ytlib/rpc/public.h>
@@ -27,7 +26,7 @@ public:
 
     TCellNodeConfigPtr GetConfig() const;
     NChunkServer::TIncarnationId GetIncarnationId() const;
-    IInvoker::TPtr GetControlInvoker() const;
+    IInvoker::TPtr GetControlInvoker(EControlThreadQueue queueIndex = EControlThreadQueue::Default) const;
     NBus::IBusServer::TPtr GetBusServer() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
@@ -45,7 +44,7 @@ private:
     TCellNodeConfigPtr Config;
     
     NChunkServer::TIncarnationId IncarnationId;
-    IInvoker::TPtr ControlInvoker;
+    TMultiActionQueuePtr ControlQueue;
     NBus::IBusServer::TPtr BusServer;
     NRpc::IServerPtr RpcServer;
     NRpc::IChannelPtr MasterChannel;

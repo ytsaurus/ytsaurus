@@ -45,6 +45,11 @@ struct TSchedulerConfig
     //! Maximum amount of (uncompressed) data to be given to a single sort job.
     i64 MaxSortJobDataSize;
 
+    NJobProxy::TJobIOConfigPtr MapJobIO;
+    NJobProxy::TJobIOConfigPtr MergeJobIO;
+    NJobProxy::TJobIOConfigPtr PartitionJobIO;
+    NJobProxy::TJobIOConfigPtr SortJobIO;
+
     TSchedulerConfig()
     {
         Register("startup_retry_period", StartupRetryPeriod)
@@ -60,7 +65,7 @@ struct TSchedulerConfig
         Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));
         Register("failed_jobs_limit", FailedJobsLimit)
-            .Default(10)
+            .Default(100)
             .GreaterThanOrEqual(0);
         Register("spare_chunk_list_count", SpareChunkListCount)
             .Default(5)
@@ -74,6 +79,10 @@ struct TSchedulerConfig
         Register("max_sort_job_data_size", MaxSortJobDataSize)
             .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("map_job_io", MapJobIO).DefaultNew();
+        Register("merge_job_io", MergeJobIO).DefaultNew();
+        Register("partition_job_io", PartitionJobIO).DefaultNew();
+        Register("sort_job_io", SortJobIO).DefaultNew();
     }
 };
 
@@ -83,7 +92,6 @@ struct TOperationSpecBase
     : public TConfigurable
 {
     TNullable<int> JobCount;
-    NJobProxy::TJobIOConfigPtr JobIO;
 
     TOperationSpecBase()
     {
@@ -91,8 +99,6 @@ struct TOperationSpecBase
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
-        Register("job_io", JobIO)
-            .DefaultNew();
     }
 };
 

@@ -22,6 +22,7 @@ TSchedulerConnector::TSchedulerConnector(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , ControlInvoker(bootstrap->GetControlInvoker(NCellNode::EControlThreadQueue::Heartbeat))
     , Proxy(bootstrap->GetSchedulerChannel())
 {
     YASSERT(config);
@@ -31,7 +32,7 @@ TSchedulerConnector::TSchedulerConnector(
 void TSchedulerConnector::Start()
 {
     HeartbeatInvoker = New<TPeriodicInvoker>(
-        Bootstrap->GetControlInvoker(),
+        ControlInvoker,
         BIND(&TThis::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod,
         Config->HeartbeatSplay);
@@ -54,13 +55,14 @@ void TSchedulerConnector::SendHeartbeat()
         jobStatus->set_state(state);
         jobStatus->set_progress(job->GetProgress());
         if (state == EJobState::Completed || state == EJobState::Failed) {
-            *jobStatus->mutable_result() = job->GetResult();
+            auto& jobResult = job->GetResult();
+            *jobStatus->mutable_result() = jobResult;
         }
     }
 
     req->Invoke().Subscribe(
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
-        .Via(Bootstrap->GetControlInvoker()));
+        .Via(ControlInvoker));
 
     LOG_INFO("Scheduler heartbeat sent (JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d)",
         req->jobs_size(),

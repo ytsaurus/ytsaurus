@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "config.h"
 
+#include <ytlib/misc/host_name.h>
 #include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/actions/action_queue.h>
@@ -37,8 +38,6 @@
 #include <ytlib/exec_agent/bootstrap.h>
 #include <ytlib/exec_agent/config.h>
 
-#include <util/system/hostname.h>
-
 namespace NYT {
 namespace NCellNode {
 
@@ -70,7 +69,7 @@ TBootstrap::~TBootstrap()
 void TBootstrap::Run()
 {
     IncarnationId = TIncarnationId::Create();
-    PeerAddress = Sprintf("%s:%d", GetHostName(), Config->RpcPort);
+    PeerAddress = BuildServiceAddress(GetHostName(), Config->RpcPort);
 
     LOG_INFO("Starting node (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
         ~IncarnationId.ToString(),
@@ -82,12 +81,11 @@ void TBootstrap::Run()
     // TODO(babenko): for now we use the same timeout both for masters and scheduler
     SchedulerChannel = CreateSchedulerChannel(Config->Masters->RpcTimeout, MasterChannel);
 
-    auto controlQueue = New<TActionQueue>("Control");
-    ControlInvoker = controlQueue->GetInvoker();
+    ControlQueue = New<TMultiActionQueue>(EControlThreadQueue::GetDomainSize(), "Control");
 
-    BusServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
+    BusServer = CreateNLBusServer(New<TNLBusServerConfig>(Config->RpcPort));
 
-    RpcServer = CreateRpcServer(~BusServer);
+    RpcServer = CreateRpcServer(BusServer);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -100,29 +98,29 @@ void TBootstrap::Run()
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SyncYPathSetNode(
-        ~OrchidRoot,
+        OrchidRoot,
         "/monitoring",
         ~NYTree::CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
-        ~OrchidRoot,
+        OrchidRoot,
         "/profiling",
         ~CreateVirtualNode(
-            ~TProfilingManager::Get()->GetRoot()
+            TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
-        ~OrchidRoot,
+        OrchidRoot,
         "/config",
         ~NYTree::CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(
-        ~OrchidRoot,
-        controlQueue->GetInvoker());
-    RpcServer->RegisterService(~orchidService);
+        OrchidRoot,
+        GetControlInvoker());
+    RpcServer->RegisterService(orchidService);
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(controlQueue->GetInvoker())));
+        NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
     ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->ChunkHolder, this));
     ChunkHolderBootstrap->Init();
@@ -149,9 +147,9 @@ TIncarnationId TBootstrap::GetIncarnationId() const
     return IncarnationId;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker() const
+IInvoker::TPtr TBootstrap::GetControlInvoker(EControlThreadQueue queueIndex) const
 {
-    return ControlInvoker;
+    return ControlQueue->GetInvoker(queueIndex);
 }
 
 IBusServer::TPtr TBootstrap::GetBusServer() const

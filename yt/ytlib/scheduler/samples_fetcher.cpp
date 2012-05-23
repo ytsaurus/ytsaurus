@@ -57,7 +57,7 @@ void TSamplesFetcher::SendRequests()
         const auto& chunk = Chunks[chunkIndex];
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         bool chunkAvailable = false;
-        FOREACH (const auto& address, chunk.holder_addresses()) {
+        FOREACH (const auto& address, chunk.node_addresses()) {
             if (DeadNodes.find(address) == DeadNodes.end() &&
                 DeadChunks.find(std::make_pair(address, chunkId)) == DeadChunks.end())
             {
@@ -68,7 +68,7 @@ void TSamplesFetcher::SendRequests()
         if (!chunkAvailable) {
             Promise.Set(TError("Unable to fetch table samples for chunk %s from any of nodes [%s]",
                 ~chunkId.ToString(),
-                ~JoinToString(chunk.holder_addresses())));
+                ~JoinToString(chunk.node_addresses())));
             return;
         }
     }

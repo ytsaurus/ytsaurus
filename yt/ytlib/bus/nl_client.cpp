@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "nl_client.h"
-#include <ytlib/rpc/rpc.pb.h>
 #include "message_rearranger.h"
 #include "packet.h"
 
@@ -8,10 +7,12 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/thread.h>
 #include <ytlib/profiling/profiler.h>
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <quality/netliba_v6/udp_http.h>
 
 #include <util/thread/lfqueue.h>
+#include <util/generic/singleton.h>
 
 namespace NYT {
 namespace NBus {
@@ -26,11 +27,8 @@ static NProfiling::TProfiler Profiler("/bus/client");
 // TODO: make configurable
 static const int MaxNLCallsPerIteration = 10;
 static const TDuration ClientSleepQuantum = TDuration::MilliSeconds(10);
-static const TDuration MessageRearrangeTimeout = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TClientDispatcher;
 
 class TNLBusClient
     : public IBusClient
@@ -38,24 +36,24 @@ class TNLBusClient
 public:
     typedef TIntrusivePtr<TNLBusClient> TPtr;
 
-    TNLBusClient(TNLBusClientConfig* config);
+    TNLBusClient(TNLBusClientConfig::TPtr config);
 
     void Start();
 
     virtual ~TNLBusClient()
     { }
 
-    virtual IBus::TPtr CreateBus(IMessageHandler* handler);
+    virtual IBus::TPtr CreateBus(IMessageHandler::TPtr handler);
 
 private:
     class TBus;
-    friend class TClientDispatcher;
+    friend class TNLClientManager::TImpl;
 
     TNLBusClientConfig::TPtr Config;
     TUdpAddress ServerAddress;
 };
 
-IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig* config)
+IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig::TPtr config)
 {
     auto client = New<TNLBusClient>(config);
     client->Start();
@@ -71,7 +69,7 @@ public:
     typedef TIntrusivePtr<TBus> TPtr;
     typedef yhash_set<TGuid> TRequestIdSet;
 
-    TBus(const TUdpAddress& address, IMessageHandler* handler)
+    TBus(const TUdpAddress& address, IMessageHandler::TPtr handler)
         : Address(address)
         , Handler(handler)
         , Terminated(false)
@@ -85,7 +83,7 @@ public:
         return Address;
     }
 
-    void ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
+    void ProcessIncomingMessage(IMessage::TPtr message, TSequenceId sequenceId)
     {
         UNUSED(sequenceId);
         Handler->OnMessage(message, this);
@@ -97,22 +95,27 @@ public:
 
     void RestartSession()
     {
-        SequenceId = 0;
+        TGuard<TSpinLock> guard(SpinLock);
         SessionId = TSessionId::Create();
+        SequenceId = 0;
     }
 
-    const TSessionId& GetSessionId()
+    TSessionId GetSessionId()
     {
         return SessionId;
     }
 
-
-    TSequenceId GenerateSequenceId()
+    void AllocateSequenceId(TSessionId* sessionId, TSequenceId* sequenceId)
     {
-        return AtomicIncrement(SequenceId) - 1;
+        TGuard<TSpinLock> guard(SpinLock);
+        if (sessionId) {
+            *sessionId = SessionId;
+        }
+        if (sequenceId) {
+            *sequenceId = SequenceId++;
+        }
     }
-
-
+    
     TRequestIdSet& PendingRequestIds()
     {
         return PendingRequestIds_;
@@ -121,42 +124,41 @@ public:
 private:
     TUdpAddress Address;
     IMessageHandler::TPtr Handler;
+    
     volatile bool Terminated;
-    TAtomic SequenceId;
-    TSessionId SessionId;
     TRequestIdSet PendingRequestIds_;
 
+    TSpinLock SpinLock;
+    TAtomic SequenceId;
+    TSessionId SessionId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClientDispatcher
+class TNLClientManager::TImpl
 {
-    struct TRequest
+    struct TOutcomingRequest
         : public TIntrinsicRefCounted
     {
-        typedef TIntrusivePtr<TRequest> TPtr;
+        typedef TIntrusivePtr<TOutcomingRequest> TPtr;
 
-        TRequest(
+        TOutcomingRequest(
             const TSessionId& sessionId,
-            IMessage* message,
-            TBlob&& data,
-            TSequenceId sequenceId)
+            TSequenceId sequenceId,
+            const TGuid& requestId,
+            IMessage::TPtr message)
             : SessionId(sessionId)
-            , Message(message)
-            , Promise(NewPromise<IBus::TSendPromise::TValueType>())
             , SequenceId(sequenceId)
-        {
-            // TODO(babenko): replace with movement ctor
-            Data.swap(data);
-        }
+            , RequestId(requestId)
+            , Message(MoveRV(message))
+            , Promise(NewPromise<IBus::TSendPromise::TValueType>())
+        { }
 
         TSessionId SessionId;
+        TSequenceId SequenceId;
         TGuid RequestId;
         IMessage::TPtr Message;
         IBus::TSendPromise Promise;
-        TBlob Data;
-        TSequenceId SequenceId;
     };
 
     TThread Thread;
@@ -169,17 +171,21 @@ class TClientDispatcher
     // IRequester has to be stored by Arcadia's IntrusivePtr.
     ::TIntrusivePtr<IRequester> Requester;
 
-    yhash_map<TSessionId, TNLBusClient::TBus::TPtr> BusMap;
-    yhash_map<TGuid, TRequest::TPtr> RequestMap;
+    typedef yhash_map<TSessionId, TNLBusClient::TBus::TPtr> TBusMap;
+    TBusMap BusMap;
 
-    TLockFreeQueue<TRequest::TPtr> RequestQueue;
+    typedef yhash_map<TGuid, TOutcomingRequest::TPtr> TRequestMap;
+    TRequestMap RequestMap;
+
+    TLockFreeQueue<TOutcomingRequest::TPtr> OutcomingRequestQueue;
+    yhash_map<TGuid, TUdpHttpResponse*> UnmatchedResponseMap;
     TLockFreeQueue<TNLBusClient::TBus::TPtr> BusRegisterQueue;
     TLockFreeQueue<TNLBusClient::TBus::TPtr> BusUnregisterQueue;
 
     static void* ThreadFunc(void* param)
     {
-        auto* dispatcher = reinterpret_cast<TClientDispatcher*>(param);
-        dispatcher->ThreadMain();
+        auto* impl = reinterpret_cast<TImpl*>(param);
+        impl->ThreadMain();
         return NULL;
     }
 
@@ -187,66 +193,65 @@ class TClientDispatcher
     {
         NThread::SetCurrentThreadName("BusClient");
         while (!Terminated) {
+            ProcessBusRegistrations();
+            ProcessBusUnregistrations();
+            ProcessOutcomingRequests();
+
             // NB: "&", not "&&" since we want every type of processing to happen on each iteration.
-            if (!ProcessBusRegistrations() &
-                !ProcessBusUnregistrations() &
-                !ProcessOutcomingRequests() &
-                !ProcessIncomingNLRequests() &
+            if (!ProcessIncomingNLRequests() &
                 !ProcessIncomingNLResponses())
             {
                 LOG_TRACE("Client is idle");
-                GetEvent().WaitT(ClientSleepQuantum);
+                Requester->GetAsyncEvent().WaitT(ClientSleepQuantum);
             }
         }
     }
 
-    bool ProcessBusRegistrations()
+
+    void ProcessBusRegistrations()
     {
         LOG_TRACE("Processing client bus registrations");
 
-        bool result = false;
         TNLBusClient::TBus::TPtr bus;
         while (BusRegisterQueue.Dequeue(&bus)) {
-            result = true;
-            RegisterBus(~bus);
+            ProcessBusRegistration(bus);
         }
-        return result;
     }
 
-    bool ProcessBusUnregistrations()
-    {
-        LOG_TRACE("Processing client bus unregistrations");
-
-        bool result = false;
-        TNLBusClient::TBus::TPtr bus;
-        while (BusUnregisterQueue.Dequeue(&bus)) {
-            result = true;
-            UnregisterBus(~bus);
-        }
-        return result;
-    }
-
-    void RegisterBus(TNLBusClient::TBus* bus)
+    void ProcessBusRegistration(TNLBusClient::TBus::TPtr bus)
     {
         const auto& sessionId = bus->GetSessionId();
         BusMap.insert(MakePair(sessionId, bus));
         LOG_DEBUG("Bus is registered (SessionId: %s, Bus: %p, Address: %s)",
             ~sessionId.ToString(),
-            bus,
+            ~bus,
             ~GetAddressAsString(bus->GetAddress()));
     }
 
-    void UnregisterBus(TNLBusClient::TBus* bus)
+
+    void ProcessBusUnregistrations()
+    {
+        LOG_TRACE("Processing client bus unregistrations");
+
+        TNLBusClient::TBus::TPtr bus;
+        while (BusUnregisterQueue.Dequeue(&bus)) {
+            ProcessBusUnregistration(bus);
+        }
+    }
+
+    void ProcessBusUnregistration(TNLBusClient::TBus::TPtr bus)
     {
         const auto& sessionId = bus->GetSessionId();
 
         LOG_DEBUG("Bus is unregistered (SessionId: %s, Bus: %p)",
             ~sessionId.ToString(),
-            bus);
+            ~bus);
 
         FOREACH (const auto& requestId, bus->PendingRequestIds()) {
             Requester->CancelRequest((TGUID) requestId);
-            RequestMap.erase(requestId);
+            auto requestIt = FindRequest(requestId);
+            YASSERT(requestIt != RequestMap.end());
+            RequestMap.erase(requestIt);
         }
         bus->PendingRequestIds().clear();
 
@@ -255,6 +260,7 @@ class TClientDispatcher
 
         YVERIFY(BusMap.erase(sessionId) == 1);
     }
+
 
     bool ProcessIncomingNLResponses()
     {
@@ -267,16 +273,25 @@ class TClientDispatcher
                 break;
 
             ++callCount;
-            ProcessIncomingNLResponse(~nlResponse);
+            ProcessIncomingNLResponse(nlResponse);
         }
         return callCount > 0;
     }
 
-    void ProcessIncomingNLResponse(NNetliba::TUdpHttpResponse* nlResponse)
+    void ProcessIncomingNLResponse(TAutoPtr<TUdpHttpResponse> nlResponse)
     {
+        TGuid requestId = nlResponse->ReqId;
+        auto requestIt = FindRequest(requestId);
+        if (requestIt == RequestMap.end()) {
+            LOG_DEBUG("Response is unmatched (RequestId: %s)",
+                ~requestId.ToString());
+            YVERIFY(UnmatchedResponseMap.insert(MakePair(requestId, nlResponse.Release())).second);
+            return;
+        }
+
         if (nlResponse->Ok != TUdpHttpResponse::OK)
         {
-            ProcessFailedNLResponse(nlResponse);
+            ProcessFailedNLResponse(requestIt, nlResponse);
             return;
         }
 
@@ -286,7 +301,7 @@ class TClientDispatcher
 
         switch (header->Type) {
             case TPacketHeader::EType::Ack:
-                ProcessAck(header, nlResponse);
+                ProcessAck(header, requestIt, nlResponse);
                 break;
 
             case TPacketHeader::EType::Message:
@@ -305,19 +320,12 @@ class TClientDispatcher
         }
     }
 
-    void ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
+    void ProcessFailedNLResponse(TRequestMap::iterator requestIt, TAutoPtr<TUdpHttpResponse> nlResponse)
     {
-        TGuid requestId = nlResponse->ReqId;
-        auto requestIt = RequestMap.find(requestId);
-        if (requestIt == RequestMap.end()) {
-            LOG_DEBUG("An obsolete request failed (RequestId: %s)",
-                ~requestId.ToString());
-            return;
-        }
-
         auto& request = requestIt->second;
         const auto& sessionId = request->SessionId;
-        auto busIt = BusMap.find(sessionId);
+        const auto& requestId = request->RequestId;
+        auto busIt = FindBus(sessionId);
         YASSERT(busIt != BusMap.end());
         auto& bus = busIt->second;
 
@@ -331,6 +339,7 @@ class TClientDispatcher
         RequestMap.erase(requestIt);
     }
 
+
     bool ProcessIncomingNLRequests()
     {
         LOG_TRACE("Processing incoming client NetLiba requests");
@@ -342,12 +351,12 @@ class TClientDispatcher
                 break;
 
             ++callCount;
-            ProcessIncomingNLRequest(~nlRequest);
+            ProcessIncomingNLRequest(nlRequest);
         }
         return callCount > 0;
     }
 
-    void ProcessIncomingNLRequest(TUdpHttpRequest* nlRequest)
+    void ProcessIncomingNLRequest(TAutoPtr<TUdpHttpRequest> nlRequest)
     {
         auto* header = ParsePacketHeader<TPacketHeader>(nlRequest->Data);
         if (!header)
@@ -366,13 +375,14 @@ class TClientDispatcher
         }
     }
 
-    void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+    void ProcessAck(TPacketHeader* header, TRequestMap::iterator requestIt, TAutoPtr<TUdpHttpResponse> nlResponse)
     {
+        auto& request = requestIt->second;
         const auto& sessionId = header->SessionId;
-        TGuid requestId = nlResponse->ReqId;
-        auto requestIt = RequestMap.find(requestId);
-        auto busIt = BusMap.find(sessionId);
-        if (requestIt == RequestMap.end() || busIt == BusMap.end()) {
+        const auto& requestId = request->RequestId;
+
+        auto busIt = FindBus(sessionId);
+        if (busIt == BusMap.end()) {
             LOG_DEBUG("Ack for obsolete request received (SessionId: %s, RequestId: %s)",
                 ~header->SessionId.ToString(),
                 ~requestId.ToString());
@@ -383,8 +393,7 @@ class TClientDispatcher
             ~header->SessionId.ToString(),
             ~requestId.ToString());
 
-        auto& bus = busIt->second; 
-        auto& request = requestIt->second;
+        auto& bus = busIt->second;
 
         request->Promise.Set(ESendResult::OK);
 
@@ -392,11 +401,11 @@ class TClientDispatcher
         RequestMap.erase(requestIt);
     }
 
-    void ProcessBrokenSession(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+    void ProcessBrokenSession(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse)
     {
         const auto& oldSessionId = header->SessionId;
         TGuid brokenRequestId = nlResponse->ReqId;
-        auto busIt = BusMap.find(oldSessionId);
+        auto busIt = FindBus(oldSessionId);
         if (busIt == BusMap.end()) {
             LOG_DEBUG("Broken session reply for obsolete session received (SessionId: %s, RequestId: %s)",
                 ~oldSessionId.ToString(),
@@ -404,7 +413,7 @@ class TClientDispatcher
             return;
         }
 
-        auto bus = busIt->second; 
+        auto bus = busIt->second;
         bus->RestartSession();
         const auto& newSessionId = bus->GetSessionId();
         YVERIFY(BusMap.insert(MakePair(newSessionId, bus)).second);
@@ -416,10 +425,10 @@ class TClientDispatcher
             ~brokenRequestId.ToString(),
             ~newSessionId.ToString());
 
-        std::vector<TRequest*> pendingRequests;
+        std::vector<TOutcomingRequest*> pendingRequests;
         pendingRequests.reserve(bus->PendingRequestIds().size());
         FOREACH (const auto& requestId, bus->PendingRequestIds()) {
-            auto pendingRequestIt = RequestMap.find(requestId);
+            auto pendingRequestIt = FindRequest(requestId);
             YASSERT(pendingRequestIt != RequestMap.end());
             pendingRequests.push_back(~pendingRequestIt->second);
         }
@@ -427,7 +436,7 @@ class TClientDispatcher
         std::sort(
             pendingRequests.begin(),
             pendingRequests.end(),
-            [] (TRequest* lhs, TRequest* rhs) { return lhs->SequenceId < rhs->SequenceId; });
+            [] (TOutcomingRequest* lhs, TOutcomingRequest* rhs) { return lhs->SequenceId < rhs->SequenceId; });
 
         bus->PendingRequestIds().clear();
 
@@ -437,11 +446,16 @@ class TClientDispatcher
             auto oldSequenceId = request->SequenceId;
             auto oldRequestId = request->RequestId;
 
-            auto newSequenceId = bus->GenerateSequenceId();
-            YVERIFY(EncodeMessagePacket(~request->Message, newSessionId, newSequenceId, &request->Data));
+            TSequenceId newSequenceId;
+            bus->AllocateSequenceId(NULL, &newSequenceId);
+
+            TBlob data;
+            if (!EncodeMessagePacket(request->Message, newSessionId, newSequenceId, &data)) {
+                LOG_FATAL("Failed to encode a message");
+            }
             Requester->CancelRequest(oldRequestId);
-            ProfileOut(request->Data.size());
-            TGuid newRequestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
+            ProfileOut(data.size());
+            TGuid newRequestId = Requester->SendRequest(bus->GetAddress(), "", &data);
 
             request->SequenceId = newSequenceId;
             request->RequestId = newRequestId;
@@ -460,29 +474,29 @@ class TClientDispatcher
         }
     }
 
-    void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
+    void ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpRequest> nlRequest)
     {
         DoProcessMessage(header, nlRequest->ReqId, MoveRV(nlRequest->Data), true);
     }
 
-    void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+    void ProcessMessage(TPacketHeader* header, TAutoPtr<TUdpHttpResponse> nlResponse)
     {
         DoProcessMessage(header, nlResponse->ReqId, MoveRV(nlResponse->Data), false);
     }
 
     void DoProcessMessage(TPacketHeader* header, const TGuid& requestId, TBlob&& data, bool isRequest)
     {
-        int dataSize = data.ysize();
+        size_t size = data.size();
         const auto& sessionId = header->SessionId;
 
-        ProfileIn(dataSize);
+        ProfileIn(size);
 
-        auto busIt = BusMap.find(sessionId);
+        auto busIt = FindBus(sessionId);
         if (busIt == BusMap.end()) {
-            LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, PacketSize: %d)",
+            LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, Size: %" PRISZT ")",
                 ~sessionId.ToString(),
                 ~requestId.ToString(),
-                dataSize);
+                size);
             return;
         }
 
@@ -493,15 +507,15 @@ class TClientDispatcher
             return;
         }
 
-        LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
+        LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Size: %" PRISZT ")",
             (int) isRequest,
             ~sessionId.ToString(),
             ~requestId.ToString(),
             sequenceId,
-            dataSize);
+            size);
 
         auto& bus = busIt->second;
-        bus->ProcessIncomingMessage(~message, sequenceId);
+        bus->ProcessIncomingMessage(message, sequenceId);
 
         if (!isRequest) {
             YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
@@ -517,56 +531,46 @@ class TClientDispatcher
         }
     }
 
-    bool ProcessOutcomingRequests()
+
+    void ProcessOutcomingRequests()
     {
         LOG_TRACE("Processing outcoming client NetLiba requests");
 
-        int callCount = 0;
-        while (callCount < MaxNLCallsPerIteration) {
-            TRequest::TPtr request;
-            if (!RequestQueue.Dequeue(&request))
-                break;
-
-            ++callCount;
+        TOutcomingRequest::TPtr request;
+        while (OutcomingRequestQueue.Dequeue(&request)) {
             ProcessOutcomingRequest(request);
         }
-        return callCount > 0;
     }
 
-    void ProcessOutcomingRequest(TRequest::TPtr request)
+    void ProcessOutcomingRequest(TOutcomingRequest::TPtr request)
     {
-        auto busIt = BusMap.find(request->SessionId);
+        auto busIt = FindBus(request->SessionId);
         if (busIt == BusMap.end()) {
-            // Process all pending registrations and try once again.
-            ProcessBusRegistrations();
-            busIt = BusMap.find(request->SessionId);
-            if (busIt == BusMap.end()) {
-                // Still no luck.
-                LOG_DEBUG("Request via an obsolete session is dropped (SessionId: %s, Request: %p)",
-                    ~request->SessionId.ToString(),
-                    ~request);
-                return;
-            }
+            LOG_DEBUG("Outcoming request via an obsolete session is dropped (RequestId: %s)",
+                ~request->RequestId.ToString());
+            return;
         }
 
         auto& bus = busIt->second;
-
-        ProfileOut(request->Data.size());
-        TGuid requestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
-        request->RequestId = requestId;
+        const auto& requestId = request->RequestId;
         bus->PendingRequestIds().insert(requestId);
         RequestMap.insert(MakePair(requestId, request));
 
-        LOG_DEBUG("Request sent (SessionId: %s, RequestId: %s, Request: %p)",
-            ~request->SessionId.ToString(),
-            ~requestId.ToString(),
-            ~request);
+        auto unmatchedIt = UnmatchedResponseMap.find(requestId);
+        if (unmatchedIt == UnmatchedResponseMap.end()) {
+            LOG_DEBUG("Outcoming request registered (RequestId: %s)",
+                ~requestId.ToString());
+        } else {
+            LOG_DEBUG("Outcoming request matched (RequestId: %s)",
+                ~requestId.ToString());
+
+            TAutoPtr<TUdpHttpResponse> nlResponse(unmatchedIt->second);
+            UnmatchedResponseMap.erase(unmatchedIt);
+
+            ProcessIncomingNLResponse(nlResponse);
+        }
     }
 
-    Event& GetEvent()
-    {
-        return Requester->GetAsyncEvent();
-    }
 
     void ProfileIn(int size)
     {
@@ -580,8 +584,29 @@ class TClientDispatcher
         Profiler.Increment(OutSizeCounter, size);
     }
 
+
+    TBusMap::iterator FindBus(const TSessionId& sessionId)
+    {
+        auto it = BusMap.find(sessionId);
+        if (it == BusMap.end()) {
+            ProcessBusRegistrations();
+            it = BusMap.find(sessionId);
+        }
+        return it;
+    }
+
+    TRequestMap::iterator FindRequest(const TGuid& requestId)
+    {
+        auto it = RequestMap.find(requestId);
+        if (it == RequestMap.end()) {
+            ProcessOutcomingRequests();
+            it = RequestMap.find(requestId);
+        }
+        return it;
+    }
+
 public:
-    TClientDispatcher()
+    TImpl()
         : Thread(ThreadFunc, (void*) this)
         , Terminated(false)
         , InCounter("/in_rate")
@@ -599,14 +624,13 @@ public:
         LOG_DEBUG("Client dispatcher is started");
     }
 
-    ~TClientDispatcher()
+    ~TImpl()
     {
         Shutdown();
-    }
 
-    static TClientDispatcher* Get()
-    {
-        return Singleton<TClientDispatcher>();
+        FOREACH (const auto& pair, UnmatchedResponseMap) {
+            delete pair.second;
+        }
     }
 
     void Shutdown()
@@ -625,77 +649,78 @@ public:
         // NB: Cannot use log here!
     }
 
-    IBus::TSendResult EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
+    IBus::TSendResult SendRequest(TNLBusClient::TBus::TPtr bus, IMessage::TPtr message)
     {
-        auto sequenceId = bus->GenerateSequenceId();
-        const auto& sessionId = bus->GetSessionId();
+        TSessionId sessionId;
+        TSequenceId sequenceId;
+        bus->AllocateSequenceId(&sessionId, &sequenceId);
 
         TBlob data;
-        if (!EncodeMessagePacket(message, sessionId, sequenceId, &data))
-            ythrow yexception() << "Failed to encode a message";
+        if (!EncodeMessagePacket(message, sessionId, sequenceId, &data)) {
+            LOG_FATAL("Failed to encode a message");
+        }
 
-        int dataSize = data.ysize();
-        auto request = New<TRequest>(sessionId, message, MoveRV(data), sequenceId);
-        RequestQueue.Enqueue(request);
-        GetEvent().Signal();
+        size_t size = data.size();
+        ProfileOut(size);
 
-        LOG_DEBUG("Request enqueued (SessionId: %s, Request: %p, SequenceId: %" PRId64 ", PacketSize: %d)",
-            ~sessionId.ToString(),
-            ~request,
+        TGuid requestId = Requester->SendRequest(bus->GetAddress(), "", &data);
+
+        auto request = New<TOutcomingRequest>(
+            sessionId,
             sequenceId,
-            dataSize);
+            requestId,
+            message);
+        OutcomingRequestQueue.Enqueue(request);
+
+        LOG_DEBUG("Request sent (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", Size: %" PRISZT ")",
+            ~request->SessionId.ToString(),
+            ~requestId.ToString(),
+            request->SequenceId,
+            size);
 
         return request->Promise;
     }
 
-    void EnqueueBusRegister(const TNLBusClient::TBus::TPtr& bus)
+    void RegisterBus(TNLBusClient::TBus::TPtr bus)
     {
         const auto& sessionId = bus->GetSessionId();
-
         BusRegisterQueue.Enqueue(bus);
-        GetEvent().Signal();
 
         LOG_DEBUG("Bus registration enqueued (SessionId: %s, Bus: %p)",
             ~sessionId.ToString(),
             ~bus);
     }
 
-    void EnqueueBusUnregister(const TNLBusClient::TBus::TPtr& bus)
+    void UnregisterBus(TNLBusClient::TBus::TPtr bus)
     {
         const auto& sessionId = bus->GetSessionId();
-
         BusUnregisterQueue.Enqueue(bus);
-        GetEvent().Signal();
-
+        
         LOG_DEBUG("Bus unregistration enqueued (SessionId: %s, Bus: %p)",
             ~sessionId.ToString(),
             ~bus);
-    }
-
-    Stroka GetDebugInfo()
-    {
-        return
-            "ClientDispatcher info:\n" + Requester->GetDebugInfo() + "\n" +
-            "Pending data size: " + ToString(Requester->GetPendingDataSize());
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: hack
-void ShutdownClientDispatcher()
+TNLClientManager::TNLClientManager()
+    : Impl(new TImpl())
+{ }
+
+TNLClientManager* TNLClientManager::Get()
 {
-    TClientDispatcher::Get()->Shutdown();
+    return Singleton<TNLClientManager>();
 }
 
-Stroka GetClientDispatcherDebugInfo()
+void TNLClientManager::Shutdown()
 {
-    return TClientDispatcher::Get()->GetDebugInfo();
+    Impl->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNLBusClient::TNLBusClient(TNLBusClientConfig* config)
+TNLBusClient::TNLBusClient(TNLBusClientConfig::TPtr config)
     : Config(config)
 { }
 
@@ -708,13 +733,13 @@ void TNLBusClient::Start()
     }
 }
 
-IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
+IBus::TPtr TNLBusClient::CreateBus(IMessageHandler::TPtr handler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
 
     auto bus = New<TBus>(ServerAddress, handler);
-    TClientDispatcher::Get()->EnqueueBusRegister(bus);
+    TNLClientManager::Get()->Impl->RegisterBus(bus);
     return bus;
 }
 
@@ -727,7 +752,7 @@ IBus::TSendResult TNLBusClient::TBus::Send(IMessage::TPtr message)
     // since Terminate is used for debugging purposes mainly, we omit it.
     YASSERT(!Terminated);
 
-    return TClientDispatcher::Get()->EnqueueRequest(this, ~message);
+    return TNLClientManager::Get()->Impl->SendRequest(this, message);
 }
 
 void TNLBusClient::TBus::Terminate()
@@ -737,7 +762,7 @@ void TNLBusClient::TBus::Terminate()
 
     Terminated = true;
 
-    TClientDispatcher::Get()->EnqueueBusUnregister(this);
+    TNLClientManager::Get()->Impl->UnregisterBus(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

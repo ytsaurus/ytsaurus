@@ -5,49 +5,54 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NChunkServer;
+using namespace NTableClient::NProto;
+
 ////////////////////////////////////////////////////////////////////
 
-namespace {
+TChunkStripe::TChunkStripe()
+    : Weight(0)
+{ }
 
-template <class TIterator>
-void AddStripes(
-    IChunkPool::TExtractResultPtr result,
-    const TIterator& begin,
-    const TIterator& end,
-    i64 weightThreshold,
-    const Stroka& address)
+TChunkStripe::TChunkStripe(const TInputChunk& inputChunk, i64 weight )
+    : Weight(weight)
 {
-    for (auto it = begin; it != end; ++it) {
-        if (result->TotalChunkWeight >= weightThreshold) {
-            break;
-        }
-        result->Add(*it, address);
-    }
+    InputChunks.push_back(inputChunk);
 }
 
+TChunkStripe::TChunkStripe(const std::vector<TInputChunk>& inputChunks, i64 weight)
+    : Weight(weight)
+{ }
 
-} // namespace
+std::vector<NChunkServer::TChunkId> TChunkStripe::GetChunkIds() const
+{
+    std::vector<NChunkServer::TChunkId> result;
+    FOREACH (const auto& chunk, InputChunks) {
+        result.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
+    }
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////
 
-IChunkPool::TExtractResult::TExtractResult()
+TPoolExtractionResult::TPoolExtractionResult()
     : TotalChunkWeight(0)
     , TotalChunkCount(0)
     , LocalChunkCount(0)
     , RemoteChunkCount(0)
 { }
 
-void IChunkPool::TExtractResult::Add(TChunkStripePtr stripe, const Stroka& address)
+void TPoolExtractionResult::Add(TChunkStripePtr stripe, const Stroka& address)
 {
     Stripes.push_back(stripe);
     TotalChunkWeight += stripe->Weight;
     FOREACH (const auto& chunk, stripe->InputChunks) {
         ++TotalChunkCount;
         if (std::find_if(
-            chunk.holder_addresses().begin(),
-            chunk.holder_addresses().end(),
+            chunk.node_addresses().begin(),
+            chunk.node_addresses().end(),
             [&] (const Stroka& chunkAddress) { return address == chunkAddress; })
-            != chunk.holder_addresses().end())
+            != chunk.node_addresses().end())
         {
             ++LocalChunkCount;
         } else {
@@ -58,34 +63,33 @@ void IChunkPool::TExtractResult::Add(TChunkStripePtr stripe, const Stroka& addre
 
 ////////////////////////////////////////////////////////////////////
 
-class TUnorderedChunkPool
-    : public IChunkPool
+class TUnorderedChunkPool::TImpl
 {
 public:
-    TUnorderedChunkPool()
+    TImpl()
         : TotalWeight(0)
         , PendingWeight(0)
     { }
 
-    virtual void Add(TChunkStripePtr stripe)
+    void Add(TChunkStripePtr stripe)
     {
         YASSERT(stripe->Weight > 0);
         TotalWeight += stripe->Weight;
         PendingWeight += stripe->Weight;
         FOREACH (const auto& inputChunk, stripe->InputChunks) {
-            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+            FOREACH (const auto& address, inputChunk.node_addresses()) {
                 YVERIFY(LocalChunks[address].insert(stripe).second);
             }
         }
         YVERIFY(GlobalChunks.insert(stripe).second);
     }
 
-    virtual TExtractResultPtr Extract(
+    TPoolExtractionResultPtr Extract(
         const Stroka& address,
         i64 weightThreshold,
         bool needLocal)
     {
-        auto result = New<TExtractResult>();
+        auto result = New<TPoolExtractionResult>();
 
         // Take local chunks first.
         auto addressIt = LocalChunks.find(address);
@@ -128,29 +132,29 @@ public:
         return result;
     }
 
-    virtual void PutBack(TExtractResultPtr result)
+    void Return(TPoolExtractionResultPtr result)
     {
         FOREACH (const auto& stripe, result->Stripes) {
             Add(stripe);
         }
     }
 
-    virtual i64 GetTotalWeight() const
+    i64 GetTotalWeight() const
     {
         return TotalWeight;
     }
 
-    virtual i64 GetPendingWeight() const
+    i64 GetPendingWeight() const
     {
         return PendingWeight;
     }
 
-    virtual bool HasPendingChunks() const
+    bool HasPendingChunks() const
     {
         return !GlobalChunks.empty();
     }
 
-    virtual bool HasPendingLocalChunksFor(const Stroka& address) const
+    bool HasPendingLocalChunksAt(const Stroka& address) const
     {
         auto it = LocalChunks.find(address);
         return it == LocalChunks.end() ? false : !it->second.empty();
@@ -165,27 +169,87 @@ private:
     void Unregister(TChunkStripePtr stripe)
     {
         FOREACH (const auto& inputChunk, stripe->InputChunks) {
-            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+            FOREACH (const auto& address, inputChunk.node_addresses()) {
                 YVERIFY(LocalChunks[address].erase(stripe) == 1);
             }
         }
         YVERIFY(GlobalChunks.erase(stripe) == 1);
         PendingWeight -= stripe->Weight;
     }
+
+    template <class TIterator>
+    void AddStripes(
+        TPoolExtractionResultPtr result,
+        const TIterator& begin,
+        const TIterator& end,
+        i64 weightThreshold,
+        const Stroka& address)
+    {
+        for (auto it = begin; it != end; ++it) {
+            if (result->TotalChunkWeight >= weightThreshold) {
+                break;
+            }
+            result->Add(*it, address);
+        }
+    }
 };
 
-TAutoPtr<IChunkPool> CreateUnorderedChunkPool()
+////////////////////////////////////////////////////////////////////
+
+TUnorderedChunkPool::TUnorderedChunkPool()
+    : Impl(new TImpl())
+{ }
+
+TUnorderedChunkPool::~TUnorderedChunkPool()
+{ }
+
+void TUnorderedChunkPool::Add(TChunkStripePtr stripe)
 {
-    return new TUnorderedChunkPool();
+    Impl->Add(stripe);
+}
+
+TPoolExtractionResultPtr TUnorderedChunkPool::Extract(
+    const Stroka& address,
+    i64 weightThreshold,
+    bool needLocal)
+{
+    return Impl->Extract(
+        address,
+        weightThreshold,
+        needLocal);
+}
+
+void TUnorderedChunkPool::Return(TPoolExtractionResultPtr result)
+{
+    Impl->Return(result);
+}
+
+i64 TUnorderedChunkPool::GetTotalWeight() const
+{
+    return Impl->GetTotalWeight();
+}
+
+i64 TUnorderedChunkPool::GetPendingWeight() const
+{
+    return Impl->GetPendingWeight();
+}
+
+bool TUnorderedChunkPool::HasPendingChunks() const
+{
+    return Impl->HasPendingChunks();
+}
+
+bool TUnorderedChunkPool::HasPendingLocalChunksAt(const Stroka& address) const
+{
+    return Impl->HasPendingLocalChunksAt(address);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-class TAtomicChunkPool
-    : public IChunkPool
+class TAtomicChunkPool::TImpl
 {
 public:
-    TAtomicChunkPool()
+    TImpl()
         : TotalWeight(0)
         , Extracted(false)
         , Initialized(false)
@@ -197,33 +261,33 @@ public:
         TotalWeight += stripe->Weight;
         Stripes.push_back(stripe);
         FOREACH (const auto& inputChunk, stripe->InputChunks) {
-            FOREACH (const auto& address, inputChunk.holder_addresses()) {
+            FOREACH (const auto& address, inputChunk.node_addresses()) {
                 Addresses.insert(address);
             }
         }
     }
 
-    virtual TExtractResultPtr Extract(
+    virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        i64 weightThreshold,
         bool needLocal)
     {
-        UNUSED(address);
-        UNUSED(weightThreshold);
-        UNUSED(needLocal);
-        
         Initialized = true;
         YASSERT(!Extracted);
 
-        auto result = New<TExtractResult>();
+        if (needLocal && !HasPendingLocalChunksAt(address)) {
+            return NULL;
+        }
+
+        auto result = New<TPoolExtractionResult>();
         FOREACH (const auto& stripe, Stripes) {
             result->Add(stripe, address);
         }
+
         Extracted = true;
         return result;
     }
 
-    virtual void PutBack(TExtractResultPtr result)
+    virtual void Return(TPoolExtractionResultPtr result)
     {
         YASSERT(Initialized);
         YASSERT(Extracted);
@@ -245,7 +309,7 @@ public:
         return !Extracted && !Stripes.empty();
     }
 
-    virtual bool HasPendingLocalChunksFor(const Stroka& address) const
+    virtual bool HasPendingLocalChunksAt(const Stroka& address) const
     {
         return
             Extracted
@@ -262,11 +326,55 @@ private:
     bool Extracted;
     //! Has any #Extract call been made already?
     bool Initialized;
+
 };
 
-TAutoPtr<IChunkPool> CreateAtomicChunkPool()
+////////////////////////////////////////////////////////////////////
+
+TAtomicChunkPool::TAtomicChunkPool()
+    : Impl(new TImpl())
+{ }
+
+TAtomicChunkPool::~TAtomicChunkPool()
+{ }
+
+void TAtomicChunkPool::Add(TChunkStripePtr stripe)
 {
-    return new TAtomicChunkPool();
+    Impl->Add(stripe);
+}
+
+TPoolExtractionResultPtr TAtomicChunkPool::Extract(
+    const Stroka& address,
+    bool needLocal)
+{
+    return Impl->Extract(
+        address,
+        needLocal);
+}
+
+void TAtomicChunkPool::Return(TPoolExtractionResultPtr result)
+{
+    Impl->Return(result);
+}
+
+i64 TAtomicChunkPool::GetTotalWeight() const
+{
+    return Impl->GetTotalWeight();
+}
+
+i64 TAtomicChunkPool::GetPendingWeight() const
+{
+    return Impl->GetPendingWeight();
+}
+
+bool TAtomicChunkPool::HasPendingChunks() const
+{
+    return Impl->HasPendingChunks();
+}
+
+bool TAtomicChunkPool::HasPendingLocalChunksAt(const Stroka& address) const
+{
+    return Impl->HasPendingLocalChunksAt(address);
 }
 
 ////////////////////////////////////////////////////////////////////
