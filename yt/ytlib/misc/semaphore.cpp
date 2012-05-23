@@ -32,8 +32,6 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 
 TFuture<void> TAsyncSemaphore::AsyncAcquire(i64 slots /* = 1 */)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     TGuard<TSpinLock> guard(SpinLock);
     if (FreeSlotCount > 0) {
         FreeSlotCount -= slots;

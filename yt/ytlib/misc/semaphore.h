@@ -26,7 +26,6 @@ public:
     void Release(i64 slots = 1);
 
     /*!
-     *  Must be called from single thread.
      *  The client must not call AsyncAquire again, until returned
      *  future is set.
      */
@@ -41,7 +40,6 @@ private:
 
     TPromise<void> AcquireEvent;
     TPromise<void> StaticResult;
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
