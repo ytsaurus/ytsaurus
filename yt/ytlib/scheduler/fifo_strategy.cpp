@@ -37,8 +37,9 @@ public:
         // Stop when no free slots are left.
         // Try not to schedule more then a single job from an operation to a node (no guarantees, though).
         int freeCount = node->Utilization().free_slot_count();
+        int allocatedCount = 0;
         FOREACH (auto operation, Queue) {
-            while (freeCount > 0) {
+            while (freeCount > 0 && allocatedCount <= 2) {
                 if (operation->GetState() != EOperationState::Running) {
                     break;
                 }
@@ -52,6 +53,7 @@ public:
 
                 jobsToStart->push_back(job);
                 --freeCount;
+                ++allocatedCount;
                 node->Utilization().set_free_slot_count(freeCount);
             }
         }
