@@ -1,0 +1,23 @@
+{
+  "author": "Ivan Pouzyrevsky <sandello@yandex-team.ru>",
+  "name": "yt",
+  "description": "YT Bindings",
+  "version": "@YT_VERSION_MAJOR@.@YT_VERSION_MINOR@.@YT_VERSION_PATCH@",
+  "homepage": "http://wiki.yandex-team.ru/YT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.yandex.ru:yt/yt.git"
+  },
+  "main": "index",
+  "dependencies": {
+    "connect": "2.3.0",
+    "optimist": "0.3.4"
+  },
+  "devDependencies": {
+    "mocha": "*",
+    "chai": "*"
+  },
+  "engines": {
+    "node": ">= 0.6.x < 0.8.0"
+  }
+}

@@ -25,18 +25,17 @@ struct TGetRequest
 typedef TIntrusivePtr<TGetRequest> TGetRequestPtr;
 
 class TGetCommand
-    : public TTypedCommandBase<TGetRequest>
+    : public TTransactedCommandBase<TGetRequest>
 {
 public:
-    explicit TGetCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TGetCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
    { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TGetRequestPtr request);
+    virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,18 +56,16 @@ struct TSetRequest
 typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
 
 class TSetCommand
-    : public TTypedCommandBase<TSetRequest>
+    : public TTransactedCommandBase<TSetRequest>
 {
 public:
-    explicit TSetCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TSetCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TSetRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,18 +84,16 @@ struct TRemoveRequest
 typedef TIntrusivePtr<TRemoveRequest> TRemoveRequestPtr;
 
 class TRemoveCommand
-    : public TTypedCommandBase<TRemoveRequest>
+    : public TTransactedCommandBase<TRemoveRequest>
 {
 public:
-    explicit TRemoveCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TRemoveCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TRemoveRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,18 +112,16 @@ struct TListRequest
 typedef TIntrusivePtr<TListRequest> TListRequestPtr;
 
 class TListCommand
-    : public TTypedCommandBase<TListRequest>
+    : public TTransactedCommandBase<TListRequest>
 {
 public:
-    explicit TListCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TListCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TListRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,18 +142,16 @@ struct TCreateRequest
 typedef TIntrusivePtr<TCreateRequest> TCreateRequestPtr;
 
 class TCreateCommand
-    : public TTypedCommandBase<TCreateRequest>
+    : public TTransactedCommandBase<TCreateRequest>
 {
 public:
-    explicit TCreateCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TCreateCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
    { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TCreateRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,18 +173,16 @@ struct TLockRequest
 typedef TIntrusivePtr<TLockRequest> TLockRequestPtr;
 
 class TLockCommand
-    : public TTypedCommandBase<TLockRequest>
+    : public TTransactedCommandBase<TLockRequest>
 {
 public:
-    explicit TLockCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TLockCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TLockRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,12 +15,12 @@ using v8::TryCatch;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestInputStream
+class TInputStreamStub
     : public node::ObjectWrap
 {
 protected:
-    TTestInputStream(TNodeJSInputStream* slave);
-    ~TTestInputStream();
+    TInputStreamStub(TNodeJSInputStream* slave);
+    ~TInputStreamStub();
 
 public:
     using node::ObjectWrap::Ref;
@@ -86,14 +86,14 @@ private:
     struct TReadRequest
     {
         uv_work_t Request;
-        TTestInputStream* Host;
+        TInputStreamStub* Host;
 
         Persistent<Function> Callback;
 
         char*  Buffer;
         size_t Length;
 
-        TReadRequest(TTestInputStream* host, Handle<Integer> length, Handle<Function> callback)
+        TReadRequest(TInputStreamStub* host, Handle<Integer> length, Handle<Function> callback)
             : Host(host)
             , Callback(Persistent<Function>::New(callback))
             , Length(length->Uint32Value())
@@ -127,25 +127,25 @@ private:
     };
 
 private:
-    TTestInputStream(const TTestInputStream&);
-    TTestInputStream& operator=(const TTestInputStream&);
+    TInputStreamStub(const TInputStreamStub&);
+    TInputStreamStub& operator=(const TInputStreamStub&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestInputStream::TTestInputStream(TNodeJSInputStream* slave)
+TInputStreamStub::TInputStreamStub(TNodeJSInputStream* slave)
     : node::ObjectWrap()
     , Slave(slave)
 {
     T_THREAD_AFFINITY_IS_V8();
 }
 
-TTestInputStream::~TTestInputStream()
+TInputStreamStub::~TInputStreamStub()
 {
     T_THREAD_AFFINITY_IS_V8();
 }
 
-Handle<Value> TTestInputStream::New(const Arguments& args)
+Handle<Value> TInputStreamStub::New(const Arguments& args)
 {
     T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -153,7 +153,7 @@ Handle<Value> TTestInputStream::New(const Arguments& args)
     YASSERT(args.Length() == 1);
     EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSInputStream);
 
-    TTestInputStream* host = new TTestInputStream(
+    TInputStreamStub* host = new TInputStreamStub(
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[0].As<Object>()));
     host->Wrap(args.This());
     return args.This();
@@ -161,14 +161,14 @@ Handle<Value> TTestInputStream::New(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TTestInputStream::ReadSynchronously(const Arguments& args)
+Handle<Value> TInputStreamStub::ReadSynchronously(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TTestInputStream* host =
-        ObjectWrap::Unwrap<TTestInputStream>(args.This());
+    TInputStreamStub* host =
+        ObjectWrap::Unwrap<TInputStreamStub>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 1);
@@ -179,14 +179,14 @@ Handle<Value> TTestInputStream::ReadSynchronously(const Arguments& args)
     TReadString* string;
 
     length = args[0]->Uint32Value();
-    string = new TTestInputStream::TReadString(length);
+    string = new TInputStreamStub::TReadString(length);
     length = host->Slave->Read(string->mutable_data(), length);
     string->mutable_length() = length;
 
     return scope.Close(String::NewExternal(string));
 }
 
-Handle<Value> TTestInputStream::Read(const Arguments& args)
+Handle<Value> TInputStreamStub::Read(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -198,18 +198,18 @@ Handle<Value> TTestInputStream::Read(const Arguments& args)
 
     // Do the work.
     TReadRequest* request = new TReadRequest(
-        ObjectWrap::Unwrap<TTestInputStream>(args.This()),
-        args[0].As<Integet>(),
+        ObjectWrap::Unwrap<TInputStreamStub>(args.This()),
+        args[0].As<Integer>(),
         args[1].As<Function>());
 
     uv_queue_work(
         uv_default_loop(), &request->Request,
-        TTestInputStream::ReadWork, TTestInputStream::ReadAfter);
+        TInputStreamStub::ReadWork, TInputStreamStub::ReadAfter);
 
     return Undefined();
 }
 
-void TTestInputStream::ReadWork(uv_work_t* workRequest)
+void TInputStreamStub::ReadWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
     TReadRequest* request =
@@ -218,7 +218,7 @@ void TTestInputStream::ReadWork(uv_work_t* workRequest)
     request->Length = request->Host->Slave->Read(request->Buffer, request->Length);
 }
 
-void TTestInputStream::ReadAfter(uv_work_t* workRequest)
+void TInputStreamStub::ReadAfter(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -246,12 +246,12 @@ void TTestInputStream::ReadAfter(uv_work_t* workRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestOutputStream
+class TOutputStreamStub
     : public node::ObjectWrap
 {
 protected:
-    TTestOutputStream(TNodeJSOutputStream* slave);
-    ~TTestOutputStream();
+    TOutputStreamStub(TNodeJSOutputStream* slave);
+    ~TOutputStreamStub();
 
 public:
     using node::ObjectWrap::Ref;
@@ -270,13 +270,13 @@ public:
     static void WriteAfter(uv_work_t* workRequest);
 
 private:
-    // XXX(sandello): See comments for TTestInputStream
+    // XXX(sandello): See comments for TInputStreamStub
     TNodeJSOutputStream* Slave;
 
     struct TWriteRequest
     {
         uv_work_t Request;
-        TTestOutputStream* Host;
+        TOutputStreamStub* Host;
 
         Persistent<Function> Callback;
         String::Utf8Value ValueToBeWritten;
@@ -284,7 +284,7 @@ private:
         char*  Buffer;
         size_t Length;
 
-        TWriteRequest(TTestOutputStream* host, Handle<String> string, Handle<Function> callback)
+        TWriteRequest(TOutputStreamStub* host, Handle<String> string, Handle<Function> callback)
             : Host(host)
             , Callback(Persistent<Function>::New(callback))
             , ValueToBeWritten(string)
@@ -313,19 +313,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTestOutputStream::TTestOutputStream(TNodeJSOutputStream* slave)
+TOutputStreamStub::TOutputStreamStub(TNodeJSOutputStream* slave)
     : node::ObjectWrap()
     , Slave(slave)
 {
     T_THREAD_AFFINITY_IS_V8();
 }
 
-TTestOutputStream::~TTestOutputStream()
+TOutputStreamStub::~TOutputStreamStub()
 {
     T_THREAD_AFFINITY_IS_V8();
 }
 
-Handle<Value> TTestOutputStream::New(const Arguments& args)
+Handle<Value> TOutputStreamStub::New(const Arguments& args)
 {
     T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -333,7 +333,7 @@ Handle<Value> TTestOutputStream::New(const Arguments& args)
     YASSERT(args.Length() == 1);
     EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSOutputStream);
 
-    TTestOutputStream* host = new TTestOutputStream(
+    TOutputStreamStub* host = new TOutputStreamStub(
         ObjectWrap::Unwrap<TNodeJSOutputStream>(args[0].As<Object>()));
     host->Wrap(args.This());
     return args.This();
@@ -341,14 +341,14 @@ Handle<Value> TTestOutputStream::New(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TTestOutputStream::WriteSynchronously(const Arguments& args)
+Handle<Value> TOutputStreamStub::WriteSynchronously(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TTestOutputStream* host =
-        ObjectWrap::Unwrap<TTestOutputStream>(args.This());
+    TOutputStreamStub* host =
+        ObjectWrap::Unwrap<TOutputStreamStub>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 1);
@@ -361,7 +361,7 @@ Handle<Value> TTestOutputStream::WriteSynchronously(const Arguments& args)
     return Undefined();
 }
 
-Handle<Value> TTestOutputStream::Write(const Arguments& args)
+Handle<Value> TOutputStreamStub::Write(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -373,18 +373,18 @@ Handle<Value> TTestOutputStream::Write(const Arguments& args)
 
     // Do the work.
     TWriteRequest* request = new TWriteRequest(
-        ObjectWrap::Unwrap<TTestOutputStream>(args.This()),
+        ObjectWrap::Unwrap<TOutputStreamStub>(args.This()),
         args[0].As<String>(),
         args[1].As<Function>());
 
     uv_queue_work(
         uv_default_loop(), &request->Request,
-        TTestOutputStream::WriteWork, TTestOutputStream::WriteAfter);
+        TOutputStreamStub::WriteWork, TOutputStreamStub::WriteAfter);
 
     return Undefined();
 }
 
-void TTestOutputStream::WriteWork(uv_work_t* workRequest)
+void TOutputStreamStub::WriteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
     TWriteRequest* request =
@@ -393,7 +393,7 @@ void TTestOutputStream::WriteWork(uv_work_t* workRequest)
     request->Host->Slave->Write(request->Buffer, request->Length);
 }
 
-void TTestOutputStream::WriteAfter(uv_work_t* workRequest)
+void TOutputStreamStub::WriteAfter(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -416,14 +416,14 @@ void TTestOutputStream::WriteAfter(uv_work_t* workRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TTestOutputStream::Flush(const Arguments& args)
+Handle<Value> TOutputStreamStub::Flush(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TTestOutputStream* host =
-        ObjectWrap::Unwrap<TTestOutputStream>(args.This());
+    TOutputStreamStub* host =
+        ObjectWrap::Unwrap<TOutputStreamStub>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -436,14 +436,14 @@ Handle<Value> TTestOutputStream::Flush(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TTestOutputStream::Finish(const Arguments& args)
+Handle<Value> TOutputStreamStub::Finish(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TTestOutputStream* host =
-        ObjectWrap::Unwrap<TTestOutputStream>(args.This());
+    TOutputStreamStub* host =
+        ObjectWrap::Unwrap<TOutputStreamStub>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -456,49 +456,49 @@ Handle<Value> TTestOutputStream::Finish(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExportTestInputStream(Handle<Object> target)
+void ExportInputStreamStub(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TTestInputStream::New);
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TInputStreamStub::New);
 
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Read", TTestInputStream::Read);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "ReadSynchronously", TTestInputStream::ReadSynchronously);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Read", TInputStreamStub::Read);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "ReadSynchronously", TInputStreamStub::ReadSynchronously);
 
-    tpl->SetClassName(String::NewSymbol("TTestInputStream"));
-    target->Set(String::NewSymbol("TTestInputStream"), tpl->GetFunction());
+    tpl->SetClassName(String::NewSymbol("TInputStreamStub"));
+    target->Set(String::NewSymbol("TInputStreamStub"), tpl->GetFunction());
 }
 
-void ExportTestOutputStream(Handle<Object> target)
+void ExportOutputStreamStub(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    Local<FunctionTemplate> tpl = FunctionTemplate::New(TTestOutputStream::New);
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(TOutputStreamStub::New);
 
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Write", TTestOutputStream::Write);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "WriteSynchronously", TTestOutputStream::WriteSynchronously);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Flush", TTestOutputStream::Flush);
-    NODE_SET_PROTOTYPE_METHOD(tpl, "Finish", TTestOutputStream::Finish);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Write", TOutputStreamStub::Write);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "WriteSynchronously", TOutputStreamStub::WriteSynchronously);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Flush", TOutputStreamStub::Flush);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "Finish", TOutputStreamStub::Finish);
 
-    tpl->SetClassName(String::NewSymbol("TTestOutputStream"));
-    target->Set(String::NewSymbol("TTestOutputStream"), tpl->GetFunction());
+    tpl->SetClassName(String::NewSymbol("TOutputStreamStub"));
+    target->Set(String::NewSymbol("TOutputStreamStub"), tpl->GetFunction());
 }
 
-void ExportYTTest(Handle<Object> target)
+void ExportYTStubs(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    ExportTestInputStream(target);
-    ExportTestOutputStream(target);
+    ExportInputStreamStub(target);
+    ExportOutputStreamStub(target);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-NODE_MODULE(ytnode_test, NYT::ExportYTTest)
+NODE_MODULE(ytnode_stubs, NYT::ExportYTStubs)

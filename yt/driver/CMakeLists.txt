@@ -1,10 +1,15 @@
 set( SRCS
   main.cpp
-  arguments.cpp
+  executor.cpp
   preprocess.cpp
 )
 
-add_executable( yt ${SRCS} )
+set( HDRS
+  executor.h
+  config.h
+)
+
+add_executable( yt ${SRCS} ${HDRS} )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}

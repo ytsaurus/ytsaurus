@@ -117,11 +117,11 @@ TYsonWriter::TYsonWriter(
     TOutputStream* stream,
     EYsonFormat format,
     EYsonType type,
-    bool formatRaw)
+    bool enableRaw)
     : Stream(stream)
     , Format(format)
     , Type(type)
-    , FormatRaw(formatRaw)
+    , EnableRaw(enableRaw)
     , Depth(0)
     , BeforeFirstItem(true)
 {
@@ -294,11 +294,11 @@ void TYsonWriter::OnEndAttributes()
 
 void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    if (FormatRaw) {
-        TYsonConsumerBase::OnRaw(yson, type);
-    } else {
+    if (EnableRaw) {
         Stream->Write(yson);
         BeforeFirstItem = false;
+    } else {
+        TYsonConsumerBase::OnRaw(yson, type);
     }
 }
 

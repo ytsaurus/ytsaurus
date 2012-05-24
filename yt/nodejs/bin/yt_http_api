@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+
+var fs = require("fs");
+var connect = require("connect");
+var yt = require("yt");
+
+var opts = require("optimist")
+    .usage("Provide HTTP API for YT.\nUsage: $0")
+
+    .alias("c", "config")
+    .default("c", "/etc/yt_http_api.conf")
+    .describe("c", "Specify configuration file")
+
+    .alias("p", "port")
+    .default("p", "80")
+    .describe("p", "Specify port to listen")
+
+    .alias("i", "interface")
+    .default("i", "0.0.0.0")
+    .describe("i", "Specify interface to listen")
+
+    .alias("u", "user")
+    .describe("u", "Specify a user to setuid() to")
+
+    .alias("g", "group")
+    .describe("g", "Specify a group to setgid() to")
+
+    .alias("h", "help")
+    .boolean("h")
+    .describe("h", "Show help message")
+    ;
+
+if (opts.argv.h) {
+    opts.showHelp();
+    process.exit(0);
+}
+
+fs.readFile(opts.argv.c, function(err, configuration) {
+    if (err) {
+        throw err;
+    }
+    try {
+        connect()
+            .use(connect.favicon())
+            .use(connect.logger("dev"))
+            .use("/api", yt.YtApplication(configuration.toString()))
+            .listen(opts.argv.p, opts.argv.i, function() {
+                if (opts.argv.u) {
+                    process.setuid(opts.argv.u);
+                }
+                if (opts.argv.g) {
+                    process.setgid(opts.argv.g);
+                }
+
+                if (process.getuid() == 0 || process.getgid() == 0) {
+                    console.error("Error: [Failed to drop privileges; aborting.]");
+                    process.exit(100);
+                }
+            });
+    } catch(ex) {
+        console.error("Error: [%s] Call: [%s]", err.message, err.syscall);
+        process.exit(200);
+    }
+});

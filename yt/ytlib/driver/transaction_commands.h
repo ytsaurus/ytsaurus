@@ -14,18 +14,16 @@ struct TStartTransactionRequest
 typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
 
 class TStartTransactionCommand
-    : public TTypedCommandBase<TStartTransactionRequest>
+    : public TTransactedCommandBase<TStartTransactionRequest>
 {
 public:
-    explicit TStartTransactionCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
+    explicit TStartTransactionCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TStartRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,18 +35,16 @@ struct TRenewTransactionRequest
 typedef TIntrusivePtr<TRenewTransactionRequest> TRenewRequestPtr;
 
 class TRenewTransactionCommand
-    : public TTypedCommandBase<TRenewTransactionRequest>
+    : public TTransactedCommandBase<TRenewTransactionRequest>
 {
 public:
-    explicit TRenewTransactionCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
+    explicit TRenewTransactionCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TRenewRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,18 +56,16 @@ struct TCommitTransactionRequest
 typedef TIntrusivePtr<TCommitTransactionRequest> TCommitRequestPtr;
 
 class TCommitTransactionCommand
-    : public TTypedCommandBase<TCommitTransactionRequest>
+    : public TTransactedCommandBase<TCommitTransactionRequest>
 {
 public:
-    explicit TCommitTransactionCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
+    explicit TCommitTransactionCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TCommitRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,18 +77,16 @@ struct TAbortTransactionRequest
 typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;
 
 class TAbortTransactionCommand
-    : public TTypedCommandBase<TAbortTransactionRequest>
+    : public TTransactedCommandBase<TAbortTransactionRequest>
 {
 public:
-    explicit TAbortTransactionCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
+    explicit TAbortTransactionCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TAbortTransactionRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

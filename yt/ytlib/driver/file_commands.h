@@ -21,18 +21,16 @@ struct TDownloadRequest
 typedef TIntrusivePtr<TDownloadRequest> TDownloadRequestPtr;
 
 class TDownloadCommand
-    : public TTypedCommandBase<TDownloadRequest>
+    : public TTransactedCommandBase<TDownloadRequest>
 {
 public:
-    explicit TDownloadCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
+    explicit TDownloadCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TDownloadRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,18 +49,16 @@ struct TUploadRequest
 typedef TIntrusivePtr<TUploadRequest> TUploadRequestPtr;
 
 class TUploadCommand
-    : public TTypedCommandBase<TUploadRequest>
+    : public TTransactedCommandBase<TUploadRequest>
 {
 public:
-    explicit TUploadCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
+    explicit TUploadCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TUploadRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

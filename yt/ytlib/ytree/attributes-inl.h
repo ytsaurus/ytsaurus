@@ -11,24 +11,24 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-typename TDeserializeTraits<T>::TReturnType IAttributeDictionary::Get(const Stroka& name) const
+typename TDeserializeTraits<T>::TReturnType IAttributeDictionary::Get(const Stroka& key) const
 {
-    const auto& yson = GetYson(name);
+    const auto& yson = GetYson(key);
     return DeserializeFromYson<T>(yson);
 }
 
 template <class T>
-T IAttributeDictionary::Get(const Stroka& name, const T& defaultValue) const
+T IAttributeDictionary::Get(const Stroka& key, const T& defaultValue) const
 {
-    return Find<T>(name).Get(defaultValue); // assuming that Find returns TNullable
+    return Find<T>(key).Get(defaultValue);
 }
 
 template <class T>
 typename TNullableTraits<
     typename TDeserializeTraits<T>::TReturnType
->::TNullableType IAttributeDictionary::Find(const Stroka& name) const
+>::TNullableType IAttributeDictionary::Find(const Stroka& key) const
 {
-    const auto& yson = FindYson(name);
+    const auto& yson = FindYson(key);
     if (!yson) {
         return
             typename TNullableTraits<
@@ -39,10 +39,10 @@ typename TNullableTraits<
 }
 
 template <class T>
-void IAttributeDictionary::Set(const Stroka& name, const T& value)
+void IAttributeDictionary::Set(const Stroka& key, const T& value)
 {
     const auto& yson = SerializeToYson(value);
-    SetYson(name, yson);
+    SetYson(key, yson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

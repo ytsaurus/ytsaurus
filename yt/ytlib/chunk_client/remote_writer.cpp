@@ -569,13 +569,13 @@ TRemoteWriter::TImpl::~TImpl()
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Writer canceled");
+    LOG_INFO("Writer canceled");
     State.Cancel(TError(TError::Fail, "Writer canceled"));
 }
 
 void TRemoteWriter::TImpl::Open()
 {
-    LOG_DEBUG("Opening writer (Addresses: [%s])", ~JoinToString(Addresses));
+    LOG_INFO("Opening writer (Addresses: [%s])", ~JoinToString(Addresses));
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto node, Nodes) {
@@ -756,7 +756,7 @@ void TRemoteWriter::TImpl::CheckResponse(
         metric->AddDelta(rsp->GetStartTime());
         onSuccess.Run(rsp);
     } else {
-        // TODO: retry?
+        // TODO(babenko): retry?
         LOG_ERROR("Error reported by node %s\n%s",
             ~node->Address, 
             ~rsp->GetError().ToString());
@@ -793,7 +793,7 @@ void TRemoteWriter::TImpl::OnSessionStarted()
         return;
     }
 
-    LOG_DEBUG("Writer is ready");
+    LOG_INFO("Writer is ready");
 
     IsInitComplete = true;
     FOREACH (auto& group, Window) {
@@ -812,7 +812,7 @@ void TRemoteWriter::TImpl::CloseSession()
 
     YASSERT(IsCloseRequested);
 
-    LOG_DEBUG("Closing writer");
+    LOG_INFO("Closing writer");
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto node, Nodes) {
@@ -882,7 +882,7 @@ void TRemoteWriter::TImpl::OnSessionFinished()
 
     CancelAllPings();
 
-    LOG_DEBUG("Writer closed");
+    LOG_INFO("Writer closed");
 
     State.FinishOperation();
 }
