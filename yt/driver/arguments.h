@@ -10,6 +10,7 @@
 
 #include <ytlib/driver/public.h>
 #include <ytlib/driver/config.h>
+#include <ytlib/driver/format.h>
 
 #include <ytlib/misc/tclap_helpers.h>
 #include <tclap/CmdLine.h>
@@ -24,47 +25,64 @@ class TArgsParserBase
 public:
     typedef TIntrusivePtr<TArgsParserBase> TPtr;
 
+    TArgsParserBase();
+
+    virtual TError Execute(const std::vector<std::string>& args);
+
+protected:
+    struct TFormatDefaultsConfig
+        : public TConfigurable
+    {
+        NYTree::INodePtr Structured;
+        NYTree::INodePtr Tabular;
+
+        TFormatDefaultsConfig()
+        {
+            Register("structured", Structured)
+                .Default();
+            Register("tabular", Tabular)
+                .Default();
+        }
+    };
+
+    typedef TIntrusivePtr<TFormatDefaultsConfig> TDefaultFormatConfigPtr;
+
     struct TConfig
         : public NDriver::TDriverConfig
     {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
         NYTree::INodePtr Logging;
+        TDefaultFormatConfigPtr FormatDefaults;
         TDuration OperationWaitTimeout;
 
         TConfig()
         {
             Register("logging", Logging);
+            Register("format_defaults", FormatDefaults)
+                .DefaultNew();
             Register("operation_wait_timeout", OperationWaitTimeout)
                 .Default(TDuration::Seconds(3));
         }
     };
 
-    TArgsParserBase();
+    typedef TIntrusivePtr<TConfig> TConfigPtr;
 
-    virtual TError Execute(const std::vector<std::string>& args);
-
-    //typedef TNullable<NYTree::EYsonFormat> TFormat;
-    //TFormat GetOutputFormat();
-
-    void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
-
-protected:
     typedef TCLAP::UnlabeledValueArg<Stroka> TUnlabeledStringArg;
 
     TCLAP::CmdLine CmdLine;
-
     TCLAP::ValueArg<Stroka> ConfigArg;
-
-    //typedef TCLAP::ValueArg<TFormat> TOutputFormatArg;
-    //TOutputFormatArg OutputFormatArg;
-
+    TCLAP::ValueArg<Stroka> FormatArg;
+    TCLAP::ValueArg<Stroka> InputFormatArg;
+    TCLAP::ValueArg<Stroka> OutputFormatArg;
     TCLAP::MultiArg<Stroka> ConfigSetArg;
-
     TCLAP::MultiArg<Stroka> OptsArg;
 
     NYTree::IMapNodePtr ParseArgs(const std::vector<std::string>& args);
-    TConfig::TPtr ParseConfig();
+    
+    Stroka GetConfigFileName();
+    TConfigPtr ParseConfig();
+    void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
+    
+    NDriver::TFormat GetFormat(TConfigPtr config, NDriver::EDataType dataType, const NYTree::TYson& custom);
 
     void BuildOptions(NYTree::IYsonConsumer* consumer);
 

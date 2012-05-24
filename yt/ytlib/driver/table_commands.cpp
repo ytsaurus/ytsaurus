@@ -62,13 +62,13 @@ void TWriteCommand::DoExecute()
         switch (value->GetType()) {
             case ENodeType::List: {
                 FOREACH (const auto& child, value->AsList()->GetChildren()) {
-                    VisitTree(~child, &consumer);
+                    VisitTree(child, &consumer);
                 }
                 break;
             }
 
             case ENodeType::Map: {
-                VisitTree(~value, &consumer);
+                VisitTree(value, &consumer);
                 break;
             }
 

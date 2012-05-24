@@ -22,9 +22,19 @@ TFormat::TFormat(EFormatType type, IAttributeDictionary* attributes)
 
 TFormat TFormat::FromYson(INodePtr node)
 {
-    return TFormat(
-        ParseEnum<EFormatType>(node->GetValue<Stroka>()),
-        &node->Attributes());
+    if (node->GetType() != ENodeType::String) {
+        ythrow yexception() << "Format must be a string";
+    }
+
+    auto typeStr = node->GetValue<Stroka>();
+    EFormatType type;
+    try {
+        type = ParseEnum<EFormatType>(typeStr);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Invalid format type %s", ~typeStr);
+    }
+
+    return TFormat(type, &node->Attributes());
 }
 
 void TFormat::ToYson(IYsonConsumer* consumer) const

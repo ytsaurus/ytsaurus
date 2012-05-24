@@ -64,6 +64,14 @@ INodePtr DeserializeFromYson(const TStringBuf& yson, INodeFactory* factory)
     return DeserializeFromYson(&input, factory);
 }
 
+INodePtr DeserializeFromYson(TYsonProducer producer, INodeFactory* factory)
+{
+    auto builder = CreateBuilderFromFactory(factory);
+    builder->BeginTree();
+    producer.Run(~builder);
+    return builder->EndTree();
+}
+
 TOutputStream& SerializeToYson(
     INodePtr node,
     TOutputStream& output,

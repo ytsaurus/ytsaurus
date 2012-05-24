@@ -33,23 +33,30 @@ using namespace NObjectServer;
 using namespace NScheduler;
 using namespace NRpc;
 
+////////////////////////////////////////////////////////////////////////////////
+
 static const char* UserConfigFileName = ".ytdriver.conf";
 static const char* SystemConfigFileName = "ytdriver.conf";
 static const char* SystemConfigPath = "/etc/";
+static const char* ConfigEnvVar = "YT_CONFIG";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TArgsParserBase::TArgsParserBase()
     : CmdLine("Command line", ' ', YT_VERSION)
     , ConfigArg("", "config", "configuration file", false, "", "file_name")
-    //, OutputFormatArg("", "format", "output format", false, TFormat(), "text, pretty, binary")
+    , FormatArg("", "format", "format (both input and output)", false, "", "yson")
+    , InputFormatArg("", "in_format", "input format", false, "", "yson")
+    , OutputFormatArg("", "out_format", "output format", false, "", "yson")
     , ConfigSetArg("", "config_set", "set configuration value", false, "ypath=yson")
     , OptsArg("", "opts", "other options", false, "key=yson")
 {
     CmdLine.add(ConfigArg);
-    CmdLine.add(OptsArg);
-    //CmdLine.add(OutputFormatArg);
+    CmdLine.add(FormatArg);
+    CmdLine.add(InputFormatArg);
+    CmdLine.add(OutputFormatArg);
     CmdLine.add(ConfigSetArg);
+    CmdLine.add(OptsArg);
 }
 
 IMapNodePtr TArgsParserBase::ParseArgs(const std::vector<std::string>& args)
@@ -65,44 +72,54 @@ IMapNodePtr TArgsParserBase::ParseArgs(const std::vector<std::string>& args)
     return builder->EndTree()->AsMap();
 }
 
-TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
+Stroka TArgsParserBase::GetConfigFileName()
 {
-    Stroka configFromCmd = ConfigArg.getValue();;
-    Stroka configFromEnv = Stroka(getenv("YT_CONFIG"));
-    Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
-    Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
+    Stroka fromCommandLine = ConfigArg.getValue();;
+    Stroka fromEnv = Stroka(getenv(ConfigEnvVar));
+    Stroka user = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
+    Stroka system = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
 
-    // TODO(babenko): refactor me
-    auto configName = configFromCmd;
-    if (configName.empty()) {
-        configName = configFromEnv;
-        if (configName.empty()) {
-            configName = userConfig;
-            if (!isexist(~configName)) {
-                configName = systemConfig;
-                if (!isexist(~configName)) {
-                    ythrow yexception() <<
-                        Sprintf("Config wasn't found. Please specify it using on of the following:\n"
-                        "commandline option --config\n"
-                        "env YT_CONFIG\n"
-                        "user file: %s\n"
-                        "system file: %s",
-                        ~userConfig, ~systemConfig);
-                }
-            }
-        }
+    if (!fromCommandLine.empty()) {
+        return fromCommandLine;
     }
 
+    if (!fromEnv.empty()) {
+        return fromEnv;
+    }
+
+    if (isexist(~user)) {
+        return user;
+    }
+
+    if (isexist(~system)) {
+        return system;
+    }
+
+    ythrow yexception() <<
+        Sprintf("Unable to find configuration file. Please specify it using one of the following methods:\n"
+        "1) --config option\n"
+        "2) YT_CONFIG environment variable\n"
+        "3) per-user file %s\n"
+        "4) system-wide file %s",
+        ~user.Quote(),
+        ~system.Quote());
+}
+
+TArgsParserBase::TConfigPtr TArgsParserBase::ParseConfig()
+{
+    // Choose config file name.
+    auto fileName = GetConfigFileName();
+
+    // Load config into YSON tree.
     INodePtr configNode;
     try {
-        TIFStream configStream(configName);
+        TIFStream configStream(fileName);
         configNode = DeserializeFromYson(&configStream);
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
     }
 
-    ApplyConfigUpdates(configNode);
-
+    // Parse config.
     auto config = New<TConfig>();
     try {
         config->Load(~configNode);
@@ -110,12 +127,18 @@ TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
         ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
     }
 
-    NLog::TLogManager::Get()->Configure(~config->Logging);
+    // Now convert back YSON tree to populate defaults.
+    configNode = DeserializeFromYson(BIND(&TConfigurable::Save, config));
 
-    //auto outputFormat = GetOutputFormat();
-    //if (outputFormat) {
-    //    config->OutputFormat = outputFormat.Get();
-    //}
+    // Patch config from command line.
+    ApplyConfigUpdates(configNode);
+
+    // And finally parse it again.
+    try {
+        config->Load(~configNode);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
+    }
 
     return config;
 }
@@ -123,6 +146,9 @@ TArgsParserBase::TConfig::TPtr TArgsParserBase::ParseConfig()
 TError TArgsParserBase::Execute(const std::vector<std::string>& args)
 {
     auto config = ParseConfig();
+
+    NLog::TLogManager::Get()->Configure(~config->Logging);
+
     
     auto driver = CreateDriver(config);
 
@@ -140,11 +166,6 @@ TError TArgsParserBase::Execute(const std::vector<std::string>& args)
     return response.Error;
 }
 
-//TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
-//{
-//    return OutputFormatArg.getValue();
-//}
-
 void TArgsParserBase::ApplyConfigUpdates(IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigSetArg.getValue()) {
@@ -160,12 +181,39 @@ void TArgsParserBase::ApplyConfigUpdates(IYPathServicePtr service)
     }
 }
 
+
+TFormat TArgsParserBase::GetFormat(TConfigPtr config, EDataType dataType, const Stroka& custom)
+{
+    if (!custom.empty()) {
+        INodePtr customNode;
+        try {
+            customNode = DeserializeFromYson(custom);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error parsing format description\n%s", ex.what());
+        }
+        return TFormat::FromYson(customNode);
+    }
+
+    switch (dataType) {
+        case EDataType::Null:
+            return TFormat(EFormatType::Null);
+
+        case EDataType::Structured:
+            return TFormat::FromYson(config->FormatDefaults->Structured);
+
+        case EDataType::Tabular:
+            return TFormat::FromYson(config->FormatDefaults->Tabular);
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
 void TArgsParserBase::BuildOptions(IYsonConsumer* consumer)
 {
-    // TODO(babenko): think about a better way of doing this
     FOREACH (const auto& opts, OptsArg.getValue()) {
-        TYson yson = Stroka("{") + Stroka(opts) + "}";
-        auto items = DeserializeFromYson(yson)->AsMap();
+        // TODO(babenko): think about a better way of doing this
+        auto items = DeserializeFromYson("{" + opts + "}")->AsMap();
         FOREACH (const auto& pair, items->GetChildren()) {
             consumer->OnKeyedItem(pair.first);
             VisitTree(pair.second, consumer, true);
@@ -498,7 +546,7 @@ Stroka TLockArgsParser::GetDriverCommandName() const
 //{
 //public:
 //    TOperationTracker(
-//        TArgsParserBase::TConfig::TPtr config,
+//        TArgsParserBase::TConfigPtr config,
 //        IDriverPtr driver,
 //        const TOperationId& operationId,
 //        EOperationType operationType)
@@ -535,7 +583,7 @@ Stroka TLockArgsParser::GetDriverCommandName() const
 //    }
 
 //private:
-//    TArgsParserBase::TConfig::TPtr Config;
+//    TArgsParserBase::TConfigPtr Config;
 //    IDriverPtr Driver;
 //    TOperationId OperationId;
 //    EOperationType OperationType;
