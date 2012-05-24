@@ -154,7 +154,7 @@ endif()
 if (WIN32)
   set_target_properties( ytext-libuv PROPERTIES
     COMPILE_DEFINITIONS
-    "_WIN32_WINNT=0x0501;HAVE_CONFIG_H"
+    "_WIN32_WINNT=0x0501;HAVE_CONFIG_H;HAVE_ERRNO_H"
   )
 endif()
 
