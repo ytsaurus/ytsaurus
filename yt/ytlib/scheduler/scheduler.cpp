@@ -416,7 +416,8 @@ private:
     void UpdateJobCounters(TJobPtr changedJob, int delta)
     {
         auto jobType = EJobType(changedJob->Spec().type());
-        ++JobTypeCounters[jobType];
+        JobTypeCounters[jobType] += delta;
+
         Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
         Profiler.Enqueue("/job_count/total", Jobs.size());
     }
