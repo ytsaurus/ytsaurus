@@ -911,7 +911,7 @@ private:
     {
         // Take partition keys evenly.
         for (int partIndex = 0; partIndex < partitionCount - 1; ++partIndex) {
-            int sampleIndex = partIndex * (SortedSamples.size() - 1) / (partitionCount - 2);
+            int sampleIndex = (partIndex + 1) * (SortedSamples.size() - 1) / partitionCount;
             auto* key = SortedSamples[sampleIndex];
             // Avoid producing same keys.
             if (PartitionKeys.empty() || CompareKeys(*key, *SortedSamples.back()) != 0) {
