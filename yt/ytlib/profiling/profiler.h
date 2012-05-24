@@ -56,7 +56,7 @@ struct TTimer
 struct TCounterBase
 {
     TCounterBase(
-        const NYTree::TYPath& path,
+        const NYTree::TYPath& path = "",
         TDuration interval = TDuration::MilliSeconds(1000));
 
     NYTree::TYPath Path;
@@ -82,7 +82,7 @@ struct TRateCounter
     : TCounterBase
 {
     TRateCounter(
-        const NYTree::TYPath& path,
+        const NYTree::TYPath& path = "",
         TDuration interval = TDuration::MilliSeconds(1000));
 
     //! The time when the last sample was queued (in ticks).
@@ -120,13 +120,14 @@ struct TAggregateCounter
     : TCounterBase
 {
     TAggregateCounter(
-        const NYTree::TYPath& path,
+        const NYTree::TYPath& path = "",
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(100));
 
-    void Reset();
+    void ResetAggregation();
 
     EAggregateMode Mode;
+    TValue Current;
     TValue Min;
     TValue Max;
     TValue Sum;
@@ -182,6 +183,9 @@ public:
 
     //! Aggregates the value and possibly enqueues samples.
     void Aggregate(TAggregateCounter& counter, TValue value);
+
+    //! Aggregates |current + delta| and possibly enqueues samples.
+    void Increment(TAggregateCounter& counter, TValue delta);
 
 private:
     NYTree::TYPath PathPrefix;

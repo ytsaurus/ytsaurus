@@ -51,11 +51,12 @@ TAggregateCounter::TAggregateCounter(
     TDuration interval)
     : TCounterBase(path, interval)
     , Mode(mode)
+    , Current(0)
 {
-    Reset();
+    ResetAggregation();
 }
 
-void TAggregateCounter::Reset()
+void TAggregateCounter::ResetAggregation()
 {
     Min = std::numeric_limits<TValue>::max();
     Max = std::numeric_limits<TValue>::min();
@@ -152,6 +153,10 @@ void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
 
 void TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
 {
+    if (counter.Path.empty()) {
+        return;
+    }
+
     YASSERT(delta >= 0);
     counter.Value += delta;
     auto now = GetCpuInstant();
@@ -170,7 +175,12 @@ void TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
 
 void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
 {
+    if (counter.Path.empty()) {
+        return;
+    }
+
     ++counter.SampleCount;
+    counter.Current = value;
     counter.Min = std::min(counter.Min, value);
     counter.Max = std::max(counter.Max, value);
     counter.Sum += value;
@@ -201,9 +211,14 @@ void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
             default:
                 YUNREACHABLE();
         }
-        counter.Reset();
+        counter.ResetAggregation();
         counter.Deadline = now + counter.Interval;
     }
+}
+
+void TProfiler::Increment(TAggregateCounter& counter, TValue delta)
+{
+    Aggregate(counter, counter.Current + delta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
