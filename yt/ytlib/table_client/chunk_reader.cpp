@@ -618,7 +618,7 @@ public:
             for (int i = 0; i < channelsExt->items(0).blocks_size(); ++i) {
                 const auto& blockInfo = channelsExt->items(0).blocks(i);
                 if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
-                    blockIndexSequence.push_back(i);
+                    blockIndexSequence.push_back(blockInfo.block_index());
                     rowCount += blockInfo.row_count();
                 }
             }
