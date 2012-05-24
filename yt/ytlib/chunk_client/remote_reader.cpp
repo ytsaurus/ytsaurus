@@ -253,7 +253,7 @@ protected:
             OnRetryFailed(TError("Unable to fetch all chunk blocks"));
         } else {
             TDelayedInvoker::Submit(
-                BIND(&TSessionBase::NewPass, MakeWeak(this)),
+                BIND(&TSessionBase::NewPass, MakeStrong(this)),
                 reader->Config->PassBackoffTime);
         }
     }
