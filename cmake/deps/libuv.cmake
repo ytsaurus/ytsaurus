@@ -86,7 +86,39 @@ elseif( STYPE STREQUAL "Linux" )
   set( _EV_CONFIG "config_linux.h" )
   set( _EIO_CONFIG "config_linux.h" )
   set( SRCS_PLATFORM ${SRCS_UNIX} ${BASE}/src/unix/linux.c )
+  include_directories( ${BASE}/src/ares/config_linux )
+elseif( STYPE STREQUAL "mingw" )
+  set( SRCS_PLATFORM
+    ${BASE}/src/ares/windows_port.c
+    ${BASE}/src/ares/ares_platform.c
+    ${BASE}/src/win/threadpool.c
+    ${BASE}/src/win/tcp.c
+    ${BASE}/src/win/cares.c
+    ${BASE}/src/win/udp.c
+    ${BASE}/src/win/util.c
+    ${BASE}/src/win/async.c
+    ${BASE}/src/win/winapi.h
+    ${BASE}/src/win/tty.c
+    ${BASE}/src/win/stream.c
+    ${BASE}/src/win/handle.c
+    ${BASE}/src/win/req.c
+    ${BASE}/src/win/pipe.c
+    ${BASE}/src/win/process.c
+    ${BASE}/src/win/loop-watcher.c
+    ${BASE}/src/win/error.c
+    ${BASE}/src/win/dl.c
+    ${BASE}/src/win/winsock.c
+    ${BASE}/src/win/winapi.c
+    ${BASE}/src/win/core.c
+    ${BASE}/src/win/getaddrinfo.c
+    ${BASE}/src/win/timer.c
+    ${BASE}/src/win/threads.c
+    ${BASE}/src/win/fs-event.c
+    ${BASE}/src/win/fs.c
+  )
+  include_directories( ${BASE}/src/ares/config_win32 )
 endif()
+  
 
 add_library( ytext-libuv ${LTYPE}
   ${SRCS_ARES} ${SRCS_PLATFORM}
@@ -96,7 +128,6 @@ include_directories(
   ${BASE}/include
   ${BASE}/include/uv-private
   ${BASE}/src
-  ${BASE}/src/ares/config_linux
 )
 
 #if (YT_BUILD_WITH_STLPORT)
@@ -120,6 +151,13 @@ if (UNIX)
   target_link_libraries( ytext-libuv -lm -lrt )
 endif()
 
+if (WIN32)
+  set_target_properties( ytext-libuv PROPERTIES
+    COMPILE_DEFINITIONS
+    "_WIN32_WINNT=0x0501;HAVE_CONFIG_H"
+  )
+endif()
+
 
 install(
   TARGETS
@@ -127,4 +165,3 @@ install(
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
 )
-
