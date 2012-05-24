@@ -25,8 +25,6 @@ void TDownloadCommand::DoExecute()
         Request->Path);
     reader->Open();
 
-    // TODO(babenko): use FileName and Executable values
-
     auto output = Context->GetRequest()->OutputStream;
 
     while (true) {
