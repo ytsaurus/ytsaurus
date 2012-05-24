@@ -64,7 +64,7 @@ public:
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap)
         : NRpc::TServiceBase(
-            ~bootstrap->GetControlInvoker(),
+            bootstrap->GetControlInvoker(),
             TSchedulerServiceProxy::GetServiceName(),
             SchedulerLogger.GetCategory())
         , Config(config)
@@ -395,12 +395,12 @@ private:
 
     void RegisterJob(TJobPtr job)
     {
+        ProfileJobChange(job, +1);
+
         YVERIFY(Jobs.insert(MakePair(job->GetId(), job)).second);
         YVERIFY(job->GetOperation()->Jobs().insert(job).second);
         YVERIFY(job->GetNode()->Jobs().insert(job).second);
         
-        ProfileJobChange(job, +1);
-
         LOG_DEBUG("Registered job %s (OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
@@ -408,11 +408,11 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
+        ProfileJobChange(job, -1);
+
         YVERIFY(Jobs.erase(job->GetId()) == 1);
         YVERIFY(job->GetOperation()->Jobs().erase(job) == 1);
         YVERIFY(job->GetNode()->Jobs().erase(job) == 1);
-
-        ProfileJobChange(job, -1);
 
         LOG_DEBUG("Unregistered job %s (OperationId: %s)",
             ~job->GetId().ToString(),
