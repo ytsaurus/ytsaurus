@@ -6,8 +6,6 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/transaction_client/transaction.h>
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/chunk_client/remote_writer.h>
 
 namespace NYT {
@@ -21,16 +19,17 @@ namespace NFileClient {
  *  Finally it must call #Close.
  */
 class TFileWriterBase
-    : public NTransactionClient::TTransactionListener
+    : public virtual TRefCounted
 {
 public:
     //! Initializes an instance.
     TFileWriterBase(
         TFileWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel);
+        NRpc::IChannelPtr masterChannel,
+        NObjectServer::TTransactionId transactionId);
 
     //! Opens the writer.
-    void Open(NObjectServer::TTransactionId);
+    void Open();
 
     //! Adds another portion of data.
     /*!
@@ -38,9 +37,6 @@ public:
      *  and splits the input data into parts of equal size (see #TConfig::BlockSize).
      */
     void Write(TRef data);
-
-    //! Cancels the writing process and releases all resources.
-    void Cancel();
 
     //! Closes the writer.
     void Close();

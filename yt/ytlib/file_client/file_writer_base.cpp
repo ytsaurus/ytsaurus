@@ -13,6 +13,7 @@
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
 namespace NFileClient {
