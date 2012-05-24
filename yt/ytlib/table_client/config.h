@@ -130,7 +130,7 @@ struct TChunkSequenceReaderConfig
         Register("sequential_reader", SequentialReader).DefaultNew();
         Register("prefetch_window", PrefetchWindow)
             .GreaterThan(0)
-            .LessThan(100)
+            .LessThanOrEqual(100)
             .Default(1);
     }
 };
