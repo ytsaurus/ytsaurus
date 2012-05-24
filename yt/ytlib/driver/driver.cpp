@@ -39,25 +39,6 @@ static NLog::TLogger& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-class TOutputStreamConsumer
-    : public TForwardingYsonConsumer
-{
-public:
-    TOutputStreamConsumer(TOutputStream* output, EYsonFormat format)
-        : Writer(output, format)
-    {
-        ForwardNode(&Writer, BIND([=] () {
-            output->Write('\n');
-        }));
-    }
-
-private:
-    TYsonWriter Writer;
-};
-*/
-////////////////////////////////////////////////////////////////////////////////
-
 class TDriver
     : public IDriver
 {
@@ -74,7 +55,7 @@ public:
             config->Masters->RpcTimeout,
             MasterChannel);
 
-        BlockCache = CreateClientBlockCache(~config->BlockCache);
+        BlockCache = CreateClientBlockCache(config->BlockCache);
 
         TransactionManager = New<TTransactionManager>(
             config->TransactionManager,
@@ -94,14 +75,14 @@ public:
         RegisterCommand<TLockCommand>(TCommandDescriptor("lock", EDataType::Null, EDataType::Structured));
 
         RegisterCommand<TDownloadCommand>(TCommandDescriptor("download", EDataType::Null, EDataType::Binary));
-        RegisterCommand<TUploadCommand>(TCommandDescriptor("upload", EDataType::Binary, EDataType::Null));
+        RegisterCommand<TUploadCommand>(TCommandDescriptor("upload", EDataType::Binary, EDataType::Structured));
 
         RegisterCommand<TWriteCommand>(TCommandDescriptor("write", EDataType::Tabular, EDataType::Null));
         RegisterCommand<TReadCommand>(TCommandDescriptor("read", EDataType::Null, EDataType::Tabular));
 
         RegisterCommand<TMapCommand>(TCommandDescriptor("map", EDataType::Null, EDataType::Structured));
         RegisterCommand<TMergeCommand>(TCommandDescriptor("merge", EDataType::Null, EDataType::Structured));
-        RegisterCommand<TSortCommand>(TCommandDescriptor("sort", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TSortCommand>(TCommandDescriptor("sort", EDataType::Structured, EDataType::Structured));
         RegisterCommand<TEraseCommand>(TCommandDescriptor("erase", EDataType::Null, EDataType::Structured));
         RegisterCommand<TAbortOperationCommand>(TCommandDescriptor("abort_op", EDataType::Null, EDataType::Null));
     }
@@ -143,6 +124,21 @@ public:
             result.push_back(pair.second.Descriptor);
         }
         return result;
+    }
+
+    virtual IChannelPtr GetMasterChannel()
+    {
+        return MasterChannel;
+    }
+
+    virtual IChannelPtr GetSchedulerChannel()
+    {
+        return SchedulerChannel;
+    }
+
+    virtual TTransactionManager::TPtr GetTransactionManager()
+    {
+        return TransactionManager;
     }
 
 private:
@@ -243,26 +239,6 @@ private:
         });
         YVERIFY(Commands.insert(MakePair(descriptor.CommandName, entry)).second);
     }
-
-    //void DoExecute(const Stroka& commandName, INodePtr requestNode)
-    //{
-    //    auto request = New<TRequestBase>();
-    //    try {
-    //        request->Load(~requestNode);
-    //    }
-    //    catch (const std::exception& ex) {
-    //        ythrow yexception() << Sprintf("Error parsing command from node\n%s", ex.what());
-    //    }
-
-    //    auto commandIt = Commands.find(commandName);
-    //    if (commandIt == Commands.end()) {
-    //        ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
-    //    }
-
-    //    auto command = commandIt->second;
-    //    command->Execute(~requestNode);
-    //}
-    
 };
 
 ////////////////////////////////////////////////////////////////////////////////

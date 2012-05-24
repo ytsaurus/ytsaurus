@@ -17,11 +17,6 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//TCommandDescriptor TStartTransactionCommand::GetDescriptor()
-//{
-//    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-//}
-
 void TStartTransactionCommand::DoExecute()
 {
     auto attributes = IAttributeDictionary::FromMap(Request->GetOptions());
@@ -36,50 +31,31 @@ void TStartTransactionCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//TCommandDescriptor TRenewTransactionCommand::GetDescriptor()
-//{
-//    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-//}
-
 void TRenewTransactionCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(Request->TransactionId));
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-        ReplySuccess();
-    } else {
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//TCommandDescriptor TCommitTransactionCommand::GetDescriptor()
-//{
-//    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-//}
-
 void TCommitTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(true);
     transaction->Commit();
-    ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//TCommandDescriptor TAbortTransactionCommand::GetDescriptor()
-//{
-//    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-//}
 
 void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(true);
     transaction->Abort(true);
-    ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

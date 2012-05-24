@@ -64,10 +64,6 @@ struct ICommandContext
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
-
-    //virtual void ReplyError(const TError& error) = 0;
-    //virtual void ReplySuccess() = 0;
-    //virtual void ReplySuccess(const NYTree::TYson& yson) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +89,6 @@ protected:
 
     void ReplyError(const TError& error);
     void ReplySuccess(const NYTree::TYson& yson);
-    void ReplySuccess();
 
 };
 
@@ -122,7 +117,6 @@ public:
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
-        YASSERT(Replied);
     }
 
 protected:

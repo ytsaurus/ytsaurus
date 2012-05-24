@@ -31,7 +31,8 @@ TFormat TFormat::FromYson(INodePtr node)
     try {
         type = ParseEnum<EFormatType>(typeStr);
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Invalid format type %s", ~typeStr);
+        ythrow yexception() << Sprintf("Invalid format type %s",
+            ~typeStr.Quote());
     }
 
     return TFormat(type, &node->Attributes());
@@ -71,10 +72,14 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
     IAttributeDictionary* attributes,
     TOutputStream* output)
 {
-    auto format = attributes->Get<EYsonFormat>("format", EYsonFormat::Binary);
-    auto ysonType = DataTypeToYsonType(dataType);
-    bool formatRaw = attributes->Get("format_raw", false);
-    return new TYsonWriter(output, format, ysonType, formatRaw);
+    try {
+        auto ysonFormat = attributes->Get<EYsonFormat>("format", EYsonFormat::Binary);
+        auto ysonType = DataTypeToYsonType(dataType);
+        bool enableRaw = attributes->Get("enable_raw", true);
+        return new TYsonWriter(output, ysonFormat, ysonType, enableRaw);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing YSON output format\n", ex.what());
+    }
 }
 
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
@@ -89,9 +94,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType
     }
 }
 
-TYsonProducer CreateProducerForYson(
-    EDataType dataType,
-    TInputStream* input)
+TYsonProducer CreateProducerForYson(EDataType dataType, TInputStream* input)
 {
     auto ysonType = DataTypeToYsonType(dataType);
     return ProducerFromYson(input, ysonType);

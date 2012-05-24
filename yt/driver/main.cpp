@@ -1,4 +1,4 @@
-#include "arguments.h"
+#include "executor.h"
 
 #include <ytlib/logging/log_manager.h>
 
@@ -23,17 +23,12 @@
 
 #include <build.h>
 
-#ifdef _win_
-#include <io.h>
-#else
-#include <unistd.h>
-#include <errno.h>
-#endif
-
 namespace NYT {
 
 using namespace NDriver;
 using namespace NYTree;
+
+/////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DriverLogger;
 
@@ -45,35 +40,35 @@ public:
     TDriverProgram()
         : ExitCode(0)
     {
-        //RegisterParser("start_tx", New<TStartTxArgsParser>());
-        //RegisterParser("renew_tx", New<TRenewTxArgsParser>());
-        //RegisterParser("commit_tx", New<TCommitTxArgsParser>());
-        //RegisterParser("abort_tx", New<TAbortTxArgsParser>());
+        RegisterExecutor("start_tx", New<TStartTxExecutor>());
+        RegisterExecutor("renew_tx", New<TRenewTxExecutor>());
+        RegisterExecutor("commit_tx", New<TCommitTxExecutor>());
+        RegisterExecutor("abort_tx", New<TAbortTxExecutor>());
 
-        RegisterParser("get", New<TGetArgsParser>());
-        RegisterParser("set", New<TSetArgsParser>());
-        RegisterParser("remove", New<TRemoveArgsParser>());
-        RegisterParser("list", New<TListArgsParser>());
-        RegisterParser("create", New<TCreateArgsParser>());
-        RegisterParser("lock", New<TLockArgsParser>());
+        RegisterExecutor("get", New<TGetExecutor>());
+        RegisterExecutor("set", New<TSetExecutor>());
+        RegisterExecutor("remove", New<TRemoveExecutor>());
+        RegisterExecutor("list", New<TListExecutor>());
+        RegisterExecutor("create", New<TCreateExecutor>());
+        RegisterExecutor("lock", New<TLockExecutor>());
 
-        //RegisterParser("download", New<TDownloadArgsParser>());
-        //RegisterParser("upload", New<TUploadArgsParser>());
+        RegisterExecutor("download", New<TDownloadExecutor>());
+        RegisterExecutor("upload", New<TUploadExecutor>());
 
-        //RegisterParser("read", New<TReadArgsParser>());
-        //RegisterParser("write", New<TWriteArgsParser>());
+        RegisterExecutor("read", New<TReadExecutor>());
+        RegisterExecutor("write", New<TWriteExecutor>());
 
-        //RegisterParser("map", New<TMapArgsParser>());
-        //RegisterParser("merge", New<TMergeArgsParser>());
-        //RegisterParser("sort", New<TSortArgsParser>());
-        //RegisterParser("erase", New<TEraseArgsParser>());
-        //RegisterParser("abort_op", New<TAbortOpArgsParser>());
+        RegisterExecutor("map", New<TMapExecutor>());
+        RegisterExecutor("merge", New<TMergeExecutor>());
+        RegisterExecutor("sort", New<TSortExecutor>());
+        RegisterExecutor("erase", New<TEraseExecutor>());
+        RegisterExecutor("abort_op", New<TAbortOpExecutor>());
     }
 
     int Main(int argc, const char* argv[])
     {
         NYT::SetupErrorHandler();
-        NYT::NThread::SetCurrentThreadName("DriverMain");
+        NYT::NThread::SetCurrentThreadName("Driver");
 
         try {
             if (argc < 2) {
@@ -95,21 +90,18 @@ public:
 
             if (commandName == "--config-template") {
                 TYsonWriter writer(&Cout, EYsonFormat::Pretty);
-                New<TArgsParserBase::TConfig>()->Save(&writer);
+                New<TExecutorConfig>()->Save(&writer);
                 return 0;
             }
 
-            auto argsParser = GetArgsParser(commandName);
+            auto Executor = GetExecutor(commandName);
 
             std::vector<std::string> args;
             for (int i = 1; i < argc; ++i) {
                 args.push_back(std::string(argv[i]));
             }
 
-            auto error = argsParser->Execute(args);
-            if (!error.IsOK()) {
-                ExitCode = 1;
-            }
+            Executor->Execute(args);
         } catch (const std::exception& ex) {
             Cerr << "ERROR: " << ex.what() << Endl;
             ExitCode = 1;
@@ -127,33 +119,33 @@ public:
 
 private:
     int ExitCode;
-    yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;
+    yhash_map<Stroka, TExecutorBase::TPtr> Executors;
 
     void PrintAllCommands()
     {
-        Cout << "Available commands: " << Endl;
-        FOREACH (auto parserPair, GetSortedIterators(ArgsParsers)) {
-            Cout << "   " << parserPair->first << Endl;
+        printf("Available commands:\n");
+        FOREACH (const auto& pair, GetSortedIterators(Executors)) {
+            printf("  %s\n", ~pair->first);
         }
     }
 
     void PrintVersion()
     {
-        Cout << YT_VERSION << Endl;
+        printf("%s\n", YT_VERSION);
     }
 
-    void RegisterParser(const Stroka& name, TArgsBasePtr command)
+    void RegisterExecutor(const Stroka& name, TArgsBasePtr command)
     {
-        YVERIFY(ArgsParsers.insert(MakePair(name, command)).second);
+        YVERIFY(Executors.insert(MakePair(name, command)).second);
     }
 
-    TArgsParserBase::TPtr GetArgsParser(const Stroka& commandName)
+    TExecutorBase::TPtr GetExecutor(const Stroka& commandName)
     {
-        auto parserIt = ArgsParsers.find(commandName);
-        if (parserIt == ArgsParsers.end()) {
+        auto it = Executors.find(commandName);
+        if (it == Executors.end()) {
             ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
         }
-        return parserIt->second;
+        return it->second;
     }
 };
 

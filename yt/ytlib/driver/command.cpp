@@ -33,14 +33,6 @@ void TUntypedCommandBase::ReplySuccess(const TYson& yson)
     Replied = true;
 }
 
-void TUntypedCommandBase::ReplySuccess()
-{
-    YASSERT(!Replied);
-
-    Context->GetResponse()->Error = TError();
-    Replied = true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver

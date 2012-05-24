@@ -54,9 +54,7 @@ void TSetCommand::DoExecute()
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-        ReplySuccess();
-    } else {
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
     }
 }
@@ -73,9 +71,7 @@ void TRemoveCommand::DoExecute()
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-        ReplySuccess();
-    } else {
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
     }
 }

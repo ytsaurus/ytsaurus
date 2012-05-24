@@ -97,6 +97,12 @@ struct IDriver
 
     //! Returns the list of descriptors for all supported commands.
     virtual std::vector<TCommandDescriptor> GetCommandDescriptors() = 0;
+
+    //! Returns a cached master channel.
+    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+
+    //! Returns a cached scheduler channel.
+    virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

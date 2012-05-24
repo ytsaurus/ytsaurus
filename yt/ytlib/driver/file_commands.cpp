@@ -46,9 +46,9 @@ void TUploadCommand::DoExecute()
 
     auto writer = New<TFileWriter>(
         config,
-        ~Context->GetMasterChannel(),
+        Context->GetMasterChannel(),
         GetTransaction(false),
-        ~Context->GetTransactionManager(),
+        Context->GetTransactionManager(),
         Request->Path);
     writer->Open();
 
@@ -67,9 +67,7 @@ void TUploadCommand::DoExecute()
 
     auto id = writer->GetNodeId();
     BuildYsonFluently(~Context->CreateOutputConsumer())
-        .BeginMap()
-            .Item("object_id").Scalar(id.ToString())
-        .EndMap();
+        .Scalar(id.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
