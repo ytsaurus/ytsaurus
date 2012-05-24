@@ -361,7 +361,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         ? TNullable<int>(request->partition_tag())
         : Null;
 
-    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: %s, PartitionTag: %d", 
+    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: %s, PartitionTag: %s", 
         ~chunkId.ToString(),
         ~FormatBool(request->all_extension_tags()),
         ~JoinToString(extensionTags),
