@@ -19,6 +19,7 @@
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/key.h>
+#include <ytlib/table_client/private.h>
 #include <ytlib/table_client/size_limits.h>
 
 namespace NYT {
@@ -350,11 +351,16 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     auto extensionTags = FromProto<i32>(request->extension_tags());
+    TNullable<int> partitionTag;
+    if (request->has_partition_tag()) {
+        partitionTag = request->partition_tag();
+    }
 
-    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: %s", 
+    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: %s, PartitionTag: %d", 
         ~chunkId.ToString(),
         ~FormatBool(request->all_extension_tags()),
-        ~JoinToString(extensionTags));
+        ~JoinToString(extensionTags),
+        partitionTag.IsInitialized() ? partitionTag.Get() : NTableClient::DefaultPartitionTag);
 
     auto chunk = GetChunk(chunkId);
     auto asyncChunkMeta = chunk->GetMeta(request->all_extension_tags() 
@@ -362,12 +368,34 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         : &extensionTags);
 
     asyncChunkMeta.Subscribe(BIND([=] (TChunk::TGetMetaResult result) {
-            if (result.IsOK()) {
-                *response->mutable_chunk_meta() = result.Value();
-                context->Reply();
-            } else {
-                context->Reply(result);
+        if (result.IsOK()) {
+            *response->mutable_chunk_meta() = result.Value();
+
+            if (partitionTag.IsInitialized()) {
+                // std::vector here causes MSVC internal compiler error :)
+                yvector<NTableClient::NProto::TBlockInfo> filteredBlocks;
+                auto protoChannels = GetProtoExtension<NTableClient::NProto::TChannelsExt>(
+                    result.Value().extensions());
+                // Partition chunks must have only one channel.
+                YASSERT(protoChannels->items_size() == 1);
+
+                FOREACH(const auto& blockInfo, protoChannels->items(0).blocks()) {
+                    YASSERT(blockInfo.partition_tag() != NTableClient::DefaultPartitionTag);
+                    if (blockInfo.partition_tag() == partitionTag.Get()) {
+                        filteredBlocks.push_back(blockInfo);
+                    }
+                }
+
+                ToProto(protoChannels->mutable_items(0)->mutable_blocks(), filteredBlocks);
+                UpdateProtoExtension(
+                    response->mutable_chunk_meta()->mutable_extensions(), 
+                    *protoChannels.Get());
             }
+
+            context->Reply();
+        } else {
+            context->Reply(result);
+        }
         }));
 }
 

@@ -163,7 +163,7 @@ public:
             tags.push_back(GetProtoExtensionTag<NProto::TKeyColumnsExt>());
         }
 
-        AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(
+        AsyncReader->AsyncGetChunkMeta(Null, &tags).Subscribe(
             BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
             .Via(ReaderThread->GetInvoker()));
     }
@@ -581,7 +581,7 @@ public:
         tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
         tags.push_back(GetProtoExtensionTag<NProto::TChannelsExt>());
 
-        AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(BIND(
+        AsyncReader->AsyncGetChunkMeta(chunkReader->PartitionTag, &tags).Subscribe(BIND(
             &TPartitionInitializer::OnGotMeta, 
             MakeStrong(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
     }

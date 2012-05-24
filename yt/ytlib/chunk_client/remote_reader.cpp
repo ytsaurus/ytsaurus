@@ -76,7 +76,9 @@ public:
     }
 
     TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
-    TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<i32>* tags = NULL);
+    TAsyncGetMetaResult AsyncGetChunkMeta(
+        const TNullable<int>& partitionTag,
+        const std::vector<i32>* tags = NULL);
 
     TAsyncGetSeedsResult AsyncGetSeeds()
     {
@@ -624,10 +626,12 @@ public:
 
     TGetMetaSession(
         TRemoteReader* reader,
+        const TNullable<int> partitionTag,
         const std::vector<int>* extensionTags)
         : TSessionBase(reader)
         , Promise(NewPromise<IAsyncReader::TGetMetaResult>())
         , SeedIndex(0)
+        , PartitionTag(partitionTag)
     {
         if (extensionTags) {
             ExtensionTags = *extensionTags;
@@ -654,6 +658,7 @@ private:
     int SeedIndex;
 
     std::vector<int> ExtensionTags;
+    TNullable<int> PartitionTag;
     bool AllExtensionTags;
 
     virtual void NewPass()
@@ -687,6 +692,10 @@ private:
         auto request = proxy.GetChunkMeta();
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
         request->set_all_extension_tags(AllExtensionTags);
+
+        if (PartitionTag.IsInitialized())
+            request->set_partition_tag(PartitionTag.Get());
+
         ToProto(request->mutable_extension_tags(), ExtensionTags);
         request->Invoke().Subscribe(
             BIND(&TGetMetaSession::OnChunkMetaResponse, MakeStrong(this), address)
@@ -735,10 +744,12 @@ private:
     }
 };
 
-TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(const std::vector<i32>* tags)
+TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(
+    const TNullable<int>& partitionTag, 
+    const std::vector<i32>* extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return New<TGetMetaSession>(this, tags)->Run();
+    return New<TGetMetaSession>(this, partitionTag, extensionTags)->Run();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
