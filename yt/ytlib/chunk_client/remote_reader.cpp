@@ -473,7 +473,7 @@ private:
             auto address = PickNextPeer();
 
             auto requestBlockIndexes = GetRequestBlockIndexes(address, unfetchedBlockIndexes);
-            if (requestBlockIndexes.empty()) {
+            if (!requestBlockIndexes.empty()) {
                 LOG_INFO("Requesting blocks from %s (BlockIndexes: [%s])",
                     ~address,
                     ~JoinToString(unfetchedBlockIndexes));
