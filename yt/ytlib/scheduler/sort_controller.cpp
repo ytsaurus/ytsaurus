@@ -196,7 +196,7 @@ private:
             partition->Index);
 
         if (Partitions.size() > 1 &&
-            GetPendingPartitionJobCount() == 0 &&
+            IsPartitionComplete() &&
             partition->SortChunkPool.GetTotalWeight() <= Config->MaxSortJobDataSize)
         {
             partition->Small = true;
