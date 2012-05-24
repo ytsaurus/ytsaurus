@@ -87,7 +87,8 @@ public:
             LOG_INFO("Need fresh chunk seeds");
             GetSeedsPromise = NewPromise<TGetSeedsResult>();
             TDelayedInvoker::Submit(
-                BIND(&TRemoteReader::DoFindChunk, MakeWeak(this)),
+                BIND(&TRemoteReader::DoFindChunk, MakeWeak(this))
+                .Via(ReaderThread->GetInvoker()),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
@@ -253,7 +254,8 @@ protected:
             OnRetryFailed(TError("Unable to fetch all chunk blocks"));
         } else {
             TDelayedInvoker::Submit(
-                BIND(&TSessionBase::NewPass, MakeStrong(this)),
+                BIND(&TSessionBase::NewPass, MakeStrong(this))
+                .Via(ReaderThread->GetInvoker()),
                 reader->Config->PassBackoffTime);
         }
     }
@@ -373,7 +375,7 @@ private:
             }
         }
 
-        RequestPeer();
+        RequestBlocks();
     }
 
     void AddPeer(const Stroka& address, int blockIndex)
@@ -446,7 +448,7 @@ private:
         }
     }
 
-    void RequestPeer()
+    void RequestBlocks()
     {
         auto reader = Reader.Lock();
         if (!reader)
@@ -458,25 +460,31 @@ private:
             auto unfetchedBlockIndexes = GetUnfetchedBlockIndexes();
             if (unfetchedBlockIndexes.empty()) {
                 OnSessionSucceeded();
-                return;
+                break;
             }
 
             if (PeerIndex >= PeerAddressList.size()) {
                 OnPassCompleted();
-                return;
+                break;
             }
 
             auto address = PickNextPeer();
 
             auto requestBlockIndexes = GetRequestBlockIndexes(address, unfetchedBlockIndexes);
-            if (!requestBlockIndexes.empty()) {
+            if (requestBlockIndexes.empty()) {
                 LOG_INFO("Requesting blocks from %s (BlockIndexes: [%s])",
                     ~address,
                     ~JoinToString(unfetchedBlockIndexes));
 
-                auto channel = NodeChannelCache->GetChannel(address);
+                IChannelPtr channel;
+                try {
+                    channel = NodeChannelCache->GetChannel(address);
+                } catch (const std::exception& ex) {
+                    OnGetBlocksResponseFailed(address, TError(ex.what()));
+                    continue;
+                }
 
-                TChunkHolderServiceProxy proxy(~channel);
+                TChunkHolderServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
                 auto request = proxy.GetBlocks();
@@ -489,38 +497,43 @@ private:
 
                 request->Invoke().Subscribe(
                     BIND(
-                        &TReadSession::OnGotBlocks,
+                        &TReadSession::OnGetBlocksResponse,
                         MakeStrong(this),
                         address,
                         request)
                     .Via(ReaderThread->GetInvoker()));
-                return;
+                break;
             }
 
             LOG_INFO("Skipping peer %s", ~address);
         }
     }
 
-    void OnGotBlocks(
+    void OnGetBlocksResponse(
         const Stroka& address,
         TChunkHolderServiceProxy::TReqGetBlocksPtr request,
         TChunkHolderServiceProxy::TRspGetBlocksPtr response)
     {
         if (response->IsOK()) {
-            ProcessReceivedBlocks(address, ~request, ~response);
+            ProcessReceivedBlocks(address, request, response);
         } else {
-            LOG_WARNING("Error getting blocks from %s\n%s",
-                ~address,
-                ~response->GetError().ToString());
+            OnGetBlocksResponseFailed(address, response->GetError());
         }
 
-        RequestPeer();
+        RequestBlocks();
+    }
+
+    void OnGetBlocksResponseFailed(const Stroka& address, const TError& error)
+    {
+        LOG_WARNING("Error getting blocks from %s\n%s",
+            ~address,
+            ~error.ToString());
     }
 
     void ProcessReceivedBlocks(
         const Stroka& address,
-        TChunkHolderServiceProxy::TReqGetBlocks* request,
-        TChunkHolderServiceProxy::TRspGetBlocks* response)
+        TChunkHolderServiceProxy::TReqGetBlocksPtr request,
+        TChunkHolderServiceProxy::TRspGetBlocksPtr response)
     {
         auto reader = Reader.Lock();
         if (!reader)
@@ -646,6 +659,7 @@ private:
     virtual void NewPass()
     {
         TSessionBase::NewPass();
+        SeedIndex = 0;
         RequestInfo();
     }
 
@@ -659,7 +673,13 @@ private:
 
         LOG_INFO("Requesting chunk info from %s", ~address);
 
-        auto channel = NodeChannelCache->GetChannel(address);
+        IChannelPtr channel;
+        try {
+            channel = NodeChannelCache->GetChannel(address);
+        } catch (const std::exception& ex) {
+            OnChunkMetaResponseFailed(address, TError(ex.what()));
+            return;
+        }
 
         TChunkHolderServiceProxy proxy(~channel);
         proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
@@ -669,29 +689,38 @@ private:
         request->set_all_extension_tags(AllExtensionTags);
         ToProto(request->mutable_extension_tags(), ExtensionTags);
         request->Invoke().Subscribe(
-            BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this))
+            BIND(&TGetMetaSession::OnChunkMetaResponse, MakeStrong(this), address)
             .Via(ReaderThread->GetInvoker()));
     }
 
-    void OnGotChunkMeta(TChunkHolderServiceProxy::TRspGetChunkMetaPtr response)
+    void OnChunkMetaResponse(
+        const Stroka& address,
+        TChunkHolderServiceProxy::TRspGetChunkMetaPtr response)
     {
         if (response->IsOK()) {
             OnSessionSucceeded(response->chunk_meta());
         } else {
-            LOG_WARNING("Error getting chunk info from node\n%s", ~response->GetError().ToString());
+            OnChunkMetaResponseFailed(address, response->GetError());
+        }
+    }
 
-            ++SeedIndex;
-            if (SeedIndex < SeedAddresses.size()) {
-                RequestInfo();
-            } else {
-                OnPassCompleted();
-            }
+    void OnChunkMetaResponseFailed(const Stroka& address, const TError& error)
+    {
+        LOG_WARNING("Error getting chunk info from %s\n%s",
+            ~address,
+            ~error.ToString());
+
+        ++SeedIndex;
+        if (SeedIndex < SeedAddresses.size()) {
+            RequestInfo();
+        } else {
+            OnPassCompleted();
         }
     }
 
     void OnSessionSucceeded(const TChunkMeta& chunkMeta)
     {
-        LOG_INFO("Chunk info is obtained");
+        LOG_INFO("Chunk info obtained");
         Promise.Set(IAsyncReader::TGetMetaResult(chunkMeta));
     }
 
