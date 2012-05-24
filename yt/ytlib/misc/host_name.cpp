@@ -3,7 +3,9 @@
 
 #include <util/system/hostname.h>
 
+#ifndef _WIN32
 #include <netdb.h>
+#endif
 
 namespace NYT {
 
