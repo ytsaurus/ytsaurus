@@ -74,7 +74,7 @@ void TChunkSequenceReader::PrepareNextChunk()
     const auto& slice = inputChunk.slice();
     auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
 
-    LOG_DEBUG("Opening chunk (Chunkndex: %d, ChunkId: %s)", 
+    LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)", 
         LastPreparedReader,
         ~chunkId.ToString());
 
