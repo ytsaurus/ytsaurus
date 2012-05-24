@@ -2,10 +2,25 @@ import subprocess
 
 YT = "yt"
 
+###########################################################################
+
+class YTError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+###########################################################################
+
+
 def command(name, *args, **kw):
     process = run_command(name, *args, **kw)
     stdout, stderr = process.communicate()
-    return stdout, stderr, process.returncode
+    if process.returncode != 0:
+        print 'XXX:', stderr
+        raise YTError(stderr)
+    print stdout
+    return stdout.strip('\n')
 
 def convert_to_yt_args(*args, **kw):
     all_args = list(args)

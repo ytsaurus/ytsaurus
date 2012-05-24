@@ -9,18 +9,6 @@ import yson
 import time
 import os
 
-def expect_error(result):
-    stdout, stderr, exitcode = result
-    print stderr
-    assert exitcode != 0
-    return stderr
-
-def expect_ok(result):
-    stdout, stderr, exitcode = result
-    print stdout
-    assert exitcode == 0
-    return stdout
-
 def lock(path, **kw): return command('lock', path, **kw)
 def get(path, **kw): return command('get', path, **kw)
 def remove(path, **kw): return command('remove', path, **kw)
@@ -32,7 +20,7 @@ def read(path, **kw): return command('read', path, **kw)
 def write(path, value, **kw): return command('write', path, value, **kw)
 
 def start_transaction(**kw):
-    raw_tx = expect_ok(command('start_tx', **kw))
+    raw_tx = command('start_tx', **kw)
     tx_id = raw_tx.replace('"', '').strip('\n')
     return tx_id
 
@@ -46,12 +34,8 @@ def upload(path, **kw): return command('upload', path, **kw)
 
 #helpers:
 
-def assert_eq(result, expected):
-    actual = expect_ok(result).strip('\n')
-    assert actual == expected
-
 def get_transactions(**kw):
-    yson_map = expect_ok(get('//sys/transactions', **kw)).strip('\n')
+    yson_map = get('//sys/transactions', **kw)
     return yson_parser.parse_string(yson_map)
 
 def sort_list(value):
@@ -68,53 +52,53 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_invalid_cases(self):
         # path not starting with /
-        expect_error( set('a', '20'))
+        with pytest.raises(YTError): set('a', '20')
 
         # path starting with single /
-        expect_error( set('/a', '20'))
+        with pytest.raises(YTError): set('/a', '20')
 
         # empty path
-        expect_error( set('', '20'))
+        with pytest.raises(YTError): set('', '20')
 
         # empty token in path
-        expect_error( set('//a//b', '30'))
+        with pytest.raises(YTError): set('//a//b', '30')
 
         # change the type of root
-        expect_error( set('/', '[]'))
+        with pytest.raises(YTError): set('/', '[]')
 
         # set the root to the empty map
         # expect_error( set('/', '{}'))
 
         # remove the root
-        expect_error( remove('/'))       
+        with pytest.raises(YTError): remove('/')
         # get non existent child
-        expect_error( get('//b'))
+        with pytest.raises(YTError): get('//b')
 
         # remove non existent child
-        expect_error( remove('//b'))
+        with pytest.raises(YTError): remove('//b')
 
     def test_attributes(self):
-        expect_ok( set('//t', '<attr=100;mode=rw> {nodes=[1; 2]}'))
-        assert_eq( get('//t/@attr'), '100')
-        assert_eq( get('//t/@mode'), '"rw"')
+        set('//t', '<attr=100;mode=rw> {nodes=[1; 2]}')
+        assert get('//t/@attr') == '100'
+        assert get('//t/@mode') == '"rw"'
 
-        expect_ok( remove('//t/@'))
-        expect_error( get('//t/@attr'))
-        expect_error( get('//t/@mode'))
+        remove('//t/@')
+        with pytest.raises(YTError): get('//t/@attr')
+        with pytest.raises(YTError): get('//t/@mode')
 
         # changing attributes
-        expect_ok( set('//t/a', '< author=ignat > []'))
-        assert_eq( get('//t/a'), '[]')
-        assert_eq( get('//t/a/@author'), '"ignat"')
+        set('//t/a', '< author=ignat > []')
+        assert get('//t/a') == '[]'
+        assert get('//t/a/@author') == '"ignat"'
 
-        expect_ok( set('//t/a/@author', '"not_ignat"'))
-        assert_eq( get('//t/a/@author'), '"not_ignat"')
+        set('//t/a/@author', '"not_ignat"')
+        assert get('//t/a/@author') == '"not_ignat"'
 
         #nested attributes (actually shows <>)
-        expect_ok( set('//t/b', '<dir = <file = <>-100> #> []'))
-        assert_eq( get('//t/b/@dir/@'), '{"file"=<>-100}') 
-        assert_eq( get('//t/b/@dir/@file'), '<>-100')
-        assert_eq( get('//t/b/@dir/@file/@'), '{}')
+        set('//t/b', '<dir = <file = <>-100> #> []')
+        assert get('//t/b/@dir/@') == '{"file"=<>-100}'
+        assert get('//t/b/@dir/@file') == '<>-100'
+        assert get('//t/b/@dir/@file/@') == '{}'
 
 class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 1
@@ -128,14 +112,14 @@ class TestTxCommands(YTEnvSetup):
         assert get_transactions() == {tx_id: None}
         assert get_transactions(tx = tx_id) == {tx_id: None}
 
-        expect_ok( commit_transaction(tx = tx_id))
+        commit_transaction(tx = tx_id)
         #check that transaction no longer exists
         assert get_transactions() == {}
 
         #couldn't commit commited transaction
-        expect_error( commit_transaction(tx = tx_id))
+        with pytest.raises(YTError): commit_transaction(tx = tx_id)
         #could (!) abort commited transaction
-        expect_ok( abort_transaction(tx = tx_id))
+        abort_transaction(tx = tx_id)
 
         ##############################################################3
         #check the same for abort
@@ -144,29 +128,29 @@ class TestTxCommands(YTEnvSetup):
         assert get_transactions() == {tx_id: None}
         assert get_transactions(tx = tx_id) == {tx_id: None}
         
-        expect_ok( abort_transaction(tx = tx_id))
+        abort_transaction(tx = tx_id)
         #check that transaction no longer exists
         assert get_transactions() == {}
 
         #couldn't commit aborted transaction
-        expect_error( commit_transaction(tx = tx_id))
+        with pytest.raises(YTError): commit_transaction(tx = tx_id)
         #could (!) abort aborted transaction
-        expect_ok( abort_transaction(tx = tx_id))
+        abort_transaction(tx = tx_id)
 
     def test_changes_inside_tx(self):
-        expect_ok(set('//value', '42'))
+        set('//value', '42')
 
         tx_id = start_transaction()
-        expect_ok( set('//value', '100', tx = tx_id))
-        assert_eq( get('//value',        tx = tx_id), '100')
-        assert_eq( get('//value'), '42')
+        set('//value', '100', tx = tx_id)
+        assert get('//value', tx = tx_id) == '100'
+        assert get('//value') == '42'
         commit_transaction(tx = tx_id)
-        assert_eq( get('//value'), '100')
+        assert get('//value') == '100'
 
         tx_id = start_transaction()
-        expect_ok( set('//value', '100500', tx = tx_id))
+        set('//value', '100500', tx = tx_id)
         abort_transaction(tx = tx_id)
-        assert_eq( get('//value'), '100')
+        assert get('//value') == '100'
 
     def test_timeout(self):
         tx_id = start_transaction(opts = 'timeout=4000')
@@ -184,7 +168,7 @@ class TestTxCommands(YTEnvSetup):
 
         time.sleep(2)
         assert get_transactions() == {tx_id: None}
-        expect_ok( renew_transaction(tx = tx_id))
+        renew_transaction(tx = tx_id)
 
         time.sleep(2)
         assert get_transactions() == {tx_id: None}
@@ -199,33 +183,33 @@ class TestLockCommands(YTEnvSetup):
     #TODO(panin): check error messages
     def test_invalid_cases(self):
         # outside of transaction
-        expect_error( lock('/'))
+        with pytest.raises(YTError): lock('/')
 
         # at non-existsing node
         tx_id = start_transaction()
-        expect_error( lock('//non_existent', tx = tx_id))
+        with pytest.raises(YTError): lock('//non_existent', tx = tx_id)
 
         # error while parsing mode
-        expect_error( lock('/', mode = 'invalid', tx = tx_id))
+        with pytest.raises(YTError): lock('/', mode = 'invalid', tx = tx_id)
 
         #taking None lock is forbidden
-        expect_error( lock('/', mode = 'None', tx = tx_id))
+        with pytest.raises(YTError): lock('/', mode = 'None', tx = tx_id)
 
         # attributes do not have @lock_mode
-        expect_ok( set('//value', '<attr=some> 42', tx = tx_id))
-        expect_error( lock('//value/@attr/@lock_mode', tx = tx_id))
+        set('//value', '<attr=some> 42', tx = tx_id)
+        with pytest.raises(YTError): lock('//value/@attr/@lock_mode', tx = tx_id)
        
-        expect_ok( abort_transaction(tx = tx_id))
+        abort_transaction(tx = tx_id)
 
     def test_display_locks(self):
         tx_id = start_transaction()
         
-        expect_ok( set('//map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id))
+        set('//map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id)
 
         # check that lock is set on nested nodes
-        assert_eq( get('//map/@lock_mode',        tx = tx_id), '"exclusive"')
-        assert_eq( get('//map/list/@lock_mode',   tx = tx_id), '"exclusive"')
-        assert_eq( get('//map/list/0/@lock_mode', tx = tx_id), '"exclusive"')
+        assert get('//map/@lock_mode', tx = tx_id) == '"exclusive"'
+        assert get('//map/list/@lock_mode', tx = tx_id) == '"exclusive"'
+        assert get('//map/list/0/@lock_mode', tx = tx_id) == '"exclusive"'
 
         abort_transaction(tx = tx_id)
 
@@ -258,57 +242,57 @@ class TestLockCommands(YTEnvSetup):
         for object_type in types_to_check:
             tx_id = start_transaction()
             if object_type != "file":
-                expect_ok( create(object_type, '//some', tx = tx_id))
+                create(object_type, '//some', tx = tx_id)
             else:
                 #file can't be created via create
-                expect_error( create(object_type, '//some', tx = tx_id))
+                with pytest.raises(YTError): create(object_type, '//some', tx = tx_id)
             
             if object_type != "table":
-                expect_error( lock('//some', mode = 'shared', tx = tx_id))
+                with pytest.raises(YTError): lock('//some', mode = 'shared', tx = tx_id)
             else:
                 # shared locks are available only on tables 
-                expect_ok( lock('//some', mode = 'shared', tx = tx_id))
+                lock('//some', mode = 'shared', tx = tx_id)
 
-            expect_ok( abort_transaction(tx = tx_id))
+            abort_transaction(tx = tx_id)
     
     @pytest.mark.xfail(run = False, reason = 'Issue #196')
     def test_snapshot_lock(self):
-        expect_ok(set('//node', '42'))
+        set('//node', '42')
         
         tx_id = start_transaction()
-        expect_ok(lock('//node', mode = 'snapshot', tx = tx_id))
+        lock('//node', mode = 'snapshot', tx = tx_id)
         
-        expect_ok(set('//node', '100'))
+        set('//node', '100')
         # check that node under snapshot lock wasn't changed
-        assert_eq(get('//node', tx = tx_id), '42')
+        assert get('//node', tx = tx_id) == '42'
 
-        expect_ok(remove('//node'))
+        remove('//node')
         # check that node under snapshot lock still exist
-        assert_eq(get('//node', tx = tx_id), '42')
+        assert get('//node', tx = tx_id) == '42'
         
-        expect_ok(abort_transaction(tx = tx_id))
+        abort_transaction(tx = tx_id)
 
     @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
 
-        expect_ok( set('//a', '{}'))
-        expect_ok( set('//a/b', '{}'))
-        expect_ok( set('//a/b/c', '42'))
+        set('//a', '{}')
+        set('//a/b', '{}')
+        set('//a/b/c', '42')
 
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        expect_ok( lock('//a/b', tx = tx1))
+        lock('//a/b', tx = tx1)
 
         # now taking lock for any element in //a/b/c cause en error
-        expect_error( lock('//a', tx = tx2))
-        expect_error( lock('//a/b', tx = tx2))
-        expect_error( lock('//a/b/c', tx = tx2))
+        with pytest.raises(YTError): lock('//a', tx = tx2)
+        with pytest.raises(YTError): lock('//a/b', tx = tx2)
+        with pytest.raises(YTError): lock('//a/b/c', tx = tx2)
 
-        expect_ok( abort_transaction(tx = tx1))
-        expect_ok( abort_transaction(tx = tx2))
+        abort_transaction(tx = tx1)
+        abort_transaction(tx = tx2)
 
-        expect_ok(remove('//a'))
+        remove('//a')
 
 
 class TestTableCommands(YTEnvSetup):
@@ -318,42 +302,42 @@ class TestTableCommands(YTEnvSetup):
     # test that chunks are not available from chunk_lists
     # Issue #198
     def test_chunk_ids(self):
-        expect_ok(create('table', '//t'))
-        expect_ok(write('//t', '{a=10}'))
+        create('table', '//t')
+        write('//t', '{a=10}')
 
-        result = expect_ok(ls('//sys/chunks'))
+        result = ls('//sys/chunks')
         chunk_id = yson_parser.parse_string(result)[0]
 
-        expect_error(get('//sys/chunk_lists/"' + chunk_id + '"'))
-        expect_ok(remove('//t'))
+        with pytest.raises(YTError): get('//sys/chunk_lists/"' + chunk_id + '"')
+        remove('//t')
 
 
     def test_simple(self):
-        expect_ok( create('table', '//table'))
+        create('table', '//table')
 
-        assert_eq( read('//table'), '')
-        assert_eq( get('//table/@row_count'), '0')
+        assert read('//table') == ''
+        assert get('//table/@row_count') == '0'
 
-        expect_ok( write('//table', '[{b="hello"}]'))
-        assert_eq( read('//table'), '{"b"="hello"};')
-        assert_eq( get('//table/@row_count'), '1')
+        write('//table', '[{b="hello"}]')
+        assert read('//table') == '{"b"="hello"};'
+        assert get('//table/@row_count') == '1'
 
-        expect_ok( write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
-        assert_eq( read('//table'), '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"};')
-        assert_eq( get('//table/@row_count'), '3')
+        write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]')
+        assert read('//table') == '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"};'
+        assert get('//table/@row_count') == '3'
 
-        expect_ok( remove('//table'))
+        remove('//table')
 
     def test_invalid_cases(self):
         # we can write only list or maps
-        expect_ok( create('table', '//table'))
+        create('table', '//table')
 
-        expect_error( write('//table', 'string'))
-        expect_error( write('//table', '100'))
-        expect_error( write('//table', '3.14'))
-        expect_error( write('//table', '<>'))
+        with pytest.raises(YTError): write('//table', 'string')
+        with pytest.raises(YTError): write('//table', '100')
+        with pytest.raises(YTError): write('//table', '3.14')
+        with pytest.raises(YTError): write('//table', '<>')
 
-        expect_ok( remove('//table'))
+        remove('//table')
 
 
 #TODO(panin): tests of scheduler
@@ -362,7 +346,7 @@ class TestOrchid(YTEnvSetup):
     NUM_HOLDERS = 5
 
     def test_on_masters(self):
-        result = expect_ok( ls('//sys/masters'))
+        result = ls('//sys/masters')
         masters = yson_parser.parse_string(result)
         assert len(masters) == self.NUM_MASTERS
 
@@ -371,20 +355,19 @@ class TestOrchid(YTEnvSetup):
             path_to_orchid = '//sys/masters/'  + q + master + q + '/orchid'
             path = path_to_orchid + '/value'
 
-            assert_eq( get(path_to_orchid + '/@service_name'), '"master"')
+            assert get(path_to_orchid + '/@service_name') == '"master"'
 
             some_map = '{"a"=1;"b"=2}'
 
-            expect_ok( set(path, some_map))
-            assert_eq( get(path), some_map)
-            result = expect_ok( ls(path))
-            assert sort_list(result) == '["a";"b";]'
-            expect_ok( remove(path))
-            expect_error( get(path))
+            set(path, some_map)
+            assert get(path) == some_map
+            assert sort_list(ls(path)) == '["a";"b";]'
+            remove(path)
+            with pytest.raises(YTError): get(path)
 
 
     def test_on_holders(self):
-        result = expect_ok( ls('//sys/holders'))
+        result = ls('//sys/holders')
         holders = yson_parser.parse_string(result)
         assert len(holders) == self.NUM_HOLDERS
 
@@ -393,16 +376,15 @@ class TestOrchid(YTEnvSetup):
             path_to_orchid = '//sys/holders/'  + q + holder + q + '/orchid'
             path = path_to_orchid + '/value'
 
-            assert_eq( get(path_to_orchid + '/@service_name'), '"node"')
+            assert get(path_to_orchid + '/@service_name') == '"node"'
 
             some_map = '{"a"=1;"b"=2}'
 
-            expect_ok( set(path, some_map))
-            assert_eq( get(path), some_map)
-            result = expect_ok( ls(path))
-            assert sort_list(result) == '["a";"b";]'
-            expect_ok( remove(path))
-            expect_error( get(path))
+            set(path, some_map)
+            assert get(path) == some_map
+            assert sort_list(ls(path)) == '["a";"b";]'
+            remove(path)
+            with pytest.raises(YTError): get(path)
 
 
 class TestCanceledUpload(YTEnvSetup):
