@@ -29,9 +29,7 @@ TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
     , TUntypedCommandBase(context)
 { }
 
-void TSchedulerCommandBase::StartOperation(
-    EOperationType type,
-    const NYTree::TYson& spec)
+void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
     auto transaction = GetTransaction(false);
 
@@ -42,7 +40,7 @@ void TSchedulerCommandBase::StartOperation(
         auto startOpReq = proxy.StartOperation();
         startOpReq->set_type(type);
         *startOpReq->mutable_transaction_id() = (transaction ? transaction->GetId() : NullTransactionId).ToProto();
-        startOpReq->set_spec(spec);
+        startOpReq->set_spec(SerializeToYson(Request->Spec));
 
         auto startOpRsp = startOpReq->Invoke().Get();
         if (!startOpRsp->IsOK()) {
@@ -64,9 +62,7 @@ TMapCommand::TMapCommand(ICommandContext* host)
 
 void TMapCommand::DoExecute()
 {
-    StartOperation(
-        EOperationType::Map,
-        SerializeToYson(Request->Spec));
+    StartOperation(EOperationType::Map);
     // TODO(babenko): dump stderrs
 }
 
@@ -79,9 +75,7 @@ TMergeCommand::TMergeCommand(ICommandContext* context)
 
 void TMergeCommand::DoExecute()
 {
-    StartOperation(
-        EOperationType::Merge,
-        SerializeToYson(Request->Spec));
+    StartOperation(EOperationType::Merge);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,9 +87,7 @@ TSortCommand::TSortCommand(ICommandContext* context)
 
 void TSortCommand::DoExecute()
 {
-    StartOperation(
-        EOperationType::Sort,
-        SerializeToYson(Request->Spec));
+    StartOperation(EOperationType::Sort);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +99,7 @@ TEraseCommand::TEraseCommand(ICommandContext* context)
 
 void TEraseCommand::DoExecute()
 {
-    StartOperation(
-        EOperationType::Erase,
-        SerializeToYson(Request->Spec));
+    StartOperation(EOperationType::Erase);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

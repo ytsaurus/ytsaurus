@@ -32,9 +32,7 @@ protected:
 
     explicit TSchedulerCommandBase(ICommandContext* context);
 
-    void StartOperation(
-        NScheduler::EOperationType type,
-        const NYTree::TYson& spec);
+    void StartOperation(NScheduler::EOperationType type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
