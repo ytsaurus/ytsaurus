@@ -21,7 +21,7 @@ TEST(TTsvWriterTest, PossibleValues)
         writer.OnKeyedItem("string");
         writer.OnStringScalar("some");
         writer.OnKeyedItem("double");
-        writer.OnDoubleScalar(10);     // let's hope that 10 will serialized as 10
+        writer.OnDoubleScalar(10);     // let's hope that 10 will be serialized as 10
     writer.OnEndMap();
     writer.OnListItem();
     writer.OnBeginMap();
