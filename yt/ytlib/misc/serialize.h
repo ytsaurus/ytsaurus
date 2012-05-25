@@ -19,6 +19,39 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Alignment size; measured in bytes and must be a power of two.
+const size_t YTAlignment = 8;
+
+//! Auxiliary constants and functions.
+namespace NDetails {
+
+const ui8 Padding[YTAlignment] = { 0 };
+
+} // namespace NDetails
+
+static_assert(!(YTAlignment & (YTAlignment - 1)), "YTAlignment should be a power of two.");
+
+//! Rounds up the #size to the nearest factor of #YTAlignment.
+template <class T>
+T GetPaddingSize(T size)
+{
+    T result = static_cast<T>(size % YTAlignment);
+    return result == 0 ? 0 : YTAlignment - result;
+}
+
+template <class T>
+T AlignUp(T size)
+{
+    return size + GetPaddingSize(size);
+}
+
+template <class OutputStream>
+size_t WritePaddingZeroes(OutputStream& output, i64 writtenSize)
+{
+    output.Write(&NDetails::Padding, GetPaddingSize(writtenSize));
+    return AlignUp(writtenSize);
+}
+
 template <class OutputStream>
 void Write(OutputStream& output, const TRef& ref)
 {
@@ -55,31 +88,52 @@ size_t ReadPod(InputStream& input, T& obj)
     return input.Read(&obj, sizeof(obj));
 }
 
+template <class OutputStream>
+size_t WritePadded(OutputStream& output, const TRef& ref)
+{
+    output.Write(ref.Begin(), ref.Size());
+    output.Write(&NDetails::Padding, GetPaddingSize(ref.Size()));
+    return AlignUp(ref.Size());
+}
+
+template <class OutputStream>
+size_t AppendPadded(OutputStream& output, const TRef& ref)
+{
+    output.Append(ref.Begin(), ref.Size());
+    output.Append(&NDetails::Padding, GetPaddingSize(ref.Size()));
+    return AlignUp(ref.Size());
+}
+
+template <class InputStream>
+size_t ReadPadded(InputStream& input, TRef& ref)
+{
+    input.Read(ref.Begin(), ref.Size());
+    input.Skip(GetPaddingSize(ref.Size()));
+    return AlignUp(ref.Size());
+}
+
+template <class InputStream, class T>
+size_t ReadPodPadded(InputStream& input, T& obj)
+{
+    auto objRef = TRef::FromPod(obj);
+    return ReadPadded(input, objRef);
+}
+
+template <class OutputStream, class T>
+size_t AppendPodPadded(OutputStream& output, const T& obj)
+{
+    auto objRef = TRef::FromPod(obj);
+    return AppendPadded(output, objRef);
+}
+
+template <class OutputStream, class T>
+size_t WritePodPadded(OutputStream& output, const T& obj)
+{
+    auto objRef = TRef::FromPod(obj);
+    return WritePadded(output, objRef);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-// TODO: consider getting rid of these functions and using analogs from ysaveload.h
-template <class T>
-bool Read(TInputStream& input, T* data)
-{
-    return input.Load(data, sizeof(T)) == sizeof(T);
-}
-
-template <class T>
-bool Read(TFile& file, T* data)
-{
-    return file.Read(data, sizeof(T)) == sizeof(T);
-}
-
-template <class T>
-void Write(TOutputStream& output, const T& data)
-{
-    output.Write(&data, sizeof(T));
-}
-
-template <class T>
-void Write(TFile& file, const T& data)
-{
-    file.Write(&data, sizeof(T));
-}
 
 template <class TKey>
 yvector <typename yhash_set<TKey>::const_iterator> GetSortedIterators(
@@ -144,7 +198,7 @@ void LoadNullableSet(TInputStream* input, THolder<TSet>& set)
         set.Destroy();
         return;
     }
-    
+
     set.Reset(new TSet());
     for (size_t index = 0; index < size; ++index) {
         TKey key;
@@ -199,32 +253,9 @@ void LoadMap(TInputStream* input, TMap& map)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef PackRefs(const yvector<TSharedRef>& refs);
+TSharedRef PackRefs(const std::vector<TSharedRef>& refs);
 
-void UnpackRefs(TSharedRef ref, yvector<TSharedRef>* result);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Alignment size; measured in bytes and must be a power of two.
-const size_t YTAlignment = 8;
-
-static_assert(!(YTAlignment & (YTAlignment - 1)), "YTAlignment should be a power of two.");
-
-//! Returns padding size: number of bytes required to make size
-//! a factor of #YTAlignment.
-int GetPaddingSize(i64 size);
-
-//! Rounds up the #size to the nearest factor of #YTAlignment.
-i64 AlignUp(i64 size);
-
-//! Rounds up the #size to the nearest factor of #YTAlignment.
-i32 AlignUp(i32 size);
-
-//! Writes padding zeros.
-void WritePadding(TOutputStream& output, i64 recordSize);
-
-//! Writes padding zeros.
-void WritePadding(TFile& file, i64 recordSize);
+void UnpackRefs(TSharedRef ref, std::vector<TSharedRef>* result);
 
 ////////////////////////////////////////////////////////////////////////////////
 

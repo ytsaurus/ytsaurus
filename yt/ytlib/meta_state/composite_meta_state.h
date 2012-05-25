@@ -86,7 +86,7 @@ private:
     typedef yhash_map< Stroka, TCallback<void(const TRef&)> > TMethodMap;
     TMethodMap Methods;
 
-    yvector<TMetaStatePartPtr> Parts;
+    std::vector<TMetaStatePartPtr> Parts;
 
     typedef yhash_map< Stroka, TLoader > TLoaderMap;
     typedef yhash_map< Stroka, TSaverInfo> TSaverMap;

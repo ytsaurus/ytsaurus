@@ -58,8 +58,8 @@ public:
 
     //! Reads records from the changelog.
     //! \see TChangeLog::Read
-    //! Can return less records than recordCount
-    void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
+    //! Size of result can be less than recordCount
+    void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result);
 
     //! Truncates the changelog at the specified record.
     //! \see TChangeLog::Truncate

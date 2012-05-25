@@ -139,7 +139,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
         YASSERT(response->Attachments().size() == 1);
         // Don't forget to unpack obtained refs
-        yvector<TSharedRef> attachments;
+        std::vector<TSharedRef> attachments;
         UnpackRefs(response->Attachments().front(), &attachments);
         if (attachments.empty()) {
             LOG_WARNING("Peer %d does not have %d records of changelog %d anymore",

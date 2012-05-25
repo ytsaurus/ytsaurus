@@ -32,12 +32,12 @@ namespace {
 
         void Save(TOutputStream* output) const
         {
-            Write(*output, Value);
+            WritePod(*output, Value);
         }
 
         void Load(TVoid, TInputStream* input)
         {
-            Read(*input, &Value);
+            ReadPod(*input, Value);
         }
     };
 

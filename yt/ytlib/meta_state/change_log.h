@@ -23,7 +23,6 @@ public:
     TChangeLog(
         const Stroka& fileName,
         i32 id,
-        bool disableFlush = false,
         i64 indexBlockSize = 1024 * 1024);
 
     ~TChangeLog();
@@ -32,9 +31,9 @@ public:
     void Create(i32 prevRecordCount);
     void Finalize();
 
-    void Append(i32 firstRecordId, const yvector<TSharedRef>& records);
+    void Append(i32 firstRecordId, const std::vector<TSharedRef>& records);
     void Flush();
-    void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result);
+    void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result);
     void Truncate(i32 atRecordId);
 
     i32 GetId() const;
@@ -46,7 +45,6 @@ private:
     class TImpl;
 
     THolder<TImpl> Impl;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

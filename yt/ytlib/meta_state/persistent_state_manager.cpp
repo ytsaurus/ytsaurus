@@ -476,7 +476,7 @@ public:
         IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
             VERIFY_THREAD_AFFINITY(IOThread);
 
-            yvector<TSharedRef> recordData;
+            std::vector<TSharedRef> recordData;
             try {
                 changeLog->Read(startRecordId, recordCount, &recordData);
             } catch (const std::exception& ex) {
@@ -485,11 +485,11 @@ public:
                     ex.what());
             }
 
-            context->Response().set_records_read(recordData.ysize());
+            context->Response().set_records_read(recordData.size());
             // Pack refs for minimize allocations number on the side of the request
             context->Response().Attachments().push_back(PackRefs(recordData));
 
-            context->SetResponseInfo("RecordCount: %d", recordData.ysize());
+            context->SetResponseInfo("RecordCount: %d", recordData.size());
             context->Reply();
         })));
     }

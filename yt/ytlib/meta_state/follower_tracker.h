@@ -41,7 +41,7 @@ private:
     TFollowerTrackerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     IInvoker::TPtr EpochControlInvoker;
-    yvector<TFollowerState> FollowerStates;
+    std::vector<TFollowerState> FollowerStates;
     int ActiveFollowerCount;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

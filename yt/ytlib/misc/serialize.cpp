@@ -5,41 +5,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Auxiliary constants and functions.
-namespace {
-
-const ui8 Padding[YTAlignment] = { 0 };
-
-} // namespace
-
-int GetPaddingSize(i64 size)
-{
-    int result = static_cast<int>(size % YTAlignment);
-    return result == 0 ? 0 : YTAlignment - result;
-}
-
-i64 AlignUp(i64 size)
-{
-    return size + GetPaddingSize(size);
-}
-
-i32 AlignUp(i32 size)
-{
-    return size + GetPaddingSize(size);
-}
-
-void WritePadding(TOutputStream& output, i64 recordSize)
-{
-    output.Write(&Padding, GetPaddingSize(recordSize));
-}
-
-void WritePadding(TFile& output, i64 recordSize)
-{
-    output.Write(&Padding, GetPaddingSize(recordSize));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // There are optimized versions of these Read/Write functions in protobuf/io/coded_stream.cc.
 int WriteVarUInt64(TOutputStream* output, ui64 value)
 {
@@ -110,7 +75,7 @@ int ReadVarInt64(TInputStream* input, i64* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef PackRefs(const yvector<TSharedRef>& refs)
+TSharedRef PackRefs(const std::vector<TSharedRef>& refs)
 {
     i64 size = 0;
 
@@ -131,18 +96,18 @@ TSharedRef PackRefs(const yvector<TSharedRef>& refs)
         WritePod(output, static_cast<i64>(ref.Size()));
         Write(output, TRef(ref));
     }
-    WritePadding(output, size);
+    WritePaddingZeroes(output, size);
 
     return TSharedRef(MoveRV(blob));
 }
 
-void UnpackRefs(TSharedRef ref, yvector<TSharedRef>* result)
+void UnpackRefs(TSharedRef ref, std::vector<TSharedRef>* result)
 {
     TMemoryInput input(ref.Begin(), ref.Size());
 
     i32 refCount;
     ReadPod(input, refCount);
-    *result = yvector<TSharedRef>(refCount);
+    *result = std::vector<TSharedRef>(refCount);
     for (i32 i = 0; i < refCount; ++i) {
         i64 refSize;
         ReadPod(input, refSize);

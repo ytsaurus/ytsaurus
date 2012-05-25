@@ -203,7 +203,7 @@ public:
      */
     EResult PostponeChanges(
         const TMetaVersion& version,
-        const yvector<TSharedRef>& changes);
+        const std::vector<TSharedRef>& changes);
 
 private:
     struct TPostponedChange
@@ -233,7 +233,7 @@ private:
         { }
     };
 
-    typedef yvector<TPostponedChange> TPostponedChanges;
+    typedef std::vector<TPostponedChange> TPostponedChanges;
 
     // Any thread.
     TAsyncPromise Promise;

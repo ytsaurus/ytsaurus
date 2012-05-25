@@ -117,10 +117,10 @@ public:
     int GetSize() const;
 
     //! Returns all keys that are present in the map.
-    yvector<TKey> GetKeys(size_t sizeLimit = Max<size_t>()) const;
+    std::vector<TKey> GetKeys(size_t sizeLimit = Max<size_t>()) const;
 
     //! Returns all values that are present in the map.
-    yvector<TValue*> GetValues(size_t sizeLimit = Max<size_t>()) const;
+    std::vector<TValue*> GetValues(size_t sizeLimit = Max<size_t>()) const;
 
     //! (Unordered) begin()-iterator.
     /*!
@@ -223,8 +223,8 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 #define DECLARE_METAMAP_ACCESSORS(entityName, entityType, idType) \
     entityType* Find ## entityName(const idType& id); \
     entityType& Get ## entityName(const idType& id); \
-    yvector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
-    yvector<entityType*> Get ## entityName ## s(size_t sizeLimit = Max<size_t>()); \
+    std::vector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
+    std::vector<entityType*> Get ## entityName ## s(size_t sizeLimit = Max<size_t>()); \
     int Get ## entityName ## Count() const;
 
 #define DEFINE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \
@@ -238,12 +238,12 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).Get(id); \
     } \
     \
-    yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
+    std::vector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
     { \
         return (map).GetKeys(sizeLimit); \
     } \
     \
-    yvector<entityType*> declaringType::Get ## entityName ##s(size_t sizeLimit) \
+    std::vector<entityType*> declaringType::Get ## entityName ##s(size_t sizeLimit) \
     { \
         return (map).GetValues(sizeLimit); \
     } \
@@ -264,12 +264,12 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (delegateTo).Get ## entityName(id); \
     } \
     \
-    yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
+    std::vector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
     { \
         return (delegateTo).Get ## entityName ## Ids(sizeLimit); \
     } \
     \
-    yvector<entityType*> declaringType::Get ## entityName ## s(size_t sizeLimit) \
+    std::vector<entityType*> declaringType::Get ## entityName ## s(size_t sizeLimit) \
     { \
         return (delegateTo).Get ## entityName ## s(sizeLimit); \
     } \

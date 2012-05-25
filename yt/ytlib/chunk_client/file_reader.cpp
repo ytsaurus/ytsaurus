@@ -34,7 +34,7 @@ void TFileReader::Open()
     TBufferedFileInput chunkMetaInput(chunkMetaFile);
 
     TChunkMetaHeader metaHeader;
-    Read(chunkMetaInput, &metaHeader);
+    ReadPod(chunkMetaInput, metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
         ythrow yexception()
             << Sprintf("Incorrect signature in chunk meta header (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",

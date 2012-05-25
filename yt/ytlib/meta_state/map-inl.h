@@ -133,11 +133,11 @@ int TMetaStateMap<TKey, TValue, TTraits, THash>::GetSize() const
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLimit) const
+std::vector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLimit) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    yvector<TKey> keys;
+    std::vector<TKey> keys;
     keys.reserve(Min(static_cast<size_t>(Size), sizeLimit));
 
     FOREACH (const auto& pair, Map) {
@@ -147,17 +147,17 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
         keys.push_back(pair.first);
     }
 
-    YASSERT(keys.ysize() == Min(static_cast<size_t>(Size), sizeLimit));
+    YASSERT(keys.size() == Min(static_cast<size_t>(Size), sizeLimit));
 
     return keys;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-yvector<TValue*> TMetaStateMap<TKey, TValue, TTraits, THash>::GetValues(size_t sizeLimit) const
+std::vector<TValue*> TMetaStateMap<TKey, TValue, TTraits, THash>::GetValues(size_t sizeLimit) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    yvector<TValue*> values;
+    std::vector<TValue*> values;
     values.reserve(Min(static_cast<size_t>(Size), sizeLimit));
 
     FOREACH (auto& pair, Map) {
@@ -167,7 +167,7 @@ yvector<TValue*> TMetaStateMap<TKey, TValue, TTraits, THash>::GetValues(size_t s
         }
     }
 
-    YASSERT(values.ysize() == Min(static_cast<size_t>(Size), sizeLimit));
+    YASSERT(values.size() == Min(static_cast<size_t>(Size), sizeLimit));
 
     return values;
 }
@@ -239,7 +239,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    yvector<TKey> keys;
+    std::vector<TKey> keys;
     keys.reserve(Map.size());
     FOREACH (const auto& pair, Map) {
         keys.push_back(pair.first);

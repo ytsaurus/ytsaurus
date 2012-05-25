@@ -86,7 +86,7 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            FlushedRecordCount += FlushQueue.ysize();
+            FlushedRecordCount += FlushQueue.size();
             FlushQueue.clear();
         }
     }
@@ -139,7 +139,7 @@ public:
     }
 
     // Can return less records than recordCount
-    void Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
+    void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -157,7 +157,7 @@ public:
                 result);
 
             CopyRecords(
-                FlushedRecordCount + FlushQueue.ysize(),
+                FlushedRecordCount + FlushQueue.size(),
                 AppendQueue,
                 firstRecordId,
                 recordCount,
@@ -166,12 +166,12 @@ public:
 
         PROFILE_TIMING ("/changelog_read_io_time") {
             if (firstRecordId < flushedRecordCount) {
-                yvector<TSharedRef> buffer;
+                std::vector<TSharedRef> buffer;
                 i32 neededRecordCount = Min(
                     recordCount,
                     flushedRecordCount - firstRecordId);
                 ChangeLog->Read(firstRecordId, neededRecordCount, &buffer);
-                YASSERT(buffer.ysize() == neededRecordCount);
+                YASSERT(buffer.size() == neededRecordCount);
 
                 buffer.insert(
                     buffer.end(),
@@ -189,17 +189,17 @@ private:
     i32 DoGetRecordCount() const
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
-        return FlushedRecordCount + FlushQueue.ysize() + AppendQueue.ysize();
+        return FlushedRecordCount + FlushQueue.size() + AppendQueue.size();
     }
 
     static void CopyRecords(
         i32 firstRecordId,
-        const yvector<TSharedRef>& records,
+        const std::vector<TSharedRef>& records,
         i32 neededFirstRecordId,
         i32 neededRecordCount,
-        yvector<TSharedRef>* result)
+        std::vector<TSharedRef>* result)
     {
-        i32 size = records.ysize();
+        i32 size = records.size();
         i32 begin = neededFirstRecordId - firstRecordId;
         i32 end = neededFirstRecordId + neededRecordCount - firstRecordId;
         auto beginIt = records.begin() + Min(Max(begin, 0), size);
@@ -216,8 +216,8 @@ private:
     
     TSpinLock SpinLock;
     i32 FlushedRecordCount;
-    yvector<TSharedRef> AppendQueue;
-    yvector<TSharedRef> FlushQueue;
+    std::vector<TSharedRef> AppendQueue;
+    std::vector<TSharedRef> FlushQueue;
     TAppendPromise Promise;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
@@ -273,7 +273,7 @@ public:
         const TChangeLogPtr& changeLog,
         i32 firstRecordId,
         i32 recordCount,
-        yvector<TSharedRef>* result)
+        std::vector<TSharedRef>* result)
     {
         YASSERT(firstRecordId >= 0);
         YASSERT(recordCount >= 0);
@@ -497,7 +497,7 @@ void TAsyncChangeLog::Flush()
     TImpl::Get()->Flush(ChangeLog);
 }
 
-void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, yvector<TSharedRef>* result)
+void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result)
 {
     TImpl::Get()->Read(ChangeLog, firstRecordId, recordCount, result);
 }

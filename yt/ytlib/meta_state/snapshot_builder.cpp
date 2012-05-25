@@ -133,12 +133,12 @@ private:
     void OnComplete()
     {
         int successCount = 0;
-        for (TPeerId id1 = 0; id1 < Checksums.ysize(); ++id1) {
+        for (TPeerId id1 = 0; id1 < Checksums.size(); ++id1) {
             const auto& checksum1 = Checksums[id1];
             if (checksum1) {
                 ++successCount;
             }
-            for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
+            for (TPeerId id2 = id1 + 1; id2 < Checksums.size(); ++id2) {
                 const auto& checksum2 = Checksums[id2];
                 if (checksum1 && checksum2 && checksum1 != checksum2) {
                     // TODO: consider killing followers
@@ -197,7 +197,7 @@ private:
     bool CreateSnapshot;
 
     TParallelAwaiter::TPtr Awaiter;
-    yvector< TNullable<TChecksum> > Checksums;
+    std::vector< TNullable<TChecksum> > Checksums;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

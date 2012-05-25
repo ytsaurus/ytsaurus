@@ -43,6 +43,14 @@ public:
         return TRef(const_cast<char*>(str.data()), str.length());
     }
 
+    //! Creates a non-owning reference for a given pod structure
+    template<class T>
+    static TRef FromPod(const T& data)
+    {
+        // TODO(ignat): append constantibilty to TRef
+        return TRef(const_cast<T*>(&data), sizeof(data));
+    }
+
     const char* Begin() const
     {
         return Data;

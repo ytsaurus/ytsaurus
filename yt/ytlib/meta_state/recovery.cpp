@@ -307,13 +307,13 @@ void TRecovery::ReplayChangeLog(
         targetRecordCount - 1, 
         changeLog.GetId());
 
-    yvector<TSharedRef> records;
+    std::vector<TSharedRef> records;
     changeLog.Read(startRecordId, recordCount, &records);
     if (records.size() != recordCount) {
         LOG_FATAL("Not enough records in changelog %d: expected %d but found %d (StartRecordId: %d)",
             changeLog.GetId(),
             recordCount,
-            records.ysize(),
+            records.size(),
             startRecordId);
     }
 
@@ -462,7 +462,7 @@ TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedChanges()
     THolder<TPostponedChanges> changes(new TPostponedChanges());
     changes->swap(PostponedChanges);
 
-    LOG_INFO("Captured %d postponed changes", changes->ysize());
+    LOG_INFO("Captured %d postponed changes", changes->size());
 
     return BIND(
                &TFollowerRecovery::ApplyPostponedChanges,
@@ -477,7 +477,7 @@ TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedChanges(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LOG_INFO("Applying %d postponed changes", changes->ysize());
+    LOG_INFO("Applying %d postponed changes", changes->size());
     
     FOREACH (const auto& change, *changes) {
         switch (change.Type) {
@@ -543,7 +543,7 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
 
 TRecovery::EResult TFollowerRecovery::PostponeChanges(
     const TMetaVersion& version,
-    const yvector<TSharedRef>& changes)
+    const std::vector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -562,14 +562,14 @@ TRecovery::EResult TFollowerRecovery::PostponeChanges(
     }
 
     LOG_DEBUG("Postponing %d changes at version %s",
-        changes.ysize(),
+        changes.size(),
         ~PostponedVersion.ToString());
 
     FOREACH (const auto& change, changes) {
         PostponedChanges.push_back(TPostponedChange::CreateChange(change));
     }
     
-    PostponedVersion.RecordCount += changes.ysize();
+    PostponedVersion.RecordCount += changes.size();
 
     return EResult::OK;
 }

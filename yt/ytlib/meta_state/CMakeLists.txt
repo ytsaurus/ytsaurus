@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/async_change_log.cpp
   ${BASE}/change_committer.cpp
   ${BASE}/change_log.cpp
+  ${BASE}/change_log_impl.cpp
   ${BASE}/change_log_cache.cpp
   ${BASE}/change_log_downloader.cpp
   ${BASE}/common.cpp
@@ -25,6 +26,7 @@ set( HDRS
   ${BASE}/async_change_log.h
   ${BASE}/change_committer.h
   ${BASE}/change_log.h
+  ${BASE}/change_log_impl.h
   ${BASE}/change_log_cache.h
   ${BASE}/change_log_downloader.h
   ${BASE}/common.h

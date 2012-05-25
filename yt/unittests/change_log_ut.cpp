@@ -34,18 +34,18 @@ protected:
     template <class RecordType>
     TChangeLogPtr CreateChangeLog(size_t recordsCount) const
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0);
         changeLog->Create(0);
-        yvector<TSharedRef> records = MakeRecords<RecordType>(0, recordsCount);
+        std::vector<TSharedRef> records = MakeRecords<RecordType>(0, recordsCount);
         changeLog->Append(0, records);
         changeLog->Flush();
         return changeLog;
     }
 
     template <class RecordType>
-    yvector<TSharedRef> MakeRecords(i32 from, i32 to) const
+    std::vector<TSharedRef> MakeRecords(i32 from, i32 to) const
     {
-        yvector<TSharedRef> records(to - from);
+        std::vector<TSharedRef> records(to - from);
         for (i32 recordId = from; recordId < to; ++recordId) {
             TBlob blob(sizeof(RecordType));
             *reinterpret_cast<RecordType*>(blob.begin()) = static_cast<RecordType>(recordId);
@@ -56,7 +56,7 @@ protected:
 
     TChangeLogPtr OpenChangeLog() const
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), /*id*/ 0);
         changeLog->Open();
         return changeLog;
     }
@@ -75,15 +75,15 @@ protected:
         i32 recordCount,
         i32 logRecordCount)
     {
-        yvector<TSharedRef> records;
+        std::vector<TSharedRef> records;
         changeLog->Read(firstRecordId, recordCount, &records);
 
         i32 expectedRecordCount =
             firstRecordId >= logRecordCount ?
             0 : Min(recordCount, logRecordCount - firstRecordId);
 
-        EXPECT_EQ(records.ysize(), expectedRecordCount);
-        for (i32 i = 0; i < records.ysize(); ++i) {
+        EXPECT_EQ(records.size(), expectedRecordCount);
+        for (i32 i = 0; i < records.size(); ++i) {
             CheckRecord<T>(static_cast<T>(firstRecordId + i), records[i]);
         }
     }
@@ -102,12 +102,12 @@ protected:
 TEST_F(TChangeLogTest, EmptyChangeLog)
 {
     ASSERT_NO_THROW({
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), /*id*/ 0);
         changeLog->Create(0);
     });
 
     ASSERT_NO_THROW({
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), /*id*/ 0);
         changeLog->Open();
     });
 }
@@ -176,7 +176,7 @@ TEST_F(TChangeLogTest, TestCorrupted)
 
         TBlob blob(sizeof(i32));
         *reinterpret_cast<i32*>(blob.begin()) = static_cast<i32>(logRecordCount - 1);
-        yvector<TSharedRef> records;
+        std::vector<TSharedRef> records;
         records.push_back(MoveRV(blob));
         changeLog->Append(logRecordCount - 1, records);
         changeLog->Flush();

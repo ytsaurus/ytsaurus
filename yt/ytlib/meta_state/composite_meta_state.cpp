@@ -130,7 +130,7 @@ void TCompositeMetaState::Save(TOutputStream* output)
     i32 size = Savers.size();
     ::Save(output, size);
     
-    yvector<TSaverInfo> saverInfos;
+    std::vector<TSaverInfo> saverInfos;
     FOREACH (const auto& pair, Savers) {
         saverInfos.push_back(pair.second);
     }

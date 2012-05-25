@@ -84,13 +84,12 @@ void TSnapshotReader::Open()
     File.Reset(new TFile(FileName, OpenExisting));
     
     TSnapshotHeader header;
-    Read(*File, &header);
+    ReadPod(*File, header);
     header.Validate();
-    if (header.SegmentId != SnapshotId) {
-        LOG_FATAL("Invalid snapshot id in header: expected %d, got %d",
-            SnapshotId,
-            header.SegmentId);
-    }
+    LOG_FATAL_UNLESS(header.SegmentId == SnapshotId,
+        "Invalid snapshot id in header: expected %d, got %d",
+        SnapshotId,
+        header.SegmentId);
     PrevRecordCount = header.PrevRecordCount;
     Checksum = header.Checksum;
     YASSERT(header.DataLength + sizeof(header) == static_cast<ui64>(File->GetLength()));
@@ -150,7 +149,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
     FileOutput.Reset(new TBufferedFileOutput(*File));
 
     TSnapshotHeader header(SnapshotId, PrevRecordCount);
-    Write(*FileOutput, header);
+    WritePod(*FileOutput, header);
 
     if (EnableCompression) {
         CompressedOutput.Reset(new TCompressedOutput(~FileOutput));
@@ -193,6 +192,7 @@ void TSnapshotWriter::Close()
     File->Close();
     File.Reset(NULL);
 
+    // TODO(ignat): change exception to YCHECK
     if (isexist(~FileName)) {
         if (!NFS::Remove(~FileName)) {
             ythrow yexception() << Sprintf("Error removing %s", ~FileName.Quote());
