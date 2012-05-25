@@ -3,6 +3,7 @@
 
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/forwarding_yson_consumer.h>
 
 namespace NYT {
 namespace NDriver {
@@ -72,11 +73,41 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
     IAttributeDictionary* attributes,
     TOutputStream* output)
 {
+    class TNewlineAppendingConsumer
+        : public TForwardingYsonConsumer
+    {
+    public:
+        explicit TNewlineAppendingConsumer(
+            TOutputStream* output,
+            TAutoPtr<IYsonConsumer> underlyingConsumer,
+            EYsonType ysonType)
+            : Output(output)
+            , UnderlyingConsumer(underlyingConsumer)
+        {
+            Forward(
+                ~UnderlyingConsumer,
+                BIND(&TNewlineAppendingConsumer::OnFinished, this),
+                ysonType);
+        }
+
+    private:
+        TOutputStream* Output;
+        TAutoPtr<IYsonConsumer> UnderlyingConsumer;
+
+        void OnFinished()
+        {
+            Output->Write('\n');
+        }
+    };
+
     try {
         auto ysonFormat = attributes->Get<EYsonFormat>("format", EYsonFormat::Binary);
         auto ysonType = DataTypeToYsonType(dataType);
         bool enableRaw = attributes->Get("enable_raw", true);
-        return new TYsonWriter(output, ysonFormat, ysonType, enableRaw);
+        TAutoPtr<IYsonConsumer> writer(new TYsonWriter(output, ysonFormat, ysonType, enableRaw));
+        return ysonFormat == EYsonFormat::Binary
+            ? writer
+            : new TNewlineAppendingConsumer(output, writer, ysonType);
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing YSON output format\n", ex.what());
     }
