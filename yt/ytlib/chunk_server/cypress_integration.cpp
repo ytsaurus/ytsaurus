@@ -210,9 +210,8 @@ public:
         auto cypressManager = Bootstrap->GetCypressManager();
         auto rootNodeProxy =
             cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNodeId());
-        auto holderNode = SyncYPathGetNode(
-            rootNodeProxy,
-            "/sys/holders/" + EscapeYPathToken(address));
+        auto holderMap = SyncYPathGetNode(rootNodeProxy, "/sys/holders")->AsMap();
+        auto holderNode = holderMap->FindChild(address);
 
         if (!holderNode) {
             // New holder.
