@@ -3,17 +3,14 @@
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
-#include <ytlib/misc/serialize.h>
 #include <ytlib/misc/host_name.h>
-#include <ytlib/file_server/file_ypath_proxy.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/object_server/object_service_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -31,9 +28,11 @@ using namespace NChunkServer::NProto;
 
 TFileWriterBase::TFileWriterBase(
     TFileWriterConfigPtr config,
-    NRpc::IChannelPtr masterChannel)
+    NRpc::IChannelPtr masterChannel,
+    TTransactionId transactionId)
     : Config(config)
     , MasterChannel(masterChannel)
+    , TransactionId(transactionId)
     , IsOpen(false)
     , Size(0)
     , BlockCount(0)
@@ -45,7 +44,12 @@ TFileWriterBase::TFileWriterBase(
     Codec = GetCodec(Config->CodecId);
 }
 
-void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
+TFileWriterBase::~TFileWriterBase()
+{
+    LOG_DEBUG_IF(IsOpen, "Writer cancelled");
+}
+
+void TFileWriterBase::Open()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(!IsOpen);
@@ -60,7 +64,7 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
     {
         TObjectServiceProxy objectProxy(MasterChannel);
 
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
         req->set_type(EObjectType::Chunk);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
@@ -85,6 +89,8 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         ~ChunkId.ToString(),
         ~JoinToString(addresses));
 
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+
     Writer = New<TRemoteWriter>(
         ~Config->RemoteWriter,
         ChunkId,
@@ -100,8 +106,6 @@ void TFileWriterBase::Write(TRef data)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
-
-    CheckAborted();
 
     LOG_DEBUG("Writing file data (ChunkId: %s, Size: %d)",
         ~ChunkId.ToString(),
@@ -135,20 +139,6 @@ void TFileWriterBase::Write(TRef data)
     Size += data.Size();
 }
 
-void TFileWriterBase::Cancel()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    YVERIFY(IsOpen);
-
-    IsOpen = false;
-
-    LOG_INFO("File writer canceled");
-}
-
-void TFileWriterBase::DoClose(const NChunkServer::TChunkId&)
-{
-}
-
 void TFileWriterBase::Close()
 {
     VERIFY_THREAD_AFFINITY(Client);
@@ -158,28 +148,25 @@ void TFileWriterBase::Close()
 
     IsOpen = false;
 
-    CheckAborted();
-
     LOG_INFO("Closing file writer");
 
     // Flush the last block.
     FlushBlock();
 
     LOG_INFO("Closing chunk");
-    TChunkMeta meta;
     {
-        meta.set_type(EChunkType::File);
+        Meta.set_type(EChunkType::File);
 
         TMiscExt miscExt;
         miscExt.set_uncompressed_data_size(Size);
         miscExt.set_compressed_data_size(Size);
-        miscExt.set_meta_size(meta.ByteSize());
+        miscExt.set_meta_size(Meta.ByteSize());
         miscExt.set_codec_id(Config->CodecId);
 
-        SetProtoExtension(meta.mutable_extensions(), miscExt);
+        SetProtoExtension(Meta.mutable_extensions(), miscExt);
 
         try {
-            Sync(~Writer, &TRemoteWriter::AsyncClose, meta);
+            Sync(~Writer, &TRemoteWriter::AsyncClose, Meta);
         } catch (const std::exception& ex) {
             LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s", 
                 ex.what());
@@ -193,7 +180,7 @@ void TFileWriterBase::Close()
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = Writer->GetChunkInfo();
         ToProto(req->mutable_node_addresses(), Writer->GetNodeAddresses());
-        *req->mutable_chunk_meta() = meta;
+        *req->mutable_chunk_meta() = Meta;
 
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
@@ -202,8 +189,6 @@ void TFileWriterBase::Close()
         }
     }
     LOG_INFO("Chunk confirmed");
-
-    DoClose(ChunkId);
 
     LOG_INFO("File writer closed");
 }

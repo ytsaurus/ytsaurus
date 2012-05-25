@@ -3,9 +3,10 @@
 #include "public.h"
 #include "file_writer_base.h"
 
-#include <ytlib/file_client/file_writer_base.h>
-#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/cypress/id.h>
+#include <ytlib/transaction_client/public.h>
+#include <ytlib/transaction_client/transaction_listener.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -18,37 +19,37 @@ namespace NFileClient {
  *  Finally it must call #Close.
  */
 class TFileWriter
-    : public TFileWriterBase
+    : public NTransactionClient::TTransactionListener
+    , public TFileWriterBase
 {
 public:
     //! Initializes an instance.
     TFileWriter(
         TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransaction::TPtr transaction,
-        NTransactionClient::TTransactionManager::TPtr transactionManager,
+        NTransactionClient::ITransactionPtr transaction,
+        NTransactionClient::TTransactionManagerPtr transactionManager,
         const NYTree::TYPath& path);
 
-    //! Opens the writer.
-    void Open();
+    ~TFileWriter();
 
-    //! Cancels the writing process and releases all resources.
-    void Cancel();
+    //! Opens the writer.
+    virtual void Open();
+
+    virtual void Write(TRef data);
+
+    //! Closes the writer.
+    virtual void Close();
 
     NCypress::TNodeId GetNodeId() const;
 
-protected:
-    virtual void DoClose(const NChunkServer::TChunkId& chunkId);
-
 private:
-    NTransactionClient::ITransaction::TPtr Transaction;
-    NTransactionClient::TTransactionManager::TPtr TransactionManager;
-    NTransactionClient::ITransaction::TPtr UploadTransaction;
+    NTransactionClient::ITransactionPtr Transaction;
+    NTransactionClient::TTransactionManagerPtr TransactionManager;
+    NTransactionClient::ITransactionPtr UploadTransaction;
     NYTree::TYPath Path;
+
     NCypress::TNodeId NodeId;
-
-    DECLARE_THREAD_AFFINITY_SLOT(Client);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

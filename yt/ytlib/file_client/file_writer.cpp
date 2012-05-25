@@ -6,6 +6,7 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -24,10 +25,10 @@ using namespace NTransactionClient;
 TFileWriter::TFileWriter(
     TFileWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    ITransaction::TPtr transaction,
-    TTransactionManager::TPtr transactionManager,
+    ITransactionPtr transaction,
+    TTransactionManagerPtr transactionManager,
     const TYPath& path)
-    : TFileWriterBase(config, masterChannel)
+    : TFileWriterBase(config, masterChannel, transaction->GetId())
     , Transaction(transaction)
     , TransactionManager(transactionManager)
     , Path(path)
@@ -37,10 +38,16 @@ TFileWriter::TFileWriter(
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~Path,
         transaction ? ~transaction->GetId().ToString() : "None"));
+
+    if (Transaction) {
+        ListenTransaction(~Transaction);
+    }
 }
 
 void TFileWriter::Open()
 {
+    CheckAborted();
+
     LOG_INFO("Creating upload transaction");
     try {
         UploadTransaction = TransactionManager->Start(
@@ -50,29 +57,35 @@ void TFileWriter::Open()
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());
     }
+
     ListenTransaction(~UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~UploadTransaction->GetId().ToString());
 
-    TFileWriterBase::Open(UploadTransaction->GetId());
-    if (Transaction) {
-        ListenTransaction(~Transaction);
-    }
-
-    LOG_INFO("File writer opened");
+    TFileWriterBase::Open();
 }
 
-void TFileWriter::DoClose(const NChunkServer::TChunkId& chunkId)
+void TFileWriter::Write(TRef data)
 {
+    CheckAborted();
+    TFileWriterBase::Write(data);
+}
+
+
+void TFileWriter::Close()
+{
+    CheckAborted();
+
     LOG_INFO("Creating file node");
     {
         TObjectServiceProxy objectProxy(MasterChannel);
+
         auto req = TCypressYPathProxy::Create(WithTransaction(
             Path,
-            Transaction ? Transaction->GetId() : NullTransactionId ));
+            Transaction ? Transaction->GetId() : NullTransactionId));
         req->set_type(EObjectType::File);
         // TODO(babenko): use extensions
-        req->Attributes().Set("chunk_id", chunkId.ToString());
+        req->Attributes().Set("chunk_id", ChunkId.ToString());
         auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
@@ -97,16 +110,14 @@ NCypress::TNodeId TFileWriter::GetNodeId() const
     return NodeId;
 }
 
-void TFileWriter::Cancel()
+TFileWriter::~TFileWriter()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (UploadTransaction) {
-        UploadTransaction->Abort();
+        UploadTransaction->Abort(true);
         UploadTransaction.Reset();
     }
-
-    TFileWriterBase::Cancel();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

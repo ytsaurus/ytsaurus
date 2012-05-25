@@ -31,7 +31,7 @@ public:
     TTransaction(
         NRpc::IChannelPtr cellChannel,
         const TTransactionId& parentId,
-        TTransactionManager::TPtr owner)
+        TTransactionManagerPtr owner)
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
@@ -43,7 +43,7 @@ public:
 
     TTransaction(
         NRpc::IChannelPtr cellChannel,
-        TTransactionManager::TPtr owner,
+        TTransactionManagerPtr owner,
         const TTransactionId& id)
         : Owner(owner)
         , Proxy(cellChannel)
@@ -235,7 +235,7 @@ private:
         (Detached)
     );
 
-    TTransactionManager::TPtr Owner;
+    TTransactionManagerPtr Owner;
     TObjectServiceProxy Proxy;
 
     //! Protects state transitions.
@@ -279,7 +279,7 @@ TTransactionManager::TTransactionManager(
     YASSERT(channel);
 }
 
-ITransaction::TPtr TTransactionManager::Start(
+ITransactionPtr TTransactionManager::Start(
     IAttributeDictionary* attributes,
     const TTransactionId& parentId)
 {
@@ -297,7 +297,7 @@ ITransaction::TPtr TTransactionManager::Start(
     return transaction;
 }
 
-ITransaction::TPtr TTransactionManager::Attach(const TTransactionId& id)
+ITransactionPtr TTransactionManager::Attach(const TTransactionId& id)
 {
     // Try to find it among existing
     auto transaction = FindTransaction(id);

@@ -13,8 +13,6 @@ namespace NTransactionClient {
 struct ITransaction
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<ITransaction> TPtr;
-
     //! Commits the transaction.
     /*!
      *  This call may block.

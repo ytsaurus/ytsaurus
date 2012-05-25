@@ -23,8 +23,6 @@ class TTransactionManager
     : public virtual TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TTransactionManager> TPtr;
-
     //! Initializes an instance.
     /*!
      * \param config A configuration.
@@ -40,11 +38,11 @@ public:
      *  This call may block.
      *  Thread affinity: any.
      */
-    ITransaction::TPtr Start(
+    ITransactionPtr Start(
         NYTree::IAttributeDictionary* attributes = NULL,
         const TTransactionId& parentId = NullTransactionId);
 
-    ITransaction::TPtr Attach(const TTransactionId& id);
+    ITransactionPtr Attach(const TTransactionId& id);
 
 private:
     class TTransaction;

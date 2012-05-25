@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "error.h"
 
 namespace NYT {
 

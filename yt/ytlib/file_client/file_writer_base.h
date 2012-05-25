@@ -5,8 +5,11 @@
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/transaction_client/transaction.h>
-#include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/object_server/public.h>
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_server/public.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -28,27 +31,27 @@ public:
         NRpc::IChannelPtr masterChannel,
         NObjectServer::TTransactionId transactionId);
 
+    virtual ~TFileWriterBase();
+
     //! Opens the writer.
-    void Open();
+    virtual void Open();
 
     //! Adds another portion of data.
     /*!
      *  This portion does not necessary makes up a block. The writer maintains an internal buffer
      *  and splits the input data into parts of equal size (see #TConfig::BlockSize).
      */
-    void Write(TRef data);
+    virtual void Write(TRef data);
 
     //! Closes the writer.
-    void Close();
+    virtual void Close();
 
 protected:
-    NRpc::IChannelPtr MasterChannel;
-    NLog::TTaggedLogger Logger;
-
-    virtual void DoClose(const NChunkServer::TChunkId& chunkId);
-
-private:
     TFileWriterConfigPtr Config;
+
+    NRpc::IChannelPtr MasterChannel;
+    NObjectServer::TTransactionId TransactionId;
+
     bool IsOpen;
     i64 Size;
     i32 BlockCount;
@@ -56,6 +59,9 @@ private:
     NChunkServer::TChunkId ChunkId;
     ICodec* Codec;
     TBlob Buffer;
+    NChunkHolder::NProto::TChunkMeta Meta;
+
+    NLog::TTaggedLogger Logger;
 
     void FlushBlock();
 
