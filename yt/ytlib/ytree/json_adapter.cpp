@@ -83,7 +83,7 @@ void TJsonAdapter::OnMyEndMap()
 void TJsonAdapter::OnMyBeginAttributes()
 {
     YASSERT(Attributes.Empty());
-    ForwardFragment(&AttributesWriter);
+    Forward(&AttributesWriter, TClosure(), EYsonType::KeyedFragment);
 }
 
 void TJsonAdapter::OnMyEndAttributes()

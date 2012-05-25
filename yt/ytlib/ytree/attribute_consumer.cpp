@@ -22,7 +22,7 @@ IAttributeDictionary* TAttributeConsumer::GetAttributes() const
 void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
 {
     Key = key;
-    ForwardNode(&Writer, BIND([=] () mutable {
+    Forward(&Writer, BIND([=] () {
         Attributes->SetYson(Key, Value);
         // TODO(babenko): "this" is needed by VC
         this->Key.clear();

@@ -88,7 +88,7 @@ void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
             Writer->GetRowCount());
     }
 
-    ForwardNode(&ValueConsumer, OnValueFinished_);
+    Forward(&ValueConsumer, OnValueFinished_);
 }
 
 void TTableConsumer::OnValueFinished()

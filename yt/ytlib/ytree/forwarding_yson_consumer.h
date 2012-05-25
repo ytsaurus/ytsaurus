@@ -15,8 +15,10 @@ class TForwardingYsonConsumer
 protected:
     TForwardingYsonConsumer();
 
-    void ForwardNode(IYsonConsumer* consumer, const TClosure& onForwardingFinished = TClosure());
-    void ForwardFragment(IYsonConsumer* consumer, const TClosure& onForwardingFinished = TClosure());
+    void Forward(
+        IYsonConsumer* consumer,
+        const TClosure& onFinished = TClosure(),
+        EYsonType type = EYsonType::Node);
 
     virtual void OnMyStringScalar(const TStringBuf& value);
     virtual void OnMyIntegerScalar(i64 value);
@@ -58,10 +60,9 @@ protected:
 private:
     IYsonConsumer* ForwardingConsumer;
     int ForwardingDepth;
-    TClosure OnForwardingFinished;
-    bool ForwardingFragment;
+    EYsonType ForwardingType;
+    TClosure OnFinished;
 
-    void StartForwarding(IYsonConsumer* consumer, const TClosure& onForwardingFinished, bool forwardingFragment);
     bool CheckForwarding(int depthDelta = 0);
     void UpdateDepth(int depthDelta, bool checkFinish = true);
     void FinishForwarding();

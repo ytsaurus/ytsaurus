@@ -705,10 +705,10 @@ void TNodeSetterBase::OnMyBeginAttributes()
 void TNodeSetterBase::OnMyKeyedItem(const TStringBuf& key)
 {
     AttributeKey = key;
-    ForwardNode(&AttributeWriter, BIND(&TThis::OnForwardingFinished, this));
+    Forward(&AttributeWriter, BIND(&TThis::OnFinished, this));
 }
 
-void TNodeSetterBase::OnForwardingFinished()
+void TNodeSetterBase::OnFinished()
 {
     Node->Attributes().Set(AttributeKey, AttributeValue);
     AttributeKey.clear();
