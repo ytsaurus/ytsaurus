@@ -243,7 +243,7 @@ protected:
 
     virtual int GetPendingJobCount()
     {
-        return TotalJobCount - CompletedJobCount;
+        return TotalJobCount - RunningJobCount - CompletedJobCount;
     }
 
 
