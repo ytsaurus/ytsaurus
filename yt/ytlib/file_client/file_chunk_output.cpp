@@ -93,7 +93,7 @@ TFileChunkOutput::TFileChunkOutput(
     LOG_INFO("File chunk output opened");
 }
 
-TFileChunkOutput::~TFileChunkOutput()
+TFileChunkOutput::~TFileChunkOutput() throw()
 {
     LOG_DEBUG_IF(IsOpen, "Writer cancelled");
 }
