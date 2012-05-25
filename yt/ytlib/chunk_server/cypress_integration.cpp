@@ -240,7 +240,7 @@ public:
     { }
 
 private:
-    const THolder* GetHolder() const
+    THolder* GetHolder() const
     {
         auto address = GetParent()->AsMap()->GetChildKey(this);
         return Bootstrap->GetChunkManager()->FindHolderByAddress(address);
@@ -257,6 +257,7 @@ private:
         attributes->push_back(TAttributeInfo("chunk_count", holder));
         attributes->push_back(TAttributeInfo("session_count", holder));
         attributes->push_back(TAttributeInfo("full", holder));
+        attributes->push_back(TAttributeInfo("banned", holder));
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -310,9 +311,26 @@ private:
                     .Scalar(statistics.full());
                 return true;
             }
+            if (name == "banned") {
+                BuildYsonFluently(consumer)
+                    .Scalar(holder->GetBanned());
+                return true;
+            }
         }
 
         return TMapNodeProxy::GetSystemAttribute(name, consumer);
+    }
+
+    virtual bool SetSystemAttribute(const Stroka& key, const TYson& value)
+    {
+        auto* holder = GetHolder();
+
+        if (key == "banned") {
+            holder->SetBanned(DeserializeFromYson<bool>(value));
+            return true;
+        }
+
+        return TMapNodeProxy::SetSystemAttribute(key, value);
     }
 };
 

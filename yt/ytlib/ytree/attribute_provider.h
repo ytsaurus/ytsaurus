@@ -56,7 +56,7 @@ struct ISystemAttributeProvider
      *  \returns False if the attribute cannot be set or
      *  there is no system attribute with the given key.
      */
-    virtual bool SetSystemAttribute(const Stroka& key, TYsonProducer producer) = 0;
+    virtual bool SetSystemAttribute(const Stroka& key, const TYson& value) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
