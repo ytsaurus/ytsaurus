@@ -28,6 +28,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, FullHeartbeat);
     DECLARE_RPC_SERVICE_METHOD(NProto, IncrementalHeartbeat);
 
+    void CheckHolderAuthorization(const Stroka& address) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

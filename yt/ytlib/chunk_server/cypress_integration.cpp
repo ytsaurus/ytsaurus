@@ -207,8 +207,14 @@ public:
 
     virtual bool IsHolderAuthorized(const Stroka& address)
     {
-        UNUSED(address);
-        return true;
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto rootNodeProxy =
+            cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNodeId());
+        auto holderNode = SyncYPathGetNode(
+            rootNodeProxy,
+            "/sys/holder/" + EscapeYPathToken(address));
+        bool banned = holderNode->Attributes().Get<bool>("banned", false);
+        return !banned;
     }
     
 private:
@@ -322,11 +328,9 @@ private:
     {
         UNUSED(oldValue);
         if (key == "banned") {
-            if (!newValue) {
-                ythrow yexception() << Sprintf("Attribute %s cannot be removed",
-                    ~key.Quote());
+            if (newValue) {
+                DeserializeFromYson<bool>(*newValue);
             }
-            DeserializeFromYson<bool>(*newValue);
         }
     }
 };
@@ -407,7 +411,6 @@ private:
             {
                 auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address));
                 req->set_type(EObjectType::Holder);
-                req->Attributes().Set("banned", false);
                 ExecuteVerb(~service, ~req);
             }
 
