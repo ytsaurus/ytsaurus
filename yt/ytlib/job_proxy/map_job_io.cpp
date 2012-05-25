@@ -3,6 +3,7 @@
 #include "map_job_io.h"
 #include "table_output.h"
 #include "config.h"
+#include "stderr_output.h"
 
 // ToDo(psushin): use public.h everywhere.
 #include <ytlib/chunk_client/client_block_cache.h>
@@ -12,17 +13,6 @@
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/schema.h>
-
-
-/*
-#include <ytlib/file_client/file_writer_base.h>
-#include <ytlib/table_client/yson_table_input.h>
-#include <ytlib/table_client/schema.h>
-#include <ytlib/ytree/yson_writer.h>
-#include <ytlib/transaction_server/transaction_ypath_proxy.h>
-#include <ytlib/object_server/id.h>
-#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
-*/
 
 namespace NYT {
 namespace NJobProxy {
@@ -42,85 +32,7 @@ using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
 
-/*
-using namespace NFileClient;
-
-using namespace NCypress;
-
-
 ////////////////////////////////////////////////////////////////////
-
-class TErrorOutput
-    : public TOutputStream
-{
-public:
-    TErrorOutput(
-        TFileWriterBase::TConfig* config, 
-        NRpc::IChannelPtr masterChannel,
-        const TTransactionId& transactionId,
-        const TObjectId& chunkListId)
-        : FileWriter(New<TFileWriterBase>(config, masterChannel))
-        , MasterChannel(masterChannel)
-        , TransactionId(transactionId)
-        , ChunkListId(chunkListId)
-    {
-        FileWriter->Open(TransactionId);
-    }
-
-    ~TErrorOutput() throw()
-    { }
-
-protected: 
-    void DoWrite(const void* buf, size_t len) 
-    {
-        FileWriter->Write(reinterpret_cast<const char*>(buf), len);
-    }
-
-    void DoFinish() 
-    {
-        FileWriter->Close();
-
-        TObjectServiceProxy proxy(~MasterChannel);
-        auto batchReq = proxy.ExecuteBatch();
-        {
-            auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));
-            req->add_children_ids(FileWriter->GetChunkId().ToProto());
-            batchReq->AddRequest(~req);
-        }
-        {
-            auto req = TTransactionYPathProxy::ReleaseObject(FromObjectId(TransactionId));
-            req->set_object_id(FileWriter->GetChunkId().ToProto());
-            batchReq->AddRequest(~req);
-        }
-
-        auto batchRsp = batchReq->Invoke()->Get();
-
-        if (!batchRsp->IsOK()) {
-            ythrow yexception() << Sprintf(
-                "Request to attach chunk with stderr failed (error: %s)", 
-                ~batchRsp->GetError().GetMessage());
-        }
-
-        for (int i = 0; i < batchRsp->GetSize(); ++i) {
-            auto rsp = batchRsp->GetResponse(i);
-            if (!rsp->IsOK()) {
-                ythrow yexception() << Sprintf(
-                    "Failed to attach chunk with stderr (error: %s)", 
-                    ~rsp->GetError().GetMessage());
-            }
-        }
-    }
-
-private:
-    TFileWriterBase::TPtr FileWriter;
-    NRpc::IChannelPtr MasterChannel;
-    TTransactionId TransactionId;
-    TObjectId ChunkListId;
-};
-
-*/
-////////////////////////////////////////////////////////////////////
-
 
 TMapJobIO::TMapJobIO(
     TJobIOConfigPtr config,
@@ -195,19 +107,12 @@ double TMapJobIO::GetProgress() const
     YUNIMPLEMENTED();
 }
 
-TAutoPtr<TOutputStream> TMapJobIO::CreateErrorOutput() const
+TAutoPtr<TErrorOutput> TMapJobIO::CreateErrorOutput() const
 {
-    /*
-    if (ProtoSpec.has_std_err())
-        return new TErrorOutput(
-            ~Config->StdErr,
-            ~MasterChannel,
-            TObjectId::FromProto(ProtoSpec.std_err().transaction_id()),
-            TObjectId::FromProto(ProtoSpec.std_err().chunk_list_id()));
-
-    else*/
-
-    return new TNullOutput();
+    return new TErrorOutput(
+        Config->ErrorFileWriter, 
+        MasterChannel, 
+        TTransactionId::FromProto(IoSpec.output_transaction_id()));
 }
 
 ////////////////////////////////////////////////////////////////////

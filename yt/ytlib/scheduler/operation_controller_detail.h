@@ -68,13 +68,13 @@ protected:
     TChunkListPoolPtr ChunkListPool;
 
     // The primary transaction for the whole operation (nested inside operation's transaction).
-    NTransactionClient::ITransaction::TPtr PrimaryTransaction;
+    NTransactionClient::ITransactionPtr PrimaryTransaction;
     // The transaction for reading input tables (nested inside the primary one).
     // These tables are locked with Snapshot mode.
-    NTransactionClient::ITransaction::TPtr InputTransaction;
+    NTransactionClient::ITransactionPtr InputTransaction;
     // The transaction for writing output tables (nested inside the primary one).
     // These tables are locked with Shared mode.
-    NTransactionClient::ITransaction::TPtr OutputTransaction;
+    NTransactionClient::ITransactionPtr OutputTransaction;
 
     struct TTableBase
     {

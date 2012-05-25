@@ -156,7 +156,7 @@ IInvoker::TPtr TBootstrap::GetControlInvoker() const
     return ControlInvoker;
 }
 
-TTransactionManager::TPtr TBootstrap::GetTransactionManager() const
+TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
     return TransactionManager;
 }

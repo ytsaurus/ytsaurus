@@ -7,6 +7,7 @@
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/rpc/public.h>
+#include <misc/nullable.h>
 
 
 namespace NYT {
@@ -21,20 +22,22 @@ public:
     TErrorOutput(
         NFileClient::TFileWriterConfigPtr config, 
         NRpc::IChannelPtr masterChannel,
-        const NTransactionServer::TTransactionId& transactionId,
-        const NChunkServer::TChunkListId& chunkListId);
+        const NTransactionServer::TTransactionId& transactionId);
 
     ~TErrorOutput() throw();
+
+    TNullable<NChunkServer::TChunkId> GetChunkId() const;
 
 private: 
     void DoWrite(const void* buf, size_t len);
     void DoFinish();
 
 private:
-    NFileClient::TFileWriterBasePtr FileWriter;
+    NFileClient::TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NTransactionServer::TTransactionId TransactionId;
-    NChunkServer::TChunkListId ChunkListId;
+
+    TAutoPtr<NFileClient::TFileChunkOutput> FileWriter;
 };
 
 ////////////////////////////////////////////////////////////////////

@@ -12,8 +12,8 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/transaction_client/transaction.h>
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/public.h>
+#include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NDriver {
@@ -67,10 +67,10 @@ struct ICommandHost
     virtual void ReplySuccess(const NYTree::TYson& yson) = 0;
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
-    virtual NTransactionClient::TTransactionManager::TPtr GetTransactionManager() = 0;
+    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
     virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required = false) = 0;
-    virtual NTransactionClient::ITransaction::TPtr GetTransaction(TTransactedRequestPtr request, bool required = false) = 0;
+    virtual NTransactionClient::ITransactionPtr GetTransaction(TTransactedRequestPtr request, bool required = false) = 0;
 
 };
 

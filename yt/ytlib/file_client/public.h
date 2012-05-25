@@ -7,8 +7,7 @@ namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileWriterBase;
-typedef TIntrusivePtr<TFileWriterBase> TFileWriterBasePtr;
+class TFileChunkOutput;
 
 class TFileReaderBase;
 typedef TIntrusivePtr<TFileReaderBase> TFileReaderBasePtr;

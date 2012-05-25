@@ -5,6 +5,8 @@
 #include "schema.h"
 #include "table_chunk_sequence_writer.h"
 
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
@@ -26,8 +28,8 @@ using namespace NChunkServer;
 TTableWriter::TTableWriter(
     TChunkSequenceWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NTransactionClient::ITransaction::TPtr transaction,
-    NTransactionClient::TTransactionManager::TPtr transactionManager,
+    NTransactionClient::ITransactionPtr transaction,
+    NTransactionClient::TTransactionManagerPtr transactionManager,
     const NYTree::TYPath& path,
     const TNullable<TKeyColumns>& keyColumns)
     : Config(config)

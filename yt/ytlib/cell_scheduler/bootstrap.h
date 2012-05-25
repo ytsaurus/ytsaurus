@@ -27,7 +27,7 @@ public:
     NRpc::IChannelPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
     IInvoker::TPtr GetControlInvoker() const;
-    NTransactionClient::TTransactionManager::TPtr GetTransactionManager() const;
+    NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
 
     void Run();
@@ -40,7 +40,7 @@ private:
     NBus::IBusServer::TPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     Stroka PeerAddress;
-    NTransactionClient::TTransactionManager::TPtr TransactionManager;
+    NTransactionClient::TTransactionManagerPtr TransactionManager;
     NScheduler::TSchedulerPtr Scheduler;
 
 };

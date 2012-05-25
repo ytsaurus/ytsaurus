@@ -5,6 +5,7 @@
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/tree_visitor.h>
 
+#include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/table_client/table_reader.h>
 #include <ytlib/table_client/table_writer.h>
 #include <ytlib/table_client/table_consumer.h>

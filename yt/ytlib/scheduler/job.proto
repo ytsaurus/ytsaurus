@@ -71,6 +71,16 @@ message TUserJobSpec
     required string shell_command = 2;
 }
 
+message TUserJobResult
+{
+    extend TJobResult
+    {
+        optional TUserJobResult user_job_result = 100;
+    }
+
+    optional NYT.NProto.TGuid stderr_chunk_id = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Map jobs.
@@ -98,9 +108,6 @@ message TMapJobSpec
 
     // The transaction used for writing output chunks.
     required NYT.NProto.TGuid output_transaction_id = 4;
-
-    // Describes how to store job stderr.
-    optional TStdErrSpec std_err_spec = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

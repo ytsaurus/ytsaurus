@@ -1,12 +1,14 @@
 #pragma once
 
 #include "public.h"
-#include "file_writer_base.h"
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/cypress/id.h>
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
+#include <ytlib/rpc/public.h>
+#include <ytlib/logging/tagged_logger.h>
+#include <ytlib/misc/ref.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -20,7 +22,6 @@ namespace NFileClient {
  */
 class TFileWriter
     : public NTransactionClient::TTransactionListener
-    , public TFileWriterBase
 {
 public:
     //! Initializes an instance.
@@ -44,10 +45,17 @@ public:
     NCypress::TNodeId GetNodeId() const;
 
 private:
+    TFileWriterConfigPtr Config;
+    NRpc::IChannelPtr MasterChannel;
+
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NTransactionClient::ITransactionPtr UploadTransaction;
     NYTree::TYPath Path;
+
+    TAutoPtr<TFileChunkOutput> Writer;
+
+    NLog::TTaggedLogger Logger;
 
     NCypress::TNodeId NodeId;
 };

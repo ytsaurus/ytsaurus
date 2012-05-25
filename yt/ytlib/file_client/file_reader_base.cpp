@@ -9,6 +9,7 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/transaction_client/transaction.h>
 
 namespace NYT {
 namespace NFileClient {

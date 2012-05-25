@@ -24,7 +24,7 @@ public:
     TFileReader(
         TFileReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransaction* transaction,
+        NTransactionClient::ITransactionPtr transaction,
         NChunkClient::IBlockCache* blockCache,
         const NYTree::TYPath& path);
 
@@ -41,7 +41,7 @@ public:
     bool IsExecutable();
 
 private:
-    NTransactionClient::ITransaction::TPtr Transaction;
+    NTransactionClient::ITransactionPtr Transaction;
     NYTree::TYPath Path;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);

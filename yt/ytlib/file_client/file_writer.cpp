@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "file_writer.h"
+#include "file_chunk_output.h"
 #include "config.h"
+#include "private.h"
 
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
@@ -28,10 +30,12 @@ TFileWriter::TFileWriter(
     ITransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
     const TYPath& path)
-    : TFileWriterBase(config, masterChannel, transaction->GetId())
+    : Config(config)
+    , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionManager(transactionManager)
     , Path(path)
+    , Logger(FileWriterLogger)
 {
     YASSERT(transactionManager);
 
@@ -62,19 +66,21 @@ void TFileWriter::Open()
     LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~UploadTransaction->GetId().ToString());
 
-    TFileWriterBase::Open();
+    Writer = new TFileChunkOutput(Config, MasterChannel, UploadTransaction->GetId());
 }
 
 void TFileWriter::Write(TRef data)
 {
     CheckAborted();
-    TFileWriterBase::Write(data);
+    Writer->Write(data.Begin(), data.Size());
 }
 
 
 void TFileWriter::Close()
 {
     CheckAborted();
+
+    Writer->Finish();
 
     LOG_INFO("Creating file node");
     {
@@ -85,7 +91,7 @@ void TFileWriter::Close()
             Transaction ? Transaction->GetId() : NullTransactionId));
         req->set_type(EObjectType::File);
         // TODO(babenko): use extensions
-        req->Attributes().Set("chunk_id", ChunkId.ToString());
+        req->Attributes().Set("chunk_id", Writer->GetChunkId().ToString());
         auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",

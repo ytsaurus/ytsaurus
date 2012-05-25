@@ -25,7 +25,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NTransactionClient::TTransactionManager::TPtr GetTransactionManager() = 0;
+    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
     //! Returns the control invoker of the scheduler.
     /*!

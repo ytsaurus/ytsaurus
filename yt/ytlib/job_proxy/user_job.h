@@ -40,6 +40,9 @@ private:
 
     TError JobExitStatus;
 
+    TAutoPtr<TErrorOutput> ErrorOutput;
+    std::vector< TAutoPtr<TOutputStream> > TableOutput;
+
     int ProcessId;
 };
 

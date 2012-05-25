@@ -4,7 +4,7 @@ set( SRCS
   ${BASE}/file_reader.cpp
   ${BASE}/file_reader_base.cpp
   ${BASE}/file_writer.cpp
-  ${BASE}/file_writer_base.cpp
+  ${BASE}/file_chunk_output.cpp
   ${BASE}/private.cpp
 )
 set( HDRS
@@ -12,7 +12,7 @@ set( HDRS
   ${BASE}/file_reader.h
   ${BASE}/file_reader_base.h
   ${BASE}/file_writer.h
-  ${BASE}/file_writer_base.h
+  ${BASE}/file_chunk_output.h
   ${BASE}/private.h
   ${BASE}/public.h
 )

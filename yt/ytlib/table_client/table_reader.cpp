@@ -8,6 +8,7 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/transaction_client/transaction.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -21,7 +22,7 @@ using namespace NTableServer;
 TTableReader::TTableReader(
     TChunkSequenceReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NTransactionClient::ITransaction::TPtr transaction,
+    NTransactionClient::ITransactionPtr transaction,
     NChunkClient::IBlockCachePtr blockCache,
     const NYTree::TYPath& path)
     : Config(config)

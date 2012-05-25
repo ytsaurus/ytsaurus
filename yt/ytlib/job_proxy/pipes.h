@@ -68,7 +68,7 @@ class TOutputPipe
     : public IDataPipe
 {
 public:
-    TOutputPipe(TAutoPtr<TOutputStream> output, int jobDescriptor);
+    TOutputPipe(TOutputStream* output, int jobDescriptor);
 
     void PrepareJobDescriptors();
     void PrepareProxyDescriptors();

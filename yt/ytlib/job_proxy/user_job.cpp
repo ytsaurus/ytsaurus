@@ -4,6 +4,7 @@
 #include "config.h"
 #include "user_job.h"
 #include "user_job_io.h"
+#include "stderr_output.h"
 
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/table_client/table_producer.h>
@@ -100,6 +101,16 @@ NScheduler::NProto::TJobResult TUserJob::Run()
 
     NScheduler::NProto::TJobResult result;
     *result.mutable_error() = JobExitStatus.ToProto();
+
+    {
+        auto chunkId = ErrorOutput->GetChunkId();
+        if (chunkId) {
+            NScheduler::NProto::TUserJobResult userResult;
+            *userResult.mutable_stderr_chunk_id() = chunkId->ToProto();
+            *result.MutableExtension(NScheduler::NProto::TUserJobResult::user_job_result) = userResult;
+        }
+    }
+
     return result;
 }
 
@@ -139,7 +150,8 @@ void TUserJob::InitPipes()
     } while (reservedDescriptors.back() < maxReservedDescriptor);
 
 
-    DataPipes.push_back(New<TOutputPipe>(JobIO->CreateErrorOutput(), STDERR_FILENO));
+    ErrorOutput = JobIO->CreateErrorOutput();
+    DataPipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
     ++ActivePipesCount;
 
     // Make pipe for each input and each output table.
@@ -158,9 +170,12 @@ void TUserJob::InitPipes()
             3 * i));
     }
 
-    for (int i = 0; i < JobIO->GetOutputCount(); ++i) {
+    auto outputCount = JobIO->GetOutputCount();
+    TableOutput.resize(outputCount);
+    for (int i = 0; i < outputCount; ++i) {
         ++ActivePipesCount;
-        DataPipes.push_back(New<TOutputPipe>(JobIO->CreateTableOutput(i), 3 * i + 1));
+        TableOutput[i] = JobIO->CreateTableOutput(i);
+        DataPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
     }
 
     // Close reserved descriptors.

@@ -5,8 +5,7 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/transaction_client/transaction.h>
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/chunk_server/public.h>
@@ -36,8 +35,8 @@ public:
     TTableWriter(
         TChunkSequenceWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransaction::TPtr transaction,
-        NTransactionClient::TTransactionManager::TPtr transactionManager,
+        NTransactionClient::ITransactionPtr transaction,
+        NTransactionClient::TTransactionManagerPtr transactionManager,
         const NYTree::TYPath& path,
         const TNullable<TKeyColumns>& keyColumns);
 
@@ -59,9 +58,9 @@ public:
 private:
     TChunkSequenceWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
-    NTransactionClient::ITransaction::TPtr Transaction;
+    NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
-    NTransactionClient::TTransactionManager::TPtr TransactionManager;
+    NTransactionClient::TTransactionManagerPtr TransactionManager;
     NYTree::TYPath Path;
     TNullable<TKeyColumns> KeyColumns;
 
@@ -70,7 +69,7 @@ private:
     NObjectServer::TObjectServiceProxy ObjectProxy;
     NLog::TTaggedLogger Logger;
 
-    NTransactionClient::ITransaction::TPtr UploadTransaction;
+    NTransactionClient::ITransactionPtr UploadTransaction;
     NChunkServer::TChunkListId ChunkListId;
 
     TTableChunkSequenceWriterPtr Writer;

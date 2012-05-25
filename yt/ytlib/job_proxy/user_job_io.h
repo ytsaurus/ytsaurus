@@ -30,7 +30,7 @@ struct IUserJobIO {
         NYTree::IYsonConsumer* consumer) const = 0;
 
     virtual TAutoPtr<TOutputStream> CreateTableOutput(int index) const = 0;
-    virtual TAutoPtr<TOutputStream> CreateErrorOutput() const = 0;
+    virtual TAutoPtr<TErrorOutput> CreateErrorOutput() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

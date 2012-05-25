@@ -5,7 +5,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/configurable.h>
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/chunk_client/sequential_reader.h>

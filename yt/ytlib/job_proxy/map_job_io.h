@@ -32,7 +32,7 @@ public:
         int index, 
         NYTree::IYsonConsumer* consumer) const;
     TAutoPtr<TOutputStream> CreateTableOutput(int index) const;
-    TAutoPtr<TOutputStream> CreateErrorOutput() const;
+    TAutoPtr<TErrorOutput> CreateErrorOutput() const;
 
 private:
     TJobIOConfigPtr Config;

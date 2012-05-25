@@ -118,7 +118,7 @@ void SafeMakeNonblocking(int fd)
 
 ////////////////////////////////////////////////////////////////////
 
-TOutputPipe::TOutputPipe(TAutoPtr<TOutputStream> output, int jobDescriptor /* = 2 */)
+TOutputPipe::TOutputPipe(TOutputStream* output, int jobDescriptor /* = 2 */)
     : OutputStream(output)
     , JobDescriptor(jobDescriptor)
     , IsFinished(false)

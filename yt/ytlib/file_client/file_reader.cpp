@@ -6,6 +6,7 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
+#include <ytlib/transaction_client/transaction.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -23,7 +24,7 @@ using namespace NTransactionClient;
 TFileReader::TFileReader(
     TFileReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    ITransaction* transaction,
+    ITransactionPtr transaction,
     IBlockCache* blockCache,
     const TYPath& path)
     : TFileReaderBase(config, masterChannel, blockCache)

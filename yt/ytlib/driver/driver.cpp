@@ -16,6 +16,9 @@
 
 #include <ytlib/election/leader_channel.h>
 
+#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/transaction.h>
+
 #include <ytlib/chunk_client/block_cache.h>
 
 #include <ytlib/scheduler/config.h>
@@ -142,7 +145,7 @@ private:
     IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
-    TTransactionManager::TPtr TransactionManager;
+    TTransactionManagerPtr TransactionManager;
 
     virtual TDriverConfigPtr GetConfig() const
     {
@@ -216,7 +219,7 @@ private:
         return BlockCache;
     }
 
-    virtual TTransactionManager::TPtr GetTransactionManager()
+    virtual TTransactionManagerPtr GetTransactionManager()
     {
         return TransactionManager;
     }
@@ -229,7 +232,7 @@ private:
         return request->TransactionId;
     }
 
-    virtual ITransaction::TPtr GetTransaction(TTransactedRequestPtr request, bool required)
+    virtual ITransactionPtr GetTransaction(TTransactedRequestPtr request, bool required)
     {
         auto transactionId = GetTransactionId(request, required);
         if (transactionId == NullTransactionId) {

@@ -113,7 +113,7 @@ private:
 
     TAutoPtr<ISchedulerStrategy> Strategy;
 
-    NTransactionClient::ITransaction::TPtr BootstrapTransaction;
+    NTransactionClient::ITransactionPtr BootstrapTransaction;
 
     TPeriodicInvoker::TPtr TransactionRefreshInvoker;
     TPeriodicInvoker::TPtr ExecNodesRefreshInvoker;
@@ -865,7 +865,7 @@ private:
         return Bootstrap->GetMasterChannel();
     }
 
-    virtual TTransactionManager::TPtr GetTransactionManager()
+    virtual TTransactionManagerPtr GetTransactionManager()
     {
         return Bootstrap->GetTransactionManager();
     }
