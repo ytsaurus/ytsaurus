@@ -68,10 +68,10 @@ struct TSchedulerConfig
             .Default(100)
             .GreaterThanOrEqual(0);
         Register("spare_chunk_list_count", SpareChunkListCount)
-            .Default(5)
+            .Default(20)
             .GreaterThanOrEqual(0);
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
-            .Default(3)
+            .Default(20)
             .GreaterThan(0);
         Register("min_sort_partition_size", MinSortPartitionSize)
             .Default((i64) 4 * 1024 * 1024 * 1024)

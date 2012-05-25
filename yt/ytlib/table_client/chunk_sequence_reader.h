@@ -25,7 +25,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const std::vector<NProto::TInputChunk>& inputChunks,
         int partitionTag = DefaultPartitionTag,
-        TReaderOptions options = TReaderOptions());
+        const TReaderOptions& options = TReaderOptions());
 
     virtual TAsyncError AsyncOpen();
 

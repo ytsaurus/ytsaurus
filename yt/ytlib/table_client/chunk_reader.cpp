@@ -163,7 +163,7 @@ public:
             tags.push_back(GetProtoExtensionTag<NProto::TKeyColumnsExt>());
         }
 
-        AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(
+        AsyncReader->AsyncGetChunkMeta(Null, &tags).Subscribe(
             BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
             .Via(ReaderThread->GetInvoker()));
     }
@@ -581,7 +581,7 @@ public:
         tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
         tags.push_back(GetProtoExtensionTag<NProto::TChannelsExt>());
 
-        AsyncReader->AsyncGetChunkMeta(&tags).Subscribe(BIND(
+        AsyncReader->AsyncGetChunkMeta(chunkReader->PartitionTag, &tags).Subscribe(BIND(
             &TPartitionInitializer::OnGotMeta, 
             MakeStrong(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
     }
@@ -618,7 +618,7 @@ public:
             for (int i = 0; i < channelsExt->items(0).blocks_size(); ++i) {
                 const auto& blockInfo = channelsExt->items(0).blocks(i);
                 if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
-                    blockIndexSequence.push_back(i);
+                    blockIndexSequence.push_back(blockInfo.block_index());
                     rowCount += blockInfo.row_count();
                 }
             }

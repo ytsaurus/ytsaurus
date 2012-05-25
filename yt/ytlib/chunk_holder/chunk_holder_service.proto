@@ -103,6 +103,7 @@ message TReqGetChunkMeta
     // If true, then extension_tags are ignored and 
     // the whole available meta is returned.
     optional bool all_extension_tags = 3 [default = false];
+    optional int32 partition_tag = 4;
 }
 
 message TRspGetChunkMeta

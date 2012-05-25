@@ -39,7 +39,9 @@ public:
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
 
     //! Implements IChunkReader and calls #GetChunkMeta.
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<int>* tags = NULL);
+    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
+        const TNullable<int>& partitionTag,
+        const std::vector<int>* tags = NULL);
 
     //! Synchronously reads a given block from the file.
     /*!

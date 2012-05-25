@@ -51,6 +51,14 @@ TTableWriter::TTableWriter(
         ~TransactionId.ToString()));
 }
 
+TTableWriter::~TTableWriter()
+{
+    // NB: in case transaction was committed this method will do nothing
+    if (UploadTransaction) {
+        UploadTransaction->Abort(true);
+    }
+}
+
 void TTableWriter::Open()
 {
     VERIFY_THREAD_AFFINITY(Client);

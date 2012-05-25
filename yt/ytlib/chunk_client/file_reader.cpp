@@ -5,6 +5,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/fs.h>
+#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -155,8 +156,14 @@ const TChunkInfo& TFileReader::GetChunkInfo() const
 }
 
 IAsyncReader::TAsyncGetMetaResult
-TFileReader::AsyncGetChunkMeta(const std::vector<int>* tags)
+TFileReader::AsyncGetChunkMeta(
+    const TNullable<int>& partitionTag, 
+    const std::vector<int>* tags)
 {
+    // Partition tag filtering not implemented here
+    // because there is no practical need.
+    // Implement when necessary.
+    YCHECK(!partitionTag.IsInitialized());
     return MakeFuture(TGetMetaResult(GetChunkMeta(tags)));
 }
 

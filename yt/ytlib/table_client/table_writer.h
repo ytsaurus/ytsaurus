@@ -41,6 +41,8 @@ public:
         const NYTree::TYPath& path,
         const TNullable<TKeyColumns>& keyColumns);
 
+    ~TTableWriter();
+
     //! Opens the writer.
     void Open();
 

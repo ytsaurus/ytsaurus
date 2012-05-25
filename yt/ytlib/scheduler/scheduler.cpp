@@ -64,7 +64,7 @@ public:
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap)
         : NRpc::TServiceBase(
-            ~bootstrap->GetControlInvoker(),
+            bootstrap->GetControlInvoker(),
             TSchedulerServiceProxy::GetServiceName(),
             SchedulerLogger.GetCategory())
         , Config(config)
@@ -80,6 +80,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WaitForOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+
+        JobTypeCounters.resize(EJobType::GetDomainSize());
     }
 
     void Start()
@@ -125,6 +127,7 @@ private:
 
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
     TJobMap Jobs;
+    std::vector<int> JobTypeCounters;
 
     typedef TValueOrError<TOperationPtr> TStartResult;
 
@@ -354,6 +357,7 @@ private:
     {
         YVERIFY(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
         Strategy->OnOperationStarted(operation);
+        ProfileOperationCounters();
 
         LOG_DEBUG("Registered operation %s", ~operation->GetOperationId().ToString());
     }
@@ -372,16 +376,25 @@ private:
     {
         YVERIFY(Operations.erase(operation->GetOperationId()) == 1);
         Strategy->OnOperationFinished(operation);
+        ProfileOperationCounters();
 
         LOG_DEBUG("Unregistered operation %s", ~operation->GetOperationId().ToString());
+    }
+
+    void ProfileOperationCounters()
+    {
+        Profiler.Enqueue("/operation_count", Operations.size());
     }
 
 
     void RegisterJob(TJobPtr job)
     {
+        UpdateJobCounters(job, +1);
+
         YVERIFY(Jobs.insert(MakePair(job->GetId(), job)).second);
         YVERIFY(job->GetOperation()->Jobs().insert(job).second);
         YVERIFY(job->GetNode()->Jobs().insert(job).second);
+        
         LOG_DEBUG("Registered job %s (OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
@@ -389,13 +402,25 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
+        UpdateJobCounters(job, -1);
+
         YVERIFY(Jobs.erase(job->GetId()) == 1);
         YVERIFY(job->GetOperation()->Jobs().erase(job) == 1);
         YVERIFY(job->GetNode()->Jobs().erase(job) == 1);
+
         LOG_DEBUG("Unregistered job %s (OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
     }
+
+    void UpdateJobCounters(TJobPtr changedJob, int delta)
+    {
+        auto jobType = EJobType(changedJob->Spec().type());
+        ++JobTypeCounters[jobType];
+        Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
+        Profiler.Enqueue("/job_count/total", Jobs.size());
+    }
+
 
     void OnJobRunning(TJobPtr job)
     {

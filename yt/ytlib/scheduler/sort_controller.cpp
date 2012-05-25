@@ -57,12 +57,13 @@ public:
         , TotalPartitionChunkCount(0)
         , PendingPartitionChunkCount(0)
         , CompletedPartitionChunkCount(0)
-        , TotalSortJobCount(0)
+        , MaxSortJobCount(0)
         , RunningSortJobCount(0)
         , CompletedSortJobCount(0)
         , TotalSortWeight(0)
         , PendingSortWeight(0)
         , CompletedSortWeight(0)
+        , MaxMergeJobCount(0)
         , RunningMergeJobCount(0)
         , CompletedMergeJobCount(0)
         , SamplesFetcher(New<TSamplesFetcher>(
@@ -93,7 +94,7 @@ private:
     int CompletedPartitionChunkCount;
 
     // Sort job counters.
-    int TotalSortJobCount;
+    int MaxSortJobCount;
     int RunningSortJobCount;
     int CompletedSortJobCount;
     i64 TotalSortWeight;
@@ -101,6 +102,7 @@ private:
     i64 CompletedSortWeight;
 
     // Merge job counters.
+    int MaxMergeJobCount;
     int RunningMergeJobCount;
     int CompletedMergeJobCount;
 
@@ -196,7 +198,7 @@ private:
             partition->Index);
 
         if (Partitions.size() > 1 &&
-            GetPendingPartitionJobCount() == 0 &&
+            IsPartitionComplete() &&
             partition->SortChunkPool.GetTotalWeight() <= Config->MaxSortJobDataSize)
         {
             partition->Small = true;
@@ -896,7 +898,7 @@ private:
 
         // Init counters.
         PendingSortWeight = TotalSortWeight;
-        TotalSortJobCount = GetJobCount(
+        MaxSortJobCount = GetJobCount(
             TotalSortWeight,
             Config->MaxSortJobDataSize,
             Spec->SortJobCount,
@@ -909,7 +911,7 @@ private:
     {
         // Take partition keys evenly.
         for (int partIndex = 0; partIndex < partitionCount - 1; ++partIndex) {
-            int sampleIndex = partIndex * (SortedSamples.size() - 1) / (partitionCount - 2);
+            int sampleIndex = (partIndex + 1) * (SortedSamples.size() - 1) / partitionCount;
             auto* key = SortedSamples[sampleIndex];
             // Avoid producing same keys.
             if (PartitionKeys.empty() || CompareKeys(*key, *SortedSamples.back()) != 0) {
@@ -934,12 +936,14 @@ private:
             TotalPartitionChunkCount);
         PendingPartitionWeight = TotalPartitionWeight;
         PendingPartitionChunkCount = TotalPartitionChunkCount;
-        // A very rough estimate.
-        TotalSortJobCount = GetJobCount(
+
+        // Very rough estimates.
+        MaxSortJobCount = GetJobCount(
             TotalPartitionWeight,
             Config->MaxSortJobDataSize,
             Null,
             std::numeric_limits<int>::max()) + partitionCount;
+        MaxMergeJobCount = partitionCount;
 
         LOG_INFO("Sorting with %d partitions", partitionCount);
     }
@@ -951,7 +955,11 @@ private:
             BuildPartitions();
            
             // Allocate some initial chunk lists.
-            ChunkListPool->Allocate(TotalPartitionJobCount + Config->SpareChunkListCount);
+            ChunkListPool->Allocate(
+                TotalPartitionJobCount +
+                MaxSortJobCount +
+                MaxMergeJobCount +
+                Config->SpareChunkListCount);
 
             InitJobSpecTemplates();
 
@@ -994,7 +1002,7 @@ private:
             CompletedPartitionWeight,
             PendingPartitionWeight,
             // SortJobs
-            TotalSortJobCount,
+            MaxSortJobCount,
             RunningSortJobCount,
             CompletedSortJobCount,
             // SortWeight
@@ -1011,7 +1019,7 @@ private:
                 .Item("completed").Scalar(CompletedPartitionJobCount)
             .EndMap()
             .Item("sort_jobs").BeginMap()
-                .Item("total").Scalar(TotalSortJobCount)
+                .Item("total").Scalar(MaxSortJobCount)
                 .Item("completed").Scalar(CompletedSortJobCount)
             .EndMap()
             .Item("merge_jobs").BeginMap()

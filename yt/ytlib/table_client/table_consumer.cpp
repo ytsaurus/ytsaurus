@@ -101,7 +101,7 @@ void TTableConsumer::OnMyEndMap()
     YASSERT(InsideRow);
 
     TLexer lexer;
-    TNonOwningKey key;
+    TNonOwningKey key(KeyColumns.IsInitialized() ? KeyColumns->size() : 0);
     TRow row;
 
     int index = 0;

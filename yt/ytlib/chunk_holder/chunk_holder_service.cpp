@@ -11,15 +11,17 @@
 #include "session_manager.h"
 #include "bootstrap.h"
 
-#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/lazy_ptr.h>
+#include <ytlib/misc/nullable.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/key.h>
+#include <ytlib/table_client/private.h>
 #include <ytlib/table_client/size_limits.h>
+#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -28,6 +30,7 @@ using namespace NRpc;
 using namespace NChunkClient;
 using namespace NProto;
 using namespace NTableClient;
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +48,8 @@ TChunkHolderService::TChunkHolderService(
     , Config(config)
     , Bootstrap(bootstrap)
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
+    YCHECK(config);
+    YCHECK(bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
@@ -340,6 +343,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
     UNUSED(response);
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
+
+    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+
     auto session = GetSession(chunkId);
     session->RenewLease();
 
@@ -350,11 +356,16 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     auto extensionTags = FromProto<i32>(request->extension_tags());
+    auto partitionTag =
+        request->has_partition_tag()
+        ? TNullable<int>(request->partition_tag())
+        : Null;
 
-    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: %s", 
+    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: %s, PartitionTag: %d", 
         ~chunkId.ToString(),
         ~FormatBool(request->all_extension_tags()),
-        ~JoinToString(extensionTags));
+        ~JoinToString(extensionTags),
+        ~ToString(partitionTag));
 
     auto chunk = GetChunk(chunkId);
     auto asyncChunkMeta = chunk->GetMeta(request->all_extension_tags() 
@@ -362,13 +373,37 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         : &extensionTags);
 
     asyncChunkMeta.Subscribe(BIND([=] (TChunk::TGetMetaResult result) {
-            if (result.IsOK()) {
-                *response->mutable_chunk_meta() = result.Value();
-                context->Reply();
-            } else {
-                context->Reply(result);
+        if (!result.IsOK()) {
+            context->Reply(result);
+            return;
+        }
+
+        *response->mutable_chunk_meta() = result.Value();
+
+        if (partitionTag) {
+            // XXX(psushin):
+            // std::vector here causes MSVC internal compiler error :)
+            yvector<NTableClient::NProto::TBlockInfo> filteredBlocks;
+            auto channelsExt = GetProtoExtension<NTableClient::NProto::TChannelsExt>(
+                result.Value().extensions());
+            // Partition chunks must have only one channel.
+            YCHECK(channelsExt->items_size() == 1);
+
+            FOREACH (const auto& blockInfo, channelsExt->items(0).blocks()) {
+                YCHECK(blockInfo.partition_tag() != NTableClient::DefaultPartitionTag);
+                if (blockInfo.partition_tag() == partitionTag.Get()) {
+                    filteredBlocks.push_back(blockInfo);
+                }
             }
-        }));
+
+            ToProto(channelsExt->mutable_items(0)->mutable_blocks(), filteredBlocks);
+            UpdateProtoExtension(
+                response->mutable_chunk_meta()->mutable_extensions(), 
+                *channelsExt.Get());
+        }
+
+        context->Reply();
+    }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)

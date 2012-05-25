@@ -18,6 +18,8 @@ namespace NTableClient {
 
 using namespace NChunkServer;
 
+////////////////////////////////////////////////////////////////////////////////
+
 static NLog::TLogger& Logger = TableReaderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +30,7 @@ TChunkSequenceReader::TChunkSequenceReader(
     NChunkClient::IBlockCachePtr blockCache,
     const std::vector<NProto::TInputChunk>& fetchedChunks,
     int partitionTag,
-    TReaderOptions options)
+    const TReaderOptions& options)
     : Config(config)
     , BlockCache(blockCache)
     , InputChunks(fetchedChunks)
@@ -55,8 +57,9 @@ TChunkSequenceReader::TChunkSequenceReader(
         Readers.push_back(NewPromise<TChunkReaderPtr>());
     }
 
-    for (int i = 0; i < Config->PrefetchWindow; ++i)
+    for (int i = 0; i < Config->PrefetchWindow; ++i) {
         PrepareNextChunk();
+    }
 }
 
 void TChunkSequenceReader::PrepareNextChunk()
@@ -69,16 +72,16 @@ void TChunkSequenceReader::PrepareNextChunk()
 
     const auto& inputChunk = InputChunks[LastPreparedReader];
     const auto& slice = inputChunk.slice();
-    TChunkId chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+    auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
 
-    LOG_DEBUG("Opening chunk number %d (ChunkId: %s)", 
+    LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)", 
         LastPreparedReader,
         ~chunkId.ToString());
 
     auto remoteReader = CreateRemoteReader(
         Config->RemoteReader,
         BlockCache,
-        ~MasterChannel,
+        MasterChannel,
         chunkId,
         FromProto<Stroka>(inputChunk.node_addresses()));
 
@@ -106,7 +109,7 @@ void TChunkSequenceReader::OnReaderOpened(
 {
     ++LastInitializedReader;
 
-    LOG_DEBUG("Chunk number %d opened, reader index %d", 
+    LOG_DEBUG("Chunk opened (ChunkIndex: %d, ReaderIndex: %d)", 
         chunkIndex, 
         LastInitializedReader);
 
