@@ -23,6 +23,21 @@ TFormat::TFormat(EFormatType type, IAttributeDictionary* attributes)
     , Attributes(attributes ? attributes->Clone() : CreateEphemeralAttributes())
 { }
 
+TFormat::TFormat(const TFormat& other)
+    : Attributes(other.Attributes->Clone())
+{ }
+
+
+TFormat& TFormat::operator=(const TFormat& other)
+{
+    if (this != &other)
+        Attributes = other.Attributes->Clone();
+
+    return *this;
+}
+
+
+
 TFormat TFormat::FromYson(INodePtr node)
 {
     if (node->GetType() != ENodeType::String) {

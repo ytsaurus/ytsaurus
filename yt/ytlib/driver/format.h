@@ -30,7 +30,10 @@ class TFormat
 {
 public:
     TFormat();
+    TFormat(const TFormat& other);
     TFormat(EFormatType type, NYTree::IAttributeDictionary* attributes = NULL);
+
+    TFormat& operator=(const TFormat& other);
 
     DEFINE_BYVAL_RO_PROPERTY(EFormatType, Type);
     NYTree::IAttributeDictionary* GetAttributes() const;
