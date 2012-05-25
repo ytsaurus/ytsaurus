@@ -336,6 +336,65 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
     return currentNode;
 }
 
+INodePtr SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
+{
+    INodePtr currentNode = root;
+    TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
+    tokenizer.CurrentToken().CheckType(PathSeparatorToken);
+    tokenizer.ParseNext();
+    auto currentToken = tokenizer.CurrentToken();
+    while (tokenizer.ParseNext()) {
+        // Move to currentToken.
+        switch (currentToken.GetType()) {
+            case ETokenType::String: {
+                Stroka key(currentToken.GetStringValue());
+                currentNode = currentNode->AsMap()->GetChild(key);
+                break;
+            }
+
+            case ETokenType::Integer: {
+                currentNode = currentNode->AsList()->GetChild(currentToken.GetIntegerValue());
+                break;
+            }
+
+            default:
+                ThrowUnexpectedToken(currentToken);
+                YUNREACHABLE();
+        }
+        // Update currentToken.
+        tokenizer.CurrentToken().CheckType(PathSeparatorToken);
+        tokenizer.ParseNext();
+        currentToken = tokenizer.CurrentToken();
+    }
+
+    // Set value.
+    switch (currentToken.GetType()) {
+        case ETokenType::String: {
+            Stroka key(currentToken.GetStringValue());
+            auto mapNode = currentNode->AsMap();
+            auto child = mapNode->FindChild(key);
+            if (child) {
+                mapNode->ReplaceChild(~child, ~value);
+            } else {
+                mapNode->AddChild(~value, key);
+            }
+            break;
+        }
+
+        case ETokenType::Integer: {
+            auto listNode = currentNode->AsList();
+            auto child = listNode->GetChild(currentToken.GetIntegerValue());
+            listNode->ReplaceChild(~child, ~value);
+            break;
+        }
+
+        default:
+            ThrowUnexpectedToken(currentToken);
+            YUNREACHABLE();
+    }
+}
+
 void ForceYPath(INodePtr root, const TYPath& path)
 {
     INodePtr currentNode = root;
