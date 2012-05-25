@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/misc/enum.h>
 
 namespace NYT {
 namespace NDriver {
@@ -54,6 +55,15 @@ private:
 
     bool FirstLine;
     bool FirstItem;
+
+    DECLARE_ENUM(EState,
+        (ExpectListItem)
+        (ExpectBeginMap)
+        (ExpectKey)
+        (AfterKey)
+    );
+
+    EState State;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

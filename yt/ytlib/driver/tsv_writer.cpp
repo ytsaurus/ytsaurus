@@ -10,6 +10,7 @@ TTsvWriter::TTsvWriter(TOutputStream* stream, TTsvWriterConfigPtr config)
     : Stream(stream)
     , FirstLine(true)
     , FirstItem(true)
+    , State(EState::ExpectListItem)
 {
     if (!config) {
         Config = New<TTsvWriterConfig>();
@@ -18,16 +19,28 @@ TTsvWriter::TTsvWriter(TOutputStream* stream, TTsvWriterConfigPtr config)
 
 void TTsvWriter::OnStringScalar(const TStringBuf& value)
 {
+    if (State != EState::AfterKey) {
+        ythrow yexception() << "Lists are not supported";
+    }
+    State = EState::ExpectKey;
     Stream->Write(value);
 }
 
 void TTsvWriter::OnIntegerScalar(i64 value)
 {
+    if (State != EState::AfterKey) {
+        ythrow yexception() << "Lists are not supported";
+    }
+    State = EState::ExpectKey;
     Stream->Write(ToString(value));
 }
 
 void TTsvWriter::OnDoubleScalar(double value)
 {
+    if (State != EState::AfterKey) {
+        ythrow yexception() << "Lists are not supported";
+    }
+    State = EState::ExpectKey;
     Stream->Write(ToString(value));
 }
 
@@ -43,6 +56,11 @@ void TTsvWriter::OnBeginList()
 
 void TTsvWriter::OnListItem()
 {
+    if (State != EState::ExpectListItem) {
+        ythrow yexception() << "Unexpected call";
+    }
+    State = EState::ExpectBeginMap;
+
     if (!FirstLine) {
         Stream->Write(Config->NewLineSeparator);
     }
@@ -56,10 +74,20 @@ void TTsvWriter::OnEndList()
 }
 
 void TTsvWriter::OnBeginMap()
-{ }
+{
+    if (State != EState::ExpectBeginMap) {
+        ythrow yexception() << "Unexpected call";
+    }
+    State = EState::ExpectKey;
+}
 
 void TTsvWriter::OnKeyedItem(const TStringBuf& key)
 {
+    if (State != EState::ExpectKey) {
+        ythrow yexception() << "Unexpected call";
+    }
+    State = EState::AfterKey;
+
     if (!FirstItem) {
         Stream->Write(Config->ItemSeparator);
     }
@@ -69,7 +97,12 @@ void TTsvWriter::OnKeyedItem(const TStringBuf& key)
 }
 
 void TTsvWriter::OnEndMap()
-{ }
+{
+    if (State != EState::ExpectKey) {
+        ythrow yexception() << "Unexpected call";
+    }
+    State = EState::ExpectListItem;
+}
 
 void TTsvWriter::OnBeginAttributes()
 {

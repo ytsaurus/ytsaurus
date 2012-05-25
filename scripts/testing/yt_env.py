@@ -64,6 +64,9 @@ class YTEnv:
         pass
 
     def setUp(self, path_to_run):
+        # TODO(panin): add option for this
+        os.system('killall Bootstrap')
+        
         print 'Setting up configuration with %s masters, %s holders, %s schedulers' % (
             self.NUM_MASTERS, self.NUM_HOLDERS, self.NUM_SCHEDULERS
             )
