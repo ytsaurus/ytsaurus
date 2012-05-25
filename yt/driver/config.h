@@ -32,7 +32,7 @@ struct TFormatDefaultsConfig
     }
 };
 
-typedef TIntrusivePtr<TFormatDefaultsConfig> TDefaultFormatConfigPtr;
+typedef TIntrusivePtr<TFormatDefaultsConfig> TFormatDefaultsConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +40,7 @@ struct TExecutorConfig
     : public NDriver::TDriverConfig
 {
     NYTree::INodePtr Logging;
-    TDefaultFormatConfigPtr FormatDefaults;
+    TFormatDefaultsConfigPtr FormatDefaults;
     TDuration OperationWaitTimeout;
 
     TExecutorConfig()
