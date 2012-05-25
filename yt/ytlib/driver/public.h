@@ -20,6 +20,9 @@ struct TDriverResponse;
 
 struct TFormat;
 
+struct TTsvWriterConfig;
+typedef TIntrusivePtr<TTsvWriterConfig> TTsvWriterConfigPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NDriver

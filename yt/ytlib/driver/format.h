@@ -23,6 +23,7 @@ DECLARE_ENUM(EFormatType,
     (Null)
     (Yson)
     (Csv)
+    (Tsv)
 );
 
 class TFormat

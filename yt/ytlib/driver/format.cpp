@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "format.h"
 
+#include "tsv_writer.h"
+
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
@@ -111,6 +113,15 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing YSON output format\n", ex.what());
     }
+}
+
+TAutoPtr<IYsonConsumer> CreateConsumerForTsv(
+    EDataType dataType,
+    IAttributeDictionary* attributes,
+    TOutputStream* output)
+{
+    // TODO(panin): use attributes, luke!
+    return new TTsvWriter(output);
 }
 
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
