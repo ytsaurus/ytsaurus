@@ -129,7 +129,8 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType
     switch (format.GetType()) {
         case EFormatType::Yson:
             return CreateConsumerForYson(dataType, format.GetAttributes(), output);
-
+        case EFormatType::Tsv:
+            return CreateConsumerForTsv(dataType, format.GetAttributes(), output);
         default:
             ythrow yexception() << Sprintf("Unsupported output format %s",
                 ~FormatEnum(format.GetType()).Quote());
