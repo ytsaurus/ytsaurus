@@ -257,7 +257,6 @@ private:
         attributes->push_back(TAttributeInfo("chunk_count", holder));
         attributes->push_back(TAttributeInfo("session_count", holder));
         attributes->push_back(TAttributeInfo("full", holder));
-        attributes->push_back(TAttributeInfo("banned", holder));
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -311,26 +310,24 @@ private:
                     .Scalar(statistics.full());
                 return true;
             }
-            if (name == "banned") {
-                BuildYsonFluently(consumer)
-                    .Scalar(holder->GetBanned());
-                return true;
-            }
         }
 
         return TMapNodeProxy::GetSystemAttribute(name, consumer);
     }
 
-    virtual bool SetSystemAttribute(const Stroka& key, const TYson& value)
+    virtual void OnUpdateAttribute(
+        const Stroka& key,
+        const TNullable<NYTree::TYson>& oldValue,
+        const TNullable<NYTree::TYson>& newValue)
     {
-        auto* holder = GetHolder();
-
+        UNUSED(oldValue);
         if (key == "banned") {
-            holder->SetBanned(DeserializeFromYson<bool>(value));
-            return true;
+            if (!newValue) {
+                ythrow yexception() << Sprintf("Attribute %s cannot be removed",
+                    ~key.Quote());
+            }
+            DeserializeFromYson<bool>(*newValue);
         }
-
-        return TMapNodeProxy::SetSystemAttribute(key, value);
     }
 };
 
@@ -410,6 +407,7 @@ private:
             {
                 auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address));
                 req->set_type(EObjectType::Holder);
+                req->Attributes().Set("banned", false);
                 ExecuteVerb(~service, ~req);
             }
 

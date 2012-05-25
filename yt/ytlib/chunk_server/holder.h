@@ -31,7 +31,6 @@ class THolder
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, CachedChunks);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, UnapprovedChunks);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJob*>, Jobs);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
 
 public:
     THolder(

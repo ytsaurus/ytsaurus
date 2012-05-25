@@ -24,12 +24,10 @@ THolder::THolder(
     : Id_(id)
     , Address_(address)
     , IncarnationId_(incarnationId)
-    , Banned_(false)
 { }
 
 THolder::THolder(THolderId id)
     : Id_(id)
-    , Banned_(false)
 { }
 
 void THolder::Save(TOutputStream* output) const
@@ -42,7 +40,6 @@ void THolder::Save(TOutputStream* output) const
     SaveObjectRefs(output, CachedChunks_);
     SaveObjectRefs(output, UnapprovedChunks_);
     SaveObjectRefs(output, Jobs_);
-    ::Save(output, Banned_);
 }
 
 void THolder::Load(const TLoadContext& context, TInputStream* input)
@@ -56,7 +53,6 @@ void THolder::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRefs(input, CachedChunks_, context);
     LoadObjectRefs(input, UnapprovedChunks_, context);
     LoadObjectRefs(input, Jobs_, context);
-    ::Load(input, Banned_);
 }
 
 void THolder::AddJob(TJob* job)
