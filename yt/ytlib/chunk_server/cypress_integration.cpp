@@ -213,6 +213,12 @@ public:
         auto holderNode = SyncYPathGetNode(
             rootNodeProxy,
             "/sys/holders/" + EscapeYPathToken(address));
+
+        if (!holderNode) {
+            // New holder.
+            return true;
+        }
+
         bool banned = holderNode->Attributes().Get<bool>("banned", false);
         return !banned;
     }
