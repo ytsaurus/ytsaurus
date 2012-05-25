@@ -212,7 +212,7 @@ public:
             cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNodeId());
         auto holderNode = SyncYPathGetNode(
             rootNodeProxy,
-            "/sys/holder/" + EscapeYPathToken(address));
+            "/sys/holders/" + EscapeYPathToken(address));
         bool banned = holderNode->Attributes().Get<bool>("banned", false);
         return !banned;
     }
