@@ -24,14 +24,17 @@ TFormat::TFormat(EFormatType type, IAttributeDictionary* attributes)
 { }
 
 TFormat::TFormat(const TFormat& other)
-    : Attributes(other.Attributes->Clone())
+    : Type_(other.Type_)
+    , Attributes(other.Attributes->Clone())
 { }
 
 
 TFormat& TFormat::operator=(const TFormat& other)
 {
-    if (this != &other)
+    if (this != &other) {
         Attributes = other.Attributes->Clone();
+        Type_ = other.Type_;
+    }
 
     return *this;
 }
