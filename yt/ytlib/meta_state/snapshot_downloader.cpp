@@ -203,9 +203,10 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
             }
         }
         
-        const yvector<TSharedRef>& attachments = response->Attachments();
-        TRef block(attachments.at(0));
+        const auto& attachments = response->Attachments();
+        YCHECK(!attachments.empty());
 
+        TRef block(attachments[0]);
         if (static_cast<i32>(block.Size()) != blockSize) {
             LOG_WARNING("Snapshot block of wrong size received (Offset: %" PRId64 ", Size: %d, ExpectedSize: %d)",
                 downloadedLength,

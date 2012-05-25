@@ -2,40 +2,18 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger RpcLogger;
+extern NLog::TLogger RpcServerLogger;
+extern NLog::TLogger RpcClientLogger;
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct IClientRequest;
-typedef TIntrusivePtr<IClientRequest> IClientRequestPtr;
-
-class TClientRequest;
-
-struct IClientResponseHandler;
-typedef TIntrusivePtr<IClientResponseHandler> IClientResponseHandlerPtr;
-
-template <class TRequestMessage, class TResponse>
-class TTypedClientRequest;
-
-class TClientResponse;
-
-template <class TResponseMessage>
-class TTypedClientResponse;
-
-class TOneWayClientResponse;
-typedef TIntrusivePtr<TOneWayClientResponse> TOneWayClientResponsePtr;
-
-struct TRetryConfig;
-typedef TIntrusivePtr<TRetryConfig> TRetryConfigPtr;
-
-class TRetriableChannel;
-typedef TIntrusivePtr<TRetriableChannel> TRetriableChannelPtr;
+extern NProfiling::TProfiler RpcServerProfiler;
+extern NProfiling::TProfiler RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
             

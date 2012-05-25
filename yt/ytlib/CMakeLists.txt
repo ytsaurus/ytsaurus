@@ -54,13 +54,19 @@ target_link_libraries ( ytlib
   ytext-fastlz
   ytext-minilzo
   ytext-zlib
+  ytext-uv
   protobuf
 )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
+
   ${CMAKE_SOURCE_DIR}/yt
+
   ${CMAKE_SOURCE_DIR}/contrib/tclap
+  ${CMAKE_SOURCE_DIR}/contrib/libuv/include
+  ${CMAKE_SOURCE_DIR}/contrib/libuv/include/uv-private
+  ${CMAKE_SOURCE_DIR}/contrib/libuv/src
 
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include

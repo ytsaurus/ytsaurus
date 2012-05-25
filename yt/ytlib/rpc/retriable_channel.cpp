@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "retriable_channel.h"
+#include "private.h"
 #include "client.h"
 
 #include <ytlib/bus/client.h>
@@ -14,7 +15,7 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = RpcLogger;
+static NLog::TLogger& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +37,7 @@ public:
         IClientResponseHandlerPtr responseHandler, 
         TNullable<TDuration> timeout);
 
-    virtual void Terminate();
+    virtual void Terminate(const TError& error);
 
 };
 
@@ -162,7 +163,7 @@ private:
         }
     }
 
-    virtual void OnResponse(IMessage* message)
+    virtual void OnResponse(IMessagePtr message)
     {
         LOG_DEBUG("Retriable response received (RequestId: %s)",
             ~Request->GetRequestId().ToString());
@@ -213,9 +214,9 @@ void TRetriableChannel::Send(
     return retriableRequest->Send();
 }
 
-void TRetriableChannel::Terminate()
+void TRetriableChannel::Terminate(const TError& error)
 {
-    UnderlyingChannel_->Terminate();
+    UnderlyingChannel_->Terminate(error);
 }
 
 TNullable<TDuration> TRetriableChannel::GetDefaultTimeout() const

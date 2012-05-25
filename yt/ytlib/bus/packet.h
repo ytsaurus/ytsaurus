@@ -1,103 +1,190 @@
 #pragma once
 
-#include "common.h"
-#include "message.h"
+#include "private.h"
+
+#include <ytlib/misc/ref.h>
+#include <ytlib/misc/small_vector.h>
 
 namespace NYT {
 namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EPacketType,
+    ((Message)(0))
+    ((Ack)(1))
+);
+
 #pragma pack(push, 4)
+
+const ui32 PacketSignature = 0x78616d6f;
+const i32 MaxPacketPartCount = 1 << 28;
+const i32 MaxPacketPartSize = 1 << 28;
+const int TypicalPacketPartCount = 64;
 
 struct TPacketHeader
 {
-    static const ui32 ExpectedSignature = 0x78616d6f;
-
-    DECLARE_ENUM(EType,
-        (Message)
-        (Ping)
-        (Ack)
-        (BrokenSession)
-    );
-
     ui32 Signature;
-    EType Type;
-    TSessionId SessionId;
-};
-
-struct TMultipartPacketHeader
-    : public TPacketHeader
-{
-    static const i32 MaxParts = 1 << 28;
-    static const i32 MaxPartSize = 1 << 28;
-
-    TSequenceId SequenceId;
-    i32 PartCount;
-    i32 PartSizes[MaxParts];
+    EPacketType Type;
+    TPacketId PacketId;
 };
 
 #pragma pack(pop)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-struct THeaderTraits
-{ };
+DECLARE_ENUM(EPacketPhase,
+    (Unstarted)
+    (Header)
+    (PartCount)
+    (PartSizes)
+    (MessagePart)
+    (Finished)
+);
 
-template<>
-struct THeaderTraits<TPacketHeader>
+template <class TDerived>
+class TPacketTranscoderBase
 {
-    static const int FixedSize;
-};
+public:
+    TPacketTranscoderBase();
 
-template<>
-struct THeaderTraits<TMultipartPacketHeader>
-{
-    static const int FixedSize;
+    TRef GetChunk();
+    bool IsFinished() const;  
+
+protected:
+    EPacketPhase Phase;
+    char* Chunk;
+    size_t PendingSize;
+    TPacketHeader Header;
+    TSmallVector<i32, TypicalPacketPartCount> PartSizes;
+    i32 PartCount;
+    int PartIndex;
+    IMessagePtr Message;
+
+    void BeginPhase(EPacketPhase phase, void* chunk, size_t size);
+    bool EndPhase();
+    void SetFinished();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DecodeMessagePacket(
-    TBlob&& data,
-    IMessage::TPtr* message,
-    TSequenceId* sequenceId);
+//! Enables asynchronous zero-copy packet parsing.
+class TPacketDecoder
+    : public TPacketTranscoderBase<TPacketDecoder>
+{
+public:
+    TPacketDecoder();
 
-bool EncodeMessagePacket(
-    IMessage::TPtr message,
-    const TSessionId& sessionId,
-    TSequenceId sequenceId,
-    TBlob* data);
+    bool Advance(size_t size);
+    void Restart();
 
-void CreatePacket(
-    const TSessionId& sessionId,
-    TPacketHeader::EType type,
-    TBlob* data);
+    EPacketType GetPacketType() const;
+    const TPacketId& GetPacketId() const;
+    IMessagePtr GetMessage() const;
+    size_t GetPacketSize() const;
+
+private:
+    friend class TPacketTranscoderBase<TPacketDecoder>;
+
+    std::vector<TSharedRef> Parts;
+    size_t PacketSize;
+        
+    bool EndHeaderPhase();
+    bool EndPartCountPhase();
+    bool EndPartSizesPhase();
+    bool EndMessagePartPhase();
+    void NextMessagePartPhase();
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-T* ParsePacketHeader(TBlob& data)
+//! Enables asynchronous zero-copy packet writing.
+class TPacketEncoder
+    : public TPacketTranscoderBase<TPacketEncoder>
 {
-    static NLog::TLogger& Logger = BusLogger;
+public:
+    TPacketEncoder();
 
-    if (data.ysize() < THeaderTraits<T>::FixedSize) {
-        LOG_ERROR("Packet is too short (Size: %d)", data.ysize());
-        return NULL;
+    static size_t GetPacketSize(EPacketType type, IMessagePtr message);
+
+    bool Start(EPacketType type, const TPacketId& packetId, IMessagePtr message);
+    void NextChunk();
+
+private:
+    friend class TPacketTranscoderBase<TPacketEncoder>;
+
+    bool EndHeaderPhase();
+    bool EndPartCountPhase();
+    bool EndPartSizesPhase();
+    bool EndMessagePartPhase();
+
+    void NextMessagePartPhase();
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TDerived>
+TPacketTranscoderBase<TDerived>::TPacketTranscoderBase()
+    : Phase(EPacketPhase::Unstarted)
+    , Chunk(NULL)
+    , PendingSize(0)
+    , PartCount(-1)
+    , PartIndex(-1)
+{ }
+
+template <class TDerived>
+TRef TPacketTranscoderBase<TDerived>::GetChunk()
+{
+    return TRef(Chunk, PendingSize);
+}
+
+template <class TDerived>
+bool TPacketTranscoderBase<TDerived>::IsFinished() const
+{
+    return Phase == EPacketPhase::Finished;
+}
+
+template <class TDerived>
+void TPacketTranscoderBase<TDerived>::BeginPhase(EPacketPhase phase, void* buffer, size_t size)
+{
+    Phase = phase;
+    Chunk = static_cast<char*>(buffer);
+    PendingSize = size;
+}
+
+template <class TDerived>
+void TPacketTranscoderBase<TDerived>::SetFinished()
+{
+    Phase = EPacketPhase::Finished;
+    Chunk = NULL;
+    PendingSize = 0;
+}
+
+template <class TDerived>
+bool TPacketTranscoderBase<TDerived>::EndPhase()
+{
+    switch (Phase) {
+        case EPacketPhase::Header:
+            return static_cast<TDerived*>(this)->EndHeaderPhase();
+
+        case EPacketPhase::PartCount:
+            return static_cast<TDerived*>(this)->EndPartCountPhase();
+
+        case EPacketPhase::PartSizes:
+            return static_cast<TDerived*>(this)->EndPartSizesPhase();
+
+        case EPacketPhase::MessagePart:
+            return static_cast<TDerived*>(this)->EndMessagePartPhase();
+
+        default:
+            YUNREACHABLE();
     }
-
-    T* header = reinterpret_cast<T*>(data.begin());
-    if (header->Signature != TPacketHeader::ExpectedSignature) {
-        LOG_ERROR("Invalid packet signature (Signature: %X)", header->Signature);
-        return NULL;
-    }
-
-    return header;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NBus
 } // namespace NYT

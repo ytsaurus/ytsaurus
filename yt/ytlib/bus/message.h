@@ -1,7 +1,7 @@
 #pragma once
 
-#include "common.h"
-#include <ytlib/misc/ref_counted.h>
+#include "public.h"
+
 #include <ytlib/misc/ref.h>
 
 namespace NYT {
@@ -16,30 +16,28 @@ namespace NBus {
  *  The message owns its parts.
  */
 struct IMessage
-    : public virtual TRefCounted
+    : public virtual TIntrinsicRefCounted
 {
-    typedef TIntrusivePtr<IMessage> TPtr;
-
-    virtual const yvector<TSharedRef>& GetParts() = 0;
+    virtual const std::vector<TSharedRef>& GetParts() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a message from a list of parts.
-IMessage::TPtr CreateMessageFromParts(const yvector<TSharedRef>& parts);
+IMessagePtr CreateMessageFromParts(const std::vector<TSharedRef>& parts);
 
 //! Creates a message from a list of parts.
-IMessage::TPtr CreateMessageFromParts(yvector<TSharedRef>&& parts);
+IMessagePtr CreateMessageFromParts(std::vector<TSharedRef>&& parts);
 
 //! Creates a message from a single part.
-IMessage::TPtr CreateMessageFromPart(const TSharedRef& part);
+IMessagePtr CreateMessageFromPart(const TSharedRef& part);
 
 //! Creates a message from a blob and a bunch of refs inside it.
-IMessage::TPtr CreateMessageFromParts(TBlob&& blob, const yvector<TRef>& refs);
+IMessagePtr CreateMessageFromParts(TBlob&& blob, const std::vector<TRef>& refs);
 
 //! Creates a message by taking a slice of another message.
 //! The slice goes up to the end of the original message.
-IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart);
+IMessagePtr CreateMessageFromSlice(IMessagePtr message, int sliceStart);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,9 +16,8 @@ class TSortJob
 {
 public:
     TSortJob(
-        TJobIOConfigPtr ioConfig,
-        NElection::TLeaderLookup::TConfigPtr masterConfig,
-        const NScheduler::NProto::TSortJobSpec& jobSpec);
+        TJobProxyConfigPtr proxyConfig,
+        const NScheduler::NProto::TJobSpec& jobSpec);
 
     NScheduler::NProto::TJobResult Run();
 

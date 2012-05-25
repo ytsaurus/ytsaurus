@@ -40,8 +40,15 @@ void TResourceTracker::EnqueueUsage()
 {
     PeriodicInvoker->ScheduleNext();
 
-    TIFStream procStat("/proc/stat");
-    auto cpuFields = splitStroku(procStat.ReadLine(), " ");
+    VectorStrok cpuFields;
+    try {
+        TIFStream procStat("/proc/stat");
+        cpuFields = splitStroku(procStat.ReadLine(), " ");
+    } catch (const TIoException&) {
+        // Ignore all IO exceptions.
+        return;
+    }
+
     i64 procTicks = FromString<i64>(cpuFields[1]);
     i64 totalProcTicks = procTicks - PreviousProcTicks;
 

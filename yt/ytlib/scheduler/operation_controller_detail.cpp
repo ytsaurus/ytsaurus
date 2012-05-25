@@ -553,7 +553,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "lock_in");
         }
         {
-            // NB: Use table.Path not ypath here, otherwise path suffix is ignored.
+            // NB: Use table.Path, not YPath here, otherwise path suffix is ignored.
             auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path, PrimaryTransaction->GetId()));
             req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);

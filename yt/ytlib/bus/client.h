@@ -1,23 +1,19 @@
 #pragma once
 
-#include "common.h"
-#include "bus.h"
+#include "public.h"
 
 namespace NYT {
 namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A client IBus factory.
+//! A factory for creating client IBus-es.
 /*!
  *  Thread affinity: any.
  */
 struct IBusClient
     : public virtual TRefCounted
 {
-public:
-    typedef TIntrusivePtr<IBusClient> TPtr;
-
     //! Creates a new bus.
     /*!
      *  The bus will point to the address supplied during construction.
@@ -26,9 +22,8 @@ public:
      *  \return A new bus.
      *
      */
-    virtual IBus::TPtr CreateBus(IMessageHandler::TPtr handler) = 0;
+    virtual IBusPtr CreateBus(IMessageHandlerPtr handler) = 0;
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

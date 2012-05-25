@@ -42,11 +42,14 @@ TBootstrap::~TBootstrap()
 void TBootstrap::Init()
 {
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
-    JobProxyConfig->RpcTimeout = Config->SupervisorTimeout;
+    JobProxyConfig->SupervisorRpcTimeout = Config->SupervisorRpcTimeout;
     JobProxyConfig->Logging = Config->JobProxyLogging;
     JobProxyConfig->SandboxName = SandboxName;
     JobProxyConfig->Masters = NodeBootstrap->GetConfig()->Masters;
-    JobProxyConfig->ExecAgentAddress = NodeBootstrap->GetPeerAddress();
+    JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
+    JobProxyConfig->SupervisorConnection->Address = NodeBootstrap->GetPeerAddress();
+    // TODO(babenko): consider making this priority configurable
+    JobProxyConfig->SupervisorConnection->Priority = 6;
 
     JobManager = New<TJobManager>(Config->JobManager, this);
 
@@ -54,7 +57,7 @@ void TBootstrap::Init()
     NodeBootstrap->GetRpcServer()->RegisterService(supervisorService);
 
     EnvironmentManager = New<TEnvironmentManager>(Config->EnvironmentManager);
-    EnvironmentManager->Register("unsafe",  CreateUnsafeEnvironmentBuilder());
+    EnvironmentManager->Register("unsafe", CreateUnsafeEnvironmentBuilder());
 
     SchedulerConnector = New<TSchedulerConnector>(Config->SchedulerConnector, this);
     SchedulerConnector->Start();

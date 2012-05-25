@@ -302,6 +302,7 @@ private:
                     auto it = impl->SyncHandlers.find(prefix);
                     if (it != impl->SyncHandlers.end()) {
                         Output() << it->second.Run(suffix);
+                        LOG_INFO("Requested served");
                         return true;
                     }
                 }
@@ -310,6 +311,7 @@ private:
                     auto it = impl->AsyncHandlers.find(prefix);
                     if (it != impl->AsyncHandlers.end()) {
                         Output() << it->second.Run(suffix).Get();
+                        LOG_INFO("Requested served");
                         return true;
                     }
                 }

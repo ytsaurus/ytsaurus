@@ -5,6 +5,8 @@
 
 #include <ytlib/misc/ref_counted_tracker.h>
 
+#include <ytlib/bus/config.h>
+
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/virtual.h>
@@ -42,7 +44,7 @@
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_client.h>
 
-#include <ytlib/bus/nl_server.h>
+#include <ytlib/bus/tcp_server.h>
 
 #include <ytlib/profiling/profiling_manager.h>
 
@@ -144,7 +146,7 @@ void TBootstrap::Run()
     ControlQueue = New<TActionQueue>("Control");
     StateQueue = New<TMultiActionQueue>(EStateThreadQueue::GetDomainSize(), "MetaState");
 
-    auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->MetaState->Cell->RpcPort));
+    auto busServer = CreateTcpBusServer(~New<TTcpBusServerConfig>(Config->MetaState->Cell->RpcPort));
 
     auto rpcServer = CreateRpcServer(~busServer);
 
@@ -181,9 +183,6 @@ void TBootstrap::Run()
     monitoringManager->Register(
         "/meta_state",
         BIND(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
-    monitoringManager->Register(
-        "/bus_server",
-        BIND(&IBusServer::GetMonitoringInfo, busServer));
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();

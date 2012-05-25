@@ -22,7 +22,7 @@ TYPathRequest::TYPathRequest(const Stroka& verb)
     : Verb_(verb)
 { }
 
-IMessage::TPtr TYPathRequest::Serialize()
+IMessagePtr TYPathRequest::Serialize()
 {
     auto bodyData = SerializeBody();
 
@@ -41,7 +41,7 @@ IMessage::TPtr TYPathRequest::Serialize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYPathResponse::Deserialize(NBus::IMessage* message)
+void TYPathResponse::Deserialize(NBus::IMessagePtr message)
 {
     YASSERT(message);
 
@@ -174,13 +174,13 @@ void ResolveYPath(
 }
 
 void OnYPathResponse(
-    TPromise<IMessage::TPtr> asyncResponseMessage,
+    TPromise<IMessagePtr> asyncResponseMessage,
     const TYPath& path,
     const Stroka& verb,
     const TYPath& resolvedPath,
-    IMessage::TPtr responseMessage)
+    IMessagePtr responseMessage)
 {
-    auto header = GetResponseHeader(~responseMessage);
+    auto header = GetResponseHeader(responseMessage);
     auto error = TError::FromProto(header.error());
 
     if (error.IsOK()) {
@@ -193,15 +193,15 @@ void OnYPathResponse(
             ~error.GetMessage());
         *header.mutable_error() = TError(error.GetCode(), message).ToProto();
 
-        auto updatedResponseMessage = SetResponseHeader(~responseMessage, header);
+        auto updatedResponseMessage = SetResponseHeader(responseMessage, header);
         asyncResponseMessage.Set(updatedResponseMessage);
     }
 }
 
-TFuture<IMessage::TPtr>
+TFuture<IMessagePtr>
 ExecuteVerb(
     IYPathServicePtr service,
-    NBus::IMessage* requestMessage)
+    NBus::IMessagePtr requestMessage)
 {
     NLog::TLogger Logger(service->GetLoggingCategory());
 
@@ -228,7 +228,7 @@ ExecuteVerb(
     requestHeader.set_path(suffixPath);
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
-    auto asyncResponseMessage = NewPromise<IMessage::TPtr>();
+    auto asyncResponseMessage = NewPromise<IMessagePtr>();
     auto context = CreateYPathContext(
         ~updatedRequestMessage,
         suffixPath,
@@ -242,7 +242,7 @@ ExecuteVerb(
             ComputeResolvedYPath(path, suffixPath)));
 
     // This should never throw.
-    suffixService->Invoke(~context);
+    suffixService->Invoke(context);
 
     return asyncResponseMessage;
 }
@@ -250,9 +250,9 @@ ExecuteVerb(
 void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
 {
     auto requestMessage = context->GetRequestMessage();
-    ExecuteVerb(service, ~requestMessage)
-        .Subscribe(BIND([=] (NBus::IMessage::TPtr responseMessage) {
-            context->Reply(~responseMessage);
+    ExecuteVerb(service, requestMessage)
+        .Subscribe(BIND([=] (NBus::IMessagePtr responseMessage) {
+            context->Reply(responseMessage);
         }));
 }
 
@@ -260,13 +260,13 @@ TFuture< TValueOrError<TYson> > AsyncYPathGet(IYPathServicePtr service, const TY
 {
     auto request = TYPathProxy::Get(path);
     return
-        ExecuteVerb(service, ~request)
-            .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
-                return
-                    response->IsOK()
-                    ? TValueOrError<TYson>(response->value())
-                    : TValueOrError<TYson>(response->GetError());
-            }));
+        ExecuteVerb(service, request)
+        .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
+            return
+                response->IsOK()
+                ? TValueOrError<TYson>(response->value())
+                : TValueOrError<TYson>(response->GetError());
+        }));
 }
 
 TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path)
@@ -282,21 +282,21 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& val
 {
     auto request = TYPathProxy::Set(path);
     request->set_value(value);
-    auto response = ExecuteVerb(service, ~request).Get();
+    auto response = ExecuteVerb(service, request).Get();
     response->ThrowIfError();
 }
 
 void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Remove(path);
-    auto response = ExecuteVerb(service, ~request).Get();
+    auto response = ExecuteVerb(service, request).Get();
     response->ThrowIfError();
 }
 
 yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
-    auto response = ExecuteVerb(service, ~request).Get();
+    auto response = ExecuteVerb(service, request).Get();
     response->ThrowIfError();
     return NYT::FromProto<Stroka>(response->keys());
 }

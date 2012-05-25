@@ -14,7 +14,7 @@
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/config.h>
 
-#include <ytlib/bus/nl_client.h>
+#include <ytlib/bus/tcp_dispatcher.h>
 
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/yson_parser.h>
@@ -115,7 +115,7 @@ public:
         // TODO: refactor system shutdown
         // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
         NLog::TLogManager::Get()->Shutdown();
-        NBus::TNLClientManager::Get()->Shutdown();
+        NBus::TTcpDispatcher::Get()->Shutdown();
         NProfiling::TProfilingManager::Get()->Shutdown();
         TDelayedInvoker::Shutdown();
 

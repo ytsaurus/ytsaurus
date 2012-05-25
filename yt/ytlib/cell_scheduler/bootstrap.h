@@ -37,7 +37,7 @@ private:
     TCellSchedulerConfigPtr Config;
 
     IInvoker::TPtr ControlInvoker;
-    NBus::IBusServer::TPtr BusServer;
+    NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     Stroka PeerAddress;
     NTransactionClient::TTransactionManagerPtr TransactionManager;

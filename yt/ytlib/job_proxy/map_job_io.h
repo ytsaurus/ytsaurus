@@ -20,7 +20,7 @@ public:
     TMapJobIO(
         TJobIOConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        const NScheduler::NProto::TMapJobSpec& ioSpec);
+        const NScheduler::NProto::TJobSpec& jobSpec);
 
     int GetInputCount() const;
     int GetOutputCount() const;
@@ -37,7 +37,7 @@ public:
 private:
     TJobIOConfigPtr Config;
 
-    NScheduler::NProto::TMapJobSpec IoSpec;
+    NScheduler::NProto::TJobSpec JobSpec;
     NRpc::IChannelPtr MasterChannel;
 };
 

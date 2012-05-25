@@ -32,33 +32,34 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TOrderedMergeJob::TOrderedMergeJob(
-    TJobIOConfigPtr ioConfig,
-    NElection::TLeaderLookup::TConfigPtr masterConfig,
-    const NScheduler::NProto::TMergeJobSpec& jobSpec)
+    TJobProxyConfigPtr proxyConfig,
+    const TJobSpec& jobSpec)
 {
+    YCHECK(jobSpec.output_specs_size() == 1);
+
     auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
-    auto masterChannel = CreateLeaderChannel(masterConfig);
+    auto masterChannel = CreateLeaderChannel(proxyConfig->Masters);
 
     std::vector<TInputChunk> inputChunks;
-    FOREACH (const auto& inputSpec, jobSpec.input_spec()) {
+    FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
         FOREACH (const auto& inputChunk, inputSpec.chunks()) {
             inputChunks.push_back(inputChunk);
         }
     }
 
     Reader = New<TSyncReaderAdapter>(New<TChunkSequenceReader>(
-        ioConfig->ChunkSequenceReader,
+        proxyConfig->JobIO->ChunkSequenceReader,
         masterChannel,
         blockCache,
         inputChunks));
 
     // ToDo(psushin): estimate row count for writer.
     auto asyncWriter = New<TTableChunkSequenceWriter>(
-        ioConfig->ChunkSequenceWriter,
+        proxyConfig->JobIO->ChunkSequenceWriter,
         masterChannel,
         TTransactionId::FromProto(jobSpec.output_transaction_id()),
-        TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
-        ChannelsFromYson(jobSpec.output_spec().channels()));
+        TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
+        ChannelsFromYson(jobSpec.output_specs(0).channels()));
 
     Writer = CreateSyncWriter(asyncWriter);
 }

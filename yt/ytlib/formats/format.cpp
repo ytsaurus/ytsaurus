@@ -59,6 +59,11 @@ TFormat TFormat::FromYson(INodePtr node)
     return TFormat(type, &node->Attributes());
 }
 
+TFormat TFormat::FromYson(const TYson& yson)
+{
+    return FromYson(DeserializeFromYson(yson));
+}
+
 void TFormat::ToYson(IYsonConsumer* consumer) const
 {
     BuildYsonFluently(consumer)
@@ -66,6 +71,14 @@ void TFormat::ToYson(IYsonConsumer* consumer) const
             .Items(~Attributes)
         .EndAttributes()
         .Scalar(Type_.ToString());
+}
+
+TYson TFormat::ToYson() const
+{
+    TStringStream stream;
+    TYsonWriter writer(&stream);
+    ToYson(&writer);
+    return stream;
 }
 
 IAttributeDictionary* TFormat::GetAttributes() const

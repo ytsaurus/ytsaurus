@@ -9,14 +9,17 @@
 #include "partition_job.h"
 
 #include <ytlib/logging/log_manager.h>
-#include <ytlib/rpc/channel.h>
 #include <ytlib/scheduler/public.h>
+#include <ytlib/bus/tcp_client.h>
+#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NScheduler;
 using namespace NExecAgent;
+using namespace NBus;
+using namespace NRpc;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,19 +28,21 @@ TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
     const TJobId& jobId)
     : Config(config)
-    , Proxy(NRpc::CreateBusChannel(config->ExecAgentAddress))
     , JobId(jobId)
     , Logger(JobProxyLogger)
 {
     Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
-    Proxy.SetDefaultTimeout(config->RpcTimeout);
+
+    auto client = CreateTcpBusClient(Config->SupervisorConnection);
+    auto channel = CreateBusChannel(client, Config->SupervisorRpcTimeout);
+    SupervisorProxy.Reset(new TSupervisorServiceProxy(channel));
 }
 
 void TJobProxy::SendHeartbeat()
 {
     HeartbeatInvoker->ScheduleNext();
 
-    auto req = Proxy.OnJobProgress();
+    auto req = SupervisorProxy->OnJobProgress();
     *req->mutable_job_id() = JobId.ToProto();
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -65,15 +70,16 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
 TJobSpec TJobProxy::GetJobSpec()
 {
     LOG_INFO("Requesting job spec");
-    auto req = Proxy.GetJobSpec();
+    auto req = SupervisorProxy->GetJobSpec();
     *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke().Get();
-
     if (!rsp->IsOK()) {
         ythrow yexception() << Sprintf("Failed to get job spec\n%s",
             ~rsp->GetError().ToString());
     }
+
+    LOG_INFO("Job spec received\n%s", ~rsp->job_spec().DebugString());
 
     return rsp->job_spec();
 }
@@ -91,36 +97,23 @@ void TJobProxy::Run()
 
         switch (jobSpec.type()) {
             case EJobType::Map:
-                YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
                 Job = new TUserJob(Config, jobSpec);
                 break;
 
             case EJobType::OrderedMerge:
-                Job = new TOrderedMergeJob(
-                    Config->JobIO, 
-                    Config->Masters, 
-                    jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+                Job = new TOrderedMergeJob(Config, jobSpec);
                 break;
 
             case EJobType::SortedMerge:
-                Job = new TSortedMergeJob(
-                    Config->JobIO, 
-                    Config->Masters, 
-                    jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+                Job = new TSortedMergeJob(Config, jobSpec);
                 break;
 
             case EJobType::Sort:
-                Job = new TSortJob(
-                    Config->JobIO, 
-                    Config->Masters, 
-                    jobSpec.GetExtension(TSortJobSpec::sort_job_spec));
+                Job = new TSortJob(Config, jobSpec);
                 break;
 
             case EJobType::Partition:
-                Job = new TPartitionJob(
-                    Config->JobIO, 
-                    Config->Masters, 
-                    jobSpec.GetExtension(TPartitionJobSpec::partition_job_spec));
+                Job = new TPartitionJob(Config, jobSpec);
                 break;
 
             default:
@@ -131,7 +124,7 @@ void TJobProxy::Run()
         ReportResult(result);
 
     } catch (const std::exception& ex) {
-        LOG_WARNING("Job failed\n%s", ex.what());
+        LOG_ERROR("Job failed\n%s", ex.what());
 
         TJobResult result;
         result.mutable_error()->set_code(TError::Fail);
@@ -144,7 +137,7 @@ void TJobProxy::ReportResult(const NScheduler::NProto::TJobResult& result)
 {
     HeartbeatInvoker->Stop();
 
-    auto req = Proxy.OnJobFinished();
+    auto req = SupervisorProxy->OnJobFinished();
     *req->mutable_result() = result;
     *req->mutable_job_id() = JobId.ToProto();
 

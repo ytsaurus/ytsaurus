@@ -2,8 +2,8 @@
 #include "message.h"
 #include "private.h"
 
-#include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/misc/protobuf_helpers.h>
+#include <ytlib/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
@@ -12,16 +12,17 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = RpcLogger;
+// XXX(babenko): why client?
+static NLog::TLogger& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NBus::IMessage::TPtr CreateRequestMessage(
+NBus::IMessagePtr CreateRequestMessage(
     const NProto::TRequestHeader& header,
     TBlob&& body,
-    const yvector<TSharedRef>& attachments)
+    const std::vector<TSharedRef>& attachments)
 {
-    yvector<TSharedRef> parts;
+    std::vector<TSharedRef> parts;
 
     TBlob headerBlob;
     YVERIFY(SerializeToProto(&header, &headerBlob));
@@ -36,12 +37,12 @@ NBus::IMessage::TPtr CreateRequestMessage(
     return CreateMessageFromParts(MoveRV(parts));
 }
 
-NBus::IMessage::TPtr CreateResponseMessage(
+NBus::IMessagePtr CreateResponseMessage(
     const NProto::TResponseHeader& header,
     const TSharedRef& body,
-    const yvector<TSharedRef>& attachments)
+    const std::vector<TSharedRef>& attachments)
 {
-    yvector<TSharedRef> parts;
+    std::vector<TSharedRef> parts;
 
     TBlob headerBlob;
     YVERIFY(SerializeToProto(&header, &headerBlob));
@@ -56,7 +57,7 @@ NBus::IMessage::TPtr CreateResponseMessage(
     return CreateMessageFromParts(MoveRV(parts));
 }
 
-NBus::IMessage::TPtr CreateErrorResponseMessage(
+NBus::IMessagePtr CreateErrorResponseMessage(
     const NProto::TResponseHeader& header)
 {
     TBlob headerBlob;
@@ -67,7 +68,7 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     return CreateMessageFromPart(MoveRV(headerBlob));
 }
 
-NBus::IMessage::TPtr CreateErrorResponseMessage(
+NBus::IMessagePtr CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error)
 {
@@ -77,7 +78,7 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     return CreateErrorResponseMessage(header);
 }
 
-NBus::IMessage::TPtr CreateErrorResponseMessage(
+NBus::IMessagePtr CreateErrorResponseMessage(
     const TError& error)
 {
     NProto::TResponseHeader header;
@@ -85,7 +86,7 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     return CreateErrorResponseMessage(header);
 }
 
-NProto::TRequestHeader GetRequestHeader(IMessage* message)
+NProto::TRequestHeader GetRequestHeader(IMessagePtr message)
 {
     NProto::TRequestHeader header;
     const auto& parts = message->GetParts();
@@ -94,7 +95,7 @@ NProto::TRequestHeader GetRequestHeader(IMessage* message)
     return header;
 }
 
-IMessage::TPtr SetRequestHeader(IMessage* message, const NProto::TRequestHeader& header)
+IMessagePtr SetRequestHeader(IMessagePtr message, const NProto::TRequestHeader& header)
 {
     TBlob headerData;
     YVERIFY(SerializeToProto(&header, &headerData));
@@ -106,7 +107,7 @@ IMessage::TPtr SetRequestHeader(IMessage* message, const NProto::TRequestHeader&
     return CreateMessageFromParts(parts);
 }
 
-NProto::TResponseHeader GetResponseHeader(IMessage* message)
+NProto::TResponseHeader GetResponseHeader(IMessagePtr message)
 {
     NProto::TResponseHeader header;
     const auto& parts = message->GetParts();
@@ -115,7 +116,7 @@ NProto::TResponseHeader GetResponseHeader(IMessage* message)
     return header;
 }
 
-IMessage::TPtr SetResponseHeader(IMessage* message, const NProto::TResponseHeader& header)
+IMessagePtr SetResponseHeader(IMessagePtr message, const NProto::TResponseHeader& header)
 {
     TBlob headerData;
     YVERIFY(SerializeToProto(&header, &headerData));

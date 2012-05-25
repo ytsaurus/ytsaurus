@@ -17,7 +17,7 @@ namespace NTransactionClient {
 //! Controls transactions at client-side.
 /*!
  *  Provides a factory for all client-side transactions.
- *  It keeps track of all active transactions and sends pings to master servers periodically.
+ *  Keeps track of all active transactions and sends pings to master servers periodically.
  */
 class TTransactionManager
     : public virtual TRefCounted

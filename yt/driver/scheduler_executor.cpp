@@ -81,13 +81,13 @@ private:
 
     static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const TYson& progress)
     {
-        i64 jobsTotal = DeserializeFromYson<i64>(progress, "/total");
-        if (jobsTotal == 0) {
+        i64 total = DeserializeFromYson<i64>(progress, "/total");
+        if (total == 0) {
             return;
         }
 
-        i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/completed");
-        int percentComplete  = (jobsCompleted * 100) / jobsTotal;
+        i64 completed = DeserializeFromYson<i64>(progress, "/completed");
+        int percentComplete  = (completed * 100) / total;
 
         if (!out->empty()) {
             out->append(", ");
@@ -102,11 +102,11 @@ private:
         out->append("done ");
 
         // Some simple pretty-printing.
-        int totalWidth = ToString(jobsTotal).length();
+        int totalWidth = ToString(total).length();
         out->append("(");
-        out->append(ToString(LeftPad(ToString(jobsCompleted), totalWidth)));
+        out->append(ToString(LeftPad(ToString(completed), totalWidth)));
         out->append(" of ");
-        out->append(ToString(jobsTotal));
+        out->append(ToString(total));
         out->append(")");
     }
 
@@ -114,6 +114,7 @@ private:
     {
         // TODO(babenko): refactor
         auto progressAttributes = IAttributeDictionary::FromMap(DeserializeFromYson(progress)->AsMap());
+        
         Stroka result;
         switch (OperationType) {
             case EOperationType::Map:
@@ -124,8 +125,7 @@ private:
 
             case EOperationType::Sort:
                 AppendPhaseProgress(&result, "partition", progressAttributes->GetYson("partition_jobs"));
-                AppendPhaseProgress(&result, "sort", progressAttributes->GetYson("sort_jobs"));
-                AppendPhaseProgress(&result, "merge", progressAttributes->GetYson("merge_jobs"));
+                AppendPhaseProgress(&result, "sort", progressAttributes->GetYson("partitions"));
                 break;
 
             default:

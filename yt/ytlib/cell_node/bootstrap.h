@@ -27,7 +27,6 @@ public:
     TCellNodeConfigPtr GetConfig() const;
     NChunkServer::TIncarnationId GetIncarnationId() const;
     IInvoker::TPtr GetControlInvoker(EControlThreadQueue queueIndex = EControlThreadQueue::Default) const;
-    NBus::IBusServer::TPtr GetBusServer() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
     NRpc::IServerPtr GetRpcServer() const;
@@ -45,7 +44,7 @@ private:
     
     NChunkServer::TIncarnationId IncarnationId;
     TMultiActionQueuePtr ControlQueue;
-    NBus::IBusServer::TPtr BusServer;
+    NBus::IBusServerPtr BusServer;
     NRpc::IServerPtr RpcServer;
     NRpc::IChannelPtr MasterChannel;
     NRpc::IChannelPtr SchedulerChannel;

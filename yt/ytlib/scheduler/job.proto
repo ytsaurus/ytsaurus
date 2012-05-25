@@ -9,12 +9,40 @@ import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Describes a part of input table(s) to be processed by a job.
+message TTableInputSpec
+{
+    // Chunks comprising the input.
+    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+}
+
+// Defines how to store output from a job into a table.
+message TTableOutputSpec
+{
+    // YSON-serialized channels that must be used for writing the table.
+    required bytes channels = 1;
+
+    // The chunk list where output chunks must be placed.
+    required NYT.NProto.TGuid chunk_list_id = 2;
+}
+
 // Sent from the scheduler to an exec node.
 // Describes a portion of processing for a job.
 message TJobSpec
 {
     required int32 type = 1;
+
+    // Configuration for IO during job execution.    
     required bytes io_config = 2;
+
+    // The transaction used for writing output chunks.
+    required NYT.NProto.TGuid output_transaction_id = 3;
+
+    // Job input.
+    repeated TTableInputSpec input_specs = 4;
+
+    // Job output.
+    repeated TTableOutputSpec output_specs = 5;
 
     extensions 100 to max;
 }
@@ -32,36 +60,28 @@ message TJobResult
     extensions 100 to max;
 }
 
-// Describes a part of input table(s) to be processed by a job.
-message TTableInputSpec
-{
-    // Chunks comprising the input.
-    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
-}
-
-// Defines how to store output from a job into a table.
-message TTableOutputSpec
-{
-    // YSON-serialized channels that must be used for writing the table.
-    required bytes channels = 1;
-    // The chunk list where output chunks must be placed.
-    required NYT.NProto.TGuid chunk_list_id = 2;
-}
-
 // Defines how to store stderr from a job.
-message TStdErrSpec
+message TStdErrSpecExt
 {
+    extend TJobSpec
+    {
+        optional TStdErrSpecExt stderr_spec_ext = 101;
+    }
+
     // The transaction for uploading stderr chunks.
     required NYT.NProto.TGuid transaction_id = 1;
+
     // The chunk list where stderr chunks must be placed.
     required NYT.NProto.TGuid chunk_list_id = 2;
 }
 
-message TUserJobSpec
+////////////////////////////////////////////////////////////////////////////////
+
+message TUserJobSpecExt
 {
     extend TJobSpec
     {
-        optional TUserJobSpec user_job_spec = 100;
+        optional TUserJobSpecExt user_job_spec_ext = 100;
     }
 
     // Additional files to be placed into the sandbox.
@@ -70,16 +90,18 @@ message TUserJobSpec
     // The user command to be executed.
     required string shell_command = 2;
 
-    // Yson config to create formatter.
-    required string in_format = 3;
-    required string out_format = 4;
+    // Input format description (in YSON).
+    required string input_format = 3;
+
+    // Output format description (in YSON).
+    required string output_format = 4;
 }
 
-message TUserJobResult
+message TUserJobResultExt
 {
     extend TJobResult
     {
-        optional TUserJobResult user_job_result = 100;
+        optional TUserJobResultExt user_job_result_ext = 100;
     }
 
     optional NYT.NProto.TGuid stderr_chunk_id = 1;
@@ -96,23 +118,15 @@ message TUserJobResult
  * are fed to jobs. Each job runs a given shell command.
  * The outputs of jobs are collected thus forming a number
  * of output tables.
+ *
+ * No custom types are needed here.
+ *
+ * The input spec should contain TUserJobSpecExt and may optionally have
+ * TStdErrSpecExt.
+ *
+ * The result must contain TUserJobResultExt.
+ *
  */
-message TMapJobSpec
-{
-    extend TJobSpec
-    {
-        optional TMapJobSpec map_job_spec = 101;
-    }
-
-    // Portions of input data to be processed.
-    required TTableInputSpec input_spec = 1;
-
-    // Describes how to store job output.
-    repeated TTableOutputSpec output_specs = 3;
-
-    // The transaction used for writing output chunks.
-    required NYT.NProto.TGuid output_transaction_id = 4;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,23 +135,12 @@ message TMapJobSpec
  * A merge job takes a number of chunks sequences (each containing sorted data)
  * and merges them. The result is split into chunks again.
  */
-message TMergeJobSpec
-{
-    extend TJobSpec
-    {
-        optional TMergeJobSpec merge_job_spec = 102;
-    }
 
-    repeated TTableInputSpec input_spec = 1;
-    required TTableOutputSpec output_spec = 2;
-    required NYT.NProto.TGuid output_transaction_id = 3;
-}
-
-message TMergeJobResult
+message TMergeJobResultExt
 {
     extend TJobResult
     {
-        optional TMergeJobResult merge_job_result = 101;
+        optional TMergeJobResultExt merge_job_result_ext = 101;
     }
 
     repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
@@ -152,25 +155,22 @@ message TMergeJobResult
  * Output blocks are marked with |partition_tag| to enable subsequently
  * started sort jobs to fetch appropriate portions of data.
  */
-message TPartitionJobSpec
+message TPartitionJobSpecExt
 {
     extend TJobSpec
     {
-        optional TPartitionJobSpec partition_job_spec = 103;
+        optional TPartitionJobSpecExt partition_job_spec_ext = 103;
     }
 
-    required TTableInputSpec input_spec = 1;
-    required TTableOutputSpec output_spec = 2;
     repeated NYT.NTableClient.NProto.TKey partition_keys = 3;
-    required NYT.NProto.TGuid output_transaction_id = 4;
     repeated string key_columns = 5;
 }
 
-message TPartitionJobResult
+message TPartitionJobResultExt
 {
     extend TJobResult
     {
-        optional TPartitionJobResult partition_job_result = 102;
+        optional TPartitionJobResultExt partition_job_result_ext = 102;
     }
 
     repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
@@ -183,25 +183,22 @@ message TPartitionJobResult
  * A sort job reads the input chunks, sorts the rows, and then flushes
  * the rows into a sequence of output chunks.
  */
-message TSortJobSpec
+message TSortJobSpecExt
 {
     extend TJobSpec
     {
-        optional TSortJobSpec sort_job_spec = 104;
+        optional TSortJobSpecExt sort_job_spec_ext = 104;
     }
 
-    required TTableInputSpec input_spec = 1;
-    required TTableOutputSpec output_spec = 2;
     optional int32 partition_tag = 3 [default = -1];
-    required NYT.NProto.TGuid output_transaction_id = 4;
     repeated string key_columns = 5;
 }
 
-message TSortJobResult
+message TSortJobResultExt
 {
     extend TJobResult
     {
-        optional TSortJobResult sort_job_result = 103;
+        optional TSortJobResultExt sort_job_result_ext = 103;
     }
 
     repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;

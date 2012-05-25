@@ -110,6 +110,7 @@ private:
 
     void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     {
+        context->SetRequestInfo("");
         auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));
         auto range = GetSamples(fromTime);
         TYson yson = BuildYsonFluently()

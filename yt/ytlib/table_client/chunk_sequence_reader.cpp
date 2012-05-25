@@ -44,10 +44,9 @@ TChunkSequenceReader::TChunkSequenceReader(
     , TotalRowCount(0)
     , CurrentRowIndex(0)
 {
-
     // ToDo(psushin): implement TotalRowCount update.
 
-    LOG_DEBUG("Created chunk sequence writer with %d chunks", 
+    LOG_DEBUG("Chunk sequence reader created (ChunkCount: %d)", 
         static_cast<int>(InputChunks.size()));
 
     for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {

@@ -10,8 +10,6 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/profiling/profiler.h>
 
-#include <util/generic/yexception.h>
-
 namespace NYT {
 namespace NRpc {
 
@@ -51,7 +49,7 @@ struct IServiceContext
     : public virtual TRefCounted
 {
     //! Returns the message that contains the request being handled.
-    virtual NBus::IMessage::TPtr GetRequestMessage() const = 0;
+    virtual NBus::IMessagePtr GetRequestMessage() const = 0;
 
     //! Returns the id of the request.
     /*!
@@ -78,7 +76,7 @@ struct IServiceContext
 
     //! An extension method that extracts the error code, the response body, and attachments
     //! from #message and replies to the client.
-    void Reply(NBus::IMessage* message);
+    void Reply(NBus::IMessagePtr message);
 
     //! Returns the error that was previously set by #Reply.
     /*!
@@ -99,7 +97,7 @@ struct IServiceContext
     virtual NYTree::IAttributeDictionary& RequestAttributes() = 0;
 
     //! Returns a vector of response attachments.
-    virtual yvector<TSharedRef>& ResponseAttachments() = 0;
+    virtual std::vector<TSharedRef>& ResponseAttachments() = 0;
 
     //! Returns response attributes.
     virtual NYTree::IAttributeDictionary& ResponseAttributes() = 0;
@@ -169,7 +167,7 @@ public:
         : Context(context)
     { }
 
-    yvector<TSharedRef>& Attachments()
+    std::vector<TSharedRef>& Attachments()
     {
         return Context->ResponseAttachments();
     }
@@ -186,6 +184,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// We need this logger here but including the whole private.h looks weird.
+extern NLog::TLogger RpcServerLogger;
+
 //! Provides a common base for both one-way and two-way contexts.
 template <class TRequestMessage>
 class TTypedServiceContextBase
@@ -199,11 +200,10 @@ public:
 public:
     TTypedServiceContextBase(IServiceContextPtr context)
         : Request_(context)
-        , Logger(RpcLogger)
+        , Logger(RpcServerLogger)
         , Context(context)
     {
         YASSERT(context);
-
     }
 
     void Deserialize()
@@ -263,6 +263,9 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// We need this logger here but including the whole private.h looks weird.
+extern NLog::TLogger RpcServerLogger;
+
 //! Describes a two-way context.
 template <class TRequestMessage, class TResponseMessage>
 class TTypedServiceContext
@@ -299,7 +302,7 @@ public:
 
     void Reply(const TError& error)
     {
-        NLog::TLogger& Logger = RpcLogger;
+        auto& Logger = RpcServerLogger;
         if (error.IsOK()) {
             TBlob responseBlob;
             YVERIFY(SerializeToProto(&Response_, &responseBlob));

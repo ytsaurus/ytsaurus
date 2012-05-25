@@ -22,6 +22,7 @@
 #include <ytlib/table_client/private.h>
 #include <ytlib/table_client/size_limits.h>
 #include <ytlib/chunk_holder/chunk_holder_service.pb.h>
+#include <ytlib/bus/tcp_dispatcher.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -102,7 +103,7 @@ TChunkPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
 
 bool TChunkHolderService::CheckThrottling() const
 {
-    i64 responseDataSize = Bootstrap->GetBusServer()->GetStatistics().ResponseDataSize;
+    i64 responseDataSize = NBus::TTcpDispatcher::Get()->GetStatistics().PendingOutSize;
     i64 pendingReadSize = Bootstrap->GetBlockStore()->GetPendingReadSize();
     i64 pendingSize = responseDataSize + pendingReadSize;
     if (pendingSize > Config->ResponseThrottlingSize) {
@@ -361,7 +362,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         ? TNullable<int>(request->partition_tag())
         : Null;
 
-    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: %s, PartitionTag: %s", 
+    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: [%s], PartitionTag: %s", 
         ~chunkId.ToString(),
         ~FormatBool(request->all_extension_tags()),
         ~JoinToString(extensionTags),

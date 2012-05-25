@@ -172,7 +172,7 @@ class TElectionManager::TVotingRound
 public:
     typedef TIntrusivePtr<TVotingRound> TPtr;
 
-    TVotingRound(TElectionManager::TPtr electionManager)
+    explicit TVotingRound(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
         , EpochInvoker(~electionManager->ControlEpochInvoker)
         , Awaiter(New<TParallelAwaiter>(~EpochInvoker))
@@ -284,8 +284,9 @@ private:
         LOG_DEBUG("Checking candidates (Round: %p)", this);
 
         FOREACH (const auto& pair, StatusTable) {
-            if (CheckForLeader(pair.first, pair.second))
+            if (CheckForLeader(pair.first, pair.second)) {
                 return true;
+            }
         }
 
         LOG_DEBUG("No leader candidate found (Round: %p)", this);
@@ -420,8 +421,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
-        LOG_DEBUG("Voting round completed (Round: %p)",
-            this);
+        LOG_DEBUG("Voting round completed (Round: %p)", this);
 
         ChooseVote();
     }
@@ -551,7 +551,11 @@ void TElectionManager::StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch)
     State = TProxy::EState::Voting;
     VoteId = voteId;
     VoteEpoch = voteEpoch;
-    StartVotingRound();
+
+    TDelayedInvoker::Submit(
+        BIND(&TThis::StartVotingRound, MakeStrong(this))
+        .Via(ControlInvoker),
+        Config->VotingRoundInterval);
 }
 
 void TElectionManager::StartVoteForSelf()

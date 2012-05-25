@@ -36,7 +36,7 @@ private:
     void ReportResult(const NScheduler::NProto::TJobResult& result);
 
     TJobProxyConfigPtr Config;
-    NExecAgent::TSupervisorServiceProxy Proxy;
+    THolder<NExecAgent::TSupervisorServiceProxy> SupervisorProxy;
     NScheduler::TJobId JobId;
     NLog::TTaggedLogger Logger;
 

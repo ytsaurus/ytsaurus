@@ -88,7 +88,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
     TPeerId sourceId,
     TAsyncChangeLog& changeLog)
 {
-    i32 downloadedRecordCount = changeLog.GetRecordCount();
+    int downloadedRecordCount = changeLog.GetRecordCount();
 
     LOG_INFO("Started downloading records %d-%d from peer %d",
         changeLog.GetRecordCount(),
@@ -102,7 +102,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         auto request = proxy->ReadChangeLog();
         request->set_change_log_id(version.SegmentId);
         request->set_start_record_id(downloadedRecordCount);
-        i32 desiredChunkSize = Min(
+        int desiredChunkSize = Min(
             Config->RecordsPerRequest,
             version.RecordCount - downloadedRecordCount);
         request->set_record_count(desiredChunkSize);
@@ -137,8 +137,8 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             }
         }
 
-        auto& attachments = response->Attachments();
-        if (attachments.ysize() == 0) {
+        const auto& attachments = response->Attachments();
+        if (attachments.empty()) {
             LOG_WARNING("Peer %d does not have %d records of changelog %d anymore",
                 sourceId,
                 version.RecordCount,
@@ -146,19 +146,20 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             return EResult::ChangeLogUnavailable;
         }
 
-        if (attachments.ysize() != desiredChunkSize) {
+        int attachmentCount = static_cast<int>(attachments.size());
+        if (attachmentCount != desiredChunkSize) {
             // Continue anyway.
             LOG_DEBUG("Received records %d-%d while %d records were requested",
                 downloadedRecordCount,
-                downloadedRecordCount + attachments.ysize() - 1,
+                downloadedRecordCount + attachmentCount - 1,
                 desiredChunkSize);
         } else {
             LOG_DEBUG("Received records %d-%d",
                 downloadedRecordCount,
-                downloadedRecordCount + attachments.ysize() - 1);
+                downloadedRecordCount + attachmentCount - 1);
         }
 
-        for (i32 i = 0; i < attachments.ysize(); ++i) {
+        for (int i = 0; i < static_cast<int>(attachments.size()); ++i) {
             changeLog.Append(downloadedRecordCount, attachments[i]);
             ++downloadedRecordCount;
         }
@@ -184,7 +185,7 @@ void TChangeLogDownloader::OnResponse(
         return;
     }
 
-    i32 recordCount = response->record_count();
+    int recordCount = response->record_count();
     if (recordCount < version.RecordCount) {
         LOG_INFO("Peer %d has only %d records while %d records needed",
             peerId,

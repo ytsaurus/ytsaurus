@@ -138,11 +138,6 @@ TBlockStorePtr TBootstrap::GetBlockStore()
     return BlockStore;
 }
 
-IBusServer::TPtr TBootstrap::GetBusServer() const
-{
-    return NodeBootstrap->GetBusServer();
-}
-
 TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
 {
     return PeerBlockTable;

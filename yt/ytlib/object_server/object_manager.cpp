@@ -46,7 +46,7 @@ public:
         , Replied(false)
     { }
 
-    virtual NBus::IMessage::TPtr GetRequestMessage() const
+    virtual NBus::IMessagePtr GetRequestMessage() const
     {
         return UnderlyingContext->GetRequestMessage();
     }
@@ -109,7 +109,7 @@ public:
         return UnderlyingContext->RequestAttachments();
     }
 
-    virtual yvector<TSharedRef>& ResponseAttachments()
+    virtual std::vector<TSharedRef>& ResponseAttachments()
     {
         return UnderlyingContext->ResponseAttachments();
     }

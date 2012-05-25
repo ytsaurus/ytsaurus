@@ -1,22 +1,15 @@
-#pragma once
-
-#include "public.h"
+#include "stdafx.h"
+#include "private.h"
 
 namespace NYT {
-namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcManager
-    : private TNonCopyable
-{
-public:
-    TRpcManager();
-
-    static TRpcManager* Get();
-};
+NLog::TLogger BusLogger("Bus");
+NProfiling::TProfiler BusProfiler("/bus");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
+} // namespace NBus
 } // namespace NYT

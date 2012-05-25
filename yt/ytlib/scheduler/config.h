@@ -108,9 +108,14 @@ struct TMapOperationSpec
     : public TOperationSpecBase
 {
     Stroka Mapper;
+    
     yvector<NYTree::TYPath> FilePaths;
     yvector<NYTree::TYPath> InputTablePaths;
     yvector<NYTree::TYPath> OutputTablePaths;
+
+    NYTree::INodePtr Format;
+    NYTree::INodePtr InputFormat;
+    NYTree::INodePtr OutputFormat;
 
     TMapOperationSpec()
     {
@@ -119,6 +124,12 @@ struct TMapOperationSpec
             .Default(yvector<NYTree::TYPath>());
         Register("input_table_paths", InputTablePaths);
         Register("output_table_paths", OutputTablePaths);
+        Register("format", Format)
+            .Default(NULL);
+        Register("input_format", InputFormat)
+            .Default(NULL);
+        Register("output_format", OutputFormat)
+            .Default(NULL);
     }
 };
 

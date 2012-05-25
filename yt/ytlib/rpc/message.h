@@ -12,34 +12,34 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NBus::IMessage::TPtr CreateRequestMessage(
+NBus::IMessagePtr CreateRequestMessage(
     const NProto::TRequestHeader& header,
     TBlob&& body,
-    const yvector<TSharedRef>& attachments);
+    const std::vector<TSharedRef>& attachments);
 
-NBus::IMessage::TPtr CreateResponseMessage(
+NBus::IMessagePtr CreateResponseMessage(
     const NProto::TResponseHeader& header,
     const TSharedRef& body,
-    const yvector<TSharedRef>& attachments);
+    const std::vector<TSharedRef>& attachments);
 
-NBus::IMessage::TPtr CreateErrorResponseMessage(
+NBus::IMessagePtr CreateErrorResponseMessage(
     const NProto::TResponseHeader& header);
 
-NBus::IMessage::TPtr CreateErrorResponseMessage(
+NBus::IMessagePtr CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error);
 
-NBus::IMessage::TPtr CreateErrorResponseMessage(
+NBus::IMessagePtr CreateErrorResponseMessage(
     const TError& error);
 
-NProto::TRequestHeader GetRequestHeader(NBus::IMessage* message);
-NBus::IMessage::TPtr SetRequestHeader(
-    NBus::IMessage* message,
+NProto::TRequestHeader GetRequestHeader(NBus::IMessagePtr message);
+NBus::IMessagePtr SetRequestHeader(
+    NBus::IMessagePtr message,
     const NProto::TRequestHeader& header);
 
-NProto::TResponseHeader GetResponseHeader(NBus::IMessage* message);
-NBus::IMessage::TPtr SetResponseHeader(
-    NBus::IMessage* message,
+NProto::TResponseHeader GetResponseHeader(NBus::IMessagePtr message);
+NBus::IMessagePtr SetResponseHeader(
+    NBus::IMessagePtr message,
     const NProto::TResponseHeader& header);
 
 ////////////////////////////////////////////////////////////////////////////////

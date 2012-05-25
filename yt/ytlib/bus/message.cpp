@@ -6,56 +6,52 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = BusLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMessage
     : public IMessage
 {
 public:
-    TMessage(const yvector<TSharedRef>& parts)
+    TMessage(const std::vector<TSharedRef>& parts)
         : Parts(parts)
     { }
 
-    TMessage(yvector<TSharedRef>&& parts)
-        : Parts(ForwardRV< yvector<TSharedRef> >(parts))
+    TMessage(std::vector<TSharedRef>&& parts)
+        : Parts(ForwardRV< std::vector<TSharedRef> >(parts))
     { }
 
-    virtual const yvector<TSharedRef>& GetParts()
+    virtual const std::vector<TSharedRef>& GetParts()
     {
         return Parts;
     }
 
 private:
-    yvector<TSharedRef> Parts;
+    std::vector<TSharedRef> Parts;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMessage::TPtr CreateMessageFromParts(const yvector<TSharedRef>& parts)
+IMessagePtr CreateMessageFromParts(const std::vector<TSharedRef>& parts)
 {
     return New<TMessage>(parts);
 }
 
-IMessage::TPtr CreateMessageFromParts(yvector<TSharedRef>&& parts)
+IMessagePtr CreateMessageFromParts(std::vector<TSharedRef>&& parts)
 {
     return New<TMessage>(parts);
 }
 
-IMessage::TPtr CreateMessageFromPart(const TSharedRef& part)
+IMessagePtr CreateMessageFromPart(const TSharedRef& part)
 {
-    yvector<TSharedRef> parts;
+    std::vector<TSharedRef> parts;
     parts.push_back(part);
     return New<TMessage>(parts);
 }
 
-IMessage::TPtr CreateMessageFromParts(TBlob&& blob, const yvector<TRef>& refs)
+IMessagePtr CreateMessageFromParts(TBlob&& blob, const std::vector<TRef>& refs)
 {
     TSharedRef sharedBlob(MoveRV(blob));
-    yvector<TSharedRef> parts(refs.ysize());
-    for (int i = 0; i < refs.ysize(); ++i) {
+    std::vector<TSharedRef> parts(refs.size());
+    for (int i = 0; i < static_cast<int>(refs.size()); ++i) {
         parts[i] = TSharedRef(sharedBlob, refs[i]);
     }
     return New<TMessage>(MoveRV(parts));

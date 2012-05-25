@@ -37,11 +37,13 @@ using namespace NChunkServer;
 TMapJobIO::TMapJobIO(
     TJobIOConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    const NScheduler::NProto::TMapJobSpec& ioSpec)
+    const NScheduler::NProto::TJobSpec& jobSpec)
     : Config(config)
     , MasterChannel(masterChannel)
-    , IoSpec(ioSpec)
-{ }
+    , JobSpec(jobSpec)
+{
+    YCHECK(JobSpec.input_specs_size() == 1);
+}
 
 int TMapJobIO::GetInputCount() const 
 {
@@ -51,7 +53,7 @@ int TMapJobIO::GetInputCount() const
 
 int TMapJobIO::GetOutputCount() const
 {
-    return IoSpec.output_specs_size();
+    return JobSpec.output_specs_size();
 }
 
 TAutoPtr<NTableClient::TTableProducer> 
@@ -62,8 +64,8 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
     auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
 
     std::vector<NTableClient::NProto::TInputChunk> chunks(
-        IoSpec.input_spec().chunks().begin(),
-        IoSpec.input_spec().chunks().end());
+        JobSpec.input_specs(0).chunks().begin(),
+        JobSpec.input_specs(0).chunks().end());
 
     LOG_DEBUG("Creating %d input from %d chunks", 
         index, 
@@ -84,14 +86,14 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
 NTableClient::ISyncWriterPtr TMapJobIO::CreateTableOutput(int index) const
 {
     YASSERT(index < GetOutputCount());
-    const TYson& channels = IoSpec.output_specs(index).channels();
+    const TYson& channels = JobSpec.output_specs(index).channels();
     YASSERT(!channels.empty());
 
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         Config->ChunkSequenceWriter,
         MasterChannel,
-        TTransactionId::FromProto(IoSpec.output_transaction_id()),
-        TChunkListId::FromProto(IoSpec.output_specs(index).chunk_list_id()),
+        TTransactionId::FromProto(JobSpec.output_transaction_id()),
+        TChunkListId::FromProto(JobSpec.output_specs(index).chunk_list_id()),
         ChannelsFromYson(channels));
 
     auto syncWriter = CreateSyncWriter(chunkSequenceWriter);
@@ -115,7 +117,7 @@ TAutoPtr<TErrorOutput> TMapJobIO::CreateErrorOutput() const
     return new TErrorOutput(
         Config->ErrorFileWriter, 
         MasterChannel, 
-        TTransactionId::FromProto(IoSpec.output_transaction_id()));
+        TTransactionId::FromProto(JobSpec.output_transaction_id()));
 }
 
 ////////////////////////////////////////////////////////////////////

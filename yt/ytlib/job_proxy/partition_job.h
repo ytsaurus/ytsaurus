@@ -16,9 +16,8 @@ class TPartitionJob
 {
 public:
     TPartitionJob(
-        TJobIOConfigPtr ioConfig,
-        NElection::TLeaderLookup::TConfigPtr masterConfig,
-        const NScheduler::NProto::TPartitionJobSpec& jobSpec);
+        TJobProxyConfigPtr proxyConfig,
+        const NScheduler::NProto::TJobSpec& jobSpec);
 
     NScheduler::NProto::TJobResult Run();
 

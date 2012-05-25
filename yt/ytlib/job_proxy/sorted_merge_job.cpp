@@ -34,7 +34,9 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 namespace {
 
-inline bool CompareReaders(const TChunkSequenceReaderPtr& lhs, const TChunkSequenceReaderPtr& rhs)
+inline bool CompareReaders(
+	const TChunkSequenceReaderPtr& lhs,
+	const TChunkSequenceReaderPtr& rhs)
 {
     return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
 }
@@ -42,28 +44,26 @@ inline bool CompareReaders(const TChunkSequenceReaderPtr& lhs, const TChunkSeque
 } // namespace
 
 TSortedMergeJob::TSortedMergeJob(
-    TJobIOConfigPtr ioConfig,
-    NElection::TLeaderLookup::TConfigPtr masterConfig,
-    const NScheduler::NProto::TMergeJobSpec& jobSpec)
+    TJobProxyConfigPtr proxyConfig,
+    const TJobSpec& jobSpec)
 {
-    auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
-    auto masterChannel = CreateLeaderChannel(masterConfig);
+    YCHECK(jobSpec.output_specs_size() == 1);
+
+    auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
+    auto masterChannel = CreateLeaderChannel(proxyConfig->Masters);
 
     {
         TReaderOptions options;
         options.ReadKey = true;
 
-        for (int i = 0; i < jobSpec.input_spec_size(); ++i) {
+        FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
-
-            const auto& inputSpec = jobSpec.input_spec(i);
-
             std::vector<NTableClient::NProto::TInputChunk> chunks(
                 inputSpec.chunks().begin(),
                 inputSpec.chunks().end());
 
             auto reader = New<TChunkSequenceReader>(
-                ioConfig->ChunkSequenceReader,
+                proxyConfig->JobIO->ChunkSequenceReader,
                 masterChannel,
                 blockCache,
                 chunks,
@@ -74,15 +74,17 @@ TSortedMergeJob::TSortedMergeJob(
         }
     }
 
-    // ToDo(psushin): estimate row count for writer.
-    auto asyncWriter = New<TTableChunkSequenceWriter>(
-        ioConfig->ChunkSequenceWriter,
-        ~masterChannel,
-        TTransactionId::FromProto(jobSpec.output_transaction_id()),
-        TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
-        ChannelsFromYson(jobSpec.output_spec().channels()));
+    {
+        // ToDo(psushin): estimate row count for writer.
+        auto asyncWriter = New<TTableChunkSequenceWriter>(
+            proxyConfig->JobIO->ChunkSequenceWriter,
+            ~masterChannel,
+            TTransactionId::FromProto(jobSpec.output_transaction_id()),
+            TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
+            ChannelsFromYson(jobSpec.output_specs(0).channels()));
 
-    Writer = CreateSyncWriter(asyncWriter);
+        Writer = CreateSyncWriter(asyncWriter);
+    }
 }
 
 TJobResult TSortedMergeJob::Run()

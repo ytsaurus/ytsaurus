@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "packet.h"
+#include "message.h"
+
+#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 namespace NBus {
@@ -10,120 +13,278 @@ static NLog::TLogger& Logger = BusLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define yt_offset_of(type, member) \
-    ( (size_t) ( (char*) &( ((type*)8) -> member ) - 8) )
-#define yt_container_of(ptr, type, member) \
-    ( (type*) ( (char*)(ptr) - yt_offset_of(type, member) ) )
+TPacketDecoder::TPacketDecoder()
+{
+    Restart();
+}
 
-const int THeaderTraits<TPacketHeader>::FixedSize =
-    sizeof (TPacketHeader);
-const int THeaderTraits<TMultipartPacketHeader>::FixedSize =
-    yt_offset_of(TMultipartPacketHeader, PartSizes);
+void TPacketDecoder::Restart()
+{
+    Phase = EPacketPhase::Header;
+    PacketSize = 0;
+    PartSizes.clear();
+    Parts.clear();
+    PartCount = 0;
+    PartIndex = -1;
+    Message.Reset();
+
+    BeginPhase(EPacketPhase::Header, &Header, sizeof (TPacketHeader));
+}
+
+bool TPacketDecoder::Advance(size_t size)
+{
+    YASSERT(PendingSize != 0);
+    YASSERT(size <= PendingSize);
+
+    PendingSize -= size;
+    Chunk += size;
+    if (PendingSize == 0) {
+        return EndPhase();
+    } else {
+        return true;
+    }
+}
+
+EPacketType TPacketDecoder::GetPacketType() const
+{
+    return Header.Type;
+}
+
+const TPacketId& TPacketDecoder::GetPacketId() const
+{
+    return Header.PacketId;
+}
+
+IMessagePtr TPacketDecoder::GetMessage() const
+{
+    return Message;
+}
+
+size_t TPacketDecoder::GetPacketSize() const
+{
+    return PacketSize;
+}
+
+bool TPacketDecoder::EndHeaderPhase()
+{
+    if (Header.Signature != PacketSignature) {
+        LOG_ERROR("Packet header signature mismatch: expected: %X, actual: %X",
+            PacketSignature,
+            Header.Signature);
+        return false;
+    }
+
+    switch (Header.Type) {
+        case EPacketType::Message:
+            BeginPhase(EPacketPhase::PartCount, &PartCount, sizeof (i32));
+            return true;
+        
+        case EPacketType::Ack:
+            SetFinished();
+            return true;
+
+        default:
+            LOG_ERROR("Invalid packet type %d", Header.Type.ToValue());
+            return false;
+    }
+}
+
+bool TPacketDecoder::EndPartCountPhase()
+{
+    if (PartCount < 0 || PartCount > MaxPacketPartCount) {
+        LOG_ERROR("Invalid part count %d", PartCount);
+        return false;
+    }
+
+    PartSizes.resize(PartCount);
+    BeginPhase(EPacketPhase::PartSizes, &*PartSizes.begin(), PartCount * sizeof (i32));
+    return true;
+}
+
+bool TPacketDecoder::EndPartSizesPhase()
+{
+    PacketSize =
+        sizeof (TPacketHeader) + // header
+        sizeof (i32) + // PartCount
+        PartCount * sizeof (i32); // PartSizes
+    for (int index = 0; index < PartCount; ++index) {
+        i32 partSize = PartSizes[index];
+        if (partSize < 0 || partSize > MaxPacketPartSize) {
+            LOG_ERROR("Invalid size %d of part %d",
+                partSize,
+                index);
+            return false;
+        }
+        PacketSize += partSize;
+    }
+
+    NextMessagePartPhase();
+    return true;
+}
+
+bool TPacketDecoder::EndMessagePartPhase()
+{
+    NextMessagePartPhase();
+    return true;
+}
+
+void TPacketDecoder::NextMessagePartPhase()
+{
+    YASSERT(PartIndex < PartCount);
+
+    while (true) {
+        ++PartIndex;
+        if (PartIndex == PartCount) {
+            break;
+        }
+
+        i32 partSize = PartSizes[PartIndex];
+        if (partSize > 0) {
+            TBlob blob(partSize);
+            TSharedRef part(MoveRV(blob));
+            BeginPhase(EPacketPhase::MessagePart, &*part.Begin(), part.Size());
+            Parts.push_back(part);
+            return;
+        }
+
+        Parts.push_back(TSharedRef());
+    }
+
+    Message = CreateMessageFromParts(MoveRV(Parts));
+    SetFinished();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DecodeMessagePacket(
-    TBlob&& data,
-    IMessage::TPtr* message,
-    TSequenceId* sequenceId)
+TPacketEncoder::TPacketEncoder()
 {
-    auto* header = ParsePacketHeader<TMultipartPacketHeader>(data);
-    if (!header)
-        return false;
+    Phase = EPacketPhase::Unstarted;
+    Header.Signature = PacketSignature;
+}
 
-    if (header->PartCount < 0 || header->PartCount > TMultipartPacketHeader::MaxParts) {
-        LOG_ERROR("Invalid part count in a multipart packet (PartCount: %d)", header->PartCount);
-        return false;
+size_t TPacketEncoder::GetPacketSize(
+    EPacketType type,
+    IMessagePtr message)
+{
+    size_t size = sizeof (TPacketHeader);
+    switch (type) {
+        case EPacketType::Ack:
+            break;
+
+        case EPacketType::Message: {
+            size += sizeof (i32); // PartCount
+            FOREACH (const auto& part, message->GetParts()) {
+                size += sizeof (i32); // PartSize
+                size += part.Size();
+            }
+            break;
+        }
+
+        default:
+            YUNREACHABLE();
     }
+    return size;
+}
 
-    yvector<TRef> parts(header->PartCount);
+bool TPacketEncoder::Start(
+    EPacketType type,
+    const TPacketId& packetId,
+    IMessagePtr message)
+{
+    Header.Type = type;
+    Header.PacketId = packetId;
 
-    char* ptr = reinterpret_cast<char*>(&header->PartSizes[header->PartCount]);
-    char* dataEnd = data.end();
-    for (int partIndex = 0; partIndex < header->PartCount; ++partIndex) {
-        i32 partSize = header->PartSizes[partIndex];
-        if (partSize < 0 || partSize > TMultipartPacketHeader::MaxPartSize) {
-            LOG_ERROR("Invalid part size in a multipart packet (PartIndex: %d, PartSize: %d)",
-                partIndex,
-                partSize);
+    PartSizes.clear();
+    PartCount = 0;
+    PartIndex = -1;
+    Message = message;
+
+    if (type == EPacketType::Message) {
+        const auto& parts = message->GetParts();
+        PartCount = static_cast<i32>(parts.size());
+
+        if (PartCount > MaxPacketPartCount) {
+            LOG_ERROR("Invalid part count %d", PartCount);
             return false;
         }
-        if (ptr + partSize > dataEnd) {
-            LOG_ERROR("Buffer overrun in a multipart packet (PartIndex: %d)",
-                partIndex);
-            return false;
+
+        for (int index = 0; index < static_cast<int>(parts.size()); ++index) {
+            const auto& part = parts[index];
+            int partSize = static_cast<int>(part.Size());
+            if (partSize > MaxPacketPartSize) {
+                LOG_ERROR("Invalid size %d of part %d",
+                    partSize,
+                    index);
+                return false;
+            }
+
+            PartSizes.push_back(partSize);
         }
-        parts[partIndex] = TRef(ptr, partSize);
-        ptr += partSize;
     }
 
-    *message = CreateMessageFromParts(MoveRV(data), parts);
-    *sequenceId = header->SequenceId;
-
+    BeginPhase(EPacketPhase::Header, &Header, sizeof (TPacketHeader));
     return true;
 }
 
-bool EncodeMessagePacket(
-    IMessage::TPtr message,
-    const TSessionId& sessionId,
-    TSequenceId sequenceId,
-    TBlob* data)
+void TPacketEncoder::NextChunk()
 {
-    YASSERT(message);
+    EndPhase();
+}
 
-    const auto& parts = message->GetParts();
+bool TPacketEncoder::EndHeaderPhase()
+{
+    switch (Header.Type) {
+        case EPacketType::Message:
+            BeginPhase(EPacketPhase::PartCount, &PartCount, sizeof (i32));
+            return true;
+        
+        case EPacketType::Ack:
+            SetFinished();
+            return true;
 
-    if (parts.ysize() > TMultipartPacketHeader::MaxParts) {
-        LOG_ERROR("Multipart message contains too many parts (PartCount: %d)",
-            parts.ysize());
-        return false;
+        default:
+            YUNREACHABLE();
     }
+}
 
-    i64 dataSize = 0;
-    dataSize += THeaderTraits<TMultipartPacketHeader>::FixedSize;
-    dataSize += sizeof (i32) * parts.ysize();
-    for (int partIndex = 0; partIndex < parts.ysize(); ++partIndex)
-    {
-        const TSharedRef& part = parts[partIndex];
-        i32 partSize = static_cast<i32>(part.Size());
-        if (partSize > TMultipartPacketHeader::MaxPartSize) {
-            LOG_ERROR("Multipart message part is too large (PartIndex: %d, PartSize: %d)",
-                partIndex,
-                partSize);
-            return false;
-        }
-        dataSize += partSize;
-    }
-
-    data->resize(static_cast<size_t>(dataSize));
-
-    auto* header = reinterpret_cast<TMultipartPacketHeader*>(data->begin());
-    header->Signature = TPacketHeader::ExpectedSignature;
-    header->Type = TPacketHeader::EType::Message;
-    header->SessionId = sessionId;
-    header->PartCount = parts.ysize();
-    header->SequenceId = sequenceId;
-    for (int partIndex = 0; partIndex < header->PartCount; ++partIndex) {
-        header->PartSizes[partIndex] = static_cast<i32>(parts[partIndex].Size());
-    }
-
-    char* current = reinterpret_cast<char*>(&header->PartSizes[parts.ysize()]);
-    for (int partIndex = 0; partIndex < header->PartCount; ++partIndex) {
-        const TRef& part = parts[partIndex];
-        std::copy(part.Begin(), part.End(), current);
-        current += part.Size();
-    }
-
+bool TPacketEncoder::EndPartCountPhase()
+{
+    BeginPhase(EPacketPhase::PartSizes, &*PartSizes.begin(), PartCount * sizeof (i32));
     return true;
 }
 
-void CreatePacket(const TSessionId& sessionId, TPacketHeader::EType type, TBlob* data)
+bool TPacketEncoder::EndPartSizesPhase()
 {
-    data->resize(THeaderTraits<TPacketHeader>::FixedSize);
-    auto* header = reinterpret_cast<TPacketHeader*>(data->begin());
-    header->Signature = TPacketHeader::ExpectedSignature;
-    header->Type = type;
-    header->SessionId = sessionId;
+    NextMessagePartPhase();
+    return true;
+}
+
+bool TPacketEncoder::EndMessagePartPhase()
+{
+    NextMessagePartPhase();
+    return true;
+}
+
+void TPacketEncoder::NextMessagePartPhase()
+{
+    YASSERT(PartIndex < PartCount);
+
+    const auto& parts = Message->GetParts();
+
+    while (true) {
+        ++PartIndex;
+        if (PartIndex == PartCount) {
+            break;
+        }
+
+        const auto& part = parts[PartIndex];
+        if (part.Size() != 0) {
+            BeginPhase(EPacketPhase::MessagePart, const_cast<char*>(part.Begin()), part.Size());
+            return;
+        }
+    }
+
+    SetFinished();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

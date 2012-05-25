@@ -11,8 +11,8 @@
 #include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/rpc/public.h>
 #include <ytlib/ytree/public.h>
-
 #include <ytlib/file_server/file_ypath.pb.h>
+#include <ytlib/job_proxy/public.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -20,18 +20,18 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public virtual TRefCounted
+    : public TRefCounted
 {
 public:
     TJob(
         const TJobId& jobId,
         const NScheduler::NProto::TJobSpec& jobSpec,
-        const NYTree::TYson& proxyConfig,
+        NJobProxy::TJobProxyConfigPtr proxyConfig,
         NChunkHolder::TChunkCachePtr chunkCache,
         TSlotPtr slot);
     ~TJob();
 
-    void Start(TEnvironmentManager* environmentManager);
+    void Start(TEnvironmentManagerPtr environmentManager);
 
     //! Kills the job if it is running.
     void Abort();
@@ -73,7 +73,7 @@ private:
     NScheduler::EJobState JobState;
     NScheduler::EJobProgress JobProgress;
 
-    NYTree::TYson ProxyConfig;
+    NJobProxy::TJobProxyConfigPtr ProxyConfig;
 
     TSlotPtr Slot;
 

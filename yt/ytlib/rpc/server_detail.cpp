@@ -14,7 +14,7 @@ using namespace NYTree;
 
 TServiceContextBase::TServiceContextBase(
     const TRequestHeader& header,
-    IMessage::TPtr requestMessage)
+    IMessagePtr requestMessage)
     : RequestId(header.has_request_id() ? TRequestId::FromProto(header.request_id()) : NullRequestId)
     , Path(header.path())
     , Verb(header.verb())
@@ -49,7 +49,7 @@ void TServiceContextBase::Reply(const TError& error)
     *header.mutable_error() = Error.ToProto();
     ToProto(header.mutable_attributes(), *ResponseAttributes_);
 
-    IMessage::TPtr responseMessage;
+    IMessagePtr responseMessage;
     if (error.IsOK()) {
         responseMessage = CreateResponseMessage(
             header,
@@ -99,7 +99,7 @@ void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
     ResponseBody = responseBody;
 }
 
-yvector<TSharedRef>& TServiceContextBase::ResponseAttachments()
+std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
     YASSERT(!OneWay);
     return ResponseAttachments_;
@@ -110,7 +110,7 @@ IAttributeDictionary& TServiceContextBase::ResponseAttributes()
     return *ResponseAttributes_;
 }
 
-IMessage::TPtr TServiceContextBase::GetRequestMessage() const
+IMessagePtr TServiceContextBase::GetRequestMessage() const
 {
     return RequestMessage;
 }

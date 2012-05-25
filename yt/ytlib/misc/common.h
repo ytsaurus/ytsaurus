@@ -42,15 +42,21 @@ using std::string; // hack for guid.h to work
 // various insightful information on memory usage and object creation patterns.
 #define ENABLE_REF_COUNTED_TRACKING
 
-// This define enormous amount of debugging information on stderr.
+// This define causes printing enormous amount of debugging information to stderr.
 // Use when you really have to.
 #undef ENABLE_REF_COUNTED_DEBUGGING
 
+#ifndef NDEBUG
+
 // This define enables thread affinity check -- a user-defined verification ensuring
 // that some functions are called from particular threads.
-#ifndef NDEBUG
 #define ENABLE_THREAD_AFFINITY_CHECK
+
+// This define enables logging with TRACE level.
+#define ENABLE_TRACE_LOGGING
+
 #endif
+
 
 // This define enables tracking of bind location
 #define ENABLE_BIND_LOCATION_TRACKING
@@ -83,3 +89,4 @@ using std::string; // hack for guid.h to work
 #include "arcadia_helper.h"
 #include "hash.h"
 #include "enum.h"
+

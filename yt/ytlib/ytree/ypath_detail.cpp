@@ -423,7 +423,7 @@ void TSupportsAttributes::GetAttribute(
             response->set_value(yson);
         } else {
             auto wholeValue = DeserializeFromYson(yson);
-            auto value = SyncYPathGet(~wholeValue, TYPath(tokenizer.CurrentInput()));
+            auto value = SyncYPathGet(wholeValue, TYPath(tokenizer.CurrentInput()));
             response->set_value(value);
         }
     }
@@ -452,7 +452,7 @@ void TSupportsAttributes::ListAttribute(
                 userAttributes,
                 systemAttributeProvider,
                 Stroka(tokenizer.CurrentToken().GetStringValue())));
-        keys = SyncYPathList(~wholeValue, TYPath(tokenizer.GetCurrentSuffix()));
+        keys = SyncYPathList(wholeValue, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
     std::sort(keys.begin(), keys.end());
@@ -535,8 +535,8 @@ void TSupportsAttributes::SetAttribute(
                     key,
                     &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathSet(~wholeValue, TYPath(tokenizer.CurrentInput()), request->value());
-            auto updatedYson = SerializeToYson(~wholeValue);
+            SyncYPathSet(wholeValue, TYPath(tokenizer.CurrentInput()), request->value());
+            auto updatedYson = SerializeToYson(wholeValue);
             OnUpdateAttribute(
                 key,
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
@@ -593,8 +593,8 @@ void TSupportsAttributes::RemoveAttribute(
                 key,
                 &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathRemove(~wholeValue, TYPath(tokenizer.CurrentInput()));
-            auto updatedYson = SerializeToYson(~wholeValue);
+            SyncYPathRemove(wholeValue, TYPath(tokenizer.CurrentInput()));
+            auto updatedYson = SerializeToYson(wholeValue);
             OnUpdateAttribute(
                 key,
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
@@ -724,7 +724,7 @@ class TServiceContext
 public:
     TServiceContext(
         const TRequestHeader& header,
-        NBus::IMessage* requestMessage,
+        NBus::IMessagePtr requestMessage,
         TYPathResponseHandler responseHandler,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
@@ -736,7 +736,7 @@ protected:
     TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
-    virtual void DoReply(const TError& error, IMessage::TPtr responseMessage)
+    virtual void DoReply(const TError& error, IMessagePtr responseMessage)
     {
         UNUSED(error);
 
@@ -769,7 +769,7 @@ protected:
 };
 
 IServiceContextPtr CreateYPathContext(
-    NBus::IMessage* requestMessage,
+    NBus::IMessagePtr requestMessage,
     const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,

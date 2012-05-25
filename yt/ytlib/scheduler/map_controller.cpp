@@ -117,14 +117,17 @@ private:
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
         {
-            auto* specExt = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
+            auto* inputSpec = jobSpec.add_input_specs();
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                *specExt->mutable_input_spec()->add_chunks() = stripe->InputChunks[0];
+                *inputSpec->add_chunks() = stripe->InputChunks[0];
             }
-            FOREACH (auto& outputSpec, *specExt->mutable_output_specs()) {
+
+            FOREACH (const auto& table, OutputTables) {
+                auto* outputSpec = jobSpec.add_output_specs();
+                outputSpec->set_channels(table.Channels);
                 auto chunkListId = ChunkListPool->Extract();
                 jip->ChunkListIds.push_back(chunkListId);
-                *outputSpec.mutable_chunk_list_id() = chunkListId.ToProto();
+                *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
             }
         }
 
@@ -298,53 +301,36 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::Map);
 
-        auto* userExt = JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec);
-        userExt->set_shell_command(Spec->Mapper);
+        auto* userJobSpecExt = JobSpecTemplate.MutableExtension(TUserJobSpecExt::user_job_spec_ext);
+        userJobSpecExt->set_shell_command(Spec->Mapper);
 
         {
             // Set input and output format.
-            TYson inFormat, outFormat;
-            {
-                TStringStream stream;
-                TYsonWriter writer(&stream);
-                TFormat(EFormatType::Yson).ToYson(&writer);
-                inFormat = stream;
-                outFormat = inFormat;
+            TFormat inputFormat(EFormatType::Yson);
+            TFormat outputFormat(EFormatType::Yson);
+
+            if (Spec->Format) {
+                inputFormat = TFormat::FromYson(Spec->Format);
+                inputFormat = outputFormat;
             }
 
-            auto options = Spec->GetOptions();
-            {
-                auto node = options->FindChild("format");
-                if (node) {
-                    inFormat = SerializeToYson(node);
-                    outFormat = inFormat;
-                }
-            } {
-                auto node = options->FindChild("in_format");
-                if (node) {
-                    inFormat = SerializeToYson(node);
-                }
-            } {
-                auto node = options->FindChild("out_format");
-                if (node) {
-                    outFormat = SerializeToYson(node);
-                }
+            if (Spec->InputFormat) {
+                inputFormat = TFormat::FromYson(Spec->InputFormat);
             }
 
-            userExt->set_in_format(inFormat);
-            userExt->set_out_format(outFormat);
+            if (Spec->OutputFormat) {
+                outputFormat = TFormat::FromYson(Spec->OutputFormat);
+            }
+
+            userJobSpecExt->set_input_format(inputFormat.ToYson());
+            userJobSpecExt->set_output_format(outputFormat.ToYson());
         }
 
         FOREACH (const auto& file, Files) {
-            *userExt->add_files() = *file.FetchResponse;
+            *userJobSpecExt->add_files() = *file.FetchResponse;
         }
 
-        auto* specExt = JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec);
-        *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-        FOREACH (const auto& table, OutputTables) {
-            auto* outputSpec = specExt->add_output_specs();
-            outputSpec->set_channels(table.Channels);
-        }
+        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
         JobSpecTemplate.set_io_config(SerializeToYson(Config->MapJobIO));
 

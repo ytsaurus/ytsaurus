@@ -13,8 +13,10 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IUserJobIO {
-    virtual ~IUserJobIO();
+struct IUserJobIO
+{
+    virtual ~IUserJobIO()
+    { }
 
     virtual int GetInputCount() const = 0;
     virtual int GetOutputCount() const = 0;
@@ -22,9 +24,6 @@ struct IUserJobIO {
     virtual void UpdateProgress() = 0;
     virtual double GetProgress() const = 0;
 
-    /*!
-     *  \param output - stream, where returned table input writes table data.
-     */
     virtual TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
         int index, 
         NYTree::IYsonConsumer* consumer) const = 0;
@@ -37,8 +36,8 @@ struct IUserJobIO {
 ////////////////////////////////////////////////////////////////////////////////
 
 TAutoPtr<IUserJobIO> CreateUserJobIO(
-    const TJobIOConfigPtr ioConfig,
-    const NElection::TLeaderLookup::TConfigPtr mastersConfig,
+    TJobIOConfigPtr ioConfig,
+    NElection::TLeaderLookup::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////

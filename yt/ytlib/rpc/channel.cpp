@@ -1,16 +1,19 @@
 #include "stdafx.h"
 #include "channel.h"
+#include "private.h"
 #include "client.h"
 #include "message.h"
-#include <ytlib/rpc/rpc.pb.h>
-
-#include <ytlib/bus/nl_client.h>
 
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/profiling/profiler.h>
+
+#include <ytlib/bus/bus.h>
+#include <ytlib/bus/tcp_client.h>
+#include <ytlib/bus/config.h>
+
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/profiling/profiler.h>
+
+#include <ytlib/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
@@ -20,22 +23,21 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Rpc");
-// TODO(babenko): consider using per-channel profiler
-static NProfiling::TProfiler Profiler("/rpc/client");
+static NLog::TLogger& Logger = RpcClientLogger;
+static NProfiling::TProfiler& Profiler = RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChannel
     : public IChannel
-    , public IMessageHandler
 {
 public:
-    TChannel(IBusClient::TPtr client, TNullable<TDuration> defaultTimeout)
-        : DefaultTimeout(defaultTimeout)
+    TChannel(IBusClientPtr client, TNullable<TDuration> defaultTimeout)
+        : Client(MoveRV(client))
+        , DefaultTimeout(defaultTimeout)
         , Terminated(false)
     {
-        Bus = client->CreateBus(this);
+        YASSERT(Client);
     }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const
@@ -48,225 +50,352 @@ public:
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout)
     {
-        YASSERT(request);
-        YASSERT(responseHandler);
-
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto requestId = request->GetRequestId();
-
-        TActiveRequest activeRequest;
-        activeRequest.ClientRequest = request;
-        activeRequest.ResponseHandler = responseHandler;
-        activeRequest.Timer = Profiler.TimingStart("/" + request->GetPath() +
-            "/" + request->GetVerb() +
-            "/time");
-
-        if (timeout) {
-            activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
-                BIND(&TChannel::OnTimeout, MakeStrong(this), requestId),
-                timeout.Get());
-        }
-
-        auto requestMessage = request->Serialize();
-
-        IBus::TPtr bus;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-
-            YASSERT(!Terminated);
-            YVERIFY(ActiveRequests.insert(MakePair(requestId, activeRequest)).second);
-            bus = Bus;
-        }
-
-        bus->Send(requestMessage).Subscribe(BIND(
-            &TChannel::OnAcknowledgement,
-            MakeStrong(this),
-            requestId));
-    
-        LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
-            ~requestId.ToString(),
-            ~request->GetPath(),
-            ~request->GetVerb(),
-            ~ToString(timeout));
-    }
-
-    virtual void Terminate()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (Terminated)
-                return;
-
-            Terminated = true;
-        }
-
-        YASSERT(Bus);
-        Bus->Terminate();
-        Bus.Reset();
-    }
-
-private:
-    friend class TClientRequest;
-    friend class TClientResponse;
-
-    struct TActiveRequest
-    {
-        IClientRequestPtr ClientRequest;
-        IClientResponseHandlerPtr ResponseHandler;
-        TDelayedInvoker::TCookie TimeoutCookie;
-        NProfiling::TTimer Timer;
-    };
-
-    typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
-
-    TNullable<TDuration> DefaultTimeout;
-    volatile bool Terminated;
-    IBus::TPtr Bus;
-    TRequestMap ActiveRequests;
-    //! Protects #ActiveRequests and #Terminated.
-    TSpinLock SpinLock;
-
-    void OnAcknowledgement(const TRequestId& requestId, ESendResult sendResult)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        TGuard<TSpinLock> guard(SpinLock);
-
-        auto it = ActiveRequests.find(requestId);
-        if (it == ActiveRequests.end()) {
-            // This is quite typical: one may easily get the actual response before the acknowledgment.
-            LOG_DEBUG("Acknowledgment for an incorrect or obsolete request received (RequestId: %s)",
-                ~requestId.ToString());
+        auto sessionOrError = GetOrCreateSession();
+        if (!sessionOrError.IsOK()) {
+            responseHandler->OnError(sessionOrError);
             return;
         }
 
-        // NB: Make copies, the instance will die soon.
-        auto& activeRequest = it->second;
-        auto responseHandler = activeRequest.ResponseHandler;
+        sessionOrError.Value()->Send(request, responseHandler, timeout);
+    }
 
-        Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
+    virtual void Terminate(const TError& error)
+    {
+        YCHECK(!error.IsOK());
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        if (sendResult == ESendResult::Failed) {
-            CompleteRequest(it);
-        
-            // Don't need the guard anymore.
-            guard.Release();
+        TSessionPtr session;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (Terminated) {
+                return;
+            }
+            session = Session;
+            Session.Reset();
+            Terminated = true;
+        }
 
-            responseHandler->OnError(TError(
-                EErrorCode::TransportError,
-                "Unable to deliver the message"));
-        } else {
-            if (activeRequest.ClientRequest->IsOneWay()) {
+        if (session) {
+            session->Terminate(error);
+        }
+    }
+
+private:
+    class TSession;
+    typedef TIntrusivePtr<TSession> TSessionPtr;
+
+    //! Provides a weak wrapper around a session and breaks the cycle
+    //! between the session and its underlying bus.
+    class TMessageHandler
+        : public IMessageHandler
+    {
+    public:
+        explicit TMessageHandler(TSessionPtr session)
+            : Session(session)
+        { }
+
+        virtual void OnMessage(IMessagePtr message, IBusPtr replyBus)
+        {
+            auto session_ = Session.Lock();
+            if (session_) {
+                session_->OnMessage(message, replyBus);
+            }
+        }
+
+    private:
+        TWeakPtr<TSession> Session;
+
+    };
+
+    //! Directs requests sent via a channel to go through its underlying bus.
+    //! Terminates when the underlying bus does so.
+    class TSession
+        : public IMessageHandler
+    {
+    public:
+        explicit TSession(TNullable<TDuration> defaultTimeout)
+            : DefaultTimeout(defaultTimeout)
+            , Terminated(false)
+        { }
+
+        void Init(IBusPtr bus)
+        {
+            Bus = bus;
+        }
+
+        void Terminate(const TError& error)
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            Terminated = true;
+            TerminationError = error;
+        }
+
+        void Send(
+            IClientRequestPtr request,
+            IClientResponseHandlerPtr responseHandler,
+            TNullable<TDuration> timeout)
+        {
+            YASSERT(request);
+            YASSERT(responseHandler);
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto requestId = request->GetRequestId();
+
+            TActiveRequest activeRequest;
+            activeRequest.ClientRequest = request;
+            activeRequest.ResponseHandler = responseHandler;
+            activeRequest.Timer = Profiler.TimingStart(
+                "/services/" +
+                EscapeYPathToken(request->GetPath()) + "/" +
+                EscapeYPathToken(request->GetVerb()) +
+                "/time");
+
+            IBusPtr bus;
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+
+                if (Terminated) {
+                    auto error = TerminationError;
+                    guard.Release();
+
+                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Path: %s, Verb: %s)",
+                        ~requestId.ToString(),
+                        ~request->GetPath(),
+                        ~request->GetVerb());
+
+                    responseHandler->OnError(error);
+                    return;
+                }
+
+                if (timeout) {
+                    activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
+                        BIND(&TSession::OnTimeout, MakeStrong(this), requestId),
+                        timeout.Get());
+                }
+
+                YVERIFY(ActiveRequests.insert(MakePair(requestId, activeRequest)).second);
+                bus = Bus;
+            }
+
+            auto requestMessage = request->Serialize();
+
+            bus->Send(requestMessage).Subscribe(BIND(
+                &TSession::OnAcknowledgement,
+                MakeStrong(this),
+                requestId));
+
+            LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
+                ~requestId.ToString(),
+                ~request->GetPath(),
+                ~request->GetVerb(),
+                ~ToString(timeout));
+        }
+
+        void OnMessage(IMessagePtr message, IBusPtr replyBus)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+            UNUSED(replyBus);
+
+            auto header = GetResponseHeader(message);
+            auto requestId = TRequestId::FromProto(header.request_id());
+
+            IClientResponseHandlerPtr responseHandler;
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+
+                if (Terminated) {
+                    LOG_WARNING("Response received via a terminated channel (RequestId: %s)",
+                        ~requestId.ToString());
+                    return;
+                }
+
+                auto it = ActiveRequests.find(requestId);
+                if (it == ActiveRequests.end()) {
+                    // This may happen when the other party responds to an already timed-out request.
+                    LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %s)",
+                        ~requestId.ToString());
+                    return;
+                }
+
+                auto& activeRequest = it->second;
+                Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
+                responseHandler = activeRequest.ResponseHandler;
+
                 CompleteRequest(it);
             }
 
-            // Don't need the guard anymore.
-            guard.Release();
-
-            responseHandler->OnAcknowledgement();
-        }
-    }
-
-    virtual void OnMessage(IMessage::TPtr message, IBus::TPtr replyBus)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        UNUSED(replyBus);
-
-        auto header = GetResponseHeader(~message);
-        auto requestId = TRequestId::FromProto(header.request_id());
-    
-        IClientResponseHandlerPtr responseHandler;
-        {
-            TGuard<TSpinLock> guard(&SpinLock);
-
-            if (Terminated) {
-                LOG_WARNING("Response received via a terminated channel (RequestId: %s)",
-                    ~requestId.ToString());
-                return;
+            auto error = TError::FromProto(header.error());
+            if (error.IsOK()) {
+                responseHandler->OnResponse(message);
+            } else {
+                responseHandler->OnError(error);
             }
-
-            auto it = ActiveRequests.find(requestId);
-            if (it == ActiveRequests.end()) {
-                // This may happen when the other party responds to an already timed-out request.
-                LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %s)",
-                    ~requestId.ToString());
-                return;
-            }
-
-            auto& activeRequest = it->second;
-            Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
-            responseHandler = activeRequest.ResponseHandler;
-
-            CompleteRequest(it);
         }
 
-        auto error = TError::FromProto(header.error());
-        if (error.IsOK()) {
-            responseHandler->OnResponse(~message);
-        } else {
-            responseHandler->OnError(error);
-        }
-    }
+    private:
+        IBusPtr Bus;
+        TNullable<TDuration> DefaultTimeout;
 
-
-    void OnTimeout(const TRequestId& requestId)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        IClientResponseHandlerPtr responseHandler;
+        struct TActiveRequest
         {
+            IClientRequestPtr ClientRequest;
+            IClientResponseHandlerPtr ResponseHandler;
+            TDelayedInvoker::TCookie TimeoutCookie;
+            NProfiling::TTimer Timer;
+        };
+
+        typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
+
+        TSpinLock SpinLock;
+        TRequestMap ActiveRequests;
+        volatile bool Terminated;
+        TError TerminationError;
+
+
+        void OnAcknowledgement(const TRequestId& requestId, ESendResult sendResult)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             TGuard<TSpinLock> guard(SpinLock);
 
             auto it = ActiveRequests.find(requestId);
             if (it == ActiveRequests.end()) {
-                LOG_WARNING("Timeout of an incorrect or obsolete request occurred (RequestId: %s)",
+                // This one may easily get the actual response before the acknowledgment.
+                LOG_DEBUG("Acknowledgment for an incorrect or obsolete request received (RequestId: %s)",
                     ~requestId.ToString());
                 return;
             }
 
+            // NB: Make copies, the instance will die soon.
             auto& activeRequest = it->second;
-            Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
-            responseHandler = activeRequest.ResponseHandler;
+            auto responseHandler = activeRequest.ResponseHandler;
 
-            CompleteRequest(it);
+            Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
+
+            if (sendResult == ESendResult::Failed) {
+                CompleteRequest(it);
+
+                // Don't need the guard anymore.
+                guard.Release();
+
+                responseHandler->OnError(TError(
+                    EErrorCode::TransportError,
+                    "Unable to deliver the message"));
+            } else {
+                if (activeRequest.ClientRequest->IsOneWay()) {
+                    CompleteRequest(it);
+                }
+
+                // Don't need the guard anymore.
+                guard.Release();
+
+                responseHandler->OnAcknowledgement();
+            }
         }
 
-        responseHandler->OnError(TError(
-            EErrorCode::Timeout,
-            "Request timed out"));
-    }
+        void OnTimeout(const TRequestId& requestId)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
 
-    void CompleteRequest(TRequestMap::iterator it)
+            IClientResponseHandlerPtr responseHandler;
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+
+                auto it = ActiveRequests.find(requestId);
+                if (it == ActiveRequests.end()) {
+                    LOG_DEBUG("Timeout for an incorrect or obsolete request occurred (RequestId: %s)",
+                        ~requestId.ToString());
+                    return;
+                }
+
+                auto& activeRequest = it->second;
+                Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
+                responseHandler = activeRequest.ResponseHandler;
+
+                CompleteRequest(it);
+            }
+
+            responseHandler->OnError(TError(EErrorCode::Timeout, "Request timed out"));
+        }
+
+        void CompleteRequest(TRequestMap::iterator it)
+        {
+            VERIFY_SPINLOCK_AFFINITY(SpinLock);
+
+            auto& activeRequest = it->second;
+            TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
+            Profiler.TimingStop(activeRequest.Timer);
+            ActiveRequests.erase(it);
+        }
+
+    };
+
+    IBusClientPtr Client;
+    TNullable<TDuration> DefaultTimeout;
+
+    TSpinLock SpinLock;
+    volatile bool Terminated;
+    TSessionPtr Session;
+
+    TValueOrError<TSessionPtr> GetOrCreateSession()
     {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock);
+        
+        if (Session) {
+            return Session;
+        }
 
-        auto& activeRequest = it->second;
-        TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
-        Profiler.TimingStop(activeRequest.Timer);
-        ActiveRequests.erase(it);
+        if (Terminated) {
+            return TError("Channel terminated");
+        }
+        
+        Session = New<TSession>(DefaultTimeout);
+        auto messageHandler = New<TMessageHandler>(Session);
+
+        IBusPtr bus;
+        try {
+            bus = Client->CreateBus(messageHandler);
+        } catch (const std::exception& ex) {
+            return TError(ex.what());
+        }
+
+        Session->Init(bus);
+        bus->SubscribeTerminated(BIND(
+            &TChannel::OnBusTerminated,
+            MakeWeak(this),
+            MakeWeak(Session)));
+        return Session;
     }
 
+    void OnBusTerminated(TWeakPtr<TSession> session, const TError& error)
+    {
+        auto session_ = session.Lock();
+        if (!session_) {
+            return;
+        }
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (Session == session_) {
+                Session.Reset();
+            }
+        }
+        
+        session_->Terminate(error);
+    }
 };          
 
+////////////////////////////////////////////////////////////////////////////////
+
 IChannelPtr CreateBusChannel(
-    IBusClient::TPtr client,
+    IBusClientPtr client,
     TNullable<TDuration> defaultTimeout)
 {
     YASSERT(client);
 
     return New<TChannel>(client, defaultTimeout);
-}
-
-IChannelPtr CreateBusChannel(
-    const Stroka& address,
-    TNullable<TDuration> defaultTimeout)
-{
-    return CreateBusChannel(
-        CreateNLBusClient(New<TNLBusClientConfig>(address)),
-        defaultTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

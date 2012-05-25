@@ -31,7 +31,6 @@ public:
     TJobExecutorPtr GetJobExecutor() const;
     IInvoker::TPtr GetControlInvoker(NCellNode::EControlThreadQueue queueIndex = NCellNode::EControlThreadQueue::Default) const;
     TBlockStorePtr GetBlockStore();
-    NBus::IBusServer::TPtr GetBusServer() const;
     TPeerBlockTablePtr GetPeerBlockTable() const;
     TReaderCachePtr GetReaderCache() const;
     NRpc::IChannelPtr GetMasterChannel() const;

@@ -7,7 +7,8 @@
 
 #include <ytlib/actions/action_queue.h>
 
-#include <ytlib/bus/nl_server.h>
+#include <ytlib/bus/tcp_server.h>
+#include <ytlib/bus/config.h>
 
 #include <ytlib/rpc/channel.h>
 #include <ytlib/rpc/server.h>
@@ -83,7 +84,7 @@ void TBootstrap::Run()
 
     ControlQueue = New<TMultiActionQueue>(EControlThreadQueue::GetDomainSize(), "Control");
 
-    BusServer = CreateNLBusServer(New<TNLBusServerConfig>(Config->RpcPort));
+    BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
     RpcServer = CreateRpcServer(BusServer);
 
@@ -91,9 +92,6 @@ void TBootstrap::Run()
     monitoringManager->Register(
         "/ref_counted",
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
-    monitoringManager->Register(
-        "/bus_server",
-        BIND(&IBusServer::GetMonitoringInfo, BusServer));
     monitoringManager->Start();
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
@@ -150,11 +148,6 @@ TIncarnationId TBootstrap::GetIncarnationId() const
 IInvoker::TPtr TBootstrap::GetControlInvoker(EControlThreadQueue queueIndex) const
 {
     return ControlQueue->GetInvoker(queueIndex);
-}
-
-IBusServer::TPtr TBootstrap::GetBusServer() const
-{
-    return BusServer;
 }
 
 IServerPtr TBootstrap::GetRpcServer() const

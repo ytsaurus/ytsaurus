@@ -35,7 +35,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 TJob::TJob(
     const TJobId& jobId,
     const TJobSpec& jobSpec,
-    const TYson& proxyConfig,
+    TJobProxyConfigPtr proxyConfig,
     NChunkHolder::TChunkCachePtr chunkCache,
     TSlotPtr slot)
     : JobId(jobId)
@@ -57,7 +57,7 @@ TJob::~TJob()
     Slot->Release();
 }
 
-void TJob::Start(TEnvironmentManager* environmentManager)
+void TJob::Start(TEnvironmentManagerPtr environmentManager)
 {
     YASSERT(JobProgress == EJobProgress::Created);
 
@@ -79,27 +79,31 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     JobProgress = EJobProgress::PreparingConfig;
 
     {
-        auto ioConfig = New<TJobIOConfig>();
-        {
-            auto node = DeserializeFromYson(JobSpec.io_config());
-            ioConfig->Load(node);
-            ioConfig->Validate();
+        INodePtr ioConfigNode;
+        try {
+            ioConfigNode = DeserializeFromYson(JobSpec.io_config());
+        } catch (const std::exception& ex) {
+            Stroka message = Sprintf(
+                "Error deserializing job IO configuration (JobId: %s)\n%s", 
+                ~JobId.ToString(), 
+                ex.what());
+            LOG_ERROR("%s", ~message);
+            DoAbort(TError(message), NScheduler::EJobState::Failed);
+            return;
         }
 
-        auto proxyConfig = New<TJobProxyConfig>();
-        {
-            auto node = DeserializeFromYson(ProxyConfig);
-            proxyConfig->Load(node);
-            proxyConfig->Validate();
-        }
+        auto ioConfig = New<TJobIOConfig>();
+        ioConfig->Load(ioConfigNode);
+
+        auto proxyConfig = CloneConfigurable(ProxyConfig);
         proxyConfig->JobIO = ioConfig;
 
         auto proxyConfigPath = NFS::CombinePaths(
             Slot->GetWorkingDirectory(), 
             ProxyConfigFileName);
+        
         TFileOutput output(proxyConfigPath);
-        NYTree::TYsonWriter writer(&output);
-
+        TYsonWriter writer(&output, EYsonFormat::Pretty);
         proxyConfig->Save(&writer);
     }
 
@@ -108,21 +112,20 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     Stroka environmentType = "default";
     try {
         ProxyController = environmentManager->CreateProxyController(
-            //XXX: type of execution environment must not be directly
+            //XXX(psushin): execution environment type must not be directly
             // selectable by user -- it is more of the global cluster setting
             //jobSpec.operation_spec().environment(),
             environmentType,
             JobId,
             Slot->GetWorkingDirectory());
     } catch (const std::exception& ex) {
-        Stroka msg = Sprintf(
+        Stroka message = Sprintf(
             "Failed to create proxy controller for environment %s (JobId: %s)\n%s", 
             ~environmentType.Quote(),
             ~JobId.ToString(), 
             ex.what());
-
-        LOG_DEBUG("%s", ~msg);
-        DoAbort(TError(msg), NScheduler::EJobState::Failed);
+        LOG_ERROR("%s", ~message);
+        DoAbort(TError(message), NScheduler::EJobState::Failed);
         return;
     }
 
@@ -131,8 +134,8 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
 
-    if (JobSpec.HasExtension(NScheduler::NProto::TUserJobSpec::user_job_spec)) {
-        const auto& userSpec = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpec::user_job_spec);
+    if (JobSpec.HasExtension(NScheduler::NProto::TUserJobSpecExt::user_job_spec_ext)) {
+        const auto& userSpec = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpecExt::user_job_spec_ext);
         FOREACH (const auto& fetchRsp, userSpec.files()) {
             auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
             LOG_INFO("Downloading user file %s (JobId: %s, ChunkId: %s)", 
@@ -162,14 +165,13 @@ void TJob::OnChunkDownloaded(
     auto fileName = fetchRsp.file_name();
 
     if (!result.IsOK()) {
-        Stroka msg = Sprintf(
+        Stroka message = Sprintf(
             "Failed to download user file %s (JobId: %s)\n%s", 
             ~fileName.Quote(),
             ~JobId.ToString(),
             ~result.GetMessage());
-
-        LOG_WARNING("%s", ~msg);
-        SetResult(TError(msg));
+        LOG_WARNING("%s", ~message);
+        SetResult(TError(message));
         JobProgress = NScheduler::EJobProgress::Failed;
         return;
     }
@@ -182,14 +184,13 @@ void TJob::OnChunkDownloaded(
             CachedChunks.back()->GetFileName(), 
             fetchRsp.executable());
     } catch (yexception& ex) {
-        Stroka msg = Sprintf(
+        Stroka message = Sprintf(
             "Failed to make symlink (JobId: %s, FileName: %s)\n%s", 
             ~JobId.ToString(),
             ~fileName,
             ex.what());
-
-        LOG_WARNING("%s", ~msg);
-        SetResult(TError(msg));
+        LOG_ERROR("%s", ~message);
+        SetResult(TError(message));
         JobProgress = NScheduler::EJobProgress::Failed;
         return;
     }
@@ -247,22 +248,23 @@ void TJob::OnJobExit(TError error)
 
     if (!IsResultSet()) {
         DoAbort(TError(
-            "Job proxy successfully exited but job result has not been set."),
+            "Job proxy exited successfully but job result has not been set"),
             EJobState::Failed);
-    } else {
-        JobProgress = EJobProgress::Cleanup;
-        Slot->Clean();
-
-        JobProgress = EJobProgress::Completed;
-        
-        if (JobResult->error().code() == TError::OK) {
-            JobState = EJobState::Completed;
-        } else {
-            JobState = EJobState::Failed;
-        }
-
-        JobFinished.Set();
+        return;
     }
+
+    JobProgress = EJobProgress::Cleanup;
+    Slot->Clean();
+
+    JobProgress = EJobProgress::Completed;
+        
+    if (JobResult->error().code() == TError::OK) {
+        JobState = EJobState::Completed;
+    } else {
+        JobState = EJobState::Failed;
+    }
+
+    JobFinished.Set();
 }
 
 const TJobId& TJob::GetId() const
@@ -336,7 +338,7 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
 
     if (jobProgress >= EJobProgress::StartedProxy && killJobProxy) {
         try {
-            LOG_DEBUG("Asking proxy controller to kill job (JobId: %s)", 
+            LOG_DEBUG("Requesting proxy controller to kill job (JobId: %s)", 
                 ~JobId.ToString());
             ProxyController->Kill(error);
         } catch (const std::exception& e) {
@@ -358,16 +360,14 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
     JobFinished.Set();
 }
 
-void TJob::SubscribeFinished(const TCallback<void()>& callback)
+void TJob::SubscribeFinished(const TClosure& callback)
 {
-    JobFinished.Subscribe(BIND([=] () {
-        callback.Run();
-    }));
+    JobFinished.Subscribe(callback);
 }
 
-void TJob::UnsubscribeFinished(const TCallback<void()>& callback)
+void TJob::UnsubscribeFinished(const TClosure& callback)
 {
-    YUNIMPLEMENTED();
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

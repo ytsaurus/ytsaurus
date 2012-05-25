@@ -105,24 +105,18 @@ TJobPtr TJobManager::StartJob(
         LOG_FATAL("All slots are busy (JobId: %s)", ~jobId.ToString());
     }
 
-    LOG_DEBUG("Found slot for new job (JobId: %s, working directory: %s)", 
+    LOG_DEBUG("Found slot for new job (JobId: %s, WorkDir: %s)", 
         ~jobId.ToString(),
         ~emptySlot->GetWorkingDirectory());
-
-    // As far as we don't have deep copying of configurables,
-    // we pass proxy config to job in serialized form.
-    TStringStream proxyConfig;
-    TYsonWriter writer(&proxyConfig);
-    Bootstrap->GetJobProxyConfig()->Save(&writer);
 
     auto job = New<TJob>(
         jobId,
         jobSpec,
-        proxyConfig.Str(),
-        ~Bootstrap->GetChunkCache(),
-        ~emptySlot);
+        Bootstrap->GetJobProxyConfig(),
+        Bootstrap->GetChunkCache(),
+        emptySlot);
 
-    job->Start(~Bootstrap->GetEnvironmentManager());
+    job->Start(Bootstrap->GetEnvironmentManager());
 
     YVERIFY(Jobs.insert(MakePair(jobId, job)).second);
 

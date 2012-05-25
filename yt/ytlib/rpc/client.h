@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 #include "channel.h"
 #include "error.h"
 
@@ -9,8 +9,10 @@
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/bus/client.h>
+#include <ytlib/bus/message.h>
 #include <ytlib/actions/future.h>
 #include <ytlib/ytree/attributes.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NRpc {
@@ -41,7 +43,7 @@ protected:
 struct IClientRequest
     : public virtual TRefCounted
 {
-    virtual NBus::IMessage::TPtr Serialize() const = 0;
+    virtual NBus::IMessagePtr Serialize() const = 0;
 
     virtual bool IsOneWay() const = 0;
     virtual const TRequestId& GetRequestId() const = 0;
@@ -57,11 +59,11 @@ struct IClientRequest
 class TClientRequest
     : public IClientRequest
 {
-    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
 public:
-    virtual NBus::IMessage::TPtr Serialize() const;
+    virtual NBus::IMessagePtr Serialize() const;
 
     virtual bool IsOneWay() const;
     virtual const TRequestId& GetRequestId() const;
@@ -91,6 +93,9 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// We need this logger here but including the whole private.h looks weird.
+extern NLog::TLogger RpcClientLogger;
 
 template <class TRequestMessage, class TResponse>
 class TTypedClientRequest
@@ -124,7 +129,7 @@ public:
 private:
     virtual TBlob SerializeBody() const
     {
-        NLog::TLogger& Logger = RpcLogger;
+        auto& Logger = RpcClientLogger;
         TBlob blob;
         YVERIFY(SerializeToProto(this, &blob));
         return blob;
@@ -145,7 +150,7 @@ struct IClientResponseHandler
     /*!
      *  \param message A message containing the response.
      */
-    virtual void OnResponse(NBus::IMessage* message) = 0;
+    virtual void OnResponse(NBus::IMessagePtr message) = 0;
 
     //! The request has failed.
     /*!
@@ -194,10 +199,10 @@ protected:
 class TClientResponse
     : public TClientResponseBase
 {
-    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
-    NBus::IMessage::TPtr GetResponseMessage() const;
+    NBus::IMessagePtr GetResponseMessage() const;
 
     NYTree::IAttributeDictionary& Attributes();
     const NYTree::IAttributeDictionary& Attributes() const;
@@ -209,14 +214,14 @@ protected:
 
 private:
     // Protected by #SpinLock.
-    NBus::IMessage::TPtr ResponseMessage;
+    NBus::IMessagePtr ResponseMessage;
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement();
-    virtual void OnResponse(NBus::IMessage* message);
+    virtual void OnResponse(NBus::IMessagePtr message);
 
-    void Deserialize(NBus::IMessage::TPtr responseMessage);
+    void Deserialize(NBus::IMessagePtr responseMessage);
 
 };
 
@@ -251,7 +256,7 @@ private:
 
     virtual void DeserializeBody(const TRef& data)
     {
-        NLog::TLogger& Logger = RpcLogger;
+        auto& Logger = RpcClientLogger;
         YVERIFY(DeserializeFromProto(this, data));
     }
 };
@@ -274,7 +279,7 @@ private:
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement();
-    virtual void OnResponse(NBus::IMessage* message);
+    virtual void OnResponse(NBus::IMessagePtr message);
 
     virtual void FireCompleted();
 

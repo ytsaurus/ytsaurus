@@ -6,7 +6,11 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger RpcLogger("Rpc");
+NLog::TLogger RpcServerLogger("RpcServer");
+NLog::TLogger RpcClientLogger("RpcClient");
+
+NProfiling::TProfiler RpcServerProfiler("/rpc/server");
+NProfiling::TProfiler RpcClientProfiler("/rpc/client");
 
 ////////////////////////////////////////////////////////////////////////////////
             

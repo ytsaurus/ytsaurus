@@ -15,24 +15,19 @@ using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IUserJobIO::~IUserJobIO()
-{ }
-
 TAutoPtr<IUserJobIO> CreateUserJobIO(
-    const TJobIOConfigPtr config,
-    const NElection::TLeaderLookup::TConfigPtr mastersConfig,
+    TJobIOConfigPtr config,
+    NElection::TLeaderLookup::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
 {
-    YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
+    YCHECK(jobSpec.HasExtension(TUserJobSpecExt::user_job_spec_ext));
 
     auto masterChannel = CreateLeaderChannel(mastersConfig);
 
-    YASSERT(jobSpec.HasExtension(TMapJobSpec::map_job_spec));
     return new TMapJobIO(
         config, 
-        ~masterChannel, 
-        jobSpec.GetExtension(TMapJobSpec::map_job_spec));
-
+        masterChannel, 
+        jobSpec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

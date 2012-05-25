@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/misc/errortrace.h>
-#include <ytlib/bus/nl_client.h>
+#include <ytlib/bus/tcp_dispatcher.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
@@ -51,7 +51,7 @@ public:
         , CellMaster("", "master", "start cell master")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
-        , JobId("", "job-id", "job id (for job-proxy mode)", false, "", "ID")
+        , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
         , Port("", "port", "port to listen", false, -1, "PORT")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
@@ -138,6 +138,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Start an appropriate server.
     if (isCellNode) {
+        NYT::NThread::SetCurrentThreadName("NodeMain");
+
         auto config = New<NCellNode::TCellNodeConfig>();
         if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
@@ -166,6 +168,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isCellMaster) {
+        NYT::NThread::SetCurrentThreadName("MasterMain");
+
         auto config = New<NCellMaster::TCellMasterConfig>();
         if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
@@ -192,7 +196,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isScheduler) {
-        NYT::NThread::SetCurrentThreadName("Bootstrap");
+        NYT::NThread::SetCurrentThreadName("SchedulerMain");
+
         auto config = New<NCellScheduler::TCellSchedulerConfig>();
         if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
@@ -212,6 +217,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isJobProxy) {
+        NYT::NThread::SetCurrentThreadName("JobProxyMain");
+
         auto config = New<NJobProxy::TJobProxyConfig>();
         if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
@@ -263,7 +270,7 @@ int Main(int argc, const char* argv[])
     // TODO: refactor system shutdown
     NMetaState::TAsyncChangeLog::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
-    NBus::TNLClientManager::Get()->Shutdown();
+    NBus::TTcpDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 

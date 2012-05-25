@@ -33,8 +33,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef ENABLE_TRACE_LOGGING
 #define LOG_TRACE(...)                  LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Trace, __VA_ARGS__)
 #define LOG_TRACE_IF(condition, ...)    if (condition) LOG_TRACE(__VA_ARGS__)
+#else
+#define LOG_TRACE(...)                  (void) 0
+#define LOG_TRACE_IF(condition, ...)    (void) 0
+#endif
 
 #define LOG_DEBUG(...)                  LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Debug, __VA_ARGS__)
 #define LOG_DEBUG_IF(condition, ...)    if (condition) LOG_DEBUG(__VA_ARGS__)

@@ -68,17 +68,16 @@ TError StatusToError(int status)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TUserJob::TUserJob(
-    const TJobProxyConfigPtr& proxyConfig,
-    const NScheduler::NProto::TJobSpec& jobSpec)
+    TJobProxyConfigPtr proxyConfig,
+    const TJobSpec& jobSpec)
     : Config(proxyConfig)
-    , ActivePipesCount(0)
+    , ActivePipeCount(0)
     , ProcessId(-1)
 {
-    YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
+    YCHECK(jobSpec.HasExtension(TUserJobSpecExt::user_job_spec_ext));
 
-    UserJobSpec = jobSpec.GetExtension(TUserJobSpec::user_job_spec);
+    UserJobSpecExt = jobSpec.GetExtension(TUserJobSpecExt::user_job_spec_ext);
     JobIO = CreateUserJobIO(proxyConfig->JobIO, proxyConfig->Masters, jobSpec);
 }
 
@@ -91,8 +90,9 @@ NScheduler::NProto::TJobResult TUserJob::Run()
     InitPipes();
 
     ProcessId = fork();
-    if (ProcessId < 0)
-        ythrow yexception() << "fork failed with errno: " << errno;
+    if (ProcessId < 0) {
+        ythrow yexception() << Sprintf("Failed to start the job: fork failed (errno: %d)", errno);
+    }
 
     if (ProcessId == 0) {
         // Child process.
@@ -100,7 +100,7 @@ NScheduler::NProto::TJobResult TUserJob::Run()
         YUNREACHABLE();
     }
 
-    LOG_DEBUG("Job process started, begin IO");
+    LOG_DEBUG("Job process started");
 
     DoJobIO();
 
@@ -111,10 +111,9 @@ NScheduler::NProto::TJobResult TUserJob::Run()
 
     {
         auto chunkId = ErrorOutput->GetChunkId();
-        if (chunkId) {
-            NScheduler::NProto::TUserJobResult userResult;
-            *userResult.mutable_stderr_chunk_id() = chunkId->ToProto();
-            *result.MutableExtension(NScheduler::NProto::TUserJobResult::user_job_result) = userResult;
+        if (chunkId != NChunkServer::NullChunkId) {
+            auto* resultExt = result.MutableExtension(NScheduler::NProto::TUserJobResultExt::user_job_result_ext);
+            *resultExt->mutable_stderr_chunk_id() = chunkId->ToProto();           
         }
     }
 
@@ -158,13 +157,12 @@ void TUserJob::InitPipes()
 
 
     ErrorOutput = JobIO->CreateErrorOutput();
-    DataPipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
-    ++ActivePipesCount;
+    Pipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
+    ++ActivePipeCount;
 
     // Make pipe for each input and each output table.
     {
-        auto node = DeserializeFromYson(UserJobSpec.in_format());
-        auto format = TFormat::FromYson(node);
+        auto format = TFormat::FromYson(UserJobSpecExt.input_format());
 
         for (int i = 0; i < JobIO->GetInputCount(); ++i) {
             TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
@@ -173,7 +171,7 @@ void TUserJob::InitPipes()
                 EDataType::Tabular, 
                 buffer.Get());
 
-            DataPipes.push_back(New<TInputPipe>(
+            Pipes.push_back(New<TInputPipe>(
                 JobIO->CreateTableInput(i, consumer.Get()),
                 buffer,
                 consumer,
@@ -182,26 +180,25 @@ void TUserJob::InitPipes()
     }
 
     {
-        auto node = DeserializeFromYson(UserJobSpec.out_format());
-        auto format = TFormat::FromYson(node);
+        auto format = TFormat::FromYson(UserJobSpecExt.output_format());
         auto outputCount = JobIO->GetOutputCount();
         TableOutput.resize(outputCount);
 
         for (int i = 0; i < outputCount; ++i) {
-            ++ActivePipesCount;
+            ++ActivePipeCount;
             auto writer = JobIO->CreateTableOutput(i);
             TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(
                 Config->JobIO->TableConsumer, 
                 writer));
             auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
             TableOutput[i] = new TTableOutput(parser, consumer, writer);
-            DataPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
+            Pipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
         }
 
     }
 
     // Close reserved descriptors.
-    FOREACH (auto& fd, reservedDescriptors) {
+    FOREACH (int fd, reservedDescriptors) {
         SafeClose(fd);
     }
 
@@ -211,7 +208,7 @@ void TUserJob::InitPipes()
 void TUserJob::StartJob()
 {
     try {
-        FOREACH (auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, Pipes) {
             pipe->PrepareJobDescriptors();
         }
 
@@ -219,7 +216,7 @@ void TUserJob::StartJob()
         ChDir(Config->SandboxName);
 
 
-        Stroka cmd = UserJobSpec.shell_command();
+        Stroka cmd = UserJobSpecExt.shell_command();
         // do not search the PATH, inherit environment
         execl("/bin/sh",
             "/bin/sh", 
@@ -246,76 +243,76 @@ void TUserJob::StartJob()
 
 void TUserJob::DoJobIO()
 {
+    // TODO(babenko): rewrite using libev
     try {
-        FOREACH (auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, Pipes) {
             pipe->PrepareProxyDescriptors();
         }
 
-        const int fd_count_hint = 10;
-        int efd = epoll_create(fd_count_hint);
-        if (efd < 0) {
-            ythrow yexception() << "epoll_create failed with errno: " << errno;
+        const int fdCountHint = 10;
+        int epollFd = epoll_create(fdCountHint);
+        if (epollFd < 0) {
+            ythrow yexception() << Sprintf("Error during job IO: epoll_create failed (errno: %d)", errno);
         }
 
-        FOREACH (auto& pipe, DataPipes) {
-            epoll_event ev_add;
-            ev_add.data.u64 = 0ULL;
-            ev_add.events = pipe->GetEpollFlags();
-            ev_add.data.ptr = ~pipe;
+        FOREACH (auto& pipe, Pipes) {
+            epoll_event evAdd;
+            evAdd.data.u64 = 0ULL;
+            evAdd.events = pipe->GetEpollFlags();
+            evAdd.data.ptr = ~pipe;
 
-            if (epoll_ctl(efd, EPOLL_CTL_ADD, pipe->GetEpollDescriptor(), &ev_add) != 0) {
-                ythrow yexception() << "epoll_ctl failed with errno: " << errno;
+            if (epoll_ctl(epollFd, EPOLL_CTL_ADD, pipe->GetEpollDescriptor(), &evAdd) != 0) {
+                ythrow yexception() << Sprintf("Error during job IO: epoll_ctl failed (errno: %d)", errno);
             }
         }
 
-        const int maxevents = 10;
-        epoll_event ev[maxevents];
-        memset(ev, 0, maxevents * sizeof(epoll_event));
-        int n;
+        const int maxEvents = 10;
+        epoll_event events[maxEvents];
+        memset(events, 0, maxEvents * sizeof(epoll_event));
 
-        while (ActivePipesCount > 0) {
-            LOG_TRACE("Waiting on epoll, active pipes: %d", ActivePipesCount);
+        while (ActivePipeCount > 0) {
+            LOG_TRACE("Waiting on epoll, %d pipes active", ActivePipeCount);
 
-            n = epoll_wait(efd, &ev[0], maxevents, -1);
+            int epollResult = epoll_wait(epollFd, &events[0], maxEvents, -1);
 
-            if (n < 0) {
+            if (epollResult < 0) {
                 if (errno == EINTR) {
                     errno = 0;
                     continue;
                 }
-                ythrow yexception() << "epoll_wait failed with errno: " << errno;
+                ythrow yexception() << Sprintf("Error during job IO: epoll_wait failed (errno: %d)", errno);
             }
 
-            for (int i = 0; i < n; ++i) {
-                auto pipe = reinterpret_cast<IDataPipe*>(ev[i].data.ptr);
-                if (!pipe->ProcessData(ev[i].events)) 
-                    --ActivePipesCount;
+            for (int pipeIndex = 0; pipeIndex < epollResult; ++pipeIndex) {
+                auto pipe = reinterpret_cast<IDataPipe*>(events[pipeIndex].data.ptr);
+                if (!pipe->ProcessData(events[pipeIndex].events)) {
+                    --ActivePipeCount;
+                }
             }
         }
 
         int status = 0;
-        int ret = waitpid(ProcessId, &status, 0);
-        if (ret < 0) {
-            ythrow yexception() << "waitpid failed with errno: " << errno;
+        int waitpidResult = waitpid(ProcessId, &status, 0);
+        if (waitpidResult < 0) {
+            ythrow yexception() << Sprintf("Error during job IO: waitpid failed (errno: %d)", errno);
         }
 
         JobExitStatus = StatusToError(status);
 
-        FOREACH (auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, Pipes) {
             pipe->Finish();
         }
 
-        SafeClose(efd);
+        SafeClose(epollFd);
     } catch (...) {
         // Try to close all pipes despite any other errors.
         // It is safe to call Finish multiple times.
-        FOREACH (auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, Pipes) {
             try {
                 pipe->Finish();
             } catch (...) 
-            {}
+            { }
         }
-
         throw;
     }
 }

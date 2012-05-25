@@ -353,9 +353,8 @@ public:
 
         auto cypressManager = Bootstrap->GetCypressManager();
         auto service = cypressManager->GetVersionedNodeProxy(
-            cypressManager->GetRootNodeId(),
-            NULL);
-        return TResolveResult::There(~service, path);
+            cypressManager->GetRootNodeId());
+        return TResolveResult::There(service, path);
     }
 
 private:
@@ -374,7 +373,7 @@ TYPathServiceProducer TCypressManager::GetRootServiceProducer()
             // Make a coarse check at this (wrong) thread first.
             auto status = this_->MetaStateManager->GetStateStatusAsync();
             if (status == EPeerStatus::Leading) {
-                return New<TLeaderRootService>(Bootstrap)->Via(~stateInvoker);
+                return New<TLeaderRootService>(Bootstrap)->Via(stateInvoker);
             } else {
                 return RefCountedSingleton<TNotALeaderRootService>();
             }

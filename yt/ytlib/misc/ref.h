@@ -63,6 +63,11 @@ public:
         return Data + Size_;
     }
 
+    bool Empty() const
+    {
+        return Size_ == 0;
+    }
+
     size_t Size() const
     {
         return Size_;
@@ -190,6 +195,11 @@ public:
     size_t Size() const
     {
         return Ref.Size();
+    }
+
+    bool Empty() const
+    {
+        return Ref.Empty();
     }
 
     //! Copies the data to a fresh blob.

@@ -36,10 +36,10 @@ struct TLocationConfig
     //! (If not initialized then indicates to occupy all available space on drive).
     TNullable<i64> Quota;
 
-    //! Consider the location to be full when left space is less than #LowWatermark
+    //! The location is considered to be full when left space is less than #LowWatermark.
     i64 LowWatermark;
 
-    //! Aborts all uploading when left space is less than #HighWatermark
+    //! All uploads to the location are aborted when left space is less than #HighWatermark.
     i64 HighWatermark;
 
     TLocationConfig()

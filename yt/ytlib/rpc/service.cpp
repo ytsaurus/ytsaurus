@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "service.h"
-#include <ytlib/rpc/rpc.pb.h>
+#include "private.h"
 
-#include <ytlib/logging/log.h>
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
@@ -14,12 +14,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Rpc");
-static NProfiling::TProfiler Profiler("/rpc/server");
+static NLog::TLogger& Logger = RpcServerLogger;
+static NProfiling::TProfiler& Profiler = RpcServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IServiceContext::Reply(NBus::IMessage* message)
+void IServiceContext::Reply(NBus::IMessagePtr message)
 {
     auto parts = message->GetParts();
     YASSERT(!parts.empty());
@@ -29,7 +29,7 @@ void IServiceContext::Reply(NBus::IMessage* message)
 
     auto error = TError::FromProto(header.error());
     if (error.IsOK()) {
-        YASSERT(parts.ysize() >= 2);
+        YASSERT(parts.size() >= 2);
 
         SetResponseBody(parts[1]);
 
@@ -197,7 +197,7 @@ void TServiceBase::OnEndRequest(IServiceContextPtr context)
 
 void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
-    RegisterMethod(descriptor, ~DefaultInvoker);
+    RegisterMethod(descriptor, DefaultInvoker);
 }
 
 void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker::TPtr invoker)

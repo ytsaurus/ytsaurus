@@ -81,9 +81,9 @@ public:
 private:
     TCtxExecute::TPtr Context;
     TObjectService::TPtr Owner;
-    std::vector<IMessage::TPtr> ResponseMessages;
+    std::vector<IMessagePtr> ResponseMessages;
 
-    void OnResponse(int requestIndex, IMessage::TPtr responseMessage)
+    void OnResponse(int requestIndex, IMessagePtr responseMessage)
     {
         auto responseHeader = GetResponseHeader(~responseMessage);
         auto error = TError::FromProto(responseHeader.error());
@@ -101,7 +101,7 @@ private:
 
         FOREACH (const auto& responseMessage, ResponseMessages) {
             const auto& responseParts = responseMessage->GetParts();
-            response.add_part_counts(responseParts.ysize());
+            response.add_part_counts(static_cast<int>(responseParts.size()));
             response.Attachments().insert(
                 response.Attachments().end(),
                 responseParts.begin(),

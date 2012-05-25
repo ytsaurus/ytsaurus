@@ -92,7 +92,7 @@ struct TExecAgentConfig
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
     NYTree::INodePtr JobProxyLogging;
-    TDuration SupervisorTimeout;
+    TDuration SupervisorRpcTimeout;
 
     TExecAgentConfig()
     {
@@ -104,8 +104,8 @@ struct TExecAgentConfig
             .DefaultNew();
         Register("job_proxy_logging", JobProxyLogging)
             .Default(NULL);
-        Register("supervisor_timeout", SupervisorTimeout)
-            .Default(TDuration::Seconds(5));
+        Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
+            .Default(TDuration::Seconds(15));
     }
 };
 

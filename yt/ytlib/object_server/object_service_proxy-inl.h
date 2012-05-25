@@ -70,7 +70,7 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
     auto innerRequestMessage = innerRequest->Serialize();
 
     auto outerRequest = Execute();
-    outerRequest->add_part_counts(innerRequestMessage->GetParts().ysize());
+    outerRequest->add_part_counts(static_cast<int>(innerRequestMessage->GetParts().size()));
     outerRequest->Attachments() = innerRequestMessage->GetParts();
 
     return outerRequest->Invoke().Apply(BIND(

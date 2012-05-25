@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "redirector_service.h"
+#include "private.h"
 #include "channel_cache.h"
 
 namespace NYT {
@@ -9,7 +10,7 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = RpcLogger;
+static NLog::TLogger& Logger = RpcServerLogger;
 static TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +20,7 @@ class TRedirectorService::TRequest
 {
 public:
     TRequest(
-        IMessage::TPtr message,
+        IMessagePtr message,
         bool oneWay,
         const TRequestId& requestId,
         const Stroka& path,
@@ -31,7 +32,7 @@ public:
         , Verb(verb)
     { }
 
-    virtual IMessage::TPtr Serialize() const
+    virtual IMessagePtr Serialize() const
     {
         return Message;
     }
@@ -67,7 +68,7 @@ public:
     }
 
 private:
-    IMessage::TPtr Message;
+    IMessagePtr Message;
     bool OneWay;
     TRequestId RequestId;
     Stroka Path;
@@ -87,7 +88,7 @@ public:
     void OnAcknowledgement()
     { }
 
-    void OnResponse(NBus::IMessage* message)
+    void OnResponse(NBus::IMessagePtr message)
     {
         Context->Reply(message);
     }

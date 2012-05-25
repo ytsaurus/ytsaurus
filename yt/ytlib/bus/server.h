@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "bus.h"
+#include "public.h"
 
 #include <ytlib/ytree/public.h>
 
@@ -10,31 +9,26 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBusStatistics
-{
-    TBusStatistics()
-        : RequestCount(0)
-        , RequestDataSize(0)
-        , ResponseCount(0)
-        , ResponseDataSize(0)
-    { }
-
-    i64 RequestCount;
-    i64 RequestDataSize;
-    i64 ResponseCount;
-    i64 ResponseDataSize;
-};
-
+//! A server-side bus listener.
+/*!
+ *  An instance on this interface listens for incoming
+ *  messages and notifies IMessageHandlerPtr.
+ */
 struct IBusServer
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IBusServer> TPtr;
+    //! Starts the listener.
+    /*
+     *  \param handler Incoming messages handler.
+     */
+    virtual void Start(IMessageHandlerPtr handler) = 0;
 
-    virtual void Start(IMessageHandler::TPtr handler) = 0;
+    //! Stops the listener.
+    /*!
+     *  After this call the instance is no longer usable.
+     *  No new incoming messages are accepted.
+     */
     virtual void Stop() = 0;
-
-    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
-    virtual TBusStatistics GetStatistics() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

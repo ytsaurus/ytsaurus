@@ -14,7 +14,7 @@ class TServiceContextBase
     : public IServiceContext
 {
 public:
-    virtual NBus::IMessage::TPtr GetRequestMessage() const;
+    virtual NBus::IMessagePtr GetRequestMessage() const;
 
     virtual const TRequestId& GetRequestId() const;
     virtual const Stroka& GetPath() const;
@@ -29,7 +29,7 @@ public:
     virtual void SetResponseBody(const TSharedRef& responseBody);
 
     virtual yvector<TSharedRef>& RequestAttachments();
-    virtual yvector<TSharedRef>& ResponseAttachments();
+    virtual std::vector<TSharedRef>& ResponseAttachments();
 
     virtual NYTree::IAttributeDictionary& RequestAttributes();
     virtual NYTree::IAttributeDictionary& ResponseAttributes();
@@ -45,14 +45,14 @@ public:
 protected:
     TServiceContextBase(
         const NProto::TRequestHeader& header,
-        NBus::IMessage::TPtr requestMessage);
+        NBus::IMessagePtr requestMessage);
 
-    TServiceContextBase(NBus::IMessage::TPtr requestMessage);
+    TServiceContextBase(NBus::IMessagePtr requestMessage);
 
     TRequestId RequestId;
     Stroka Path;
     Stroka Verb;
-    NBus::IMessage::TPtr RequestMessage;
+    NBus::IMessagePtr RequestMessage;
 
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments_;
@@ -62,13 +62,13 @@ protected:
     TError Error;
 
     TSharedRef ResponseBody;
-    yvector<TSharedRef> ResponseAttachments_;
+    std::vector<TSharedRef> ResponseAttachments_;
     TAutoPtr<NYTree::IAttributeDictionary> ResponseAttributes_;
 
     Stroka RequestInfo;
     Stroka ResponseInfo;
 
-    virtual void DoReply(const TError& error, NBus::IMessage::TPtr responseMessage) = 0;
+    virtual void DoReply(const TError& error, NBus::IMessagePtr responseMessage) = 0;
 
     virtual void LogRequest() = 0;
     virtual void LogResponse(const TError& error) = 0;

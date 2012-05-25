@@ -1,13 +1,14 @@
 #include "stdafx.h"
 #include "server.h"
+#include "private.h"
 #include "service.h"
-#include <ytlib/rpc/rpc.pb.h>
 #include "server_detail.h"
 
-#include <ytlib/logging/log.h>
 #include <ytlib/bus/server.h>
+#include <ytlib/bus/bus.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/rpc/message.h>
+#include <ytlib/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
@@ -17,7 +18,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Rpc");
+static NLog::TLogger& Logger = RpcServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,8 +28,8 @@ class TServiceContext
 public:
     TServiceContext(
         const NProto::TRequestHeader& header,
-        IMessage::TPtr requestMessage,
-        IBus::TPtr replyBus,
+        IMessagePtr requestMessage,
+        IBusPtr replyBus,
         IServicePtr service,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
@@ -41,11 +42,11 @@ public:
     }
 
 private:
-    IBus::TPtr ReplyBus;
+    IBusPtr ReplyBus;
     IServicePtr Service;
     NLog::TLogger Logger;
 
-    virtual void DoReply(const TError& error, IMessage::TPtr responseMessage)
+    virtual void DoReply(const TError& error, IMessagePtr responseMessage)
     {
         UNUSED(error);
 
@@ -83,7 +84,7 @@ class TRpcServer
     , public IMessageHandler
 {
 public:
-    TRpcServer(IBusServer::TPtr busServer)
+    TRpcServer(IBusServerPtr busServer)
         : BusServer(busServer)
         , Started(false)
     { }
@@ -119,7 +120,7 @@ public:
     }
 
 private:
-    IBusServer::TPtr BusServer;
+    IBusServerPtr BusServer;
     volatile bool Started;
 
     yhash_map<Stroka, IServicePtr> Services;
@@ -131,11 +132,11 @@ private:
     }
 
     virtual void OnMessage(
-        IMessage::TPtr message,
-        IBus::TPtr replyBus)
+        IMessagePtr message,
+        IBusPtr replyBus)
     {
         const auto& parts = message->GetParts();
-        if (parts.ysize() < 2) {
+        if (parts.size() < 2) {
             LOG_WARNING("Too few message parts");
             return;
         }
@@ -197,7 +198,7 @@ private:
 
 };
 
-IServerPtr CreateRpcServer(NBus::IBusServer::TPtr busServer)
+IServerPtr CreateRpcServer(NBus::IBusServerPtr busServer)
 {
     return New<TRpcServer>(busServer);
 }

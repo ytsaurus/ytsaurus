@@ -19,7 +19,7 @@ struct IServer
     virtual void Stop() = 0;
 };
 
-IServerPtr CreateRpcServer(NBus::IBusServer::TPtr busServer);
+IServerPtr CreateRpcServer(NBus::IBusServerPtr busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

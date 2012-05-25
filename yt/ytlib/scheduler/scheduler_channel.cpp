@@ -1,14 +1,17 @@
 #include "stdafx.h"
 #include "scheduler_channel.h"
 
-#include <ytlib/rpc/roaming_channel.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/bus/config.h>
+#include <ytlib/bus/tcp_client.h>
+#include <ytlib/rpc/roaming_channel.h>
 
 namespace NYT {
 namespace NScheduler {
 
+    using namespace NBus;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NYTree;
@@ -24,7 +27,12 @@ TValueOrError<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGetPtr rsp)
     }
 
     auto address = DeserializeFromYson<Stroka>(rsp->value());
-    return CreateBusChannel(address);
+
+    // TODO(babenko): get rid of this hardcoded priority
+    auto config = New<TTcpBusClientConfig>(address);
+    config->Priority = 6;
+    auto client = CreateTcpBusClient(config);
+    return CreateBusChannel(client);
 }
 
 } // namespace

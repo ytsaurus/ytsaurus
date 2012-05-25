@@ -1,10 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/error.h>
 #include <ytlib/bus/client.h>
 
 namespace NYT {
@@ -37,17 +37,12 @@ struct IChannel
      *  It is safe to call this method multiple times.
      *  After the first call the instance is no longer usable.
      */
-    virtual void Terminate() = 0;
+    virtual void Terminate(const TError& error = TError("Channel terminated")) = 0;
 };
 
 //! Creates a channel implemented via NBus.
 IChannelPtr CreateBusChannel(
-    NBus::IBusClient::TPtr client,
-    TNullable<TDuration> defaultTimeout = Null);
-
-//! Creates a channel implemented via NBus.
-IChannelPtr CreateBusChannel(
-    const Stroka& address,
+    NBus::IBusClientPtr client,
     TNullable<TDuration> defaultTimeout = Null);
 
 ////////////////////////////////////////////////////////////////////////////////

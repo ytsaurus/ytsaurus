@@ -16,9 +16,8 @@ class TSortedMergeJob
 {
 public:
     TSortedMergeJob(
-        TJobIOConfigPtr ioConfig,
-        NElection::TLeaderLookup::TConfigPtr masterConfig,
-        const NScheduler::NProto::TMergeJobSpec& jobSpec);
+        TJobProxyConfigPtr proxyConfig,
+        const NScheduler::NProto::TJobSpec& jobSpec);
 
     NScheduler::NProto::TJobResult Run();
 

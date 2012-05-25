@@ -191,7 +191,7 @@ protected:
         table.PartitionTreeIds.push_back(chunkId);
     }
 
-    TPoolExtractionResultPtr ExtractChunksForMerge(
+    TPoolExtractionResultPtr ExtractForMerge(
         TMergeGroupPtr group,
         const Stroka& address,
         bool needLocal)
@@ -215,7 +215,7 @@ protected:
         return result;
     }
 
-    void ReturnChunksForMerge(TMergeGroupPtr group, TPoolExtractionResultPtr result)
+    void ReturnForMerge(TMergeGroupPtr group, TPoolExtractionResultPtr result)
     {
         group->ChunkPool.Return(result);
         FOREACH (const auto& chunk, result->Stripes) {
@@ -281,7 +281,7 @@ protected:
         // Allocate chunks for the job.
         auto jip = New<TMergeJobInProgress>();
         jip->Group = group;
-        jip->PoolResult = ExtractChunksForMerge(
+        jip->PoolResult = ExtractForMerge(
             group,
             node->GetAddress(),
             false);
@@ -295,16 +295,17 @@ protected:
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
         {
-            auto* specExt = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                auto* inputSpec = specExt->add_input_spec();
+                auto* inputSpec = jobSpec.add_input_specs();
                 FOREACH (const auto& chunk, stripe->InputChunks) {
                     *inputSpec->add_chunks() = chunk;
                 }
             }
             {
+                auto* outputSpec = jobSpec.add_output_specs();
+                outputSpec->set_channels(OutputTables[0].Channels);
                 jip->ChunkListId = ChunkListPool->Extract();
-                *specExt->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
+                *outputSpec->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
             }
         }
 
@@ -336,7 +337,7 @@ protected:
         PendingWeight += jip->PoolResult->TotalChunkWeight;
 
         LOG_DEBUG("Returned %d chunks into pool", jip->PoolResult->TotalChunkCount);
-        ReturnChunksForMerge(jip->Group, jip->PoolResult);
+        ReturnForMerge(jip->Group, jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -506,12 +507,9 @@ protected:
             ? EJobType::SortedMerge
             : EJobType::OrderedMerge);
 
-        auto* specExt = JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec);
-        *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-        specExt->mutable_output_spec()->set_channels(OutputTables[0].Channels);
+        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-
-        // ToDo(psushin): for unordered merge set larger PrefetchWindow.
+        // ToDo(psushin): set larger PrefetchWindow for unordered merge.
         JobSpecTemplate.set_io_config(SerializeToYson(Config->MergeJobIO));
     }
 

@@ -1,21 +1,15 @@
-#include "stdafx.h"
-#include "rpc_manager.h"
+#pragma once
+
+#include "public.h"
 
 namespace NYT {
-namespace NRpc {
+namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcManager::TRpcManager()
-{ }
-
-TRpcManager* TRpcManager::Get()
-{
-    return Singleton<TRpcManager>();
-}
+IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NRpc
+} // namespace NBus
 } // namespace NYT
-

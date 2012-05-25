@@ -9,48 +9,6 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResponseHandlerWrapper
-    : public IClientResponseHandler
-{
-public:
-    TResponseHandlerWrapper(
-        IClientResponseHandlerPtr underlyingHandler,
-        TClosure onFailed)
-        : UnderlyingHandler(underlyingHandler)
-        , OnFailed(onFailed)
-    { }
-
-    virtual void OnAcknowledgement()
-    {
-        UnderlyingHandler->OnAcknowledgement();
-    }
-
-    virtual void OnResponse(IMessage* message)
-    {
-        UnderlyingHandler->OnResponse(message);
-    }
-
-    virtual void OnError(const TError& error)
-    {
-        UnderlyingHandler->OnError(error);
-
-        auto code = error.GetCode();
-        if (code == EErrorCode::Timeout ||
-            code == EErrorCode::TransportError ||
-            code == EErrorCode::Unavailable)
-        {
-            OnFailed.Run();
-        }
-    }
-
-private:
-    IClientResponseHandlerPtr UnderlyingHandler;
-    TClosure OnFailed;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TRoamingChannel
     : public IChannel
 {
@@ -60,6 +18,7 @@ public:
         TChannelProducer producer)
         : DefaultTimeout(defaultTimeout)
         , Producer(producer)
+        , Terminated(false)
         , ChannelPromise(Null)
     { }
 
@@ -76,7 +35,30 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        GetChannel().Subscribe(BIND(
+
+        TPromise< TValueOrError<IChannelPtr> > channelPromise(Null);
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+
+            if (Terminated) {
+                guard.Release();
+                responseHandler->OnError(TError("Channel terminated"));
+                return;
+            }
+
+            channelPromise = ChannelPromise;
+            if (channelPromise.IsNull()) {
+                channelPromise = ChannelPromise = NewPromise< TValueOrError<IChannelPtr> >();
+                guard.Release();
+
+                Producer.Run().Subscribe(BIND(
+                    &TRoamingChannel::OnEndpointDiscovered,
+                    MakeStrong(this),
+                    channelPromise));
+            }
+        }
+
+        channelPromise.Subscribe(BIND(
             &TRoamingChannel::OnGotChannel,
             MakeStrong(this),
             request,
@@ -84,47 +66,85 @@ public:
             timeout));
     }
 
-    virtual void Terminate()
+    virtual void Terminate(const TError& error)
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        YCHECK(!error.IsOK());
 
-        // TODO(babenko): this does not look correct
-        // but we should get rid of Terminate soon anyway.
-    
-        auto currentChannel = ChannelPromise.TryGet();
-        if (currentChannel && currentChannel->IsOK()) {
-            currentChannel->Value()->Terminate();
+        TNullable< TValueOrError<IChannelPtr> > channel;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+
+            if (Terminated) {
+                return;
+            }
+
+            channel = ChannelPromise.TryGet();
+            ChannelPromise.Reset();
+            TerminationError = error;
+            Terminated = true;
         }
-
-        ChannelPromise.Reset();
+    
+        if (channel && channel->IsOK()) {
+            channel->Value()->Terminate(error);
+        }
     }
 
 private:
-    friend class TResponseHandlerWrapper;
-
-    TFuture< TValueOrError<IChannelPtr> > GetChannel()
+    class TResponseHandler
+        : public IClientResponseHandler
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        
-        if (!ChannelPromise.IsNull()) {
-            return ChannelPromise;
+    public:
+        TResponseHandler(
+            IClientResponseHandlerPtr underlyingHandler,
+            TClosure onFailed)
+            : UnderlyingHandler(underlyingHandler)
+            , OnFailed(onFailed)
+        { }
+
+        virtual void OnAcknowledgement()
+        {
+            UnderlyingHandler->OnAcknowledgement();
         }
 
-        auto promisedChannel = ChannelPromise = NewPromise< TValueOrError<IChannelPtr> >();
-        guard.Release();
+        virtual void OnResponse(IMessagePtr message)
+        {
+            UnderlyingHandler->OnResponse(message);
+        }
 
-        Producer.Run().Subscribe(BIND(
-            &TRoamingChannel::OnEndpointDiscovered,
-            MakeStrong(this),
-            promisedChannel));
-        return promisedChannel;
-    }
+        virtual void OnError(const TError& error)
+        {
+            UnderlyingHandler->OnError(error);
+
+            auto code = error.GetCode();
+            if (code == EErrorCode::Timeout ||
+                code == EErrorCode::TransportError ||
+                code == EErrorCode::Unavailable)
+            {
+                OnFailed.Run();
+            }
+        }
+
+    private:
+        IClientResponseHandlerPtr UnderlyingHandler;
+        TClosure OnFailed;
+
+    };
+
 
     void OnEndpointDiscovered(
         TPromise< TValueOrError<IChannelPtr> > channelPromise,
         TValueOrError<IChannelPtr> result)
     {
         TGuard<TSpinLock> guard(SpinLock);
+        
+        if (Terminated) {
+            guard.Release();
+            if (result.IsOK()) {
+                result.Value()->Terminate(TerminationError);
+            }
+            return;
+        }
+
         if (ChannelPromise == channelPromise) {
             channelPromise.Set(result);
             if (!result.IsOK()) {
@@ -143,7 +163,7 @@ private:
             responseHandler->OnError(result);
         } else {
             auto channel = result.Value();
-            auto responseHandlerWrapper = New<TResponseHandlerWrapper>(
+            auto responseHandlerWrapper = New<TResponseHandler>(
                 ~responseHandler,
                 BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
             channel->Send(~request, ~responseHandlerWrapper, timeout);
@@ -165,10 +185,13 @@ private:
         }
     }
 
+
     TNullable<TDuration> DefaultTimeout;
     TChannelProducer Producer;
 
     TSpinLock SpinLock;
+    volatile bool Terminated;
+    TError TerminationError;
     TPromise< TValueOrError<IChannelPtr> > ChannelPromise;
 
 };

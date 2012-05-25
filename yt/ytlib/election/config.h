@@ -29,7 +29,7 @@ struct TCellConfig
 
     virtual void DoValidate() const
     {
-        if ((Addresses.ysize() % 2) != 1) {
+        if (Addresses.size() % 2 != 1) {
             ythrow yexception() << Sprintf("Cell should consist of odd number of masters");
         }
     }
@@ -40,6 +40,7 @@ struct TCellConfig
 struct TElectionManagerConfig
     : public TConfigurable
 {
+    TDuration VotingRoundInterval;
     TDuration RpcTimeout;
     TDuration FollowerPingInterval;
     TDuration FollowerPingTimeout;
@@ -48,6 +49,9 @@ struct TElectionManagerConfig
 
     TElectionManagerConfig()
     {
+        Register("voting_round_interval", VotingRoundInterval)
+            .GreaterThan(TDuration())
+            .Default(TDuration::MilliSeconds(100));
         Register("rpc_timeout", RpcTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(1000));

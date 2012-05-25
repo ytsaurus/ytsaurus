@@ -1,6 +1,0 @@
-include(arcadia-util.cmake)
-# include(libuv.cmake)
-include(protobuf.cmake)
-include(quality-misc.cmake)
-include(quality-netliba_v6.cmake)
-include(z-lz-lzo.cmake)

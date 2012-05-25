@@ -253,7 +253,7 @@ TChannel TChannel::FromYson(const NYTree::TYson& yson)
     return FromNode(~DeserializeFromYson(yson));
 }
 
-TChannel TChannel::FromNode(INode* node)
+TChannel TChannel::FromNode(INodePtr node)
 {
     if (node->GetType() != ENodeType::List) {
         ythrow yexception() << "Channel description can only be parsed from a list";
@@ -362,12 +362,17 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 
 std::vector<TChannel> ChannelsFromYson(const NYTree::TYson& yson)
 {
-    std::vector<TChannel> result;
-    auto node = DeserializeFromYson(yson)->AsList();
-    FOREACH (const auto& channelNode, node->GetChildren()) {
-        result.push_back(TChannel::FromNode(~channelNode));
+    try {
+        auto node = DeserializeFromYson(yson)->AsList();
+
+        std::vector<TChannel> result;
+        FOREACH (auto channelNode, node->GetChildren()) {
+            result.push_back(TChannel::FromNode(channelNode));
+        }
+        return result;
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing channels description\n%s", ex.what());
     }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

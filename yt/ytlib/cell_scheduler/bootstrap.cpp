@@ -7,7 +7,8 @@
 
 #include <ytlib/actions/action_queue.h>
 
-#include <ytlib/bus/nl_server.h>
+#include <ytlib/bus/tcp_server.h>
+#include <ytlib/bus/config.h>
 
 #include <ytlib/rpc/server.h>
 
@@ -72,7 +73,7 @@ void TBootstrap::Run()
     auto controlQueue = New<TActionQueue>("Control");
     ControlInvoker = controlQueue->GetInvoker();
 
-    BusServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
+    BusServer = CreateTcpBusServer(~New<TTcpBusServerConfig>(Config->RpcPort));
 
     auto rpcServer = CreateRpcServer(~BusServer);
 
@@ -86,9 +87,6 @@ void TBootstrap::Run()
     monitoringManager->Register(
         "/ref_counted",
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
-    monitoringManager->Register(
-        "/bus_server",
-        BIND(&IBusServer::GetMonitoringInfo, BusServer));
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();

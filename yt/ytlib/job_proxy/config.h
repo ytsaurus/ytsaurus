@@ -10,6 +10,7 @@
 #include <ytlib/file_client/config.h>
 #include <ytlib/election/leader_lookup.h>
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/bus/config.h>
 
 #include <ytlib/misc/configurable.h>
 
@@ -49,10 +50,10 @@ struct TJobProxyConfig
     : public TConfigurable
 {
     // Filled by exec agent.
-    Stroka ExecAgentAddress;
+    NBus::TTcpBusClientConfigPtr SupervisorConnection;
     Stroka SandboxName;
     NElection::TLeaderLookup::TConfigPtr Masters;
-    TDuration RpcTimeout;
+    TDuration SupervisorRpcTimeout;
     TDuration HeartbeatPeriod;
 
     TJobIOConfigPtr JobIO;
@@ -60,13 +61,12 @@ struct TJobProxyConfig
 
     TJobProxyConfig()
     {
-        Register("exec_agent_address", ExecAgentAddress)
-            .NonEmpty();
+        Register("supervisor_connection", SupervisorConnection);
         Register("sandbox_name", SandboxName)
             .NonEmpty();
         Register("masters", Masters);
-        Register("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(5));
+        Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
+            .Default(TDuration::Seconds(15));
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)

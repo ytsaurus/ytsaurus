@@ -38,7 +38,7 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     }
     auto innerMessage = innerRequest->Serialize();
     const auto& innerParts = innerMessage->GetParts();
-    Body.add_part_counts(innerParts.ysize());
+    Body.add_part_counts(static_cast<int>(innerParts.size()));
     Attachments_.insert(
         Attachments_.end(),
         innerParts.begin(),

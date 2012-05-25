@@ -503,7 +503,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     LOG_INFO("Transaction %s has expired", ~id.ToString());
 
     auto req = TTransactionYPathProxy::Abort();
-    ExecuteVerb(~proxy, ~req);
+    ExecuteVerb(proxy, req);
 }
 
 IObjectProxy::TPtr TTransactionManager::GetRootTransactionProxy()

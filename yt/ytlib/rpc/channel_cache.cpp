@@ -2,10 +2,15 @@
 #include "channel_cache.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/foreach.h>
 #include <ytlib/rpc/channel.h>
+#include <ytlib/bus/config.h>
+#include <ytlib/bus/tcp_client.h>
 
 namespace NYT {
 namespace NRpc {
+
+using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +30,10 @@ IChannelPtr TChannelCache::GetChannel(const Stroka& address)
     auto it = ChannelMap.find(address);
     if (it == ChannelMap.end()) {
         firstAttemptGuard.Release();
-        auto channel = CreateBusChannel(address);
+
+        auto config = New<TTcpBusClientConfig>(address);
+        auto client = CreateTcpBusClient(config);
+        auto channel = CreateBusChannel(client);
 
         TGuard<TSpinLock> secondAttemptGuard(SpinLock);
         it = ChannelMap.find(address);

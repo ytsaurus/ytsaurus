@@ -46,7 +46,8 @@ class Base(AggrBase):
         '/home/yt/build/lib/libytext-quality-misc.so',
         '/home/yt/build/lib/libytext-quality-netliba_v6.so',
         '/home/yt/build/lib/libytext-snappy.so.1.0',
-        '/home/yt/build/lib/libytext-zlib.so.1.2.3'
+        '/home/yt/build/lib/libytext-zlib.so.1.2.3',
+        '/home/yt/build/lib/libytext-uv.so.0.6'
     ]
     
     def get_log(cls, fd):

@@ -198,7 +198,7 @@ private:
             partition->Index);
 
         if (Partitions.size() > 1 &&
-            IsPartitionComplete() &&
+            IsPartitionPhaseComplete() &&
             partition->SortChunkPool.GetTotalWeight() <= Config->MaxSortJobDataSize)
         {
             partition->Small = true;
@@ -208,7 +208,7 @@ private:
         }
     }
 
-    TPoolExtractionResultPtr ExtractChunksForSort(
+    TPoolExtractionResultPtr ExtractForSort(
         TPartitionPtr partition,
         const Stroka& address,
         i64 weightThreshold,
@@ -236,7 +236,7 @@ private:
         return result;
     }
 
-    void ReturnChunksForSort(
+    void ReturnForSort(
         TPartitionPtr partition,
         TPoolExtractionResultPtr result)
     {
@@ -302,7 +302,7 @@ private:
             partition->Index);
     }
 
-    TPoolExtractionResultPtr ExtractChunksForMerge(
+    TPoolExtractionResultPtr ExtractForMerge(
         TPartitionPtr partition,
         const Stroka& address,
         bool needLocal)
@@ -319,7 +319,7 @@ private:
             FOREACH (const auto& chunk, stripe->InputChunks) {
                 FOREACH (const auto& address, chunk.node_addresses()) {
                     if (!IsPartitionAwaitingMergeAt(partition, address)) {
-                        AddressToPartitionsAwaitingSort[address].erase(partition);
+                        AddressToPartitionsAwaitingMerge[address].erase(partition);
                     }
                 }
             }
@@ -328,7 +328,7 @@ private:
         return result;
     }
 
-    void ReturnChunksForMerge(
+    void ReturnForMerge(
         TPartitionPtr partition,
         TPoolExtractionResultPtr result)
     {
@@ -356,7 +356,7 @@ private:
 
     // Init/finish.
 
-    bool IsPartitionComplete()
+    bool IsPartitionPhaseComplete()
     {
         return CompletedPartitionChunkCount == TotalPartitionChunkCount;
     }
@@ -390,14 +390,14 @@ private:
         i64 weight = partition->SortChunkPool.GetPendingWeight();
         i64 weightPerChunk = Config->MaxSortJobDataSize;
         double fractionJobCount = (double) weight / weightPerChunk;
-        return IsPartitionComplete()
+        return IsPartitionPhaseComplete()
             ? static_cast<int>(ceil(fractionJobCount))
             : static_cast<int>(floor(fractionJobCount));
     }
 
     int GetPendingMergeJobCount()
     {
-        if (!IsPartitionComplete()) {
+        if (!IsPartitionPhaseComplete()) {
             return 0;
         }
         int result = 0;
@@ -418,8 +418,9 @@ private:
         YCHECK(table.PartitionTreeIds[partition->Index] == NullChunkTreeId);
         table.PartitionTreeIds[partition->Index] = chunkTreeId;
         ++CompletedPartitionCount;
+        YCHECK(!partition->Completed);
         partition->Completed = true;
-        LOG_INFO("Partition %d completed", partition->Index);
+        LOG_INFO("Partition completed (Partition: %d)", partition->Index);
     }
 
 
@@ -489,14 +490,15 @@ private:
         // Make a copy of the generic spec and customize it.
         auto jobSpec = PartitionJobSpecTemplate;
         {
-            auto* partitionJobSpec = jobSpec.MutableExtension(TPartitionJobSpec::partition_job_spec);
+            auto* inputSpec = jobSpec.add_input_specs();
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
                 const auto& chunk = stripe->InputChunks[0];
-                *partitionJobSpec->mutable_input_spec()->add_chunks() = chunk;
+                *inputSpec->add_chunks() = chunk;
             }
-            jip->ChunkListId = ChunkListPool->Extract();
-            auto* outputSpec = partitionJobSpec->mutable_output_spec();
+
+            auto* outputSpec = jobSpec.add_output_specs();
             const auto& ouputTable = OutputTables[0];
+            jip->ChunkListId = ChunkListPool->Extract();
             *outputSpec->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
             outputSpec->set_channels(ouputTable.Channels);
         }
@@ -521,8 +523,8 @@ private:
         CompletedPartitionChunkCount += jip->PoolResult->TotalChunkCount;
         CompletedPartitionWeight += jip->PoolResult->TotalChunkWeight;
 
-        auto* result = jip->Job->Result().MutableExtension(TPartitionJobResult::partition_job_result);
-        FOREACH (auto& partitionChunk, *result->mutable_chunks()) {
+        auto* resultExt = jip->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
+        FOREACH (auto& partitionChunk, *resultExt->mutable_chunks()) {
             // We're keeping chunk information received from partition jobs to populate sort pools.
             // TPartitionsExt is, however, quite heavy.
             // Deserialize it and then drop its protobuf copy immediately.
@@ -534,9 +536,9 @@ private:
             for (int index = 0; index < partitionsExt->sizes_size(); ++index) {
                 i64 weight = partitionsExt->sizes(index);
                 if (weight > 0) {
-                	auto partition = Partitions[index];
-                	i64 weight = partitionsExt->sizes(index);
-         	        AddChunkForSort(partition, partitionChunk, weight);                }
+                    auto partition = Partitions[index];
+                    i64 weight = partitionsExt->sizes(index);
+                    AddChunkForSort(partition, partitionChunk, weight);                }
             }
         }
     }
@@ -576,7 +578,7 @@ private:
         auto jip = New<TSortJobInProgress>();
         jip->Partition = partition;
         i64 weightThreshold = Config->MaxSortJobDataSize;
-        jip->PoolResult = ExtractChunksForSort(
+        jip->PoolResult = ExtractForSort(
             partition,
             node->GetAddress(),
             weightThreshold,
@@ -593,21 +595,29 @@ private:
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = SortJobSpecTemplate;
-        auto* sortJobSpec = jobSpec.MutableExtension(TSortJobSpec::sort_job_spec);
-        FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-            const auto& chunk = stripe->InputChunks[0];
-            *sortJobSpec->mutable_input_spec()->add_chunks() = chunk;
-        }
-        jip->ChunkListId = ChunkListPool->Extract();
-        *sortJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
-        if (Partitions.size() > 1) {
-            sortJobSpec->set_partition_tag(partition->Index);
-        }
+        {
+            auto* inputSpec = jobSpec.add_input_specs();
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+                const auto& chunk = stripe->InputChunks[0];
+                *inputSpec->add_chunks() = chunk;
+            }
 
-        // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
-        // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-        auto ioConfig = PrepareJobIOConfig(Config->SortJobIO, partition->Small);
-        jobSpec.set_io_config(SerializeToYson(ioConfig));
+            const auto& outputTable = OutputTables[0];
+            auto* outputSpec = jobSpec.add_output_specs();
+            jip->ChunkListId = ChunkListPool->Extract();
+            *outputSpec->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
+            outputSpec->set_channels(outputTable.Channels);
+
+            // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
+            // Don't use replication for sort jobs in large partitions since their chunks will be merged.
+            auto ioConfig = PrepareJobIOConfig(Config->SortJobIO, partition->Small);
+            jobSpec.set_io_config(SerializeToYson(ioConfig));
+
+            auto* jobSpecExt = jobSpec.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+            if (Partitions.size() > 1) {
+                jobSpecExt->set_partition_tag(partition->Index);
+            }
+        }
 
         // Update counters.
         ++RunningSortJobCount;
@@ -633,11 +643,11 @@ private:
             CompletePartition(partition, jip->ChunkListId);
         } else {
             // Sort outputs in large partitions are queued for further merge.
-            // 
+
             // Construct a stripe consisting of sorted chunks.
-            const auto& result = jip->Job->Result().GetExtension(TSortJobResult::sort_job_result);
+            const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
             auto stripe = New<TChunkStripe>();
-            FOREACH (const auto& chunk, result.chunks()) {
+            FOREACH (const auto& chunk, resultExt.chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                 stripe->InputChunks.push_back(chunk);
                 stripe->Weight += miscExt->data_weight();
@@ -656,7 +666,7 @@ private:
         LOG_DEBUG("Returned %d chunks into sort pool (Partition: %d)",
             jip->PoolResult->TotalChunkCount,
             jip->Partition->Index);
-        ReturnChunksForSort(jip->Partition, jip->PoolResult);
+        ReturnForSort(jip->Partition, jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -682,7 +692,8 @@ private:
         // Allocate chunks for the job.
         auto jip = New<TMergeJobInProgress>();
         jip->Partition = partition;
-        jip->PoolResult = partition->MergeChunkPool.Extract(
+        jip->PoolResult = ExtractForMerge(
+            partition,
             node->GetAddress(),
             false);
 
@@ -695,26 +706,22 @@ private:
         // Make a copy of the generic spec and customize it.
         auto jobSpec = MergeJobSpecTemplate;
         {
-            auto* specExt = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                auto* inputSpec = specExt->add_input_spec();
+                auto* inputSpec = jobSpec.add_input_specs();
                 FOREACH (const auto& chunk, stripe->InputChunks) {
                     *inputSpec->add_chunks() = chunk;
                 }
             }
-            {
-                auto* outputSpec = specExt->mutable_output_spec();
-                const auto& ouputTable = OutputTables[0];
-                jip->ChunkListId = ChunkListPool->Extract();
-                *outputSpec->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
-                outputSpec->set_channels(ouputTable.Channels);
-            }
+
+            auto* outputSpec = jobSpec.add_output_specs();
+            const auto& ouputTable = OutputTables[0];
+            jip->ChunkListId = ChunkListPool->Extract();
+            *outputSpec->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
+            outputSpec->set_channels(ouputTable.Channels);
         }
 
         // Update counters.
         ++RunningMergeJobCount;
-        //PendingPartitionChunkCount -= jip->PoolResult->TotalChunkCount;
-        //PendingPartitionWeight -= jip->PoolResult->TotalChunkWeight;
 
         return CreateJob(
             jip,
@@ -728,8 +735,6 @@ private:
     {
         --RunningMergeJobCount;
         ++CompletedMergeJobCount;
-        //CompletedPartitionChunkCount += jip->PoolResult->TotalChunkCount;
-        //CompletedPartitionWeight += jip->PoolResult->TotalChunkWeight;
 
         CompletePartition(jip->Partition, jip->ChunkListId);
     }
@@ -737,13 +742,11 @@ private:
     void OnMergeJobFailed(TMergeJobInProgress* jip)
     {
         --RunningMergeJobCount;
-        //PendingPartitionChunkCount += jip->PoolResult->TotalChunkCount;
-        //PendingPartitionWeight  += jip->PoolResult->TotalChunkWeight;
 
         LOG_DEBUG("Returned %d chunks into partition pool (Partition: %d)",
             jip->PoolResult->TotalChunkCount,
             jip->Partition->Index);
-        ReturnChunksForMerge(jip->Partition, jip->PoolResult);
+        ReturnForMerge(jip->Partition, jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -978,8 +981,9 @@ private:
             "PartitionJobs = {T: %d, R: %d, C: %d, P: %d}, "
             "PartitionChunks = {T: %d, C: %d, P: %d}, "
             "PartitionWeight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}, "
-            "SortJobs = {T: %d, R: %d, C: %d}, "
-            "SortWeight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}",
+            "SortJobs = {M: %d, R: %d, C: %d}, "
+            "SortWeight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}, "
+            "MergeJobs = {M: %d, R: %d, C: %d}",
             // Jobs
             RunningJobCount,
             CompletedJobCount,
@@ -1008,7 +1012,11 @@ private:
             // SortWeight
             TotalSortWeight,
             CompletedSortWeight,
-            PendingSortWeight);
+            PendingSortWeight,
+            // MergeJobs
+            MaxMergeJobCount,
+            RunningMergeJobCount,
+            CompletedMergeJobCount);
     }
 
     virtual void DoGetProgress(IYsonConsumer* consumer)
@@ -1019,16 +1027,17 @@ private:
                 .Item("completed").Scalar(CompletedPartitionJobCount)
             .EndMap()
             .Item("sort_jobs").BeginMap()
-                .Item("total").Scalar(MaxSortJobCount)
+                .Item("max").Scalar(MaxSortJobCount)
+                .Item("running").Scalar(RunningSortJobCount)
                 .Item("completed").Scalar(CompletedSortJobCount)
             .EndMap()
             .Item("merge_jobs").BeginMap()
-                .Item("total").Scalar(0)
-                .Item("completed").Scalar(0)
+                .Item("max").Scalar(MaxMergeJobCount)
+                .Item("running").Scalar(RunningMergeJobCount)
+                .Item("completed").Scalar(CompletedMergeJobCount)
             .EndMap()
             .Item("partitions").BeginMap()
-                // XXX(roizner): On Apple, size_t != ui64, ui32, so without casting it results in ambigous call
-                .Item("total").Scalar((ui64) Partitions.size())
+                .Item("total").Scalar(Partitions.size())
                 .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap();
     }
@@ -1052,12 +1061,12 @@ private:
     {
         {
             PartitionJobSpecTemplate.set_type(EJobType::Partition);
-            auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpec::partition_job_spec);
+            *PartitionJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
+            auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             FOREACH (const auto* key, PartitionKeys) {
                 *specExt->add_partition_keys() = *key;
             }
-            *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
             // Don't replicate partition chunks.
@@ -1066,27 +1075,19 @@ private:
         }
         {
             SortJobSpecTemplate.set_type(EJobType::Sort);
-            auto* specExt = SortJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec);
+            *SortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
+            auto* specExt = SortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);          
-            *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            auto& table = OutputTables[0];
-            specExt->mutable_output_spec()->set_channels(table.Channels);
 
-            // Can't fill in io_config right away: some sort jobs need output replication
+            // Can't fill io_config right away: some sort jobs need output replication
             // while others don't. Leave this customization to |TryScheduleSortJob|.
         }
         {
             MergeJobSpecTemplate.set_type(EJobType::SortedMerge);
-            auto* specExt = MergeJobSpecTemplate.MutableExtension(TSortJobSpec::sort_job_spec);
+            *MergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-            *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
-            *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            auto& table = OutputTables[0];
-            specExt->mutable_output_spec()->set_channels(table.Channels);
-
-            SortJobSpecTemplate.set_io_config(SerializeToYson(
+            MergeJobSpecTemplate.set_io_config(SerializeToYson(
                 PrepareJobIOConfig(Config->MergeJobIO, true)));
         }
     }

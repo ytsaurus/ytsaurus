@@ -27,7 +27,7 @@ public:
     
     TYPathRequest(const Stroka& verb);
 
-    NBus::IMessage::TPtr Serialize();
+    NBus::IMessagePtr Serialize();
 
 protected:
     virtual TBlob SerializeBody() const = 0;
@@ -70,7 +70,7 @@ class TYPathResponse
 public:
     typedef TIntrusivePtr<TYPathResponse> TPtr;
 
-    void Deserialize(NBus::IMessage* message);
+    void Deserialize(NBus::IMessagePtr message);
 
     int GetErrorCode() const;
     bool IsOK() const;
@@ -132,8 +132,8 @@ void ResolveYPath(
     TYPath* suffixPath);
 
 //! Asynchronously executes an untyped YPath verb against the given service.
-TFuture<NBus::IMessage::TPtr>
-ExecuteVerb(IYPathServicePtr service, NBus::IMessage* requestMessage);
+TFuture<NBus::IMessagePtr>
+ExecuteVerb(IYPathServicePtr service, NBus::IMessagePtr requestMessage);
 
 //! Asynchronously executes a request against the given service.
 void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContextPtr context);
@@ -141,13 +141,13 @@ void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContextPtr context);
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
 TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
-ExecuteVerb(IYPathServicePtr service, TTypedRequest* request);
+ExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 
 //! Synchronously executes a typed YPath requested against a given service.
 //! Throws if an error has occurred.
 template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
-SyncExecuteVerb(IYPathServicePtr service, TTypedRequest* request);
+SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 
 //! Asynchronously executes "Get" verb. 
 TFuture< TValueOrError<TYson> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path);

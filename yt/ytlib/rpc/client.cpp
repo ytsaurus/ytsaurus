@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "client.h"
+#include "private.h"
 #include "message.h"
 
 namespace NYT {
@@ -10,7 +11,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = RpcLogger;
+static NLog::TLogger& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +40,7 @@ TClientRequest::TClientRequest(
     YASSERT(channel);
 }
 
-IMessage::TPtr TClientRequest::Serialize() const
+IMessagePtr TClientRequest::Serialize() const
 {
     NProto::TRequestHeader header;
     *header.mutable_request_id() = RequestId.ToProto();
@@ -136,13 +137,13 @@ TClientResponse::TClientResponse(const TRequestId& requestId)
     , Attributes_(CreateEphemeralAttributes())
 { }
 
-IMessage::TPtr TClientResponse::GetResponseMessage() const
+IMessagePtr TClientResponse::GetResponseMessage() const
 {
     YASSERT(ResponseMessage);
     return ResponseMessage;
 }
 
-void TClientResponse::Deserialize(IMessage::TPtr responseMessage)
+void TClientResponse::Deserialize(IMessagePtr responseMessage)
 {
     YASSERT(responseMessage);
     YASSERT(!ResponseMessage);
@@ -150,7 +151,7 @@ void TClientResponse::Deserialize(IMessage::TPtr responseMessage)
     ResponseMessage = responseMessage;
 
     const auto& parts = responseMessage->GetParts();
-    YASSERT(parts.ysize() >= 2);
+    YASSERT(parts.size() >= 2);
 
     DeserializeBody(parts[1]);
     
@@ -160,7 +161,7 @@ void TClientResponse::Deserialize(IMessage::TPtr responseMessage)
         parts.end(),
         std::back_inserter(Attachments_));
 
-    auto header = GetResponseHeader(~responseMessage);
+    auto header = GetResponseHeader(responseMessage);
 
     if (header.has_attributes()) {
         Attributes_ = FromProto(header.attributes());
@@ -177,7 +178,7 @@ void TClientResponse::OnAcknowledgement()
     }
 }
 
-void TClientResponse::OnResponse(IMessage* message)
+void TClientResponse::OnResponse(IMessagePtr message)
 {
     LOG_DEBUG("Response received (RequestId: %s)", ~RequestId_.ToString());
 
@@ -224,7 +225,7 @@ void TOneWayClientResponse::OnAcknowledgement()
     FireCompleted();
 }
 
-void TOneWayClientResponse::OnResponse(IMessage* message)
+void TOneWayClientResponse::OnResponse(IMessagePtr message)
 {
     UNUSED(message);
     YUNREACHABLE();

@@ -200,7 +200,7 @@ private:
         auto service = Bootstrap->GetObjectManager()->GetRootService();
         auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
         req->set_type(EObjectType::Transaction);
-        auto rsp = SyncExecuteVerb(service, ~req);
+        auto rsp = SyncExecuteVerb(service, req);
         return TTransactionId::FromProto(rsp->object_id());
     }
 
@@ -208,7 +208,7 @@ private:
     {
         auto service = Bootstrap->GetObjectManager()->GetRootService();
         auto req = TTransactionYPathProxy::Commit(FromObjectId(transactionId));
-        SyncExecuteVerb(service, ~req);
+        SyncExecuteVerb(service, req);
     }
 
     // TODO(babenko): consider moving somewhere
@@ -221,7 +221,7 @@ private:
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(type);
         req->Attributes().MergeFrom(DeserializeFromYson(attributes)->AsMap());
-        auto rsp = SyncExecuteVerb(service, ~req);
+        auto rsp = SyncExecuteVerb(service, req);
         return TObjectId::FromProto(rsp->object_id());
     }
 };

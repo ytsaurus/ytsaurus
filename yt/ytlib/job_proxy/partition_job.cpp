@@ -31,35 +31,37 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionJob::TPartitionJob(
-    TJobIOConfigPtr ioConfig,
-    TLeaderLookup::TConfigPtr masterConfig,
-    const TPartitionJobSpec& jobSpec)
+    TJobProxyConfigPtr proxyConfig,
+    const TJobSpec& jobSpec)
 {
-    auto masterChannel = CreateLeaderChannel(masterConfig);
+    YCHECK(jobSpec.input_specs_size() == 1);
+    YCHECK(jobSpec.output_specs_size() == 1);
+
+    auto masterChannel = CreateLeaderChannel(proxyConfig->Masters);
     auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
+    auto jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
     std::vector<NTableClient::NProto::TInputChunk> chunks(
-        jobSpec.input_spec().chunks().begin(),
-        jobSpec.input_spec().chunks().end());
+        jobSpec.input_specs(0).chunks().begin(),
+        jobSpec.input_specs(0).chunks().end());
 
     Reader = New<TChunkSequenceReader>(
-        ioConfig->ChunkSequenceReader, 
+        proxyConfig->JobIO->ChunkSequenceReader, 
         masterChannel, 
         blockCache, 
         chunks);
 
-
     std::vector<NTableClient::NProto::TKey> partitionKeys(
-        jobSpec.partition_keys().begin(), 
-        jobSpec.partition_keys().end());
+        jobSpecExt.partition_keys().begin(), 
+        jobSpecExt.partition_keys().end());
 
     Writer = New<TPartitionChunkSequenceWriter>(
-        ioConfig->ChunkSequenceWriter,
+        proxyConfig->JobIO->ChunkSequenceWriter,
         masterChannel,
         TTransactionId::FromProto(jobSpec.output_transaction_id()),
-        TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
-        ChannelsFromYson(jobSpec.output_spec().channels()),
-        FromProto<Stroka>(jobSpec.key_columns()),
+        TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
+        ChannelsFromYson(jobSpec.output_specs(0).channels()),
+        FromProto<Stroka>(jobSpecExt.key_columns()),
         MoveRV(partitionKeys));
 }
 
@@ -86,13 +88,10 @@ TJobResult TPartitionJob::Run()
 
         LOG_INFO("Finalizing");
         {
-            TPartitionJobResult partitionResult;
-            ToProto(partitionResult.mutable_chunks(), Writer->GetWrittenChunks());
-
             TJobResult result;
             *result.mutable_error() = TError().ToProto();
-            *result.MutableExtension(TPartitionJobResult::partition_job_result) = partitionResult;
-
+            auto* resultExt = result.MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
+            ToProto(resultExt->mutable_chunks(), Writer->GetWrittenChunks());
             return result;
         }
     }

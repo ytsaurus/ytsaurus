@@ -41,6 +41,15 @@ private:
         consumer->OnIntegerScalar(value);
     }
 
+    // XXX(roizner): On Mac, size_t != ui64, ui32, so without casting it results in ambigous call
+#ifdef __APPLE__
+    static void WriteScalar(IYsonConsumer* consumer, size_t value)
+    {
+        YASSERT(value <= std::numeric_limits<i64>::max());
+        WriteScalar(consumer, static_cast<i64>(value));
+    }
+#endif
+
     static void WriteScalar(IYsonConsumer* consumer, ui64 value)
     {
         YASSERT(value <= std::numeric_limits<i64>::max());

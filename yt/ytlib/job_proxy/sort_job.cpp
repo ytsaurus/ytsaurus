@@ -118,42 +118,42 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortJob::TSortJob(
-    TJobIOConfigPtr ioConfig,
-    NElection::TLeaderLookup::TConfigPtr masterConfig,
-    const NScheduler::NProto::TSortJobSpec& jobSpec)
+    TJobProxyConfigPtr proxyConfig,
+    const TJobSpec& jobSpec)
 {
-    auto masterChannel = CreateLeaderChannel(masterConfig);
+    YCHECK(jobSpec.input_specs_size() == 1);
+    YCHECK(jobSpec.output_specs_size() == 1);
 
-    KeyColumns.assign(
-        jobSpec.key_columns().begin(),
-        jobSpec.key_columns().end());
-
+    auto masterChannel = CreateLeaderChannel(proxyConfig->Masters);
     auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
+    auto jobSpecExt = jobSpec.GetExtension(TSortJobSpecExt::sort_job_spec_ext);
+
+    KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
     TReaderOptions options;
     options.KeepBlocks = true;
 
     std::vector<NTableClient::NProto::TInputChunk> chunks(
-        jobSpec.input_spec().chunks().begin(),
-        jobSpec.input_spec().chunks().end());
+        jobSpec.input_specs(0).chunks().begin(),
+        jobSpec.input_specs(0).chunks().end());
 
     srand(time(NULL));
     std::random_shuffle(chunks.begin(), chunks.end());
 
     Reader = New<TChunkSequenceReader>(
-        ioConfig->ChunkSequenceReader, 
+        proxyConfig->JobIO->ChunkSequenceReader, 
         masterChannel, 
         blockCache, 
         chunks,
-        jobSpec.partition_tag(),
+        jobSpecExt.partition_tag(),
         options);
 
     Writer = New<TTableChunkSequenceWriter>(
-        ioConfig->ChunkSequenceWriter,
+        proxyConfig->JobIO->ChunkSequenceWriter,
         masterChannel,
         TTransactionId::FromProto(jobSpec.output_transaction_id()),
-        TChunkListId::FromProto(jobSpec.output_spec().chunk_list_id()),
-        ChannelsFromYson(jobSpec.output_spec().channels()),
+        TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
+        ChannelsFromYson(jobSpec.output_specs(0).channels()),
         KeyColumns);
 }
 
@@ -304,13 +304,10 @@ TJobResult TSortJob::Run()
 
         LOG_INFO("Finalizing");
         {
-            TSortJobResult sortResult;
-            ToProto(sortResult.mutable_chunks(), Writer->GetWrittenChunks());
-
             TJobResult result;
+            auto* resultExt = result.MutableExtension(TSortJobResultExt::sort_job_result_ext);
+            ToProto(resultExt->mutable_chunks(), Writer->GetWrittenChunks());
             *result.mutable_error() = TError().ToProto();
-            *result.MutableExtension(TSortJobResult::sort_job_result) = sortResult;
-
             return result;
         }
     }
