@@ -37,12 +37,12 @@ typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node)
     return value;
 }
 
-INodePtr SyncYPathGetNode(IYPathServicePtr service, const TYPath& path);
+INodePtr GetNodeByYPath(INodePtr root, const TYPath& path);
 
 template <class T>
 typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node, const TYPath& path)
 {
-    auto subnode = SyncYPathGetNode(node, path);
+    auto subnode = GetNodeByYPath(node, path);
     return DeserializeFromYson<T>(subnode);
 }
 

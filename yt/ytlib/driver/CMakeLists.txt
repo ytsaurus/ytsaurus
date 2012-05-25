@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/scheduler_commands.cpp
   ${BASE}/table_commands.cpp
   ${BASE}/transaction_commands.cpp
+  ${BASE}/tsv_writer.cpp
 )
 set( HDRS
   ${BASE}/command.h
@@ -23,6 +24,7 @@ set( HDRS
   ${BASE}/scheduler_commands.h
   ${BASE}/table_commands.h
   ${BASE}/transaction_commands.h
+  ${BASE}/tsv_writer.h
 )
 
 list(APPEND YT_SOURCE_FILES

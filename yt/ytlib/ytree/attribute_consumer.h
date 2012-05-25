@@ -13,7 +13,7 @@ class TAttributeConsumer
     : public TForwardingYsonConsumer
 {
 public:
-    TAttributeConsumer(IAttributeDictionary* attributes);
+    explicit TAttributeConsumer(IAttributeDictionary* attributes);
     IAttributeDictionary* GetAttributes() const;
 
 protected:

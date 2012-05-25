@@ -46,7 +46,7 @@ struct IAttributeDictionary
     >::TNullableType Find(const Stroka& key) const;
 
     template <class T>
-    void Set(const Stroka& name, const T& value);
+    void Set(const Stroka& key, const T& value);
     
     //! Converts the instance into a map node (by copying and deserializing the values).
     IMapNodePtr ToMap() const;

@@ -3,8 +3,8 @@ project(YT)
 
 # TODO(sandello): Move this version-related stuff into a separate file.
 set(YT_VERSION_MAJOR 0)
-set(YT_VERSION_MINOR 1)
-set(YT_VERSION_PATCH 1)
+set(YT_VERSION_MINOR 2)
+set(YT_VERSION_PATCH 0)
 
 if(NOT YT_BUILD_NUMBER)
   set(YT_BUILD_NUMBER 0)
@@ -61,9 +61,8 @@ add_subdirectory(library/json)
 
 add_subdirectory(yt)
 
-add_custom_target(package touch package-stamp
-  COMMAND mkdir -p
-    ARTIFACTS
+add_custom_target( package touch package-stamp
+  COMMAND mkdir -p ARTIFACTS
   COMMAND dch
     --distributor "yandex"
     --distribution "unstable"
@@ -75,17 +74,31 @@ add_custom_target(package touch package-stamp
     --no-tgz-check
     --no-lintian
     --check-dirname-level 0
-    -b -j8
+    -b
   COMMAND mv
-    ../yandex-yt_${YT_VERSION}*
+    ../yandex-yt*${YT_VERSION}*
     ARTIFACTS
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Packaging YT..."
 )
 
-add_custom_target(version touch version-stamp
-  COMMAND echo
-    "${YT_VERSION}" > ytversion
+add_custom_target( version touch version-stamp
+  COMMAND echo "${YT_VERSION}" > ytversion
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Stamping YT..."
 )
+
+add_custom_target( install-debian-yandex-yt
+  ${CMAKE_COMMAND}
+    -DCOMPONENT=Unspecified
+    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  COMMENT "Installing for package 'yandex-yt'..."
+)
+
+add_custom_target( install-debian-yandex-yt-http-api
+  ${CMAKE_COMMAND}
+    -DCOMPONENT=nodejs
+    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  COMMENT "Installing for package 'yandex-yt-http-api'..."
+)
+

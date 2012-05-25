@@ -278,14 +278,6 @@ TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path)
     return result.Value();
 }
 
-INodePtr SyncYPathGetNode(IYPathServicePtr service, const TYPath& path)
-{
-    auto request = TYPathProxy::GetNode(path);
-    auto response = ExecuteVerb(service, ~request).Get();
-    response->ThrowIfError();
-    return reinterpret_cast<INode*>(response->value_ptr());
-}
-
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& value)
 {
     auto request = TYPathProxy::Set(path);
@@ -317,7 +309,34 @@ yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
     return NYT::FromProto<Stroka>(response->keys());
 }
 
-void ForceYPath(IMapNodePtr root, const TYPath& path)
+INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
+{
+    INodePtr currentNode = root;
+    TTokenizer tokenizer(path);
+    while (tokenizer.ParseNext()) {
+        tokenizer.CurrentToken().CheckType(PathSeparatorToken);
+        tokenizer.ParseNext();
+        switch (tokenizer.GetCurrentType()) {
+            case ETokenType::String: {
+                Stroka key(tokenizer.CurrentToken().GetStringValue());
+                currentNode = currentNode->AsMap()->GetChild(key);
+                break;
+            }
+
+            case ETokenType::Integer: {
+                currentNode = currentNode->AsList()->GetChild(tokenizer.CurrentToken().GetIntegerValue());
+                break;
+            }
+
+            default:
+                ThrowUnexpectedToken(tokenizer.CurrentToken());
+                YUNREACHABLE();
+        }
+    }
+    return currentNode;
+}
+
+void ForceYPath(INodePtr root, const TYPath& path)
 {
     INodePtr currentNode = root;
     TTokenizer tokenizer(path);

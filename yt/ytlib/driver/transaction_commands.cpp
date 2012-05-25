@@ -18,69 +18,45 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TStartTransactionCommand::GetDescriptor()
+void TStartTransactionCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
-
-void TStartTransactionCommand::DoExecute(TStartRequestPtr request)
-{
-    auto attributes = IAttributeDictionary::FromMap(request->GetOptions());
-    auto transactionManager = Host->GetTransactionManager();
+    auto attributes = IAttributeDictionary::FromMap(Request->GetOptions());
+    auto transactionManager = Context->GetTransactionManager();
     auto newTransaction = transactionManager->Start(
         ~attributes,
-        request->TransactionId);
+        Request->TransactionId);
 
-    BuildYsonFluently(~Host->CreateOutputConsumer())
+    BuildYsonFluently(~Context->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TRenewTransactionCommand::GetDescriptor()
+void TRenewTransactionCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(Request->TransactionId));
+    auto rsp = proxy.Execute(req).Get();
 
-void TRenewTransactionCommand::DoExecute(TRenewRequestPtr request)
-{
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
-    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(request->TransactionId));
-    auto response = proxy.Execute(req).Get();
-
-    if (response->IsOK()) {
-        Host->ReplySuccess();
-    } else {
-        Host->ReplyError(response->GetError());
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TCommitTransactionCommand::GetDescriptor()
+void TCommitTransactionCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
-
-void TCommitTransactionCommand::DoExecute(TCommitRequestPtr request)
-{
-    auto transaction = Host->GetTransaction(request, true);
+    auto transaction = GetTransaction(true);
     transaction->Commit();
-    Host->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TAbortTransactionCommand::GetDescriptor()
+void TAbortTransactionCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
-
-void TAbortTransactionCommand::DoExecute(TAbortTransactionRequestPtr request)
-{
-    auto transaction = Host->GetTransaction(request, true);
+    auto transaction = GetTransaction(true);
     transaction->Abort(true);
-    Host->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

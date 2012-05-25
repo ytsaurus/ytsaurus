@@ -16,9 +16,6 @@
 
 #include <ytlib/election/leader_channel.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction.h>
-
 #include <ytlib/chunk_client/block_cache.h>
 
 #include <ytlib/scheduler/config.h>
@@ -42,37 +39,14 @@ static NLog::TLogger& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOutputStreamConsumer
-    : public TForwardingYsonConsumer
-{
-public:
-    TOutputStreamConsumer(TOutputStream* output, EYsonFormat format)
-        : Writer(output, format)
-    {
-        ForwardNode(&Writer, BIND([=] () {
-            output->Write('\n');
-        }));
-    }
-
-private:
-    TYsonWriter Writer;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDriver
     : public IDriver
-    , public ICommandHost
 {
 public:
-    TDriver(
-        TDriverConfigPtr config,
-        IDriverHost* driverHost)
+    explicit TDriver(TDriverConfigPtr config)
         : Config(config)
-        , DriverHost(driverHost)
     {
         YASSERT(config);
-        YASSERT(driverHost);
 
         MasterChannel = CreateLeaderChannel(config->Masters);
 
@@ -81,142 +55,85 @@ public:
             config->Masters->RpcTimeout,
             MasterChannel);
 
-        BlockCache = CreateClientBlockCache(~config->BlockCache);
+        BlockCache = CreateClientBlockCache(config->BlockCache);
 
         TransactionManager = New<TTransactionManager>(
             config->TransactionManager,
             MasterChannel);
 
-        RegisterCommand("start_tx", New<TStartTransactionCommand>(this));
-        RegisterCommand("renew_tx", New<TRenewTransactionCommand>(this));
-        RegisterCommand("commit_tx", New<TCommitTransactionCommand>(this));
-        RegisterCommand("abort_tx", New<TAbortTransactionCommand>(this));
+        // Register all commands.
+        RegisterCommand<TStartTransactionCommand>(TCommandDescriptor("start_tx", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TRenewTransactionCommand>(TCommandDescriptor("renew_tx", EDataType::Null, EDataType::Null));
+        RegisterCommand<TCommitTransactionCommand>(TCommandDescriptor("commit_tx", EDataType::Null, EDataType::Null));
+        RegisterCommand<TAbortTransactionCommand>(TCommandDescriptor("abort_tx", EDataType::Null, EDataType::Null));
 
-        RegisterCommand("get", New<TGetCommand>(this));
-        RegisterCommand("set", New<TSetCommand>(this));
-        RegisterCommand("remove", New<TRemoveCommand>(this));
-        RegisterCommand("list", New<TListCommand>(this));
-        RegisterCommand("create", New<TCreateCommand>(this));
-        RegisterCommand("lock", New<TLockCommand>(this));
+        RegisterCommand<TGetCommand>(TCommandDescriptor("get", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TSetCommand>(TCommandDescriptor("set", EDataType::Structured, EDataType::Null));
+        RegisterCommand<TRemoveCommand>(TCommandDescriptor("remove", EDataType::Null, EDataType::Null));
+        RegisterCommand<TListCommand>(TCommandDescriptor("list", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TCreateCommand>(TCommandDescriptor("create", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TLockCommand>(TCommandDescriptor("lock", EDataType::Null, EDataType::Structured));
 
-        RegisterCommand("download", New<TDownloadCommand>(this));
-        RegisterCommand("upload", New<TUploadCommand>(this));
+        RegisterCommand<TDownloadCommand>(TCommandDescriptor("download", EDataType::Null, EDataType::Binary));
+        RegisterCommand<TUploadCommand>(TCommandDescriptor("upload", EDataType::Binary, EDataType::Structured));
 
-        RegisterCommand("read", New<TReadCommand>(this));
-        RegisterCommand("write", New<TWriteCommand>(this));
+        RegisterCommand<TWriteCommand>(TCommandDescriptor("write", EDataType::Tabular, EDataType::Null));
+        RegisterCommand<TReadCommand>(TCommandDescriptor("read", EDataType::Null, EDataType::Tabular));
 
-        RegisterCommand("map", New<TMapCommand>(this));
-        RegisterCommand("merge", New<TMergeCommand>(this));
-        RegisterCommand("sort", New<TSortCommand>(this));
-        RegisterCommand("erase", New<TEraseCommand>(this));
-        RegisterCommand("abort_op", New<TAbortOperationCommand>(this));
+        RegisterCommand<TMapCommand>(TCommandDescriptor("map", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TMergeCommand>(TCommandDescriptor("merge", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TSortCommand>(TCommandDescriptor("sort", EDataType::Structured, EDataType::Structured));
+        RegisterCommand<TEraseCommand>(TCommandDescriptor("erase", EDataType::Null, EDataType::Structured));
+        RegisterCommand<TAbortOperationCommand>(TCommandDescriptor("abort_op", EDataType::Null, EDataType::Null));
     }
 
-    TError Execute(const Stroka& commandName, INodePtr requestNode)
+    virtual TDriverResponse Execute(const TDriverRequest& request)
     {
-        Error = TError();
-        try {
-            DoExecute(commandName, requestNode);
-        } catch (const std::exception& ex) {
-            ReplyError(TError(ex.what()));
+        YASSERT(request.InputStream);
+        YASSERT(request.OutputStream);
+
+        auto it = Commands.find(request.CommandName);
+        if (it == Commands.end()) {
+            TDriverResponse response;
+            response.Error = TError("Unknown command %s", ~request.CommandName.Quote());
+            return response;
         }
-        return Error;
+
+        const auto& entry = it->second;
+        TCommandContext context(this, entry.Descriptor, &request);
+        auto command = entry.Factory.Run(&context);
+        command->Execute();
+
+        return *context.GetResponse();
     }
 
-    TCommandDescriptor GetDescriptor(const Stroka& commandName)
+    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName)
     {
-        auto commandIt = Commands.find(commandName);
-        if (commandIt == Commands.end()) {
-            ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
+        auto it = Commands.find(commandName);
+        if (it == Commands.end()) {
+            return Null;
         }
-        return commandIt->second->GetDescriptor();
+        return it->second.Descriptor;
     }
 
-    ICommandHost* GetCommandHost()
+    virtual std::vector<TCommandDescriptor> GetCommandDescriptors()
     {
-        return this;
+        std::vector<TCommandDescriptor> result;
+        result.reserve(Commands.size());
+        FOREACH (const auto& pair, Commands) {
+            result.push_back(pair.second.Descriptor);
+        }
+        return result;
     }
 
-private:
-    TDriverConfigPtr Config;
-    IDriverHost* DriverHost;
-    TError Error;
-    yhash_map<Stroka, ICommand::TPtr> Commands;
-    IChannelPtr MasterChannel;
-    IChannelPtr SchedulerChannel;
-    IBlockCachePtr BlockCache;
-    TTransactionManagerPtr TransactionManager;
-
-    virtual TDriverConfigPtr GetConfig() const
-    {
-        return ~Config;
-    }
-
-    IChannelPtr GetMasterChannel() const
+    virtual IChannelPtr GetMasterChannel()
     {
         return MasterChannel;
     }
 
-    IChannelPtr GetSchedulerChannel() const
+    virtual IChannelPtr GetSchedulerChannel()
     {
         return SchedulerChannel;
-    }
-
-    virtual void ReplyError(const TError& error)
-    {
-        YASSERT(!error.IsOK());
-        YASSERT(Error.IsOK());
-        Error = error;
-        auto output = DriverHost->GetErrorStream();
-        TYsonWriter writer(~output, Config->OutputFormat);
-        BuildYsonFluently(&writer)
-            .BeginMap()
-                .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent) {
-                    fluent.Item("code").Scalar(error.GetCode());
-                })
-                .Item("message").Scalar(error.GetMessage())
-            .EndMap();
-        output->Write('\n');
-    }
-
-    virtual void ReplySuccess(const TYson& yson)
-    {
-        auto consumer = CreateOutputConsumer();
-        ParseYson(yson, ~consumer);
-    }
-
-    // Simplified version for unconditional success (yes, it's empty output).
-    virtual void ReplySuccess()
-    { }
-
-
-    virtual TYsonProducer CreateInputProducer()
-    {
-        auto stream = GetInputStream();
-        return BIND([=] (IYsonConsumer* consumer) {
-            ParseYson(stream, consumer);
-        });
-    }
-
-    virtual TInputStream* GetInputStream()
-    {
-        return ~DriverHost->GetInputStream();
-    }
-
-    virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer()
-    {
-        auto stream = GetOutputStream();
-        return new TOutputStreamConsumer(stream, Config->OutputFormat);
-    }
-
-    virtual TOutputStream* GetOutputStream()
-    {
-        return ~DriverHost->GetOutputStream();
-    }
-
-    virtual IBlockCachePtr GetBlockCache()
-    {
-        return BlockCache;
     }
 
     virtual TTransactionManagerPtr GetTransactionManager()
@@ -224,54 +141,111 @@ private:
         return TransactionManager;
     }
 
-    virtual TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required)
+private:
+    TDriverConfigPtr Config;
+
+    IChannelPtr MasterChannel;
+    IChannelPtr SchedulerChannel;
+    IBlockCachePtr BlockCache;
+    TTransactionManagerPtr TransactionManager;
+
+    typedef TCallback< TAutoPtr<ICommand>(ICommandContext*) > TCommandFactory;
+
+    struct TCommandEntry
     {
-        if (required && request->TransactionId == NullTransactionId) {
-            ythrow yexception() << "No transaction was set";
-        }
-        return request->TransactionId;
-    }
+        TCommandDescriptor Descriptor;
+        TCommandFactory Factory;
+    };
 
-    virtual ITransactionPtr GetTransaction(TTransactedRequestPtr request, bool required)
+    yhash_map<Stroka, TCommandEntry> Commands;
+
+    class TCommandContext
+        : public ICommandContext
     {
-        auto transactionId = GetTransactionId(request, required);
-        if (transactionId == NullTransactionId) {
-            return NULL;
-        }
-        return TransactionManager->Attach(transactionId);
-    }
+    public:
+        TCommandContext(TDriver* driver, const TCommandDescriptor& descriptor, const TDriverRequest* request)
+            : Driver(driver)
+            , Descriptor(descriptor)
+            , Request(request)
+        { }
 
-    void RegisterCommand(const Stroka& name, ICommand::TPtr command)
+        virtual TDriverConfigPtr GetConfig()
+        {
+            return Driver->Config;
+        }
+
+        virtual IChannelPtr GetMasterChannel()
+        {
+            return Driver->MasterChannel;
+        }
+
+        virtual IChannelPtr GetSchedulerChannel()
+        {
+            return Driver->SchedulerChannel;
+        }
+
+        virtual IBlockCachePtr GetBlockCache()
+        {
+            return Driver->BlockCache;
+        }
+
+        virtual TTransactionManagerPtr GetTransactionManager()
+        {
+            return Driver->TransactionManager;
+        }
+
+        virtual const TDriverRequest* GetRequest()
+        {
+            return Request;
+        }
+
+        virtual TDriverResponse* GetResponse()
+        {
+            return &Response;
+        }
+
+        virtual TYsonProducer CreateInputProducer()
+        {
+            return CreateProducerForFormat(
+                Request->InputFormat,
+                Descriptor.InputType,
+                Request->InputStream);
+        }
+
+        virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer()
+        {
+            return CreateConsumerForFormat(
+                Request->OutputFormat,
+                Descriptor.OutputType,
+                Request->OutputStream);
+        }
+
+    private:
+        TDriver* Driver;
+        TCommandDescriptor Descriptor;
+        const TDriverRequest* Request;
+        TDriverResponse Response;
+
+    };
+
+
+    template <class TCommand>
+    void RegisterCommand(const TCommandDescriptor& descriptor)
     {
-        YVERIFY(Commands.insert(MakePair(name, command)).second);
+        TCommandEntry entry;
+        entry.Descriptor = descriptor;
+        entry.Factory = BIND([] (ICommandContext* context) -> TAutoPtr<ICommand> {
+            return new TCommand(context);
+        });
+        YVERIFY(Commands.insert(MakePair(descriptor.CommandName, entry)).second);
     }
-
-    void DoExecute(const Stroka& commandName, INodePtr requestNode)
-    {
-        auto request = New<TRequestBase>();
-        try {
-            request->Load(~requestNode);
-        }
-        catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing command from node\n%s", ex.what());
-        }
-
-        auto commandIt = Commands.find(commandName);
-        if (commandIt == Commands.end()) {
-            ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
-        }
-
-        auto command = commandIt->second;
-        command->Execute(~requestNode);
-    }
-    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverHost* driverHost)
+IDriverPtr CreateDriver(TDriverConfigPtr config)
 {
-    return New<TDriver>(config, driverHost);
+    return New<TDriver>(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

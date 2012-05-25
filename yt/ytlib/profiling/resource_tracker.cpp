@@ -38,6 +38,8 @@ void TResourceTracker::Start()
 
 void TResourceTracker::EnqueueUsage()
 {
+    PeriodicInvoker->ScheduleNext();
+
     TIFStream procStat("/proc/stat");
     auto cpuFields = splitStroku(procStat.ReadLine(), " ");
     i64 procTicks = FromString<i64>(cpuFields[1]);
@@ -109,7 +111,6 @@ void TResourceTracker::EnqueueUsage()
     }
 
     PreviousProcTicks = procTicks;
-    PeriodicInvoker->ScheduleNext();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

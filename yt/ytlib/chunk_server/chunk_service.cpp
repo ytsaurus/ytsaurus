@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "chunk_service.h"
+
 #include "holder_statistics.h"
 #include "holder.h"
+#include "holder_authority.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/bind.h>
@@ -74,6 +76,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
         ~incarnationId.ToString(),
         ~ToString(statistics));
 
+    CheckHolderAuthorization(address);
+
     auto chunkManager = Bootstrap->GetChunkManager();
 
     TMsgRegisterHolder message;
@@ -107,6 +111,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
             Sprintf("Cannot process a full heartbeat in %s state", ~holder.GetState().ToString())));
         return;
     }
+    CheckHolderAuthorization(holder.GetAddress());
 
     chunkManager
         ->InitiateFullHeartbeat(context)
@@ -133,6 +138,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
             Sprintf("Cannot process an incremental heartbeat in %s state", ~holder.GetState().ToString())));
         return;
     }
+    CheckHolderAuthorization(holder.GetAddress());
 
     TMsgIncrementalHeartbeat heartbeatMsg;
     heartbeatMsg.set_holder_id(holderId);
@@ -183,7 +189,17 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
             context->Reply();
         }))
         ->OnError(CreateErrorHandler(~context))
-        ->Commit();
+->Commit();
+}
+
+void TChunkService::CheckHolderAuthorization(const Stroka &address) const
+{
+    auto holderAuthority = Bootstrap->GetHolderAuthority();
+    if (!holderAuthority->IsHolderAuthorized(address)) {
+        ythrow TServiceException(TError(
+            EErrorCode::NotAuthorized,
+            Sprintf("Holder %s is not authorized", ~address.Quote())));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

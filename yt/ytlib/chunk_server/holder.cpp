@@ -20,14 +20,10 @@ using namespace NCellMaster;
 THolder::THolder(
     THolderId id,
     const Stroka& address,
-    const TIncarnationId& incarnationId,
-    EHolderState state,
-    const THolderStatistics& statistics)
+    const TIncarnationId& incarnationId)
     : Id_(id)
     , Address_(address)
     , IncarnationId_(incarnationId)
-    , State_(state)
-    , Statistics_(statistics)
 { }
 
 THolder::THolder(THolderId id)

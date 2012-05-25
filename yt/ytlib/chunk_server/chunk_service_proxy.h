@@ -24,6 +24,7 @@ public:
         ((NoSuchHolder)(2))
         ((NotEnoughHolders)(3))
         ((InvalidState)(4))
+        ((NotAuthorized)(5))
     );
 
     TChunkServiceProxy(NRpc::IChannelPtr channel)

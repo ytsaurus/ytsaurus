@@ -29,7 +29,7 @@ private:
     // ISystemAttributeProvider overrides
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer);
-    virtual bool SetSystemAttribute(const Stroka& key, TYsonProducer producer);
+    virtual bool SetSystemAttribute(const Stroka& key, const TYson& value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

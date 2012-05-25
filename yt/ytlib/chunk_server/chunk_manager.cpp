@@ -728,9 +728,9 @@ private:
         auto* newHolder = new THolder(
             holderId,
             address,
-            incarnationId,
-            EHolderState::Registered,
-            statistics);
+            incarnationId);
+        newHolder->SetState(EHolderState::Registered);
+        newHolder->Statistics() = statistics;
 
         HolderMap.Insert(holderId, newHolder);
         HolderAddressMap.insert(MakePair(address, newHolder));

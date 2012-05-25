@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "public.h"
+#include "driver.h"
 
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/configurable.h>
@@ -12,8 +13,8 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/transaction_client/public.h>
-#include <ytlib/object_server/id.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
 namespace NDriver {
@@ -47,62 +48,32 @@ typedef TIntrusivePtr<TTransactedRequest> TTransactedRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ICommandHost
+struct ICommandContext
 {
-    virtual ~ICommandHost()
+    virtual ~ICommandContext()
     { }
 
-    virtual TDriverConfigPtr GetConfig() const = 0;
-    virtual NRpc::IChannelPtr GetMasterChannel() const = 0;
-    virtual NRpc::IChannelPtr GetSchedulerChannel() const = 0;
-
-    virtual NYTree::TYsonProducer CreateInputProducer() = 0;
-    virtual TInputStream* GetInputStream() = 0;
-
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
-    virtual TOutputStream* GetOutputStream() = 0;
-
-    virtual void ReplyError(const TError& error) = 0;
-    virtual void ReplySuccess() = 0;
-    virtual void ReplySuccess(const NYTree::TYson& yson) = 0;
-
+    virtual TDriverConfigPtr GetConfig() = 0;
+    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
-    virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required = false) = 0;
-    virtual NTransactionClient::ITransactionPtr GetTransaction(TTransactedRequestPtr request, bool required = false) = 0;
+    virtual const TDriverRequest* GetRequest() = 0;
+    virtual TDriverResponse* GetResponse() = 0;
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_ENUM(EDataType,
-    (Null)
-    (Binary)
-    (Node)
-    (Table)
-);
-
-struct TCommandDescriptor
-{
-    EDataType InputType;
-    EDataType OutputType;
-
-    TCommandDescriptor(EDataType inputType, EDataType outputType)
-        : InputType(inputType)
-        , OutputType(outputType)
-    { }
+    virtual NYTree::TYsonProducer CreateInputProducer() = 0;
+    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommand
-    : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<ICommand> TPtr;
+    virtual ~ICommand()
+    { }
 
-    virtual void Execute(NYTree::INodePtr request) = 0;
-    virtual TCommandDescriptor GetDescriptor() = 0;
+    virtual void Execute() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,9 +82,14 @@ class TUntypedCommandBase
     : public ICommand
 {
 protected:
-    ICommandHost* Host;
+    ICommandContext* Context;
+    bool Replied;
 
-    explicit TUntypedCommandBase(ICommandHost* host);
+    explicit TUntypedCommandBase(ICommandContext* host);
+
+    void ReplyError(const TError& error);
+    void ReplySuccess(const NYTree::TYson& yson);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,23 +99,62 @@ class TTypedCommandBase
     : public virtual TUntypedCommandBase
 {
 public:
-    explicit TTypedCommandBase(ICommandHost* host)
-        : TUntypedCommandBase(host)
+    explicit TTypedCommandBase(ICommandContext* context)
+        : TUntypedCommandBase(context)
     { }
 
-    virtual void Execute(NYTree::INodePtr request)
+    virtual void Execute()
     {
-        auto typedRequest = New<TRequest>();
         try {
-            typedRequest->Load(~request);
+            Request = New<TRequest>();
+            try {
+                auto arguments = Context->GetRequest()->Arguments;
+                Request->Load(arguments);
+            } catch (const std::exception& ex) {
+                ythrow yexception() << Sprintf("Error parsing command arguments\n%s", ex.what());
+            }
+            DoExecute();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing command request\n%s", ex.what());
+            ReplyError(TError(ex.what()));
         }
-        DoExecute(typedRequest);
     }
 
 protected:
-    virtual void DoExecute(TIntrusivePtr<TRequest> request) = 0;
+    TIntrusivePtr<TRequest> Request;
+
+    virtual void DoExecute() = 0;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest>
+class TTransactedCommandBase
+    : public TTypedCommandBase<TRequest>
+{
+public:
+    explicit TTransactedCommandBase(ICommandContext* context)
+        : TTypedCommandBase<TRequest>(context)
+        , TUntypedCommandBase(context)
+    { }
+
+protected:
+    NTransactionClient::TTransactionId GetTransactionId(bool required)
+    {
+        if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
+            ythrow yexception() << "Transaction is required";
+        }
+        return this->Request->TransactionId;
+    }
+
+    NTransactionClient::ITransactionPtr GetTransaction(bool required)
+    {
+        auto transactionId = GetTransactionId(required);
+        if (transactionId == NTransactionClient::NullTransactionId) {
+            return NULL;
+        }
+        return this->Context->GetTransactionManager()->Attach(transactionId);
+    }
 
 };
 

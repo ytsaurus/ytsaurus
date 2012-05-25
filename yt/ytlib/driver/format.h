@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "command.h"
 
 #include <ytlib/ytree/attributes.h>
 
@@ -10,14 +9,27 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Type of data that can be read or written by a driver command.
+DECLARE_ENUM(EDataType,
+    (Null)
+    (Binary)
+    (Structured)
+    (Tabular)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_ENUM(EFormatType,
+    (Null)
     (Yson)
     (Csv)
+    (Tsv)
 );
 
 class TFormat
 {
 public:
+    TFormat();
     TFormat(EFormatType type, NYTree::IAttributeDictionary* attributes = NULL);
 
     DEFINE_BYVAL_RO_PROPERTY(EFormatType, Type);

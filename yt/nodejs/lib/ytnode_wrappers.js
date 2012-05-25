@@ -1,8 +1,8 @@
-var util = require('util');
-var stream = require('stream');
-var assert = require('assert');
+var util = require("util");
+var stream = require("stream");
+var assert = require("assert");
 
-var binding = require('ytnode');
+var binding = require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +29,7 @@ function YtReadableStream() {
     this._ended = false;
 
     var self = this;
-    
+
     this._binding = new binding.TNodeJSOutputStream();
     this._binding.on_write = function(chunk) {
         __DBG("Readable -> Bindings -> on_write");
@@ -208,7 +208,7 @@ YtDriver.prototype.execute = function(name,
     var wrapped_output_stream = new YtReadableStream();
 
     input_stream.pipe(wrapped_input_stream);
-    output_stream.pipe(wrapped_output_stream);
+    wrapped_output_stream.pipe(output_stream);
 
     this._binding.Execute(name,
         wrapped_input_stream._binding, input_format,
@@ -222,3 +222,4 @@ exports.YtReadableStream = YtReadableStream;
 exports.YtWritableStream = YtWritableStream;
 
 exports.YtDriver = YtDriver;
+

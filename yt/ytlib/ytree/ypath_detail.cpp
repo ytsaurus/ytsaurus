@@ -225,19 +225,19 @@ void DoSetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
-    INode* value,
+    const TYson& value,
     bool isSystem)
 {
     if (isSystem) {
         YASSERT(systemAttributeProvider);
-        if (!systemAttributeProvider->SetSystemAttribute(key, ProducerFromNode(value))) {
+        if (!systemAttributeProvider->SetSystemAttribute(key, value)) {
             ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
         }
     } else {
         if (!userAttributes) {
             ythrow yexception() << "User attributes are not supported";
         }
-        userAttributes->SetYson(key, SerializeToYson(value));
+        userAttributes->SetYson(key, value);
     }
 }
 
@@ -248,7 +248,7 @@ void DoSetAttribute(
     const TYson& value)
 {
     if (systemAttributeProvider) {
-        if (systemAttributeProvider->SetSystemAttribute(key, ProducerFromYson(value))) {
+        if (systemAttributeProvider->SetSystemAttribute(key, value)) {
             return;
         }
 
@@ -547,7 +547,7 @@ void TSupportsAttributes::SetAttribute(
                 userAttributes,
                 systemAttributeProvider,
                 key,
-                ~wholeValue,
+                updatedYson,
                 isSystem);
         }
     }
@@ -605,7 +605,7 @@ void TSupportsAttributes::RemoveAttribute(
                 userAttributes,
                 systemAttributeProvider,
                 key,
-                ~wholeValue,
+                updatedYson,
                 isSystem);
         }
     }
@@ -705,10 +705,10 @@ void TNodeSetterBase::OnMyBeginAttributes()
 void TNodeSetterBase::OnMyKeyedItem(const TStringBuf& key)
 {
     AttributeKey = key;
-    ForwardNode(&AttributeWriter, BIND(&TThis::OnForwardingFinished, this));
+    Forward(&AttributeWriter, BIND(&TThis::OnFinished, this));
 }
 
-void TNodeSetterBase::OnForwardingFinished()
+void TNodeSetterBase::OnFinished()
 {
     Node->Attributes().Set(AttributeKey, AttributeValue);
     AttributeKey.clear();

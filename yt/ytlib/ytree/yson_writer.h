@@ -36,12 +36,13 @@ public:
     /*!
      *  \param stream A stream for outputting the YSON data.
      *  \param format A format used for encoding the data.
+     *  \param enableRaw Enables inserting raw portions of YSON as-is, without reparse.
      */
     TYsonWriter(
         TOutputStream* stream,
         EYsonFormat format = EYsonFormat::Binary,
         EYsonType type = EYsonType::Node,
-        bool formatRaw = false);
+        bool enableRaw = false);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);
@@ -66,7 +67,7 @@ protected:
     TOutputStream* Stream;
     EYsonFormat Format;
     EYsonType Type;
-    bool FormatRaw;
+    bool EnableRaw;
     
     int Depth;
     bool BeforeFirstItem;

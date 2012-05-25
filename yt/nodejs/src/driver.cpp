@@ -1,8 +1,9 @@
 #include "driver.h"
 
 #include <ytlib/ytree/ytree.h>
+
 #include <ytlib/driver/config.h>
-#include <ytlib/driver/format.h>
+#include <ytlib/driver/driver.h>
 
 #include <string>
 
@@ -17,47 +18,6 @@ using v8::TryCatch;
 
 using namespace NYTree;
 using namespace NDriver;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// XXX(sandello): This is temporary; awaiting merge of 
-// "babenko/new_driver" into mainline.
-
-//! An instance of driver request.
-struct TDriverRequest
-{
-    //! Command name to execute.
-    std::string CommandName;
-
-    //! Stream used for reading command input.
-    TInputStream* InputStream;
-
-    //! Format used for reading the input.
-    TFormat InputFormat;
-
-    //! Stream where the command output is written.
-    TOutputStream* OutputStream;
-
-    //! Format used for writing the output.
-    TFormat OutputFormat;
-
-    //! A map containing command arguments.
-    NYTree::IMapNodePtr Parameters;
-};
-
-//! An instance of driver request.
-struct TDriverResponse
-{
-    //! An error returned by the command, if any.
-    int Error;
-};
-
-struct IDriver
-{
-    TDriverResponse Execute(const TDriverRequest& request);
-};
-
-IDriverPtr CreateDriver(TDriverConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +74,7 @@ TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
         Message = Sprintf("Error reading configuration\n%s", ex.what());
     }
 
-    auto config = New<TDriverConfig>();
+    auto config = ::NYT::New<NDriver::TDriverConfig>();
     try {
         config->Load(~configNode);
     } catch (const std::exception& ex) {
@@ -228,7 +188,8 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     request->DriverRequest.InputFormat = TFormat::FromYson(inputFormat);
     request->DriverRequest.OutputStream = outputStream;
     request->DriverRequest.OutputFormat = TFormat::FromYson(outputFormat);
-    request->DriverRequest.Parameters = parameters->AsMap();
+    // TODO(sandello): Arguments -> Parameters
+    request->DriverRequest.Arguments = parameters->AsMap();
 
     fprintf(stderr, "WOOHOO! We are executing %s [%p->%p]!\n",
         *commandName,
@@ -263,8 +224,8 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         TryCatch block;
 
         Local<Value> args[] = {
-            // TODO(sandello): Fix me.
-            Integer::New(request->DriverResponse.Error)
+            Integer::New(request->DriverResponse.Error.GetCode()),
+            String::New(~request->DriverResponse.Error.GetMessage())
         };
 
         request->Callback->Call(

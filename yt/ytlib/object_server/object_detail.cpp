@@ -185,9 +185,10 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, TYsonProducer producer)
+bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYson& value)
 {
-    UNUSED(producer);
+    UNUSED(key);
+    UNUSED(value);
 
     return false;
 }

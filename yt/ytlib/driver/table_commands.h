@@ -24,18 +24,16 @@ struct TReadRequest
 typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
 
 class TReadCommand
-    : public TTypedCommandBase<TReadRequest>
+    : public TTransactedCommandBase<TReadRequest>
 {
 public:
-    explicit TReadCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
+    explicit TReadCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TReadRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,18 +71,16 @@ struct TWriteRequest
 typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
 
 class TWriteCommand
-    : public TTypedCommandBase<TWriteRequest>
+    : public TTransactedCommandBase<TWriteRequest>
 {
 public:
-    explicit TWriteCommand(ICommandHost* host)
-        : TTypedCommandBase(host)
+    explicit TWriteCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
 
-    virtual TCommandDescriptor GetDescriptor();
-
 private:
-    virtual void DoExecute(TWriteRequestPtr request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

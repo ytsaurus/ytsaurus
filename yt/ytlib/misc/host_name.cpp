@@ -3,13 +3,22 @@
 
 #include <util/system/hostname.h>
 
+#ifndef _WIN32
+#include <netdb.h>
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TStringBuf GetHostName()
 {
-    return ::GetHostName();
+    // TODO(panin): think about caching this call in util/system/hostname.h
+    auto info = gethostbyname(::GetHostName());
+    if (!info) {
+        ythrow TSystemError() << "can not get host by name";
+    }
+    return info->h_name;
 }
 
 Stroka BuildServiceAddress(const TStringBuf& hostName, int port)

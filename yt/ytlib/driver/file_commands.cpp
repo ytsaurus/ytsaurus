@@ -14,27 +14,19 @@ using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-TCommandDescriptor TDownloadCommand::GetDescriptor()
+void TDownloadCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Binary);
-}
-
-void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
-{
-    auto config = Host->GetConfig()->FileReader;
+    auto config = Context->GetConfig()->FileReader;
 
     auto reader = New<TFileReader>(
-        ~config,
-        ~Host->GetMasterChannel(),
-        ~Host->GetTransaction(request),
-        ~Host->GetBlockCache(),
-        request->Path);
+        config,
+        Context->GetMasterChannel(),
+        ~GetTransaction(false),
+        ~Context->GetBlockCache(),
+        Request->Path);
     reader->Open();
 
-    // TODO(babenko): use FileName and Executable values
-
-    auto output = Host->GetOutputStream();
+    auto output = Context->GetRequest()->OutputStream;
 
     while (true) {
         auto block = reader->Read();
@@ -45,26 +37,21 @@ void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TUploadCommand::GetDescriptor()
+void TUploadCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Binary, EDataType::Null);
-}
-
-void TUploadCommand::DoExecute(TUploadRequestPtr request)
-{
-    auto config = Host->GetConfig()->FileWriter;
+    auto config = Context->GetConfig()->FileWriter;
 
     auto writer = New<TFileWriter>(
-        ~config,
-        ~Host->GetMasterChannel(),
-        ~Host->GetTransaction(request),
-        ~Host->GetTransactionManager(),
-        request->Path);
+        config,
+        Context->GetMasterChannel(),
+        GetTransaction(false),
+        Context->GetTransactionManager(),
+        Request->Path);
     writer->Open();
 
-    auto input = Host->GetInputStream();
+    auto input = Context->GetRequest()->InputStream;
     
     TBlob buffer(config->BlockSize);
     while (true) {
@@ -78,10 +65,8 @@ void TUploadCommand::DoExecute(TUploadRequestPtr request)
     writer->Close();
 
     auto id = writer->GetNodeId();
-    BuildYsonFluently(~Host->CreateOutputConsumer())
-        .BeginMap()
-            .Item("object_id").Scalar(id.ToString())
-        .EndMap();
+    BuildYsonFluently(~Context->CreateOutputConsumer())
+        .Scalar(id.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

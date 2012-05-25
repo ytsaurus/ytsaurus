@@ -20,7 +20,6 @@ namespace NDriver {
 struct TDriverConfig
     : public TConfigurable
 {
-    NYTree::EYsonFormat OutputFormat;
     NElection::TLeaderLookup::TConfigPtr Masters;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;
@@ -31,8 +30,6 @@ struct TDriverConfig
 
     TDriverConfig()
     {
-        Register("output_format", OutputFormat)
-            .Default(NYTree::EYsonFormat::Text);
         Register("masters", Masters);
         Register("transaction_manager", TransactionManager)
             .DefaultNew();

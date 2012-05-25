@@ -11,35 +11,20 @@ namespace NYTree {
 TForwardingYsonConsumer::TForwardingYsonConsumer()
     : ForwardingConsumer(NULL)
     , ForwardingDepth(0)
-    , ForwardingFragment(false)
 { }
 
-void TForwardingYsonConsumer::ForwardNode(
+void TForwardingYsonConsumer::Forward(
     IYsonConsumer* consumer,
-    const TClosure& onForwardingFinished)
-{
-    StartForwarding(consumer, onForwardingFinished, false);
-}
-
-void TForwardingYsonConsumer::ForwardFragment(
-    IYsonConsumer* consumer,
-    const TClosure& onForwardingFinished)
-{
-    StartForwarding(consumer, onForwardingFinished, true);
-}
-
-void TForwardingYsonConsumer::StartForwarding(
-    IYsonConsumer* consumer,
-    const TClosure& onForwardingFinished,
-    bool forwardingFragment)
+    const TClosure& onFinished,
+    EYsonType type)
 {
     YASSERT(!ForwardingConsumer);
     YASSERT(consumer);
     YASSERT(ForwardingDepth == 0);
 
     ForwardingConsumer = consumer;
-    OnForwardingFinished = onForwardingFinished;
-    ForwardingFragment = forwardingFragment;
+    OnFinished = onFinished;
+    ForwardingType = type;
 }
 
 bool TForwardingYsonConsumer::CheckForwarding(int depthDelta)
@@ -54,7 +39,7 @@ void TForwardingYsonConsumer::UpdateDepth(int depthDelta, bool checkFinish)
 {
     ForwardingDepth += depthDelta;
     YASSERT(ForwardingDepth >= 0);
-    if (checkFinish && !ForwardingFragment && ForwardingDepth == 0) {
+    if (checkFinish && ForwardingType == EYsonType::Node && ForwardingDepth == 0) {
         FinishForwarding();
     }
 }
@@ -62,9 +47,9 @@ void TForwardingYsonConsumer::UpdateDepth(int depthDelta, bool checkFinish)
 void TForwardingYsonConsumer::FinishForwarding()
 {
     ForwardingConsumer = NULL;
-    if (!OnForwardingFinished.IsNull()) {
-        OnForwardingFinished.Run();
-        OnForwardingFinished.Reset();
+    if (!OnFinished.IsNull()) {
+        OnFinished.Run();
+        OnFinished.Reset();
     }
 }
 
@@ -173,7 +158,8 @@ void TForwardingYsonConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
     if (!CheckForwarding()) {
         OnMyRaw(yson, type);
     } else {
-        YUNIMPLEMENTED();
+        ForwardingConsumer->OnRaw(yson, type);
+        UpdateDepth(0);
     }
 }
 

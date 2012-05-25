@@ -90,4 +90,5 @@ configure_arcadia_mirror quality-netliba_v6
 configure_arcadia_mirror util
 
 configure_github_mirror lloyd-yajl
+configure_github_mirror joyent-libuv
 

@@ -36,9 +36,7 @@ public:
     THolder(
         THolderId id,
         const Stroka& address,
-        const TIncarnationId& incarnationId,
-        EHolderState state,
-        const NProto::THolderStatistics& statistics);
+        const TIncarnationId& incarnationId);
 
     explicit THolder(THolderId id);
 

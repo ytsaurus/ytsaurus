@@ -15,166 +15,132 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TGetCommand::GetDescriptor()
+void TGetCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TYPathProxy::Get(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-void TGetCommand::DoExecute(TGetRequestPtr request)
-{
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
-    auto ypathRequest = TYPathProxy::Get(WithTransaction(
-        request->Path,
-        Host->GetTransactionId(request)));
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
-
-    if (ypathResponse->IsOK()) {
-        TYson value = ypathResponse->value();
-        Host->ReplySuccess(value);
-    } else {
-        Host->ReplyError(ypathResponse->GetError());
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
+        return;
     }
+
+    ReplySuccess(rsp->value());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TSetCommand::GetDescriptor()
+void TSetCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Node, EDataType::Null);
-}
-
-void TSetCommand::DoExecute(TSetRequestPtr request)
-{
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
-    auto ypathRequest = TYPathProxy::Set(WithTransaction(
-        request->Path,
-        Host->GetTransactionId(request)));
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TYPathProxy::Set(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
     TYson value;
-    if (request->Value) {
-        value = SerializeToYson(~request->Value);
+    if (Request->Value) {
+        value = SerializeToYson(Request->Value);
     } else {
-        auto producer = Host->CreateInputProducer();
+        auto producer = Context->CreateInputProducer();
         value = SerializeToYson(producer);
     }
-    ypathRequest->set_value(value);
+    req->set_value(value);
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    if (ypathResponse->IsOK()) {
-        Host->ReplySuccess();
-    } else {
-        Host->ReplyError(ypathResponse->GetError());
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TRemoveCommand::GetDescriptor()
+void TRemoveCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TYPathProxy::Remove(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
-{
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
-    auto ypathRequest = TYPathProxy::Remove(WithTransaction(
-        request->Path,
-        Host->GetTransactionId(request)));
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
-
-    if (ypathResponse->IsOK()) {
-        Host->ReplySuccess();
-    } else {
-        Host->ReplyError(ypathResponse->GetError());
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TListCommand::GetDescriptor()
+void TListCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TYPathProxy::List(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-void TListCommand::DoExecute(TListRequestPtr request)
-{
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
-    auto ypathRequest = TYPathProxy::List(WithTransaction(
-        request->Path,
-        Host->GetTransactionId(request)));
+    req->Attributes().MergeFrom(~Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
-
-    if (ypathResponse->IsOK()) {
-         auto consumer = Host->CreateOutputConsumer();
+    if (rsp->IsOK()) {
+         auto consumer = Context->CreateOutputConsumer();
          BuildYsonFluently(~consumer)
-            .List(ypathResponse->keys());
+            .List(rsp->keys());
     } else {
-        Host->ReplyError(ypathResponse->GetError());
+        ReplyError(rsp->GetError());
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TCreateCommand::GetDescriptor()
+void TCreateCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TCypressYPathProxy::Create(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-void TCreateCommand::DoExecute(TCreateRequestPtr request)
-{
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
-    auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
-        request->Path,
-        Host->GetTransactionId(request)));
+    req->set_type(Request->Type);
 
-    ypathRequest->set_type(request->Type);
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
-
-    if (ypathResponse->IsOK()) {
-        auto consumer = Host->CreateOutputConsumer();
-        auto nodeId = TNodeId::FromProto(ypathResponse->object_id());
+    if (rsp->IsOK()) {
+        auto consumer = Context->CreateOutputConsumer();
+        auto nodeId = TNodeId::FromProto(rsp->object_id());
         BuildYsonFluently(~consumer)
             .Scalar(nodeId.ToString());
     } else {
-        Host->ReplyError(ypathResponse->GetError());
+        ReplyError(rsp->GetError());
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TLockCommand::GetDescriptor()
+void TLockCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TCypressYPathProxy::Lock(WithTransaction(
+        Request->Path,
+        GetTransactionId(false)));
 
-void TLockCommand::DoExecute(TLockRequestPtr request)
-{
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
-    auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
-        request->Path,
-        Host->GetTransactionId(request)));
+    req->set_mode(Request->Mode);
 
-    ypathRequest->set_mode(request->Mode);
+    req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
 
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
-
-    if (ypathResponse->IsOK()) {
-        auto lockId = TLockId::FromProto(ypathResponse->lock_id());
-        BuildYsonFluently(~Host->CreateOutputConsumer())
+    if (rsp->IsOK()) {
+        auto lockId = TLockId::FromProto(rsp->lock_id());
+        BuildYsonFluently(~Context->CreateOutputConsumer())
             .Scalar(lockId.ToString());
     } else {
-        Host->ReplyError(ypathResponse->GetError());
+        ReplyError(rsp->GetError());
     }
 }
 

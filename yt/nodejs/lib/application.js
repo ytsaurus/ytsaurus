@@ -2,7 +2,7 @@ var url = require("url");
 var querystring = require("querystring");
 
 var utils = require("./utils");
-var yt = require("./yt");
+var ytnode_wrappers = require("./ytnode_wrappers");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +44,10 @@ function _rspSetFormatHeaders(rsp, input_format, output_format) {
             rsp.setHeader("Content-Type", mime);
         }
     }
+}
+
+function _rspSetTrailers(rsp) {
+    rsp.setHeader("Trailer", "X-YT-Response");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +121,7 @@ function _reqExtractOutputFormat(req) {
 
     // Lastly, provide a default option, i. e. YSON.
     if (typeof(result) === "undefined") {
-        result = "yson";
+        result = "<format=pretty>yson";
     }
 
     return result;
@@ -155,12 +159,14 @@ function _dispatch(driver, req, rsp) {
     __DBG("Cmd output_format=" + output_format);
 
     _rspSetFormatHeaders(rsp, input_format, output_format);
+    _rspSetTrailers(rsp);
 
     // TODO(sandello): Handle various return-types here.
     driver.execute(name,
         req, input_format,
         rsp, output_format,
-        parameters, function() {
+        parameters, function(code, message) {
+            rsp.addTrailers({ "X-YT-Response" : code + " " + message });
             rsp.end();
         });
 }
@@ -168,7 +174,7 @@ function _dispatch(driver, req, rsp) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplication(configuration) {
-    var driver = new yt.YtDriver(configuration);
+    var driver = new ytnode_wrappers.YtDriver(configuration);
     return function(req, rsp) {
         return _dispatch(driver, req, rsp);
     };
@@ -177,3 +183,4 @@ function YtApplication(configuration) {
 ////////////////////////////////////////////////////////////////////////////////
 
 exports.YtApplication = YtApplication;
+

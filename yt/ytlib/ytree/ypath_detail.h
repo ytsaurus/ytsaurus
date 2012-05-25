@@ -156,7 +156,7 @@ protected:
     TStringOutput AttributeStream;
     TYsonWriter AttributeWriter;
 
-    void OnForwardingFinished();
+    void OnFinished();
 
 };
 
@@ -232,7 +232,7 @@ private:
     {
         ItemKey = key;
         TreeBuilder->BeginTree();
-        ForwardNode(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
+        Forward(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -278,7 +278,7 @@ private:
     virtual void OnMyListItem()
     {
         TreeBuilder->BeginTree();
-        ForwardNode(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
+        Forward(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()

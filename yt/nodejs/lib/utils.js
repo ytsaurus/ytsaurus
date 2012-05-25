@@ -89,3 +89,4 @@ exports.testAccept = function(type, other) {
     return (parts[0] == other.type || "*" == other.type)
         && (parts[1] == other.subtype || "*" == other.subtype);
 };
+

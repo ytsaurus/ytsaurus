@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "table_commands.h"
 #include "config.h"
+#include "format.h"
 
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/tree_visitor.h>
@@ -19,68 +20,56 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TReadCommand::GetDescriptor()
+void TReadCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Table);
-}
-
-void TReadCommand::DoExecute(TReadRequestPtr request)
-{
-    auto stream = Host->GetOutputStream();
-
     auto reader = New<TTableReader>(
-        Host->GetConfig()->ChunkSequenceReader,
-        Host->GetMasterChannel(),
-        Host->GetTransaction(request),
-        Host->GetBlockCache(),
-        request->Path);
+        Context->GetConfig()->ChunkSequenceReader,
+        Context->GetMasterChannel(),
+        GetTransaction(false),
+        Context->GetBlockCache(),
+        Request->Path);
     reader->Open();
 
-    TYsonWriter writer(
-        stream,
-        Host->GetConfig()->OutputFormat,
-        EYsonType::ListFragment,
-        Host->GetConfig()->OutputFormat != EYsonFormat::Binary);
-    ProduceYson(reader, &writer);
+    auto driverRequest = Context->GetRequest();
+    auto writer = CreateConsumerForFormat(
+        driverRequest->OutputFormat,
+        EDataType::Tabular,
+        driverRequest->OutputStream);
+    ProduceYson(reader, ~writer);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor TWriteCommand::GetDescriptor()
-{
-    return TCommandDescriptor(EDataType::Table, EDataType::Null);
-}
-
-void TWriteCommand::DoExecute(TWriteRequestPtr request)
+void TWriteCommand::DoExecute()
 {
     TNullable<TKeyColumns> keyColumns;
-    if (request->Sorted) {
-        keyColumns.Assign(request->KeyColumns);
+    if (Request->Sorted) {
+        keyColumns.Assign(Request->KeyColumns);
     }
 
     auto writer = New<TTableWriter>(
-        Host->GetConfig()->ChunkSequenceWriter,
-        Host->GetMasterChannel(),
-        Host->GetTransaction(request),
-        Host->GetTransactionManager(),
-        request->Path,
+        Context->GetConfig()->ChunkSequenceWriter,
+        Context->GetMasterChannel(),
+        GetTransaction(false),
+        Context->GetTransactionManager(),
+        Request->Path,
         keyColumns);
 
     writer->Open();
     TTableConsumer consumer(writer);
 
-    if (request->Value) {
-        auto value = request->Value;
+    if (Request->Value) {
+        auto value = Request->Value;
         switch (value->GetType()) {
             case ENodeType::List: {
                 FOREACH (const auto& child, value->AsList()->GetChildren()) {
-                    VisitTree(~child, &consumer);
+                    VisitTree(child, &consumer);
                 }
                 break;
             }
 
             case ENodeType::Map: {
-                VisitTree(~value, &consumer);
+                VisitTree(value, &consumer);
                 break;
             }
 
@@ -88,12 +77,11 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
                 YUNREACHABLE();
         }
     } else {
-        auto stream = Host->GetInputStream();
+        auto stream = Context->GetRequest()->InputStream;
         ParseYson(stream, &consumer, EYsonType::ListFragment);
     }
 
     writer->Close();
-    Host->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

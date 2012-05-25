@@ -207,8 +207,19 @@ public:
 
     virtual bool IsHolderAuthorized(const Stroka& address)
     {
-        UNUSED(address);
-        return true;
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto rootNodeProxy =
+            cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNodeId());
+        auto holderMap = GetNodeByYPath(rootNodeProxy, "/sys/holders")->AsMap();
+        auto holderNode = holderMap->FindChild(address);
+
+        if (!holderNode) {
+            // New holder.
+            return true;
+        }
+
+        bool banned = holderNode->Attributes().Get<bool>("banned", false);
+        return !banned;
     }
     
 private:
@@ -240,7 +251,7 @@ public:
     { }
 
 private:
-    const THolder* GetHolder() const
+    THolder* GetHolder() const
     {
         auto address = GetParent()->AsMap()->GetChildKey(this);
         return Bootstrap->GetChunkManager()->FindHolderByAddress(address);
@@ -313,6 +324,19 @@ private:
         }
 
         return TMapNodeProxy::GetSystemAttribute(name, consumer);
+    }
+
+    virtual void OnUpdateAttribute(
+        const Stroka& key,
+        const TNullable<NYTree::TYson>& oldValue,
+        const TNullable<NYTree::TYson>& newValue)
+    {
+        UNUSED(oldValue);
+        if (key == "banned") {
+            if (newValue) {
+                DeserializeFromYson<bool>(*newValue);
+            }
+        }
     }
 };
 

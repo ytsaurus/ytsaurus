@@ -102,10 +102,10 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     return false;
 }
 
-bool TVirtualMapBase::SetSystemAttribute(const Stroka& key, TYsonProducer producer)
+bool TVirtualMapBase::SetSystemAttribute(const Stroka& key, const TYson& value)
 {
     UNUSED(key);
-    UNUSED(producer);
+    UNUSED(value);
     return false;
 }
 

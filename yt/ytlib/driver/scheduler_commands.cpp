@@ -25,25 +25,23 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerCommandBase::TSchedulerCommandBase(ICommandHost* host)
-    : TUntypedCommandBase(host)
+TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
+    : TTransactedCommandBase(context)
+    , TUntypedCommandBase(context)
 { }
 
-void TSchedulerCommandBase::StartOperation(
-    TTransactedRequestPtr request,
-    EOperationType type,
-    const NYTree::TYson& spec)
+void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
-    auto transaction = Host->GetTransaction(request);
+    auto transaction = GetTransaction(false);
 
-    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
 
     TOperationId operationId;
     {
         auto startOpReq = proxy.StartOperation();
         startOpReq->set_type(type);
         *startOpReq->mutable_transaction_id() = (transaction ? transaction->GetId() : NullTransactionId).ToProto();
-        startOpReq->set_spec(spec);
+        startOpReq->set_spec(SerializeToYson(Request->Spec));
 
         auto startOpRsp = startOpReq->Invoke().Get();
         if (!startOpRsp->IsOK()) {
@@ -53,111 +51,70 @@ void TSchedulerCommandBase::StartOperation(
         operationId = TOperationId::FromProto(startOpRsp->operation_id());
     }
 
-    Host->ReplySuccess(BuildYsonFluently().Scalar(operationId.ToString()));
+    ReplySuccess(BuildYsonFluently().Scalar(operationId.ToString()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapCommand::TMapCommand(ICommandHost* host)
-    : TTypedCommandBase(host)
+TMapCommand::TMapCommand(ICommandContext* host)
+    : TSchedulerCommandBase(host)
     , TUntypedCommandBase(host)
-    , TSchedulerCommandBase(host)
 { }
 
-TCommandDescriptor TMapCommand::GetDescriptor()
+void TMapCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
-
-void TMapCommand::DoExecute(TSchedulerRequestPtr request)
-{
-    StartOperation(
-        request,
-        EOperationType::Map,
-        SerializeToYson(request->Spec));
+    StartOperation(EOperationType::Map);
     // TODO(babenko): dump stderrs
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMergeCommand::TMergeCommand(ICommandHost* host)
-    : TTypedCommandBase(host)
-    , TUntypedCommandBase(host)
-    , TSchedulerCommandBase(host)
+TMergeCommand::TMergeCommand(ICommandContext* context)
+    : TSchedulerCommandBase(context)
+    , TUntypedCommandBase(context)
 { }
 
-TCommandDescriptor TMergeCommand::GetDescriptor()
+void TMergeCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
-
-void TMergeCommand::DoExecute(TSchedulerRequestPtr request)
-{
-    StartOperation(
-        request,
-        EOperationType::Merge,
-        SerializeToYson(request->Spec));
+    StartOperation(EOperationType::Merge);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortCommand::TSortCommand(ICommandHost* host)
-    : TTypedCommandBase(host)
-    , TUntypedCommandBase(host)
-    , TSchedulerCommandBase(host)
+TSortCommand::TSortCommand(ICommandContext* context)
+    : TSchedulerCommandBase(context)
+    , TUntypedCommandBase(context)
 { }
 
-TCommandDescriptor TSortCommand::GetDescriptor()
+void TSortCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
-
-void TSortCommand::DoExecute(TSchedulerRequestPtr request)
-{
-    StartOperation(
-        request,
-        EOperationType::Sort,
-        SerializeToYson(request->Spec));
+    StartOperation(EOperationType::Sort);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEraseCommand::TEraseCommand(ICommandHost* host)
-    : TTypedCommandBase(host)
-    , TUntypedCommandBase(host)
-    , TSchedulerCommandBase(host)
+TEraseCommand::TEraseCommand(ICommandContext* context)
+    : TSchedulerCommandBase(context)
+    , TUntypedCommandBase(context)
 { }
 
-TCommandDescriptor TEraseCommand::GetDescriptor()
+void TEraseCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Node);
-}
-
-void TEraseCommand::DoExecute(TSchedulerRequestPtr request)
-{
-    StartOperation(
-        request,
-        EOperationType::Erase,
-        SerializeToYson(request->Spec));
+    StartOperation(EOperationType::Erase);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortOperationCommand::TAbortOperationCommand(ICommandHost* host)
-    : TTypedCommandBase(host)
-    , TUntypedCommandBase(host)
+TAbortOperationCommand::TAbortOperationCommand(ICommandContext* context)
+    : TTransactedCommandBase(context)
+    , TUntypedCommandBase(context)
 { }
 
-TCommandDescriptor TAbortOperationCommand::GetDescriptor()
+void TAbortOperationCommand::DoExecute()
 {
-    return TCommandDescriptor(EDataType::Null, EDataType::Null);
-}
-
-void TAbortOperationCommand::DoExecute(TAbortOperationRequestPtr request)
-{
-    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
     auto abortOpReq = proxy.AbortOperation();
-    *abortOpReq->mutable_operation_id() = request->OperationId.ToProto();
+    *abortOpReq->mutable_operation_id() = Request->OperationId.ToProto();
     abortOpReq->Invoke().Get();
 }
 

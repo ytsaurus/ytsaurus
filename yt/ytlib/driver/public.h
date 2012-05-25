@@ -7,8 +7,6 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IDriverHost;
-
 struct IDriver;
 typedef TIntrusivePtr<IDriver> IDriverPtr;
 
@@ -17,12 +15,13 @@ typedef TIntrusivePtr<TDriverConfig> TDriverConfigPtr;
 
 struct TCommandDescriptor;
 
-struct ICommand;
-typedef TIntrusivePtr<ICommand> ICommandPtr;
-
-struct ICommandHost;
+struct TDriverRequest;
+struct TDriverResponse;
 
 struct TFormat;
+
+struct TTsvWriterConfig;
+typedef TIntrusivePtr<TTsvWriterConfig> TTsvWriterConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
             

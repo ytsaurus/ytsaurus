@@ -134,6 +134,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
     }
 
+    NProfiling::TProfilingManager::Get()->Start();
+
     // Start an appropriate server.
     if (isCellNode) {
         auto config = New<NCellNode::TCellNodeConfig>();
@@ -250,13 +252,10 @@ int Main(int argc, const char* argv[])
     SigProcMask(SIG_BLOCK, &sigset, NULL);
 #endif
 
-    NProfiling::TProfilingManager::Get()->Start();
-
     int exitCode;
     try {
         exitCode = GuardedMain(argc, argv);
-    }
-    catch (const std::exception& ex) {
+    } catch (const std::exception& ex) {
         LOG_ERROR("Server startup failed\n%s", ex.what());
         exitCode = EExitCode::BootstrapError;
     }
