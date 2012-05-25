@@ -155,9 +155,6 @@ TFuture< TValueOrError<TYson> > AsyncYPathGet(IYPathServicePtr service, const TY
 //! Synchronously executes "Get" verb. Throws if an error has occurred.
 TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path);
 
-//! Synchronously executes "GetNode" verb. Throws if an error has occurred.
-INodePtr SyncYPathGetNode(IYPathServicePtr service, const TYPath& path);
-
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& value);
 
@@ -170,7 +167,9 @@ void SyncYPathRemove(IYPathServicePtr service, const TYPath& path);
 //! Synchronously executes "List" verb. Throws if an error has occurred.
 yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
 
-void ForceYPath(IMapNodePtr root, const TYPath& path);
+INodePtr GetNodeByYPath(INodePtr root, const TYPath& path);
+
+void ForceYPath(INodePtr root, const TYPath& path);
 
 TYPath GetYPath(INodePtr node, INodePtr* root = NULL);
 
