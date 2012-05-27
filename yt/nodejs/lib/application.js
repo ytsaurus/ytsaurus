@@ -21,6 +21,7 @@ var _MIME_FORMAT_MAPPING = {
     "text/tab-separated-values" : "tsv"
 };
 
+// This mapping defines which HTTP methods various YT data types require.
 var _DATA_TYPE_TO_METHOD_MAPPING = {
     "Null" : "GET",
     "Binary" : "PUT",
@@ -153,20 +154,20 @@ function _dispatch(driver, req, rsp) {
     }
 
     if (input_format instanceof Error) {
-        return _rspSendError(rsp, 400, input_format.message);
+        return _rspSendError(rsp, 415, input_format.message);
     }
 
     if (output_format instanceof Error) {
-        return _rspSendError(rsp, 400, output_format.message);
+        return _rspSendError(rsp, 415, output_format.message);
     }
 
     var descriptor = driver.find_command_descriptor(name);
 
     __DBG("Cmd name=" + name);
+    __DBG("Cmd descriptor=" + JSON.stringify(descriptor));
     __DBG("Cmd parameters=" + JSON.stringify(parameters));
     __DBG("Cmd input_format=" + input_format);
     __DBG("Cmd output_format=" + output_format);
-    __DBG("Cmd descriptor=" + JSON.stringify(descriptor));
 
     if (descriptor === null) {
         return _rspSendError(rsp, 404,
@@ -177,11 +178,12 @@ function _dispatch(driver, req, rsp) {
     var output_type_as_string = ytnode_wrappers.EDataType[descriptor.output_type];
     var expected_http_method = _DATA_TYPE_TO_METHOD_MAPPING[input_type_as_string];
 
-    __DBG("Cmd descriptor.input_type=" + input_type_as_string);
-    __DBG("Cmd descriptor.output_type=" + output_type_as_string);
+    __DBG("Cmd input_type_as_string=" + input_type_as_string);
+    __DBG("Cmd output_type_as_string=" + output_type_as_string);
     __DBG("Cmd expected_http_method=" + expected_http_method);
 
-    if (req.method != _DATA_TYPE_TO_METHOD_MAPPING[input_type_as_string]) {
+    if (req.method != expected_http_method) {
+        rsp.setHeader("Allow", expected_http_method);
         return _rspSendError(rsp, 405,
             "Command '" + name + "' expects " + input_type_as_string.toLowerCase() + " input and hence have to be requested with the " + expected_http_method + " method.");
     }

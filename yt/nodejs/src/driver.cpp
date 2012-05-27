@@ -60,7 +60,7 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
 
     Local<Object> result = Object::New();
     result->Set(
-        String::New("command_name"),
+        String::New("name"),
         String::New(descriptor.CommandName.c_str()));
     result->Set(
         String::New("input_type"),

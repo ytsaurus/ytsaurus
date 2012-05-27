@@ -2,8 +2,11 @@
   until the whole output will be produced and set proper status code.
   (cf. 413 Request Entity Too Large for limiting input data size)
 - Fortify Driver::Execute method (From* methods may throw exceptions).
+- In application when extraction of input/output format succeeded we have to
+  explicitly verify whether the input is correct and throw an error otherwise.
 - Ref()/Unref() streams during Driver::Execute.
-- Rename TCommandDescriptor::CommandName to ::Name.
+- Rename TDriverRequest::Arguments to *::Parameters
+- Rename TCommandDescriptor::CommandName to *::Name
 - Implement proper thread affinity.
 - There should be EventuallyUnref() method which is thread-safe and
   which eventually Unref()'s Ref()'ed object. Exactly this method
