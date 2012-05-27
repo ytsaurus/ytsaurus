@@ -130,7 +130,18 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
         String::NewSymbol("TNodeJSDriver"),
         ConstructorTemplate->GetFunction());
 
-    // TODO(sandello): Export EDataType
+    Local<Object> dataType = Object::New();
+#define YTNODE_SET_ENUM(object, type, element) \
+    (object)->Set(type::element, String::New(type::GetLiteralByValue(type::element)))
+    YTNODE_SET_ENUM(dataType, EDataType, Null);
+    YTNODE_SET_ENUM(dataType, EDataType, Binary);
+    YTNODE_SET_ENUM(dataType, EDataType, Structured);
+    YTNODE_SET_ENUM(dataType, EDataType, Tabular);
+#undef YTNODE_SET_ENUM
+
+    target->Set(
+        String::New("EDataType"),
+        dataType);
 }
 
 bool TNodeJSDriver::HasInstance(Handle<Value> value)
