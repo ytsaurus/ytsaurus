@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <deque>
+#include <util/thread/lfqueue.h>
 
 namespace NYT {
 
@@ -19,18 +19,27 @@ public:
     using node::ObjectWrap::Ref;
     using node::ObjectWrap::Unref;
 
-    struct TJSPart
+    struct TOutputPart
+    {
+        // The following data is allocated on the heap hence have to care
+        // about ownership transfer and/or freeing memory after structure
+        // disposal.
+        char*  Buffer;
+        size_t Length;
+    };
+
+    struct TInputPart
     {
         uv_work_t Request;
         TNodeJSStreamBase* Stream;
         v8::Persistent<v8::Value> Handle;
 
-        char*  Data;
+        // The following data is owned by handle hence no need to care about
+        // freeing memory after structure disposal.
+        char*  Buffer;
         size_t Offset;
         size_t Length;
     };
-
-    typedef std::deque<TJSPart*> TQueue;
 
 private:
     TNodeJSStreamBase(const TNodeJSStreamBase&);

@@ -2,6 +2,8 @@
 
 #include "stream_base.h"
 
+#include <deque>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +50,7 @@ private:
 
     TMutex Mutex;
     TCondVar Conditional;
-    TQueue Queue;
+    std::deque<TInputPart*> Queue;
 
     uv_work_t SweepRequest;
     uv_work_t CloseRequest;

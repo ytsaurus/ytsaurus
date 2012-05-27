@@ -2,6 +2,7 @@
 
 #include "stream_base.h"
 
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,8 +31,8 @@ public:
 
     // Asynchronous JS API.
     static void AsyncOnWrite(uv_work_t* request);
-    void EnqueueOnWrite(TJSPart* part);
-    void DoOnWrite(TJSPart* part);
+    void EnqueueOnWrite();
+    void DoOnWrite();
 
     static void AsyncOnFlush(uv_work_t* request);
     void EnqueueOnFlush();
@@ -48,19 +49,22 @@ protected:
     void DoFinish();
 
 private:
+    uv_work_t WriteRequest;
     uv_work_t FlushRequest;
     uv_work_t FinishRequest;
+
+    TLockFreeQueue<TOutputPart> Queue;
 
 private:
     TNodeJSOutputStream(const TNodeJSOutputStream&);
     TNodeJSOutputStream& operator=(const TNodeJSOutputStream&);
 };
 
-inline void TNodeJSOutputStream::EnqueueOnWrite(TJSPart* part)
+inline void TNodeJSOutputStream::EnqueueOnWrite()
 {
     // Post to V8 thread.
     uv_queue_work(
-        uv_default_loop(), &part->Request,
+        uv_default_loop(), &WriteRequest,
         DoNothing, TNodeJSOutputStream::AsyncOnWrite);
 }
 

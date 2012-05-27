@@ -29,6 +29,11 @@ TNodeJSOutputStream::TNodeJSOutputStream()
 TNodeJSOutputStream::~TNodeJSOutputStream() throw()
 {
     T_THREAD_AFFINITY_IS_V8();
+
+    TOutputPart part;
+    while (Queue.Dequeue(&part)) {
+        DeleteCallback(part.Buffer, NULL);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +45,7 @@ void TNodeJSOutputStream::Initialize(Handle<Object> target)
 
     OnWriteSymbol  = NODE_PSYMBOL("on_write");
     OnFlushSymbol  = NODE_PSYMBOL("on_flush");
-    OnFinishSymbol = NODE_PSYMBOL("on_Finish");
+    OnFinishSymbol = NODE_PSYMBOL("on_finish");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
         FunctionTemplate::New(TNodeJSOutputStream::New));
@@ -80,24 +85,25 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
 void TNodeJSOutputStream::AsyncOnWrite(uv_work_t* request)
 {
     THREAD_AFFINITY_IS_V8();
-    TJSPart* part = container_of(request, TJSPart, Request);
-    TNodeJSOutputStream* stream = (TNodeJSOutputStream*)(part->Stream);
-    stream->DoOnWrite(part);
+    TNodeJSOutputStream* stream =
+        container_of(request, TNodeJSOutputStream, WriteRequest);
+    stream->DoOnWrite();
 }
 
-void TNodeJSOutputStream::DoOnWrite(TJSPart* part)
+void TNodeJSOutputStream::DoOnWrite()
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    node::Buffer* buffer =
-        node::Buffer::New(part->Data, part->Length, DeleteCallback, 0);
- 
-    Local<Value> args[] = { Local<Value>::New(buffer->handle_) };
-    // TODO(sandello): Use OnWriteSymbol here.
-    node::MakeCallback(this->handle_, "on_write", ARRAY_SIZE(args), args);
+    TOutputPart part;
+    while (Queue.Dequeue(&part)) {
+        node::Buffer* buffer =
+            node::Buffer::New(part.Buffer, part.Length, DeleteCallback, NULL);
 
-    delete part;
+        Local<Value> args[] = { Local<Value>::New(buffer->handle_) };
+        // TODO(sandello): Use OnWriteSymbol here.
+        node::MakeCallback(this->handle_, "on_write", ARRAY_SIZE(args), args);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,20 +146,21 @@ void TNodeJSOutputStream::DoOnFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSOutputStream::DoWrite(const void *buffer, size_t length)
+void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
-    char* data = new char[length]; YASSERT(data);
-    ::memcpy(data, buffer, length);
+    char* buffer = new char[length];
+    YASSERT(buffer);
 
-    TJSPart* part  = new TJSPart(); YASSERT(part);
-    part->Stream = this;
-    part->Data   = data;
-    part->Offset = 0;
-    part->Length = length;
+    ::memcpy(buffer, data, length);
 
-    EnqueueOnWrite(part);
+    TOutputPart part;
+    part.Buffer = buffer;
+    part.Length = length;
+    Queue.Enqueue(part);
+
+    EnqueueOnWrite();
 }
 
 void TNodeJSOutputStream::DoFlush()

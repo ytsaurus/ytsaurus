@@ -92,22 +92,24 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
     // Do the work.
     return scope.Close(stream->DoPush(
         /* handle */ Persistent<Value>::New(args[0]),
-        /* data   */ node::Buffer::Data(args[0].As<Object>()),
+        /* buffer */ node::Buffer::Data(args[0].As<Object>()),
         /* offset */ args[1]->Uint32Value(),
         /* length */ args[2]->Uint32Value()));
 }
 
-Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char *data, size_t offset, size_t length)
+Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer, size_t offset, size_t length)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TJSPart* part = new TJSPart(); YASSERT(part);
-    part->Stream  = this;
-    part->Handle  = handle;
-    part->Data    = data;
-    part->Offset  = offset;
-    part->Length  = length;
+    TInputPart* part = new TInputPart();
+    YASSERT(part);
+
+    part->Stream = this;
+    part->Handle = handle;
+    part->Buffer = buffer;
+    part->Offset = offset;
+    part->Length = length;
 
     {
         TGuard<TMutex> guard(&Mutex);
@@ -176,12 +178,12 @@ void TNodeJSInputStream::DoSweep()
 
     TGuard< TMutex, TAlreadyLockedOps<TMutex> > guard(&Mutex);
 
-    TQueue::iterator
+    auto
         it = Queue.begin(),
         jt = Queue.end();
 
     while (it != jt) {
-        TJSPart* part = *it;
+        TInputPart* part = *it;
 
         if (part->Length > 0) {
             break;
@@ -245,7 +247,7 @@ size_t TNodeJSInputStream::DoRead(void* buffer, size_t length)
 
     size_t result = 0;
     while (length > 0 && result == 0) {
-        TQueue::iterator
+        auto
             it = Queue.begin(),
             jt = Queue.end();
 
@@ -253,14 +255,14 @@ size_t TNodeJSInputStream::DoRead(void* buffer, size_t length)
         bool canReadSomething = false;
 
         while (length > 0 && it != jt) {
-            TJSPart* part = *it;
+            TInputPart* part = *it;
 
             canRead = std::min(length, part->Length);
             canReadSomething |= (canRead > 0);
 
             ::memcpy(
                 (char*)buffer + result,
-                part->Data + part->Offset,
+                part->Buffer + part->Offset,
                 canRead);
 
             result += canRead;
