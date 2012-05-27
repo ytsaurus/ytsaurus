@@ -1,4 +1,6 @@
+- Implement HTTP method switch based on command descriptor.
 - Fortify Driver::Execute method (From* methods may throw exceptions).
+- Ref()/Unref() streams during Driver::Execute.
 - Implement proper thread affinity.
 - There should be EventuallyUnref() method which is thread-safe and
   which eventually Unref()'s Ref()'ed object. Exactly this method

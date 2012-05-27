@@ -14,12 +14,12 @@ TNodeJSInputStream::TNodeJSInputStream()
     : TNodeJSStreamBase()
     , IsAlive(true)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 }
 
 TNodeJSInputStream::~TNodeJSInputStream() throw()
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 
     {
         TGuard<TMutex> guard(&Mutex);
@@ -63,7 +63,7 @@ bool TNodeJSInputStream::HasInstance(Handle<Value> value)
 
 Handle<Value> TNodeJSInputStream::New(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     TNodeJSInputStream* stream = NULL;

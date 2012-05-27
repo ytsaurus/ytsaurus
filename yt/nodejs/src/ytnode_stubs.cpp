@@ -8,11 +8,6 @@ namespace NYT {
 
 COMMON_V8_USES
 
-using v8::Context;
-using v8::Exception;
-using v8::ThrowException;
-using v8::TryCatch;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInputStreamStub
@@ -137,17 +132,17 @@ TInputStreamStub::TInputStreamStub(TNodeJSInputStream* slave)
     : node::ObjectWrap()
     , Slave(slave)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 }
 
 TInputStreamStub::~TInputStreamStub()
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 }
 
 Handle<Value> TInputStreamStub::New(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     YASSERT(args.Length() == 1);
@@ -317,17 +312,17 @@ TOutputStreamStub::TOutputStreamStub(TNodeJSOutputStream* slave)
     : node::ObjectWrap()
     , Slave(slave)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 }
 
 TOutputStreamStub::~TOutputStreamStub()
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 }
 
 Handle<Value> TOutputStreamStub::New(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     YASSERT(args.Length() == 1);

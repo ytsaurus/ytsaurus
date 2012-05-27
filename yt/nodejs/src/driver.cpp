@@ -13,9 +13,6 @@ namespace NYT {
 
 COMMON_V8_USES
 
-using v8::Context;
-using v8::TryCatch;
-
 using namespace NYTree;
 using namespace NDriver;
 
@@ -82,7 +79,7 @@ Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
 TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
     : node::ObjectWrap()
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 
     INodePtr configNode;
     try {
@@ -109,7 +106,7 @@ TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
 
 TNodeJSDriver::~TNodeJSDriver()
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +145,7 @@ bool TNodeJSDriver::HasInstance(Handle<Value> value)
 
 Handle<Value> TNodeJSDriver::New(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     YASSERT(args.Length() == 1);

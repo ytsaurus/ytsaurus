@@ -23,12 +23,12 @@ static Persistent<String> OnFinishSymbol;
 
 TNodeJSOutputStream::TNodeJSOutputStream()
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 }
 
 TNodeJSOutputStream::~TNodeJSOutputStream() throw()
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
 
     TOutputPart part;
     while (Queue.Dequeue(&part)) {
@@ -72,7 +72,7 @@ bool TNodeJSOutputStream::HasInstance(Handle<Value> value)
 
 Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
 {
-    T_THREAD_AFFINITY_IS_V8();
+    THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     TNodeJSOutputStream* stream = NULL;

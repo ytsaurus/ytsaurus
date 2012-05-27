@@ -14,47 +14,39 @@
 #undef STATIC_ASSERT
 #endif
 
-#include <pthread.h>
+// #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
 
 #define TRACE_CURRENT_THREAD(marker) \
     (fprintf(stderr, "=== " marker " Thread 0x%012lx: %s\n", (size_t)pthread_self(), __PRETTY_FUNCTION__))
 
-#if 0
-#define T_THREAD_AFFINITY_IS_V8() TRACE_CURRENT_THREAD("V8")
-#define T_THREAD_AFFINITY_IS_UV() TRACE_CURRENT_THREAD("UV")
-#else
-#define T_THREAD_AFFINITY_IS_V8()
-#define T_THREAD_AFFINITY_IS_UV()
-#endif
-
 #define THREAD_AFFINITY_IS_V8()
 #define THREAD_AFFINITY_IS_UV()
 #define THREAD_AFFINITY_IS_ANY()
-
-#define CHECK_RETURN_VALUE(expr) \
-    do { int rv = (expr); YASSERT(rv == 0 && #expr); } while (0)
 
 #define COMMON_V8_USES \
     using v8::Arguments; \
     using v8::Array; \
     using v8::Boolean; \
-    using v8::Local; \
-    using v8::Persistent; \
-    using v8::Handle; \
-    using v8::HandleScope; \
-    using v8::Value; \
-    using v8::Number;
-    using v8::Integer;
-    using v8::String; \
-    using v8::Object; \
+    using v8::Context; \
+    using v8::Exception; \
     using v8::Function; \
     using v8::FunctionTemplate; \
-    using v8::Undefined; \
+    using v8::Handle; \
+    using v8::HandleScope; \
+    using v8::Integer;
+    using v8::Local; \
     using v8::Null; \
-    using v8::Exception; \
-    using v8::ThrowException;
+    using v8::Number;
+    using v8::Object; \
+    using v8::Persistent; \
+    using v8::String; \
+    using v8::ThrowException; \
+    using v8::TryCatch; \
+    using v8::Undefined; \
+    using v8::Value; \
+    /**/
 
 #define EXPECT_THAT_IS(value, type) \
     do { \
