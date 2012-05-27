@@ -1,6 +1,9 @@
-- Implement HTTP method switch based on command descriptor.
+- When performing POST and PUT queries post-pone output generation
+  until the whole output will be produced and set proper status code.
+  (cf. 413 Request Entity Too Large for limiting input data size)
 - Fortify Driver::Execute method (From* methods may throw exceptions).
 - Ref()/Unref() streams during Driver::Execute.
+- Rename TCommandDescriptor::CommandName to ::Name.
 - Implement proper thread affinity.
 - There should be EventuallyUnref() method which is thread-safe and
   which eventually Unref()'s Ref()'ed object. Exactly this method

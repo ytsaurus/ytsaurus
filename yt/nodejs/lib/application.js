@@ -15,10 +15,17 @@ if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
 }
 
 // This mapping defines how MIME types map onto YT format specifications.
-var _FORMAT_MAPPING = {
-    "application/json"          : "json",
-    "text/csv"                  : "csv",
+var _MIME_FORMAT_MAPPING = {
+    "application/json" : "json",
+    "text/csv" : "csv",
     "text/tab-separated-values" : "tsv"
+};
+
+var _DATA_TYPE_TO_METHOD_MAPPING = {
+    "Null" : "GET",
+    "Binary" : "PUT",
+    "Structured" : "POST",
+    "Tabular" : "PUT"
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +33,7 @@ var _FORMAT_MAPPING = {
 
 function _rspSendError(rsp, code, text) {
     // TODO(sandello): Maybe answer with other Content -Type.
-    var body = JSON.stringify({ error : text });
+    var body = JSON.stringify({ error : text + "\nPlease consult API reference for further information." });
     rsp.writeHead(code, {
         "Content-Length" : body.length,
         "Content-Type"   : "application/json"
@@ -39,8 +46,8 @@ function _rspSetFormatHeaders(rsp, input_format, output_format) {
     rsp.setHeader("X-YT-Output-Format", output_format);
 
     // TODO(sandello): Strip off all atributes before checking.
-    for (var mime in _FORMAT_MAPPING) {
-        if (output_format === _FORMAT_MAPPING[mime]) {
+    for (var mime in _MIME_FORMAT_MAPPING) {
+        if (output_format === _MIME_FORMAT_MAPPING[mime]) {
             rsp.setHeader("Content-Type", mime);
         }
     }
@@ -56,7 +63,7 @@ function _rspSetTrailers(rsp) {
 function _reqExtractName(req) {
     var name = req.parsedUrl.pathname.slice(1).toLowerCase();
     if (!/^[a-z]+$/.test(name)) {
-        return new Error("Malformed command name: '" + name + "'");
+        return new Error("Malformed command '" + name + "'.");
     } else {
         return name;
     }
@@ -65,7 +72,7 @@ function _reqExtractName(req) {
 function _reqExtractParameters(req) {
     var parameters = querystring.parse(req.parsedUrl.query);
     if (!parameters) {
-        return new Error("Unable to parse parameters from query string");
+        return new Error("Unable to parse parameters from the query string.");
     } else {
         return parameters;
     }
@@ -77,15 +84,15 @@ function _reqExtractInputFormat(req) {
     // Firstly, try to deduce input format from Content-Type header.
     header = req.headers["content-type"];
     if (typeof(header) === "string") {
-        for (var mime in _FORMAT_MAPPING) {
+        for (var mime in _MIME_FORMAT_MAPPING) {
             if (utils.is(mime, header)) {
-                result = _FORMAT_MAPPING[mime];
+                result = _MIME_FORMAT_MAPPING[mime];
                 break;
             }
         }
     }
 
-    // Secondly, try to deduce output format from our header.
+    // Secondly, try to deduce output format from our custom header.
     header = req.headers["x-yt-input-format"];
     if (typeof(header) === "string") {
         result = header;
@@ -105,15 +112,15 @@ function _reqExtractOutputFormat(req) {
     // Firstly, try to deduce output format from Accept header.
     header = req.headers["accept"];
     if (typeof(header) === "string") {
-        for (var mime in _FORMAT_MAPPING) {
+        for (var mime in _MIME_FORMAT_MAPPING) {
             if (mime === utils.accepts(mime, header)) {
-                result = _FORMAT_MAPPING[mime];
+                result = _MIME_FORMAT_MAPPING[mime];
                 break;
             }
         }
     }
 
-    // Secondly, try to deduce output format from our header.
+    // Secondly, try to deduce output format from our custom header.
     header = req.headers["x-yt-output-format"];
     if (typeof(header) === "string") {
         result = header;
@@ -138,25 +145,46 @@ function _dispatch(driver, req, rsp) {
     var output_format = _reqExtractOutputFormat(req);
 
     if (name instanceof Error) {
-        _rspSendError(rsp, 404, name.message);
+        return _rspSendError(rsp, 404, name.message);
     }
 
     if (parameters instanceof Error) {
-        _rspSendError(rsp, 400, parameters.message);
+        return _rspSendError(rsp, 400, parameters.message);
     }
 
     if (input_format instanceof Error) {
-        _rspSendError(rsp, 400, input_format.message);
+        return _rspSendError(rsp, 400, input_format.message);
     }
 
     if (output_format instanceof Error) {
-        _rspSendError(rsp, 400, output_format.message);
+        return _rspSendError(rsp, 400, output_format.message);
     }
+
+    var descriptor = driver.find_command_descriptor(name);
 
     __DBG("Cmd name=" + name);
     __DBG("Cmd parameters=" + JSON.stringify(parameters));
     __DBG("Cmd input_format=" + input_format);
     __DBG("Cmd output_format=" + output_format);
+    __DBG("Cmd descriptor=" + JSON.stringify(descriptor));
+
+    if (descriptor === null) {
+        return _rspSendError(rsp, 404,
+            "There is no such command '" + name + "' registered.");
+    }
+
+    var input_type_as_string = ytnode_wrappers.EDataType[descriptor.input_type];
+    var output_type_as_string = ytnode_wrappers.EDataType[descriptor.output_type];
+    var expected_http_method = _DATA_TYPE_TO_METHOD_MAPPING[input_type_as_string];
+
+    __DBG("Cmd descriptor.input_type=" + input_type_as_string);
+    __DBG("Cmd descriptor.output_type=" + output_type_as_string);
+    __DBG("Cmd expected_http_method=" + expected_http_method);
+
+    if (req.method != _DATA_TYPE_TO_METHOD_MAPPING[input_type_as_string]) {
+        return _rspSendError(rsp, 405,
+            "Command '" + name + "' expects " + input_type_as_string.toLowerCase() + " input and hence have to be requested with the " + expected_http_method + " method.");
+    }
 
     _rspSetFormatHeaders(rsp, input_format, output_format);
     _rspSetTrailers(rsp);

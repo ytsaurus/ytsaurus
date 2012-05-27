@@ -233,3 +233,4 @@ exports.YtWritableStream = YtWritableStream;
 
 exports.YtDriver = YtDriver;
 
+exports.EDataType = binding.EDataType;
