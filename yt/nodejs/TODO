@@ -3,11 +3,6 @@
 - There should be EventuallyUnref() method which is thread-safe and
   which eventually Unref()'s Ref()'ed object. Exactly this method
   should be used with TIntrusivePtr on C++ side.
-- Ensure that TNodeJS* objects are destroyed within V8 thread.
-- Extract TNodeJSOutputStream::Pull to an asynchronous method
-  in order to avoid locking on Mutex.
-- Extract TNodeJSInputStream::Push to an asynchronous method
-  in order to avoid locking on Mutex.
 - Investigate common allocation sizes and migrate to SlabAllocator.
 - Merge {Read,Write} and {Read,Write}Synchronous into a single method
   (i. e. if a callback was passed then perform asynchronously).
@@ -16,6 +11,5 @@
   on every asynchronous call.
 - Maybe cache allocated and used request structures.
 - Implement write queue threshold to limit memory usage.
-- Callbacks throughout the interface.
 - Investigate all 'new' call sites for potential memory leaks due to exceptions.
 - We can pass as HTTP configuration some JS structure and modify it in real-time.

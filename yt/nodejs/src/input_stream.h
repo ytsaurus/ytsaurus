@@ -43,7 +43,7 @@ public:
 
 protected:
     // C++ API.
-    size_t DoRead(void* buffer, size_t length);
+    size_t DoRead(void* data, size_t length);
 
 private:
     bool IsAlive;

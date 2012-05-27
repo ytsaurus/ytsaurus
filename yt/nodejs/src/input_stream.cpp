@@ -239,7 +239,7 @@ void TNodeJSInputStream::DoClose()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TNodeJSInputStream::DoRead(void* buffer, size_t length)
+size_t TNodeJSInputStream::DoRead(void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
@@ -261,7 +261,7 @@ size_t TNodeJSInputStream::DoRead(void* buffer, size_t length)
             canReadSomething |= (canRead > 0);
 
             ::memcpy(
-                (char*)buffer + result,
+                (char*)data + result,
                 part->Buffer + part->Offset,
                 canRead);
 

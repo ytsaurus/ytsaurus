@@ -2,6 +2,7 @@
 
 #include "stream_base.h"
 
+#include <util/thread/lfqueue.h>
 
 namespace NYT {
 
