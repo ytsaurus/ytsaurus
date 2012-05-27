@@ -75,9 +75,18 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
     T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TNodeJSOutputStream* stream = new TNodeJSOutputStream();
-    stream->Wrap(args.This());
-    return scope.Close(args.This());
+    TNodeJSOutputStream* stream = NULL;
+    try {
+        stream = new TNodeJSOutputStream();
+        stream->Wrap(args.This());
+        return scope.Close(args.This());
+    } catch (const std::exception& ex) {
+        if (stream) {
+            delete stream;
+        }
+
+        return ThrowException(Exception::Error(String::New(ex.what())));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +109,9 @@ void TNodeJSOutputStream::DoOnWrite()
         node::Buffer* buffer =
             node::Buffer::New(part.Buffer, part.Length, DeleteCallback, NULL);
 
-        Local<Value> args[] = { Local<Value>::New(buffer->handle_) };
+        Local<Value> args[] = {
+            Local<Value>::New(buffer->handle_)
+        };
         // TODO(sandello): Use OnWriteSymbol here.
         node::MakeCallback(this->handle_, "on_write", ARRAY_SIZE(args), args);
     }

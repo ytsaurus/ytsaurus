@@ -88,19 +88,23 @@ TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
     try {
         configNode = DeserializeFromYson(configuration);
     } catch (const std::exception& ex) {
-        Driver = NULL;
         Message = Sprintf("Error reading configuration\n%s", ex.what());
     }
 
-    auto config = ::NYT::New<NDriver::TDriverConfig>();
+    TDriverConfigPtr config;
     try {
+        // Qualify namespace to avoid collision with v8-New().
+        config = ::NYT::New<NDriver::TDriverConfig>();
         config->Load(~configNode);
     } catch (const std::exception& ex) {
-        Driver = NULL;
         Message = Sprintf("Error parsing configuration\n%s", ex.what());
     }
 
-    Driver = CreateDriver(config);
+    try {
+        Driver = CreateDriver(config);
+    } catch (const std::exception& ex) {
+        Message = Sprintf("Error initializing driver instance\n%s", ex.what());
+    }
 }
 
 TNodeJSDriver::~TNodeJSDriver()

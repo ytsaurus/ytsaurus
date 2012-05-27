@@ -66,9 +66,18 @@ Handle<Value> TNodeJSInputStream::New(const Arguments& args)
     T_THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TNodeJSInputStream* stream = new TNodeJSInputStream();
-    stream->Wrap(args.This());
-    return scope.Close(args.This());
+    TNodeJSInputStream* stream = NULL;
+    try {
+        stream = new TNodeJSInputStream();
+        stream->Wrap(args.This());
+        return scope.Close(args.This());
+    } catch (const std::exception& ex) {
+        if (stream) {
+            delete stream;
+        }
+
+        return ThrowException(Exception::Error(String::New(ex.what())));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
