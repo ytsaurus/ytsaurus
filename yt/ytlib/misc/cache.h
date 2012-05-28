@@ -24,7 +24,7 @@ public:
     TKey GetKey() const;
 
 protected:
-    TCacheValueBase(const TKey& key);
+    explicit TCacheValueBase(const TKey& key);
 
 private:
     typedef TCacheBase<TKey, TValue, THash> TCache;
@@ -58,7 +58,7 @@ protected:
     class TInsertCookie
     {
     public:
-        TInsertCookie(const TKey& key);
+        explicit TInsertCookie(const TKey& key);
         ~TInsertCookie();
 
         inline TKey GetKey() const;

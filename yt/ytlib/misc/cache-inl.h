@@ -93,7 +93,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 
             auto value = TRefCounted::DangerousGetPtr(valueIt->second);
             if (value) {
-                auto* item = new TItem();
+                auto* item = new TItem(value);
                 // This holds an extra reference to the promise state...
                 auto valueOrError = item->ValueOrError;
                 LruList.PushFront(item);
