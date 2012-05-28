@@ -6,14 +6,14 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTsvWriter::TTsvWriter(TOutputStream* stream, TTsvWriterConfigPtr config)
+TTsvWriter::TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config)
     : Stream(stream)
     , FirstLine(true)
     , FirstItem(true)
     , State(EState::ExpectListItem)
 {
     if (!config) {
-        Config = New<TTsvWriterConfig>();
+        Config = New<TTsvFormatConfig>();
     }
 }
 

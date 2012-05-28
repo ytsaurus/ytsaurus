@@ -9,7 +9,7 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTsvWriterTest, PossibleValues)
+TEST(TTsvWriterTest, Simple)
 {
     TStringStream outputStream;
     TTsvWriter writer(&outputStream);

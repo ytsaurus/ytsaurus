@@ -43,6 +43,7 @@ set( SRCS
   small_string_ut.cpp
   url_ut.cpp
   tsv_writer_ut.cpp
+  tsv_parser_ut.cpp
 )
 
 protoc( rpc_ut.proto PROTO_SRC )

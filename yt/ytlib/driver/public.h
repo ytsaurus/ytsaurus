@@ -20,8 +20,8 @@ struct TDriverResponse;
 
 struct TFormat;
 
-struct TTsvWriterConfig;
-typedef TIntrusivePtr<TTsvWriterConfig> TTsvWriterConfigPtr;
+struct TTsvFormatConfig;
+typedef TIntrusivePtr<TTsvFormatConfig> TTsvFormatConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
             

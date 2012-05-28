@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/misc/configurable.h>
 #include <ytlib/election/leader_lookup.h>
 // TODO: consider using forward declarations.
 #include <ytlib/transaction_client/public.h>
@@ -43,6 +44,23 @@ struct TDriverConfig
             .DefaultNew();
         Register("block_cache", BlockCache)
             .DefaultNew();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTsvFormatConfig
+    : public TConfigurable
+{
+    char NewLineSeparator;
+    char KeyValueSeparator;
+    char ItemSeparator;
+
+    TTsvFormatConfig()
+    {
+        Register("newline", NewLineSeparator).Default('\n');
+        Register("key_value", KeyValueSeparator).Default('=');
+        Register("item", ItemSeparator).Default('\t');
     }
 };
 

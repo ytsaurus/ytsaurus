@@ -1,9 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <ytlib/ytree/yson_consumer.h>
-#include <ytlib/misc/configurable.h>
 #include <ytlib/misc/enum.h>
 
 namespace NYT {
@@ -11,28 +11,11 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTsvWriterConfig
-    : public TConfigurable
-{
-    Stroka NewLineSeparator;
-    Stroka KeyValueSeparator;
-    Stroka ItemSeparator;
-
-    TTsvWriterConfig()
-    {
-        Register("newline", NewLineSeparator).Default("\n");
-        Register("key_value", KeyValueSeparator).Default("=");
-        Register("item", ItemSeparator).Default("\t");
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTsvWriter
     : public NYTree::IYsonConsumer
 {
 public:
-    explicit TTsvWriter(TOutputStream* stream, TTsvWriterConfigPtr config = NULL);
+    explicit TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config = NULL);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);
@@ -51,7 +34,7 @@ public:
 
 private:
     TOutputStream* Stream;
-    TTsvWriterConfigPtr Config;
+    TTsvFormatConfigPtr Config;
 
     bool FirstLine;
     bool FirstItem;

@@ -10,10 +10,10 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/sort_job.cpp
   ${BASE}/sorted_merge_job.cpp
+  ${BASE}/stderr_output.cpp
   ${BASE}/table_output.cpp
   ${BASE}/user_job.cpp
   ${BASE}/user_job_io.cpp
-  ${BASE}/stderr_output.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -27,10 +27,10 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/sort_job.h
   ${BASE}/sorted_merge_job.h
+  ${BASE}/stderr_output.h
   ${BASE}/table_output.h
   ${BASE}/user_job.h
   ${BASE}/user_job_io.h
-  ${BASE}/stderr_output.h
 )
 
 list(APPEND YT_SOURCE_FILES
