@@ -1,35 +1,31 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
-class YSONString(str):
+class YSONType(object):
     def __init__(self, *kargs, **kwargs):
-        str.__init__(self, *kargs, **kwargs)
         self.attributes = {}
 
-class YSONInteger(int):
-    def __init__(self, *kargs, **kwargs):
-        int.__init__(self, *kargs, **kwargs)
-        self.attributes = {}
+class YSONString(str, YSONType):
+    pass
 
-class YSONDouble(float):
-    def __init__(self, *kargs, **kwargs):
-        float.__init__(self, *kargs, **kwargs)
-        self.attributes = {}
+class YSONInteger(int, YSONType):
+    pass
 
-class YSONList(list):
+class YSONDouble(float, YSONType):
+    pass
+
+class YSONList(list, YSONType):
     def __init__(self, *kargs, **kwargs):
+        YSONType.__init__(self, *kargs, **kwargs)
         list.__init__(self, *kargs, **kwargs)
-        self.attributes = {}
 
-class YSONMap(dict):
+class YSONMap(dict, YSONType):
     def __init__(self, *kargs, **kwargs):
+        YSONType.__init__(self, *kargs, **kwargs)
         dict.__init__(self, *kargs, **kwargs)
-        self.attributes = {}
 
-class YSONEntity(object):
-    def __init__(self, *kargs, **kwargs):
-        object.__init__(self, *kargs, **kwargs)
-        self.attributes = {}
+class YSONEntity(YSONType):
+    pass
 
 def convert_to_YSON_type(value, attributes = None):
     if isinstance(value, str):
