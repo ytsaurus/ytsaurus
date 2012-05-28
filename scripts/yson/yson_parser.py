@@ -2,6 +2,7 @@
 #!-*-coding:utf-8-*-
 
 import struct
+import yson_types
 from StringIO import StringIO
 
 __all__ = ["parse", "parse_string"]
@@ -175,8 +176,10 @@ class YSONParserBase(object):
         return result
 
     def _parse_any(self):
+        attributes = None
         if self._has_attributes():
             attributes = self._parse_attributes()
+
         self._skip_whitespaces()
         ch = self._peek_char()
         if not ch:
@@ -184,33 +187,35 @@ class YSONParserBase(object):
                 "Premature end-of-stream in YSON",
                 self._get_position_info())
         elif ch == '[':
-            return self._parse_list()
+            result = self._parse_list()
 
         elif ch == '{':
-            return self._parse_map()
+            result = self._parse_map()
 
         elif ch == '#':
-            return self._parse_entity()
+            result = self._parse_entity()
 
         elif ch == _STRING_MARKER:
-            return self._parse_string()
+            result = self._parse_string()
 
         elif ch == _INT64_MARKER:
-            return self._parse_binary_int64()
+            result = self._parse_binary_int64()
 
         elif ch == _DOUBLE_MARKER:
-            return self._parse_binary_double()
+            result = self._parse_binary_double()
 
         elif ch == '+' or ch == '-' or ch.isdigit():
-            return self._parse_numeric()
+            result = self._parse_numeric()
 
         elif ch == '_' or ch == '"' or ch == '%' or ch.isalpha():
-            return self._parse_string()
+            result = self._parse_string()
 
         else:
             raise YSONParseError(
                 "Unexpected character %s in YSON" % ch,
                 self._get_position_info())
+
+        return yson_types.convert_to_YSON_type(result, attributes)
 
     def _parse_list(self):
         self._expect_char('[')

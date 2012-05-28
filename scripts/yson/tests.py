@@ -3,6 +3,7 @@
 
 import yson_parser
 import yson_to_bash
+import yson_types
 
 from StringIO import StringIO
 import unittest
@@ -34,10 +35,17 @@ class PrintBashTest(unittest.TestCase):
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "3", "1/c")
     
 class TestYSONParser(unittest.TestCase):
-    def assert_parse(self, string, expected):
-        self.assertEqual(yson_parser.parse_string(string), expected)
+    def assert_equal(self, parsed, expected, attributes):
+        if expected is None:
+            assert(isinstance(parsed, yson_types.YSONEntity))
+        else:
+            self.assertEqual(parsed, expected)
+        self.assertEqual(parsed.attributes, attributes)
+
+    def assert_parse(self, string, expected, attributes = {}):
+        self.assert_equal(yson_parser.parse_string(string), expected, attributes)
         stream = StringIO(string)
-        self.assertEqual(yson_parser.parse(stream), expected)
+        self.assert_equal(yson_parser.parse(stream), expected, attributes)
 
     def test_quoted_string(self):
         self.assert_parse('"abc\\"\\n"', 'abc"\n')
@@ -79,7 +87,7 @@ class TestYSONParser(unittest.TestCase):
         self.assert_parse('{a=1}', {'a': 1})
 
     def test_map(self):
-        self.assert_parse('<a = b; c = d> {a = b; c = d}', {'a': 'b', 'c': 'd'})
+        self.assert_parse('<attr1 = e; attr2 = f> {a = b; c = d}', {'a': 'b', 'c': 'd'}, {'attr1': 'e', 'attr2': 'f'})
 
     def test_entity(self):
         self.assert_parse('#', None)
