@@ -328,14 +328,19 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
     return currentNode;
 }
 
-INodePtr SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
+void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
 {
     INodePtr currentNode = root;
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     tokenizer.CurrentToken().CheckType(PathSeparatorToken);
     tokenizer.ParseNext();
+    Stroka currentTokenBuffer;
     auto currentToken = tokenizer.CurrentToken();
+    if (currentToken.GetType() == ETokenType::String) {
+        currentTokenBuffer.assign(currentToken.GetStringValue());
+        currentToken = TToken(currentTokenBuffer);
+    }
     while (tokenizer.ParseNext()) {
         // Move to currentToken.
         switch (currentToken.GetType()) {
@@ -358,6 +363,10 @@ INodePtr SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
         tokenizer.CurrentToken().CheckType(PathSeparatorToken);
         tokenizer.ParseNext();
         currentToken = tokenizer.CurrentToken();
+        if (currentToken.GetType() == ETokenType::String) {
+            currentTokenBuffer.assign(currentToken.GetStringValue());
+            currentToken = TToken(currentTokenBuffer);
+        }
     }
 
     // Set value.

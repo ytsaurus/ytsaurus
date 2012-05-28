@@ -166,7 +166,7 @@ yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
 
 INodePtr GetNodeByYPath(INodePtr root, const TYPath& path);
 
-INodePtr SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value);
+void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value);
 
 void ForceYPath(INodePtr root, const TYPath& path);
 
