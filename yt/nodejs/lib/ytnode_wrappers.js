@@ -45,19 +45,10 @@ function YtReadableStream() {
     };
     this._binding.on_flush = function() {
         __DBG("Readable -> Bindings -> on_flush");
-        self._emitQueue();
     };
     this._binding.on_finish = function() {
         __DBG("Readable -> Bindings -> on_finish");
-        if (!self.readable || self._ended) {
-            return;
-        }
-        if (self._paused || self._pending.length) {
-            self._pending.push(__EOF);
-        } else {
-            assert.ok(self._pending.length === 0);
-            self._emitEnd();
-        }
+        self._end();
     };
 };
 
@@ -105,6 +96,19 @@ YtReadableStream.prototype._emitQueue = function(callback) {
     }
 };
 
+YtReadableStream.prototype._end = function() {
+    __DBG("Readable -> _end");
+    if (!this.readable || this._ended) {
+        return;
+    }
+    if (this._paused || this._pending.length) {
+        this._pending.push(__EOF);
+    } else {
+        assert.ok(this._pending.length === 0);
+        this._emitEnd();
+    }
+};
+
 YtReadableStream.prototype.pause = function() {
     __DBG("Readable -> pause");
     this._paused = true;
@@ -132,6 +136,7 @@ function YtWritableStream() {
     this.writable = true;
 
     this._ended = false;
+    this._closed = false;
 
     this._binding = new binding.TNodeJSInputStream();
 };
@@ -140,12 +145,11 @@ util.inherits(YtWritableStream, stream.Stream);
 
 YtWritableStream.prototype._emitClose = function() {
     __DBG("Writable -> _emitClose");
-    if (!this._ended) {
-        this.emit('close');
+    if (!this._closed) {
+        this.emit("close");
     }
 
-    this.writable = false;
-    this._ended = true;
+    this._closed = true;
 }
 
 YtWritableStream.prototype.write = function(chunk, encoding) {
@@ -187,6 +191,7 @@ YtWritableStream.prototype.destroy = function() {
 
     this.writable = false;
     this._ended = true;
+    this._closed = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,10 +215,14 @@ YtDriver.prototype.execute = function(name,
     input_stream.pipe(wrapped_input_stream);
     wrapped_output_stream.pipe(output_stream);
 
-    this._binding.Execute(name,
+    var result = this._binding.Execute(name,
         wrapped_input_stream._binding, input_format,
         wrapped_output_stream._binding, output_format,
-        parameters, callback);
+        parameters, function()
+    {
+        wrapped_output_stream._end();
+        callback.apply(this, arguments);
+    });
 }
 
 YtDriver.prototype.find_command_descriptor = function(command_name) {

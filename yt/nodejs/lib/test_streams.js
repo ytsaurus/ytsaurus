@@ -122,6 +122,18 @@ describe("input stream interface", function() {
             done();
         }).bind(this));
     });
+
+    it("should properly read sliced buffers", function(done) {
+        var data_1 = new Buffer("foobar");
+        var data_2 = data_1.slice(3);
+
+        this.stream.Push(data_1);
+        this.stream.Push(data_2);
+        this.stream.Close();
+
+        expect(this.reader.ReadSynchronously(9))
+            .to.be.a("string").and.to.eql("foobarbar");
+    });
 });
 
 describe("output stream interface", function() {

@@ -1,4 +1,5 @@
 var url = require("url");
+var crypto = require("crypto");
 var querystring = require("querystring");
 
 var utils = require("./utils");
@@ -54,12 +55,23 @@ function _rspSetFormatHeaders(rsp, input_format, output_format) {
     }
 }
 
-function _rspSetTrailers(rsp) {
+function _rspSetHeaders(rsp) {
+    rsp.setHeader("Transfer-Encoding", "chunked");
     rsp.setHeader("Trailer", "X-YT-Response");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // REQ Utilities
+
+function _reqHash(req) {
+    var hash = crypto.createHash("sha1");
+    hash.update(request.method);
+    hash.update(request.url);
+    hash.update(request.headers);
+    hash.update(request.trailers);
+    hash.update(request.httpVersion);
+    return hash.digest("base64");
+}
 
 function _reqExtractName(req) {
     var name = req.parsedUrl.pathname.slice(1).toLowerCase();
@@ -140,6 +152,7 @@ function _reqExtractOutputFormat(req) {
 function _dispatch(driver, req, rsp) {
     req.parsedUrl = url.parse(req.url);
 
+    var hash = _reqHash(req);
     var name = _reqExtractName(req);
     var parameters = _reqExtractParameters(req);
     var input_format = _reqExtractInputFormat(req);
@@ -163,6 +176,7 @@ function _dispatch(driver, req, rsp) {
 
     var descriptor = driver.find_command_descriptor(name);
 
+    __DBG("Cmd hash=" + hash);
     __DBG("Cmd name=" + name);
     __DBG("Cmd descriptor=" + JSON.stringify(descriptor));
     __DBG("Cmd parameters=" + JSON.stringify(parameters));
@@ -189,15 +203,17 @@ function _dispatch(driver, req, rsp) {
     }
 
     _rspSetFormatHeaders(rsp, input_format, output_format);
-    _rspSetTrailers(rsp);
+    _rspSetHeaders(rsp);
+
+    rsp.writeHead(200);
 
     // TODO(sandello): Handle various return-types here.
     driver.execute(name,
         req, input_format,
         rsp, output_format,
         parameters, function(code, message) {
+            __DBG("Cmd hash=" + hash + " -> done");
             rsp.addTrailers({ "X-YT-Response" : code + " " + message });
-            rsp.end();
         });
 }
 
