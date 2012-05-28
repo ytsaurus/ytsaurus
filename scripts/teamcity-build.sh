@@ -133,7 +133,7 @@ if [[ ( $WITH_PACKAGE = "YES" ) ]]; then
 
     package_version=$(cat ytversion)
 
-    dupload --to common --nomail ARTIFACTS/yandex-yt*${YT_VERSION}*.changes
+    dupload --to common --nomail ARTIFACTS/yandex-yt*${package_version}*.changes
 
     tc "setParameter name='yt.package_built' value='1'"
     tc "setParameter name='yt.package_version' value='$package_version'"
