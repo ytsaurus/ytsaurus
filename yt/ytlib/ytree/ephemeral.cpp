@@ -255,15 +255,6 @@ private:
         TMapNodeMixin::SetRecursive(~factory, path, request);
         context->Reply();
     }
-
-    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context)
-    {
-        UNUSED(response);
-
-        auto value = reinterpret_cast<INode*>(request->value_ptr());
-        TMapNodeMixin::SetRecursive(path, value);
-        context->Reply();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -388,15 +379,6 @@ private:
 
         auto factory = CreateFactory();
         TListNodeMixin::SetRecursive(~factory, path, request);
-        context->Reply();
-    }
-
-    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context)
-    {
-        UNUSED(response);
-
-        auto value = reinterpret_cast<INode*>(request->value_ptr());
-        TListNodeMixin::SetRecursive(path, value);
         context->Reply();
     }
 };

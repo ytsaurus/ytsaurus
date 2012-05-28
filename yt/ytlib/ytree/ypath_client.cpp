@@ -286,14 +286,6 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& val
     response->ThrowIfError();
 }
 
-void SyncYPathSetNode(IYPathServicePtr service, const TYPath& path, INode* value)
-{
-    auto request = TYPathProxy::SetNode(path);
-    request->set_value_ptr(reinterpret_cast<i64>(value));
-    auto response = ExecuteVerb(service, ~request).Get();
-    response->ThrowIfError();
-}
-
 void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Remove(path);

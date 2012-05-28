@@ -18,8 +18,6 @@ class TNodeBase
     , public virtual TSupportsGet
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
-    , public virtual TSupportsGetNode
-    , public virtual TSupportsSetNode
     , public virtual TSupportsList
     , public virtual INode
 {
@@ -65,13 +63,11 @@ protected:
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
-    virtual void GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context);
-    virtual void SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(roizner): Add TSupports(Get,GetNode,Set,SetNode,Remove,Create)
+// TODO(roizner): Add TSupports(Get,Set,Remove,Create)
 
 class TMapNodeMixin
     : public virtual IMapNode

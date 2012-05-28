@@ -21,7 +21,6 @@ using namespace NRpc;
 bool TNodeBase::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(SetNode);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
     return TYPathServiceBase::IsWriteRequest(context);
 }
@@ -31,8 +30,6 @@ void TNodeBase::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(Set);
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
-    DISPATCH_YPATH_SERVICE_METHOD(GetNode);
-    DISPATCH_YPATH_SERVICE_METHOD(SetNode);
     DISPATCH_YPATH_SERVICE_METHOD(List);
     TYPathServiceBase::DoInvoke(context);
 }
@@ -48,28 +45,6 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     VisitTree(this, &writer, withAttributes);
 
     response->set_value(stream.Str());
-    context->Reply();
-}
-
-void TNodeBase::GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context)
-{
-    UNUSED(request);
-
-    response->set_value_ptr(reinterpret_cast<i64>(static_cast<INode*>(this)));
-    context->Reply();
-}
-
-void TNodeBase::SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context)
-{
-    UNUSED(response);
-
-    auto parent = GetParent();
-    if (!parent) {
-        ythrow yexception() << "Cannot replace the root";
-    }
-
-    auto value = reinterpret_cast<INode*>(request->value_ptr());
-    parent->ReplaceChild(this, value);
     context->Reply();
 }
 
@@ -114,7 +89,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
         return IYPathService::TResolveResult::There(~child, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
-    if (verb == "Set" || verb == "SetNode" || verb == "Create") {
+    if (verb == "Set" || verb == "Create") {
         if (!tokenizer.ParseNext()) {
             return IYPathService::TResolveResult::Here("/" + path);
         }
