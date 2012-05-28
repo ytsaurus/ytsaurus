@@ -125,6 +125,9 @@ void Read(Stroka& parameter, INodePtr node);
 // bool
 void Read(bool& parameter, INodePtr node);
 
+// char
+void Read(char& parameter, INodePtr node);
+
 // TDuration
 void Read(TDuration& parameter, INodePtr node);
 
@@ -197,6 +200,9 @@ void Write(const Stroka& parameter, IYsonConsumer* consumer);
 
 // bool
 void Write(bool parameter, IYsonConsumer* consumer);
+
+// char
+void Write(char parameter, IYsonConsumer* consumer);
 
 // TDuration
 void Write(TDuration parameter, IYsonConsumer* consumer);

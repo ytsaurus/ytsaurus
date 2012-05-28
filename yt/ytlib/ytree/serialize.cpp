@@ -145,6 +145,18 @@ void Read(bool& parameter, INodePtr node)
     parameter = ParseBool(value);
 }
 
+// char
+void Read(char& parameter, INodePtr node)
+{
+    Stroka value = node->AsString()->GetValue();
+    if (value.size() != 1) {
+        ythrow yexception() <<
+            Sprintf("Expected string of length 1 but found of length %d", value.size());
+    }
+    parameter = value[0];
+}
+
+
 // TDuration
 void Read(TDuration& parameter, INodePtr node)
 {
@@ -211,6 +223,12 @@ void Write(const Stroka& parameter, IYsonConsumer* consumer)
 void Write(bool parameter, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(FormatBool(parameter));
+}
+
+// char
+void Write(char parameter, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(Stroka(parameter));
 }
 
 // TDuration
