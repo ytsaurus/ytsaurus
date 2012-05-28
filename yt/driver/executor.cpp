@@ -768,7 +768,7 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
     TStringStream output;
     requestCopy.OutputStream = &output;
 
-    auto response = Driver->Execute(request);
+    auto response = Driver->Execute(requestCopy);
     if (!response.Error.IsOK()) {
         printf("failed\n");
         ythrow yexception() << response.Error.ToString();
