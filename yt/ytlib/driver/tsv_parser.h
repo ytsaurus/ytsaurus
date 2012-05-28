@@ -38,7 +38,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
             
-void ParseYson(
+void ParseTsv(
     TInputStream* input,
     NYTree::IYsonConsumer* consumer,
     TTsvFormatConfigPtr config = NULL);

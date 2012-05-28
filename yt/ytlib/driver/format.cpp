@@ -1,11 +1,14 @@
 #include "stdafx.h"
 #include "format.h"
 
+#include "tsv_parser.h"
 #include "tsv_writer.h"
 
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
+
+
 
 namespace NYT {
 namespace NDriver {
@@ -155,6 +158,13 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType
     }
 }
 
+TYsonProducer CreateProducerForTsv(EDataType dataType, TInputStream* input)
+{
+    return BIND([=] (IYsonConsumer* consumer) {
+        ParseTsv(input, consumer);
+    });
+}
+
 TYsonProducer CreateProducerForYson(EDataType dataType, TInputStream* input)
 {
     auto ysonType = DataTypeToYsonType(dataType);
@@ -166,7 +176,8 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
     switch (format.GetType()) {
         case EFormatType::Yson:
             return CreateProducerForYson(dataType, input);
-
+        case EFormatType::Tsv:
+            return CreateProducerForTsv(dataType, input);
         default:
             ythrow yexception() << Sprintf("Unsupported input format %s",
                 ~FormatEnum(format.GetType()).Quote());

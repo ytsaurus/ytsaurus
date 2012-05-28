@@ -4,9 +4,9 @@
 namespace NYT {
 namespace NDriver {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TTsvParser::TTsvParser(IYsonConsumer* consumer, TTsvFormatConfigPtr config)
     : Consumer(consumer)
@@ -90,7 +90,7 @@ const char* TTsvParser::FindEndOfValue(const char* begin, const char* end)
 
 const size_t ParseChunkSize = 1 << 16;
 
-void ParseYson(TInputStream* input, IYsonConsumer* consumer, TTsvFormatConfigPtr config)
+void ParseTsv(TInputStream* input, IYsonConsumer* consumer, TTsvFormatConfigPtr config)
 {
     TTsvParser parser(consumer, config);
     char chunk[ParseChunkSize];
