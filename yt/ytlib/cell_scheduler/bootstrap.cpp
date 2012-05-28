@@ -93,24 +93,24 @@ void TBootstrap::Run()
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
-    SyncYPathSetNode(
-        ~orchidRoot,
+    SetNodeByYPath(
+        orchidRoot,
         "/monitoring",
-        ~NYTree::CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
-    SyncYPathSetNode(
-        ~orchidRoot,
+        CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
+    SetNodeByYPath(
+        orchidRoot,
         "/profiling",
-        ~CreateVirtualNode(
+        CreateVirtualNode(
             ~TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
-    SyncYPathSetNode(
-        ~orchidRoot,
+    SetNodeByYPath(
+        orchidRoot,
         "/config",
-        ~NYTree::CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
-    SyncYPathSetNode(
-        ~orchidRoot,
+        CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
+    SetNodeByYPath(
+        orchidRoot,
         "/scheduler",
-        ~NYTree::CreateVirtualNode(Scheduler->CreateOrchidProducer()));
+        CreateVirtualNode(Scheduler->CreateOrchidProducer()));
     SyncYPathSet(~orchidRoot, "/@service_name", "scheduler");
 
     auto orchidService = New<TOrchidService>(

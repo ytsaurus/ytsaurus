@@ -158,9 +158,6 @@ TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path);
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& value);
 
-//! Synchronously executes "SetNode" verb. Throws if an error has occurred.
-void SyncYPathSetNode(IYPathServicePtr service, const TYPath& path, INode* value);
-
 //! Synchronously executes "Remove" verb. Throws if an error has occurred.
 void SyncYPathRemove(IYPathServicePtr service, const TYPath& path);
 

@@ -236,7 +236,7 @@ private:
 
         auto node = CreateVirtualNode(~bucket);
         ForceYPath(Root, path);
-        SyncYPathSetNode(~Root, path, ~node);
+        SetNodeByYPath(Root, path, node);
 
         return bucket;
     }

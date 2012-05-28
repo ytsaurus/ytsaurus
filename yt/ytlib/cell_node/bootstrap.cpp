@@ -97,20 +97,20 @@ void TBootstrap::Run()
     monitoringManager->Start();
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
-    SyncYPathSetNode(
+    SetNodeByYPath(
         OrchidRoot,
         "/monitoring",
-        ~NYTree::CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
-    SyncYPathSetNode(
+        CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
+    SetNodeByYPath(
         OrchidRoot,
         "/profiling",
-        ~CreateVirtualNode(
+        CreateVirtualNode(
             TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
-    SyncYPathSetNode(
+    SetNodeByYPath(
         OrchidRoot,
         "/config",
-        ~NYTree::CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
+        CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(
         OrchidRoot,

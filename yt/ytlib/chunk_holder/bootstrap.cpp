@@ -85,14 +85,14 @@ void TBootstrap::Init()
     auto chunkHolderService = New<TChunkHolderService>(Config, this);
     NodeBootstrap->GetRpcServer()->RegisterService(chunkHolderService);
 
-    SyncYPathSetNode(
-        ~NodeBootstrap->GetOrchidRoot(),
+    SetNodeByYPath(
+        NodeBootstrap->GetOrchidRoot(),
         "/stored_chunks",
-        ~NYTree::CreateVirtualNode(~CreateStoredChunkMapService(~ChunkStore)));
-    SyncYPathSetNode(
-        ~NodeBootstrap->GetOrchidRoot(),
+        CreateVirtualNode(~CreateStoredChunkMapService(~ChunkStore)));
+    SetNodeByYPath(
+        NodeBootstrap->GetOrchidRoot(),
         "/cached_chunks",
-        ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
+        CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
     SyncYPathSet(~NodeBootstrap->GetOrchidRoot(), "/@service_name", "node");
 
     MasterConnector->Start();
