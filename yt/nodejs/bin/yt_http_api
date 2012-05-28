@@ -45,11 +45,12 @@ fs.readFile(opts.argv.c, function(err, configuration) {
             .use(connect.logger("dev"))
             .use("/api", yt.YtApplication(configuration.toString()))
             .listen(opts.argv.p, opts.argv.i, function() {
-                if (opts.argv.u) {
-                    process.setuid(opts.argv.u);
-                }
                 if (opts.argv.g) {
                     process.setgid(opts.argv.g);
+                }
+
+                if (opts.argv.u) {
+                    process.setuid(opts.argv.u);
                 }
 
                 if (process.getuid() == 0 || process.getgid() == 0) {
