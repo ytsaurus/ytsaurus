@@ -114,11 +114,6 @@ void TTsvWriter::OnEndAttributes()
     ythrow yexception() << "Attributes are not supported";
 }
 
-void TTsvWriter::OnRaw(const TStringBuf& yson, NYTree::EYsonType type)
-{
-    ythrow yexception() << "Raw data is not supported";
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
