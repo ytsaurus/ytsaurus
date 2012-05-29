@@ -35,7 +35,7 @@ class YtCollector(Collector):
 
     def get_default_config(self):
         return {
-            'interval': 60, # collector invocation period
+            'interval': 30, # collector invocation period
             'sources': [
                 'meta01-001g.yt.yandex.net:10000', 
                 'meta01-002g.yt.yandex.net:10000', 
@@ -64,13 +64,14 @@ class YtCollector(Collector):
         for path in metric_paths:
             cleaned_path = self.regex.sub('_', path)
             g_metric = 'yt.%s.%s.%s%s' % (host, service, port, cleaned_path.replace('/', '.'))
-            new_metrics[g_metric] = {'path': self.quote_path(path), 'last_time': 0}
+            new_metrics[g_metric] = {'path': self.quote_path(path), 'last_time': 0, 'tail': []}
 
         # update existing metrics
         if len(new_metrics) > 0:
             for (name, metric) in source['metrics'].items():
                 if name in new_metrics:
                     new_metrics[name]['last_time'] = metric['last_time']
+                    new_metrics[name]['tail'] = metric['tail']
 
         source['metrics'] = new_metrics
         source['last_metric_sync'] = 0
@@ -83,31 +84,26 @@ class YtCollector(Collector):
 
         for (name, metric) in source['metrics'].items():
             vals = self.get_metric_values(source, metric)
-            last_time = metric['last_time']
             for v in vals:
                 self.publish_with_timestamp(name + '.avg', int(v['avg']), v['time'])
                 self.publish_with_timestamp(name + '.max', int(v['max']), v['time'])
-                last_time = v['time']
                 value_count += 2
-            metric['last_time'] = last_time
 
         self.log.info('YtCollector: Collected %d values for %d metrics from %s in %f sec', 
             value_count, len(source['metrics']), source['endpoint'], time.time() - start_time)
 
     def get_metric_values(self, source, metric):
         metric_url = 'http://' + source['endpoint'] + '/orchid/profiling' + metric['path']
-        last_time = metric['last_time']
-        if last_time > 0:
-            from_time = last_time + self.window
+        from_time = metric['last_time']
+        if from_time > 0:
             metric_url += '?from_time=' + str(long(from_time*1E6))
-        else:
-            from_time = 0
 
         data = self.get_json(metric_url)
         if isinstance(data, list):
             values = []
             cur_bucket = from_time / self.window
-            cur_vals = []
+            cur_vals = metric['tail']
+            time = from_time
             for d in data:
                 time = long(d['time']/1E6)
                 val = d['value']
@@ -121,6 +117,8 @@ class YtCollector(Collector):
                         cur_vals = []
                     cur_bucket = bucket
                 cur_vals.append(val)
+            metric['last_time'] = time
+            metric['tail'] = cur_vals
             return values
         else:
             # Error...
