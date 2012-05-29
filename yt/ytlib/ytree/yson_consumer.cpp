@@ -14,6 +14,6 @@ void TYsonConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NYTree
 } // namespace NYT

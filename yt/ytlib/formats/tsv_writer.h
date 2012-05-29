@@ -12,7 +12,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTsvWriter
-    : public NYTree::IYsonConsumer
+    : public NYTree::TYsonConsumerBase
 {
 public:
     explicit TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config = NULL);
