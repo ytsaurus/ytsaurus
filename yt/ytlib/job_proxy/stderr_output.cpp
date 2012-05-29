@@ -40,7 +40,7 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
 
 void TErrorOutput::DoFinish() 
 {
-    if (FileWriter) {
+    if (~FileWriter) {
         FileWriter->Finish();
     }
 }
