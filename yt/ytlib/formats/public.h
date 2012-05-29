@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ytlib/misc/common.h>
+
 namespace NYT {
 namespace NFormats {
 
