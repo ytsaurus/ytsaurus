@@ -37,6 +37,7 @@ static NLog::TLogger& Logger = JobProxyLogger;
 
 using namespace NScheduler::NProto;
 using namespace NYTree;
+using namespace NTableClient;
 using namespace NFormats;
 
 ////////////////////////////////////////////////////////////////////////////////
