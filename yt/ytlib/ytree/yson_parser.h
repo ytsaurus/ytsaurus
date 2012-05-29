@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "parser.h"
 
 #include <ytlib/misc/property.h>
 
@@ -10,6 +11,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonParser
+    : public IParser
 {
 public:
     TYsonParser(IYsonConsumer* consumer, EYsonType type = EYsonType::Node);
@@ -24,7 +26,7 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 void ParseYson(
     TInputStream* input,
     IYsonConsumer* consumer,

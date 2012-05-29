@@ -37,8 +37,10 @@ DECLARE_ENUM(EYsonType,
 );
 
 class ETokenType;
-    
+
 class TTokenizer;
+
+struct IParser;
 
 struct INode;
 typedef TIntrusivePtr<INode> INodePtr;

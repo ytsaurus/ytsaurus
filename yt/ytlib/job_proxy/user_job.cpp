@@ -6,6 +6,7 @@
 #include "user_job_io.h"
 #include "stderr_output.h"
 
+#include <ytlib/formats/format.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>
@@ -35,6 +36,7 @@ static NLog::TLogger& Logger = JobProxyLogger;
 
 using namespace NScheduler::NProto;
 using namespace NYTree;
+using namespace NFormats;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,27 +157,40 @@ void TUserJob::InitPipes()
     ++ActivePipesCount;
 
     // Make pipe for each input and each output table.
-    for (int i = 0; i < JobIO->GetInputCount(); ++i) {
-        TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
-        TAutoPtr<IYsonConsumer> consumer = new TYsonWriter(
-            buffer.Get(), 
-            Config->JobIO->OutputFormat, 
-            EYsonType::ListFragment, 
-            Config->JobIO->OutputFormat != EYsonFormat::Binary);
+    {
+        auto node = DeserializeFromYson(UserJobSpec.in_format());
+        auto format = TFormat.FromYson(node);
 
-        DataPipes.push_back(New<TInputPipe>(
-            JobIO->CreateTableInput(i, consumer.Get()),
-            buffer,
-            consumer,
-            3 * i));
+        for (int i = 0; i < JobIO->GetInputCount(); ++i) {
+            TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
+            TAutoPtr<IYsonConsumer> consumer = CreateConsumerForFormat(
+                format, 
+                EDataType::Tabular, 
+                buffer.Get());
+
+            DataPipes.push_back(New<TInputPipe>(
+                JobIO->CreateTableInput(i, consumer.Get()),
+                buffer,
+                consumer,
+                3 * i));
+        }
     }
 
-    auto outputCount = JobIO->GetOutputCount();
-    TableOutput.resize(outputCount);
-    for (int i = 0; i < outputCount; ++i) {
-        ++ActivePipesCount;
-        TableOutput[i] = JobIO->CreateTableOutput(i);
-        DataPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
+    {
+        auto node = DeserializeFromYson(UserJobSpec.out_format());
+        auto format = TFormat.FromYson(node);
+        auto outputCount = JobIO->GetOutputCount();
+        TableOutput.resize(outputCount);
+
+        for (int i = 0; i < outputCount; ++i) {
+            ++ActivePipesCount;
+            auto writer = JobIO->CreateTableOutput(i);
+            TAutoPtr<IYsonConsumer> consumer = new TTableConsumer(writer);
+            auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
+            TableOutput[i] = new TTableOutput(parser, writer);
+            DataPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1, consumer));
+        }
+
     }
 
     // Close reserved descriptors.

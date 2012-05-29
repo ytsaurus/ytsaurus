@@ -59,6 +59,7 @@ set( HDRS
   ${BASE}/yson_parser.h
   ${BASE}/yson_writer.h
   ${BASE}/ytree.h
+  ${BASE}/parser.h
 )
 
 list(APPEND YT_SOURCE_FILES

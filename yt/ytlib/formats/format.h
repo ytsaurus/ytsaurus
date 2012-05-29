@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/ytree/public.h>
 #include <ytlib/ytree/attributes.h>
 
 namespace NYT {
@@ -56,6 +57,11 @@ NYTree::TYsonProducer CreateProducerForFormat(
     const TFormat& format,
     EDataType dataType,
     TInputStream* input);
+
+TAutoPtr<NYTree::IParser> CreateParserForFormat(
+    const TFormat& format,
+    EDataType dataType,
+    NYTree::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

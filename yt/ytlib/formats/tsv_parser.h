@@ -3,6 +3,7 @@
 #include "public.h"
 #include "config.h"
 
+#include <ytlib/ytree/parser.h>
 #include <ytlib/ytree/yson_consumer.h>
 
 namespace NYT {
@@ -11,12 +12,13 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTsvParser
+    : public NYTree::IParser
 {
 public:
     explicit TTsvParser(NYTree::IYsonConsumer* consumer, TTsvFormatConfigPtr config = NULL);
 
-    void Read(const TStringBuf& data);
-    void Finish();
+    virtual void Read(const TStringBuf& data);
+    virtual void Finish();
 
 private:
     NYTree::IYsonConsumer* Consumer;

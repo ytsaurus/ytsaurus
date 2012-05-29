@@ -179,6 +179,20 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
     }
 }
 
+TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType dataType, NYTree::IYsonConsumer* consumer)
+{
+    switch (format.GetType()) {
+    case EFormatType::Yson:
+        return new TYsonParser(consumer, DataTypeToYsonType(dataType));
+    case EFormatType::Tsv:
+        // ToDo(psushin): use config from format.
+        return new TTsvParser(consumer);
+    default:
+        ythrow yexception() << Sprintf("Unsupported input format %s",
+            ~FormatEnum(format.GetType()).Quote());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

@@ -31,7 +31,7 @@ public:
     TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
         int index, 
         NYTree::IYsonConsumer* consumer) const;
-    TAutoPtr<TOutputStream> CreateTableOutput(int index) const;
+    NTableClient::ISyncWriterPtr CreateTableOutput(int index) const;
     TAutoPtr<TErrorOutput> CreateErrorOutput() const;
 
 private:

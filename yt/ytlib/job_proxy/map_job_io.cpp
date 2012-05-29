@@ -12,6 +12,7 @@
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
+#include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/schema.h>
 
 namespace NYT {
@@ -22,7 +23,6 @@ namespace NJobProxy {
 static NLog::TLogger& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////
-
 
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -81,7 +81,7 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
     return new TTableProducer(syncReader, consumer);
 }
 
-TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
+NTableClient::ISyncWriterPtr TMapJobIO::CreateTableOutput(int index) const
 {
     YASSERT(index < GetOutputCount());
     const TYson& channels = IoSpec.output_specs(index).channels();
@@ -94,7 +94,10 @@ TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
         TChunkListId::FromProto(IoSpec.output_specs(index).chunk_list_id()),
         ChannelsFromYson(channels));
 
-    return new TTableOutput(CreateSyncWriter(chunkSequenceWriter));
+    auto syncWriter = CreateSyncWriter(chunkSequenceWriter);
+    syncWriter->Open();
+
+    return syncWriter;
 }
 
 void TMapJobIO::UpdateProgress()
