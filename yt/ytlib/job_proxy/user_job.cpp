@@ -178,7 +178,7 @@ void TUserJob::InitPipes()
 
     {
         auto node = DeserializeFromYson(UserJobSpec.out_format());
-        auto format = TFormat.FromYson(node);
+        auto format = TFormat::FromYson(node);
         auto outputCount = JobIO->GetOutputCount();
         TableOutput.resize(outputCount);
 
