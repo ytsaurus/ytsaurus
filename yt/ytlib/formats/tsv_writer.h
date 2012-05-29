@@ -30,7 +30,6 @@ public:
     virtual void OnEndMap();
     virtual void OnBeginAttributes();
     virtual void OnEndAttributes();
-    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type = NYTree::EYsonType::Node);
 
 private:
     TOutputStream* Stream;
