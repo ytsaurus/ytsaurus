@@ -65,11 +65,11 @@ function _rspSetHeaders(rsp) {
 
 function _reqHash(req) {
     var hash = crypto.createHash("sha1");
-    hash.update(req.method);
-    hash.update(req.url);
-    hash.update(req.headers);
-    hash.update(req.trailers);
-    hash.update(req.httpVersion);
+    hash.update(JSON.stringify(req.method));
+    hash.update(JSON.stringify(req.url));
+    hash.update(JSON.stringify(req.headers));
+    hash.update(JSON.stringify(req.trailers));
+    hash.update(JSON.stringify(req.httpVersion));
     return hash.digest("base64");
 }
 

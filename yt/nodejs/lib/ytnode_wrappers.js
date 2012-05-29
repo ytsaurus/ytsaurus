@@ -220,8 +220,8 @@ YtDriver.prototype.execute = function(name,
         wrapped_output_stream._binding, output_format,
         parameters, function()
     {
-        wrapped_output_stream._end();
         callback.apply(this, arguments);
+        wrapped_output_stream._end();
     });
 }
 
