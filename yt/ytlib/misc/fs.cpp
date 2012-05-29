@@ -251,7 +251,7 @@ void SetExecutableMode(const Stroka& path, bool executable)
 #else
     int mode = S_IRUSR | S_IWUSR;
     if (executable)
-        mode |= S_IXUSR:
+        mode |= S_IXUSR;
     auto res = chmod(~path, mode);
     if (res != 0) {
         ythrow yexception() << Sprintf(

@@ -159,7 +159,7 @@ void TUserJob::InitPipes()
     // Make pipe for each input and each output table.
     {
         auto node = DeserializeFromYson(UserJobSpec.in_format());
-        auto format = TFormat.FromYson(node);
+        auto format = TFormat::FromYson(node);
 
         for (int i = 0; i < JobIO->GetInputCount(); ++i) {
             TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
@@ -185,7 +185,7 @@ void TUserJob::InitPipes()
         for (int i = 0; i < outputCount; ++i) {
             ++ActivePipesCount;
             auto writer = JobIO->CreateTableOutput(i);
-            TAutoPtr<IYsonConsumer> consumer = new TTableConsumer(writer);
+            TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(writer));
             auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
             TableOutput[i] = new TTableOutput(parser, writer);
             DataPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1, consumer));
