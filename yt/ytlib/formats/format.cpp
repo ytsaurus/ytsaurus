@@ -29,7 +29,6 @@ TFormat::TFormat(const TFormat& other)
     , Attributes(other.Attributes->Clone())
 { }
 
-
 TFormat& TFormat::operator=(const TFormat& other)
 {
     if (this != &other) {
@@ -39,8 +38,6 @@ TFormat& TFormat::operator=(const TFormat& other)
 
     return *this;
 }
-
-
 
 TFormat TFormat::FromYson(INodePtr node)
 {

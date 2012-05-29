@@ -5,6 +5,7 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 
+#include <ytlib/formats/format.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/job_proxy/config.h>
@@ -17,6 +18,7 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NChunkServer;
+using namespace NFormats;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTableClient::NProto;
@@ -298,6 +300,41 @@ private:
 
         auto* userExt = JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec);
         userExt->set_shell_command(Spec->Mapper);
+
+        {
+            // Set input and output format.
+            TYson inFormat, outFormat;
+            {
+                TStringStream stream;
+                TYsonWriter writer(&stream);
+                TFormat(EFormatType::Yson).ToYson(&writer);
+                inFormat = stream;
+                outFormat = inFormat;
+            }
+
+            auto options = Spec->GetOptions();
+            {
+                auto node = options->FindChild("format");
+                if (node) {
+                    inFormat = SerializeToYson(node);
+                    outFormat = inFormat;
+                }
+            } {
+                auto node = options->FindChild("in_format");
+                if (node) {
+                    inFormat = SerializeToYson(node);
+                }
+            } {
+                auto node = options->FindChild("out_format");
+                if (node) {
+                    outFormat = SerializeToYson(node);
+                }
+            }
+
+            userExt->set_in_format(inFormat);
+            userExt->set_out_format(outFormat);
+        }
+
         FOREACH (const auto& file, Files) {
             *userExt->add_files() = *file.FetchResponse;
         }

@@ -69,6 +69,10 @@ message TUserJobSpec
 
     // The user command to be executed.
     required string shell_command = 2;
+
+    // Yson config to create formatter.
+    required string in_format = 3;
+    required string out_format = 4;
 }
 
 message TUserJobResult
