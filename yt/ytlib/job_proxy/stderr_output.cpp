@@ -40,7 +40,9 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
 
 void TErrorOutput::DoFinish() 
 {
-    FileWriter->Finish();
+    if (FileWriter) {
+        FileWriter->Finish();
+    }
 }
 
 TNullable<TChunkId> TErrorOutput::GetChunkId() const
