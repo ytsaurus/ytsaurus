@@ -649,7 +649,7 @@ private:
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         YCHECK(miscExt->sorted());
 
-        // Construct endpoints and place it into the list.
+        // Construct endpoints and place them into the list.
         auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk.extensions());
         {
             TKeyEndpoint endpoint;

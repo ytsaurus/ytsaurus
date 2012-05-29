@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "format.h"
 
+#include <ytlib/formats/format.h>
 #include <ytlib/misc/configurable.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/ytree/public.h>
@@ -25,14 +25,14 @@ struct TDriverRequest
     TInputStream* InputStream;
 
     //! Format used for reading the input.
-    TFormat InputFormat;
+    NFormats::TFormat InputFormat;
 
     //! Stream where the command output is written.
     //! The stream must stay alive for the duration of #IDriver::Execute.
     TOutputStream* OutputStream;
 
     //! Format used for writing the output.
-    TFormat OutputFormat;
+    NFormats::TFormat OutputFormat;
 
     //! A map containing command arguments.
     NYTree::IMapNodePtr Arguments;
@@ -59,15 +59,18 @@ struct TCommandDescriptor
     Stroka CommandName;
 
     //! Type of data expected by the command at #TDriverRequest::InputStream.
-    EDataType InputType;
+    NFormats::EDataType InputType;
 
     //! Type of data written by the command to #TDriverRequest::OutputStream.
-    EDataType OutputType;
+    NFormats::EDataType OutputType;
 
     TCommandDescriptor()
     { }
 
-    TCommandDescriptor(const Stroka& commandName, EDataType inputType, EDataType outputType)
+    TCommandDescriptor(
+        const Stroka& commandName, 
+        NFormats::EDataType inputType, 
+        NFormats::EDataType outputType)
         : CommandName(commandName)
         , InputType(inputType)
         , OutputType(outputType)

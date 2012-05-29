@@ -5,7 +5,7 @@
 #include <ytlib/ytree/attributes.h>
 
 namespace NYT {
-namespace NDriver {
+namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,6 +58,6 @@ NYTree::TYsonProducer CreateProducerForFormat(
     TInputStream* input);
 
 ////////////////////////////////////////////////////////////////////////////////
-            
-} // namespace NDriver
+
+} // namespace NFormats
 } // namespace NYT

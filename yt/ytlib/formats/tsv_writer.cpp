@@ -2,7 +2,7 @@
 #include "tsv_writer.h"
 
 namespace NYT {
-namespace NDriver {
+namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,6 +120,6 @@ void TTsvWriter::OnRaw(const TStringBuf& yson, NYTree::EYsonType type)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
-} // namespace NDriver
+
+} // namespace NFormats
 } // namespace NYT

@@ -34,6 +34,7 @@ using namespace NDriver;
 using namespace NObjectServer;
 using namespace NScheduler;
 using namespace NRpc;
+using namespace NFormats;
 
 ////////////////////////////////////////////////////////////////////////////////
 

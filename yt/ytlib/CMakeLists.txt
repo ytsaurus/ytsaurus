@@ -28,6 +28,7 @@ set( DIRS
   scheduler
   exec_agent
   job_proxy
+  formats
 )
 
 foreach( _d_ ${DIRS} )

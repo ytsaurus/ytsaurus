@@ -2,7 +2,7 @@
 #include "tsv_parser.h"
 
 namespace NYT {
-namespace NDriver {
+namespace NFormats {
 
 using namespace NYTree;
 
@@ -116,6 +116,6 @@ void ParseTsv(const TStringBuf& data,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
-} // namespace NDriver
+
+} // namespace NFormats
 } // namespace NYT

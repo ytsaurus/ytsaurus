@@ -8,10 +8,8 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 
-
-
 namespace NYT {
-namespace NDriver {
+namespace NFormats {
 
 using namespace NYTree;
 
@@ -71,7 +69,7 @@ void TFormat::ToYson(IYsonConsumer* consumer) const
         .Scalar(Type_.ToString());
 }
 
-IAttributeDictionary* NYT::NDriver::TFormat::GetAttributes() const
+IAttributeDictionary* TFormat::GetAttributes() const
 {
     return ~Attributes;
 }
@@ -185,6 +183,6 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
-} // namespace NDriver
+
+} // namespace NFormats
 } // namespace NYT

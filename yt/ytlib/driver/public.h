@@ -18,12 +18,7 @@ struct TCommandDescriptor;
 struct TDriverRequest;
 struct TDriverResponse;
 
-struct TFormat;
-
-struct TTsvFormatConfig;
-typedef TIntrusivePtr<TTsvFormatConfig> TTsvFormatConfigPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NDriver
 } // namespace NYT

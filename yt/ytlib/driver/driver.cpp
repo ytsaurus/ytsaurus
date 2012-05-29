@@ -32,6 +32,7 @@ using namespace NElection;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NScheduler;
+using namespace NFormats;
 
 ////////////////////////////////////////////////////////////////////////////////
 

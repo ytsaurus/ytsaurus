@@ -12,7 +12,7 @@
 
 #include <ytlib/driver/public.h>
 #include <ytlib/driver/config.h>
-#include <ytlib/driver/format.h>
+#include <ytlib/formats/format.h>
 
 #include <ytlib/misc/tclap_helpers.h>
 #include <tclap/CmdLine.h>
@@ -49,7 +49,7 @@ protected:
     void InitConfig();
     void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
     
-    NDriver::TFormat GetFormat(NDriver::EDataType dataType, const NYTree::TYson& custom);
+    NFormats::TFormat GetFormat(NFormats::EDataType dataType, const NYTree::TYson& custom);
 
     NYTree::IMapNodePtr GetArgs();
     void BuildOptions(NYTree::IYsonConsumer* consumer);

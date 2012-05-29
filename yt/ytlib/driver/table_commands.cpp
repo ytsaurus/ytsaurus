@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "table_commands.h"
 #include "config.h"
-#include "format.h"
 
+#include <ytlib/formats/format.h>
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/tree_visitor.h>
 
@@ -16,6 +16,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
+using namespace NFormats;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
