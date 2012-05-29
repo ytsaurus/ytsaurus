@@ -15,6 +15,7 @@ class TTableOutput
 public:
     TTableOutput(
         TAutoPtr<NYTree::IParser> parser,
+        TAutoPtr<NYTree::IYsonConsumer> consumer,
         const NTableClient::ISyncWriterPtr& writer);
 
     ~TTableOutput() throw();
@@ -24,6 +25,9 @@ private:
     void DoFinish();
 
     TAutoPtr<NYTree::IParser> Parser;
+
+    // Just holds the consumer that parser is using.
+    TAutoPtr<NYTree::IYsonConsumer> Consumer;
     NTableClient::ISyncWriterPtr SyncWriter;
 };
 

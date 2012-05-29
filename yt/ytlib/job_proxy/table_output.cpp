@@ -2,6 +2,7 @@
 #include "table_output.h"
 
 #include <ytlib/ytree/parser.h>
+#include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/table_client/sync_writer.h>
 
 namespace NYT {
@@ -12,8 +13,12 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////
 
-TTableOutput::TTableOutput(TAutoPtr<IParser> parser, const ISyncWriterPtr& syncWriter)
+TTableOutput::TTableOutput(
+    TAutoPtr<IParser> parser, 
+    TAutoPtr<IYsonConsumer> consumer,
+    const ISyncWriterPtr& syncWriter)
     : Parser(parser)
+    , Consumer(consumer)
     , SyncWriter(syncWriter)
 { }
 
