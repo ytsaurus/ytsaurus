@@ -9,6 +9,7 @@
 // For GetAvaibaleSpace().
 #if defined(_linux_)
 #include <sys/vfs.h>
+#include <sys/stat.h>
 #elif defined(_freebsd_) || defined(_darwin_)
 #include <sys/param.h>
 #include <sys/mount.h>
@@ -244,9 +245,22 @@ Stroka NormalizePathSeparators(const Stroka& path)
 
 void SetExecutableMode(const Stroka& path, bool executable)
 {
+#ifdef _win_
     UNUSED(path);
     UNUSED(executable);
-    // TODO(babenko): implement this
+#else
+    int mode = S_IRUSR | S_IWUSR;
+    if (executable)
+        mode |= S_IXUSR:
+    auto res = chmod(~path, mode);
+    if (res != 0) {
+        ythrow yexception() << Sprintf(
+            "Failed to change mode %d for file %s (Error: %s)",
+            mode,
+            ~path,
+            strerror(errno));
+    }
+#endif
 }
 
 void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
@@ -266,10 +280,10 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
     auto res = symlink(~filePath, ~linkPath);
     if (res != 0) {
         ythrow yexception() << Sprintf(
-            "Failed to link %s to %s (Error: %d)",
+            "Failed to link %s to %s (Error: %s)",
             ~filePath.Quote(),
             ~linkPath.Quote(),
-            errno);
+            strerror(errno));
     }
 #endif
 }
