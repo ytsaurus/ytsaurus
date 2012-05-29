@@ -120,12 +120,10 @@ void SafeMakeNonblocking(int fd)
 
 TOutputPipe::TOutputPipe(
     TOutputStream* output, 
-    int jobDescriptor, 
-    TAutoPtr<NYTree::IYsonConsumer> consumer)
+    int jobDescriptor)
     : OutputStream(output)
     , JobDescriptor(jobDescriptor)
     , IsFinished(false)
-    , Consumer(consumer)
 {
     int fd[2];
     SafePipe(fd);

@@ -70,8 +70,7 @@ class TOutputPipe
 public:
     TOutputPipe(
         TOutputStream* output, 
-        int jobDescriptor, 
-        TAutoPtr<NYTree::IYsonConsumer> consumer);
+        int jobDescriptor);
 
     void PrepareJobDescriptors();
     void PrepareProxyDescriptors();
@@ -84,7 +83,6 @@ public:
 
 private:
     TOutputStream* OutputStream;
-    TAutoPtr<NYTree::IYsonConsumer> Consumer;
 
     int JobDescriptor;
     TPipe Pipe;
