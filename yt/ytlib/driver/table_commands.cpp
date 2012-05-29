@@ -57,6 +57,7 @@ void TWriteCommand::DoExecute()
         keyColumns);
 
     writer->Open();
+
     TTableConsumer consumer(writer);
 
     if (Request->Value) {
@@ -78,8 +79,12 @@ void TWriteCommand::DoExecute()
                 YUNREACHABLE();
         }
     } else {
-        auto stream = Context->GetRequest()->InputStream;
-        ParseYson(stream, &consumer, EYsonType::ListFragment);
+        auto driverRequest = Context->GetRequest();
+        auto producer = CreateProducerForFormat(
+            driverRequest->InputFormat, 
+            EDataType::Tabular, 
+            driverRequest->InputStream);
+        producer.Run(&consumer);
     }
 
     writer->Close();
