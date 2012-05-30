@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/driver/tsv_parser.h>
+#include <ytlib/formats/tsv_parser.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
 
 #include <contrib/testing/framework.h>
@@ -9,7 +9,7 @@ using ::testing::InSequence;
 using ::testing::StrictMock;
 
 namespace NYT {
-namespace NDriver {
+namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
