@@ -246,39 +246,63 @@ TEST_F(TChangeLogTest, UnalighnedChecksum)
     }
 }
 
+// This structure is hack to make changelog with huge blobs.
+// Remove it with refactoring.
+class BigStruct {
+public:
+    BigStruct(i32 num) {
+        memset(str, 0, sizeof(str));
+    }
+
+private:
+    char str[1000000];
+};
+
 TEST_F(TChangeLogTest, DISABLED_Profiling)
 {
-    int recordsCount = 10000000;
-    {
-        NProfiling::TSingleTimer timer;
-        TChangeLogPtr changeLog = CreateChangeLog<ui32>(recordsCount);
-        std::cerr << "Make changelog of size " << recordsCount <<
-            ", time " << timer.ElapsedTimeAsString() << std::endl;
-    }
+    for (int i = 0; i < 2; ++i) {
+        int recordsCount;
+        if (i == 0) { // A lot of small records
+            recordsCount = 10000000;
+            NProfiling::TSingleTimer timer;
+            TChangeLogPtr changeLog = CreateChangeLog<ui32>(recordsCount);
+            std::cerr << "Make changelog of size " << recordsCount <<
+                ", with blob of size " << sizeof(ui32) <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+        }
+        else {
+            recordsCount = 50;
+            NProfiling::TSingleTimer timer;
+            TChangeLogPtr changeLog = CreateChangeLog<BigStruct>(recordsCount);
+            std::cerr << "Make changelog of size " << recordsCount <<
+                ", with blob of size " << sizeof(BigStruct) <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+        }
 
-    {
-        NProfiling::TSingleTimer timer;
-        TChangeLogPtr changeLog = OpenChangeLog();
-        std::cerr << "Open changelog of size " << recordsCount <<
-            ", time " << timer.ElapsedTimeAsString() << std::endl;
-    }
-    {
-        TChangeLogPtr changeLog = OpenChangeLog();
-        NProfiling::TSingleTimer timer;
-        yvector<TSharedRef> records;
-        changeLog->Read(0, recordsCount, &records);
-        std::cerr << "Read full changelog of size " << recordsCount <<
-            ", time " << timer.ElapsedTimeAsString() << std::endl;
+        {
+            NProfiling::TSingleTimer timer;
+            TChangeLogPtr changeLog = OpenChangeLog();
+            std::cerr << "Open changelog of size " << recordsCount <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+        }
+        {
+            TChangeLogPtr changeLog = OpenChangeLog();
+            NProfiling::TSingleTimer timer;
+            yvector<TSharedRef> records;
+            changeLog->Read(0, recordsCount, &records);
+            std::cerr << "Read full changelog of size " << recordsCount <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
 
-        timer.Restart();
-        changeLog->Truncate(recordsCount / 2);
-        std::cerr << "Truncating changelog of size " << recordsCount <<
-            ", time " << timer.ElapsedTimeAsString() << std::endl;
+            timer.Restart();
+            changeLog->Truncate(recordsCount / 2);
+            std::cerr << "Truncating changelog of size " << recordsCount <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
 
-        timer.Restart();
-        changeLog->Finalize();
-        std::cerr << "Finalizing changelog of size " << recordsCount / 2 <<
-            ", time " << timer.ElapsedTimeAsString() << std::endl;
+            timer.Restart();
+            changeLog->Finalize();
+            std::cerr << "Finalizing changelog of size " << recordsCount / 2 <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+        }
     }
     SUCCEED();
 }
