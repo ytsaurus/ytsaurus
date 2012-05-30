@@ -132,8 +132,8 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
             }
         }
 
-        TAutoPtr<IYsonConsumer> writer(new TYsonWriter(output, ysonFormat, ysonType, enableRaw));
-        return ysonFormat == EYsonFormat::Binary
+        TAutoPtr<IYsonConsumer> writer(new TYsonWriter(output, *ysonFormat, ysonType, *enableRaw));
+        return *ysonFormat == EYsonFormat::Binary
             ? writer
             : new TNewlineAppendingConsumer(output, writer, ysonType);
     } catch (const std::exception& ex) {
