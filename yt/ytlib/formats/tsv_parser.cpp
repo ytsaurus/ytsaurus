@@ -14,7 +14,9 @@ TTsvParser::TTsvParser(IYsonConsumer* consumer, TTsvFormatConfigPtr config)
     , FirstSymbol(true)
     , State(EState::InsideKey)
 {
-    YCHECK(Config);
+    if (!Config) {
+        Config = New<TTsvFormatConfig>();
+    }
 }
 
 void TTsvParser::Read(const TStringBuf& data)

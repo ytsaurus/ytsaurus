@@ -15,7 +15,7 @@ class TTsvParser
     : public NYTree::IParser
 {
 public:
-    explicit TTsvParser(NYTree::IYsonConsumer* consumer, TTsvFormatConfigPtr config = New<TTsvFormatConfig>());
+    explicit TTsvParser(NYTree::IYsonConsumer* consumer, TTsvFormatConfigPtr config = NULL);
 
     virtual void Read(const TStringBuf& data);
     virtual void Finish();
@@ -43,12 +43,12 @@ private:
 void ParseTsv(
     TInputStream* input,
     NYTree::IYsonConsumer* consumer,
-    TTsvFormatConfigPtr config = New<TTsvFormatConfig>());
+    TTsvFormatConfigPtr config = NULL);
 
 void ParseTsv(
     const TStringBuf& data,
     NYTree::IYsonConsumer* consumer,
-    TTsvFormatConfigPtr config = New<TTsvFormatConfig>());
+    TTsvFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 

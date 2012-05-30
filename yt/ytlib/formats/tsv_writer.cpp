@@ -13,7 +13,9 @@ TTsvWriter::TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config)
     , FirstItem(true)
     , State(EState::ExpectListItem)
 {
-    YCHECK(Config);
+    if (!Config) {
+        Config = New<TTsvFormatConfig>();
+    }
 }
 
 void TTsvWriter::OnStringScalar(const TStringBuf& value)
