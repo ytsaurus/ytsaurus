@@ -61,7 +61,7 @@ void TTsvWriter::OnListItem()
     State = EState::ExpectBeginMap;
 
     if (!FirstLine) {
-        Stream->Write(Config->NewLineSeparator);
+        Stream->Write(Config->RecordSeparator);
     }
     FirstItem = true;
     FirstLine = false;
@@ -88,7 +88,7 @@ void TTsvWriter::OnKeyedItem(const TStringBuf& key)
     State = EState::AfterKey;
 
     if (!FirstItem) {
-        Stream->Write(Config->ItemSeparator);
+        Stream->Write(Config->FieldSeparator);
     }
     Stream->Write(key);
     Stream->Write(Config->KeyValueSeparator);

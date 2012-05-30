@@ -12,15 +12,15 @@ namespace NFormats {
 struct TTsvFormatConfig
     : public TConfigurable
 {
-    char NewLineSeparator;
+    char RecordSeparator;
     char KeyValueSeparator;
-    char ItemSeparator;
+    char FieldSeparator;
 
     TTsvFormatConfig()
     {
-        Register("newline", NewLineSeparator).Default('\n');
-        Register("key_value", KeyValueSeparator).Default('=');
-        Register("item", ItemSeparator).Default('\t');
+        Register("record_separator", RecordSeparator).Default('\n');
+        Register("key_value_separator", KeyValueSeparator).Default('=');
+        Register("field_separator", FieldSeparator).Default('\t');
     }
 };
 
