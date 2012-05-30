@@ -4,6 +4,7 @@
 
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
+#include <ytlib/formats/format.h>
 
 #include <string>
 
@@ -15,6 +16,7 @@ COMMON_V8_USES
 
 using namespace NYTree;
 using namespace NDriver;
+using namespace NFormats;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -119,11 +119,21 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
     };
 
     try {
-        auto ysonFormat = attributes->Get<EYsonFormat>("format", EYsonFormat::Binary);
+        auto ysonFormat = attributes->Find<EYsonFormat>("format");
         auto ysonType = DataTypeToYsonType(dataType);
-        bool enableRaw = attributes->Get("enable_raw", true);
-        TAutoPtr<IYsonConsumer> writer(new TYsonWriter(output, ysonFormat, ysonType, enableRaw));
-        return ysonFormat == EYsonFormat::Binary
+        auto enableRaw = attributes->Find<bool>("enable_raw");
+        if (!ysonFormat) {
+            ysonFormat = EYsonFormat::Binary;
+            enableRaw = true;
+        } else {
+            if (!enableRaw) {
+                // In case of textual format we would like to force textual output.
+                enableRaw = (*ysonFormat == EYsonFormat::Binary);
+            }
+        }
+
+        TAutoPtr<IYsonConsumer> writer(new TYsonWriter(output, *ysonFormat, ysonType, *enableRaw));
+        return *ysonFormat == EYsonFormat::Binary
             ? writer
             : new TNewlineAppendingConsumer(output, writer, ysonType);
     } catch (const std::exception& ex) {

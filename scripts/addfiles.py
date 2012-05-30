@@ -4,6 +4,12 @@
 import os;
 import sys;
 
+SPECIFIC_NAMESPACES = {
+    'misc': None,
+    'actions': None,
+    'driver': None,
+    'ytree': 'NYTree'
+}
 UNITTEST_PREFIX = 'unittest'
 MISC_PROJECT = 'misc'
 ACTIONS_PROJECT = 'actions'
@@ -31,6 +37,9 @@ def get_project_path(project_name):
 def get_unittests_path():
     return os.path.abspath(os.path.join(get_ytlib_path(), '../unittests'))
 
+
+def get_project_name(project_path):
+    return os.path.basename(os.path.abspath(project_path))
 
 def add_file(file_path, file_data):
     if not os.path.exists(file_path):
@@ -85,10 +94,11 @@ def get_common_data(project_name):
 ////////////////////////////////////////////////////////////////////////////////
 '''
     
-    if project_name not in  [MISC_PROJECT, ACTIONS_PROJECT]:
+    namespace = SPECIFIC_NAMESPACES.get(project_name, get_namespace(project_name))
+    if namespace:
         data = '''namespace {0} {{
 {1}            
-}} // namespace {0}'''.format(get_namespace(project_name), data)
+}} // namespace {0}'''.format(namespace, data)
     
     data = '''
 namespace NYT {{
@@ -101,6 +111,8 @@ namespace NYT {{
 
 def get_header_data(project_name):
     return '''#pragma once
+
+#include "public.h"
 ''' + get_common_data(project_name)
 
 
@@ -126,14 +138,7 @@ def get_unittest_data(project_name, file_name):
 
 #include <contrib/testing/framework.h>
 
-namespace NYT {{
-
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
-    
-}} // namespace NYT
-'''.format(project_name, file_name + HEADER_EXTENSION)
+'''.format(project_name, file_name + HEADER_EXTENSION) + get_common_data(project_name)
 
 
 def get_file_data(extension, project_name, file_name):
@@ -147,13 +152,16 @@ def get_file_data(extension, project_name, file_name):
         return get_unittest_data(project_name, file_name)
     raise RuntimeError("Unknown extension {0}".format(extension))
 
-def add_files(project_name, file_name, extensions):
+def add_files(project_name, file_name, extensions, project_path):
     print '=' * 80
     for extension in extensions:
-        if extension == UNITTEST_EXTENSION:
-            dir_name = get_unittests_path()
+        if project_path:
+            dir_name = project_path
         else:
-            dir_name = get_project_path(project_name)
+            if extension == UNITTEST_EXTENSION:
+                dir_name = get_unittests_path()
+            else:
+                dir_name = get_project_path(project_name)
         file_path = os.path.join(dir_name, file_name + extension)
         file_data = get_file_data(extension, project_name, file_name)
         add_file(file_path, file_data)
@@ -185,14 +193,21 @@ def print_usage():
 
 if __name__ == '__main__':
     args = sys.argv
-    if len(args) < 3 or len(args) > 4:
+    if len(args) < 3 or len(args) > 5:
         print_usage()
         raise RuntimeError('Incorrect usage')
-    project_name = args[1]
+    
+    project_path = None
+    if args[1] == '-p': 
+        args.pop(1)
+        project_path = args[1]
+        project_name = get_project_name(project_path)
+    else:
+        project_name = args[1]
     file_name = args[2]
     extensions = [] if len(args) == 3 else args[3].split(',')
     (file_name, extensions) = normalize(project_name, file_name, extensions)
 
-    add_files(project_name, file_name, extensions)
+    add_files(project_name, file_name, extensions, project_path)
 
     print "Done."

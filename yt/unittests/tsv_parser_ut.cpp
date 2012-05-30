@@ -35,11 +35,11 @@ TEST(TTsvParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("1"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka Input =
+    Stroka input =
         "integer=42\tstring=some\tdouble=10\n"
         "foo=bar\tone=1";
 
-    ParseTsv(Input, &Mock);
+    ParseTsv(input, &Mock);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

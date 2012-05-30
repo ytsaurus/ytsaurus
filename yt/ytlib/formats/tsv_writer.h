@@ -15,7 +15,7 @@ class TTsvWriter
     : public NYTree::TYsonConsumerBase
 {
 public:
-    explicit TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config = NULL);
+    explicit TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config = New<TTsvFormatConfig>());
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);

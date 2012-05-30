@@ -14,9 +14,7 @@ TTsvParser::TTsvParser(IYsonConsumer* consumer, TTsvFormatConfigPtr config)
     , FirstSymbol(true)
     , State(EState::InsideKey)
 {
-    if (!Config) {
-        Config = New<TTsvFormatConfig>();
-    }
+    YCHECK(Config);
 }
 
 void TTsvParser::Read(const TStringBuf& data)
@@ -62,7 +60,7 @@ const char* TTsvParser::Consume(const char* begin, const char* end)
                 Consumer->OnStringScalar(CurrentToken);
                 CurrentToken.clear();
                 State = EState::InsideKey;
-                if (*next == Config->NewLineSeparator) {
+                if (*next == Config->RecordSeparator) {
                     Consumer->OnEndMap();
                     FirstSymbol = true;
                 }
@@ -79,7 +77,7 @@ const char* TTsvParser::FindEndOfValue(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == Config->ItemSeparator || *current == Config->NewLineSeparator) {
+        if (*current == Config->FieldSeparator || *current == Config->RecordSeparator) {
             return current;
         }
     }
