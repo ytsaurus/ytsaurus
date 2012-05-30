@@ -1,11 +1,11 @@
 #include "stdafx.h"
 
-#include <ytlib/driver/tsv_writer.h>
+#include <ytlib/formats/tsv_writer.h>
 
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-namespace NDriver {
+namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
