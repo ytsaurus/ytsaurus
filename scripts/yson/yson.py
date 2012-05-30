@@ -66,6 +66,11 @@ class Dumper(object):
 
     def dumps(self, obj):
         self._level += 1
+
+        attributes = ''
+        if hasattr(obj, 'attributes') and obj.attributes:
+            attributes = self._dump_attributes(obj.attributes)
+
         result = None
         if isinstance(obj, (int, long, float)):
             result = str(obj)
@@ -78,7 +83,7 @@ class Dumper(object):
         else:
             raise TypeError(repr(obj) + " is not YSON serializable.")
         self._level -= 1    
-        return result
+        return attributes + result
 
     def _dump_string(self, obj):
         if isinstance(obj, str):
@@ -117,6 +122,23 @@ class Dumper(object):
             
         result += [self._format.prefix(self._level), ']']
         return ''.join(result)        
+
+    def _dump_attributes(self, obj):
+        result = ['<', self._format.nextline()]
+        for k, v in obj.items():
+            if not isinstance(k, basestring):
+                raise TypeError("Only string can be YSON map key. Key: %s" % repr(obj))
+
+            @self._circular_check(v)
+            def process_item():
+                return [self._format.prefix(self._level + 1), 
+                    self._dump_string(k), self._format.space(), '=', 
+                    self._format.space(), self.dumps(v), ';', self._format.nextline()]
+
+            result += process_item()
+            
+        result += [self._format.prefix(self._level), '>']
+        return ''.join(result)
 
     def _circular_check(self, obj):
         def decorator(fn):
