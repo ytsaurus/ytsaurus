@@ -50,6 +50,7 @@ public:
         , TotalChunkCount(0)
         , PendingChunkCount(0)
         , CompletedChunkCount(0)
+        , CurrentGroupWeight(0)
     { }
 
 private:
@@ -66,6 +67,9 @@ protected:
     int TotalChunkCount;
     int PendingChunkCount;
     int CompletedChunkCount;
+
+    yhash_map<int, TChunkStripePtr> CurrentGroupStripes;
+    i64 CurrentGroupWeight;
 
     // The template for starting new jobs.
     TJobSpec JobSpecTemplate;
@@ -93,47 +97,42 @@ protected:
     typedef TIntrusivePtr<TMergeGroup> TMergeGroupPtr;
 
     std::vector<TMergeGroupPtr> Groups;
-    TMergeGroupPtr CurrentGroup;
 
-    //! Start a new group.
-    TMergeGroupPtr BeginGroup()
+    //! Finish the current group.
+    void EndGroup()
     {
-        YCHECK(!CurrentGroup);
+        YCHECK(CurrentGroupWeight > 0);
 
         auto& table = OutputTables[0];
-
         auto group = New<TMergeGroup>(
             static_cast<int>(Groups.size()),
             static_cast<int>(table.PartitionTreeIds.size()));
+
+        FOREACH(auto& pair, CurrentGroupStripes) {
+            group->ChunkPool.Add(pair.second);
+            RegisterPendingStripe(group, pair.second);
+        }
 
         // Reserve a place for this group among partitions.
         table.PartitionTreeIds.push_back(NullChunkListId);
 
         Groups.push_back(group);
-        CurrentGroup = group;
 
-        LOG_DEBUG("Created group %d", group->GroupIndex);
-        return group;
-    }
-
-    //! Finish the current group.
-    void EndGroup()
-    {
-        YCHECK(CurrentGroup);
         LOG_DEBUG("Finished group %d (DataSize: %" PRId64 ")",
             static_cast<int>(Groups.size()) - 1,
-            CurrentGroup->ChunkPool.GetTotalWeight());
-        CurrentGroup.Reset();
+            CurrentGroupWeight);
+
+        CurrentGroupWeight = 0;
+        CurrentGroupStripes.clear();
     }
 
     //! Finish the current group if the size is large enough.
     void EndGroupIfLarge()
     {
-        if (CurrentGroup->ChunkPool.GetTotalWeight() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (CurrentGroupWeight >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
             EndGroup();
         }
     }
-
 
     // Chunk pools and locality.
 
@@ -151,23 +150,33 @@ protected:
     }
 
     //! Add chunk to the current group's pool.
-    void AddPendingChunk(const TInputChunk& chunk, i64 weight)
+    void AddPendingChunk(const TInputChunk& chunk, int stripeTag)
     {
-        YCHECK(CurrentGroup);
+        // Merge is IO-bound, use data size as weight.
+        auto misc = GetProtoExtension<TMiscExt>(chunk.extensions());
+        i64 weight = misc->data_weight();
 
-        auto stripe = New<TChunkStripe>(chunk, weight);
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+        TChunkStripePtr stripe;
+        auto it = CurrentGroupStripes.find(stripeTag);
+        if (it == CurrentGroupStripes.end()) {
+            stripe = New<TChunkStripe>();
+            YASSERT(CurrentGroupStripes.insert(std::make_pair(stripeTag, stripe)).second);
+        } else {
+            stripe = it->second;
+        }
 
-        TotalWeight += miscExt->data_weight();
+        TotalWeight += weight;
+        CurrentGroupWeight += weight;
+
         ++TotalChunkCount;
-        CurrentGroup->ChunkPool.Add(stripe);
-        RegisterPendingStripe(CurrentGroup, stripe);
+        stripe->AddChunk(chunk, weight);
 
+        auto& table = OutputTables[0];
+        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         LOG_DEBUG("Added pending chunk %s in partition %d, group %d",
             ~chunkId.ToString(),
-            CurrentGroup->PartitionIndex,
-            CurrentGroup->GroupIndex);
+            static_cast<int>(table.PartitionTreeIds.size()),
+            static_cast<int>(Groups.size()));
     }
 
     //! Add chunk directly to the output.
@@ -370,7 +379,7 @@ protected:
                         ~chunkId.ToString(),
                         weight,
                         rowCount);
-                    ProcessInputChunk(chunk);
+                    ProcessInputChunk(chunk, tableIndex);
                 }
             }
 
@@ -406,13 +415,13 @@ protected:
     { }
 
     //! Called for each input chunk.
-    virtual void ProcessInputChunk(const TInputChunk& chunk) = 0;
+    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) = 0;
 
     //! Called at the end of input chunks scan.
     virtual void EndInputChunks()
     {
         // Close the last group, if any.
-        if (CurrentGroup) {
+        if (CurrentGroupWeight > 0) {
             EndGroup();
         }
     }
@@ -501,6 +510,8 @@ protected:
         *specExt->mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
         specExt->mutable_output_spec()->set_channels(OutputTables[0].Channels);
 
+
+        // ToDo(psushin): for unordered merge set larger PrefetchWindow.
         JobSpecTemplate.set_io_config(SerializeToYson(Config->MergeJobIO));
     }
 
@@ -522,8 +533,10 @@ public:
     { }
 
 private:
-    virtual void ProcessInputChunk(const TInputChunk& chunk)
+    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex)
     {
+        UNUSED(tableIndex);
+
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
@@ -533,15 +546,9 @@ private:
             return;
         }
 
-        // Create a merge group if not exists.
-        if (!CurrentGroup) {
-            BeginGroup();
-        }
-
-        // Merge is IO-bound, use data size as weight.
-        auto misc = GetProtoExtension<TMiscExt>(chunk.extensions());
-        i64 weight = misc->data_weight();
-        AddPendingChunk(chunk, weight);
+        // All chunks go to a single chunk stripe.
+        AddPendingChunk(chunk, 0);
+        EndGroupIfLarge();
     }
 
 };
@@ -589,12 +596,14 @@ private:
         }
     }
 
-    virtual void ProcessInputChunk(const TInputChunk& chunk)
+    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex)
     {
+        UNUSED(tableIndex);
+
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (IsLargeCompleteChunk(chunk) && !CurrentGroup) {
+        if (IsLargeCompleteChunk(chunk) && CurrentGroupWeight > 0) {
             // Merge is not required and no current group is active.
             // Copy the chunk directly to the output.
             LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
@@ -604,16 +613,8 @@ private:
             return;
         }
 
-        // Ensure that the current group exists.
-        if (!CurrentGroup) {
-            BeginGroup();
-        }
-
-        // Merge is IO-bound, use data size as weight.
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-        i64 weight = miscExt->data_weight();
-        AddPendingChunk(chunk, weight);
-
+        // All chunks go to a single chunk stripe.
+        AddPendingChunk(chunk, 0);
         EndGroupIfLarge();
     }
 };
@@ -638,13 +639,14 @@ private:
     struct TKeyEndpoint
     {
         bool Left;
+        int TableIndex;
         NTableClient::NProto::TKey Key;
         const TInputChunk* InputChunk;
     };
 
     std::vector<TKeyEndpoint> Endpoints;
 
-    virtual void ProcessInputChunk(const TInputChunk& chunk)
+    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex)
     {
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         YCHECK(miscExt->sorted());
@@ -654,6 +656,7 @@ private:
         {
             TKeyEndpoint endpoint;
             endpoint.Left = true;
+            endpoint.TableIndex = tableIndex;
             endpoint.Key = boundaryKeysExt->left();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
@@ -661,6 +664,7 @@ private:
         {
             TKeyEndpoint endpoint;
             endpoint.Left = false;
+            endpoint.TableIndex = tableIndex;
             endpoint.Key = boundaryKeysExt->right();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
@@ -687,16 +691,20 @@ private:
         // Combine small groups, if requested so.
         LOG_INFO("Building groups");
         int depth = 0;
-        std::vector<const TInputChunk*> chunks;
-        FOREACH (const auto& endpoint, Endpoints) {
+        int startIndex = 0;
+        for (
+            int currentIndex = startIndex; 
+            currentIndex < static_cast<int>(Endpoints.size()); 
+            ++currentIndex) 
+        {
+            auto& endpoint = Endpoints[currentIndex];
             if (endpoint.Left) {
                 ++depth;
-                chunks.push_back(endpoint.InputChunk);
             } else {
                 --depth;
                 if (depth == 0) {
-                    BuildGroupIfNeeded(chunks);
-                    chunks.clear();
+                    BuildGroupIfNeeded(startIndex, currentIndex + 1);
+                    startIndex = currentIndex + 1;
                 }
             }
         }
@@ -706,32 +714,30 @@ private:
         SetOutputTablesSorted(keyColumns);
     }
 
-    void BuildGroupIfNeeded(const std::vector<const TInputChunk*>& chunks)
+    void BuildGroupIfNeeded(int startIndex, int endIndex)
     {
-        auto& table = OutputTables[0];
+        // Must be even number of endpoints.
+        YASSERT((endIndex - startIndex) % 2 == 0);
 
-        LOG_DEBUG("Found overlap of %d chunks", static_cast<int>(chunks.size()));
+        int chunkCount = (endIndex - startIndex) / 2;
+        LOG_DEBUG("Found overlap of %d chunks", chunkCount);
 
-        if (chunks.size() == 1 && IsLargeCompleteChunk(*chunks[0]) && !CurrentGroup) {
-            const auto& chunk = *chunks[0];
-            auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-            // Merge is not required and no current group is active.
-            // Copy the chunk directly to the output.
-            AddPassthroughChunk(chunk);
-            return;
+        {
+            const auto& chunk = *Endpoints[startIndex].InputChunk;
+            if (chunkCount == 1 && IsLargeCompleteChunk(chunk) && CurrentGroupWeight > 0) {
+                auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+                // Merge is not required and no current group is active.
+                // Copy the chunk directly to the output.
+                AddPassthroughChunk(chunk);
+                return;
+            }
         }
 
-        // Ensure that the current group exists.
-        if (!CurrentGroup) {
-            // TODO(babenko): use merge pool instead
-            BeginGroup();
-        }
-
-        FOREACH (const auto& chunk, chunks) {
-            auto miscExt = GetProtoExtension<TMiscExt>(chunk->extensions());
-            // Merge is IO-bound, use data size as weight.
-            i64 weight = miscExt->data_weight();
-            AddPendingChunk(*chunk, weight);
+        for (; startIndex < endIndex; ++startIndex) {
+            auto& endpoint = Endpoints[startIndex];
+            if (endpoint.Left) {
+                AddPendingChunk(*endpoint.InputChunk, endpoint.TableIndex);
+            }
         }
 
         EndGroupIfLarge();

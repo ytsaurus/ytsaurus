@@ -18,6 +18,8 @@ struct TChunkStripe
     TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
     TChunkStripe(const std::vector<NTableClient::NProto::TInputChunk>& inputChunks, i64 weight);
 
+    void AddChunk(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
+
     std::vector<NChunkServer::TChunkId> GetChunkIds() const;
 
     TSmallVector<NTableClient::NProto::TInputChunk, 1> InputChunks;

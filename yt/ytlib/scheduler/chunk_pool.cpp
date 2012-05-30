@@ -24,6 +24,12 @@ TChunkStripe::TChunkStripe(const std::vector<TInputChunk>& inputChunks, i64 weig
     : Weight(weight)
 { }
 
+void TChunkStripe::AddChunk(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight)
+{
+    InputChunks.push_back(inputChunk);
+    Weight += weight;
+}
+
 std::vector<NChunkServer::TChunkId> TChunkStripe::GetChunkIds() const
 {
     std::vector<NChunkServer::TChunkId> result;
