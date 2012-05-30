@@ -43,12 +43,12 @@ private:
 void ParseTsv(
     TInputStream* input,
     NYTree::IYsonConsumer* consumer,
-    TTsvFormatConfigPtr config = NULL);
+    TTsvFormatConfigPtr config = New<TTsvFormatConfig>());
 
 void ParseTsv(
     const TStringBuf& data,
     NYTree::IYsonConsumer* consumer,
-    TTsvFormatConfigPtr config = NULL);
+    TTsvFormatConfigPtr config = New<TTsvFormatConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////
 
