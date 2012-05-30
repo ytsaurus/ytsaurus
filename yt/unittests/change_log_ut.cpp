@@ -32,7 +32,7 @@ protected:
         TemporaryIndexFile.Reset(0);
     }
 
-    template<class RecordType=ui32>
+    template <class RecordType = ui32>
     TChangeLogPtr CreateChangeLog(size_t recordsCount) const
     {
         TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
@@ -43,7 +43,7 @@ protected:
         return changeLog;
     }
 
-    template<class RecordType=ui32>
+    template <class RecordType = ui32>
     yvector<TSharedRef> MakeRecords(i32 from, i32 to) const
     {
         yvector<TSharedRef> records(to - from);
@@ -246,7 +246,7 @@ TEST_F(TChangeLogTest, UnalighnedChecksum)
     }
 }
 
-TEST_F(TChangeLogTest, Profiling)
+TEST_F(TChangeLogTest, DISABLED_Profiling)
 {
     int recordsCount = 10000000;
     {
@@ -280,6 +280,7 @@ TEST_F(TChangeLogTest, Profiling)
         std::cerr << "Finalizing changelog of size " << recordsCount / 2 <<
             ", time " << timer.ElapsedTimeAsString() << std::endl;
     }
+    SUCCEED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

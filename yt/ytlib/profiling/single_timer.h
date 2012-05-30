@@ -6,6 +6,8 @@ namespace NYT {
 namespace NProfiling {
 
 
+//! Allows calculate working time in single thread case
+//! TODO(sandello) may be rename to TScopedTimer
 class TSingleTimer
 {
 public:
@@ -14,16 +16,23 @@ public:
     { }
 
     TDuration ElapsedTime() const
-        { return CpuDurationToDuration(GetCpuInstant() - StartTime_); }
+    {
+        return CpuDurationToDuration(GetCpuInstant() - StartTime_);
+    }
 
     Stroka ElapsedTimeAsString() const
-        { return Repr(ElapsedTime()); }
+    {
+        return Repr(ElapsedTime());
+    }
 
     void Restart()
-        { StartTime_ = GetCpuInstant(); }
+    {
+        StartTime_ = GetCpuInstant();
+    }
 
 private:
-    Stroka Repr(const TDuration& duration) const {
+    Stroka Repr(const TDuration& duration) const
+    {
         return ToString(duration.MilliSeconds() / 1000.0);
     }
 
