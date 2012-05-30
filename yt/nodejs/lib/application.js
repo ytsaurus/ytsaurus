@@ -18,6 +18,9 @@ if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
 // This mapping defines how MIME types map onto YT format specifications.
 var _MIME_FORMAT_MAPPING = {
     "application/json" : "json",
+    "yandex/yt-yson-binary" : "<format=binary;enable_raw=true>yson",
+    "yandex/yt-yson-text" : "<format=text;enable_raw=false>yson",
+    "yandex/yt-yson-pretty": "<format=pretty;enable_raw=false>yson",
     "text/csv" : "csv",
     "text/tab-separated-values" : "tsv"
 };
@@ -141,7 +144,7 @@ function _reqExtractOutputFormat(req) {
 
     // Lastly, provide a default option, i. e. YSON.
     if (typeof(result) === "undefined") {
-        result = "<format=pretty>yson";
+        result = "<format=text;enable_raw=false>yson";
     }
 
     return result;
