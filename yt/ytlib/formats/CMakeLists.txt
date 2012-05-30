@@ -6,9 +6,9 @@ set( SRCS
   ${BASE}/tsv_writer.cpp
 )
 set( HDRS
-  ${BASE}/public.h
-  ${BASE}/format.h
   ${BASE}/config.h
+  ${BASE}/format.h
+  ${BASE}/public.h
   ${BASE}/tsv_parser.h
   ${BASE}/tsv_writer.h
 )

@@ -11,6 +11,7 @@ set( HDRS
   ${BASE}/profiling_manager.h
   ${BASE}/public.h
   ${BASE}/resource_tracker.h
+  ${BASE}/single_timer.h
   ${BASE}/timing.h
 )
 

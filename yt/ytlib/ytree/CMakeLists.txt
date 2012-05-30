@@ -38,6 +38,7 @@ set( HDRS
   ${BASE}/lexer.h
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h
+  ${BASE}/parser.h
   ${BASE}/public.h
   ${BASE}/serialize-inl.h
   ${BASE}/serialize.h
@@ -59,7 +60,6 @@ set( HDRS
   ${BASE}/yson_parser.h
   ${BASE}/yson_writer.h
   ${BASE}/ytree.h
-  ${BASE}/parser.h
 )
 
 list(APPEND YT_SOURCE_FILES

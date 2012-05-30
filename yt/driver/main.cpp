@@ -1,4 +1,5 @@
 #include "executor.h"
+#include "cypress_executor.h"
 
 #include <ytlib/logging/log_manager.h>
 
