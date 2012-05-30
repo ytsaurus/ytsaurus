@@ -32,6 +32,9 @@ def get_unittests_path():
     return os.path.abspath(os.path.join(get_ytlib_path(), '../unittests'))
 
 
+def get_project_name(project_path):
+    return os.path.basename(os.path.abspath(project_path))
+
 def add_file(file_path, file_data):
     if not os.path.exists(file_path):
         with open(file_path, 'w') as file:
@@ -101,6 +104,8 @@ namespace NYT {{
 
 def get_header_data(project_name):
     return '''#pragma once
+
+#include "public.h"
 ''' + get_common_data(project_name)
 
 
