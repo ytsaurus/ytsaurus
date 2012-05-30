@@ -15,7 +15,7 @@ class TTsvParser
     : public NYTree::IParser
 {
 public:
-    explicit TTsvParser(NYTree::IYsonConsumer* consumer, TTsvFormatConfigPtr config = NULL);
+    explicit TTsvParser(NYTree::IYsonConsumer* consumer, TTsvFormatConfigPtr config = New<TTsvFormatConfig>());
 
     virtual void Read(const TStringBuf& data);
     virtual void Finish();

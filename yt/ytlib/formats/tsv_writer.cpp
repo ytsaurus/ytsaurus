@@ -8,19 +8,18 @@ namespace NFormats {
 
 TTsvWriter::TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config)
     : Stream(stream)
+    , Config(config)
     , FirstLine(true)
     , FirstItem(true)
     , State(EState::ExpectListItem)
 {
-    if (!config) {
-        Config = New<TTsvFormatConfig>();
-    }
+    YCHECK(Config);
 }
 
 void TTsvWriter::OnStringScalar(const TStringBuf& value)
 {
     if (State != EState::AfterKey) {
-        ythrow yexception() << "Lists are not supported";
+        ythrow yexception() << "Unexpected call";
     }
     State = EState::ExpectKey;
     Stream->Write(value);
@@ -29,7 +28,7 @@ void TTsvWriter::OnStringScalar(const TStringBuf& value)
 void TTsvWriter::OnIntegerScalar(i64 value)
 {
     if (State != EState::AfterKey) {
-        ythrow yexception() << "Lists are not supported";
+        ythrow yexception() << "Unexpected call";
     }
     State = EState::ExpectKey;
     Stream->Write(ToString(value));
@@ -38,7 +37,7 @@ void TTsvWriter::OnIntegerScalar(i64 value)
 void TTsvWriter::OnDoubleScalar(double value)
 {
     if (State != EState::AfterKey) {
-        ythrow yexception() << "Lists are not supported";
+        ythrow yexception() << "Unexpected call";
     }
     State = EState::ExpectKey;
     Stream->Write(ToString(value));
