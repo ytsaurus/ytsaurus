@@ -1,0 +1,427 @@
+#include "scheduler_executor.h"
+#include "preprocess.h"
+
+#include <ytlib/job_proxy/config.h>
+#include <ytlib/driver/driver.h>
+
+#include <ytlib/ytree/ypath_proxy.h>
+
+#include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/scheduler/helpers.h>
+
+#include <ytlib/object_server/object_service_proxy.h>
+
+#include <util/stream/format.h>
+
+namespace NYT {
+
+using namespace NYTree;
+using namespace NScheduler;
+using namespace NDriver;
+using namespace NObjectServer;
+
+//////////////////////////////////////////////////////////////////////////////////
+
+class TStartOpExecutor::TOperationTracker
+{
+public:
+    TOperationTracker(
+        TExecutorConfigPtr config,
+        IDriverPtr driver,
+        const TOperationId& operationId,
+        EOperationType operationType)
+        : Config(config)
+        , Driver(driver)
+        , OperationId(operationId)
+        , OperationType(operationType)
+    { }
+
+    void Run()
+    {
+        TSchedulerServiceProxy proxy(Driver->GetSchedulerChannel());
+
+        while (true)  {
+            auto waitOpReq = proxy.WaitForOperation();
+            *waitOpReq->mutable_operation_id() = OperationId.ToProto();
+            waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
+
+            // Override default timeout.
+            waitOpReq->SetTimeout(Config->OperationWaitTimeout * 2);
+            auto waitOpRsp = waitOpReq->Invoke().Get();
+
+            if (!waitOpRsp->IsOK()) {
+                ythrow yexception() << waitOpRsp->GetError().ToString();
+            }
+
+            if (waitOpRsp->finished())
+                break;
+
+            DumpProgress();
+        }
+
+        DumpResult();
+    }
+
+private:
+    TExecutorConfigPtr Config;
+    IDriverPtr Driver;
+    TOperationId OperationId;
+    EOperationType OperationType;
+
+    // TODO(babenko): refactor
+    // TODO(babenko): YPath and RPC responses currently share no base class.
+    template <class TResponse>
+    static void CheckResponse(TResponse response, const Stroka& failureMessage)
+    {
+        if (response->IsOK())
+            return;
+
+        ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+    }
+
+    static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const TYson& progress)
+    {
+        i64 jobsTotal = DeserializeFromYson<i64>(progress, "/total");
+        if (jobsTotal == 0) {
+            return;
+        }
+
+        i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/completed");
+        int percentComplete  = (jobsCompleted * 100) / jobsTotal;
+
+        if (!out->empty()) {
+            out->append(", ");
+        }
+
+        out->append(Sprintf("%3d%% ", percentComplete));
+        if (!phase.empty()) {
+            out->append(phase);
+            out->append(' ');
+        }
+
+        out->append("done ");
+
+        // Some simple pretty-printing.
+        int totalWidth = ToString(jobsTotal).length();
+        out->append("(");
+        out->append(ToString(LeftPad(ToString(jobsCompleted), totalWidth)));
+        out->append(" of ");
+        out->append(ToString(jobsTotal));
+        out->append(")");
+    }
+
+    Stroka FormatProgress(const TYson& progress)
+    {
+        // TODO(babenko): refactor
+        auto progressAttributes = IAttributeDictionary::FromMap(DeserializeFromYson(progress)->AsMap());
+        Stroka result;
+        switch (OperationType) {
+            case EOperationType::Map:
+            case EOperationType::Merge:
+            case EOperationType::Erase:
+                AppendPhaseProgress(&result, "", progressAttributes->GetYson("jobs"));
+                break;
+
+            case EOperationType::Sort:
+                AppendPhaseProgress(&result, "partition", progressAttributes->GetYson("partition_jobs"));
+                AppendPhaseProgress(&result, "sort", progressAttributes->GetYson("sort_jobs"));
+                AppendPhaseProgress(&result, "merge", progressAttributes->GetYson("merge_jobs"));
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+        return result;
+    }
+
+    void DumpProgress()
+    {
+        auto operationPath = GetOperationPath(OperationId);
+
+        TObjectServiceProxy proxy(Driver->GetMasterChannel());
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TYPathProxy::Get(operationPath + "/@state");
+            batchReq->AddRequest(req, "get_state");
+        }
+
+        {
+            auto req = TYPathProxy::Get(operationPath + "/@progress");
+            batchReq->AddRequest(req, "get_progress");
+        }
+
+        auto batchRsp = batchReq->Invoke().Get();
+        CheckResponse(batchRsp, "Error getting operation progress");
+
+        EOperationState state;
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
+            CheckResponse(rsp, "Error getting operation state");
+            state = DeserializeFromYson<EOperationState>(rsp->value());
+        }
+
+        TYson progress;
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
+            CheckResponse(rsp, "Error getting operation progress");
+            progress = rsp->value();
+        }
+
+        if (state == EOperationState::Running) {
+            printf("%s: %s\n",
+                ~state.ToString(),
+                ~FormatProgress(progress));
+        } else {
+            printf("%s\n", ~state.ToString());
+        }
+    }
+
+    void DumpResult()
+    {
+        auto operationPath = GetOperationPath(OperationId);
+
+        TObjectServiceProxy proxy(Driver->GetMasterChannel());
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TYPathProxy::Get(operationPath + "/@result");
+            batchReq->AddRequest(req, "get_result");
+        }
+
+        auto batchRsp = batchReq->Invoke().Get();
+        CheckResponse(batchRsp, "Error getting operation result");
+
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_result");
+            CheckResponse(rsp, "Error getting operation result");
+            // TODO(babenko): refactor!
+            auto errorNode = DeserializeFromYson<INodePtr>(rsp->value(), "/error");
+            auto error = TError::FromYson(errorNode);
+            if (!error.IsOK()) {
+                ythrow yexception() << error.ToString();
+            }
+        }
+
+        printf("Operation completed successfully\n");
+    }
+};
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TStartOpExecutor::TStartOpExecutor()
+    : DontTrackArg("", "dont_track", "don't track operation progress")
+{
+    CmdLine.add(DontTrackArg);
+}
+
+void TStartOpExecutor::DoExecute(const TDriverRequest& request)
+{
+    if (DontTrackArg.getValue()) {
+        TExecutorBase::DoExecute(request);
+        return;
+    }
+
+    printf("Starting %s operation... ", ~GetDriverCommandName().Quote());
+
+    auto requestCopy = request;
+
+    TStringStream output;
+    requestCopy.OutputStream = &output;
+
+    auto response = Driver->Execute(requestCopy);
+    if (!response.Error.IsOK()) {
+        printf("failed\n");
+        ythrow yexception() << response.Error.ToString();
+    }
+
+    auto operationId = DeserializeFromYson<TOperationId>(output.Str());
+    printf("done, %s\n", ~operationId.ToString());
+
+    TOperationTracker tracker(Config, Driver, operationId, GetOperationType());
+    tracker.Run();
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TMapExecutor::TMapExecutor()
+    : InArg("", "in", "input tables", false, "ypath")
+    , OutArg("", "out", "output tables", false, "ypath")
+    , FilesArg("", "file", "additional files", false, "ypath")
+    , MapperArg("", "mapper", "mapper shell command", true, "", "command")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(FilesArg);
+    CmdLine.add(MapperArg);
+}
+
+void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto input = PreprocessYPaths(InArg.getValue());
+    auto output = PreprocessYPaths(OutArg.getValue());
+    auto files = PreprocessYPaths(FilesArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("spec").BeginMap()
+            .Item("mapper").Scalar(MapperArg.getValue())
+            .Item("input_table_paths").List(input)
+            .Item("output_table_paths").List(output)
+            .Item("file_paths").List(files)
+            .Do(BIND(&TMapExecutor::BuildOptions, Unretained(this)))
+        .EndMap();
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TMapExecutor::GetDriverCommandName() const
+{
+    return "map";
+}
+
+EOperationType TMapExecutor::GetOperationType() const
+{
+    return EOperationType::Map;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TMergeExecutor::TMergeExecutor()
+    : InArg("", "in", "input tables", false, "ypath")
+    , OutArg("", "out", "output table", false, "", "ypath")
+    , ModeArg("", "mode", "merge mode", false, TMode(EMergeMode::Unordered), "unordered, ordered, sorted")
+    , CombineArg("", "combine", "combine small output chunks into larger ones")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(ModeArg);
+    CmdLine.add(CombineArg);
+}
+
+void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto input = PreprocessYPaths(InArg.getValue());
+    auto output = PreprocessYPath(OutArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("spec").BeginMap()
+            .Item("input_table_paths").List(input)
+            .Item("output_table_path").Scalar(output)
+            .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
+            .Item("combine_chunks").Scalar(CombineArg.getValue())
+            .Do(BIND(&TMergeExecutor::BuildOptions, Unretained(this)))
+        .EndMap();
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TMergeExecutor::GetDriverCommandName() const
+{
+    return "merge";
+}
+
+EOperationType TMergeExecutor::GetOperationType() const
+{
+    return EOperationType::Merge;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TSortExecutor::TSortExecutor()
+    : InArg("", "in", "input tables", false, "ypath")
+    , OutArg("", "out", "output table", false, "", "ypath")
+    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "list_fragment")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(KeyColumnsArg);
+}
+
+void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto input = PreprocessYPaths(InArg.getValue());
+    auto output = PreprocessYPath(OutArg.getValue());
+    // TODO(babenko): refactor
+    auto keyColumns = DeserializeFromYson< yvector<Stroka> >("[" + KeyColumnsArg.getValue() + "]");
+
+    BuildYsonMapFluently(consumer)
+        .Item("spec").BeginMap()
+            .Item("input_table_paths").List(input)
+            .Item("output_table_path").Scalar(output)
+            .Item("key_columns").List(keyColumns)
+            .Do(BIND(&TSortExecutor::BuildOptions, Unretained(this)))
+        .EndMap();
+}
+
+Stroka TSortExecutor::GetDriverCommandName() const
+{
+    return "sort";
+}
+
+EOperationType TSortExecutor::GetOperationType() const
+{
+    return EOperationType::Sort;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TEraseExecutor::TEraseExecutor()
+    : InArg("", "in", "input table", false, "", "ypath")
+    , OutArg("", "out", "output table", false, "", "ypath")
+    , CombineArg("", "combine", "combine small output chunks into larger ones")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(CombineArg);
+}
+
+void TEraseExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto input = PreprocessYPath(InArg.getValue());
+    auto output = PreprocessYPath(OutArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("spec").BeginMap()
+            .Item("input_table_path").Scalar(input)
+            .Item("output_table_path").Scalar(output)
+            .Item("combine_chunks").Scalar(CombineArg.getValue())
+            .Do(BIND(&TEraseExecutor::BuildOptions, Unretained(this)))
+        .EndMap();
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TEraseExecutor::GetDriverCommandName() const
+{
+    return "erase";
+}
+
+EOperationType TEraseExecutor::GetOperationType() const
+{
+    return EOperationType::Erase;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TAbortOpExecutor::TAbortOpExecutor()
+    : OpArg("", "op", "id of an operation that must be aborted", true, "", "operation_id")
+{
+    CmdLine.add(OpArg);
+}
+
+void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("operation_id").Scalar(OpArg.getValue());
+
+    TExecutorBase::BuildArgs(consumer);
+}
+
+Stroka TAbortOpExecutor::GetDriverCommandName() const
+{
+    return "abort_op";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

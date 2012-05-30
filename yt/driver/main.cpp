@@ -1,5 +1,9 @@
 #include "executor.h"
 #include "cypress_executor.h"
+#include "transaction_executor.h"
+#include "file_executor.h"
+#include "table_executor.h"
+#include "scheduler_executor.h"
 
 #include <ytlib/logging/log_manager.h>
 
