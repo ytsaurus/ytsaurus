@@ -30,4 +30,84 @@
             };
         };
     };
+
+    "block_cache" = {
+        "max_size" = 0
+    };
+    "chunk_sequence_reader" = {
+        "prefetch_window" = 1;
+        "remote_reader" = {
+            "fetch_from_peers" = "true";
+            "holder_rpc_timeout" = 30000;
+            "pass_backoff_time" = 1000;
+            "pass_count" = 3;
+            "peer_expiration_timeout" = 300000;
+            "publish_peer" = "false";
+            "retry_backoff_time" = 3000;
+            "retry_count" = 100
+        };
+        "sequential_reader" = {
+            "group_size" = 8388608;
+            "window_size" = 67108864
+        }
+    };
+    "chunk_sequence_writer" = {
+        "chunk_writer" = {
+            "block_size" = 1048576;
+            "codec_id" = "snappy";
+            "estimated_compression_ratio" = 0.2;
+            "index_rate" = 0.01;
+            "sample_rate" = 0.0001
+        };
+        "desired_chunk_size" = 1073741824;
+        "max_meta_size" = 31457280;
+        "remote_writer" = {
+            "group_size" = 1048576;
+            "holder_rpc_timeout" = 30000;
+            "session_ping_interval" = 10000;
+            "window_size" = 4194304
+        };
+        "replication_factor" = 3;
+        "upload_replication_factor" = 2
+    };
+    "file_reader" = {
+        "remote_reader" = {
+            "fetch_from_peers" = "true";
+            "holder_rpc_timeout" = 30000;
+            "pass_backoff_time" = 1000;
+            "pass_count" = 3;
+            "peer_expiration_timeout" = 300000;
+            "publish_peer" = "false";
+            "retry_backoff_time" = 3000;
+            "retry_count" = 100
+        };
+        "sequential_reader" = {
+            "group_size" = 8388608;
+            "window_size" = 67108864
+        }
+    };
+    "file_writer" = {
+        "block_size" = 1048576;
+        "codec_id" = "none";
+        "remote_writer" = {
+            "group_size" = 1048576;
+            "holder_rpc_timeout" = 30000;
+            "session_ping_interval" = 10000;
+            "window_size" = 4194304
+        };
+        "replication_factor" = 3;
+        "upload_replication_factor" = 2
+    };
+    "format_defaults" = {
+        "structured" = <
+            "format" = "text"
+        > "yson";
+        "tabular" = <
+            "format" = "text"
+        > "yson"
+    };
+    "operation_wait_timeout" = 3000;
+    "transaction_manager" = {
+        "ping_period" = 5000
+    }
 }
