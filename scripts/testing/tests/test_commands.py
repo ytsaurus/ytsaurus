@@ -16,7 +16,7 @@ def get(path, **kw): return command('get', path, **kw)
 def remove(path, **kw): return command('remove', path, **kw)
 
 #TODO(panin): think of better name
-def yt_set(path, value, **kw): return command('yt_set', path, value, **kw)
+def set(path, value, **kw): return command('set', path, value, **kw)
 
 def ls(path, **kw): return command('list', path, **kw)
 
@@ -63,22 +63,22 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_invalid_cases(self):
         # path not starting with /
-        with pytest.raises(YTError): yt_set('a', '20')
+        with pytest.raises(YTError): set('a', '20')
 
         # path starting with single /
-        with pytest.raises(YTError): yt_set('/a', '20')
+        with pytest.raises(YTError): set('/a', '20')
 
         # empty path
-        with pytest.raises(YTError): yt_set('', '20')
+        with pytest.raises(YTError): set('', '20')
 
         # empty token in path
-        with pytest.raises(YTError): yt_set('//a//b', '30')
+        with pytest.raises(YTError): set('//a//b', '30')
 
         # change the type of root
-        with pytest.raises(YTError): yt_set('/', '[]')
+        with pytest.raises(YTError): set('/', '[]')
 
-        # yt_set the root to the empty map
-        # expect_error( yt_set('/', '{}'))
+        # set the root to the empty map
+        # expect_error( set('/', '{}'))
 
         # remove the root
         with pytest.raises(YTError): remove('/')
@@ -89,7 +89,7 @@ class TestCypressCommands(YTEnvSetup):
         with pytest.raises(YTError): remove('//b')
 
     def test_attributes(self):
-        yt_set('//t', '<attr=100;mode=rw> {nodes=[1; 2]}')
+        set('//t', '<attr=100;mode=rw> {nodes=[1; 2]}')
         assert get('//t/@attr') == '100'
         assert get('//t/@mode') == '"rw"'
 
@@ -98,15 +98,15 @@ class TestCypressCommands(YTEnvSetup):
         with pytest.raises(YTError): get('//t/@mode')
 
         # changing attributes
-        yt_set('//t/a', '< author=ignat > []')
+        set('//t/a', '< author=ignat > []')
         assert get('//t/a') == '[]'
         assert get('//t/a/@author') == '"ignat"'
 
-        yt_set('//t/a/@author', '"not_ignat"')
+        set('//t/a/@author', '"not_ignat"')
         assert get('//t/a/@author') == '"not_ignat"'
 
         #nested attributes (actually shows <>)
-        yt_set('//t/b', '<dir = <file = <>-100> #> []')
+        set('//t/b', '<dir = <file = <>-100> #> []')
         assert get('//t/b/@dir/@') == '{"file"=<>-100}'
         assert get('//t/b/@dir/@file') == '<>-100'
         assert get('//t/b/@dir/@file/@') == '{}'
@@ -149,17 +149,17 @@ class TestTxCommands(YTEnvSetup):
         abort_transaction(tx = tx_id)
 
     def test_changes_inside_tx(self):
-        yt_set('//value', '42')
+        set('//value', '42')
 
         tx_id = start_transaction()
-        yt_set('//value', '100', tx = tx_id)
+        set('//value', '100', tx = tx_id)
         assert get('//value', tx = tx_id) == '100'
         assert get('//value') == '42'
         commit_transaction(tx = tx_id)
         assert get('//value') == '100'
 
         tx_id = start_transaction()
-        yt_set('//value', '100500', tx = tx_id)
+        set('//value', '100500', tx = tx_id)
         abort_transaction(tx = tx_id)
         assert get('//value') == '100'
 
@@ -207,7 +207,7 @@ class TestLockCommands(YTEnvSetup):
         with pytest.raises(YTError): lock('/', mode = 'None', tx = tx_id)
 
         # attributes do not have @lock_mode
-        yt_set('//value', '<attr=some> 42', tx = tx_id)
+        set('//value', '<attr=some> 42', tx = tx_id)
         with pytest.raises(YTError): lock('//value/@attr/@lock_mode', tx = tx_id)
        
         abort_transaction(tx = tx_id)
@@ -215,9 +215,9 @@ class TestLockCommands(YTEnvSetup):
     def test_display_locks(self):
         tx_id = start_transaction()
         
-        yt_set('//map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id)
+        set('//map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id)
 
-        # check that lock is yt_set on nested nodes
+        # check that lock is set on nested nodes
         assert get('//map/@lock_mode', tx = tx_id) == '"exclusive"'
         assert get('//map/list/@lock_mode', tx = tx_id) == '"exclusive"'
         assert get('//map/list/0/@lock_mode', tx = tx_id) == '"exclusive"'
@@ -268,12 +268,12 @@ class TestLockCommands(YTEnvSetup):
     
     @pytest.mark.xfail(run = False, reason = 'Issue #196')
     def test_snapshot_lock(self):
-        yt_set('//node', '42')
+        set('//node', '42')
         
         tx_id = start_transaction()
         lock('//node', mode = 'snapshot', tx = tx_id)
         
-        yt_set('//node', '100')
+        set('//node', '100')
         # check that node under snapshot lock wasn't changed
         assert get('//node', tx = tx_id) == '42'
 
@@ -286,9 +286,9 @@ class TestLockCommands(YTEnvSetup):
     @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
 
-        yt_set('//a', '{}')
-        yt_set('//a/b', '{}')
-        yt_set('//a/b/c', '42')
+        set('//a', '{}')
+        set('//a/b', '{}')
+        set('//a/b/c', '42')
 
         tx1 = start_transaction()
         tx2 = start_transaction()
@@ -370,7 +370,7 @@ class TestOrchid(YTEnvSetup):
 
             some_map = '{"a"=1;"b"=2}'
 
-            yt_set(path, some_map)
+            set(path, some_map)
             assert get(path) == some_map
             assert sort_list(ls(path)) == '["a";"b";]'
             remove(path)
@@ -391,7 +391,7 @@ class TestOrchid(YTEnvSetup):
 
             some_map = '{"a"=1;"b"=2}'
 
-            yt_set(path, some_map)
+            set(path, some_map)
             assert get(path) == some_map
             assert sort_list(ls(path)) == '["a";"b";]'
             remove(path)
