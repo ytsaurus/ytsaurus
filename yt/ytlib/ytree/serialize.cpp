@@ -151,7 +151,7 @@ void Read(char& parameter, INodePtr node)
     Stroka value = node->AsString()->GetValue();
     if (value.size() != 1) {
         ythrow yexception() <<
-            Sprintf("Expected string of length 1 but found of length %d", value.size());
+            Sprintf("Expected string of length 1 but found of length %" PRISZT, value.size());
     }
     parameter = value[0];
 }
