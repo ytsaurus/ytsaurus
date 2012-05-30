@@ -75,7 +75,6 @@ void TSlot::MakeLink(
 {
     auto linkPath = NFS::CombinePaths(SandboxPath, linkName);
     NFS::MakeSymbolicLink(targetPath, linkPath);
-    // ToDo: fix set executable.
     NFS::SetExecutableMode(linkPath, isExecutable);
 }
 

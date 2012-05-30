@@ -41,10 +41,19 @@ void TFileNodeProxy::DoInvoke(IServiceContextPtr context)
     TBase::DoInvoke(context);
 }
 
+void TFileNodeProxy::OnUpdateAttribute(
+    const Stroka& key,
+    const TNullable<NYTree::TYson>& oldValue,
+    const TNullable<NYTree::TYson>& newValue)
+{
+    if (key == "executable" && newValue) {
+        DeserializeFromYson<bool>(*newValue);
+    }
+}
+
 bool TFileNodeProxy::IsExecutable()
 {
-    // TODO(babenko): fetch this attribute
-    return false;
+    return Attributes().Get("executable", false);
 }
 
 Stroka TFileNodeProxy::GetFileName()

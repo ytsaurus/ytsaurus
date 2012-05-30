@@ -35,6 +35,11 @@ private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
+    virtual void OnUpdateAttribute(
+        const Stroka& key,
+        const TNullable<NYTree::TYson>& oldValue,
+        const TNullable<NYTree::TYson>& newValue);
+
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
