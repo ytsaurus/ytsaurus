@@ -1,6 +1,10 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
+import sys
+#TODO:get rid of it
+sys.path.append('../../../yson')
+
 import yson_parser
 import yson_to_bash
 import yson_types
