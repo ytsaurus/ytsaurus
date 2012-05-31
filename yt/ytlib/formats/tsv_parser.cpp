@@ -12,11 +12,11 @@ TTsvParser::TTsvParser(IYsonConsumer* consumer, TTsvFormatConfigPtr config)
     : Consumer(consumer)
     , Config(config)
     , FirstSymbol(true)
-    , State(EState::InsideKey)
 {
     if (!Config) {
         Config = New<TTsvFormatConfig>();
     }
+    State = GetStartState();
 }
 
 void TTsvParser::Read(const TStringBuf& data)
@@ -38,6 +38,31 @@ void TTsvParser::Finish()
 const char* TTsvParser::Consume(const char* begin, const char* end)
 {
     switch (State) {
+        case EState::InsidePrefix: {
+            if (FirstSymbol) {
+                Consumer->OnListItem();
+                Consumer->OnBeginMap();
+                FirstSymbol = false;
+            }
+            auto next = FindEndOfValue(begin, end);
+            CurrentToken.append(begin, next);
+            if (next != end) {
+                if (CurrentToken != Config->LinePrefix.Get()) {
+                    ythrow yexception() <<
+                        Sprintf("Each line should begin with %s", ~Config->LinePrefix.Get());
+                }
+                CurrentToken.clear();
+                if (*next == Config->RecordSeparator) {
+                    Consumer->OnEndMap();
+                    FirstSymbol = true;
+                    State = GetStartState();
+                } else {
+                    State = EState::InsideKey;
+                }
+                ++next;
+            }
+            return next;
+        }
         case EState::InsideKey: {
             if (FirstSymbol) {
                 Consumer->OnListItem();
@@ -61,10 +86,12 @@ const char* TTsvParser::Consume(const char* begin, const char* end)
             if (next != end) {
                 Consumer->OnStringScalar(CurrentToken);
                 CurrentToken.clear();
-                State = EState::InsideKey;
                 if (*next == Config->RecordSeparator) {
                     Consumer->OnEndMap();
                     FirstSymbol = true;
+                    State = GetStartState();
+                } else {
+                    State = EState::InsideKey;
                 }
                 ++next;
             }
@@ -84,6 +111,15 @@ const char* TTsvParser::FindEndOfValue(const char* begin, const char* end)
         }
     }
     return end;
+}
+
+TTsvParser::EState TTsvParser::GetStartState()
+{
+    if (Config->LinePrefix) {
+        return EState::InsidePrefix;
+    } else {
+        return EState::InsideKey;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

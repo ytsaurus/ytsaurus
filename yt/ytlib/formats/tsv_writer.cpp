@@ -79,6 +79,10 @@ void TTsvWriter::OnBeginMap()
     if (State != EState::ExpectBeginMap) {
         ythrow yexception() << "Unexpected call";
     }
+    if (Config->LinePrefix) {
+        Stream->Write(Config->LinePrefix.Get());
+    }
+
     State = EState::ExpectKey;
 }
 
@@ -89,9 +93,10 @@ void TTsvWriter::OnKeyedItem(const TStringBuf& key)
     }
     State = EState::AfterKey;
 
-    if (!FirstItem) {
+    if (!FirstItem || Config->LinePrefix) {
         Stream->Write(Config->FieldSeparator);
     }
+
     Stream->Write(key);
     Stream->Write(Config->KeyValueSeparator);
     FirstItem = false;

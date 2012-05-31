@@ -29,6 +29,7 @@ private:
     Stroka CurrentToken;
 
     DECLARE_ENUM(EState,
+        (InsidePrefix)
         (InsideKey)
         (InsideValue)
     );
@@ -36,6 +37,8 @@ private:
 
     const char* Consume(const char* begin, const char* end);
     const char* FindEndOfValue(const char* begin, const char* end);
+
+    EState GetStartState();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

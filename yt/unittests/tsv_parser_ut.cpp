@@ -27,6 +27,7 @@ TEST(TTsvParserTest, Simple)
         EXPECT_CALL(Mock, OnKeyedItem("double"));
         EXPECT_CALL(Mock, OnStringScalar("10"));
     EXPECT_CALL(Mock, OnEndMap());
+
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("foo"));
@@ -40,6 +41,42 @@ TEST(TTsvParserTest, Simple)
         "foo=bar\tone=1";
 
     ParseTsv(input, &Mock);
+}
+
+TEST(TTsvParserTest, Tskv)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("id"));
+        EXPECT_CALL(Mock, OnStringScalar("1"));
+        EXPECT_CALL(Mock, OnKeyedItem("guid"));
+        EXPECT_CALL(Mock, OnStringScalar("100500"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("id"));
+        EXPECT_CALL(Mock, OnStringScalar("2"));
+        EXPECT_CALL(Mock, OnKeyedItem("guid"));
+        EXPECT_CALL(Mock, OnStringScalar("20025"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input =
+        "tskv\n"
+        "tskv\tid=1\tguid=100500\n"
+        "tskv\tid=2\tguid=20025\n";
+
+    auto config = New<TTsvFormatConfig>();
+    config->LinePrefix = "tskv";
+
+    ParseTsv(input, &Mock, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

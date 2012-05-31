@@ -21,7 +21,7 @@ TEST(TTsvWriterTest, Simple)
         writer.OnKeyedItem("string");
         writer.OnStringScalar("some");
         writer.OnKeyedItem("double");
-        writer.OnDoubleScalar(10);     // let's hope that 10 will be serialized as 10
+        writer.OnDoubleScalar(10.);     // let's hope that 10. will be serialized as 10.
     writer.OnEndMap();
     writer.OnListItem();
     writer.OnBeginMap();
@@ -32,8 +32,44 @@ TEST(TTsvWriterTest, Simple)
     writer.OnEndMap();
 
     Stroka output =
-        "integer=42\tstring=some\tdouble=10\n"
+        "integer=42\tstring=some\tdouble=10.\n"
         "foo=bar\tone=1";
+
+    EXPECT_EQ(outputStream.Str(), output);
+}
+
+TEST(TTsvWriterTest, Tskv)
+{
+    auto config = New<TTsvFormatConfig>();
+    config->LinePrefix = "tskv";
+
+    TStringStream outputStream;
+    TTsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("id");
+        writer.OnStringScalar("1");
+        writer.OnKeyedItem("guid");
+        writer.OnIntegerScalar(100500);
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("id");
+        writer.OnStringScalar("2");
+        writer.OnKeyedItem("guid");
+        writer.OnIntegerScalar(20025);
+    writer.OnEndMap();
+
+    Stroka output =
+        "tskv\n"
+        "tskv\tid=1\tguid=100500\n"
+        "tskv\tid=2\tguid=20025";
 
     EXPECT_EQ(outputStream.Str(), output);
 }
