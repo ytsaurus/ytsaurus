@@ -42,6 +42,9 @@ def upload(path, **kw): return command('upload', path, **kw)
 def table2py(yson):
     return yson_parser.parse_list_fragment(yson)
 
+def read_table(path, **kw):
+    return table2py(read(path, **kw))
+
 def yson2py(yson):
     return yson_parser.parse_string(yson)
 
@@ -317,8 +320,9 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//t')
         write('//t', '{a=10}')
 
-        result = ls('//sys/chunks')
-        chunk_id = yson_parser.parse_string(result)[0]
+        chunk_ids = yson2py(ls('//sys/chunks'))
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
 
         with pytest.raises(YTError): get('//sys/chunk_lists/"' + chunk_id + '"')
         remove('//t')
@@ -352,8 +356,39 @@ class TestTableCommands(YTEnvSetup):
         remove('//table')
 
     def test_range_queries(self):
-        pass
+        create('table', '//table')
 
+        write('//table', '[{a = 1; aa = 2; b = 3; bb = 4; c = 5}]')
+
+        # single columms
+        assert read_table('//table{a}') == [{'a' : 1}]
+        assert read_table('//table{a, a}') == [{'a' : 1}]
+        assert read_table('//table{c, b}') == [{'b' : 3, 'c' : 5}]
+
+        # range columns
+        # closed ranges
+        assert read_table('//table{a:a}') == [{}]  # left = right
+        assert read_table('//table{b:a}') == [{}]  # left > right
+
+        assert read_table('//table{aa:b}') == [{'aa' : 2}]  # (+, +)
+        assert read_table('//table{aa:bx}') == [{'aa' : 2, 'b' : 3, 'bb' : 4}]  # (+, -)
+        assert read_table('//table{aaa:b}') == [{}]  # (-, +)
+        assert read_table('//table{aaa:bx}') == [{'b' : 3, 'bb' : 4}] # (-, -)
+
+        # open ranges
+        assert read_table('//table{:aa}') == [{'a' : 1}] # + 
+        assert read_table('//table{:aaa}') == [{'a' : 1, 'aa' : 2}] # -
+
+        assert read_table('//table{bb:}') == [{'bb' : 4, 'c' : 5}] # + 
+        assert read_table('//table{bz:}') == [{'c' : 5}] # -
+        assert read_table('//table{xxx:}') == [{}]
+
+        assert read_table('//table{:}') == [{'a' :1, 'aa': 2,  'b': 3, 'bb' : 4, 'c': 5}]
+
+        remove('//table')
+
+        # mixed column keys
+        # TODO(panin): check intersected columns
 
 #TODO(panin): tests of scheduler
 class TestOrchid(YTEnvSetup):
