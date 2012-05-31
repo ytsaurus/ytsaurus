@@ -331,15 +331,15 @@ class TestTableCommands(YTEnvSetup):
     def test_simple(self):
         create('table', '//table')
 
-        assert read('//table') == ''
+        assert read_table('//table') == []
         assert get('//table/@row_count') == '0'
 
         write('//table', '[{b="hello"}]')
-        assert read('//table') == '{"b"="hello"};'
+        assert read_table('//table') == [{"b":"hello"}]
         assert get('//table/@row_count') == '1'
 
         write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]')
-        assert read('//table') == '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"};'
+        assert read_table('//table') == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get('//table/@row_count') == '3'
 
         remove('//table')
