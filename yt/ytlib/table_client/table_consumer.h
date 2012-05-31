@@ -5,6 +5,7 @@
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/lexer.h>
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/blob_range.h>
 #include <ytlib/misc/nullable.h>
@@ -18,7 +19,7 @@ class TTableConsumer
     : public NYTree::TForwardingYsonConsumer
 {
 public:
-    explicit TTableConsumer(const ISyncWriterPtr& writer);
+    TTableConsumer(const TTableConsumerConfigPtr& config, const ISyncWriterPtr& writer);
 
 private:
     void OnMyStringScalar(const TStringBuf& value);
@@ -38,6 +39,7 @@ private:
 
     void ThrowMapExpected();
 
+    TTableConsumerConfigPtr Config;
     ISyncWriterPtr Writer;
 
     //! Names of key columns.
@@ -48,9 +50,6 @@ private:
 
     bool InsideRow;
 
-    //! Names of columns seen in the currently filled row.
-    yhash_set<TBlobRange> UsedColumns;
-
     //! Keeps the current row data.
     TBlobOutput RowBuffer;
 
@@ -59,8 +58,7 @@ private:
 
     NYTree::TYsonWriter ValueConsumer;
 
-    //! A cached callback for #OnValueFinished.
-    TClosure OnValueFinished_;
+    NYTree::TLexer Lexer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

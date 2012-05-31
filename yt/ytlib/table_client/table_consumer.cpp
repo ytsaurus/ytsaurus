@@ -2,8 +2,7 @@
 #include "sync_writer.h"
 #include "table_consumer.h"
 #include "key.h"
-
-#include <ytlib/ytree/lexer.h>
+#include "config.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -12,12 +11,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
-    : Writer(writer)
+TTableConsumer::TTableConsumer(const TTableConsumerConfigPtr& config, const ISyncWriterPtr& writer)
+    : Config(config)
+    , Writer(writer)
     , KeyColumns(writer->GetKeyColumns())
     , InsideRow(false)
     , ValueConsumer(&RowBuffer)
-    , OnValueFinished_(BIND(&TTableConsumer::OnValueFinished, this))
 {
     if (KeyColumns) {
         for (int index = 0; index < static_cast<int>(KeyColumns.Get().size()); ++index) {
@@ -78,52 +77,58 @@ void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
     YASSERT(InsideRow);
 
     TBlobRange column(RowBuffer.GetBlob(), RowBuffer.GetSize(), name.size());
+
+    Offsets.push_back(RowBuffer.GetSize());
     RowBuffer.Write(name);
     Offsets.push_back(RowBuffer.GetSize());
 
-    if (!UsedColumns.insert(column).second) {
-        ythrow yexception() << Sprintf(
-            "Duplicate column name %s (RowIndex: %"PRId64")", 
-            ~ToString(name).Quote(),
-            Writer->GetRowCount());
-    }
-
-    Forward(&ValueConsumer, OnValueFinished_);
-}
-
-void TTableConsumer::OnValueFinished()
-{
-    Offsets.push_back(RowBuffer.GetSize());
+    Forward(&ValueConsumer);
 }
 
 void TTableConsumer::OnMyEndMap()
 {
     YASSERT(InsideRow);
+    YASSERT(Offsets.size() % 2 == 0);
 
-    TLexer lexer;
     TNonOwningKey key(KeyColumns.IsInitialized() ? KeyColumns->size() : 0);
     TRow row;
+    row.reserve(Offsets.size() / 2);
 
-    int index = 0;
-    int begin = 0;
-    int end = 0;
-    while (index < Offsets.size()) {
-        begin = end;
-        end = Offsets[index++];
-        TStringBuf name(RowBuffer.Begin() + begin, end - begin);
+    {
+        yhash_set<TStringBuf> usedColumns;
 
-        begin = end;
-        end = Offsets[index++];
-        TStringBuf value(RowBuffer.Begin() + begin, end - begin);
+        // Process records in backwards order to use last value for duplicate columns.
+        int index = Offsets.size();
+        int begin = RowBuffer.GetSize();
+        while (index >= 0) {
+            int end = begin;
+            begin = Offsets[--index];
+            TStringBuf name(RowBuffer.Begin() + begin, end - begin);
 
-        auto it = KeyColumnToIndex.find(name);
-        if (it != KeyColumnToIndex.end()) {
-            key.SetKeyPart(it->second, value, lexer);
+            end = begin;
+            begin = Offsets[--index];
+            TStringBuf value(RowBuffer.Begin() + begin, end - begin);
+
+            if (!usedColumns.insert(name).second) {
+                if (Config->Strict) {
+                    ythrow yexception() << Sprintf(
+                        "Duplicate column name %s (RowIndex: %"PRId64")", 
+                        ~ToString(name).Quote(),
+                        Writer->GetRowCount());
+                } else {
+                    // Ignore duplicate columns.
+                    continue;
+                }
+            }
+
+            auto it = KeyColumnToIndex.find(name);
+            if (it != KeyColumnToIndex.end()) {
+                key.SetKeyPart(it->second, value, Lexer);
+            }
+
+            row.push_back(std::make_pair(name, value));
         }
-
-        row.push_back(std::make_pair(name, value));
     }
-
 
     if (KeyColumns) {
         if (CompareKeys(Writer->GetLastKey(), key) > 0) {
@@ -137,7 +142,6 @@ void TTableConsumer::OnMyEndMap()
 
     Writer->WriteRow(row, key);
 
-    UsedColumns.clear();
     Offsets.clear();
     RowBuffer.Clear();
     InsideRow = false;

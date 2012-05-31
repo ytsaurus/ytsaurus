@@ -58,7 +58,7 @@ void TWriteCommand::DoExecute()
 
     writer->Open();
 
-    TTableConsumer consumer(writer);
+    TTableConsumer consumer(Context->GetConfig()->TableConsumer, writer);
 
     if (Request->Value) {
         auto value = Request->Value;

@@ -15,22 +15,18 @@ namespace NTableClient {
 struct TTableConsumerConfig
     : public TConfigurable
 {
-    i64 MaxColumnNameSize;
-    i64 MaxRowSize;
-    i64 MaxKeySize;
+    /*! 
+     *  If true consumer fails when encounters repeated column name.
+     *  Otherwise the last feeded value is used.
+     */
 
-    TTableConsumerConfig() 
+    bool Strict;
+
+    TTableConsumerConfig()
     {
-        Register("max_column_name_size", MaxColumnNameSize)
-            .LessThanOrEqual(256)
-            .Default(256);
-        Register("max_row_size", MaxRowSize)
-            .LessThanOrEqual(16 * 1024 * 1024)
-            .Default(16 * 1024 * 1024);
-        Register("max_key_size", MaxKeySize)
-            .LessThanOrEqual(4 * 1024)
-            .Default(4 * 1024);
+        Register("strict", Strict).Default(true);
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -190,7 +190,9 @@ void TUserJob::InitPipes()
         for (int i = 0; i < outputCount; ++i) {
             ++ActivePipesCount;
             auto writer = JobIO->CreateTableOutput(i);
-            TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(writer));
+            TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(
+                Config->JobIO->TableConsumer, 
+                writer));
             auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
             TableOutput[i] = new TTableOutput(parser, consumer, writer);
             DataPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));

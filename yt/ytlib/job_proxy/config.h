@@ -21,21 +21,22 @@ namespace NJobProxy {
 struct TJobIOConfig
     : public TConfigurable
 {
-    NYTree::EYsonFormat OutputFormat;
+    NTableClient::TTableConsumerConfigPtr TableConsumer;
     NTableClient::TChunkSequenceReaderConfigPtr ChunkSequenceReader;
     NTableClient::TChunkSequenceWriterConfigPtr ChunkSequenceWriter;
     NFileClient::TFileWriterConfigPtr ErrorFileWriter;
 
     TJobIOConfig()
     {
-        Register("output_format", OutputFormat)
-            .Default(NYTree::EYsonFormat::Binary);
+        Register("table_consumer", TableConsumer)
+            .DefaultNew();
         Register("chunk_sequence_reader", ChunkSequenceReader)
             .DefaultNew();
         Register("chunk_sequence_writer", ChunkSequenceWriter)
             .DefaultNew();
         Register("error_file_writer", ErrorFileWriter)
             .DefaultNew();
+
         // We do not provide much fault tolerance for stderr by default.
         ErrorFileWriter->ReplicationFactor = 1;
         ErrorFileWriter->UploadReplicationFactor = 1;
