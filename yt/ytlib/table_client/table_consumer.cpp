@@ -100,14 +100,14 @@ void TTableConsumer::OnMyEndMap()
         // Process records in backwards order to use last value for duplicate columns.
         int index = Offsets.size();
         int begin = RowBuffer.GetSize();
-        while (index >= 0) {
+        while (index > 0) {
             int end = begin;
             begin = Offsets[--index];
-            TStringBuf name(RowBuffer.Begin() + begin, end - begin);
+            TStringBuf value(RowBuffer.Begin() + begin, end - begin);
 
             end = begin;
             begin = Offsets[--index];
-            TStringBuf value(RowBuffer.Begin() + begin, end - begin);
+            TStringBuf name(RowBuffer.Begin() + begin, end - begin);
 
             if (!usedColumns.insert(name).second) {
                 if (Config->Strict) {
