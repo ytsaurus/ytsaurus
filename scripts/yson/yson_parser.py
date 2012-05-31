@@ -360,3 +360,7 @@ def parse(stream):
 
 def parse_string(string):
     return parse(StringIO(string))
+
+#TODO(panin): refactor
+def parse_list_fragment(string):
+    return parse_string('[' + string + ']')

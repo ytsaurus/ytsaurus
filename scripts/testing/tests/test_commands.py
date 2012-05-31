@@ -39,14 +39,15 @@ def upload(path, **kw): return command('upload', path, **kw)
 
 #helpers:
 
+def table2py(yson):
+    return yson_parser.parse_list_fragment(yson)
+
+def yson2py(yson):
+    return yson_parser.parse_string(yson)
+
 def get_transactions(**kw):
     yson_map = get('//sys/transactions', **kw)
-    return yson_parser.parse_string(yson_map).keys()
-
-def sort_list(value):
-    result = yson_parser.parse_string(value)
-    result.sort()
-    return yson.dumps(result)
+    return yson2py(yson_map).keys()
 
 #########################################
 
@@ -340,15 +341,18 @@ class TestTableCommands(YTEnvSetup):
         remove('//table')
 
     def test_invalid_cases(self):
-        # we can write only list or maps
         create('table', '//table')
 
+        # we can write only list or maps
         with pytest.raises(YTError): write('//table', 'string')
         with pytest.raises(YTError): write('//table', '100')
         with pytest.raises(YTError): write('//table', '3.14')
         with pytest.raises(YTError): write('//table', '<>')
 
         remove('//table')
+
+    def test_range_queries(self):
+        pass
 
 
 #TODO(panin): tests of scheduler
@@ -372,7 +376,7 @@ class TestOrchid(YTEnvSetup):
 
             set(path, some_map)
             assert get(path) == some_map
-            assert sort_list(ls(path)) == '["a";"b";]'
+            assertItemsEqual(yson2py(ls(path)), ['a', 'b'])
             remove(path)
             with pytest.raises(YTError): get(path)
 
@@ -393,7 +397,7 @@ class TestOrchid(YTEnvSetup):
 
             set(path, some_map)
             assert get(path) == some_map
-            assert sort_list(ls(path)) == '["a";"b";]'
+            assertItemsEqual(yson2py(ls(path)), ['a', 'b'])
             remove(path)
             with pytest.raises(YTError): get(path)
 
