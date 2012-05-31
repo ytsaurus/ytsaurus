@@ -48,6 +48,10 @@ void TFileNodeProxy::OnUpdateAttribute(
 {
     if (key == "executable" && newValue) {
         DeserializeFromYson<bool>(*newValue);
+    } else if (key == "file_name" && newValue) {
+        // File name must be string.
+        // ToDo(psushin): write more sophisticated validation.
+        DeserializeFromYson<Stroka>(*newValue);
     }
 }
 
@@ -58,7 +62,9 @@ bool TFileNodeProxy::IsExecutable()
 
 Stroka TFileNodeProxy::GetFileName()
 {
-    // TODO(babenko): fetch this attribute
+    auto fileName = Attributes().Find<Stroka>("file_name");
+    if (fileName)
+        return *fileName;
 
     auto parent = GetParent();
     YASSERT(parent);
