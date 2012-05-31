@@ -355,7 +355,25 @@ class TestTableCommands(YTEnvSetup):
 
         remove('//table')
 
-    def test_range_queries(self):
+    def test_row_index_selector(self):
+        create('table', '//table')
+
+        write('//table', '[{a =  0}; {b = 1}; {c = 2}; {d = 3}]')
+
+        # closed ranges
+        assert read_table('//table[#0:#2]') == [{'a': 0}, {'b' : 1}] # simple
+        assert read_table('//table[#-1:#1]') == [{'a': 0}] # left < min
+        assert read_table('//table[#2:#5]') == [{'c': 2}, {'d': 3}] # right > max
+
+        assert read_table('//table[#1:#1]') == [] # left = right
+        assert read_table('//table[#3:#1]') == [] # left > right
+
+        # open ranges
+        assert read_table('//table[:]') == [{'a': 0}, {'b' : 1}, {'c' : 2}, {'d' : 3}]
+        assert read_table('//table[:#3]') == [{'a': 0}, {'b' : 1}, {'c' : 2}]
+        assert read_table('//table[#2:]') == [{'c' : 2}, {'d' : 3}]
+
+    def test_column_selector(self):
         create('table', '//table')
 
         write('//table', '[{a = 1; aa = 2; b = 3; bb = 4; c = 5}]')
