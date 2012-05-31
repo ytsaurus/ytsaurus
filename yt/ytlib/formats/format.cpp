@@ -146,8 +146,9 @@ TAutoPtr<IYsonConsumer> CreateConsumerForDsv(
     IAttributeDictionary* attributes,
     TOutputStream* output)
 {
-    // TODO(panin): use attributes, luke!
-    return new TDsvWriter(output);
+    auto config = New<TDsvFormatConfig>();
+    config->Load(attributes->ToMap());
+    return new TDsvWriter(output, config);
 }
 
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
@@ -163,10 +164,17 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType
     }
 }
 
-TYsonProducer CreateProducerForDsv(EDataType dataType, TInputStream* input)
+////////////////////////////////////////////////////////////////////////////////
+
+TYsonProducer CreateProducerForDsv(
+    EDataType dataType,
+    IAttributeDictionary* attributes,
+    TInputStream* input)
 {
+    auto config = New<TDsvFormatConfig>();
+    config->Load(attributes->ToMap());
     return BIND([=] (IYsonConsumer* consumer) {
-        ParseDsv(input, consumer);
+        ParseDsv(input, consumer, config);
     });
 }
 
@@ -182,21 +190,25 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
         case EFormatType::Yson:
             return CreateProducerForYson(dataType, input);
         case EFormatType::Dsv:
-            return CreateProducerForDsv(dataType, input);
+            return CreateProducerForDsv(dataType, format.GetAttributes(), input);
         default:
             ythrow yexception() << Sprintf("Unsupported input format %s",
                 ~FormatEnum(format.GetType()).Quote());
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType dataType, NYTree::IYsonConsumer* consumer)
 {
     switch (format.GetType()) {
     case EFormatType::Yson:
         return new TYsonParser(consumer, DataTypeToYsonType(dataType));
-    case EFormatType::Dsv:
-        // ToDo(psushin): use config from format.
-        return new TDsvParser(consumer);
+    case EFormatType::Dsv: {
+        auto config = New<TDsvFormatConfig>();
+        config->Load(format.GetAttributes()->ToMap());
+        return new TDsvParser(consumer, config);
+    }
     default:
         ythrow yexception() << Sprintf("Unsupported input format %s",
             ~FormatEnum(format.GetType()).Quote());
