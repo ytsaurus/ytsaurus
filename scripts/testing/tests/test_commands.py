@@ -358,7 +358,7 @@ class TestTableCommands(YTEnvSetup):
     def test_row_index_selector(self):
         create('table', '//table')
 
-        write('//table', '[{a =  0}; {b = 1}; {c = 2}; {d = 3}]')
+        write('//table', '[{a = 0}; {b = 1}; {c = 2}; {d = 3}]')
 
         # closed ranges
         assert read_table('//table[#0:#2]') == [{'a': 0}, {'b' : 1}] # simple
@@ -373,13 +373,46 @@ class TestTableCommands(YTEnvSetup):
         assert read_table('//table[:#3]') == [{'a': 0}, {'b' : 1}, {'c' : 2}]
         assert read_table('//table[#2:]') == [{'c' : 2}, {'d' : 3}]
 
+        remove('//table')
+
+    def test_row_key_selector(self):
+        create('table', '//table')
+
+        v1 = {'s' : 'a', 'i': 0,    'd' : 15.5}
+        v2 = {'s' : 'a', 'i': 10,   'd' : 15.2}
+        v3 = {'s' : 'b', 'i': 5,    'd' : 20.}
+        v4 = {'s' : 'b', 'i': 20,   'd' : 20.}
+        v5 = {'s' : 'c', 'i': -100, 'd' : 10.}
+
+        values = yson.dumps([v1, v2, v3, v4, v5])
+
+        write('//table', values, sorted='s;i;d')
+
+        # possible empty ranges
+        assert read_table('//table[a : a]') == []
+        assert read_table('//table[b : a]') == []
+        assert read_table('//table[(c, 0) : (a, 10)]') == []
+        assert read_table('//table[(a, 10, 1e7) : (b, )]') == []
+
+        # some typical cases
+        assert read_table('//table[(a, 4) : (b, 20, 18.)]') == [v2, v3]
+        assert read_table('//table[(a, 4) : (b, 20, 18.)]') == [v2, v3]
+       
+
+        remove('//table')
+
+
     def test_column_selector(self):
         create('table', '//table')
 
         write('//table', '[{a = 1; aa = 2; b = 3; bb = 4; c = 5}]')
 
+        # empty columns
+        assert read_table('//table{}') == [{}]
+
         # single columms
         assert read_table('//table{a}') == [{'a' : 1}]
+        assert read_table('//table{a, }') == [{'a' : 1}] # extra comma
         assert read_table('//table{a, a}') == [{'a' : 1}]
         assert read_table('//table{c, b}') == [{'b' : 3, 'c' : 5}]
 
