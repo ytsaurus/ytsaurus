@@ -32,7 +32,7 @@ protected:
         TemporaryIndexFile.Reset(0);
     }
 
-    template <class RecordType = ui32>
+    template <class RecordType>
     TChangeLogPtr CreateChangeLog(size_t recordsCount) const
     {
         TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
@@ -43,7 +43,7 @@ protected:
         return changeLog;
     }
 
-    template <class RecordType = ui32>
+    template <class RecordType>
     yvector<TSharedRef> MakeRecords(i32 from, i32 to) const
     {
         yvector<TSharedRef> records(to - from);
@@ -118,7 +118,7 @@ TEST_F(TChangeLogTest, Finalized)
 {
     const int logRecordCount = 256;
     {
-        TChangeLogPtr changeLog = CreateChangeLog(logRecordCount);
+        TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
         EXPECT_EQ(changeLog->IsFinalized(), false);
         changeLog->Finalize();
         EXPECT_EQ(changeLog->IsFinalized(), true);
@@ -134,7 +134,7 @@ TEST_F(TChangeLogTest, ReadWrite)
 {
     const int logRecordCount = 16;
     {
-        TChangeLogPtr changeLog = CreateChangeLog(logRecordCount);
+        TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckReads<ui32>(changeLog, logRecordCount);
     }
@@ -149,7 +149,7 @@ TEST_F(TChangeLogTest, TestCorrupted)
 {
     const int logRecordCount = 1024;
     {
-        TChangeLogPtr changeLog = CreateChangeLog(logRecordCount);
+        TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
     }
     {
         // Truncate file.
@@ -186,7 +186,7 @@ TEST_F(TChangeLogTest, Truncate)
     const int logRecordCount = 256;
 
     {
-        TChangeLogPtr changeLog = CreateChangeLog(logRecordCount);
+        TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
@@ -209,7 +209,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
     const int logRecordCount = 256;
 
     {
-        TChangeLogPtr changeLog = CreateChangeLog(logRecordCount);
+        TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
@@ -224,7 +224,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
     {
         // Append
         TChangeLogPtr changeLog = OpenChangeLog();
-        changeLog->Append(truncatedRecordId, MakeRecords(truncatedRecordId, logRecordCount));
+        changeLog->Append(truncatedRecordId, MakeRecords<ui32>(truncatedRecordId, logRecordCount));
     }
     {
         // Check
