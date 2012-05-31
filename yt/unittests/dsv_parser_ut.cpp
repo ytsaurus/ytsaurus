@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/formats/tsv_parser.h>
+#include <ytlib/formats/dsv_parser.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
 
 #include <contrib/testing/framework.h>
@@ -13,7 +13,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTsvParserTest, Simple)
+TEST(TDsvParserTest, Simple)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
@@ -40,10 +40,10 @@ TEST(TTsvParserTest, Simple)
         "integer=42\tstring=some\tdouble=10\n"
         "foo=bar\tone=1";
 
-    ParseTsv(input, &Mock);
+    ParseDsv(input, &Mock);
 }
 
-TEST(TTsvParserTest, Tskv)
+TEST(TDsvParserTest, Tskv)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
@@ -73,10 +73,10 @@ TEST(TTsvParserTest, Tskv)
         "tskv\tid=1\tguid=100500\n"
         "tskv\tid=2\tguid=20025\n";
 
-    auto config = New<TTsvFormatConfig>();
+    auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    ParseTsv(input, &Mock, config);
+    ParseDsv(input, &Mock, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

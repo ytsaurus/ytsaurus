@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "format.h"
 
-#include "tsv_parser.h"
-#include "tsv_writer.h"
+#include "dsv_parser.h"
+#include "dsv_writer.h"
 
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
@@ -141,13 +141,13 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
     }
 }
 
-TAutoPtr<IYsonConsumer> CreateConsumerForTsv(
+TAutoPtr<IYsonConsumer> CreateConsumerForDsv(
     EDataType dataType,
     IAttributeDictionary* attributes,
     TOutputStream* output)
 {
     // TODO(panin): use attributes, luke!
-    return new TTsvWriter(output);
+    return new TDsvWriter(output);
 }
 
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
@@ -155,18 +155,18 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType
     switch (format.GetType()) {
         case EFormatType::Yson:
             return CreateConsumerForYson(dataType, format.GetAttributes(), output);
-        case EFormatType::Tsv:
-            return CreateConsumerForTsv(dataType, format.GetAttributes(), output);
+        case EFormatType::Dsv:
+            return CreateConsumerForDsv(dataType, format.GetAttributes(), output);
         default:
             ythrow yexception() << Sprintf("Unsupported output format %s",
                 ~FormatEnum(format.GetType()).Quote());
     }
 }
 
-TYsonProducer CreateProducerForTsv(EDataType dataType, TInputStream* input)
+TYsonProducer CreateProducerForDsv(EDataType dataType, TInputStream* input)
 {
     return BIND([=] (IYsonConsumer* consumer) {
-        ParseTsv(input, consumer);
+        ParseDsv(input, consumer);
     });
 }
 
@@ -181,8 +181,8 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
     switch (format.GetType()) {
         case EFormatType::Yson:
             return CreateProducerForYson(dataType, input);
-        case EFormatType::Tsv:
-            return CreateProducerForTsv(dataType, input);
+        case EFormatType::Dsv:
+            return CreateProducerForDsv(dataType, input);
         default:
             ythrow yexception() << Sprintf("Unsupported input format %s",
                 ~FormatEnum(format.GetType()).Quote());
@@ -194,9 +194,9 @@ TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType
     switch (format.GetType()) {
     case EFormatType::Yson:
         return new TYsonParser(consumer, DataTypeToYsonType(dataType));
-    case EFormatType::Tsv:
+    case EFormatType::Dsv:
         // ToDo(psushin): use config from format.
-        return new TTsvParser(consumer);
+        return new TDsvParser(consumer);
     default:
         ythrow yexception() << Sprintf("Unsupported input format %s",
             ~FormatEnum(format.GetType()).Quote());

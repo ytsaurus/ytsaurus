@@ -11,11 +11,11 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTsvWriter
+class TDsvWriter
     : public NYTree::TYsonConsumerBase
 {
 public:
-    explicit TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config = NULL);
+    explicit TDsvWriter(TOutputStream* stream, TDsvFormatConfigPtr config = NULL);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);
@@ -33,7 +33,7 @@ public:
 
 private:
     TOutputStream* Stream;
-    TTsvFormatConfigPtr Config;
+    TDsvFormatConfigPtr Config;
 
     bool FirstLine;
     bool FirstItem;

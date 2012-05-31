@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "tsv_parser.h"
+#include "dsv_parser.h"
 
 namespace NYT {
 namespace NFormats {
@@ -8,18 +8,18 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTsvParser::TTsvParser(IYsonConsumer* consumer, TTsvFormatConfigPtr config)
+TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     : Consumer(consumer)
     , Config(config)
     , FirstSymbol(true)
 {
     if (!Config) {
-        Config = New<TTsvFormatConfig>();
+        Config = New<TDsvFormatConfig>();
     }
     State = GetStartState();
 }
 
-void TTsvParser::Read(const TStringBuf& data)
+void TDsvParser::Read(const TStringBuf& data)
 {
     auto current = data.begin();
     while (current != data.end()) {
@@ -27,7 +27,7 @@ void TTsvParser::Read(const TStringBuf& data)
     }
 }
 
-void TTsvParser::Finish()
+void TDsvParser::Finish()
 {
     if (State == EState::InsideValue) {
         Consumer->OnStringScalar(CurrentToken);
@@ -35,7 +35,7 @@ void TTsvParser::Finish()
     }
 }
 
-const char* TTsvParser::Consume(const char* begin, const char* end)
+const char* TDsvParser::Consume(const char* begin, const char* end)
 {
     switch (State) {
         case EState::InsidePrefix: {
@@ -102,7 +102,7 @@ const char* TTsvParser::Consume(const char* begin, const char* end)
     }
 }
 
-const char* TTsvParser::FindEndOfValue(const char* begin, const char* end)
+const char* TDsvParser::FindEndOfValue(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
@@ -113,7 +113,7 @@ const char* TTsvParser::FindEndOfValue(const char* begin, const char* end)
     return end;
 }
 
-TTsvParser::EState TTsvParser::GetStartState()
+TDsvParser::EState TDsvParser::GetStartState()
 {
     if (Config->LinePrefix) {
         return EState::InsidePrefix;
@@ -126,9 +126,9 @@ TTsvParser::EState TTsvParser::GetStartState()
 
 const size_t ParseChunkSize = 1 << 16;
 
-void ParseTsv(TInputStream* input, IYsonConsumer* consumer, TTsvFormatConfigPtr config)
+void ParseDsv(TInputStream* input, IYsonConsumer* consumer, TDsvFormatConfigPtr config)
 {
-    TTsvParser parser(consumer, config);
+    TDsvParser parser(consumer, config);
     char chunk[ParseChunkSize];
     while (true) {
         // Read a chunk.
@@ -142,11 +142,11 @@ void ParseTsv(TInputStream* input, IYsonConsumer* consumer, TTsvFormatConfigPtr 
     parser.Finish();
 }
 
-void ParseTsv(const TStringBuf& data,
+void ParseDsv(const TStringBuf& data,
     IYsonConsumer* consumer,
-    TTsvFormatConfigPtr config)
+    TDsvFormatConfigPtr config)
 {
-    TTsvParser parser(consumer, config);
+    TDsvParser parser(consumer, config);
     parser.Read(data);
     parser.Finish();
 }

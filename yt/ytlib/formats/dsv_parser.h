@@ -11,18 +11,18 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTsvParser
+class TDsvParser
     : public NYTree::IParser
 {
 public:
-    explicit TTsvParser(NYTree::IYsonConsumer* consumer, TTsvFormatConfigPtr config = NULL);
+    explicit TDsvParser(NYTree::IYsonConsumer* consumer, TDsvFormatConfigPtr config = NULL);
 
     virtual void Read(const TStringBuf& data);
     virtual void Finish();
 
 private:
     NYTree::IYsonConsumer* Consumer;
-    TTsvFormatConfigPtr Config;
+    TDsvFormatConfigPtr Config;
 
     bool FirstSymbol;
 
@@ -43,15 +43,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseTsv(
+void ParseDsv(
     TInputStream* input,
     NYTree::IYsonConsumer* consumer,
-    TTsvFormatConfigPtr config = NULL);
+    TDsvFormatConfigPtr config = NULL);
 
-void ParseTsv(
+void ParseDsv(
     const TStringBuf& data,
     NYTree::IYsonConsumer* consumer,
-    TTsvFormatConfigPtr config = NULL);
+    TDsvFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 

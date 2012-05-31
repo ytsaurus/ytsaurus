@@ -52,14 +52,14 @@ struct TDriverConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTsvFormatConfig
+struct TDsvFormatConfig
     : public TConfigurable
 {
     char NewLineSeparator;
     char KeyValueSeparator;
     char ItemSeparator;
 
-    TTsvFormatConfig()
+    TDsvFormatConfig()
     {
         Register("newline", NewLineSeparator).Default('\n');
         Register("key_value", KeyValueSeparator).Default('=');

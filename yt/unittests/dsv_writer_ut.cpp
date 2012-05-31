@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/formats/tsv_writer.h>
+#include <ytlib/formats/dsv_writer.h>
 
 #include <contrib/testing/framework.h>
 
@@ -9,10 +9,10 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTsvWriterTest, Simple)
+TEST(TDsvWriterTest, Simple)
 {
     TStringStream outputStream;
-    TTsvWriter writer(&outputStream);
+    TDsvWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -38,13 +38,13 @@ TEST(TTsvWriterTest, Simple)
     EXPECT_EQ(outputStream.Str(), output);
 }
 
-TEST(TTsvWriterTest, Tskv)
+TEST(TDsvWriterTest, Tskv)
 {
-    auto config = New<TTsvFormatConfig>();
+    auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
     TStringStream outputStream;
-    TTsvWriter writer(&outputStream, config);
+    TDsvWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();

@@ -1,12 +1,12 @@
 #include "stdafx.h"
-#include "tsv_writer.h"
+#include "dsv_writer.h"
 
 namespace NYT {
 namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTsvWriter::TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config)
+TDsvWriter::TDsvWriter(TOutputStream* stream, TDsvFormatConfigPtr config)
     : Stream(stream)
     , Config(config)
     , FirstLine(true)
@@ -14,11 +14,11 @@ TTsvWriter::TTsvWriter(TOutputStream* stream, TTsvFormatConfigPtr config)
     , State(EState::ExpectListItem)
 {
     if (!Config) {
-        Config = New<TTsvFormatConfig>();
+        Config = New<TDsvFormatConfig>();
     }
 }
 
-void TTsvWriter::OnStringScalar(const TStringBuf& value)
+void TDsvWriter::OnStringScalar(const TStringBuf& value)
 {
     if (State != EState::AfterKey) {
         ythrow yexception() << "Unexpected call";
@@ -27,7 +27,7 @@ void TTsvWriter::OnStringScalar(const TStringBuf& value)
     Stream->Write(value);
 }
 
-void TTsvWriter::OnIntegerScalar(i64 value)
+void TDsvWriter::OnIntegerScalar(i64 value)
 {
     if (State != EState::AfterKey) {
         ythrow yexception() << "Unexpected call";
@@ -36,7 +36,7 @@ void TTsvWriter::OnIntegerScalar(i64 value)
     Stream->Write(ToString(value));
 }
 
-void TTsvWriter::OnDoubleScalar(double value)
+void TDsvWriter::OnDoubleScalar(double value)
 {
     if (State != EState::AfterKey) {
         ythrow yexception() << "Unexpected call";
@@ -45,17 +45,17 @@ void TTsvWriter::OnDoubleScalar(double value)
     Stream->Write(ToString(value));
 }
 
-void TTsvWriter::OnEntity()
+void TDsvWriter::OnEntity()
 {
     ythrow yexception() << "Entities are not supported";
 }
 
-void TTsvWriter::OnBeginList()
+void TDsvWriter::OnBeginList()
 {
     ythrow yexception() << "Lists are not supported";
 }
 
-void TTsvWriter::OnListItem()
+void TDsvWriter::OnListItem()
 {
     if (State != EState::ExpectListItem) {
         ythrow yexception() << "Unexpected call";
@@ -69,12 +69,12 @@ void TTsvWriter::OnListItem()
     FirstLine = false;
 }
 
-void TTsvWriter::OnEndList()
+void TDsvWriter::OnEndList()
 {
     ythrow yexception() << "Lists are not supported";
 }
 
-void TTsvWriter::OnBeginMap()
+void TDsvWriter::OnBeginMap()
 {
     if (State != EState::ExpectBeginMap) {
         ythrow yexception() << "Unexpected call";
@@ -86,7 +86,7 @@ void TTsvWriter::OnBeginMap()
     State = EState::ExpectKey;
 }
 
-void TTsvWriter::OnKeyedItem(const TStringBuf& key)
+void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 {
     if (State != EState::ExpectKey) {
         ythrow yexception() << "Unexpected call";
@@ -102,7 +102,7 @@ void TTsvWriter::OnKeyedItem(const TStringBuf& key)
     FirstItem = false;
 }
 
-void TTsvWriter::OnEndMap()
+void TDsvWriter::OnEndMap()
 {
     if (State != EState::ExpectKey) {
         ythrow yexception() << "Unexpected call";
@@ -110,12 +110,12 @@ void TTsvWriter::OnEndMap()
     State = EState::ExpectListItem;
 }
 
-void TTsvWriter::OnBeginAttributes()
+void TDsvWriter::OnBeginAttributes()
 {
     ythrow yexception() << "Attributes are not supported";
 }
 
-void TTsvWriter::OnEndAttributes()
+void TDsvWriter::OnEndAttributes()
 {
     ythrow yexception() << "Attributes are not supported";
 }

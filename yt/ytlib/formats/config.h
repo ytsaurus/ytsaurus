@@ -9,7 +9,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTsvFormatConfig
+struct TDsvFormatConfig
     : public TConfigurable
 {
     char RecordSeparator;
@@ -17,7 +17,7 @@ struct TTsvFormatConfig
     char FieldSeparator;
     TNullable<Stroka> LinePrefix;
 
-    TTsvFormatConfig()
+    TDsvFormatConfig()
     {
         Register("record_separator", RecordSeparator).Default('\n');
         Register("key_value_separator", KeyValueSeparator).Default('=');
