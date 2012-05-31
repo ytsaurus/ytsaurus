@@ -814,7 +814,7 @@ private:
         UNUSED(batchRsp);
 
         CheckOutputTablesEmpty();
-        SetOutputTablesSorted(InputTables[0].KeyColumns);
+        SetOutputTablesSorted(Spec->KeyColumns);
     }
 
     void SortSamples()
