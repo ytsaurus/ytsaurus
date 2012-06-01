@@ -1,7 +1,7 @@
 #include "driver.h"
 
+#include <ytlib/logging/log_manager.h>
 #include <ytlib/ytree/ytree.h>
-
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/formats/format.h>
@@ -100,6 +100,7 @@ TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
     }
 
     try {
+        NLog::TLogManager::Get()->Configure(~configNode->AsMap()->GetChild("logging"));
         Driver = CreateDriver(config);
     } catch (const std::exception& ex) {
         Message = Sprintf("Error initializing driver instance\n%s", ex.what());
