@@ -11,13 +11,15 @@
   "main": "index",
   "dependencies": {
     "connect": "2.3.0",
-    "optimist": "0.3.4"
+    "flowless": "0.0.2",
+    "optimist": "0.3.4",
+    "qs": "0.5.0"
   },
   "devDependencies": {
     "mocha": "*",
     "chai": "*"
   },
   "engines": {
-    "node": ">= 0.6.x < 0.8.0"
+    "node": ">= 0.6.x < 0.7.0"
   }
 }

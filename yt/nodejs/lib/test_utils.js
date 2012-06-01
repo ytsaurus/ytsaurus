@@ -76,4 +76,33 @@ describe("http utilities - .is()", function() {
         expect(utils.is("text/*", "text/html")).to.be.true;
         expect(utils.is("*/*",    "text/html")).to.be.true;
     });
-})
+});
+
+describe("numerify", function() {
+    it("should preserve undefined", function() {
+        expect(utils.numerify(undefined)).to.be.undefined;
+    });
+
+    it("should preserve null", function() {
+        expect(utils.numerify(null)).to.be.null;
+    });
+
+    it("should preserve non-numeric strings", function() {
+        expect(utils.numerify("foobar")).to.be.equal("foobar");
+        expect(utils.numerify("1000foobar")).to.be.equal("1000foobar");
+    });
+
+    it("should numerify numeric strings", function() {
+        expect(utils.numerify("1000")).to.be.equal(1000);
+    });
+
+    it("should work recursively on maps", function() {
+        expect(utils.numerify({ a: { b : { c : "100" }, d : "10" }, e : "1" }))
+            .to.be.equal({ a: { b : { c : 100 }, d : 10 }, e : 1 });
+    });
+
+    it("should work recursively on lists", function() {
+        expect(utils.numerify([ "1", [ "2", "3", [ "4" ]]]))
+            .to.be.equal([ 1, [ 2, 3, [ 4 ]]]);
+    });
+});

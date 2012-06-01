@@ -90,3 +90,24 @@ exports.testAccept = function(type, other) {
         && (parts[1] == other.subtype || "*" == other.subtype);
 };
 
+/**
+ * Recursively traverses non-cyclic structure and replaces everything
+ * that looks like a number with a number.
+ */
+exports.numerify = function(obj) {
+    if (typeof(obj) === "object") {
+        for (var key in obj) {
+            obj[key] = exports.numerify(obj[key]);
+        }
+    } else if (typeof(obj) === "array") {
+        for (var index in obj) {
+            obj[index] = exports.numerify(obj[index]);
+        }
+    } else if (typeof(obj) === "string") {
+        var objNum = +obj;
+        if (obj === objNum.toString(10)) {
+            obj = objNum;
+        }
+    }
+    return obj;
+};

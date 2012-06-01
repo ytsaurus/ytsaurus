@@ -1,6 +1,8 @@
 var url = require("url");
 var crypto = require("crypto");
-var querystring = require("querystring");
+
+var qs = require("qs");
+var flowless = require("flowless");
 
 var utils = require("./utils");
 var ytnode_wrappers = require("./ytnode_wrappers");
@@ -18,11 +20,12 @@ if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
 // This mapping defines how MIME types map onto YT format specifications.
 var _MIME_FORMAT_MAPPING = {
     "application/json" : "json",
-    "yandex/yt-yson-binary" : "<format=binary;enable_raw=true>yson",
-    "yandex/yt-yson-text" : "<format=text;enable_raw=false>yson",
-    "yandex/yt-yson-pretty": "<format=pretty;enable_raw=false>yson",
+    "application/x-yt-yson-binary" : "<format=binary>yson",
+    "application/x-yt-yson-text" : "<format=text>yson",
+    "application/x-yt-yson-pretty": "<format=pretty>yson",
     "text/csv" : "csv",
-    "text/tab-separated-values" : "tsv"
+    "text/tab-separated-values" : "dsv",
+    "text/x-tskv" : "<line_prefix=tskv>dsv"
 };
 
 // This mapping defines which HTTP methods various YT data types require.
@@ -34,71 +37,86 @@ var _DATA_TYPE_TO_METHOD_MAPPING = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// RSP Utilities
 
-function _rspSendError(rsp, code, text) {
-    // TODO(sandello): Maybe answer with other Content -Type.
-    var body = JSON.stringify({ error : text + "\nPlease consult API reference for further information." });
-    rsp.writeHead(code, {
-        "Content-Length" : body.length,
-        "Content-Type"   : "application/json"
-    });
-    rsp.end(body);
-}
+function YtCommand(driver, req, rsp) {
+    this.driver = driver;
 
-function _rspSetFormatHeaders(rsp, input_format, output_format) {
-    rsp.setHeader("X-YT-Input-Format", input_format);
-    rsp.setHeader("X-YT-Output-Format", output_format);
+    this.req = req;
+    this.rsp = rsp;
 
-    // TODO(sandello): Strip off all atributes before checking.
-    for (var mime in _MIME_FORMAT_MAPPING) {
-        if (output_format === _MIME_FORMAT_MAPPING[mime]) {
-            rsp.setHeader("Content-Type", mime);
+    this.req.parsedUrl = url.parse(this.req.url);
+};
+
+YtCommand.prototype.dispatch = function() {
+    flowless.runSeq([
+        this._computeHash,
+        this._extractName,
+        this._extractParameters,
+        this._getInputFormat,
+        this._getOutputFormat,
+        this._getDescriptor,
+        this._addMainHeaders,
+        this._addDebugHeaders,
+        this._execute
+    ], function(error) {
+        if (error) {
+            __DBG(this.hash + " >>> Error: " + error.message);
+
+            if (!this.rsp._header) {
+                var body = JSON.stringify({ error : error.message });
+                this.rsp.setHeader("Content-Type" : "application/json");
+                this.rsp.setHeader("Content-Length" : body.length);
+                this.rsp.end(body);
+            } else {
+                this.rsp.end();
+            }
+        } else {
+            __DBG(this.hash + " >>> Done.");
         }
+    };);
+};
+
+YtCommand.prototype._computeHash = function(cb) {
+    var hasher = crypto.createHash("sha1");
+    hasher.update(JSON.stringify(req.method));
+    hasher.update(JSON.stringify(req.url));
+    hasher.update(JSON.stringify(req.headers));
+    hasher.update(JSON.stringify(req.trailers));
+    hasher.update(JSON.stringify(req.httpVersion));
+
+    this.hash = hasher.digest("base64");
+    __DBG(this.hash + ".hash = " + hasher.digest("hex"));
+    cb(null);
+};
+
+YtCommand.prototype._extractName = function(cb) {
+    this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
+    if (!/^[a-z_]+$/.test(this.name)) {
+        this.rsp.statusCode = 400;
+        throw new Error("Malformed command '" + name + "'.");
     }
-}
 
-function _rspSetHeaders(rsp) {
-    rsp.setHeader("Transfer-Encoding", "chunked");
-    rsp.setHeader("Trailer", "X-YT-Response");
-}
+    __DBG(this.hash + ".name = " + this.name);
+    cb(null);
+};
 
-////////////////////////////////////////////////////////////////////////////////
-// REQ Utilities
-
-function _reqHash(req) {
-    var hash = crypto.createHash("sha1");
-    hash.update(JSON.stringify(req.method));
-    hash.update(JSON.stringify(req.url));
-    hash.update(JSON.stringify(req.headers));
-    hash.update(JSON.stringify(req.trailers));
-    hash.update(JSON.stringify(req.httpVersion));
-    return hash.digest("base64");
-}
-
-function _reqExtractName(req) {
-    var name = req.parsedUrl.pathname.slice(1).toLowerCase();
-    if (!/^[a-z_]+$/.test(name)) {
-        return new Error("Malformed command '" + name + "'.");
-    } else {
-        return name;
+YtCommand.prototype._extractParameters = function(cb) {
+    this.parameters = utils.numerify(qs.parse(this.req.parsedUrl.query));
+    if (!this.parameters) {
+        this.rsp.statusCode = 400;
+        throw new Error("Unable to parse parameters from the query string.");
     }
-}
 
-function _reqExtractParameters(req) {
-    var parameters = querystring.parse(req.parsedUrl.query);
-    if (!parameters) {
-        return new Error("Unable to parse parameters from the query string.");
-    } else {
-        return parameters;
-    }
-}
 
-function _reqExtractInputFormat(req) {
+    __DBG(this.hash + ".parameters = " + JSON.stringify(this.parameters));
+    cb(null);
+};
+
+YtCommand.prototype._getInputFormat = function(cb) {
     var result, format, header;
 
     // Firstly, try to deduce input format from Content-Type header.
-    header = req.headers["content-type"];
+    header = this.req.headers["content-type"];
     if (typeof(header) === "string") {
         for (var mime in _MIME_FORMAT_MAPPING) {
             if (utils.is(mime, header)) {
@@ -109,7 +127,7 @@ function _reqExtractInputFormat(req) {
     }
 
     // Secondly, try to deduce output format from our custom header.
-    header = req.headers["x-yt-input-format"];
+    header = this.req.headers["x-yt-input-format"];
     if (typeof(header) === "string") {
         result = header;
     }
@@ -119,117 +137,124 @@ function _reqExtractInputFormat(req) {
         result = "yson";
     }
 
-    return result;
-}
+    this.input_format = result;
+    __DBG(this.hash + ".input_format = " + this.input_format);
+    cb(null);
+};
 
-function _reqExtractOutputFormat(req) {
+YtCommand.prototype._getOutputFormat = function(cb) {
     var result, format, header;
 
     // Firstly, try to deduce output format from Accept header.
-    header = req.headers["accept"];
+    header = this.req.headers["accept"];
     if (typeof(header) === "string") {
         for (var mime in _MIME_FORMAT_MAPPING) {
             if (mime === utils.accepts(mime, header)) {
                 result = _MIME_FORMAT_MAPPING[mime];
+                this.rsp.setHeader("Content-Type", mime);
                 break;
             }
         }
     }
 
     // Secondly, try to deduce output format from our custom header.
-    header = req.headers["x-yt-output-format"];
+    header = this.req.headers["x-yt-output-format"];
     if (typeof(header) === "string") {
         result = header;
+        this.rsp.setHeader("Content-Type", "application/octet-stream");
     }
 
     // Lastly, provide a default option, i. e. YSON.
     if (typeof(result) === "undefined") {
-        result = "<format=text;enable_raw=false>yson";
+        result = "<format=pretty;enable_raw=false>yson";
+        this.rsp.setHeader("Content-Type", "text/plain");
     }
 
-    return result;
-}
+    this.output_format = result;
+    __DBG(this.hash + ".output_format = " + this.output_format);
+    cb(null);
+};
 
-////////////////////////////////////////////////////////////////////////////////
-
-function _dispatch(driver, req, rsp) {
-    req.parsedUrl = url.parse(req.url);
-
-    var hash = _reqHash(req);
-    var name = _reqExtractName(req);
-    var parameters = _reqExtractParameters(req);
-    var input_format = _reqExtractInputFormat(req);
-    var output_format = _reqExtractOutputFormat(req);
-
-    if (name instanceof Error) {
-        return _rspSendError(rsp, 404, name.message);
+YtCommand.prototype._getDescriptor = function(cb) {
+    this.descriptor = this.driver.find_command_descriptor(this.name);
+    if (!this.descriptor) {
+        this.rsp.statusCode = 404;
+        throw new Error("There is no such command '" + this.name + "' registered.");
     }
 
-    if (parameters instanceof Error) {
-        return _rspSendError(rsp, 400, parameters.message);
-    }
+    __DBG(this.hash + ".descriptor = " + JSON.stringify(this.descriptor));
 
-    if (input_format instanceof Error) {
-        return _rspSendError(rsp, 415, input_format.message);
-    }
+    var input_type_as_string = ytnode_wrappers.EDataType[this.descriptor.input_type];
+    var output_type_as_string = ytnode_wrappers.EDataType[this.descriptor.output_type];
 
-    if (output_format instanceof Error) {
-        return _rspSendError(rsp, 415, output_format.message);
-    }
+    __DBG(this.hash + " > input_type_as_string = " + input_type_as_string);
+    __DBG(this.hash + " > output_type_as_string = " + output_type_as_string);
 
-    var descriptor = driver.find_command_descriptor(name);
-
-    __DBG("Cmd hash=" + hash);
-    __DBG("Cmd name=" + name);
-    __DBG("Cmd descriptor=" + JSON.stringify(descriptor));
-    __DBG("Cmd parameters=" + JSON.stringify(parameters));
-    __DBG("Cmd input_format=" + input_format);
-    __DBG("Cmd output_format=" + output_format);
-
-    if (descriptor === null) {
-        return _rspSendError(rsp, 404,
-            "There is no such command '" + name + "' registered.");
-    }
-
-    var input_type_as_string = ytnode_wrappers.EDataType[descriptor.input_type];
-    var output_type_as_string = ytnode_wrappers.EDataType[descriptor.output_type];
     var expected_http_method = _DATA_TYPE_TO_METHOD_MAPPING[input_type_as_string];
+    var actual_http_method = this.req.method;
 
-    __DBG("Cmd input_type_as_string=" + input_type_as_string);
-    __DBG("Cmd output_type_as_string=" + output_type_as_string);
-    __DBG("Cmd expected_http_method=" + expected_http_method);
+    __DBG(this.hash + " > expected_http_method = " + expected_http_method);
+    __DBG(this.hash + " > actual_http_method = " + actual_http_method);
 
-    if (req.method != expected_http_method) {
-        rsp.setHeader("Allow", expected_http_method);
-        return _rspSendError(rsp, 405,
-            "Command '" + name + "' expects " + input_type_as_string.toLowerCase() + " input and hence have to be requested with the " + expected_http_method + " method.");
+    if (expected_http_method != actual_http_method) {
+        this.rsp.statusCode = 405;
+        this.rsp.setHeader("Allow", expected_http_method);
+        throw new Error("Command '" + this.name + "' expects " + input_type_as_string.toLowerCase() + " input and hence have to be requested with the " + expected_http_method + " method.");
     }
 
-    _rspSetFormatHeaders(rsp, input_format, output_format);
-    _rspSetHeaders(rsp);
+    cb(null);
+};
 
-    rsp.writeHead(200);
+YtCommand.prototype._addMainHeaders = function(cb) {
+    this.rsp.setHeader("Connection", "close");
+    this.rsp.setHeader("Transfer-Encoding", "chunked");
+    this.rsp.setHeader("Trailer", "X-YT-Result-Code, X-YT-Result-Message");
+    cb(null);
+};
 
-    // TODO(sandello): Handle various return-types here.
-    driver.execute(name,
-        req, input_format,
-        rsp, output_format,
-        parameters, function(code, message) {
-            __DBG("Cmd hash=" + hash + " -> done");
-            rsp.addTrailers({ "X-YT-Response" : code + " " + message });
+YtCommand.prototype._addDebugHeaders = function(cb) {
+    this.rsp.setHeader("X-YT-Command-Hash", this.hash);
+    this.rsp.setHeader("X-YT-Command-Name", this.name);
+    this.rsp.setHeader("X-YT-Parameters", JSON.stringify(this.parameters));
+    this.rsp.setHeader("X-YT-Input-Format", this.input_format);
+    this.rsp.setHeader("X-YT-Output-Format", this.output_format);
+    cb(null);
+};
+
+YtCommand.prototype._execute = function(cb) {
+    this.driver.execute(this.name,
+        this.req, this.input_format,
+        this.rsp, this.output_format,
+        this.parameters, function(code, message) {
+            if (code === 0) {
+                this.rsp.statusCode = 0;
+            } else if (code < 0) {
+                // TODO(sandello): Fix unsigned overflow in bindings.
+                // TODO(sandello): Gateway Error, obviously, is a better fit.
+                this.rsp.statusCode = 500;
+            } else if (code > 0) {
+                // TODO(sandello): Investigate cases.
+                this.rsp.statusCode = 400;
+            };
+
+            this.rsp.addTrailers({
+                "X-YT-Result-Code" : code,
+                "X-YT-Result-Message" : message
+            });
+            cb(null);
         });
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplication(configuration) {
     var driver = new ytnode_wrappers.YtDriver(configuration);
     return function(req, rsp) {
-        return _dispatch(driver, req, rsp);
+        var command = new YtCommand(driver, req, rsp);
+        return command.dispatch();
     };
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 exports.YtApplication = YtApplication;
-
