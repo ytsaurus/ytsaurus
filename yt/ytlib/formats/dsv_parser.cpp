@@ -11,12 +11,20 @@ using namespace NYTree;
 TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     : Consumer(consumer)
     , Config(config)
-    , FirstSymbol(true)
+    , NewRecordStarted(false)
+    , ExpectEscapedChar(false)
 {
     if (!Config) {
         Config = New<TDsvFormatConfig>();
     }
     State = GetStartState();
+
+    KeyStopSymbols[0] = Config->EscapingSymbol;
+    KeyStopSymbols[1] = Config->KeyValueSeparator;
+
+    ValueStopSymbols[0] = Config->EscapingSymbol;
+    ValueStopSymbols[1] = Config->FieldSeparator;
+    ValueStopSymbols[2] = Config->RecordSeparator;
 }
 
 void TDsvParser::Read(const TStringBuf& data)
@@ -35,26 +43,51 @@ void TDsvParser::Finish()
     }
 }
 
+void TDsvParser::StartRecordIfNeeded()
+{
+    if (!NewRecordStarted) {
+        Consumer->OnListItem();
+        Consumer->OnBeginMap();
+        NewRecordStarted = true;
+    }
+}
+
 const char* TDsvParser::Consume(const char* begin, const char* end)
 {
+
+    if (!ExpectEscapedChar && *begin == Config->EscapingSymbol) {
+        ExpectEscapedChar = true;
+        ++begin;
+        if (begin == end) {
+            return begin;
+        }
+    }
+
+    if (ExpectEscapedChar) {
+        CurrentToken.append(*begin);
+        ++begin;
+        ExpectEscapedChar = false;
+        if (begin == end) {
+            return begin;
+        }
+    }
+
     switch (State) {
         case EState::InsidePrefix: {
-            if (FirstSymbol) {
-                Consumer->OnListItem();
-                Consumer->OnBeginMap();
-                FirstSymbol = false;
-            }
-            auto next = FindEndOfValue(begin, end);
+            auto next = std::find_first_of(
+                begin, end,
+                ValueStopSymbols, ValueStopSymbols + ARRAY_SIZE(ValueStopSymbols));
             CurrentToken.append(begin, next);
-            if (next != end) {
+            if (next != end && *next != Config->EscapingSymbol) {
                 if (CurrentToken != Config->LinePrefix.Get()) {
                     ythrow yexception() <<
-                        Sprintf("Each line should begin with %s", ~Config->LinePrefix.Get());
+                        Sprintf("Each line must begin with %s", ~Config->LinePrefix.Get());
                 }
                 CurrentToken.clear();
+                StartRecordIfNeeded();
                 if (*next == Config->RecordSeparator) {
                     Consumer->OnEndMap();
-                    FirstSymbol = true;
+                    NewRecordStarted = false;
                     State = GetStartState();
                 } else {
                     State = EState::InsideKey;
@@ -64,15 +97,13 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
             return next;
         }
         case EState::InsideKey: {
-            if (FirstSymbol) {
-                Consumer->OnListItem();
-                Consumer->OnBeginMap();
-                FirstSymbol = false;
-            }
-            auto next = std::find(begin, end, Config->KeyValueSeparator);
+            auto next = std::find_first_of(
+                begin, end,
+                KeyStopSymbols, KeyStopSymbols + ARRAY_SIZE(KeyStopSymbols));
             CurrentToken.append(begin, next);
-            if (next != end) {
+            if (next != end && *next != Config->EscapingSymbol) {
                 YCHECK(*next == Config->KeyValueSeparator);
+                StartRecordIfNeeded();
                 Consumer->OnKeyedItem(CurrentToken);
                 CurrentToken.clear();
                 State = EState::InsideValue;
@@ -81,14 +112,16 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
             return next;
         }
         case EState::InsideValue: {
-            auto next = FindEndOfValue(begin, end);
+            auto next = std::find_first_of(
+                begin, end,
+                ValueStopSymbols, ValueStopSymbols + ARRAY_SIZE(ValueStopSymbols));
             CurrentToken.append(begin, next);
-            if (next != end) {
+            if (next != end && *next != Config->EscapingSymbol) {
                 Consumer->OnStringScalar(CurrentToken);
                 CurrentToken.clear();
                 if (*next == Config->RecordSeparator) {
                     Consumer->OnEndMap();
-                    FirstSymbol = true;
+                    NewRecordStarted = false;
                     State = GetStartState();
                 } else {
                     State = EState::InsideKey;

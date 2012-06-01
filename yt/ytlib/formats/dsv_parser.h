@@ -24,9 +24,13 @@ private:
     NYTree::IYsonConsumer* Consumer;
     TDsvFormatConfigPtr Config;
 
-    bool FirstSymbol;
+    bool NewRecordStarted;
+    bool ExpectEscapedChar;
 
     Stroka CurrentToken;
+
+    char KeyStopSymbols[2];
+    char ValueStopSymbols[3];
 
     DECLARE_ENUM(EState,
         (InsidePrefix)
@@ -38,7 +42,10 @@ private:
     const char* Consume(const char* begin, const char* end);
     const char* FindEndOfValue(const char* begin, const char* end);
 
+    void StartRecordIfNeeded();
+
     EState GetStartState();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

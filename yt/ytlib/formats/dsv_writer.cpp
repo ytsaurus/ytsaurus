@@ -16,6 +16,10 @@ TDsvWriter::TDsvWriter(TOutputStream* stream, TDsvFormatConfigPtr config)
     if (!Config) {
         Config = New<TDsvFormatConfig>();
     }
+    EscapedSymbols[0] = Config->EscapingSymbol;
+    EscapedSymbols[1] = Config->KeyValueSeparator;
+    EscapedSymbols[2] = Config->FieldSeparator;
+    EscapedSymbols[3] = Config->RecordSeparator;
 }
 
 void TDsvWriter::OnStringScalar(const TStringBuf& value)
@@ -24,7 +28,7 @@ void TDsvWriter::OnStringScalar(const TStringBuf& value)
         ythrow yexception() << "Unexpected call";
     }
     State = EState::ExpectKey;
-    Stream->Write(value);
+    EscapeAndWrite(value);
 }
 
 void TDsvWriter::OnIntegerScalar(i64 value)
@@ -97,7 +101,7 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
         Stream->Write(Config->FieldSeparator);
     }
 
-    Stream->Write(key);
+    EscapeAndWrite(key);
     Stream->Write(Config->KeyValueSeparator);
     FirstItem = false;
 }
@@ -118,6 +122,24 @@ void TDsvWriter::OnBeginAttributes()
 void TDsvWriter::OnEndAttributes()
 {
     ythrow yexception() << "Attributes are not supported";
+}
+
+void TDsvWriter::EscapeAndWrite(const TStringBuf& key)
+{
+    auto current = key.begin();
+    auto end = key.end();
+    while (current != end) {
+        auto next = std::find_first_of(
+            current, end,
+            EscapedSymbols, EscapedSymbols + ARRAY_SIZE(EscapedSymbols));
+        Stream->Write(current, next - current);
+        if (next != end) {
+            Stream->Write(Config->EscapingSymbol);
+            Stream->Write(*next);
+            ++next;
+        }
+        current = next;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,9 @@ TEST(TDsvWriterTest, Simple)
     EXPECT_EQ(outputStream.Str(), output);
 }
 
-TEST(TDsvWriterTest, Tskv)
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TTskvWriterTest, Simple)
 {
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
@@ -70,6 +72,40 @@ TEST(TDsvWriterTest, Tskv)
         "tskv\n"
         "tskv\tid=1\tguid=100500\n"
         "tskv\tid=2\tguid=20025";
+
+    EXPECT_EQ(outputStream.Str(), output);
+}
+
+TEST(TTskvWriterTest, Escaping)
+{
+    auto config = New<TDsvFormatConfig>();
+    config->LinePrefix = "tskv";
+
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("a=b");
+        writer.OnStringScalar("c=d");
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key_with_\t");
+        writer.OnStringScalar("value_with_\t,\\_and_\n");
+        writer.OnKeyedItem("another_key");
+        writer.OnStringScalar("another_value");
+    writer.OnEndMap();
+
+    Stroka output =
+        "tskv\n"
+        "tskv\t" "a\\=b=c\\=d\n"
+        "tskv\t" "key_with_\\\t=value_with_\\\t,\\\\_and_\\\n" "\tanother_key=another_value";
 
     EXPECT_EQ(outputStream.Str(), output);
 }

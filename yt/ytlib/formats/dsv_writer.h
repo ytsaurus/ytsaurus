@@ -38,6 +38,9 @@ private:
     bool FirstLine;
     bool FirstItem;
 
+    char EscapedSymbols[4];
+    void EscapeAndWrite(const TStringBuf& key);
+
     DECLARE_ENUM(EState,
         (ExpectListItem)
         (ExpectBeginMap)

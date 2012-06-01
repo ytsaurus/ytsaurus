@@ -16,6 +16,7 @@ struct TDsvFormatConfig
     char KeyValueSeparator;
     char FieldSeparator;
     TNullable<Stroka> LinePrefix;
+    char EscapingSymbol;
 
     TDsvFormatConfig()
     {
@@ -23,6 +24,7 @@ struct TDsvFormatConfig
         Register("key_value_separator", KeyValueSeparator).Default('=');
         Register("field_separator", FieldSeparator).Default('\t');
         Register("line_prefix", LinePrefix).Default();
+        Register("escaping_symbol", EscapingSymbol).Default('\\');
     }
 };
 
