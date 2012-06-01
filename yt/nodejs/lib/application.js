@@ -78,7 +78,7 @@ function _reqHash(req) {
 
 function _reqExtractName(req) {
     var name = req.parsedUrl.pathname.slice(1).toLowerCase();
-    if (!/^[a-z]+$/.test(name)) {
+    if (!/^[a-z_]+$/.test(name)) {
         return new Error("Malformed command '" + name + "'.");
     } else {
         return name;
