@@ -18,7 +18,10 @@ TRange::TRange(const Stroka& begin, const Stroka& end)
     , Begin_(begin)
     , End_(end)
 {
-    YASSERT(begin < end);
+    if (begin >= end) {
+        ythrow yexception() <<
+            Sprintf("Invalid range (begin: %s, end: %s)", ~begin, ~end);
+    }
 }
 
 TRange::TRange(const Stroka& begin)

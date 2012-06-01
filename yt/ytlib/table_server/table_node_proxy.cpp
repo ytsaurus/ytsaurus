@@ -147,6 +147,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
                         break;
                     }
                     case ColumnSeparatorToken:
+                    case EndColumnSelectorToken:
                         channel->AddRange(TRange(begin));
                         break;
                     default:

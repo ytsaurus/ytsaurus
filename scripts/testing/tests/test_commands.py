@@ -418,8 +418,8 @@ class TestTableCommands(YTEnvSetup):
 
         # range columns
         # closed ranges
-        assert read_table('//table{a:a}') == [{}]  # left = right
-        assert read_table('//table{b:a}') == [{}]  # left > right
+        with pytest.raises(YTError): read_table('//table{a:a}')  # left = right
+        with pytest.raises(YTError): read_table('//table{b:a}')  # left > right
 
         assert read_table('//table{aa:b}') == [{'aa' : 2}]  # (+, +)
         assert read_table('//table{aa:bx}') == [{'aa' : 2, 'b' : 3, 'bb' : 4}]  # (+, -)
