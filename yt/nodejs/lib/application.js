@@ -12,7 +12,7 @@ var ytnode_wrappers = require("./ytnode_wrappers");
 var __DBG;
 
 if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { console.error("YT HTTP:", x); };
+    __DBG = function(x) { console.error("YT Application:", x); };
 } else {
     __DBG = function( ) { };
 }
@@ -48,44 +48,60 @@ function YtCommand(driver, req, rsp) {
 };
 
 YtCommand.prototype.dispatch = function() {
+    var self = this;
+
     flowless.runSeq([
         this._computeHash,
+        this._prologue,
         this._extractName,
         this._extractParameters,
         this._getInputFormat,
         this._getOutputFormat,
         this._getDescriptor,
-        this._addMainHeaders,
-        this._addDebugHeaders,
-        this._execute
-    ], function(error) {
+        this._addHeaders,
+        this._execute,
+        this._epilogue
+    ].map(function(func) {
+        return func.bind(self);
+    }), function andThen(error) {
         if (error) {
-            __DBG(this.hash + " >>> Error: " + error.message);
+            __DBG(self.hash + " <<< Error: " + error.cause.message);
 
-            if (!this.rsp._header) {
-                var body = JSON.stringify({ error : error.message });
-                this.rsp.setHeader("Content-Type" : "application/json");
-                this.rsp.setHeader("Content-Length" : body.length);
-                this.rsp.end(body);
+            if (!self.rsp._header) {
+                var body = JSON.stringify({ error : error.cause.message });
+                self.rsp.setHeader("Content-Type", "application/json");
+                self.rsp.setHeader("Content-Length", body.length);
+                self.rsp.end(body);
             } else {
-                this.rsp.end();
+                self.rsp.end();
             }
         } else {
-            __DBG(this.hash + " >>> Done.");
+            __DBG(self.hash + " <<< Done.");
         }
-    };);
+    });
+};
+
+YtCommand.prototype._prologue = function(cb) {
+    this.rsp.statusCode = 202;
+
+    __DBG(this.hash + " >>> Dispatching...");
+    cb(null);
+};
+
+YtCommand.prototype._epilogue = function(cb) {
+    cb(null);
 };
 
 YtCommand.prototype._computeHash = function(cb) {
     var hasher = crypto.createHash("sha1");
-    hasher.update(JSON.stringify(req.method));
-    hasher.update(JSON.stringify(req.url));
-    hasher.update(JSON.stringify(req.headers));
-    hasher.update(JSON.stringify(req.trailers));
-    hasher.update(JSON.stringify(req.httpVersion));
-
+    hasher.update(new Date().toJSON());
+    hasher.update(JSON.stringify(this.req.method));
+    hasher.update(JSON.stringify(this.req.url));
+    hasher.update(JSON.stringify(this.req.headers));
+    hasher.update(JSON.stringify(this.req.trailers));
+    hasher.update(JSON.stringify(this.req.httpVersion));
     this.hash = hasher.digest("base64");
-    __DBG(this.hash + ".hash = " + hasher.digest("hex"));
+
     cb(null);
 };
 
@@ -187,14 +203,14 @@ YtCommand.prototype._getDescriptor = function(cb) {
     var input_type_as_string = ytnode_wrappers.EDataType[this.descriptor.input_type];
     var output_type_as_string = ytnode_wrappers.EDataType[this.descriptor.output_type];
 
-    __DBG(this.hash + " > input_type_as_string = " + input_type_as_string);
-    __DBG(this.hash + " > output_type_as_string = " + output_type_as_string);
+    __DBG(this.hash + ".input_type_as_string = " + input_type_as_string);
+    __DBG(this.hash + ".output_type_as_string = " + output_type_as_string);
 
     var expected_http_method = _DATA_TYPE_TO_METHOD_MAPPING[input_type_as_string];
     var actual_http_method = this.req.method;
 
-    __DBG(this.hash + " > expected_http_method = " + expected_http_method);
-    __DBG(this.hash + " > actual_http_method = " + actual_http_method);
+    __DBG(this.hash + ".expected_http_method = " + expected_http_method);
+    __DBG(this.hash + ".actual_http_method = " + actual_http_method);
 
     if (expected_http_method != actual_http_method) {
         this.rsp.statusCode = 405;
@@ -205,42 +221,36 @@ YtCommand.prototype._getDescriptor = function(cb) {
     cb(null);
 };
 
-YtCommand.prototype._addMainHeaders = function(cb) {
+YtCommand.prototype._addHeaders = function(cb) {
     this.rsp.setHeader("Connection", "close");
     this.rsp.setHeader("Transfer-Encoding", "chunked");
-    this.rsp.setHeader("Trailer", "X-YT-Result-Code, X-YT-Result-Message");
-    cb(null);
-};
-
-YtCommand.prototype._addDebugHeaders = function(cb) {
-    this.rsp.setHeader("X-YT-Command-Hash", this.hash);
-    this.rsp.setHeader("X-YT-Command-Name", this.name);
-    this.rsp.setHeader("X-YT-Parameters", JSON.stringify(this.parameters));
-    this.rsp.setHeader("X-YT-Input-Format", this.input_format);
-    this.rsp.setHeader("X-YT-Output-Format", this.output_format);
+    this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
+    this.rsp.setHeader("X-YT-Request-Hash", this.hash);
     cb(null);
 };
 
 YtCommand.prototype._execute = function(cb) {
+    var self = this;
     this.driver.execute(this.name,
         this.req, this.input_format,
         this.rsp, this.output_format,
-        this.parameters, function(code, message) {
+        this.parameters, function(code, message)
+        {
             if (code === 0) {
-                this.rsp.statusCode = 0;
+                self.rsp.statusCode = 200;
             } else if (code < 0) {
-                // TODO(sandello): Fix unsigned overflow in bindings.
-                // TODO(sandello): Gateway Error, obviously, is a better fit.
-                this.rsp.statusCode = 500;
+                self.rsp.statusCode = 500;
             } else if (code > 0) {
-                // TODO(sandello): Investigate cases.
-                this.rsp.statusCode = 400;
-            };
+                self.rsp.statusCode = 400;
+            }
 
-            this.rsp.addTrailers({
-                "X-YT-Result-Code" : code,
-                "X-YT-Result-Message" : message
-            });
+            if (code != 0) {
+                self.rsp.addTrailers({
+                    "X-YT-Response-Code" : code,
+                    "X-YT-Response-Message" : message
+                });
+            }
+
             cb(null);
         });
 };
@@ -250,8 +260,7 @@ YtCommand.prototype._execute = function(cb) {
 function YtApplication(configuration) {
     var driver = new ytnode_wrappers.YtDriver(configuration);
     return function(req, rsp) {
-        var command = new YtCommand(driver, req, rsp);
-        return command.dispatch();
+        return (new YtCommand(driver, req, rsp)).dispatch();
     };
 };
 

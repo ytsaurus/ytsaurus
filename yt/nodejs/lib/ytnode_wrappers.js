@@ -9,8 +9,8 @@ var binding = require("./ytnode");
 var __EOF = {};
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { console.error("YT:", x); };
+if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
+    __DBG = function(x) { console.error("YT Node Wrappers:", x); };
 } else {
     __DBG = function( ) { };
 }

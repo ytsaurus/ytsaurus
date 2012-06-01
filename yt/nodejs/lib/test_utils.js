@@ -98,11 +98,11 @@ describe("numerify", function() {
 
     it("should work recursively on maps", function() {
         expect(utils.numerify({ a: { b : { c : "100" }, d : "10" }, e : "1" }))
-            .to.be.equal({ a: { b : { c : 100 }, d : 10 }, e : 1 });
+            .to.be.deep.equal({ a: { b : { c : 100 }, d : 10 }, e : 1 });
     });
 
     it("should work recursively on lists", function() {
         expect(utils.numerify([ "1", [ "2", "3", [ "4" ]]]))
-            .to.be.equal([ 1, [ 2, 3, [ 4 ]]]);
+            .to.be.deep.equal([ 1, [ 2, 3, [ 4 ]]]);
     });
 });
