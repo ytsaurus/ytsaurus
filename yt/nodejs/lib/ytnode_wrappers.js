@@ -221,7 +221,7 @@ YtDriver.prototype.execute = function(name,
         parameters, function()
     {
         callback.apply(this, arguments);
-        wrapped_output_stream._end();
+        process.nextTick(function() { wrapped_output_stream._end(); });
     });
 }
 
