@@ -246,8 +246,8 @@ YtCommand.prototype._execute = function(cb) {
 
             if (code != 0) {
                 self.rsp.addTrailers({
-                    "X-YT-Response-Code" : code,
-                    "X-YT-Response-Message" : message
+                    "X-YT-Response-Code" : JSON.stringify(code),
+                    "X-YT-Response-Message" : JSON.stringify(message)
                 });
             }
 
