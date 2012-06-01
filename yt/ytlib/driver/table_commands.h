@@ -3,6 +3,7 @@
 #include "command.h"
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -44,17 +45,14 @@ struct TWriteRequest
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
     NYTree::INodePtr Value;
-    bool Sorted;
-    yvector<Stroka> KeyColumns;
+    TNullable<NTableClient::TKeyColumns> SortedBy;
 
     TWriteRequest()
     {
         Register("path", Path);
         Register("value", Value)
             .Default();
-        Register("sorted", Sorted)
-            .Default(false);
-        Register("key_columns", KeyColumns).Default();
+        Register("sorted_by", SortedBy).Default();
     }
 
     virtual void DoValidate() const

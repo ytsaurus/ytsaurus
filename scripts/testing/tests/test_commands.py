@@ -386,7 +386,7 @@ class TestTableCommands(YTEnvSetup):
 
         values = yson.dumps([v1, v2, v3, v4, v5])
 
-        write('//table', values, sorted='s;i;d')
+        write('//table', values, sorted_by='s;i;d')
 
         # possible empty ranges
         assert read_table('//table[a : a]') == []

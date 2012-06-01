@@ -37,11 +37,11 @@ Stroka TReadExecutor::GetDriverCommandName() const
 TWriteExecutor::TWriteExecutor()
     : PathArg("path", "path to a table in Cypress that must be written", true, "", "ypath")
     , ValueArg("value", "row(s) to write", false, "", "yson")
-    , KeyColumnsArg("", "sorted", "key columns names (table must initially be empty, input data must be sorted)", false, "", "list_fragment")
+    , SortedBy("", "sorted_by", "key columns names (table must initially be empty, input data must be sorted)", false, "", "list_fragment")
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);
-    CmdLine.add(KeyColumnsArg);
+    CmdLine.add(SortedBy);
 }
 
 void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -49,14 +49,13 @@ void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
     auto value = ValueArg.getValue();
     // TODO(babenko): refactor
-    auto keyColumns = DeserializeFromYson< yvector<Stroka> >("[" + KeyColumnsArg.getValue() + "]");
+    auto sortedBy = DeserializeFromYson< yvector<Stroka> >("[" + SortedBy.getValue() + "]");
 
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
         .Item("path").Scalar(path)
-        .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
-            fluent.Item("sorted").Scalar(true);
-            fluent.Item("key_columns").List(keyColumns);
+        .DoIf(!sortedBy.empty(), [=] (TFluentMap fluent) {
+            fluent.Item("sorted_by").List(sortedBy);
         })
         .DoIf(!value.empty(), [=] (TFluentMap fluent) {
                 fluent.Item("value").Node(value);

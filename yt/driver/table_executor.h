@@ -30,7 +30,7 @@ public:
 private:
     TUnlabeledStringArg PathArg;
     TUnlabeledStringArg ValueArg;
-    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
+    TCLAP::ValueArg<NYTree::TYson> SortedBy;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;

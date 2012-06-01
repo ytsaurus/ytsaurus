@@ -186,9 +186,22 @@ void Write(const TNullable<T>& parameter, IYsonConsumer* consumer)
     Write(*parameter, consumer);
 }
 
+// TODO(panin): kill this once we get rid of yvector
 // yvector
 template <class T>
 void Write(const yvector<T>& parameter, IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    FOREACH (const auto& value, parameter) {
+        consumer->OnListItem();
+        Write(value, consumer);
+    }
+    consumer->OnEndList();
+}
+
+// std::vector
+template <class T>
+void Write(const std::vector<T>& parameter, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     FOREACH (const auto& value, parameter) {

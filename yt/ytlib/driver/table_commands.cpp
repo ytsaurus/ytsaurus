@@ -43,18 +43,13 @@ void TReadCommand::DoExecute()
 
 void TWriteCommand::DoExecute()
 {
-    TNullable<TKeyColumns> keyColumns;
-    if (Request->Sorted) {
-        keyColumns.Assign(Request->KeyColumns);
-    }
-
     auto writer = New<TTableWriter>(
         Context->GetConfig()->ChunkSequenceWriter,
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetTransactionManager(),
         Request->Path,
-        keyColumns);
+        Request->SortedBy);
 
     writer->Open();
 

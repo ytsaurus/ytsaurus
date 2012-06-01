@@ -157,6 +157,10 @@ void Read(
 template <class T>
 void Read(yvector<T>& parameter, INodePtr node);
 
+// std::vector
+template <class T>
+void Read(std::vector<T>& parameter, INodePtr node);
+
 // yhash_set
 template <class T>
 void Read(yhash_set<T>& parameter, INodePtr node);
@@ -230,6 +234,10 @@ void Write(INode& parameter, IYsonConsumer* consumer);
 // yvector
 template <class T>
 void Write(const yvector<T>& parameter, IYsonConsumer* consumer);
+
+// std::vector
+template <class T>
+void Write(const std::vector<T>& parameter, IYsonConsumer* consumer);
 
 // yhash_set
 template <class T>
