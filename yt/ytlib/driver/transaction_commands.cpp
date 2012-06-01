@@ -35,7 +35,7 @@ void TStartTransactionCommand::DoExecute()
 void TRenewTransactionCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(Request->TransactionId));
+    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(GetTransactionId(true)));
     auto rsp = proxy.Execute(req).Get();
 
     if (!rsp->IsOK()) {
