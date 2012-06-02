@@ -310,7 +310,14 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
     TExecuteRequest* request =
         container_of(workRequest, TExecuteRequest, Request);
 
+    TInputStream* inputStream = request->DriverRequest->InputStream;
+    TOutputStream* outputStream = request->DriverRequest->OutputStream;
+
+    TBufferedOutput bufferedOutputStream(outputStream);
+
+    request->DriverRequest->OutputStream = &bufferedOutputStream;
     request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+    request->DriverRequest->OutputStream = &outputStream;
 }
 
 void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
