@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 var fs = require("fs");
+
 var connect = require("connect");
+var winston = require("winston");
+
 var yt = require("yt");
 
 var opts = require("optimist")
@@ -18,6 +21,9 @@ var opts = require("optimist")
     .alias("i", "interface")
     .default("i", "0.0.0.0")
     .describe("i", "Specify interface to listen")
+
+    .alias("l", "log")
+    .describe("l", "Specify log file")
 
     .alias("u", "user")
     .describe("u", "Specify a user to setuid() to")
@@ -40,10 +46,22 @@ fs.readFile(opts.argv.c, function(err, configuration) {
         throw err;
     }
     try {
+        var logger = new winston.Logger({
+            transports: [ opts.argv.l
+                ? new winston.transports.Console({
+                    timestamp: true
+                })
+                : new winston.transports.File({
+                    level: "debug",
+                    filename: opts.argv.l,
+                    timestamp: true
+                })
+            ]
+        });
         connect()
             .use(connect.favicon())
             .use(connect.logger("dev"))
-            .use("/api", yt.YtApplication(configuration.toString()))
+            .use("/api", yt.YtApplication(logger, configuration.toString()))
             .listen(opts.argv.p, opts.argv.i, function() {
                 if (opts.argv.g) {
                     process.setgid(opts.argv.g);

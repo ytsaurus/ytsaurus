@@ -18,7 +18,7 @@ if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
 }
 
 // This mapping defines how MIME types map onto YT format specifications.
-var _MIME_FORMAT_MAPPING = {
+var _MAPPING_MIME_TYPE_TO_FORMAT = {
     "application/json" : "json",
     "application/x-yt-yson-binary" : "<format=binary>yson",
     "application/x-yt-yson-text" : "<format=text>yson",
@@ -29,7 +29,7 @@ var _MIME_FORMAT_MAPPING = {
 };
 
 // This mapping defines which HTTP methods various YT data types require.
-var _DATA_TYPE_TO_METHOD_MAPPING = {
+var _MAPPING_DATA_TYPE_TO_METHOD = {
     "Null" : "GET",
     "Binary" : "PUT",
     "Structured" : "POST",
@@ -38,7 +38,8 @@ var _DATA_TYPE_TO_METHOD_MAPPING = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(driver, req, rsp) {
+function YtCommand(logger, driver, req, rsp) {
+    this.logger = logger;
     this.driver = driver;
 
     this.req = req;
@@ -65,7 +66,7 @@ YtCommand.prototype.dispatch = function() {
         return func.bind(self);
     }), function andThen(error) {
         if (error) {
-            __DBG(self.hash + " <<< Error: " + error.cause.message);
+            self.logger.error(error.cause.message, { hash : self.hash });
 
             if (!self.rsp._header) {
                 var body = JSON.stringify({ error : error.cause.message });
@@ -75,16 +76,15 @@ YtCommand.prototype.dispatch = function() {
             } else {
                 self.rsp.end();
             }
-        } else {
-            __DBG(self.hash + " <<< Done.");
         }
+
+        this.logger.info("Done", { hash : self.hash });
     });
 };
 
 YtCommand.prototype._prologue = function(cb) {
     this.rsp.statusCode = 202;
 
-    __DBG(this.hash + " >>> Dispatching...");
     cb(null);
 };
 
@@ -98,10 +98,7 @@ YtCommand.prototype._computeHash = function(cb) {
     hasher.update(JSON.stringify(this.req.method));
     hasher.update(JSON.stringify(this.req.url));
     hasher.update(JSON.stringify(this.req.headers));
-    hasher.update(JSON.stringify(this.req.trailers));
-    hasher.update(JSON.stringify(this.req.httpVersion));
     this.hash = hasher.digest("base64");
-
     cb(null);
 };
 
@@ -109,10 +106,10 @@ YtCommand.prototype._extractName = function(cb) {
     this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
     if (!/^[a-z_]+$/.test(this.name)) {
         this.rsp.statusCode = 400;
-        throw new Error("Malformed command '" + name + "'.");
+        throw new Error("Malformed command name '" + name + "'.");
     }
 
-    __DBG(this.hash + ".name = " + this.name);
+    this.logger.debug("Extracted name", { hash : this.hash, value : this.name });
     cb(null);
 };
 
@@ -123,8 +120,7 @@ YtCommand.prototype._extractParameters = function(cb) {
         throw new Error("Unable to parse parameters from the query string.");
     }
 
-
-    __DBG(this.hash + ".parameters = " + JSON.stringify(this.parameters));
+    this.logger.debug("Extracted parameters", { hash : this.hash, value : JSON.stringify(this.parameters) });
     cb(null);
 };
 
@@ -134,9 +130,9 @@ YtCommand.prototype._getInputFormat = function(cb) {
     // Firstly, try to deduce input format from Content-Type header.
     header = this.req.headers["content-type"];
     if (typeof(header) === "string") {
-        for (var mime in _MIME_FORMAT_MAPPING) {
+        for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
             if (utils.is(mime, header)) {
-                result = _MIME_FORMAT_MAPPING[mime];
+                result = _MAPPING_MIME_TYPE_TO_FORMAT[mime];
                 break;
             }
         }
@@ -154,7 +150,7 @@ YtCommand.prototype._getInputFormat = function(cb) {
     }
 
     this.input_format = result;
-    __DBG(this.hash + ".input_format = " + this.input_format);
+    this.logger.debug("Extracted input_format", { hash : this.hash, value : this.input_format });
     cb(null);
 };
 
@@ -164,9 +160,9 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     // Firstly, try to deduce output format from Accept header.
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
-        for (var mime in _MIME_FORMAT_MAPPING) {
+        for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
             if (mime === utils.accepts(mime, header)) {
-                result = _MIME_FORMAT_MAPPING[mime];
+                result = _MAPPING_MIME_TYPE_TO_FORMAT[mime];
                 this.rsp.setHeader("Content-Type", mime);
                 break;
             }
@@ -187,7 +183,7 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     }
 
     this.output_format = result;
-    __DBG(this.hash + ".output_format = " + this.output_format);
+    this.logger.debug("Extracted output_format", { hash : this.hash, value : this.output_format });
     cb(null);
 };
 
@@ -195,27 +191,28 @@ YtCommand.prototype._getDescriptor = function(cb) {
     this.descriptor = this.driver.find_command_descriptor(this.name);
     if (!this.descriptor) {
         this.rsp.statusCode = 404;
-        throw new Error("There is no such command '" + this.name + "' registered.");
+        throw new Error("Command '" + this.name + "' is not registered.");
     }
-
-    __DBG(this.hash + ".descriptor = " + JSON.stringify(this.descriptor));
 
     var input_type_as_string = ytnode_wrappers.EDataType[this.descriptor.input_type];
     var output_type_as_string = ytnode_wrappers.EDataType[this.descriptor.output_type];
 
-    __DBG(this.hash + ".input_type_as_string = " + input_type_as_string);
-    __DBG(this.hash + ".output_type_as_string = " + output_type_as_string);
-
-    var expected_http_method = _DATA_TYPE_TO_METHOD_MAPPING[input_type_as_string];
+    var expected_http_method = _MAPPING_DATA_TYPE_TO_METHOD[input_type_as_string];
     var actual_http_method = this.req.method;
 
-    __DBG(this.hash + ".expected_http_method = " + expected_http_method);
-    __DBG(this.hash + ".actual_http_method = " + actual_http_method);
+    this.logger.debug("Found command descriptor", {
+        hash : this.hash,
+        descriptor : JSON.stringify(this.descriptor),
+        input_type_as_string : input_type_as_string,
+        output_type_as_string : output_type_as_string,
+        expected_http_method : expected_http_method,
+        actual_http_method : actual_http_method
+    });
 
     if (expected_http_method != actual_http_method) {
         this.rsp.statusCode = 405;
         this.rsp.setHeader("Allow", expected_http_method);
-        throw new Error("Command '" + this.name + "' expects " + input_type_as_string.toLowerCase() + " input and hence have to be requested with the " + expected_http_method + " method.");
+        throw new Error("Command '" + this.name + "' expects " + input_type_as_string.toLowerCase() + " input and hence have to be requested with the " + expected_http_method + " HTTP method.");
     }
 
     cb(null);
@@ -226,6 +223,7 @@ YtCommand.prototype._addHeaders = function(cb) {
     this.rsp.setHeader("Transfer-Encoding", "chunked");
     this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
     this.rsp.setHeader("X-YT-Request-Hash", this.hash);
+
     cb(null);
 };
 
@@ -236,6 +234,7 @@ YtCommand.prototype._execute = function(cb) {
         this.rsp, this.output_format,
         this.parameters, function(code, message)
         {
+            self.logger.info("Command '" + self.name + "' successfully executed", { hash : self.hash, code : code, message : message });
             if (code === 0) {
                 self.rsp.statusCode = 200;
             } else if (code < 0) {
@@ -257,10 +256,10 @@ YtCommand.prototype._execute = function(cb) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplication(configuration) {
+function YtApplication(logger, configuration) {
     var driver = new ytnode_wrappers.YtDriver(configuration);
     return function(req, rsp) {
-        return (new YtCommand(driver, req, rsp)).dispatch();
+        return (new YtCommand(logger, driver, req, rsp)).dispatch();
     };
 };
 
