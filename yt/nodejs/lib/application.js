@@ -78,7 +78,7 @@ YtCommand.prototype.dispatch = function() {
             }
         }
 
-        this.logger.info("Done", { hash : self.hash });
+        self.logger.info("Done", { hash : self.hash });
     });
 };
 
@@ -109,7 +109,7 @@ YtCommand.prototype._extractName = function(cb) {
         throw new Error("Malformed command name '" + name + "'.");
     }
 
-    this.logger.debug("Extracted name", { hash : this.hash, value : this.name });
+    this.logger.debug("", { hash : this.hash, name : this.name });
     cb(null);
 };
 
@@ -120,7 +120,7 @@ YtCommand.prototype._extractParameters = function(cb) {
         throw new Error("Unable to parse parameters from the query string.");
     }
 
-    this.logger.debug("Extracted parameters", { hash : this.hash, value : JSON.stringify(this.parameters) });
+    this.logger.debug("", { hash : this.hash, parameters : JSON.stringify(this.parameters) });
     cb(null);
 };
 
@@ -150,7 +150,7 @@ YtCommand.prototype._getInputFormat = function(cb) {
     }
 
     this.input_format = result;
-    this.logger.debug("Extracted input_format", { hash : this.hash, value : this.input_format });
+    this.logger.debug("", { hash : this.hash, input_format : this.input_format });
     cb(null);
 };
 
@@ -183,7 +183,7 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     }
 
     this.output_format = result;
-    this.logger.debug("Extracted output_format", { hash : this.hash, value : this.output_format });
+    this.logger.debug("", { hash : this.hash, output_format : this.output_format });
     cb(null);
 };
 
@@ -200,7 +200,7 @@ YtCommand.prototype._getDescriptor = function(cb) {
     var expected_http_method = _MAPPING_DATA_TYPE_TO_METHOD[input_type_as_string];
     var actual_http_method = this.req.method;
 
-    this.logger.debug("Found command descriptor", {
+    this.logger.debug("Successfully found command descriptor", {
         hash : this.hash,
         descriptor : JSON.stringify(this.descriptor),
         input_type_as_string : input_type_as_string,
@@ -234,7 +234,7 @@ YtCommand.prototype._execute = function(cb) {
         this.rsp, this.output_format,
         this.parameters, function(code, message)
         {
-            self.logger.info("Command '" + self.name + "' successfully executed", { hash : self.hash, code : code, message : message });
+            self.logger.info("Command '" + self.name + "' successfully executed", { hash : self.hash, code : code, message : JSON.stringify(message) });
             if (code === 0) {
                 self.rsp.statusCode = 200;
             } else if (code < 0) {
