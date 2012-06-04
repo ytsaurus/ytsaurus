@@ -93,7 +93,7 @@ class Master(Server):
         },
         'chunks' : {
             'registered_holder_timeout' : 180000,
-            'jobs' : {
+            'balancer' : {
                 'min_online_holder_count' : 250,
                 'max_lost_chunk_fraction' : 0.01
             }

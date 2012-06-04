@@ -10,7 +10,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobSchedulerConfig
+struct TChunkBalancerConfig
     : public TConfigurable
 {
     //! Minimum number of holders the cell must have online to enable starting new jobs.
@@ -30,7 +30,7 @@ struct TJobSchedulerConfig
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
 
-    TJobSchedulerConfig()
+    TChunkBalancerConfig()
     {
         Register("min_online_holder_count", MinOnlineHolderCount)
             .GreaterThan(0);
@@ -66,7 +66,7 @@ struct TChunkManagerConfig
     double MaxHolderFillCoeff;
     i64 MinHolderFreeSpace;
     double ActiveSessionsPenalityCoeff;
-    TJobSchedulerConfigPtr Jobs;
+    TChunkBalancerConfigPtr Balancer;
 
     i32 MaxChunkTreeRank;
     i32 MinChunkListSize;
@@ -90,7 +90,7 @@ struct TChunkManagerConfig
             .Default(10000);
         Register("active_sessions_penality_coeff", ActiveSessionsPenalityCoeff)
             .Default(0.1);
-        Register("jobs", Jobs)
+        Register("balancer", Balancer)
             .DefaultNew();
         Register("max_chunk_tree_rank", MaxChunkTreeRank)
             .GreaterThanOrEqual(2)

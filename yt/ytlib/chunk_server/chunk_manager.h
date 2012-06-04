@@ -96,7 +96,7 @@ public:
         std::vector<NProto::TJobStartInfo>* jobsToStart,
         std::vector<NProto::TJobStopInfo>* jobsToStop);
 
-    bool IsJobSchedulerEnabled();
+    bool IsBalancerEnabled();
 
     //! Fills a given protobuf structure with the list of data node addresses.
     /*!

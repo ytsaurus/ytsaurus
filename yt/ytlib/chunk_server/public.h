@@ -29,8 +29,8 @@ typedef TIntrusivePtr<IHolderAuthority> IHolderAuthorityPtr;
 class THolderLeaseTracker;
 typedef TIntrusivePtr<THolderLeaseTracker> THolderLeaseTrackerPtr;
 
-class TJobScheduler;
-typedef TIntrusivePtr<TJobScheduler> TJobSchedulerPtr;
+class TChunkBalancer;
+typedef TIntrusivePtr<TChunkBalancer> TChunkBalancerPtr;
 
 class TChunkPlacement;
 typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
@@ -38,8 +38,8 @@ typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
 class TChunkService;
 typedef TIntrusivePtr<TChunkService> TChunkServicePtr;
 
-struct TJobSchedulerConfig;
-typedef TIntrusivePtr<TJobSchedulerConfig> TJobSchedulerConfigPtr;
+struct TChunkBalancerConfig;
+typedef TIntrusivePtr<TChunkBalancerConfig> TChunkBalancerConfigPtr;
 
 struct TChunkManagerConfig;
 typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;

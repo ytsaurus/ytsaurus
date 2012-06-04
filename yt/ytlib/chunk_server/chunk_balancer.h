@@ -1,26 +1,26 @@
 #pragma once
 
 #include "public.h"
-#include <ytlib/chunk_server/chunk_service.pb.h>
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/profiling/public.h>
+#include <ytlib/chunk_server/chunk_service.pb.h>
 
-#include <util/generic/deque.h>
+#include <deque>
 
 namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobScheduler
+class TChunkBalancer
     : public TRefCounted
 {
 public:
-    TJobScheduler(
+    TChunkBalancer(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement,
@@ -67,7 +67,7 @@ private:
     };
 
     yhash_set<TChunkId> RefreshSet;
-    ydeque<TRefreshEntry> RefreshList;
+    std::deque<TRefreshEntry> RefreshList;
 
     struct THolderInfo
     {

@@ -17,7 +17,7 @@ set( SRCS
   ${BASE}/holder_statistics.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
-  ${BASE}/job_scheduler.cpp
+  ${BASE}/chunk_balancer.cpp
   ${BASE}/public.cpp
 )
 set( HDRS
@@ -41,7 +41,7 @@ set( HDRS
   ${BASE}/holder_statistics.h
   ${BASE}/job.h
   ${BASE}/job_list.h
-  ${BASE}/job_scheduler.h
+  ${BASE}/chunk_balancer.h
   ${BASE}/public.h
 )
 
