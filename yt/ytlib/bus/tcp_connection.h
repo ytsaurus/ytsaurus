@@ -161,6 +161,7 @@ private:
 
     void SyncOpen();
     void SyncClose(const TError& error);
+    void CloseSocket();
 
     void OnSocket(ev::io&, int revents);
 

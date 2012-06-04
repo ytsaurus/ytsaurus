@@ -65,8 +65,8 @@ TTcpConnection::TTcpConnection(
 
 TTcpConnection::~TTcpConnection()
 {
-    YASSERT(Socket == INVALID_SOCKET);
-    YASSERT(Fd == INVALID_SOCKET);
+    CloseSocket();
+    Cleanup();
 }
 
 void TTcpConnection::Cleanup()
@@ -204,11 +204,7 @@ void TTcpConnection::SyncClose(const TError& error)
     OutcomingMessageWatcher.Destroy();
 
     // Close the socket.
-    if (Fd != INVALID_SOCKET) {
-        close(Fd);
-    }
-    Socket = INVALID_SOCKET;
-    Fd = INVALID_SOCKET;
+    CloseSocket();
 
     // Mark all unacked messages as failed.
     while (!UnackedMessages.empty()) {
@@ -240,6 +236,15 @@ void TTcpConnection::SyncClose(const TError& error)
     UpdateConnectionCount(-1);
 
     TTcpDispatcher::TImpl::Get()->AsyncUnregister(this);
+}
+
+void TTcpConnection::CloseSocket()
+{
+    if (Fd != INVALID_SOCKET) {
+        close(Fd);
+    }
+    Socket = INVALID_SOCKET;
+    Fd = INVALID_SOCKET;
 }
 
 IBus::TSendResult TTcpConnection::Send(IMessagePtr message)
