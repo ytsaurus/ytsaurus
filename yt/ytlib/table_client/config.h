@@ -59,8 +59,8 @@ struct TChunkWriterConfig
             .Default(0.0001);
         Register("index_rate", IndexRate)
             .GreaterThan(0)
-            .LessThan(0.1)
-            .Default(0.01);
+            .LessThan(0.001)
+            .Default(0.0001);
         Register("estimated_compression_ratio", EstimatedCompressionRatio)
             .GreaterThan(0)
             .LessThan(1)
