@@ -28,6 +28,18 @@ struct TDsvFormatConfig
     }
 };
 
+struct TJsonFormatConfig
+    : public TConfigurable
+{
+    bool Pretty;
+
+    TJsonFormatConfig()
+    {
+        Register("pretty", Pretty).Default(false);
+    }
+};
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

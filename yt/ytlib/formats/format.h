@@ -23,6 +23,7 @@ DECLARE_ENUM(EDataType,
 DECLARE_ENUM(EFormatType,
     (Null)
     (Yson)
+    (Json)
     (Csv)
     (Dsv)
 );

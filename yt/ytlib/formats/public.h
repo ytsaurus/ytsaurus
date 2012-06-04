@@ -10,6 +10,9 @@ namespace NFormats {
 struct TDsvFormatConfig;
 typedef TIntrusivePtr<TDsvFormatConfig> TDsvFormatConfigPtr;
 
+struct TJsonFormatConfig;
+typedef TIntrusivePtr<TJsonFormatConfig> TJsonFormatConfigPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
