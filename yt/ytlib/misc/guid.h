@@ -3,7 +3,6 @@
 #include "common.h"
 
 #include <util/generic/typetraits.h>
-#include <quality/Misc/Guid.h>
 
 #include <ytlib/misc/guid.pb.h>
 
@@ -27,13 +26,7 @@ struct TGuid
     //! Copy constructor.
     TGuid(const TGuid& guid); // copy ctor
 
-    //! Conversion from quality/Misc/TGUID.
-    TGuid(const TGUID& guid);
-
-    //! Conversion to quality/Misc/TGUID.
-    operator TGUID() const;
-
-    //! Checks if TGuid hasn't been created yet.
+    //! Checks if TGuid is zero.
     bool IsEmpty() const;
 
     //! Creates a new instance.

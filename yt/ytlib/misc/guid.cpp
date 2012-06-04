@@ -4,6 +4,7 @@
 #include <util/datetime/cputimer.h>
 #include <util/system/atomic.h>
 #include <util/system/hostname.h>
+
 #include <time.h>
 
 namespace NYT {
@@ -203,21 +204,9 @@ TGuid::TGuid(ui64 part0, ui64 part1)
     Parts[3] = static_cast<ui32>(part1 >> 32);
 }
 
-TGuid::TGuid(const TGUID& guid)
-{
-    memcpy(Parts, guid.dw, sizeof(Parts));
-}
-
 TGuid::TGuid(const TGuid &guid)
 {
     memcpy(Parts, guid.Parts, sizeof(Parts));
-}
-
-TGuid::operator TGUID() const
-{
-    TGUID guid;
-    memcpy(guid.dw, Parts, sizeof(Parts));
-    return guid;
 }
 
 bool TGuid::IsEmpty() const
