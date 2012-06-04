@@ -116,7 +116,7 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkMap,
-        ~New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::All));
+        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::All));
 }
 
 INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
@@ -126,7 +126,7 @@ INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::LostChunkMap,
-        ~New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Lost));
+        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Lost));
 }
 
 INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
@@ -136,7 +136,7 @@ INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* boots
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::OverreplicatedChunkMap,
-        ~New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Overreplicated));
+        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Overreplicated));
 }
 
 INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
@@ -146,7 +146,7 @@ INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* boot
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::UnderreplicatedChunkMap,
-        ~New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Underreplicated));
+        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Underreplicated));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,7 +190,7 @@ INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkListMap,
-        ~New<TVirtualChunkListMap>(bootstrap));
+        New<TVirtualChunkListMap>(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -463,6 +463,7 @@ private:
         attributes->push_back("chunk_count");
         attributes->push_back("session_count");
         attributes->push_back("online_holder_count");
+        attributes->push_back("chunk_balancer_enabled");
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -530,6 +531,12 @@ private:
         if (name == "online_holder_count") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.OnlineHolderCount);
+            return true;
+        }
+
+        if (name == "chunk_balancer_enabled") {
+            BuildYsonFluently(consumer)
+                .OnDoubleScalar(chunkManager->IsBalancerEnabled());
             return true;
         }
 
