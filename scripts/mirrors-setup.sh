@@ -84,9 +84,6 @@ configure_arcadia_mirror library-simplehashtrie
 configure_arcadia_mirror library-binsaver
 configure_arcadia_mirror library-2darray
 
-configure_arcadia_mirror quality-Misc
-configure_arcadia_mirror quality-netliba_v6
-
 configure_arcadia_mirror util
 
 configure_github_mirror lloyd-yajl
