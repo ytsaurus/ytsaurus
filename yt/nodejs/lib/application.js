@@ -221,6 +221,7 @@ YtCommand.prototype._getDescriptor = function(cb) {
 YtCommand.prototype._addHeaders = function(cb) {
     this.rsp.setHeader("Connection", "close");
     this.rsp.setHeader("Transfer-Encoding", "chunked");
+    this.rsp.setHeader("Access-Control-Allow-Origin", "*");
     this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
     this.rsp.setHeader("X-YT-Request-Hash", this.hash);
 
