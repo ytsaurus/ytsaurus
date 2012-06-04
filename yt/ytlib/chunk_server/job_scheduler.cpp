@@ -93,6 +93,14 @@ void TJobScheduler::OnHolderUnregistered(const THolder& holder)
     YVERIFY(HolderInfoMap.erase(holder.GetId()) == 1);
 }
 
+void TJobScheduler::OnChunkRemoved(const TChunk& chunk)
+{
+    auto chunkId = chunk.GetId();
+    LostChunkIds_.erase(chunkId);
+    UnderreplicatedChunkIds_.erase(chunkId);
+    OverreplicatedChunkIds_.erase(chunkId);
+}
+
 void TJobScheduler::ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
@@ -330,10 +338,6 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleRemovalJob(
         return EScheduleFlags::None;
     }
     
-    LostChunkIds_.erase(chunkId);
-    UnderreplicatedChunkIds_.erase(chunkId);
-    OverreplicatedChunkIds_.erase(chunkId);
-
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
     *startInfo.mutable_job_id() = jobId.ToProto();

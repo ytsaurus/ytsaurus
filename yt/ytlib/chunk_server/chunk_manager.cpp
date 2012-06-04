@@ -689,6 +689,9 @@ private:
             JobListMap.Remove(chunkId);
         }
 
+        // Notify the balancer about chunk's death.
+        JobScheduler->OnChunkRemoved(*chunk);
+
         Profiler.Increment(RemoveChunkCounter);
     }
 
