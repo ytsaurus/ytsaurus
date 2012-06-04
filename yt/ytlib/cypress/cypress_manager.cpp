@@ -866,9 +866,6 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
             LOG_INFO_IF(!IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
         }
 
-        // Remove the branched copy.
-        NodeMap.Remove(branchedId);
-
         // Upgrade lock mode if needed.
         if (parentTransaction && originatingNode->GetLockMode() < branchedNode->GetLockMode()) {
             YASSERT(originatingNode->GetLockMode() != ELockMode::Snapshot);
@@ -878,6 +875,9 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
                 ~originatingId.ToString(),
                 ~FormatEnum(originatingNode->GetLockMode()).Quote());
         }
+
+        // Remove the branched copy.
+        NodeMap.Remove(branchedId);
 
         // Drop the implicit reference to the originator.
         auto objectManager = Bootstrap->GetObjectManager();
