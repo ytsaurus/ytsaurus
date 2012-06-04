@@ -44,8 +44,6 @@ add_library( ytlib STATIC
 target_link_libraries ( ytlib
   ytext-arcadia-util
 
-  ytext-quality-misc
-  ytext-quality-netliba_v6
   ytext-json
 
   # TODO(sandello): arcadia-utils should depend on these targets.

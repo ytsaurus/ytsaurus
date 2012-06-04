@@ -57,8 +57,6 @@ endif()
 
 add_subdirectory(cmake/deps-arcadia-util)
 add_subdirectory(cmake/deps-protobuf)
-add_subdirectory(cmake/deps-quality-misc)
-add_subdirectory(cmake/deps-quality-netliba_v6)
 add_subdirectory(cmake/deps-uv)
 add_subdirectory(cmake/deps-z-lz-lzo)
 
