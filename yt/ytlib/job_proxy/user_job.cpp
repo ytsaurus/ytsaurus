@@ -111,9 +111,9 @@ NScheduler::NProto::TJobResult TUserJob::Run()
 
     {
         auto chunkId = ErrorOutput->GetChunkId();
-        if (chunkId != NChunkServer::NullChunkId) {
+        if (chunkId) {
             auto* resultExt = result.MutableExtension(NScheduler::NProto::TUserJobResultExt::user_job_result_ext);
-            *resultExt->mutable_stderr_chunk_id() = chunkId->ToProto();           
+            *resultExt->mutable_stderr_chunk_id() = chunkId->ToProto();
         }
     }
 
