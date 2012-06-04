@@ -48,12 +48,12 @@ fs.readFile(opts.argv.c, function(err, configuration) {
     try {
         var logger = new winston.Logger({
             transports: [ opts.argv.l
-                ? new winston.transports.Console({
-                    timestamp: true
-                })
-                : new winston.transports.File({
+                ? new winston.transports.File({
                     level: "debug",
                     filename: opts.argv.l,
+                    timestamp: true
+                })
+                : new winston.transports.Console({
                     timestamp: true
                 })
             ]
@@ -76,7 +76,7 @@ fs.readFile(opts.argv.c, function(err, configuration) {
                     process.exit(100);
                 }
             });
-    } catch(ex) {
+    } catch(err) {
         console.error("Error: [%s] Call: [%s]", err.message, err.syscall);
         process.exit(200);
     }
