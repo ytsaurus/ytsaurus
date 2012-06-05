@@ -134,7 +134,7 @@ class YTEnv:
             p = subprocess.Popen([
                 'ytserver', '--master',
                 '--config', self.config_paths['master'][i],
-                '--port', 8001 + i ],
+                '--port', str(8001 + i)],
                 shell=False, close_fds=True, preexec_fn=os.setsid)
             self.process_to_kill.append((p, "master-%d" % (i)))
 
@@ -159,7 +159,7 @@ class YTEnv:
             p = subprocess.Popen([
                 'ytserver', '--node',
                 '--config', self.config_paths['holder'][i],
-                '--port', 7001 + i ],
+                '--port', str(7001 + i)],
                 shell=False, close_fds=True, preexec_fn=os.setsid)
             self.process_to_kill.append((p, "holder-%d" % (i)))
 
@@ -192,7 +192,7 @@ class YTEnv:
             p = subprocess.Popen([
                 'ytserver', '--scheduler',
                 '--config', self.config_paths['scheduler'][i],
-                '--port', 8101 + i ]
+                '--port', str(8101 + i)],
                 shell=False, close_fds=True, preexec_fn=os.setsid)
             self.process_to_kill.append((p, "scheduler-%d" % (i)))
 
