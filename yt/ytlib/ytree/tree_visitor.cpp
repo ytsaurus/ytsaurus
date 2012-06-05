@@ -85,7 +85,11 @@ void TTreeVisitor::VisitAny(INodePtr node)
 
 void TTreeVisitor::VisitAttributes(INodePtr node)
 {
-    yhash_set<Stroka> attributeKeySet = node->Attributes().List();
+    //NB: this cast enforces calling the constant overload of Attributes() getter.
+    // Calling non-const version mutates node and makes TreeVisitor thread unsafe.
+    auto constNode = const_cast<const INode*>(~node);
+
+    yhash_set<Stroka> attributeKeySet = constNode->Attributes().List();
     if (!attributeKeySet.empty()) {
         std::vector<Stroka> attributeKeyList(attributeKeySet.begin(), attributeKeySet.end());
         std::sort(attributeKeyList.begin(), attributeKeyList.end());
