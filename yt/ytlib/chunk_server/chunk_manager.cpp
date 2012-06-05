@@ -690,7 +690,9 @@ private:
         }
 
         // Notify the balancer about chunk's death.
-        ChunkBalancer->OnChunkRemoved(*chunk);
+        if (ChunkBalancer) {
+            ChunkBalancer->OnChunkRemoved(*chunk);
+        }
 
         Profiler.Increment(RemoveChunkCounter);
     }
