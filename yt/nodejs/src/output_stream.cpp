@@ -161,6 +161,10 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
+    if (length == 0) {
+        return;
+    }
+
     char* buffer = new char[length];
     YASSERT(buffer);
 
