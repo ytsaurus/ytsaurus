@@ -65,11 +65,14 @@ YtCommand.prototype.dispatch = function() {
     ].map(function(func) {
         return func.bind(self);
     }), function andThen(error) {
-        if (error) {
-            self.logger.error(error.cause.message, { hash : self.hash });
+        var thereWasError = error || self.rsp.ytCode != 0;
+        if (thereWasError) {
+            var message = error ? error.cause.message : self.rsp.ytMessage;
+            self.logger.error(message, { hash : self.hash });
 
             if (!self.rsp._header) {
-                var body = JSON.stringify({ error : error.cause.message });
+                var body = JSON.stringify({ error : message });
+                self.rsp.removeHeader("Transfer-Encoding");
                 self.rsp.setHeader("Content-Type", "application/json");
                 self.rsp.setHeader("Content-Length", body.length);
                 self.rsp.end(body);
@@ -161,7 +164,7 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
         for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
-            if (mime === utils.accepts(mime, header)) {
+            if (utils.accepts(mime, header)) {
                 result = _MAPPING_MIME_TYPE_TO_FORMAT[mime];
                 this.rsp.setHeader("Content-Type", mime);
                 break;
@@ -235,7 +238,11 @@ YtCommand.prototype._execute = function(cb) {
         this.rsp, this.output_format,
         this.parameters, function(code, message)
         {
+            self.rsp.ytCode = code;
+            self.rsp.ytMessage = message;
+
             self.logger.info("Command '" + self.name + "' successfully executed", { hash : self.hash, code : code, message : JSON.stringify(message) });
+
             if (code === 0) {
                 self.rsp.statusCode = 200;
             } else if (code < 0) {
