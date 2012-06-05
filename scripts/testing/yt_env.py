@@ -9,7 +9,7 @@ import yson
 import copy
 import os
 import subprocess
-#import signal
+import signal
 import re
 import time
 import socket
@@ -87,24 +87,24 @@ class YTEnv:
         for p, name in self.process_to_kill:
             p.poll()
             if p.returncode is not None:
-                print '%s, pid %d, is already terminated with exit status %d' % (name, p.pid, p.returncode)
-                #import pdb
-                #pdb.set_trace()
+                print '%s (pid %d) is already terminated with exit status %d' % (name, p.pid, p.returncode)
                 continue
-            p.kill()
+            os.killpg(p.pid, signal.SIGTERM)
 
-            time.sleep(0.1)
+            time.sleep(0.250)
+
             # now try to kill unkilled process
-            p.poll()
+            for i in xrange(50):
+                p.poll()
+                if p.returncode is not None:
+                    break
+                print '%s (pid %d) was not killed by the kill command' % (name, p.pid)
+
+                os.killpg(p.pid, signal.SIGKILL)
+                time.sleep(0.100)
+
             if p.returncode is None:
-                print '%s, pid %d, wasnt killed by the kill command' %(name, p.pid)
-                for i in xrange(50):
-                    p.poll()
-                    if p.returncode is not None: break
-                    p.kill()
-                    time.sleep(0.1)
-                else:
-                    assert False, 'ALARM!!!, %s wasnt killed after 10 iterations' % (name)
+                assert False, 'Alarm! %s (pid %d) was not killed after 50 iterations' % (name, p. pid)
 
     def _set_path(self, path_to_run):
         path_to_run = os.path.abspath(path_to_run)
@@ -131,13 +131,12 @@ class YTEnv:
 
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
-            p = subprocess.Popen('ytserver --master --config {config_path}  --port {port}'.format(
-                    config_path=self.config_paths['master'][i],
-                    port=8001 + i
-                ).split())
-            p.poll()
-            name = "master-%d" % (i)
-            self.process_to_kill.append((p, name))
+            p = subprocess.Popen([
+                'ytserver', '--master',
+                '--config', self.config_paths['master'][i],
+                '--port', 8001 + i ],
+                shell=False, close_fds=True, preexec_fn=os.setsid)
+            self.process_to_kill.append((p, "master-%d" % (i)))
 
     # TODO(panin): think about refactoring this part
     def _wait_for_ready_masters(self):
@@ -157,10 +156,11 @@ class YTEnv:
 
     def _run_holders(self):
         for i in xrange(self.NUM_HOLDERS):
-            p = subprocess.Popen('ytserver --node --config {config_path} --port {port}'.format(
-                    port=7001 + i,
-                    config_path=self.config_paths['holder'][i],
-                ).split())
+            p = subprocess.Popen([
+                'ytserver', '--node',
+                '--config', self.config_paths['holder'][i],
+                '--port', 7001 + i ],
+                shell=False, close_fds=True, preexec_fn=os.setsid)
             self.process_to_kill.append((p, "holder-%d" % (i)))
 
     def _wait_for_ready_holders(self):
@@ -189,10 +189,11 @@ class YTEnv:
 
     def _run_schedulers(self):
         for i in xrange(self.NUM_SCHEDULERS):
-            p = subprocess.Popen('ytserver --scheduler --config {config_path} --port {port}'.format(
-                    port=8101 + i,
-                    config_path=self.config_paths['scheduler'][i],
-                ).split())
+            p = subprocess.Popen([
+                'ytserver', '--scheduler',
+                '--config', self.config_paths['scheduler'][i],
+                '--port', 8101 + i ]
+                shell=False, close_fds=True, preexec_fn=os.setsid)
             self.process_to_kill.append((p, "scheduler-%d" % (i)))
 
     def _wait_for_ready_schedulers(self):
