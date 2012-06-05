@@ -852,19 +852,21 @@ void TCypressManager::ReleaseLocks(const TTransaction& transaction)
 void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode* branchedNode)
 {
     auto handler = GetHandler(*branchedNode);
+    
+    if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
+        handler->Destroy(*branchedNode);
+        LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedId.ToString());
+        return;
+    }
+
     auto parentTransaction = transaction.GetParent();
     auto branchedId = branchedNode->GetId();
     auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
     auto* originatingNode = NodeMap.Find(originatingId);
     if (originatingNode) {
-        // Merge the changes back (unless the node is locked in Snapshot mode).
-        if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
-            handler->Destroy(*branchedNode);
-            LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedId.ToString());
-        } else {
-            handler->Merge(*originatingNode, *branchedNode);
-            LOG_INFO_IF(!IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
-        }
+        // Merge changes back.
+        handler->Merge(*originatingNode, *branchedNode);
+        LOG_INFO_IF(!IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
 
         // Upgrade lock mode if needed.
         if (parentTransaction && originatingNode->GetLockMode() < branchedNode->GetLockMode()) {
