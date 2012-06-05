@@ -536,7 +536,7 @@ private:
 
         if (name == "chunk_balancer_enabled") {
             BuildYsonFluently(consumer)
-                .OnDoubleScalar(chunkManager->IsBalancerEnabled());
+                .Scalar(chunkManager->IsBalancerEnabled());
             return true;
         }
 

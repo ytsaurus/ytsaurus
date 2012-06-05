@@ -852,7 +852,8 @@ void TCypressManager::ReleaseLocks(const TTransaction& transaction)
 void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode* branchedNode)
 {
     auto handler = GetHandler(*branchedNode);
-    
+
+    auto branchedId = branchedNode->GetId();
     if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
         handler->Destroy(*branchedNode);
         LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedId.ToString());
@@ -860,7 +861,6 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
     }
 
     auto parentTransaction = transaction.GetParent();
-    auto branchedId = branchedNode->GetId();
     auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
     auto* originatingNode = NodeMap.Find(originatingId);
     if (originatingNode) {
