@@ -52,7 +52,8 @@ struct TWriteRequest
         Register("path", Path);
         Register("value", Value)
             .Default();
-        Register("sorted_by", SortedBy).Default();
+        Register("sorted_by", SortedBy)
+            .Default();
     }
 
     virtual void DoValidate() const
@@ -85,4 +86,3 @@ private:
 
 } // namespace NDriver
 } // namespace NYT
-
