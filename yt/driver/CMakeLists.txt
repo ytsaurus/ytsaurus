@@ -1,25 +1,25 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/driver )
 set( SRCS
-  ${BASE}/cypress_executor.cpp
+  ${BASE}/cypress_executors.cpp
   ${BASE}/executor.cpp
-  ${BASE}/file_executor.cpp
+  ${BASE}/file_executors.cpp
   ${BASE}/main.cpp
   ${BASE}/preprocess.cpp
-  ${BASE}/scheduler_executor.cpp
-  ${BASE}/table_executor.cpp
-  ${BASE}/transaction_executor.cpp
+  ${BASE}/scheduler_executors.cpp
+  ${BASE}/table_executors.cpp
+  ${BASE}/transaction_executors.cpp
 )
 
 set( HDRS
   ${BASE}/config.h
-  ${BASE}/cypress_executor.h
+  ${BASE}/cypress_executors.h
   ${BASE}/executor.h
-  ${BASE}/file_executor.h
+  ${BASE}/file_executors.h
   ${BASE}/preprocess.h
-  ${BASE}/scheduler_executor.h
-  ${BASE}/table_executor.h
-  ${BASE}/transaction_executor.h
+  ${BASE}/scheduler_executors.h
+  ${BASE}/table_executors.h
+  ${BASE}/transaction_executors.h
 )
 
 add_executable( yt ${SRCS} ${HDRS} )
