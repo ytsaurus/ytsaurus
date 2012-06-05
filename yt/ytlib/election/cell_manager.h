@@ -14,7 +14,7 @@ class TCellManager
     : public TRefCounted
 {
 public:
-    TCellManager(TCellConfigPtr config);
+    explicit TCellManager(TCellConfigPtr config);
 
     DEFINE_BYVAL_RO_PROPERTY(TPeerId, SelfId);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, SelfAddress);
@@ -39,7 +39,7 @@ private:
 template <class TProxy>
 TAutoPtr<TProxy> TCellManager::GetMasterProxy(TPeerId id) const
 {
-    return new TProxy(~ChannelCache.GetChannel(GetPeerAddress(id)));
+    return new TProxy(ChannelCache.GetChannel(GetPeerAddress(id)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

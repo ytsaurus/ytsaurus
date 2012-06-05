@@ -28,7 +28,7 @@ public:
         ((SnapshotAlreadyInProgress)(6))
     );
 
-    TMetaStateManagerProxy(NRpc::IChannelPtr channel)
+    explicit TMetaStateManagerProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
