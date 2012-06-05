@@ -49,7 +49,6 @@ protected:
 
 private:
     ICompositeNode* Parent;
-    TAutoPtr<IAttributeDictionary> Attributes_;
 
 };
 

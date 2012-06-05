@@ -138,6 +138,11 @@ public:
         return NObjectServer::TObjectProxyBase::Attributes();
     }
 
+    virtual NYTree::IAttributeDictionary& Attributes() const
+    {
+        return NObjectServer::TObjectProxyBase::Attributes();
+    }
+
 protected:
     INodeTypeHandler::TPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
