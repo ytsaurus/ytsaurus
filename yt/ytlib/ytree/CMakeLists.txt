@@ -6,7 +6,6 @@ set( SRCS
   ${BASE}/attributes.cpp
   ${BASE}/ephemeral.cpp
   ${BASE}/forwarding_yson_consumer.cpp
-  ${BASE}/json_adapter.cpp
   ${BASE}/lexer.cpp
   ${BASE}/node_detail.cpp
   ${BASE}/null_yson_consumer.cpp
@@ -34,7 +33,6 @@ set( HDRS
   ${BASE}/ephemeral.h
   ${BASE}/fluent.h
   ${BASE}/forwarding_yson_consumer.h
-  ${BASE}/json_adapter.h
   ${BASE}/lexer.h
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h

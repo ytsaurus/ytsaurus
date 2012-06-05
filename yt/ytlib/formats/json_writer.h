@@ -1,44 +1,66 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 
-#include <ytlib/ytree/yson_consumer.h>
-#include <ytlib/misc/enum.h>
+#include <ytlib/ytree/forwarding_yson_consumer.h>
+#include <ytlib/ytree/yson_writer.h>
 
 #include <library/json/json_writer.h>
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Translates YSON events into a series of calls to TJsonWriter
+//! thus enabling to transform YSON into JSON.
+/*!
+ *  \note
+ *  Entities are translated to empty maps.
+ *  
+ *  Attributes are only supported for entities and maps.
+ *  They are written as an inner "$attributes" map.
+ *  
+ *  Explicit #Flush calls should be made when finished writing via the adapter.
+ */
+// XXX(babenko): YSON strings vs JSON strings.
 class TJsonWriter
-    : public NYTree::TYsonConsumerBase
+    : public NYTree::TForwardingYsonConsumer
 {
 public:
-    explicit TJsonWriter(TOutputStream* stream, TJsonFormatConfigPtr config = NULL);
-    ~TJsonWriter();
+    TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config = NULL);
 
-    // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value);
-    virtual void OnIntegerScalar(i64 value);
-    virtual void OnDoubleScalar(double value);
-    virtual void OnEntity();
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList();
-    virtual void OnBeginMap();
-    virtual void OnKeyedItem(const TStringBuf& key);
-    virtual void OnEndMap();
-    virtual void OnBeginAttributes();
-    virtual void OnEndAttributes();
+    void Flush();
+
+    virtual void OnMyStringScalar(const TStringBuf& value);
+    virtual void OnMyIntegerScalar(i64 value);
+    virtual void OnMyDoubleScalar(double value);
+
+    virtual void OnMyEntity();
+
+    virtual void OnMyBeginList();
+    virtual void OnMyListItem();
+    virtual void OnMyEndList();
+
+    virtual void OnMyBeginMap();
+    virtual void OnMyKeyedItem(const TStringBuf& key);
+    virtual void OnMyEndMap();
+
+    virtual void OnMyBeginAttributes();
+    virtual void OnMyEndAttributes();
 
 private:
-    TOutputStream* Stream;
+    THolder<NJson::TJsonWriter> JsonWriter;
+    NYTree::TYson Attributes;
+    TStringOutput AttributesOutput;
+    NYTree::TYsonWriter AttributesWriter;
     TJsonFormatConfigPtr Config;
 
-    THolder<NJson::TJsonWriter> Writer;
+    void FlushAttributes();
+    void DiscardAttributes();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,85 +1,121 @@
 #include "stdafx.h"
 #include "json_writer.h"
+#include "config.h"
+
+#include <ytlib/ytree/null_yson_consumer.h>
+#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NFormats {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonWriter::TJsonWriter(TOutputStream* stream, TJsonFormatConfigPtr config)
-    : Stream(stream)
+TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
+    : JsonWriter(new NJson::TJsonWriter(output, false))
+    , AttributesOutput(Attributes)
+    // TODO(panin): use config here
+    , AttributesWriter(&AttributesOutput, EYsonFormat::Binary, EYsonType::KeyedFragment)
     , Config(config)
 {
     if (!Config) {
         Config = New<TJsonFormatConfig>();
     }
-
-    Writer.Reset(new NJson::TJsonWriter(Stream, Config->Pretty));
 }
 
-TJsonWriter::~TJsonWriter()
+void TJsonWriter::OnMyStringScalar(const TStringBuf& value)
 {
-    Writer->Flush();
+    JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
-void TJsonWriter::OnStringScalar(const TStringBuf& value)
+void TJsonWriter::OnMyIntegerScalar(i64 value)
 {
-    Writer->Write(value);
+    JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
-void TJsonWriter::OnIntegerScalar(i64 value)
+void TJsonWriter::OnMyDoubleScalar(double value)
 {
-    Writer->Write(value);
+    JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
-void TJsonWriter::OnDoubleScalar(double value)
+void TJsonWriter::OnMyEntity()
 {
-    Writer->Write(value);
+    JsonWriter->OpenMap();
+
+    JsonWriter->Write("$type");
+    JsonWriter->Write("entity");
+
+    FlushAttributes();
+
+    JsonWriter->CloseMap();
 }
 
-void TJsonWriter::OnEntity()
+void TJsonWriter::OnMyBeginList()
 {
-    Writer->OpenMap();
-    Writer->Write("$type", "entity");
-    Writer->CloseMap();
+    JsonWriter->OpenArray();
+    DiscardAttributes();
 }
 
-void TJsonWriter::OnBeginList()
-{
-    Writer->OpenArray();
-}
-
-void TJsonWriter::OnListItem()
+void TJsonWriter::OnMyListItem()
 { }
 
-void TJsonWriter::OnEndList()
+void TJsonWriter::OnMyEndList()
 {
-    Writer->CloseArray();
+
+    JsonWriter->CloseArray();
 }
 
-void TJsonWriter::OnBeginMap()
+void TJsonWriter::OnMyBeginMap()
 {
-    Writer->OpenMap();
+    JsonWriter->OpenMap();
+    FlushAttributes();
 }
 
-void TJsonWriter::OnKeyedItem(const TStringBuf& key)
+void TJsonWriter::OnMyKeyedItem(const TStringBuf& name)
 {
-    Writer->Write(key);
+    JsonWriter->Write(name);
 }
 
-void TJsonWriter::OnEndMap()
+void TJsonWriter::OnMyEndMap()
 {
-    Writer->CloseMap();
+    JsonWriter->CloseMap();
 }
 
-void TJsonWriter::OnBeginAttributes()
+void TJsonWriter::OnMyBeginAttributes()
 {
-    ythrow yexception() << "Attributes are not supported";
+    YASSERT(Attributes.Empty());
+    Forward(&AttributesWriter, TClosure(), EYsonType::KeyedFragment);
 }
 
-void TJsonWriter::OnEndAttributes()
+void TJsonWriter::OnMyEndAttributes()
+{ }
+
+void TJsonWriter::FlushAttributes()
 {
-    ythrow yexception() << "Attributes are not supported";
+    if (!Attributes.Empty()) {
+        // Swap the attributes into a local variable and copy the stored copy.
+        auto attributes = Attributes; // local copy
+        Attributes.clear();
+
+        JsonWriter->Write("$attributes");
+        JsonWriter->OpenMap();
+        OnRaw(attributes, EYsonType::KeyedFragment);
+        JsonWriter->CloseMap();
+    }
+}
+
+void TJsonWriter::DiscardAttributes()
+{
+    Attributes.clear();
+}
+
+void TJsonWriter::Flush()
+{
+    JsonWriter->Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

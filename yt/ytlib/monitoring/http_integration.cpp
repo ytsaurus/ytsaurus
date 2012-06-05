@@ -3,7 +3,8 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/url.h>
-#include <ytlib/ytree/json_adapter.h>
+#include <ytlib/formats/json_writer.h>
+#include <ytlib/formats/config.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -22,7 +23,7 @@ using namespace NHttp;
 
 namespace {
 
-Stroka OnResponse(TYPathProxy::TRspGetPtr rsp)
+Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
 {
     if (!rsp->IsOK()) {
         // TODO(sandello): Proper JSON escaping here.
@@ -31,9 +32,9 @@ Stroka OnResponse(TYPathProxy::TRspGetPtr rsp)
 
     // TODO(babenko): maybe extract method
     TStringStream output;
-    TJsonAdapter adapter(&output);
-    ParseYson(rsp->value(), &adapter);
-    adapter.Flush();
+    NFormats::TJsonWriter writer(&output);
+    ParseYson(rsp->value(), &writer);
+    writer.Flush();
 
     return FormatOKResponse(output.Str());
 }
