@@ -1234,6 +1234,11 @@ private:
 
                 auto job = FindJob(jobId);
 
+                if (job) {
+                    Logger.AddTag(Sprintf("JobType: %s",
+                        ~EJobType(job->Spec().type()).ToString()));
+                }
+
                 auto operation = job ? job->GetOperation() : NULL;
                 if (operation) {
                     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
