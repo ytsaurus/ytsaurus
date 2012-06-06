@@ -157,9 +157,9 @@ private:
 
     bool IsPartitionAwaitingSort(TPartitionPtr partition)
     {
-        return GetPendingPartitionJobCount() > 0
-            ? partition->SortChunkPool.GetPendingWeight() >= Spec->MaxSortJobDataSize
-            : partition->SortChunkPool.HasPendingChunks();
+        return IsPartitionPhaseCompleted()
+            ? partition->SortChunkPool.HasPendingChunks()
+            : partition->SortChunkPool.GetPendingWeight() >= Spec->MaxSortJobDataSize;
     }
 
     bool IsPartitionAwaitingSortAt(TPartitionPtr partition, const Stroka& address)
