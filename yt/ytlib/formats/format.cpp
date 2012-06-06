@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "format.h"
 
+#include "json_parser.h"
 #include "json_writer.h"
 
 #include "dsv_parser.h"
@@ -205,6 +206,13 @@ TYsonProducer CreateProducerForDsv(
     });
 }
 
+TYsonProducer CreateProducerForJson(EDataType dataType, TInputStream* input)
+{
+    return BIND([=] (IYsonConsumer* consumer) {
+        ParseJson(input, consumer);
+    });
+}
+
 TYsonProducer CreateProducerForYson(EDataType dataType, TInputStream* input)
 {
     auto ysonType = DataTypeToYsonType(dataType);
@@ -216,6 +224,8 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
     switch (format.GetType()) {
         case EFormatType::Yson:
             return CreateProducerForYson(dataType, input);
+        case EFormatType::Json:
+            return CreateProducerForJson(dataType, input);
         case EFormatType::Dsv:
             return CreateProducerForDsv(dataType, format.GetAttributes(), input);
         default:
@@ -231,6 +241,8 @@ TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType
     switch (format.GetType()) {
         case EFormatType::Yson:
             return new TYsonParser(consumer, DataTypeToYsonType(dataType));
+        case EFormatType::Json:
+            return new TJsonParser(consumer);
         case EFormatType::Dsv: {
             auto config = New<TDsvFormatConfig>();
             config->Load(format.GetAttributes()->ToMap());
