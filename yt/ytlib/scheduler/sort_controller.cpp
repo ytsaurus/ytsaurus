@@ -532,6 +532,7 @@ private:
         ++CompletedPartitionJobCount;
         CompletedPartitionChunkCount += jip->PoolResult->TotalChunkCount;
         CompletedPartitionWeight += jip->PoolResult->TotalChunkWeight;
+        PartitionChunkPool.Completed(jip->PoolResult);
 
         auto* resultExt = jip->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
         FOREACH (auto& partitionChunk, *resultExt->mutable_chunks()) {
@@ -648,6 +649,8 @@ private:
         CompletedSortWeight += jip->PoolResult->TotalChunkWeight;
 
         auto partition = jip->Partition;
+        partition->SortChunkPool.Completed(jip->PoolResult);
+
         if (partition->Small) {
             // Sort outputs in small partitions go directly to the output table.
             CompletePartition(partition, jip->ChunkListId);
@@ -746,7 +749,10 @@ private:
         --RunningMergeJobCount;
         ++CompletedMergeJobCount;
 
-        CompletePartition(jip->Partition, jip->ChunkListId);
+        auto partition = jip->Partition;
+        partition->MergeChunkPool.Completed(jip->PoolResult);
+
+        CompletePartition(partition, jip->ChunkListId);
     }
 
     void OnMergeJobFailed(TMergeJobInProgress* jip)

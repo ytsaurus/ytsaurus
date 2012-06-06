@@ -291,9 +291,10 @@ public:
         : TotalWeight(0)
         , Extracted(false)
         , Initialized(false)
+        , Completed_(false)
     { }
 
-    virtual void Add(TChunkStripePtr stripe)
+    void Add(TChunkStripePtr stripe)
     {
         YASSERT(!Initialized);
         TotalWeight += stripe->Weight;
@@ -305,7 +306,7 @@ public:
         }
     }
 
-    virtual TPoolExtractionResultPtr Extract(
+    TPoolExtractionResultPtr Extract(
         const Stroka& address,
         bool needLocal)
     {
@@ -325,29 +326,45 @@ public:
         return result;
     }
 
-    virtual void Failed(TPoolExtractionResultPtr result)
+    void Failed(TPoolExtractionResultPtr result)
     {
         YASSERT(Initialized);
         YASSERT(Extracted);
         Extracted = false;
     }
 
-    virtual i64 GetTotalWeight() const
+    void Completed(TPoolExtractionResultPtr result)
+    {
+        YASSERT(Initialized);
+        YASSERT(Extracted);
+    }
+
+    i64 GetTotalWeight() const
     {
         return TotalWeight;
     }
 
-    virtual i64 GetPendingWeight() const
+    i64 GetPendingWeight() const
     {
         return Extracted ? 0 : TotalWeight;
     }
 
-    virtual bool HasPendingChunks() const
+    i64 GetCompletedWeight() const
+    {
+        return Completed_ ? TotalWeight : 0;
+    }
+
+    bool IsCompleted() const
+    {
+        return Completed_;
+    }
+
+    bool HasPendingChunks() const
     {
         return !Extracted && !Stripes.empty();
     }
 
-    virtual bool HasPendingLocalChunksAt(const Stroka& address) const
+    bool HasPendingLocalChunksAt(const Stroka& address) const
     {
         return
             Extracted
@@ -364,6 +381,8 @@ private:
     bool Extracted;
     //! Has any #Extract call been made already?
     bool Initialized;
+    //! Were extracted chunks processed successfully?
+    bool Completed_;
 
 };
 
@@ -395,6 +414,11 @@ void TAtomicChunkPool::Failed(TPoolExtractionResultPtr result)
     Impl->Failed(result);
 }
 
+void TAtomicChunkPool::Completed(TPoolExtractionResultPtr result)
+{
+    Impl->Completed(result);
+}
+
 i64 TAtomicChunkPool::GetTotalWeight() const
 {
     return Impl->GetTotalWeight();
@@ -403,6 +427,16 @@ i64 TAtomicChunkPool::GetTotalWeight() const
 i64 TAtomicChunkPool::GetPendingWeight() const
 {
     return Impl->GetPendingWeight();
+}
+
+i64 TAtomicChunkPool::GetCompletedWeight() const
+{
+    return Impl->GetCompletedWeight();
+}
+
+bool TAtomicChunkPool::IsCompleted() const
+{
+    return Impl->IsCompleted();
 }
 
 bool TAtomicChunkPool::HasPendingChunks() const

@@ -94,6 +94,7 @@ public:
     i64 GetPendingWeight() const;
     i64 GetCompletedWeight() const;
 
+    bool IsCompleted() const;
     bool HasPendingChunks() const;
     bool HasPendingLocalChunksAt(const Stroka& address) const;
      
