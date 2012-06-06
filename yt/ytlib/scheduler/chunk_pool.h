@@ -57,11 +57,14 @@ public:
         const Stroka& address,
         i64 weightThreshold,
         bool needLocal);
-    void Return(TPoolExtractionResultPtr result);
+    void Failed(TPoolExtractionResultPtr result);
+    void Completed(TPoolExtractionResultPtr result);
 
     i64 GetTotalWeight() const;
     i64 GetPendingWeight() const;
+    i64 GetCompletedWeight() const;
 
+    bool IsCompleted() const;
     bool HasPendingChunks() const;
     bool HasPendingLocalChunksAt(const Stroka& address) const;
 
@@ -84,10 +87,12 @@ public:
     TPoolExtractionResultPtr Extract(
         const Stroka& address,
         bool needLocal);
-    void Return(TPoolExtractionResultPtr result);
+    void Failed(TPoolExtractionResultPtr result);
+    void Completed(TPoolExtractionResultPtr result);
 
     i64 GetTotalWeight() const;
     i64 GetPendingWeight() const;
+    i64 GetCompletedWeight() const;
 
     bool HasPendingChunks() const;
     bool HasPendingLocalChunksAt(const Stroka& address) const;

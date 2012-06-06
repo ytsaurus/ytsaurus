@@ -75,6 +75,7 @@ public:
     TImpl()
         : TotalWeight(0)
         , PendingWeight(0)
+        , CompletedWeight(0)
     { }
 
     void Add(TChunkStripePtr stripe)
@@ -138,11 +139,16 @@ public:
         return result;
     }
 
-    void Return(TPoolExtractionResultPtr result)
+    void Failed(TPoolExtractionResultPtr result)
     {
         FOREACH (const auto& stripe, result->Stripes) {
             Add(stripe);
         }
+    }
+
+    void Completed(TPoolExtractionResultPtr result)
+    {
+        CompletedWeight += result->TotalChunkWeight;
     }
 
     i64 GetTotalWeight() const
@@ -153,6 +159,16 @@ public:
     i64 GetPendingWeight() const
     {
         return PendingWeight;
+    }
+
+    i64 GetCompletedWeight() const
+    {
+        return CompletedWeight;
+    }
+
+    bool IsCompleted() const
+    {
+        return CompletedWeight == TotalWeight;
     }
 
     bool HasPendingChunks() const
@@ -169,6 +185,7 @@ public:
 private:
     i64 TotalWeight;
     i64 PendingWeight;
+    i64 CompletedWeight;
     yhash_map<Stroka, yhash_set<TChunkStripePtr> > LocalChunks;
     yhash_set<TChunkStripePtr> GlobalChunks;
     
@@ -225,9 +242,14 @@ TPoolExtractionResultPtr TUnorderedChunkPool::Extract(
         needLocal);
 }
 
-void TUnorderedChunkPool::Return(TPoolExtractionResultPtr result)
+void TUnorderedChunkPool::Failed(TPoolExtractionResultPtr result)
 {
-    Impl->Return(result);
+    Impl->Failed(result);
+}
+
+void TUnorderedChunkPool::Completed(TPoolExtractionResultPtr result)
+{
+    return Impl->Completed(result);
 }
 
 i64 TUnorderedChunkPool::GetTotalWeight() const
@@ -238,6 +260,16 @@ i64 TUnorderedChunkPool::GetTotalWeight() const
 i64 TUnorderedChunkPool::GetPendingWeight() const
 {
     return Impl->GetPendingWeight();
+}
+
+i64 TUnorderedChunkPool::GetCompletedWeight() const
+{
+    return Impl->GetCompletedWeight();
+}
+
+bool TUnorderedChunkPool::IsCompleted() const
+{
+    return Impl->IsCompleted();
 }
 
 bool TUnorderedChunkPool::HasPendingChunks() const
@@ -293,7 +325,7 @@ public:
         return result;
     }
 
-    virtual void Return(TPoolExtractionResultPtr result)
+    virtual void Failed(TPoolExtractionResultPtr result)
     {
         YASSERT(Initialized);
         YASSERT(Extracted);
@@ -358,9 +390,9 @@ TPoolExtractionResultPtr TAtomicChunkPool::Extract(
         needLocal);
 }
 
-void TAtomicChunkPool::Return(TPoolExtractionResultPtr result)
+void TAtomicChunkPool::Failed(TPoolExtractionResultPtr result)
 {
-    Impl->Return(result);
+    Impl->Failed(result);
 }
 
 i64 TAtomicChunkPool::GetTotalWeight() const

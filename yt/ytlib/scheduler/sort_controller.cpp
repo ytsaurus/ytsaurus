@@ -158,7 +158,7 @@ private:
     bool IsPartitionAwaitingSort(TPartitionPtr partition)
     {
         return GetPendingPartitionJobCount() > 0
-            ? partition->SortChunkPool.GetTotalWeight() > Spec->MaxSortJobDataSize
+            ? partition->SortChunkPool.GetPendingWeight() >= Spec->MaxSortJobDataSize
             : partition->SortChunkPool.HasPendingChunks();
     }
 
@@ -198,7 +198,7 @@ private:
             partition->Index);
 
         if (Partitions.size() > 1 &&
-            IsPartitionPhaseComplete() &&
+            IsPartitionPhaseCompleted() &&
             partition->SortChunkPool.GetTotalWeight() <= Spec->MaxSortJobDataSize)
         {
             partition->Small = true;
@@ -240,7 +240,7 @@ private:
         TPartitionPtr partition,
         TPoolExtractionResultPtr result)
     {
-        partition->SortChunkPool.Return(result);
+        partition->SortChunkPool.Failed(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterStripeForSort(partition, chunk);
         }
@@ -268,7 +268,10 @@ private:
 
     bool IsPartitionAwaitingMerge(TPartitionPtr partition)
     {
-        return !partition->Small && partition->MergeChunkPool.HasPendingChunks();
+        return
+            !partition->Small &&
+            IsSortPhaseCompleted(partition) &&
+            partition->MergeChunkPool.HasPendingChunks();
     }
 
     bool IsPartitionAwaitingMergeAt(TPartitionPtr partition, const Stroka& address)
@@ -332,7 +335,7 @@ private:
         TPartitionPtr partition,
         TPoolExtractionResultPtr result)
     {
-        partition->MergeChunkPool.Return(result);
+        partition->MergeChunkPool.Failed(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterStripeForMerge(partition, chunk);
         }
@@ -356,9 +359,16 @@ private:
 
     // Init/finish.
 
-    bool IsPartitionPhaseComplete()
+    bool IsPartitionPhaseCompleted()
     {
-        return CompletedPartitionChunkCount == TotalPartitionChunkCount;
+        return PartitionChunkPool.IsCompleted();
+    }
+
+    bool IsSortPhaseCompleted(TPartitionPtr partition)
+    {
+        return
+            IsPartitionPhaseCompleted() &&
+            partition->SortChunkPool.IsCompleted();
     }
 
     virtual int GetPendingJobCount()
@@ -390,14 +400,14 @@ private:
         i64 weight = partition->SortChunkPool.GetPendingWeight();
         i64 weightPerChunk = Spec->MaxSortJobDataSize;
         double fractionJobCount = (double) weight / weightPerChunk;
-        return IsPartitionPhaseComplete()
+        return IsPartitionPhaseCompleted()
             ? static_cast<int>(ceil(fractionJobCount))
             : static_cast<int>(floor(fractionJobCount));
     }
 
     int GetPendingMergeJobCount()
     {
-        if (!IsPartitionPhaseComplete()) {
+        if (!IsPartitionPhaseCompleted()) {
             return 0;
         }
         int result = 0;
@@ -409,7 +419,7 @@ private:
 
     int GetPendingMergeJobCount(TPartitionPtr partition)
     {
-        return !partition->Small && partition->MergeChunkPool.HasPendingChunks() ? 1 : 0;
+        return IsPartitionAwaitingMerge(partition) ? 1 : 0;
     }
 
     void CompletePartition(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
@@ -550,7 +560,7 @@ private:
         PendingPartitionWeight  += jip->PoolResult->TotalChunkWeight;
 
         LOG_DEBUG("Returned %d chunks into partition pool", jip->PoolResult->TotalChunkCount);
-        PartitionChunkPool.Return(jip->PoolResult);
+        PartitionChunkPool.Failed(jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
