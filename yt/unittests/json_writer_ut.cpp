@@ -53,6 +53,19 @@ TEST(TJsonWriterTest, Map)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, EmptyString)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    writer.OnStringScalar("");
+    writer.Flush();
+
+    Stroka output = SurroundWithQuotes("");
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+
 TEST(TJsonWriterTest, ValidUtf8String)
 {
     TStringStream outputStream;
@@ -63,8 +76,6 @@ TEST(TJsonWriterTest, ValidUtf8String)
     writer.Flush();
 
     Stroka output = SurroundWithQuotes(s);
-
-    Cout << outputStream.Str() << Endl;
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -78,7 +89,6 @@ TEST(TJsonWriterTest, NotValidUtf8String)
     writer.Flush();
 
     Stroka output = SurroundWithQuotes("&" + Base64Encode(s));
-    Cout << outputStream.Str() << Endl;
     EXPECT_EQ(output, outputStream.Str());
 }
 

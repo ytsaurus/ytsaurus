@@ -5,6 +5,9 @@
 #include <ytlib/ytree/null_yson_consumer.h>
 #include <ytlib/misc/assert.h>
 
+#include <util/charset/utf.h>
+#include <util/string/base64.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -26,7 +29,11 @@ TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
 
 void TJsonWriter::OnMyStringScalar(const TStringBuf& value)
 {
-    JsonWriter->Write(value);
+    if (value.empty() || (value[0] != '&' && IsUtf(value))) {
+        JsonWriter->Write(value);
+    } else {
+        JsonWriter->Write("&" + Base64Encode(value));
+    }
     DiscardAttributes();
 }
 
