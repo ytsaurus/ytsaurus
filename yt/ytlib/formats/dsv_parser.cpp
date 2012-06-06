@@ -12,7 +12,7 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     : Consumer(consumer)
     , Config(config)
     , NewRecordStarted(false)
-    , ExpectEscapedChar(false)
+    , ExpectingEscapedChar(false)
 {
     if (!Config) {
         Config = New<TDsvFormatConfig>();
@@ -55,18 +55,18 @@ void TDsvParser::StartRecordIfNeeded()
 const char* TDsvParser::Consume(const char* begin, const char* end)
 {
 
-    if (!ExpectEscapedChar && *begin == Config->EscapingSymbol) {
-        ExpectEscapedChar = true;
+    if (!ExpectingEscapedChar && *begin == Config->EscapingSymbol) {
+        ExpectingEscapedChar = true;
         ++begin;
         if (begin == end) {
             return begin;
         }
     }
 
-    if (ExpectEscapedChar) {
+    if (ExpectingEscapedChar) {
         CurrentToken.append(*begin);
         ++begin;
-        ExpectEscapedChar = false;
+        ExpectingEscapedChar = false;
         if (begin == end) {
             return begin;
         }

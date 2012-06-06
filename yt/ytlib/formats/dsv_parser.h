@@ -25,7 +25,7 @@ private:
     TDsvFormatConfigPtr Config;
 
     bool NewRecordStarted;
-    bool ExpectEscapedChar;
+    bool ExpectingEscapedChar;
 
     Stroka CurrentToken;
 
