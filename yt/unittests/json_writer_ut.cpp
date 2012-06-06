@@ -17,6 +17,7 @@ Stroka SurroundWithQuotes(const Stroka& s)
     return quote + s + quote;
 }
 
+// Basic types:
 TEST(TJsonWriterTest, List)
 {
     TStringStream outputStream;
@@ -50,6 +51,18 @@ TEST(TJsonWriterTest, Map)
     writer.Flush();
 
     Stroka output = "{\"hello\":\"world\",\"foo\":\"bar\"}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, Entity)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    writer.OnEntity();
+    writer.Flush();
+
+    Stroka output = "null";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -102,8 +115,142 @@ TEST(TJsonWriterTest, StringStartingWithSpecailSymbol)
     writer.Flush();
 
     Stroka output = SurroundWithQuotes("&" + Base64Encode(s));
+    EXPECT_EQ(output, outputStream.Str());
+}
 
-    Cout << outputStream.Str() << Endl;
+TEST(TJsonWriterTest, StringStartingWithSpecialSymbolAsKeyInMap)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    Stroka s = "&hello";
+    writer.OnBeginMap();
+        writer.OnKeyedItem(s);
+        writer.OnStringScalar("world");
+    writer.OnEndMap();
+    writer.Flush();
+
+    Stroka expectedS = SurroundWithQuotes("&" + Base64Encode(s));
+    Stroka output = Sprintf("{%s:\"world\"}", ~expectedS);
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Values with attributes:
+TEST(TJsonWriterTest, ListWithAttributes)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+    writer.OnEndAttributes();
+
+    writer.OnBeginList();
+        writer.OnListItem();
+        writer.OnIntegerScalar(1);
+    writer.OnEndList();
+    writer.Flush();
+
+    Stroka output =
+        "{"
+            "\"$attributes\":{\"foo\":\"bar\"}"
+            ","
+            "\"$value\":[1]"
+        "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, MapWithAttributes)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+    writer.OnEndAttributes();
+
+    writer.OnBeginMap();
+        writer.OnKeyedItem("spam");
+        writer.OnStringScalar("bad");
+    writer.OnEndMap();
+    writer.Flush();
+
+    Stroka output =
+        "{"
+            "\"$attributes\":{\"foo\":\"bar\"}"
+            ","
+            "\"$value\":{\"spam\":\"bad\"}"
+        "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, IntegerWithAttributes)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+    writer.OnEndAttributes();
+
+    writer.OnIntegerScalar(42);
+    writer.Flush();
+
+    Stroka output =
+        "{"
+            "\"$attributes\":{\"foo\":\"bar\"}"
+            ","
+            "\"$value\":42"
+        "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, EntityWithAttributes)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+    writer.OnEndAttributes();
+
+    writer.OnEntity();
+    writer.Flush();
+
+    Stroka output =
+        "{"
+            "\"$attributes\":{\"foo\":\"bar\"}"
+            ","
+            "\"$value\":null"
+        "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, StringWithAttributes)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+    writer.OnEndAttributes();
+
+    writer.OnStringScalar("some_string");
+    writer.Flush();
+
+    Stroka output =
+        "{"
+            "\"$attributes\":{\"foo\":\"bar\"}"
+            ","
+            "\"$value\":\"some_string\""
+        "}";
     EXPECT_EQ(output, outputStream.Str());
 }
 

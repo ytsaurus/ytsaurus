@@ -14,6 +14,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 // How yson is mapped into json?
+// * ListFragments and MapFragments are not supported
 // * Simple types (without attributes) are mapped almost as is:
 //     YSon <----> Json
 //    * List <---> Array
@@ -23,9 +24,8 @@ namespace NFormats {
 //    * String (s) <---> String (t):
 //      * If s[0] != '&' and s is valid UTF8 string: t := s
 //      * else: t := '&' + Base64(s)
-//    * Not supported (yexception) <---> null
+//    * Entity <---> null
 //    * Not supported (yexception) <---> bool
-//    * Entity?
 // * Types with attributes are mapped to Json object:
 //    {
 //        '$attributes': attributes->AsMap(),
@@ -75,6 +75,8 @@ private:
     TStringOutput AttributesOutput;
     NYTree::TYsonWriter AttributesWriter;
     TJsonFormatConfigPtr Config;
+
+    void WriteStringScalar(const TStringBuf& value);
 
     void FlushAttributes();
     void DiscardAttributes();

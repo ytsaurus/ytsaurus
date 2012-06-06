@@ -29,11 +29,7 @@ TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
 
 void TJsonWriter::OnMyStringScalar(const TStringBuf& value)
 {
-    if (value.empty() || (value[0] != '&' && IsUtf(value))) {
-        JsonWriter->Write(value);
-    } else {
-        JsonWriter->Write("&" + Base64Encode(value));
-    }
+    WriteStringScalar(value);
     DiscardAttributes();
 }
 
@@ -51,14 +47,7 @@ void TJsonWriter::OnMyDoubleScalar(double value)
 
 void TJsonWriter::OnMyEntity()
 {
-    JsonWriter->OpenMap();
-
-    JsonWriter->Write("$type");
-    JsonWriter->Write("entity");
-
-    FlushAttributes();
-
-    JsonWriter->CloseMap();
+    JsonWriter->WriteNull();
 }
 
 void TJsonWriter::OnMyBeginList()
@@ -84,7 +73,7 @@ void TJsonWriter::OnMyBeginMap()
 
 void TJsonWriter::OnMyKeyedItem(const TStringBuf& name)
 {
-    JsonWriter->Write(name);
+    WriteStringScalar(name);
 }
 
 void TJsonWriter::OnMyEndMap()
@@ -100,6 +89,15 @@ void TJsonWriter::OnMyBeginAttributes()
 
 void TJsonWriter::OnMyEndAttributes()
 { }
+
+void TJsonWriter::WriteStringScalar(const TStringBuf &value)
+{
+    if (value.empty() || (value[0] != '&' && IsUtf(value))) {
+        JsonWriter->Write(value);
+    } else {
+        JsonWriter->Write("&" + Base64Encode(value));
+    }
+}
 
 void TJsonWriter::FlushAttributes()
 {
