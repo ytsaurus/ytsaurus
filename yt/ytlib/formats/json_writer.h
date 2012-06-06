@@ -70,17 +70,16 @@ public:
     virtual void OnMyEndAttributes();
 
 private:
-    THolder<NJson::TJsonWriter> JsonWriter;
-    NYTree::TYson Attributes;
-    TStringOutput AttributesOutput;
-    NYTree::TYsonWriter AttributesWriter;
+    TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config);
+
+    THolder<NJson::TJsonWriter> UnderlyingJsonWriter;
+    NJson::TJsonWriter* JsonWriter;
     TJsonFormatConfigPtr Config;
 
+    THolder<TJsonWriter> ForwardedJsonWriter;
+
     void WriteStringScalar(const TStringBuf& value);
-
-    void FlushAttributes();
-    void DiscardAttributes();
-
+    void OnForwardingValueFinished();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

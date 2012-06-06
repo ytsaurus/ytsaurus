@@ -16,10 +16,8 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
-    : JsonWriter(new NJson::TJsonWriter(output, false))
-    , AttributesOutput(Attributes)
-    // TODO(panin): use config here
-    , AttributesWriter(&AttributesOutput, EYsonFormat::Binary, EYsonType::KeyedFragment)
+    : UnderlyingJsonWriter(new NJson::TJsonWriter(output, false))
+    , JsonWriter(~UnderlyingJsonWriter)
     , Config(config)
 {
     if (!Config) {
@@ -30,19 +28,16 @@ TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
 void TJsonWriter::OnMyStringScalar(const TStringBuf& value)
 {
     WriteStringScalar(value);
-    DiscardAttributes();
 }
 
 void TJsonWriter::OnMyIntegerScalar(i64 value)
 {
     JsonWriter->Write(value);
-    DiscardAttributes();
 }
 
 void TJsonWriter::OnMyDoubleScalar(double value)
 {
     JsonWriter->Write(value);
-    DiscardAttributes();
 }
 
 void TJsonWriter::OnMyEntity()
@@ -53,7 +48,6 @@ void TJsonWriter::OnMyEntity()
 void TJsonWriter::OnMyBeginList()
 {
     JsonWriter->OpenArray();
-    DiscardAttributes();
 }
 
 void TJsonWriter::OnMyListItem()
@@ -68,7 +62,6 @@ void TJsonWriter::OnMyEndList()
 void TJsonWriter::OnMyBeginMap()
 {
     JsonWriter->OpenMap();
-    FlushAttributes();
 }
 
 void TJsonWriter::OnMyKeyedItem(const TStringBuf& name)
@@ -83,11 +76,33 @@ void TJsonWriter::OnMyEndMap()
 
 void TJsonWriter::OnMyBeginAttributes()
 {
-    YASSERT(Attributes.Empty());
-    Forward(&AttributesWriter, TClosure(), EYsonType::KeyedFragment);
+    JsonWriter->OpenMap();
+    JsonWriter->Write("$attributes");
+    JsonWriter->OpenMap();
+
+    ForwardedJsonWriter.Reset(new TJsonWriter(JsonWriter, Config));
+    Forward(~ForwardedJsonWriter, TClosure(), EYsonType::KeyedFragment);
 }
 
 void TJsonWriter::OnMyEndAttributes()
+{
+    JsonWriter->CloseMap();
+    JsonWriter->Write("$value");
+
+    ForwardedJsonWriter.Reset(new TJsonWriter(JsonWriter, Config));
+    Forward(~ForwardedJsonWriter,
+        BIND(&TJsonWriter::OnForwardingValueFinished, Unretained(this)),
+        EYsonType::Node);
+}
+
+void TJsonWriter::OnForwardingValueFinished()
+{
+    JsonWriter->CloseMap();
+}
+
+TJsonWriter::TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config)
+    : JsonWriter(jsonWriter)
+    , Config(config)
 { }
 
 void TJsonWriter::WriteStringScalar(const TStringBuf &value)
@@ -97,25 +112,6 @@ void TJsonWriter::WriteStringScalar(const TStringBuf &value)
     } else {
         JsonWriter->Write("&" + Base64Encode(value));
     }
-}
-
-void TJsonWriter::FlushAttributes()
-{
-    if (!Attributes.Empty()) {
-        // Swap the attributes into a local variable and copy the stored copy.
-        auto attributes = Attributes; // local copy
-        Attributes.clear();
-
-        JsonWriter->Write("$attributes");
-        JsonWriter->OpenMap();
-        OnRaw(attributes, EYsonType::KeyedFragment);
-        JsonWriter->CloseMap();
-    }
-}
-
-void TJsonWriter::DiscardAttributes()
-{
-    Attributes.clear();
 }
 
 void TJsonWriter::Flush()

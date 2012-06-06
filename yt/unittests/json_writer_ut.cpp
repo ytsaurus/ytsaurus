@@ -254,6 +254,37 @@ TEST(TJsonWriterTest, StringWithAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, DoubleAttributes)
+{
+    TStringStream outputStream;
+    TJsonWriter writer(&outputStream);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("foo");
+        writer.OnBeginAttributes();
+            writer.OnKeyedItem("another_foo");
+            writer.OnStringScalar("another_bar");
+        writer.OnEndAttributes();
+        writer.OnStringScalar("bar");
+    writer.OnEndAttributes();
+
+    writer.OnStringScalar("some_string");
+    writer.Flush();
+
+    Stroka output =
+        "{"
+            "\"$attributes\":{\"foo\":"
+                "{"
+                    "\"$attributes\":{\"another_foo\":\"another_bar\"}"
+                    ","
+                    "\"$value\":\"bar\"}"
+                "}"
+            ","
+            "\"$value\":\"some_string\""
+        "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
