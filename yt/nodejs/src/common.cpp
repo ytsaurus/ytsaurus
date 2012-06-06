@@ -56,8 +56,8 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
     auto maybeValue = object->Get(SpecialValueKey);
     auto maybeAttributes = object->Get(SpecialAttributesKey);
 
-    if (maybeValue) {
-        if (maybeAttributes) {
+    if (!maybeValue.IsEmpty()) {
+        if (!maybeAttributes.IsEmpty()) {
             if (!maybeAttributes->IsObject()) {
                 ThrowException(Exception::TypeError(String::New(
                     "Attributes have to be an object")));
@@ -69,7 +69,7 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
             consumer->OnEndAttributes();
         }
 
-        ConsumeV8Value(maybeValue);
+        ConsumeV8Value(maybeValue, consumer);
     } else {
         consumer->OnBeginMap();
         ConsumeV8ObjectProperties(object, consumer);
@@ -155,7 +155,7 @@ Handle<Value> DebugFromV8ToYson(const Arguments& args)
     HandleScope scope;
 
     return scope.Close(String::New(
-        ~SerializeToYson(ConvertV8ValueToYson(args[0]), EYsonFormat::Pretty));
+        ~SerializeToYson(ConvertV8ValueToYson(args[0])), EYsonFormat::Pretty));
 }
 
 void Initialize(Handle<Object> target)
