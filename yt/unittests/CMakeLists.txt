@@ -1,50 +1,51 @@
 include_directories(
   ../ytlib
 )
-
+set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
 set( SRCS
-  utmain.cpp
-
-  change_log_ut.cpp
-  async_result_ut.cpp
-  snapshot_ut.cpp
-  preprocessor_ut.cpp
-  ref_counted_tracker_ut.cpp
-  pattern_formatter_ut.cpp
-  enum_ut.cpp
-  yverify_ut.cpp
-  metric_ut.cpp
-  meta_state_map_ut.cpp
-  foreach_ut.cpp
-  thread_affinity_ut.cpp
-  ytree_fluent_ut.cpp
-  yson_parser_ut.cpp
-  yson_writer_ut.cpp
-  zigzag_ut.cpp
-  varint_ut.cpp
-  async_change_log_ut.cpp
-  intrusive_ptr_ut.cpp
-  nullable_ut.cpp
-  tree_builder_ut.cpp
-  configurable_ut.cpp
-  bus_ut.cpp
-  serialize_ut.cpp
-  schema_ut.cpp
-  rpc_ut.cpp
-  ypath_ut.cpp
-  mpl_ut.cpp
-  weak_ptr_ut.cpp
-  callback_ut.cpp
-  bind_ut.cpp
-#  table_client_ut.cpp
-  lexer_ut.cpp
-  guid_ut.cpp
-  small_vector_ut.cpp
-  small_string_ut.cpp
-  url_ut.cpp
-  dsv_writer_ut.cpp
-  dsv_parser_ut.cpp
-  json_writer_ut.cpp
+  ${BASE}/async_change_log_ut.cpp
+  ${BASE}/async_result_ut.cpp
+  ${BASE}/bind_ut.cpp
+  ${BASE}/bus_ut.cpp
+  ${BASE}/callback_ut.cpp
+  ${BASE}/change_log_ut.cpp
+  ${BASE}/configurable_ut.cpp
+  ${BASE}/dsv_parser_ut.cpp
+  ${BASE}/dsv_writer_ut.cpp
+  ${BASE}/enum_ut.cpp
+  ${BASE}/foreach_ut.cpp
+  ${BASE}/guid_ut.cpp
+  ${BASE}/intrusive_ptr_ut.cpp
+  ${BASE}/json_parser_ut.cpp
+  ${BASE}/json_writer_ut.cpp
+  ${BASE}/lexer_ut.cpp
+  ${BASE}/meta_state_map_ut.cpp
+  ${BASE}/metric_ut.cpp
+  ${BASE}/mpl_ut.cpp
+  ${BASE}/nullable_ut.cpp
+  ${BASE}/pattern_formatter_ut.cpp
+  ${BASE}/preprocessor_ut.cpp
+  ${BASE}/ref_counted_tracker_ut.cpp
+  ${BASE}/rpc_ut.cpp
+  ${BASE}/schema_ut.cpp
+  ${BASE}/serialize_ut.cpp
+  ${BASE}/small_string_ut.cpp
+  ${BASE}/small_vector_ut.cpp
+  ${BASE}/snapshot_ut.cpp
+  ${BASE}/stdafx.cpp
+#  ${BASE}/table_client_ut.cpp
+  ${BASE}/thread_affinity_ut.cpp
+  ${BASE}/tree_builder_ut.cpp
+  ${BASE}/url_ut.cpp
+  ${BASE}/utmain.cpp
+  ${BASE}/varint_ut.cpp
+  ${BASE}/weak_ptr_ut.cpp
+  ${BASE}/ypath_ut.cpp
+  ${BASE}/yson_parser_ut.cpp
+  ${BASE}/yson_writer_ut.cpp
+  ${BASE}/ytree_fluent_ut.cpp
+  ${BASE}/yverify_ut.cpp
+  ${BASE}/zigzag_ut.cpp
 )
 
 protoc( rpc_ut.proto PROTO_SRC )

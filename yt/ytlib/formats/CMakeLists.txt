@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/dsv_parser.cpp
   ${BASE}/dsv_writer.cpp
   ${BASE}/format.cpp
+  ${BASE}/json_parser.cpp
   ${BASE}/json_writer.cpp
 )
 set( HDRS
@@ -11,6 +12,7 @@ set( HDRS
   ${BASE}/dsv_parser.h
   ${BASE}/dsv_writer.h
   ${BASE}/format.h
+  ${BASE}/json_parser.h
   ${BASE}/json_writer.h
   ${BASE}/public.h
 )
