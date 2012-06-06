@@ -139,14 +139,14 @@ public:
         return result;
     }
 
-    void Failed(TPoolExtractionResultPtr result)
+    void OnFailed(TPoolExtractionResultPtr result)
     {
         FOREACH (const auto& stripe, result->Stripes) {
             Add(stripe);
         }
     }
 
-    void Completed(TPoolExtractionResultPtr result)
+    void OnCompleted(TPoolExtractionResultPtr result)
     {
         CompletedWeight += result->TotalChunkWeight;
     }
@@ -242,14 +242,14 @@ TPoolExtractionResultPtr TUnorderedChunkPool::Extract(
         needLocal);
 }
 
-void TUnorderedChunkPool::Failed(TPoolExtractionResultPtr result)
+void TUnorderedChunkPool::OnFailed(TPoolExtractionResultPtr result)
 {
-    Impl->Failed(result);
+    Impl->OnFailed(result);
 }
 
-void TUnorderedChunkPool::Completed(TPoolExtractionResultPtr result)
+void TUnorderedChunkPool::OnCompleted(TPoolExtractionResultPtr result)
 {
-    return Impl->Completed(result);
+    return Impl->OnCompleted(result);
 }
 
 i64 TUnorderedChunkPool::GetTotalWeight() const
@@ -326,17 +326,18 @@ public:
         return result;
     }
 
-    void Failed(TPoolExtractionResultPtr result)
+    void OnFailed(TPoolExtractionResultPtr result)
     {
         YASSERT(Initialized);
         YASSERT(Extracted);
         Extracted = false;
     }
 
-    void Completed(TPoolExtractionResultPtr result)
+    void OnCompleted(TPoolExtractionResultPtr result)
     {
         YASSERT(Initialized);
         YASSERT(Extracted);
+        Completed_ = true;
     }
 
     i64 GetTotalWeight() const
@@ -409,14 +410,14 @@ TPoolExtractionResultPtr TAtomicChunkPool::Extract(
         needLocal);
 }
 
-void TAtomicChunkPool::Failed(TPoolExtractionResultPtr result)
+void TAtomicChunkPool::OnFailed(TPoolExtractionResultPtr result)
 {
-    Impl->Failed(result);
+    Impl->OnFailed(result);
 }
 
-void TAtomicChunkPool::Completed(TPoolExtractionResultPtr result)
+void TAtomicChunkPool::OnCompleted(TPoolExtractionResultPtr result)
 {
-    Impl->Completed(result);
+    Impl->OnCompleted(result);
 }
 
 i64 TAtomicChunkPool::GetTotalWeight() const

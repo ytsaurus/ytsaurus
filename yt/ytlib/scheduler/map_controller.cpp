@@ -148,7 +148,7 @@ private:
         CompletedChunkCount += jip->PoolResult->TotalChunkCount;
         CompletedWeight += jip->PoolResult->TotalChunkWeight;
 
-        ChunkPool.Completed(jip->PoolResult);
+        ChunkPool.OnCompleted(jip->PoolResult);
 
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jip->ChunkListIds[index];
@@ -162,7 +162,7 @@ private:
         PendingWeight += jip->PoolResult->TotalChunkWeight;
 
         LOG_DEBUG("Returned %d chunks into pool", jip->PoolResult->TotalChunkCount);
-        ChunkPool.Failed(jip->PoolResult);
+        ChunkPool.OnFailed(jip->PoolResult);
 
         ReleaseChunkLists(jip->ChunkListIds);
     }

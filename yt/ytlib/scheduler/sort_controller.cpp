@@ -240,7 +240,7 @@ private:
         TPartitionPtr partition,
         TPoolExtractionResultPtr result)
     {
-        partition->SortChunkPool.Failed(result);
+        partition->SortChunkPool.OnFailed(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterStripeForSort(partition, chunk);
         }
@@ -335,7 +335,7 @@ private:
         TPartitionPtr partition,
         TPoolExtractionResultPtr result)
     {
-        partition->MergeChunkPool.Failed(result);
+        partition->MergeChunkPool.OnFailed(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterStripeForMerge(partition, chunk);
         }
@@ -532,7 +532,7 @@ private:
         ++CompletedPartitionJobCount;
         CompletedPartitionChunkCount += jip->PoolResult->TotalChunkCount;
         CompletedPartitionWeight += jip->PoolResult->TotalChunkWeight;
-        PartitionChunkPool.Completed(jip->PoolResult);
+        PartitionChunkPool.OnCompleted(jip->PoolResult);
 
         auto* resultExt = jip->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
         FOREACH (auto& partitionChunk, *resultExt->mutable_chunks()) {
@@ -561,7 +561,7 @@ private:
         PendingPartitionWeight  += jip->PoolResult->TotalChunkWeight;
 
         LOG_DEBUG("Returned %d chunks into partition pool", jip->PoolResult->TotalChunkCount);
-        PartitionChunkPool.Failed(jip->PoolResult);
+        PartitionChunkPool.OnFailed(jip->PoolResult);
 
         ReleaseChunkList(jip->ChunkListId);
     }
@@ -649,7 +649,7 @@ private:
         CompletedSortWeight += jip->PoolResult->TotalChunkWeight;
 
         auto partition = jip->Partition;
-        partition->SortChunkPool.Completed(jip->PoolResult);
+        partition->SortChunkPool.OnCompleted(jip->PoolResult);
 
         if (partition->SortChunkPool.IsCompleted()) {
             LOG_DEBUG("Partition sorted (Partition: %d)", partition->Index);
@@ -755,7 +755,7 @@ private:
         ++CompletedMergeJobCount;
 
         auto partition = jip->Partition;
-        partition->MergeChunkPool.Completed(jip->PoolResult);
+        partition->MergeChunkPool.OnCompleted(jip->PoolResult);
         YASSERT(partition->MergeChunkPool.IsCompleted());
 
         LOG_DEBUG("Partition merged (Partition: %d)", partition->Index);

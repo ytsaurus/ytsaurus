@@ -57,8 +57,8 @@ public:
         const Stroka& address,
         i64 weightThreshold,
         bool needLocal);
-    void Failed(TPoolExtractionResultPtr result);
-    void Completed(TPoolExtractionResultPtr result);
+    void OnFailed(TPoolExtractionResultPtr result);
+    void OnCompleted(TPoolExtractionResultPtr result);
 
     i64 GetTotalWeight() const;
     i64 GetPendingWeight() const;
@@ -87,8 +87,8 @@ public:
     TPoolExtractionResultPtr Extract(
         const Stroka& address,
         bool needLocal);
-    void Failed(TPoolExtractionResultPtr result);
-    void Completed(TPoolExtractionResultPtr result);
+    void OnFailed(TPoolExtractionResultPtr result);
+    void OnCompleted(TPoolExtractionResultPtr result);
 
     i64 GetTotalWeight() const;
     i64 GetPendingWeight() const;

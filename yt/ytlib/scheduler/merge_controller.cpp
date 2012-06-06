@@ -217,7 +217,7 @@ protected:
 
     void ReturnForMerge(TMergeGroupPtr group, TPoolExtractionResultPtr result)
     {
-        group->ChunkPool.Failed(result);
+        group->ChunkPool.OnFailed(result);
         FOREACH (const auto& chunk, result->Stripes) {
             RegisterPendingStripe(group, chunk);
         }
@@ -327,7 +327,7 @@ protected:
         CompletedWeight += jip->PoolResult->TotalChunkWeight;
 
         auto group = jip->Group;
-        group->ChunkPool.Completed(jip->PoolResult);
+        group->ChunkPool.OnCompleted(jip->PoolResult);
         auto& table = OutputTables[0];
         table.PartitionTreeIds[group->PartitionIndex] = jip->ChunkListId;
     }
