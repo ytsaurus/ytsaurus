@@ -352,7 +352,7 @@ private:
 
     bool IsPartitionPhaseCompleted()
     {
-        return PartitionChunkPool.IsCompleted();
+        return CompletedPartitionWeight == TotalPartitionWeight;
     }
 
     bool IsSortPhaseCompleted(TPartitionPtr partition)
