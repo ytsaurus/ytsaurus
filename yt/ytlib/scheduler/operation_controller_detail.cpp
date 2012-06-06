@@ -217,18 +217,17 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
     VERIFY_THREAD_AFFINITY(ControlThread);
  
     if (!Running) {
-        LOG_DEBUG("Operation is not running, scheduling request ignored");
+        LOG_TRACE("Operation is not running, scheduling request ignored");
         return NULL;
     }
 
     if (GetPendingJobCount() == 0) {
-        LOG_DEBUG("No pending jobs left, scheduling request ignored");
+        LOG_TRACE("No pending jobs left, scheduling request ignored");
         return NULL;
     }
 
     auto job = DoScheduleJob(node);
     if (job) {
-        LOG_INFO("Scheduled job %s", ~job->GetId().ToString());
         ++RunningJobCount;
         LogProgress();
     }
