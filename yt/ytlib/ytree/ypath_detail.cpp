@@ -623,6 +623,24 @@ void TSupportsAttributes::OnUpdateAttribute(
 
 IAttributeDictionary& TSupportsAttributes::CombinedAttributes()
 {
+    return GetOrCreateCombinedAttributes();
+}
+
+const IAttributeDictionary& TSupportsAttributes::CombinedAttributes() const
+{
+    return const_cast<TSupportsAttributes*>(this)->CombinedAttributes();
+}
+
+IAttributeDictionary& TSupportsAttributes::GetOrCreateCombinedAttributes()
+{
+    auto* provider = GetSystemAttributeProvider();
+
+    // Ephemeral nodes typically don't have system attributes.
+    // This quick check eliminates creation of an additional |TCombinedAttributeDictionary| wrapper.
+    if (!provider) {
+        return *GetUserAttributes();
+    }
+
     if (!CombinedAttributes_) {
         CombinedAttributes_.Reset(new TCombinedAttributeDictionary(
             GetUserAttributes(),

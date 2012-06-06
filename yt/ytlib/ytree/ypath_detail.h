@@ -70,11 +70,15 @@ class TSupportsAttributes
 {
 protected:
     class TCombinedAttributeDictionary;
+
     THolder<IAttributeDictionary> CombinedAttributes_;
 
-    //! Represents the combined attributes collection containing both
-    //! user and system attributes (see #GetUserAttributes and #GetSystemAttributeProvider).
+    //! Returns a collection containing both and system attributes
+    //! (see #GetUserAttributes and #GetSystemAttributeProvider).
     IAttributeDictionary& CombinedAttributes();
+
+    //! Returns a const collection containing both and system attributes.
+    const IAttributeDictionary& CombinedAttributes() const;
 
     //! Can be NULL.
     virtual IAttributeDictionary* GetUserAttributes();
@@ -116,6 +120,10 @@ protected:
         const Stroka& key,
         const TNullable<NYTree::TYson>& oldValue,
         const TNullable<NYTree::TYson>& newValue);
+
+private:
+    IAttributeDictionary& GetOrCreateCombinedAttributes();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

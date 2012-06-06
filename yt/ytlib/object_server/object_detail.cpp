@@ -90,7 +90,7 @@ IAttributeDictionary& TObjectProxyBase::Attributes()
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
-    return UserAttributes.Get() ? *UserAttributes : EmptyAttributes();
+    return CombinedAttributes();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)

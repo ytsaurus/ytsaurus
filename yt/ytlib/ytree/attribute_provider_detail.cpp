@@ -16,12 +16,10 @@ IAttributeDictionary& TEphemeralAttributeProvider::Attributes()
 
 const IAttributeDictionary& TEphemeralAttributeProvider::Attributes() const
 {
-    if (HasAttributes()) {
-        return *Attributes_;
-    } else {
+    if (!HasAttributes()) {
         return EmptyAttributes();
     }
-}
+    return *Attributes_;}
 
 bool TEphemeralAttributeProvider::HasAttributes() const
 {
