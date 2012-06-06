@@ -200,6 +200,10 @@ YtCommand.prototype._getDescriptor = function(cb) {
     var input_type_as_string = ytnode_wrappers.EDataType[this.descriptor.input_type];
     var output_type_as_string = ytnode_wrappers.EDataType[this.descriptor.output_type];
 
+    if (output_type_as_string == "Binary") {
+        this.rsp.setHeader("Content-Type", "application/octet-stream");
+    }
+
     var expected_http_method = _MAPPING_DATA_TYPE_TO_METHOD[input_type_as_string];
     var actual_http_method = this.req.method;
 
@@ -215,7 +219,9 @@ YtCommand.prototype._getDescriptor = function(cb) {
     if (expected_http_method != actual_http_method) {
         this.rsp.statusCode = 405;
         this.rsp.setHeader("Allow", expected_http_method);
-        throw new Error("Command '" + this.name + "' expects " + input_type_as_string.toLowerCase() + " input and hence have to be requested with the " + expected_http_method + " HTTP method.");
+        throw new Error(
+            "Command '" + this.name + "' expects " + input_type_as_string.toLowerCase() +
+            " input and hence have to be requested with the " + expected_http_method + " HTTP method.");
     }
 
     cb(null);

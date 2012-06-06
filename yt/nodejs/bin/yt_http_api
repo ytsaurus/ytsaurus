@@ -41,6 +41,8 @@ if (opts.argv.h) {
     process.exit(0);
 }
 
+process.title = 'YtHttpApi';
+
 fs.readFile(opts.argv.c, function(err, configuration) {
     if (err) {
         throw err;
