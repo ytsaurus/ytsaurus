@@ -12,6 +12,26 @@ namespace NYTree {
 class TForwardingYsonConsumer
     : public virtual TYsonConsumerBase
 {
+public:
+    // IYsonConsumer methods
+    virtual void OnStringScalar(const TStringBuf& value);
+    virtual void OnIntegerScalar(i64 value);
+    virtual void OnDoubleScalar(double value);
+    virtual void OnEntity();
+
+    virtual void OnBeginList();
+    virtual void OnListItem();
+    virtual void OnEndList();
+
+    virtual void OnBeginMap();
+    virtual void OnKeyedItem(const TStringBuf& key);
+    virtual void OnEndMap();
+
+    virtual void OnBeginAttributes();
+    virtual void OnEndAttributes();
+
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type);
+
 protected:
     TForwardingYsonConsumer();
 
@@ -37,25 +57,6 @@ protected:
     virtual void OnMyEndAttributes();
 
     virtual void OnMyRaw(const TStringBuf& yson, EYsonType type);
-
-    // IYsonConsumer methods
-    virtual void OnStringScalar(const TStringBuf& value);
-    virtual void OnIntegerScalar(i64 value);
-    virtual void OnDoubleScalar(double value);
-    virtual void OnEntity();
-
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList();
-
-    virtual void OnBeginMap();
-    virtual void OnKeyedItem(const TStringBuf& key);
-    virtual void OnEndMap();
-
-    virtual void OnBeginAttributes();
-    virtual void OnEndAttributes();
-
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type);
 
 private:
     IYsonConsumer* ForwardingConsumer;

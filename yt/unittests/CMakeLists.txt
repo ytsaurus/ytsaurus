@@ -44,6 +44,7 @@ set( SRCS
   url_ut.cpp
   dsv_writer_ut.cpp
   dsv_parser_ut.cpp
+  json_writer_ut.cpp
 )
 
 protoc( rpc_ut.proto PROTO_SRC )

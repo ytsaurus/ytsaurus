@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/yson_writer.h>

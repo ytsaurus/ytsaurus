@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server )
 set( SRCS
   ${BASE}/block_id.cpp
   ${BASE}/chunk.cpp
+  ${BASE}/chunk_balancer.cpp
   ${BASE}/chunk_list.cpp
   ${BASE}/chunk_manager.cpp
   ${BASE}/chunk_placement.cpp
@@ -17,12 +18,12 @@ set( SRCS
   ${BASE}/holder_statistics.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
-  ${BASE}/chunk_balancer.cpp
   ${BASE}/public.cpp
 )
 set( HDRS
   ${BASE}/block_id.h
   ${BASE}/chunk.h
+  ${BASE}/chunk_balancer.h
   ${BASE}/chunk_list.h
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_manager.h
@@ -41,7 +42,6 @@ set( HDRS
   ${BASE}/holder_statistics.h
   ${BASE}/job.h
   ${BASE}/job_list.h
-  ${BASE}/chunk_balancer.h
   ${BASE}/public.h
 )
 
