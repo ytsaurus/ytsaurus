@@ -220,11 +220,9 @@ private:
             weightThreshold,
             needLocal);
 
-        bool killed = false;
         YASSERT(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
         if (!IsPartitionAwaitingSort(partition)) {
             YVERIFY(PartitionsAwaitingSort.erase(partition) == 1);
-            killed = true;
         }
 
         FOREACH (const auto& stripe, result->Stripes) {
@@ -232,8 +230,6 @@ private:
                 FOREACH (const auto& address, chunk.node_addresses()) {
                     if (!IsPartitionAwaitingSortAt(partition, address)) {
                         AddressToPartitionsAwaitingSort[address].erase(partition);
-                    } else {
-                        YASSERT(!killed);
                     }
                 }
             }
@@ -261,6 +257,7 @@ private:
             if (!set.empty()) {
                 auto partition = *set.begin();
                 YASSERT(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
+                YASSERT(IsPartitionAwaitingSortAt(partition, address));
                 return partition;
             }
         }
@@ -359,6 +356,7 @@ private:
             if (!set.empty()) {
                 auto partition = *set.begin();
                 YASSERT(PartitionsAwaitingMerge.find(partition) != PartitionsAwaitingMerge.end());
+                YASSERT(IsPartitionAwaitingMergeAt(partition, address));
                 return partition;
             }
         }
