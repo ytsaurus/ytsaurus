@@ -651,24 +651,29 @@ private:
         auto partition = jip->Partition;
         partition->SortChunkPool.Completed(jip->PoolResult);
 
+        if (partition->SortChunkPool.IsCompleted()) {
+            LOG_DEBUG("Partition sorted (Partition: %d)", partition->Index);
+        }
+
         if (partition->Small) {
             // Sort outputs in small partitions go directly to the output table.
             CompletePartition(partition, jip->ChunkListId);
-        } else {
-            // Sort outputs in large partitions are queued for further merge.
+            return;
+        } 
 
-            // Construct a stripe consisting of sorted chunks.
-            const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
-            auto stripe = New<TChunkStripe>();
-            FOREACH (const auto& chunk, resultExt.chunks()) {
-                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                stripe->InputChunks.push_back(chunk);
-                stripe->Weight += miscExt->data_weight();
-            }
+        // Sort outputs in large partitions are queued for further merge.
 
-            // Put the stripe into the pool.
-            AddStripeForMerge(partition, stripe);
+        // Construct a stripe consisting of sorted chunks.
+        const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
+        auto stripe = New<TChunkStripe>();
+        FOREACH (const auto& chunk, resultExt.chunks()) {
+            auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+            stripe->InputChunks.push_back(chunk);
+            stripe->Weight += miscExt->data_weight();
         }
+
+        // Put the stripe into the pool.
+        AddStripeForMerge(partition, stripe);
     }
 
     void OnSortJobFailed(TSortJobInProgress* jip)
@@ -751,6 +756,9 @@ private:
 
         auto partition = jip->Partition;
         partition->MergeChunkPool.Completed(jip->PoolResult);
+        YASSERT(partition->MergeChunkPool.IsCompleted());
+
+        LOG_DEBUG("Partition merged (Partition: %d)", partition->Index);
 
         CompletePartition(partition, jip->ChunkListId);
     }
