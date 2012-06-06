@@ -256,8 +256,8 @@ private:
             const auto& set = it->second;
             if (!set.empty()) {
                 auto partition = *set.begin();
-                YASSERT(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
                 YASSERT(IsPartitionAwaitingSortAt(partition, address));
+                YASSERT(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
                 return partition;
             }
         }
@@ -355,8 +355,8 @@ private:
             const auto& set = it->second;
             if (!set.empty()) {
                 auto partition = *set.begin();
+                YASSERT(IsPartitionAwaitingSortAt(partition, address));
                 YASSERT(PartitionsAwaitingMerge.find(partition) != PartitionsAwaitingMerge.end());
-                YASSERT(IsPartitionAwaitingMergeAt(partition, address));
                 return partition;
             }
         }
