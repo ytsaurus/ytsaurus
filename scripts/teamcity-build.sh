@@ -203,7 +203,7 @@ tc "progressMessage 'Running integration tests...'"
 cd $CHECKOUT_DIRECTORY/scripts/testing
 PATH=$WORKING_DIRECTORY/bin:$PATH \
     py.test \
-        -rxs -v \
+        -rx -v \
         --assert=plain \
         --junitxml=$WORKING_DIRECTORY/test_integration.xml
 b=$?
