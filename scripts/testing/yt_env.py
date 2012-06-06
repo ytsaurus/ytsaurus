@@ -83,6 +83,7 @@ class YTEnv:
         self._wait_for_ready_schedulers()
 
     def tearDown(self):
+        print 'Tearing down'
         time.sleep(self.TEARDOWN_TIMEOUT)
         for p, name in self.process_to_kill:
             p.poll()
