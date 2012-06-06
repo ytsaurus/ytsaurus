@@ -294,7 +294,7 @@ private:
 
     void AddStripeForMerge(TPartitionPtr partition, TChunkStripePtr stripe)
     {
-        partition->SortChunkPool.Add(stripe);
+        partition->MergeChunkPool.Add(stripe);
         RegisterStripeForMerge(partition, stripe);
 
         LOG_DEBUG("Added pending stripe [%s] for merge in partition %d",
