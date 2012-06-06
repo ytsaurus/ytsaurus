@@ -220,9 +220,11 @@ private:
             weightThreshold,
             needLocal);
 
-        YVERIFY(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
+        bool killed = false;
+        YASSERT(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
         if (!IsPartitionAwaitingSort(partition)) {
             YVERIFY(PartitionsAwaitingSort.erase(partition) == 1);
+            killed = true;
         }
 
         FOREACH (const auto& stripe, result->Stripes) {
@@ -230,6 +232,8 @@ private:
                 FOREACH (const auto& address, chunk.node_addresses()) {
                     if (!IsPartitionAwaitingSortAt(partition, address)) {
                         AddressToPartitionsAwaitingSort[address].erase(partition);
+                    } else {
+                        YASSERT(!killed);
                     }
                 }
             }
@@ -256,7 +260,7 @@ private:
             const auto& set = it->second;
             if (!set.empty()) {
                 auto partition = *set.begin();
-                YVERIFY(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
+                YASSERT(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
                 return partition;
             }
         }
@@ -318,7 +322,7 @@ private:
             address,
             needLocal);
 
-        YVERIFY(PartitionsAwaitingMerge.find(partition) != PartitionsAwaitingMerge.end());
+        YASSERT(PartitionsAwaitingMerge.find(partition) != PartitionsAwaitingMerge.end());
         if (!IsPartitionAwaitingMerge(partition)) {
             YVERIFY(PartitionsAwaitingMerge.erase(partition) == 1);
         }
@@ -354,7 +358,7 @@ private:
             const auto& set = it->second;
             if (!set.empty()) {
                 auto partition = *set.begin();
-                YVERIFY(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
+                YASSERT(PartitionsAwaitingMerge.find(partition) != PartitionsAwaitingMerge.end());
                 return partition;
             }
         }
