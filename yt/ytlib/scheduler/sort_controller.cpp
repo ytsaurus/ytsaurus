@@ -158,7 +158,7 @@ private:
     bool IsPartitionAwaitingSort(TPartitionPtr partition)
     {
         return GetPendingPartitionJobCount() > 0
-            ? partition->SortChunkPool.GetTotalWeight() > Config->MaxSortJobDataSize
+            ? partition->SortChunkPool.GetTotalWeight() > Spec->MaxSortJobDataSize
             : partition->SortChunkPool.HasPendingChunks();
     }
 
@@ -199,7 +199,7 @@ private:
 
         if (Partitions.size() > 1 &&
             IsPartitionPhaseComplete() &&
-            partition->SortChunkPool.GetTotalWeight() <= Config->MaxSortJobDataSize)
+            partition->SortChunkPool.GetTotalWeight() <= Spec->MaxSortJobDataSize)
         {
             partition->Small = true;
             LOG_DEBUG("Partition is small (Partition: %d, Weight: %" PRId64 ")",
@@ -388,7 +388,7 @@ private:
     int GetPendingSortJobCount(TPartitionPtr partition)
     {
         i64 weight = partition->SortChunkPool.GetPendingWeight();
-        i64 weightPerChunk = Config->MaxSortJobDataSize;
+        i64 weightPerChunk = Spec->MaxSortJobDataSize;
         double fractionJobCount = (double) weight / weightPerChunk;
         return IsPartitionPhaseComplete()
             ? static_cast<int>(ceil(fractionJobCount))
@@ -577,7 +577,7 @@ private:
         // Allocate chunks for the job.
         auto jip = New<TSortJobInProgress>();
         jip->Partition = partition;
-        i64 weightThreshold = Config->MaxSortJobDataSize;
+        i64 weightThreshold = Spec->MaxSortJobDataSize;
         jip->PoolResult = ExtractForSort(
             partition,
             node->GetAddress(),
@@ -852,7 +852,7 @@ private:
         // Otherwise use size estimates.
         int partitionCount = Spec->PartitionCount
             ? Spec->PartitionCount.Get()
-            : static_cast<int>(ceil((double) TotalSortWeight / Config->MinSortPartitionSize));
+            : static_cast<int>(ceil((double) TotalSortWeight / Spec->MinSortPartitionSize));
 
         // Don't create more partitions than we have samples.
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
@@ -903,7 +903,7 @@ private:
         PendingSortWeight = TotalSortWeight;
         MaxSortJobCount = GetJobCount(
             TotalSortWeight,
-            Config->MaxSortJobDataSize,
+            Spec->MaxSortJobDataSize,
             Spec->SortJobCount,
             totalSortChunkCount);
 
@@ -943,7 +943,7 @@ private:
         // Very rough estimates.
         MaxSortJobCount = GetJobCount(
             TotalPartitionWeight,
-            Config->MaxSortJobDataSize,
+            Spec->MaxSortJobDataSize,
             Null,
             std::numeric_limits<int>::max()) + partitionCount;
         MaxMergeJobCount = partitionCount;

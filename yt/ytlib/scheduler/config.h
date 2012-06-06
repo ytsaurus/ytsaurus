@@ -37,14 +37,6 @@ struct TSchedulerConfig
     //! job scheduling gets suspended until |count * ChunkListAllocationMultiplier| chunk lists are allocated.
     int ChunkListAllocationMultiplier;
 
-    //! Controls the minimum data size of a partition during sort.
-    //! This is only a hint, the controller may still produce smaller partitions, e.g.
-    //! when the user sets the number of partitions explicitly.
-    i64 MinSortPartitionSize;
-
-    //! Maximum amount of (uncompressed) data to be given to a single sort job.
-    i64 MaxSortJobDataSize;
-
     NJobProxy::TJobIOConfigPtr MapJobIO;
     NJobProxy::TJobIOConfigPtr MergeJobIO;
     NJobProxy::TJobIOConfigPtr PartitionJobIO;
@@ -72,12 +64,6 @@ struct TSchedulerConfig
             .GreaterThanOrEqual(0);
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
             .Default(20)
-            .GreaterThan(0);
-        Register("min_sort_partition_size", MinSortPartitionSize)
-            .Default((i64) 4 * 1024 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("max_sort_job_data_size", MaxSortJobDataSize)
-            .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("map_job_io", MapJobIO).DefaultNew();
         Register("merge_job_io", MergeJobIO).DefaultNew();
@@ -184,12 +170,26 @@ struct TSortOperationSpec
     : public TOperationSpecBase
 {
     yvector<NYTree::TYPath> InputTablePaths;
+    
     NYTree::TYPath OutputTablePath;
+    
     yvector<Stroka> KeyColumns;
+    
     TNullable<int> PartitionCount;
+    
     TNullable<int> PartitionJobCount;
-    //! Only used if not partitioning is done.
+    
+    //! Only used if no partitioning is done.
     TNullable<int> SortJobCount;
+
+    //! Controls the minimum data size of a partition during sort.
+    //! This is only a hint, the controller may still produce smaller partitions, e.g.
+    //! when the user sets the number of partitions explicitly.
+    i64 MinSortPartitionSize;
+
+    //! Maximum amount of (uncompressed) data to be given to a single sort job.
+    i64 MaxSortJobDataSize;
+
 
     TSortOperationSpec()
     {
@@ -205,6 +205,12 @@ struct TSortOperationSpec
             .GreaterThan(0);
         Register("sort_job_count", SortJobCount)
             .Default()
+            .GreaterThan(0);
+        Register("min_sort_partition_size", MinSortPartitionSize)
+            .Default((i64) 4 * 1024 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("max_sort_job_data_size", MaxSortJobDataSize)
+            .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
