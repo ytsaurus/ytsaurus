@@ -157,7 +157,8 @@ private:
 
     bool IsPartitionAwaitingSort(TPartitionPtr partition)
     {
-        return IsPartitionPhaseCompleted()
+        return
+            IsPartitionPhaseCompleted()
             ? partition->SortChunkPool.HasPendingChunks()
             : partition->SortChunkPool.GetPendingWeight() >= Spec->MaxSortJobDataSize;
     }
@@ -254,7 +255,9 @@ private:
         if (it != AddressToPartitionsAwaitingSort.end()) {
             const auto& set = it->second;
             if (!set.empty()) {
-                return *set.begin();
+                auto partition = *set.begin();
+                YVERIFY(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
+                return partition;
             }
         }
 
@@ -350,7 +353,9 @@ private:
         if (it != AddressToPartitionsAwaitingMerge.end()) {
             const auto& set = it->second;
             if (!set.empty()) {
-                return *set.begin();
+                auto partition = *set.begin();
+                YVERIFY(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
+                return partition;
             }
         }
 
