@@ -65,9 +65,9 @@ class YTEnv:
 
     def setUp(self, path_to_run):
         # TODO(panin): add option for this
-        # os.system('killall MasterMain')
-        # os.system('killall NodeMain')
-        # os.system('killall SchedulerMain')
+        os.system('killall MasterMain')
+        os.system('killall NodeMain')
+        os.system('killall SchedulerMain')
         
         print 'Setting up configuration with %s masters, %s holders, %s schedulers' % (
             self.NUM_MASTERS, self.NUM_HOLDERS, self.NUM_SCHEDULERS
