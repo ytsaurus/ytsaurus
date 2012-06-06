@@ -201,9 +201,15 @@ describe("high-level streams", function() {
         writer.WriteSynchronously("dolly");
         writer.Finish();
 
+        // Skip two ticks to allow streams pipe content between them.
         process.nextTick(function() {
-            expect(reader.ReadSynchronously(1000)).to.be.equal("hello dolly");
-            done();
-        })
+            process.nextTick(function() {
+                reader.Read(1000, function(length, buffer) {
+                    expect(length).to.be.equal(11);
+                    expect(buffer).to.be.equal("hello dolly");
+                    done();
+                });
+            });
+        });
     });
 });

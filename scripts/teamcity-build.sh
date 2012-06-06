@@ -211,6 +211,18 @@ a=$((a+b))
 
 tc "blockClosed name='Integration Tests'"
 
+tc "blockOpened name='JavaScript Tests'"
+
+shout "Running JavaScript tests..."
+tc "progressMessage 'Running JavaScript tests...'"
+
+cd $WORKING_DIRECTORY/yt/nodejs
+npm install && ./run_tests.sh -R xunit > $WORKING_DIRECTORY/test_javascript.xml
+b=$?
+a=$((a+b))
+
+tc "blockClosed name='JavaScript Tests'"
+
 cd $WORKING_DIRECTORY
 
 # TODO(sandello): Export final package name as build parameter.
