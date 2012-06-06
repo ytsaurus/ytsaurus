@@ -138,7 +138,7 @@ public:
         return NObjectServer::TObjectProxyBase::Attributes();
     }
 
-    virtual NYTree::IAttributeDictionary& Attributes() const
+    virtual const NYTree::IAttributeDictionary& Attributes() const
     {
         return NObjectServer::TObjectProxyBase::Attributes();
     }
