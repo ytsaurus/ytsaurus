@@ -11,7 +11,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka SurroundWithQuotes(const Stroka& s)
+inline Stroka SurroundWithQuotes(const Stroka& s)
 {
     Stroka quote = "\"";
     return quote + s + quote;
