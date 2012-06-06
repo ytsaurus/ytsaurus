@@ -225,16 +225,6 @@ private:
             YVERIFY(PartitionsAwaitingSort.erase(partition) == 1);
         }
 
-        FOREACH (const auto& stripe, result->Stripes) {
-            FOREACH (const auto& chunk, stripe->InputChunks) {
-                FOREACH (const auto& address, chunk.node_addresses()) {
-                    if (!IsPartitionAwaitingSortAt(partition, address)) {
-                        AddressToPartitionsAwaitingSort[address].erase(partition);
-                    }
-                }
-            }
-        }
-
         return result;
     }
 
@@ -253,12 +243,13 @@ private:
         // Try to fetch a partition with local chunks.
         auto it = AddressToPartitionsAwaitingSort.find(address);
         if (it != AddressToPartitionsAwaitingSort.end()) {
-            const auto& set = it->second;
-            if (!set.empty()) {
+            auto& set = it->second;
+            while (!set.empty()) {
                 auto partition = *set.begin();
-                YASSERT(IsPartitionAwaitingSortAt(partition, address));
-                YASSERT(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
-                return partition;
+                if (IsPartitionAwaitingSortAt(partition, address)) {
+                    return partition;
+                }
+                set.erase(set.begin());
             }
         }
 
@@ -324,16 +315,6 @@ private:
             YVERIFY(PartitionsAwaitingMerge.erase(partition) == 1);
         }
 
-        FOREACH (const auto& stripe, result->Stripes) {
-            FOREACH (const auto& chunk, stripe->InputChunks) {
-                FOREACH (const auto& address, chunk.node_addresses()) {
-                    if (!IsPartitionAwaitingMergeAt(partition, address)) {
-                        AddressToPartitionsAwaitingMerge[address].erase(partition);
-                    }
-                }
-            }
-        }
-
         return result;
     }
 
@@ -352,12 +333,13 @@ private:
         // Try to fetch a partition with local chunks.
         auto it = AddressToPartitionsAwaitingMerge.find(address);
         if (it != AddressToPartitionsAwaitingMerge.end()) {
-            const auto& set = it->second;
-            if (!set.empty()) {
+            auto& set = it->second;
+            while (!set.empty()) {
                 auto partition = *set.begin();
-                YASSERT(IsPartitionAwaitingSortAt(partition, address));
-                YASSERT(PartitionsAwaitingMerge.find(partition) != PartitionsAwaitingMerge.end());
-                return partition;
+                if (IsPartitionAwaitingMergeAt(partition, address)) {
+                    return partition;
+                }
+                set.erase(set.begin());
             }
         }
 
