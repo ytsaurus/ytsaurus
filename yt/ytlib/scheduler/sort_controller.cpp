@@ -219,6 +219,7 @@ private:
             weightThreshold,
             needLocal);
 
+        YVERIFY(PartitionsAwaitingSort.find(partition) != PartitionsAwaitingSort.end());
         if (!IsPartitionAwaitingSort(partition)) {
             YVERIFY(PartitionsAwaitingSort.erase(partition) == 1);
         }
@@ -314,6 +315,7 @@ private:
             address,
             needLocal);
 
+        YVERIFY(PartitionsAwaitingMerge.find(partition) != PartitionsAwaitingMerge.end());
         if (!IsPartitionAwaitingMerge(partition)) {
             YVERIFY(PartitionsAwaitingMerge.erase(partition) == 1);
         }
