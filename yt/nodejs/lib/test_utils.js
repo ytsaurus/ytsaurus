@@ -106,3 +106,4 @@ describe("numerify", function() {
             .to.be.deep.equal([ 1, [ 2, 3, [ 4 ]]]);
     });
 });
+

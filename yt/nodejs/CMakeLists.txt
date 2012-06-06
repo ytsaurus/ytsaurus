@@ -1,5 +1,5 @@
-function( NODE target )
-  add_library( ${target} MODULE ${ARGN} )
+function( NODE target type )
+  add_library( ${target} ${type} ${ARGN} )
   target_link_libraries( ${target} ytlib )
 
   set( _node_compile_definitions
@@ -40,8 +40,10 @@ set( SRCS
   src/driver.cpp
 )
 
-NODE( ytnode ${SRCS} src/ytnode.cpp )
-NODE( ytnode_stubs src/ytnode_stubs.cpp )
+NODE( ytnode SHARED ${SRCS} src/ytnode.cpp )
+NODE( ytnode_stubs MODULE src/ytnode_stubs.cpp )
+
+target_link_libraries( ytnode_stubs ytnode )
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/run_tests.sh.in

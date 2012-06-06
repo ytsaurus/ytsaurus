@@ -53,23 +53,22 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    auto maybeValue = object->Get(SpecialValueKey);
-    auto maybeAttributes = object->Get(SpecialAttributesKey);
-
-    if (!maybeValue.IsEmpty()) {
-        if (!maybeAttributes.IsEmpty()) {
-            if (!maybeAttributes->IsObject()) {
+    if (object->Has(SpecialValueKey)) {
+        auto value = object->Get(SpecialValueKey);
+        if (object->Has(SpecialAttributesKey)) {
+            auto attributes = object->Get(SpecialAttributesKey);
+            if (!attributes->IsObject()) {
                 ThrowException(Exception::TypeError(String::New(
                     "Attributes have to be an object")));
                 return;
             }
 
             consumer->OnBeginAttributes();
-            ConsumeV8ObjectProperties(maybeAttributes->ToObject(), consumer);
+            ConsumeV8ObjectProperties(attributes->ToObject(), consumer);
             consumer->OnEndAttributes();
         }
 
-        ConsumeV8Value(maybeValue, consumer);
+        ConsumeV8Value(value, consumer);
     } else {
         consumer->OnBeginMap();
         ConsumeV8ObjectProperties(object, consumer);
@@ -154,8 +153,8 @@ Handle<Value> DebugFromV8ToYson(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    return scope.Close(String::New(
-        ~SerializeToYson(ConvertV8ValueToYson(args[0])), EYsonFormat::Pretty));
+    Stroka yson = SerializeToYson(ConvertV8ValueToYson(args[0]), EYsonFormat::Text);
+    return scope.Close(String::New(~yson));
 }
 
 void Initialize(Handle<Object> target)

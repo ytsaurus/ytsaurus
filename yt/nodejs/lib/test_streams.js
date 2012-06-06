@@ -123,12 +123,12 @@ describe("input stream interface", function() {
         }).bind(this));
     });
 
-    it("should properly read sliced buffers", function(done) {
+    it("should properly read sliced buffers", function() {
         var data_1 = new Buffer("foobar");
         var data_2 = data_1.slice(3);
 
-        this.stream.Push(data_1);
-        this.stream.Push(data_2);
+        this.stream.Push(data_1, 0, 6);
+        this.stream.Push(data_2, 0, 3);
         this.stream.Close();
 
         expect(this.reader.ReadSynchronously(9))
