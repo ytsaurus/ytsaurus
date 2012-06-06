@@ -7,12 +7,29 @@
 
 #include <library/json/json_writer.h>
 
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NYT {
 namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// How yson is mapped into json?
+// * Simple types (without attributes) are mapped almost as is:
+//     YSon <----> Json
+//    * List <---> Array
+//    * Map  <---> Object
+//    * Int  <---> Int
+//    * Double <---> Double
+//    * String (s) <---> String (t):
+//      * If s[0] != '&' and s is valid UTF8 string: t := s
+//      * else: t := '&' + Base64(s)
+//    * Not supported (yexception) <---> null
+//    * Not supported (yexception) <---> bool
+//    * Entity?
+// * Types with attributes are mapped to Json object:
+//    {
+//        '$attributes': attributes->AsMap(),
+//        '$value': value (see conversion of basic types)
+//    }
 
 //! Translates YSON events into a series of calls to TJsonWriter
 //! thus enabling to transform YSON into JSON.
