@@ -149,10 +149,23 @@ INodePtr ConvertV8StringToYson(Handle<String> string)
     return DeserializeFromYson(TStringBuf(*value, value.length()));
 }
 
+Handle<Value> DebugFromV8ToYson(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    return scope.Close(String::New(
+        ~SerializeToYson(ConvertV8ValueToYson(args[0]), EYsonFormat::Pretty));
+}
+
 void Initialize(Handle<Object> target)
 {
     SpecialValueKey = NODE_PSYMBOL("$value");
     SpecialAttributesKey = NODE_PSYMBOL("$attributes");
+
+    target->Set(
+        String::NewSymbol("DebugFromV8ToYson"),
+        FunctionTemplate::New(DebugFromV8ToYson)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
