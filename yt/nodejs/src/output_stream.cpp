@@ -7,17 +7,19 @@ namespace NYT {
 COMMON_V8_USES
 
 namespace {
-void DeleteCallback(char* data, void* hint)
-{
-    delete[] data;
-}
-} // namespace
-
-Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
 
 static Persistent<String> OnWriteSymbol;
 static Persistent<String> OnFlushSymbol;
 static Persistent<String> OnFinishSymbol;
+
+void DeleteCallback(char* data, void* hint)
+{
+    delete[] data;
+}
+
+} // namespace
+
+Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,6 +114,7 @@ void TNodeJSOutputStream::DoOnWrite()
         Local<Value> args[] = {
             Local<Value>::New(buffer->handle_)
         };
+
         // TODO(sandello): Use OnWriteSymbol here.
         node::MakeCallback(this->handle_, "on_write", ARRAY_SIZE(args), args);
     }

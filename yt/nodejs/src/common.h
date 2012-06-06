@@ -73,6 +73,8 @@ void DoNothing(uv_work_t* request);
 NYTree::INodePtr ConvertV8ValueToYson(v8::Handle<v8::Value> value);
 NYTree::INodePtr ConvertV8StringToYson(v8::Handle<v8::String> string);
 
+void Initialize(v8::Handle<v8::Object> target);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

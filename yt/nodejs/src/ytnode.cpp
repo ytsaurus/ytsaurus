@@ -16,6 +16,8 @@ void ExportYT(Handle<Object> target)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
+    Initialize(target);
+
     TNodeJSInputStream::Initialize(target);
     TNodeJSOutputStream::Initialize(target);
 

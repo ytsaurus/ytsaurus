@@ -241,7 +241,7 @@ Handle<Value> TNodeJSDriver::DoGetCommandDescriptors()
     Local<Array> result;
 
     auto descriptors = Driver->GetCommandDescriptors();
-    FOREACH(const auto& descriptor, descriptors) {
+    FOREACH (const auto& descriptor, descriptors) {
         Local<Object> resultItem = ConvertCommandDescriptorToV8Object(descriptor);
         result->Set(result->Length(), resultItem);
     }
@@ -282,7 +282,10 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     Local<Function> callback = args[6].As<Function>();
 
     // Build an atom of work.
-    YASSERT(parameters->GetType() == ENodeType::Map);
+    YCHECK(inputFormat);
+    YCHECK(outputFormat);
+    YCHECK(parameters);
+    YCHECK(parameters->GetType() == ENodeType::Map);
 
     TExecuteRequest* request = new TExecuteRequest(
         ObjectWrap::Unwrap<TNodeJSDriver>(args.This()),

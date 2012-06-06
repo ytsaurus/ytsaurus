@@ -21,8 +21,16 @@ void DoNothing(uv_work_t* request)
 
 namespace {
 
+static Persistent<String> SpecialValueKey;
+static Persistent<String> SpecialAttributesKey;
+
+static const char SpecialBase64Marker = '&';
+
+// TODO(sandello): Support proper Base64 string encoding for YSON strings.
+
 void ConsumeV8Array(Handle<Array> array, IYsonConsumer* consumer);
 void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer);
+void ConsumeV8ObjectProperties(Handle<Object> object, IYsonConsumer* consumer);
 void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer);
 
 void ConsumeV8Array(Handle<Array> array, IYsonConsumer* consumer)
@@ -45,7 +53,34 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    consumer->OnBeginMap();
+    auto maybeValue = object->Get(SpecialValueKey);
+    auto maybeAttributes = object->Get(SpecialAttributesKey);
+
+    if (maybeValue) {
+        if (maybeAttributes) {
+            if (!maybeAttributes->IsObject()) {
+                ThrowException(Exception::TypeError(String::New(
+                    "Attributes have to be an object")));
+                return;
+            }
+
+            consumer->OnBeginAttributes();
+            ConsumeV8ObjectProperties(maybeAttributes->ToObject(), consumer);
+            consumer->OnEndAttributes();
+        }
+
+        ConsumeV8Value(maybeValue);
+    } else {
+        consumer->OnBeginMap();
+        ConsumeV8ObjectProperties(object, consumer);
+        consumer->OnEndMap();
+    }
+}
+
+void ConsumeV8ObjectProperties(Handle<Object> object, IYsonConsumer* consumer)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
 
     Local<Array> properties = object->GetOwnPropertyNames();
     for (ui32 i = 0; i < properties->Length(); ++i) {
@@ -55,8 +90,6 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
         consumer->OnKeyedItem(TStringBuf(*keyValue, keyValue.length()));
         ConsumeV8Value(object->Get(key), consumer);
     }
-
-    consumer->OnEndMap();
 }
 
 void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
@@ -73,12 +106,6 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
         } else {
             consumer->OnDoubleScalar(value->NumberValue());
         }
-    } else if (value->IsBoolean()) {
-        if (value->BooleanValue()) {
-            consumer->OnStringScalar("true");
-        } else {
-            consumer->OnStringScalar("false");
-        }
     } else if (value->IsObject()) {
         if (value->IsArray()) {
             ConsumeV8Array(
@@ -91,7 +118,8 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
         }
     } else {
         ThrowException(Exception::TypeError(String::New(
-            "Unable to map JS value onto YSON")));
+            "Unable to map V8 value onto YSON; unsupported value type")));
+        return;
     }
 }
 
@@ -99,16 +127,32 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
 
 INodePtr ConvertV8ValueToYson(Handle<Value> value)
 {
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+    TryCatch block;
+
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
     ConsumeV8Value(value, ~builder);
-    return builder->EndTree();
+
+    if (block.HasCaught()) {
+        block.ReThrow();
+        return NULL;
+    } else {
+        return builder->EndTree();
+    }
 }
 
 INodePtr ConvertV8StringToYson(Handle<String> string)
 {
     String::AsciiValue value(string);
     return DeserializeFromYson(TStringBuf(*value, value.length()));
+}
+
+void Initialize(Handle<Object> target)
+{
+    SpecialValueKey = NODE_PSYMBOL("$value");
+    SpecialAttributesKey = NODE_PSYMBOL("$attributes");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
