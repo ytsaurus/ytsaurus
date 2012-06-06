@@ -25,6 +25,11 @@ TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
     }
 }
 
+TJsonWriter::~TJsonWriter()
+{
+    Flush();
+}
+
 void TJsonWriter::OnMyStringScalar(const TStringBuf& value)
 {
     WriteStringScalar(value);

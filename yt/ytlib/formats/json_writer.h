@@ -49,6 +49,7 @@ class TJsonWriter
 {
 public:
     TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config = NULL);
+    ~TJsonWriter();
 
     void Flush();
 
