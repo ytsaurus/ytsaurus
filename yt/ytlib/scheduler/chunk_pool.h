@@ -11,18 +11,25 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWeightedChunk
+{
+    NTableClient::NProto::TInputChunk InputChunk;
+    i64 Weight;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     TChunkStripe();
     TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
-    TChunkStripe(const std::vector<NTableClient::NProto::TInputChunk>& inputChunks, i64 weight);
 
     void AddChunk(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
 
     std::vector<NChunkServer::TChunkId> GetChunkIds() const;
 
-    TSmallVector<NTableClient::NProto::TInputChunk, 1> InputChunks;
+    TSmallVector<TWeightedChunk, 1> Chunks;
     i64 Weight;
 };
 
@@ -45,18 +52,13 @@ struct TPoolExtractionResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedChunkPool
+struct IChunkPool
 {
-public:
-    TUnorderedChunkPool();
-    ~TUnorderedChunkPool();
-
     void Add(TChunkStripePtr stripe);
 
     TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        i64 weightThreshold,
-        bool needLocal);
+        i64 weightThreshold = std::numeric_limits<i64>::max());
     void OnFailed(TPoolExtractionResultPtr result);
     void OnCompleted(TPoolExtractionResultPtr result);
 
@@ -65,44 +67,15 @@ public:
     i64 GetCompletedWeight() const;
 
     bool IsCompleted() const;
-    bool HasPendingChunks() const;
-    bool HasPendingLocalChunksAt(const Stroka& address) const;
-
-private:
-    class TImpl;
-    THolder<TImpl> Impl;
-
+    bool IsPending() const;
+    
+    i64 GetLocality(const Stroka& address) const;
 };
 
 ////////////////////////////////////////////////////////////////////
 
-class TAtomicChunkPool
-{
-public:
-    TAtomicChunkPool();
-    ~TAtomicChunkPool();
-
-    void Add(TChunkStripePtr stripe);
-
-    TPoolExtractionResultPtr Extract(
-        const Stroka& address,
-        bool needLocal);
-    void OnFailed(TPoolExtractionResultPtr result);
-    void OnCompleted(TPoolExtractionResultPtr result);
-
-    i64 GetTotalWeight() const;
-    i64 GetPendingWeight() const;
-    i64 GetCompletedWeight() const;
-
-    bool IsCompleted() const;
-    bool HasPendingChunks() const;
-    bool HasPendingLocalChunksAt(const Stroka& address) const;
-     
-private:
-    class TImpl;
-    THolder<TImpl> Impl;
-
-};
+TAutoPtr<IChunkPool> CreateUnorderedPool();
+TAutoPtr<IChunkPool> CreateAtomicPool();
 
 ////////////////////////////////////////////////////////////////////
 

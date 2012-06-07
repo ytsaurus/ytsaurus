@@ -2,6 +2,7 @@
 #include "operation_controller_detail.h"
 #include "private.h"
 #include "chunk_list_pool.h"
+#include "chunk_pool.h"
 
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/object_server/object_ypath_proxy.h>
@@ -233,6 +234,116 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
     }
 
     return job;
+}
+
+void TOperationControllerBase::RegisterTaskPendingHint(TTaskPtr task)
+{
+    YVERIFY(PendingTasks.insert(task).second);
+}
+
+void TOperationControllerBase::RegisterTaskLocalityHint(TTaskPtr task, const Stroka& address)
+{
+    AddressToLocalTasks[address].insert(task);
+}
+
+void TOperationControllerBase::RegisterTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
+{
+    FOREACH (const auto& chunk, stripe->Chunks) {
+        const auto& inputChunk = chunk.InputChunk;
+        FOREACH (const auto& address, inputChunk.node_addresses()) {
+            RegisterTaskLocalityHint(task, address);
+        }
+    }
+}
+
+TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
+{
+    // Look for local tasks first.
+    auto address = node->GetAddress();
+    auto localIt = AddressToLocalTasks.find(address);
+    if (localIt != AddressToLocalTasks.end()) {
+        // Find the best with max locality among hinted ones.
+        // Perform lazy cleanup of locality hints.
+        auto& candidates = localIt->second;
+        TTaskPtr bestTask = NULL;
+        i64 bestLocality = 0;
+        auto it = candidates.begin();
+        while (it != candidates.end()) {
+            auto jt = it++;
+            const auto& candidate = *jt;
+            bool isValid = false;
+            if (candidate->GetPendingJobCount() > 0) {
+                i64 locality = candidate->GetLocality(address);
+                if (locality > 0) {
+                    if (locality > bestLocality) {
+                        bestTask = candidate;
+                        bestLocality = locality;
+                    }
+                } else {
+                    candidates.erase(jt);
+                }
+            }
+        }
+
+        if (bestTask) {
+            // Reset locality timestamp and run custom scheduling.
+            bestTask->SetLastNonlocalTime(TInstant::Zero());
+            LOG_DEBUG("Scheduling a local job (Task: %s, Locality: %" PRId64 ")",
+                ~bestTask->GetId(),
+                bestLocality);
+            return bestTask->ScheduleJob(node);
+        }
+    }
+
+    // Examine all (potentially) pending tasks.
+    // Perform lazy cleanup of pending hints.
+    {
+        auto now = TInstant::Now();
+        TTaskPtr feasibleTask = NULL;
+        auto it = PendingTasks.begin();
+        while (it != PendingTasks.end()) {
+            auto jt = it++;
+            auto candidate = *jt;
+            bool isValid = false;
+            if (candidate->GetPendingJobCount() > 0) {
+                // Check for locality timeout.
+                if (candidate->GetLastNonlocalTime() + candidate->GetMaxLocalityDelay() <= now) {
+                    feasibleTask = candidate;
+                }
+            } else {
+                PendingTasks.erase(jt);
+            }
+        }
+
+        if (feasibleTask) {
+            LOG_DEBUG("Scheduling a non-local job (Task: %s)", ~feasibleTask->GetId());
+            auto job = feasibleTask->ScheduleJob(node);
+            if (job) {
+                feasibleTask->SetLastNonlocalTime(now);
+                return job;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+int TOperationControllerBase::GetPendingJobCount()
+{
+    // Examine all (potentially) pending tasks.
+    // Perform lazy cleanup of pending hints.
+    int result = 0;
+    auto it = PendingTasks.begin();
+    while (it != PendingTasks.end()) {
+        auto jt = it++;
+        const auto& candidate = *jt;
+        int count = candidate->GetPendingJobCount();
+        if (count == 0) {
+            PendingTasks.erase(it);
+        }
+        result += count;
+    }
+    return result;
 }
 
 void TOperationControllerBase::FailOperation(const TError& error)
@@ -827,11 +938,14 @@ bool TOperationControllerBase::CheckChunkListsPoolSize(int minSize)
     return false;
 }
 
-i64 TOperationControllerBase::GetJobWeightThreshold(int pendingJobCount, i64 pendingWeight)
+TJobPtr TOperationControllerBase::CreateJob(
+    TJobInProgressPtr jip,
+    TExecNodePtr node,
+    const NProto::TJobSpec& spec)
 {
-    YASSERT(pendingJobCount > 0);
-    YASSERT(pendingWeight > 0);
-    return static_cast<i64>(std::ceil((double) pendingWeight / pendingJobCount));
+    jip->Job = Host->CreateJob(Operation, node, spec);
+    YVERIFY(JobsInProgress.insert(MakePair(jip->Job, jip)).second);
+    return jip->Job;
 }
 
 TOperationControllerBase::TJobInProgressPtr TOperationControllerBase::GetJobInProgress(TJobPtr job)

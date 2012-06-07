@@ -2,6 +2,8 @@
 
 #include "public.h"
 #include "operation_controller.h"
+#include "chunk_pool.h"
+#include "chunk_list_pool.h"
 #include "private.h"
 
 #include <ytlib/logging/tagged_logger.h>
@@ -36,6 +38,8 @@ public:
     virtual void OnOperationAborted();
 
     virtual TJobPtr ScheduleJob(TExecNodePtr node);
+
+    virtual int GetPendingJobCount();
 
     virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer);
     virtual void BuildResultYson(NYTree::IYsonConsumer* consumer);
@@ -136,6 +140,8 @@ protected:
         TJobPtr Job;
         TClosure OnCompleted;
         TClosure OnFailed;
+        TPoolExtractionResultPtr PoolResult;
+        std::vector<NChunkServer::TChunkListId> ChunkListIds;
     };
 
     typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
@@ -145,31 +151,173 @@ protected:
     // The set of all input chunks. Used in #OnChunkFailed.
     yhash_set<NChunkServer::TChunkId> InputChunkIds;
 
+    // Tasks management.
+
+    class TTask
+        : public TRefCounted
+    {
+    public:
+        explicit TTask(TOperationControllerBase* controller)
+            : Controller(controller)
+            , LastNonlocalTime_(TInstant::Zero())
+            , Logger(Controller->Logger)
+        { }
+
+        virtual Stroka GetId() const = 0;
+        virtual int GetPendingJobCount() const = 0;
+        virtual int GetChunkListCountPerJob() const = 0;
+        virtual TDuration GetMaxLocalityDelay() const = 0;
+
+        DEFINE_BYVAL_RW_PROPERTY(TInstant, LastNonlocalTime);
+
+        void AddStripe(TChunkStripePtr stripe)
+        {
+            ChunkPool->Add(stripe);
+            if (GetPendingJobCount() > 0) {
+                Controller->RegisterTaskLocalityHint(this, stripe);
+                Controller->RegisterTaskPendingHint(this);
+            }
+        }
+
+        i64 GetLocality(const Stroka& address) const
+        {
+            return ChunkPool->GetLocality(address);
+        }
+
+        bool IsCompleted() const
+        {
+            return ChunkPool->IsCompleted();
+        }
+
+        TJobPtr ScheduleJob(TExecNodePtr node)
+        {
+            if (!Controller->CheckChunkListsPoolSize(GetChunkListCountPerJob())) {
+                return NULL;
+            }
+
+            auto jip = New<TJobInProgress>();
+            auto weightThreshold = GetJobWeightThreshold();
+            jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold.Get(std::numeric_limits<i64>::max()));
+
+            LOG_DEBUG("Chunks extracted (Address: %s, TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
+                ~node->GetAddress(),
+                jip->PoolResult->TotalChunkCount,
+                jip->PoolResult->LocalChunkCount,
+                jip->PoolResult->TotalChunkWeight,
+                ~ToString(weightThreshold));
+
+            auto jobSpec = GetJobSpec(~jip);
+
+            OnJobStarted(~jip);
+
+            // Pass jip to handlers via raw pointer to avoid cyclic references.
+            jip->OnCompleted = BIND(&TTask::OnJobCompleted, this, Unretained(~jip));
+            jip->OnFailed = BIND(&TTask::OnJobFailed, this, Unretained(~jip));
+
+            return Controller->CreateJob(jip, node, jobSpec);
+        }
+
+    private:
+        TOperationControllerBase* Controller;
+
+    protected:
+        NLog::TTaggedLogger& Logger;
+        TAutoPtr<IChunkPool> ChunkPool;
+
+        virtual TNullable<i64> GetJobWeightThreshold() const = 0;
+
+        virtual NScheduler::NProto::TJobSpec GetJobSpec(TJobInProgress* jip) = 0;
+
+        virtual void OnJobStarted(TJobInProgress* jip)
+        {
+            UNUSED(jip);
+        }
+
+        virtual void OnJobCompleted(TJobInProgress* jip)
+        {
+            ChunkPool->OnCompleted(jip->PoolResult);
+
+            if (ChunkPool->IsCompleted()) {
+                LOG_DEBUG("Task completed (Task: %s)", ~GetId());
+                OnTaskCompleted();
+            }
+        }
+
+        virtual void OnJobFailed(TJobInProgress* jip)
+        {
+            ChunkPool->OnFailed(jip->PoolResult);
+            
+            Controller->ReleaseChunkLists(jip->ChunkListIds);
+
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+                Controller->RegisterTaskLocalityHint(this, stripe);
+            }
+            Controller->RegisterTaskPendingHint(this);
+        }
+
+        virtual void OnTaskCompleted()
+        { }
+
+
+        static i64 GetJobWeightThresholdGeneric(int pendingJobCount, i64 pendingWeight)
+        {
+            YASSERT(pendingJobCount > 0);
+            YASSERT(pendingWeight > 0);
+            return static_cast<i64>(std::ceil((double) pendingWeight / pendingJobCount));
+        }
+
+
+        void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip)
+        {
+            auto* inputSpec = jobSpec->add_input_specs();
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+                FOREACH (const auto& chunk, stripe->Chunks) {
+                    *inputSpec->add_chunks() = chunk.InputChunk;
+                }
+            }
+        }
+
+        void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip)
+        {
+            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+                auto* inputSpec = jobSpec->add_input_specs();
+                FOREACH (const auto& chunk, stripe->Chunks) {
+                    *inputSpec->add_chunks() = chunk.InputChunk;
+                }
+            }
+        }
+
+        void AddTabularOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip, const TOutputTable& table)
+        {
+            auto* outputSpec = jobSpec->add_output_specs();
+            outputSpec->set_channels(table.Channels);
+            auto chunkListId = Controller->ChunkListPool->Extract();
+            jip->ChunkListIds.push_back(chunkListId);
+            *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
+        }
+    };
+
+    typedef TIntrusivePtr<TTask> TTaskPtr;
+
+    yhash_set<TTaskPtr> PendingTasks;
+    yhash_map<Stroka, yhash_set<TTaskPtr>> AddressToLocalTasks;
+
+    void RegisterTaskLocalityHint(TTaskPtr task, const Stroka& address);
+    void RegisterTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
+    void RegisterTaskPendingHint(TTaskPtr task);
+
+    TJobPtr DoScheduleJob(TExecNodePtr node);
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
     // Jobs in progress management.
-    template <class TConcreteJip>
     TJobPtr CreateJob(
-        TIntrusivePtr<TConcreteJip> jip,
-        TExecNodePtr node, 
-        const NProto::TJobSpec& spec,
-        TCallback<void(TConcreteJip*)> onCompleted,
-        TCallback<void(TConcreteJip*)> onFailed)
-    {
-        jip->Job = Host->CreateJob(Operation, node, spec);
-        // Pass jip to handlers via raw pointer to avoid cyclic references.
-        jip->OnCompleted = BIND(onCompleted, Unretained(~jip));
-        jip->OnFailed = BIND(onFailed, Unretained(~jip));
-        YVERIFY(JobsInProgress.insert(MakePair(jip->Job, jip)).second);
-        return jip->Job;
-    }
-
+        TJobInProgressPtr jip,
+        TExecNodePtr node,
+        const NProto::TJobSpec& spec);
     TJobInProgressPtr GetJobInProgress(TJobPtr job);
     void RemoveJobInProgress(TJobPtr job);
-
-    //! Performs the actual scheduling.
-    virtual TJobPtr DoScheduleJob(TExecNodePtr node) = 0;
 
 
     // TODO(babenko): YPath and RPC responses currently share no base class.
@@ -302,7 +450,6 @@ protected:
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
     void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-    static i64 GetJobWeightThreshold(int pendingJobCount, i64 pendingWeight);
     static int GetJobCount(
         i64 totalWeight,
         i64 weightPerJob,

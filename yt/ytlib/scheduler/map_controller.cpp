@@ -49,11 +49,10 @@ public:
         , TotalChunkCount(0)
         , PendingChunkCount(0)
         , CompletedChunkCount(0)
+        , MapTask(New<TMapTask>(this))
     { }
 
 private:
-    typedef TMapController TThis;
-
     TSchedulerConfigPtr Config;
     TMapOperationSpecPtr Spec;
 
@@ -65,107 +64,100 @@ private:
     int TotalChunkCount;
     int PendingChunkCount;
     int CompletedChunkCount;
-    
-    TUnorderedChunkPool ChunkPool;
 
-    // A template for starting new jobs.
-    TJobSpec JobSpecTemplate;
+    // Map task.
 
-    // Init/finish.
-
-    virtual int GetPendingJobCount()
+    class TMapTask
+        : public TTask
     {
-        return PendingWeight == 0
-            ? 0
-            : TotalJobCount - RunningJobCount - CompletedJobCount;
-    }
-
-
-    // Job scheduling and outcome handling.
-
-    struct TMapJobInProgress
-        : public TJobInProgress
-    {
-        TPoolExtractionResultPtr PoolResult;
-        std::vector<TChunkListId> ChunkListIds;
-    };
-
-    virtual TJobPtr DoScheduleJob(TExecNodePtr node)
-    {
-        // Check if we have enough chunk lists in the pool.
-        if (!CheckChunkListsPoolSize(OutputTables.size())) {
-            return NULL;
-        }
-
-        // We've got a job to do! :)
-
-        // Allocate chunks for the job.
-        auto jip = New<TMapJobInProgress>();
-        i64 weightThreshold = GetJobWeightThreshold(GetPendingJobCount(), PendingWeight);
-        jip->PoolResult = ChunkPool.Extract(
-            node->GetAddress(),
-            weightThreshold,
-            false);
-
-        LOG_DEBUG("Extracted %d chunks for map at node %s (LocalChunkCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
-            jip->PoolResult->LocalChunkCount,
-            ~node->GetAddress(),
-            jip->PoolResult->LocalChunkCount,
-            jip->PoolResult->TotalChunkWeight,
-            weightThreshold);
-
-        // Make a copy of the generic spec and customize it.
-        auto jobSpec = JobSpecTemplate;
+    public:
+        explicit TMapTask(TMapController* controller)
+            : TTask(controller)
+            , Controller(controller)
         {
-            auto* inputSpec = jobSpec.add_input_specs();
-            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                *inputSpec->add_chunks() = stripe->InputChunks[0];
-            }
+            ChunkPool = CreateUnorderedPool();
+        }
 
-            FOREACH (const auto& table, OutputTables) {
-                auto* outputSpec = jobSpec.add_output_specs();
-                outputSpec->set_channels(table.Channels);
-                auto chunkListId = ChunkListPool->Extract();
-                jip->ChunkListIds.push_back(chunkListId);
-                *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
+        virtual Stroka GetId() const
+        {
+            return "Map";
+        }
+
+        virtual int GetPendingJobCount() const
+        {
+            return
+                Controller->PendingWeight == 0
+                ? 0
+                : Controller->TotalJobCount - Controller->RunningJobCount - Controller->CompletedJobCount;
+        }
+
+        virtual TDuration GetMaxLocalityDelay() const
+        {
+            // TODO(babenko): make configurable
+            return TDuration::Seconds(5);
+        }
+
+    private:
+        friend class TMapController;
+
+        TMapController* Controller;
+
+        virtual int GetChunkListCountPerJob() const 
+        {
+            return static_cast<int>(Controller->OutputTables.size());
+        }
+
+        virtual TNullable<i64> GetJobWeightThreshold() const
+        {
+            return GetJobWeightThresholdGeneric(
+                GetPendingJobCount(),
+                Controller->PendingWeight);
+        }
+
+        virtual TJobSpec GetJobSpec(TJobInProgress* jip)
+        {
+            auto jobSpec = Controller->JobSpecTemplate;
+            AddSequentialInputSpec(&jobSpec, jip);
+            FOREACH (const auto& table, Controller->OutputTables) {
+                AddTabularOutputSpec(&jobSpec, jip, table);
+            }
+            return jobSpec;
+        }
+
+        virtual void OnJobStarted(TJobInProgress* jip)
+        {
+            TTask::OnJobStarted(jip);
+
+            Controller->PendingChunkCount -= jip->PoolResult->LocalChunkCount;
+            Controller->PendingWeight -= jip->PoolResult->TotalChunkWeight;
+        }
+
+        virtual void OnJobCompleted(TJobInProgress* jip)
+        {
+            TTask::OnJobCompleted(jip);
+
+            Controller->CompletedChunkCount += jip->PoolResult->TotalChunkCount;
+            Controller->CompletedWeight += jip->PoolResult->TotalChunkWeight;
+
+            for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
+                auto chunkListId = jip->ChunkListIds[index];
+                Controller->OutputTables[index].PartitionTreeIds.push_back(chunkListId);
             }
         }
 
-        // Update running counters.
-        PendingChunkCount -= jip->PoolResult->LocalChunkCount;
-        PendingWeight -= jip->PoolResult->TotalChunkWeight;
+        virtual void OnJobFailed(TJobInProgress* jip)
+        {
+            TTask::OnJobFailed(jip);
 
-        return CreateJob(
-            jip,
-            node,
-            jobSpec,
-            BIND(&TThis::OnJobCompleted, MakeWeak(this)),
-            BIND(&TThis::OnJobFailed, MakeWeak(this)));
-    }
-
-    void OnJobCompleted(TMapJobInProgress* jip)
-    {
-        CompletedChunkCount += jip->PoolResult->TotalChunkCount;
-        CompletedWeight += jip->PoolResult->TotalChunkWeight;
-
-        ChunkPool.OnCompleted(jip->PoolResult);
-
-        for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-            auto chunkListId = jip->ChunkListIds[index];
-            OutputTables[index].PartitionTreeIds.push_back(chunkListId);
+            Controller->PendingChunkCount += jip->PoolResult->TotalChunkCount;
+            Controller->PendingWeight += jip->PoolResult->TotalChunkWeight;
         }
-    }
+    };
+    
+    typedef TIntrusivePtr<TMapTask> TMapTaskPtr;
 
-    void OnJobFailed(TMapJobInProgress* jip)
-    {
-        PendingChunkCount += jip->PoolResult->TotalChunkCount;
-        PendingWeight += jip->PoolResult->TotalChunkWeight;
-
-        LOG_DEBUG("Returned %d chunks into pool", jip->PoolResult->TotalChunkCount);
-        ChunkPool.OnFailed(jip->PoolResult);
-
-        ReleaseChunkLists(jip->ChunkListIds);
-    }
+    TMapTaskPtr MapTask;
+    TJobSpec JobSpecTemplate;
 
 
     // Custom bits of preparation pipeline.
@@ -187,7 +179,7 @@ private:
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
     {
-        return pipeline->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
+        return pipeline->Add(BIND(&TMapController::ProcessInputs, MakeStrong(this)));
     }
 
     void ProcessInputs()
@@ -196,8 +188,6 @@ private:
             LOG_INFO("Processing inputs");
             
             // Compute statistics and populate the pool.
-            i64 totalRowCount = 0;
-
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
 
@@ -209,37 +199,33 @@ private:
                         .EndMap();
                 }
 
-                FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
+                FOREACH (auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
                     // Currently fetch never returns row attributes.
-                    YCHECK(!chunk.has_row_attributes());
+                    YCHECK(!inputChunk.has_row_attributes());
 
                     if (rowAttributes) {
-                        chunk.set_row_attributes(rowAttributes.Get());
+                        inputChunk.set_row_attributes(rowAttributes.Get());
                     }
 
-                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk.extensions());
-
-                    i64 rowCount = miscExt->row_count();
                     // TODO(babenko): make customizable
+                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
                     i64 weight = miscExt->data_weight();
 
-                    totalRowCount += rowCount;
-                    ++TotalChunkCount;
-                    TotalWeight += weight;
+                    auto stripe = New<TChunkStripe>(inputChunk, weight);
+                    MapTask->AddStripe(stripe);
 
-                    auto stripe = New<TChunkStripe>(chunk, weight);
-                    ChunkPool.Add(stripe);
+                    ++TotalChunkCount;
+                    TotalWeight += stripe->Weight;
                 }
             }
 
             // Check for empty inputs.
-            if (totalRowCount == 0) {
+            if (TotalWeight == 0) {
                 LOG_INFO("Empty input");
                 FinalizeOperation();
                 return;
             }
 
-            // Init counters.
             TotalJobCount = GetJobCount(
                 TotalWeight,
                 Config->MapJobIO->ChunkSequenceWriter->DesiredChunkSize,
@@ -247,19 +233,19 @@ private:
                 TotalChunkCount);
             PendingWeight = TotalWeight;
             PendingChunkCount = TotalChunkCount;
-
+            
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(OutputTables.size() * TotalJobCount + Config->SpareChunkListCount);
 
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (RowCount: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
-                totalRowCount,
+            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
                 TotalWeight,
                 TotalChunkCount,
                 TotalJobCount);
         }
     }
+
 
     // Progress reporting.
 
@@ -296,6 +282,7 @@ private:
                 .Item("pending").Scalar(PendingWeight)
             .EndMap();
     }
+
 
     // Unsorted helpers.
 
@@ -338,6 +325,7 @@ private:
 
         // TODO(babenko): stderr
     }
+
 };
 
 IOperationControllerPtr CreateMapController(

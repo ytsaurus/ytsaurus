@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "merge_controller.h"
+#include "private.h"
 #include "operation_controller.h"
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
-#include "private.h"
 #include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
@@ -50,11 +50,8 @@ public:
         , TotalChunkCount(0)
         , PendingChunkCount(0)
         , CompletedChunkCount(0)
-        , CurrentGroupWeight(0)
+        , CurrentTaskWeight(0)
     { }
-
-private:
-    typedef TMergeControllerBase TThis;
 
 protected:
     TMergeOperationSpecPtr Spec;
@@ -68,94 +65,148 @@ protected:
     int PendingChunkCount;
     int CompletedChunkCount;
 
-    yhash_map<int, TChunkStripePtr> CurrentGroupStripes;
-    i64 CurrentGroupWeight;
+    yhash_map<int, TChunkStripePtr> CurrentTaskStripes;
+    i64 CurrentTaskWeight;
 
     // The template for starting new jobs.
     TJobSpec JobSpecTemplate;
 
+    // Merge task.
 
-    // Merge groups.
-    struct TMergeGroup
-        : public TIntrinsicRefCounted
+    class TMergeTask
+        : public TTask
     {
-        TMergeGroup(int groupIndex, int partitionIndex = -1)
-            : GroupIndex(groupIndex)
+    public:
+        explicit TMergeTask(
+            TMergeControllerBase* controller,
+            int taskIndex,
+            int partitionIndex = -1)
+            : TTask(controller)
+            , Controller(controller)
+            , TaskIndex(taskIndex)
             , PartitionIndex(partitionIndex)
-        { }
-
-        TAtomicChunkPool ChunkPool;
-
-        //! The position in |Groups|. 
-        int GroupIndex;
-
-        //! The position in |TOutputTable::PartitionIds| where the 
-        //! output of this group must be placed.
-        int PartitionIndex;
-    };
-
-    typedef TIntrusivePtr<TMergeGroup> TMergeGroupPtr;
-
-    std::vector<TMergeGroupPtr> Groups;
-
-    //! Finish the current group.
-    void EndGroup()
-    {
-        YCHECK(CurrentGroupWeight > 0);
-
-        auto& table = OutputTables[0];
-        auto group = New<TMergeGroup>(
-            static_cast<int>(Groups.size()),
-            static_cast<int>(table.PartitionTreeIds.size()));
-
-        FOREACH(auto& pair, CurrentGroupStripes) {
-            group->ChunkPool.Add(pair.second);
-            RegisterPendingStripe(group, pair.second);
+        {
+            ChunkPool = CreateAtomicPool();
         }
 
-        // Reserve a place for this group among partitions.
+        virtual Stroka GetId() const
+        {
+            return Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
+        }
+
+        virtual int GetPendingJobCount() const
+        {
+            return ChunkPool->IsPending() ? 1 : 0;
+        }
+
+        virtual TDuration GetMaxLocalityDelay() const
+        {
+            // TODO(babenko): make configurable
+            return TDuration::Seconds(5);
+        }
+
+
+    private:
+        TMergeControllerBase* Controller;
+
+        //! The position in |MergeTasks|. 
+        int TaskIndex;
+
+        //! The position in |TOutputTable::PartitionIds| where the 
+        //! output of this task must be placed.
+        int PartitionIndex;
+
+
+        virtual int GetChunkListCountPerJob() const 
+        {
+            return 1;
+        }
+
+        virtual TNullable<i64> GetJobWeightThreshold() const
+        {
+            return Null;
+        }
+
+        virtual TJobSpec GetJobSpec(TJobInProgress* jip)
+        {
+            auto jobSpec = Controller->JobSpecTemplate;
+            AddParallelInputSpec(&jobSpec, jip);
+            AddTabularOutputSpec(&jobSpec, jip, Controller->OutputTables[0]);
+            return jobSpec;
+        }
+
+        virtual void OnJobStarted(TJobInProgress* jip)
+        {
+            TTask::OnJobStarted(jip);
+
+            Controller->PendingChunkCount -= jip->PoolResult->TotalChunkCount;
+            Controller->PendingWeight -= jip->PoolResult->TotalChunkWeight;
+        }
+
+        virtual void OnJobCompleted(TJobInProgress* jip)
+        {
+            TTask::OnJobCompleted(jip);
+
+            Controller->CompletedChunkCount += jip->PoolResult->TotalChunkCount;
+            Controller->CompletedWeight += jip->PoolResult->TotalChunkWeight;
+
+            auto& table = Controller->OutputTables[0];
+            table.PartitionTreeIds[PartitionIndex] = jip->ChunkListIds[0];
+        }
+
+        void OnJobFailed(TJobInProgress* jip)
+        {
+            TTask::OnJobFailed(jip);
+
+            Controller->PendingChunkCount += jip->PoolResult->TotalChunkCount;
+            Controller->PendingWeight += jip->PoolResult->TotalChunkWeight;
+        }
+
+    };
+
+    typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;
+
+    std::vector<TMergeTaskPtr> MergeTasks;
+
+    //! Finish the current task.
+    void EndTask()
+    {
+        YCHECK(CurrentTaskWeight > 0);
+
+        auto& table = OutputTables[0];
+        auto task = New<TMergeTask>(
+            this,
+            static_cast<int>(MergeTasks.size()),
+            static_cast<int>(table.PartitionTreeIds.size()));
+
+        FOREACH(auto& pair, CurrentTaskStripes) {
+            task->AddStripe(pair.second);
+        }
+
+        // Reserve a place for this task among partitions.
         table.PartitionTreeIds.push_back(NullChunkListId);
 
-        Groups.push_back(group);
+        MergeTasks.push_back(task);
 
-        LOG_DEBUG("Finished group %d (DataSize: %" PRId64 ")",
-            static_cast<int>(Groups.size()) - 1,
-            CurrentGroupWeight);
+        LOG_DEBUG("Finished task (Task: %d, DataSize: %" PRId64 ")",
+            static_cast<int>(MergeTasks.size()) - 1,
+            CurrentTaskWeight);
 
-        CurrentGroupWeight = 0;
-        CurrentGroupStripes.clear();
+        CurrentTaskWeight = 0;
+        CurrentTaskStripes.clear();
     }
 
-    //! Finish the current group if the size is large enough.
-    void EndGroupIfLarge()
+    //! Finish the current task if the size is large enough.
+    void EndTaskIfLarge()
     {
-        if (CurrentGroupWeight >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
-            EndGroup();
+        if (CurrentTaskWeight >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
+            EndTask();
         }
     }
 
     // Chunk pools and locality.
 
-    yhash_map<Stroka, yhash_set<TMergeGroupPtr> > AddressToGroupsAwaitingMerge;
-    yhash_set<TMergeGroupPtr> GroupsAwatingMerge;
-
-    bool IsGroupAwaitingMergeAt(TMergeGroupPtr group, const Stroka& address)
-    {
-        return group->ChunkPool.HasPendingLocalChunksAt(address);
-    }
-
-    void RegisterPendingStripe(TMergeGroupPtr group, TChunkStripePtr stripe)
-    {
-        GroupsAwatingMerge.insert(group);
-
-        FOREACH (const auto& chunk, stripe->InputChunks) {
-            FOREACH (const auto& address, chunk.node_addresses()) {
-                AddressToGroupsAwaitingMerge[address].insert(group);
-            }
-        }
-    }
-
-    //! Add chunk to the current group's pool.
+    //! Add chunk to the current task's pool.
     void AddPendingChunk(const TInputChunk& chunk, int stripeTag)
     {
         // Merge is IO-bound, use data size as weight.
@@ -163,26 +214,26 @@ protected:
         i64 weight = misc->data_weight();
 
         TChunkStripePtr stripe;
-        auto it = CurrentGroupStripes.find(stripeTag);
-        if (it == CurrentGroupStripes.end()) {
+        auto it = CurrentTaskStripes.find(stripeTag);
+        if (it == CurrentTaskStripes.end()) {
             stripe = New<TChunkStripe>();
-            YASSERT(CurrentGroupStripes.insert(std::make_pair(stripeTag, stripe)).second);
+            YASSERT(CurrentTaskStripes.insert(std::make_pair(stripeTag, stripe)).second);
         } else {
             stripe = it->second;
         }
 
         TotalWeight += weight;
-        CurrentGroupWeight += weight;
+        CurrentTaskWeight += weight;
 
         ++TotalChunkCount;
         stripe->AddChunk(chunk, weight);
 
         auto& table = OutputTables[0];
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        LOG_DEBUG("Added pending chunk %s in partition %d, group %d",
+        LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d)",
             ~chunkId.ToString(),
             static_cast<int>(table.PartitionTreeIds.size()),
-            static_cast<int>(Groups.size()));
+            static_cast<int>(MergeTasks.size()));
     }
 
     //! Add chunk directly to the output.
@@ -190,62 +241,11 @@ protected:
     {
         auto& table = OutputTables[0];
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        LOG_DEBUG("Added passthrough chunk %s in partition %d",
+        LOG_DEBUG("Added passthrough chunk (ChunkId: %s, Partition: %d)",
             ~chunkId.ToString(),
             static_cast<int>(table.PartitionTreeIds.size()));
         // Place the chunk directly to the output table.
         table.PartitionTreeIds.push_back(chunkId);
-    }
-
-    TPoolExtractionResultPtr ExtractForMerge(
-        TMergeGroupPtr group,
-        const Stroka& address,
-        bool needLocal)
-    {
-        auto result = group->ChunkPool.Extract(
-            address,
-            needLocal);
-
-        YVERIFY(GroupsAwatingMerge.erase(group) == 1);
-
-        FOREACH (const auto& stripe, result->Stripes) {
-            FOREACH (const auto& chunk, stripe->InputChunks) {
-                FOREACH (const auto& address, chunk.node_addresses()) {
-                    if (!group->ChunkPool.HasPendingLocalChunksAt(address)) {
-                        AddressToGroupsAwaitingMerge[address].erase(group);
-                    }
-                }
-            }
-        }
-
-        return result;
-    }
-
-    void ReturnForMerge(TMergeGroupPtr group, TPoolExtractionResultPtr result)
-    {
-        group->ChunkPool.OnFailed(result);
-        FOREACH (const auto& chunk, result->Stripes) {
-            RegisterPendingStripe(group, chunk);
-        }
-    }
-
-    TMergeGroupPtr FindGroupAwaitingMerge(const Stroka& address)
-    {
-        // Try to fetch a group with local chunks.
-        auto it = AddressToGroupsAwaitingMerge.find(address);
-        if (it != AddressToGroupsAwaitingMerge.end()) {
-            auto& set = it->second;
-            while (!set.empty()) {
-                auto group = *set.begin();
-                if (IsGroupAwaitingMergeAt(group, address)) {
-                    return group;
-                }
-                set.erase(set.begin());
-            }
-        }
-
-        // Fetch any group.
-        return GroupsAwatingMerge.empty() ? NULL : *GroupsAwatingMerge.begin();
     }
 
 
@@ -259,100 +259,6 @@ protected:
             ythrow yexception() << "At least more input table must be given";
         }
     }
-
-    virtual int GetPendingJobCount()
-    {
-        return TotalJobCount - RunningJobCount - CompletedJobCount;
-    }
-
-
-    // Job scheduling and outcome handling.
-
-    struct TMergeJobInProgress
-        : public TJobInProgress
-    {
-        TPoolExtractionResultPtr PoolResult;
-        TChunkListId ChunkListId;
-        TMergeGroupPtr Group;
-    };
-
-    virtual TJobPtr DoScheduleJob(TExecNodePtr node)
-    {
-        // Check if we have enough chunk lists in the pool.
-        if (!CheckChunkListsPoolSize(1)) {
-            return NULL;
-        }
-
-        // We've got a job to do! :)
-
-        auto group = FindGroupAwaitingMerge(node->GetAddress());
-        YCHECK(group);
-
-        // Allocate chunks for the job.
-        auto jip = New<TMergeJobInProgress>();
-        jip->Group = group;
-        jip->PoolResult = ExtractForMerge(
-            group,
-            node->GetAddress(),
-            false);
-
-        LOG_DEBUG("Extracted %d chunks for merge at node %s (LocalCount: %d, ExtractedWeight: %" PRId64 ")",
-            jip->PoolResult->TotalChunkCount,
-            ~node->GetAddress(),
-            jip->PoolResult->LocalChunkCount,
-            jip->PoolResult->TotalChunkWeight);
-
-        // Make a copy of the generic spec and customize it.
-        auto jobSpec = JobSpecTemplate;
-        {
-            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                auto* inputSpec = jobSpec.add_input_specs();
-                FOREACH (const auto& chunk, stripe->InputChunks) {
-                    *inputSpec->add_chunks() = chunk;
-                }
-            }
-            {
-                auto* outputSpec = jobSpec.add_output_specs();
-                outputSpec->set_channels(OutputTables[0].Channels);
-                jip->ChunkListId = ChunkListPool->Extract();
-                *outputSpec->mutable_chunk_list_id() = jip->ChunkListId.ToProto();
-            }
-        }
-
-        // Update counters.
-        PendingChunkCount -= jip->PoolResult->TotalChunkCount;
-        PendingWeight -= jip->PoolResult->TotalChunkWeight;
-
-        return CreateJob(
-            jip,
-            node,
-            jobSpec,
-            BIND(&TThis::OnJobCompleted, MakeWeak(this)),
-            BIND(&TThis::OnJobFailed, MakeWeak(this)));
-    }
-
-    virtual void OnJobCompleted(TMergeJobInProgress* jip)
-    {
-        CompletedChunkCount += jip->PoolResult->TotalChunkCount;
-        CompletedWeight += jip->PoolResult->TotalChunkWeight;
-
-        auto group = jip->Group;
-        group->ChunkPool.OnCompleted(jip->PoolResult);
-        auto& table = OutputTables[0];
-        table.PartitionTreeIds[group->PartitionIndex] = jip->ChunkListId;
-    }
-
-    virtual void OnJobFailed(TMergeJobInProgress* jip)
-    {
-        PendingChunkCount += jip->PoolResult->TotalChunkCount;
-        PendingWeight += jip->PoolResult->TotalChunkWeight;
-
-        LOG_DEBUG("Returned %d chunks into pool", jip->PoolResult->TotalChunkCount);
-        ReturnForMerge(jip->Group, jip->PoolResult);
-
-        ReleaseChunkList(jip->ChunkListId);
-    }
-
 
     // Custom bits of preparation pipeline.
 
@@ -370,7 +276,7 @@ protected:
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
     {
-        return pipeline->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
+        return pipeline->Add(BIND(&TMergeControllerBase::ProcessInputs, MakeStrong(this)));
     }
 
     void ProcessInputs()
@@ -405,7 +311,7 @@ protected:
             }
 
             // Init counters.
-            TotalJobCount = static_cast<int>(Groups.size());
+            TotalJobCount = static_cast<int>(MergeTasks.size());
             PendingWeight = TotalWeight;
             PendingChunkCount = TotalChunkCount;
 
@@ -432,9 +338,9 @@ protected:
     //! Called at the end of input chunks scan.
     virtual void EndInputChunks()
     {
-        // Close the last group, if any.
-        if (CurrentGroupWeight > 0) {
-            EndGroup();
+        // Close the last task, if any.
+        if (CurrentTaskWeight > 0) {
+            EndTask();
         }
     }
 
@@ -490,7 +396,7 @@ protected:
     }
 
     //! Returns True iff the chunk is complete and is large enough to be included to the output as-is.
-    //! When |CombineChunks| is off all complete chunks are considered large.
+    //! When |CombineChunks| is off, all complete chunks are considered large.
     bool IsLargeCompleteChunk(const TInputChunk& chunk)
     {
         if (!IsCompleteChunk(chunk)) {
@@ -557,7 +463,7 @@ private:
 
         // All chunks go to a single chunk stripe.
         AddPendingChunk(chunk, 0);
-        EndGroupIfLarge();
+        EndTaskIfLarge();
     }
 
 };
@@ -612,8 +518,8 @@ private:
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (IsLargeCompleteChunk(chunk) && CurrentGroupWeight > 0) {
-            // Merge is not required and no current group is active.
+        if (IsLargeCompleteChunk(chunk) && CurrentTaskWeight == 0) {
+            // Merge is not required and no current task is active.
             // Copy the chunk directly to the output.
             LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
                 ~chunkId.ToString(),
@@ -624,7 +530,7 @@ private:
 
         // All chunks go to a single chunk stripe.
         AddPendingChunk(chunk, 0);
-        EndGroupIfLarge();
+        EndTaskIfLarge();
     }
 };
 
@@ -697,8 +603,8 @@ private:
             });
 
         // Compute sets of overlapping chunks.
-        // Combine small groups, if requested so.
-        LOG_INFO("Building groups");
+        // Combine small tasks, if requested so.
+        LOG_INFO("Building tasks");
         int depth = 0;
         int startIndex = 0;
         for (
@@ -712,7 +618,7 @@ private:
             } else {
                 --depth;
                 if (depth == 0) {
-                    BuildGroupIfNeeded(startIndex, currentIndex + 1);
+                    BuildTaskIfNeeded(startIndex, currentIndex + 1);
                     startIndex = currentIndex + 1;
                 }
             }
@@ -723,7 +629,7 @@ private:
         SetOutputTablesSorted(keyColumns);
     }
 
-    void BuildGroupIfNeeded(int startIndex, int endIndex)
+    void BuildTaskIfNeeded(int startIndex, int endIndex)
     {
         // Must be even number of endpoints.
         YASSERT((endIndex - startIndex) % 2 == 0);
@@ -733,9 +639,9 @@ private:
 
         {
             const auto& chunk = *Endpoints[startIndex].InputChunk;
-            if (chunkCount == 1 && IsLargeCompleteChunk(chunk) && CurrentGroupWeight > 0) {
+            if (chunkCount == 1 && IsLargeCompleteChunk(chunk) && CurrentTaskWeight == 0) {
                 auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                // Merge is not required and no current group is active.
+                // Merge is not required and no current task is active.
                 // Copy the chunk directly to the output.
                 AddPassthroughChunk(chunk);
                 return;
@@ -749,7 +655,7 @@ private:
             }
         }
 
-        EndGroupIfLarge();
+        EndTaskIfLarge();
     }
 
 
