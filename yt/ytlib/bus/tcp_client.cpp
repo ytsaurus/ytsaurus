@@ -134,7 +134,7 @@ private:
             setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &flag, sizeof(flag));
         }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
         {
             int priority = Config->Priority;
             setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
