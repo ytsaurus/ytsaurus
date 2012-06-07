@@ -135,6 +135,7 @@ elseif( STYPE STREQUAL "darwin" )
   set( ADDITIONAL_LINK_FLAGS "-framework CoreServices" )
   set( SRCS_PLATFORM
     ${SRCS_UNIX}
+    ${SRCS_COMMON}
     ${BASE}/src/unix/darwin.c
     ${BASE}/src/unix/kqueue.c
   )
