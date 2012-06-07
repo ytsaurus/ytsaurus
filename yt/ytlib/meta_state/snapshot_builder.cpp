@@ -145,9 +145,10 @@ private:
                     LOG_FATAL(
                         "Snapshot checksum mismatch: "
                         "peer %d reported %" PRIx64 ", "
-                        "peer %d reported %" PRIx64,
+                        "peer %d reported %" PRIx64 "(SnapshotId: %d)",
                         id1, *checksum1,
-                        id2, *checksum2);
+                        id2, *checksum2,
+                        Version.SegmentId + 1);
                 }
             }
         }
