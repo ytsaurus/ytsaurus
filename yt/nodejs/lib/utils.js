@@ -111,3 +111,29 @@ exports.numerify = function(obj) {
     }
     return obj;
 };
+
+/**
+ * A simple control flow function which sequentially calls all functions.
+ */
+exports.callSeq = function(context, functions, callback) {
+    return (function inner(context, functions, callback) {
+        var nextFunction = functions.shift();
+        if (typeof(nextFunction) !== "undefined") {
+            console.log("calling " + nextFunction);
+            try {
+                nextFunction.call(context, function(ex) {
+                    if (ex === null) {
+                        inner(context, functions, callback);
+                    } else {
+                        callback.call(context, ex);
+                    }
+                });
+            } catch(ex) {
+                callback.call(context, ex);
+            }
+        } else {
+            console.log("end of chain");
+            callback.call(context, null);
+        }
+    })(context, functions, callback);
+};
