@@ -54,7 +54,7 @@ TChunkHolderService::TChunkHolderService(
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks), Bootstrap->GetWorkInvoker());
     RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
