@@ -389,16 +389,15 @@ void TTransactionManager::Abort(TTransaction& transaction)
 void TTransactionManager::FinishTransaction(TTransaction& transaction)
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    auto transactionId = transaction.GetId();
 
     auto* parent = transaction.GetParent();
     if (parent) {
         YVERIFY(parent->NestedTransactions().erase(&transaction) == 1);
-        objectManager->UnrefObject(transactionId);
+        objectManager->UnrefObject(&transaction);
     }
 
     // Kill the fake reference.
-    objectManager->UnrefObject(transactionId);
+    objectManager->UnrefObject(&transaction);
 }
 
 void TTransactionManager::RenewLease(const TTransaction& transaction)

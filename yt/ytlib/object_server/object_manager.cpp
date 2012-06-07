@@ -377,6 +377,21 @@ void TObjectManager::RefObject(const TObjectId& id)
         refCounter);
 }
 
+void TObjectManager::RefObject(const TVersionedNodeId& id)
+{
+    RefObject(id.ObjectId);
+}
+
+void TObjectManager::RefObject(TObjectWithIdBase* object)
+{
+    RefObject(object->GetId());
+}
+
+void TObjectManager::RefObject(ICypressNode* node)
+{
+    RefObject(node->GetId().ObjectId);
+}
+
 void TObjectManager::UnrefObject(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -391,6 +406,21 @@ void TObjectManager::UnrefObject(const TObjectId& id)
             ~handler->GetType().ToString(),
             ~id.ToString());
     }
+}
+
+void TObjectManager::UnrefObject(const TVersionedNodeId& id)
+{
+    UnrefObject(id.ObjectId);
+}
+
+void TObjectManager::UnrefObject(TObjectWithIdBase* object)
+{
+    UnrefObject(object->GetId());
+}
+
+void TObjectManager::UnrefObject(ICypressNode* node)
+{
+    UnrefObject(node->GetId().ObjectId);
 }
 
 i32 TObjectManager::GetObjectRefCounter(const TObjectId& id)

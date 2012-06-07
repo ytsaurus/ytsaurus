@@ -299,13 +299,13 @@ protected:
     void AttachChild(ICypressNode& child)
     {
         child.SetParentId(NodeId);
-        Bootstrap->GetObjectManager()->RefObject(child.GetId().ObjectId);
+        Bootstrap->GetObjectManager()->RefObject(&child);
     }
 
     void DetachChild(ICypressNode& child)
     {
         child.SetParentId(NullObjectId);
-        Bootstrap->GetObjectManager()->UnrefObject(child.GetId().ObjectId);
+        Bootstrap->GetObjectManager()->UnrefObject(&child);
     }
 
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes()

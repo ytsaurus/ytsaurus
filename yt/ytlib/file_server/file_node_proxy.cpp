@@ -94,15 +94,14 @@ void TFileNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes
 
 bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
 {
-    auto chunkManager = Bootstrap->GetChunkManager();
     const auto& fileNode = GetTypedImpl();
-    const auto& chunkList = chunkManager->GetChunkList(fileNode.GetChunkListId());
-    const auto& statistics = chunkList.Statistics();
-    YASSERT(chunkList.Children().size() == 1);
-    auto chunkRef = chunkList.Children()[0];
-    const auto& chunk = *chunkRef.AsChunk();
+    const auto* chunkList = fileNode.GetChunkList();
+    const auto& statistics = chunkList->Statistics();
+    YASSERT(chunkList->Children().size() == 1);
+    auto chunkRef = chunkList->Children()[0];
+    const auto* chunk = chunkRef.AsChunk();
 
-    auto miscExt = GetProtoExtension<TMiscExt>(chunk.ChunkMeta().extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
     if (name == "size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);
@@ -132,7 +131,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
 
     if (name == "chunk_list_id") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.GetId().ToString());
+            .Scalar(chunkList->GetId().ToString());
         return true;
     }
 
@@ -149,21 +148,21 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
 {
     UNUSED(request);
 
-    const auto& impl = GetTypedImpl();
-    
-    auto chunkListId = impl.GetChunkListId();
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto& chunkList = chunkManager->GetChunkList(chunkListId);
-    YASSERT(chunkList.Children().size() == 1);
+
+    const auto& fileNode = GetTypedImpl();
     
-    auto chunkRef = chunkList.Children()[0];
+    const auto* chunkList = fileNode.GetChunkList();
+    YASSERT(chunkList->Children().size() == 1);
+    
+    auto chunkRef = chunkList->Children()[0];
     YASSERT(chunkRef.GetType() == EObjectType::Chunk);
 
     auto chunkId = chunkRef.GetId();
-    const auto& chunk = *chunkRef.AsChunk();
+    const auto* chunk = chunkRef.AsChunk();
 
     *response->mutable_chunk_id() = chunkId.ToProto();
-    chunkManager->FillNodeAddresses(response->mutable_node_addresses(), chunk);
+    chunkManager->FillNodeAddresses(response->mutable_node_addresses(), *chunk);
 
     response->set_executable(IsExecutable());
     response->set_file_name(GetFileName());

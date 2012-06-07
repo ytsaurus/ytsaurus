@@ -5,6 +5,7 @@
 
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
+#include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -25,12 +26,12 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , ChunkListId_(NullChunkListId)
+    , ChunkList_(NULL)
 { }
 
 TFileNode::TFileNode(const TVersionedNodeId& id, const TFileNode& other)
     : TCypressNodeBase(id, other)
-    , ChunkListId_(other.ChunkListId_)
+    , ChunkList_(other.ChunkList_)
 { }
 
 EObjectType TFileNode::GetObjectType() const
@@ -41,13 +42,13 @@ EObjectType TFileNode::GetObjectType() const
 void TFileNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    ::Save(output, ChunkListId_);
+    SaveObjectRef(output, ChunkList_);
 }
 
 void TFileNode::Load(const TLoadContext& context, TInputStream* input)
 {
     TCypressNodeBase::Load(context, input);
-    ::Load(input, ChunkListId_);
+    LoadObjectRef(input, ChunkList_, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,11 +97,10 @@ public:
 
         auto nodeId = objectManager->GenerateId(EObjectType::File);
         TAutoPtr<TFileNode> node(new TFileNode(nodeId));
-        auto& chunkList = chunkManager->CreateChunkList();
-        auto chunkListId = chunkList.GetId();
-        node->SetChunkListId(chunkListId);
-        YVERIFY(chunkList.OwningNodes().insert(~node).second);
-        objectManager->RefObject(chunkListId);
+        auto* chunkList = chunkManager->CreateChunkList();
+        node->SetChunkList(chunkList);
+        YVERIFY(chunkList->OwningNodes().insert(~node).second);
+        objectManager->RefObject(chunkList);
 
         yvector<TChunkTreeRef> children;
         children.push_back(TChunkTreeRef(chunk));
@@ -125,9 +125,9 @@ public:
 protected:
     virtual void DoDestroy(TFileNode& node)
     {
-        auto& chunkList = Bootstrap->GetChunkManager()->GetChunkList(node.GetChunkListId());
-        YVERIFY(chunkList.OwningNodes().erase(&node) == 1);
-        Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkListId());
+        auto* chunkList = node.GetChunkList();
+        YVERIFY(chunkList->OwningNodes().erase(&node) == 1);
+        Bootstrap->GetObjectManager()->UnrefObject(chunkList);
     }
 
     virtual void DoBranch(const TFileNode& originatingNode, TFileNode& branchedNode)
@@ -136,10 +136,9 @@ protected:
 
         // branchedNode is a copy of originatingNode.
         // Reference the list chunk from branchedNode.
-        Bootstrap->GetObjectManager()->RefObject(branchedNode.GetChunkListId());
-        auto& chunkList = Bootstrap->GetChunkManager()->GetChunkList(
-            branchedNode.GetChunkListId());
-        YVERIFY(chunkList.OwningNodes().insert(&branchedNode).second);
+        auto* chunkList = branchedNode.GetChunkList();
+        Bootstrap->GetObjectManager()->RefObject(chunkList);
+        YVERIFY(chunkList->OwningNodes().insert(&branchedNode).second);
     }
 
     virtual void DoMerge(TFileNode& originatingNode, TFileNode& branchedNode)
@@ -147,10 +146,9 @@ protected:
         UNUSED(originatingNode);
 
         // Drop the reference from branchedNode.
-        Bootstrap->GetObjectManager()->UnrefObject(branchedNode.GetChunkListId());
-        auto& chunkList = Bootstrap->GetChunkManager()->GetChunkList(
-            branchedNode.GetChunkListId());
-        YVERIFY(chunkList.OwningNodes().erase(&branchedNode) == 1);
+        auto* chunkList = branchedNode.GetChunkList();
+        Bootstrap->GetObjectManager()->UnrefObject(chunkList);
+        YVERIFY(chunkList->OwningNodes().erase(&branchedNode) == 1);
     }
 
 };

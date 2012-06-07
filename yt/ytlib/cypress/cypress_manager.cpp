@@ -620,7 +620,7 @@ TLockId TCypressManager::AcquireLock(
     LockMap.Insert(lockId, lock);
 
     transaction->Locks().push_back(lock);
-    objectManager->RefObject(lockId);
+    objectManager->RefObject(lock);
 
     LOG_INFO_IF(!IsRecovery(), "Locked node %s with mode %s at transaction %s (LockId: %s)",
         ~nodeId.ToString(),
@@ -651,7 +651,7 @@ void TCypressManager::ReleaseLock(TLock* lock)
     auto& lockedNode = NodeMap.Get(lock->GetNodeId());
     YVERIFY(lockedNode.Locks().erase(lock) == 1);
 
-    Bootstrap->GetObjectManager()->UnrefObject(lock->GetId());
+    Bootstrap->GetObjectManager()->UnrefObject(lock);
 }
 
 TLockId TCypressManager::LockVersionedNode(
@@ -716,7 +716,7 @@ ICypressNode& TCypressManager::BranchNode(
     transaction->BranchedNodes().push_back(branchedNode_);
 
     // The branched node holds an implicit reference to its originator.
-    Bootstrap->GetObjectManager()->RefObject(id.ObjectId);
+    Bootstrap->GetObjectManager()->RefObject(id);
     
     LOG_INFO_IF(!IsRecovery(), "Branched node %s with %s mode",
         ~id.ToString(),
@@ -767,7 +767,7 @@ void TCypressManager::Clear()
     // Create the root.
     auto* root = new TMapNode(GetRootNodeId());
     NodeMap.Insert(root->GetId(), root);
-    Bootstrap->GetObjectManager()->RefObject(root->GetId().ObjectId);
+    Bootstrap->GetObjectManager()->RefObject(root);
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()
@@ -883,7 +883,7 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
 
         // Drop the implicit reference to the originator.
         auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->UnrefObject(originatingId.ObjectId);
+        objectManager->UnrefObject(originatingId);
     } else {
         // Promote branched node to the parent transaction.
         YASSERT(parentTransaction);
@@ -921,7 +921,7 @@ void TCypressManager::ReleaseCreatedNodes(NTransactionServer::TTransaction& tran
 {
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (auto* node, transaction.CreatedNodes()) {
-        objectManager->UnrefObject(node->GetId().ObjectId);
+        objectManager->UnrefObject(node);
     }
 }
 
@@ -942,14 +942,14 @@ void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (auto* branchedNode, transaction.BranchedNodes()) {
         // Remove the node.
-        auto id = branchedNode->GetId();
+        auto branchedNodeId = branchedNode->GetId();
         GetHandler(*branchedNode)->Destroy(*branchedNode);
-        NodeMap.Remove(branchedNode->GetId());
+        NodeMap.Remove(branchedNodeId);
 
         // Drop the implicit reference to the originator.
-        objectManager->UnrefObject(id.ObjectId);
+        objectManager->UnrefObject(branchedNode);
 
-        LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~id.ToString());
+        LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedNodeId.ToString());
     }
 }
 

@@ -3,7 +3,6 @@
 #include "public.h"
 #include "attribute_set.h"
 #include "type_handler.h"
-#include <ytlib/object_server/object_manager.pb.h>
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/id_generator.h>
@@ -11,6 +10,19 @@
 #include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/transaction_server/public.h>
+#include <ytlib/object_server/object_manager.pb.h>
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Forward declarations.
+namespace NYT {
+namespace NCypress {
+
+struct ICypressNode;
+
+}
+}
 
 namespace NYT {
 namespace NObjectServer {
@@ -58,9 +70,15 @@ public:
 
     //! Adds a reference.
     void RefObject(const TObjectId& id);
+    void RefObject(const TVersionedObjectId& id);
+    void RefObject(TObjectWithIdBase* object);
+    void RefObject(NCypress::ICypressNode* node);
 
-    //! Removes a reference (from an unspecified source).
+    //! Removes a reference.
     void UnrefObject(const TObjectId& id);
+    void UnrefObject(const TVersionedObjectId& id);
+    void UnrefObject(TObjectWithIdBase* object);
+    void UnrefObject(NCypress::ICypressNode* node);
 
     //! Returns the current reference counter.
     i32 GetObjectRefCounter(const TObjectId& id);

@@ -104,12 +104,11 @@ public:
         TAutoPtr<TTableNode> node(new TTableNode(nodeId));
 
         // Create an empty chunk list and reference it from the node.
-        auto& chunkList = chunkManager->CreateChunkList();
-        node->SetChunkList(&chunkList);
-        YVERIFY(chunkList.OwningNodes().insert(~node).second);
+        auto* chunkList = chunkManager->CreateChunkList();
+        node->SetChunkList(chunkList);
+        YVERIFY(chunkList->OwningNodes().insert(~node).second);
 
-        auto chunkListId = chunkList.GetId();
-        objectManager->RefObject(chunkListId);
+        objectManager->RefObject(chunkList);
 
         cypressManager->RegisterNode(transaction, node.Release());
 
@@ -131,7 +130,7 @@ protected:
     virtual void DoDestroy(TTableNode& node)
     {
         YVERIFY(node.GetChunkList()->OwningNodes().erase(&node) == 1);
-        Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkList()->GetId());
+        Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkList());
     }
 
     virtual void DoBranch(const TTableNode& originatingNode, TTableNode& branchedNode)
@@ -142,17 +141,17 @@ protected:
         auto objectManager = Bootstrap->GetObjectManager();
       
         // Create composite chunk list and place it in the root of branchedNode.
-        auto& branchedChunkList = chunkManager->CreateChunkList();
+        auto* branchedChunkList = chunkManager->CreateChunkList();
 
         // The first child of the branched chunk list has a special
         // meaning: it captures the state of the table at the moment it was branched.
         // Suppress rebalancing for this chunk list to prevent
         // unwanted modifications of the children set.
-        branchedChunkList.SetRebalancingEnabled(false);
+        branchedChunkList->SetRebalancingEnabled(false);
 
-        branchedNode.SetChunkList(&branchedChunkList);
-        YVERIFY(branchedChunkList.OwningNodes().insert(&branchedNode).second);
-        objectManager->RefObject(branchedChunkList.GetId());
+        branchedNode.SetChunkList(branchedChunkList);
+        YVERIFY(branchedChunkList->OwningNodes().insert(&branchedNode).second);
+        objectManager->RefObject(branchedChunkList);
 
         // Make the original chunk list a child of the composite one.
         yvector<TChunkTreeRef> children;
@@ -161,7 +160,7 @@ protected:
         chunkManager->AttachToChunkList(branchedChunkList, children);
 
         // Propagate "sorted" attribute.
-        branchedChunkList.SetSorted(originatingChunkList->GetSorted());
+        branchedChunkList->SetSorted(originatingChunkList->GetSorted());
     }
 
     virtual void DoMerge(TTableNode& originatingNode, TTableNode& branchedNode)
@@ -175,8 +174,8 @@ protected:
         YASSERT(!branchedChunkList->Children().empty());
         auto oldChunkList = originatingNode.GetChunkList();
         TChunkTreeRef newFirstChildRef(oldChunkList);
-        auto& newChunkList = chunkManager->CreateChunkList();
-        objectManager->RefObject(newChunkList.GetId());
+        auto* newChunkList = chunkManager->CreateChunkList();
+        objectManager->RefObject(newChunkList);
         chunkManager->AttachToChunkList(
             newChunkList,
             &newFirstChildRef,
@@ -187,15 +186,15 @@ protected:
             &*branchedChunkList->Children().begin() + branchedChunkList->Children().size());
 
         // Propagate "sorted" attribute back.
-        newChunkList.SetSorted(branchedChunkList->GetSorted());
+        newChunkList->SetSorted(branchedChunkList->GetSorted());
 
         // Assign this newly created chunk list to originatingNode.
-        originatingNode.SetChunkList(&newChunkList);
-        YVERIFY(newChunkList.OwningNodes().insert(&originatingNode).second);
+        originatingNode.SetChunkList(newChunkList);
+        YVERIFY(newChunkList->OwningNodes().insert(&originatingNode).second);
         YVERIFY(oldChunkList->OwningNodes().erase(&originatingNode) == 1);
-        objectManager->UnrefObject(oldChunkList->GetId());
+        objectManager->UnrefObject(oldChunkList);
         YVERIFY(branchedChunkList->OwningNodes().erase(&branchedNode) == 1);
-        objectManager->UnrefObject(branchedChunkList->GetId());
+        objectManager->UnrefObject(branchedChunkList);
     }
 
 };

@@ -78,20 +78,19 @@ public:
         int nodeCount,
         TNullable<Stroka> preferredHostName);
 
-    TChunk& CreateChunk();
-    TChunkList& CreateChunkList();
+    TChunk* CreateChunk();
+    TChunkList* CreateChunkList();
 
     void AttachToChunkList(
-        TChunkList& chunkList,
+        TChunkList* chunkList,
         const TChunkTreeRef* childrenBegin,
         const TChunkTreeRef* childrenEnd);
     void AttachToChunkList(
-        TChunkList& chunkList,
+        TChunkList* chunkList,
         const std::vector<TChunkTreeRef>& children);
 
-
     void ScheduleJobs(
-        THolder& holder,
+        THolder* holder,
         const std::vector<NProto::TJobInfo>& runningJobs,
         std::vector<NProto::TJobStartInfo>* jobsToStart,
         std::vector<NProto::TJobStopInfo>* jobsToStop);
