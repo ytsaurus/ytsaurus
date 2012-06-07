@@ -137,7 +137,10 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             }
         }
 
-        const auto& attachments = response->Attachments();
+        YASSERT(response->Attachments().size() == 1);
+        // Don't forget to unpack obtained refs
+        yvector<TSharedRef> attachments;
+        UnpackRefs(response->Attachments().front(), &attachments);
         if (attachments.empty()) {
             LOG_WARNING("Peer %d does not have %d records of changelog %d anymore",
                 sourceId,

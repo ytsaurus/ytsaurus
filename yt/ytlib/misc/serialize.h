@@ -18,6 +18,44 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class OutputStream>
+void Write(OutputStream& output, const TRef& ref)
+{
+    output.Write(ref.Begin(), ref.Size());
+}
+
+template <class OutputStream>
+void Append(OutputStream& output, const TRef& ref)
+{
+    output.Append(ref.Begin(), ref.Size());
+}
+
+template <class InputStream>
+size_t Read(InputStream& input, TRef& ref)
+{
+    return input.Read(ref.Begin(), ref.Size());
+}
+
+template <class OutputStream, class T>
+void WritePod(OutputStream& output, const T& obj)
+{
+    output.Write(&obj, sizeof(obj));
+}
+
+template <class OutputStream, class T>
+void AppendPod(OutputStream& output, const T& obj)
+{
+    output.Append(&obj, sizeof(obj));
+}
+
+template <class InputStream, class T>
+size_t ReadPod(InputStream& input, T& obj)
+{
+    return input.Read(&obj, sizeof(obj));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // TODO: consider getting rid of these functions and using analogs from ysaveload.h
 template <class T>
 bool Read(TInputStream& input, T* data)
@@ -158,6 +196,12 @@ void LoadMap(TInputStream* input, TMap& map)
         YCHECK(map.insert(MakePair(key, value)).second);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef PackRefs(const yvector<TSharedRef>& refs);
+
+void UnpackRefs(TSharedRef ref, yvector<TSharedRef>* result);
 
 ////////////////////////////////////////////////////////////////////////////////
 

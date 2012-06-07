@@ -110,5 +110,49 @@ int ReadVarInt64(TInputStream* input, i64* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSharedRef PackRefs(const yvector<TSharedRef>& refs)
+{
+    i64 size = 0;
+
+    // Number of bytes to hold vector size
+    size += sizeof(i32);
+    // Number of bytes to hold ref sizes
+    size += sizeof(i64) * refs.size();
+    // Number of bytes to hold refs
+    FOREACH(auto ref, refs) {
+        size += ref.Size();
+    }
+
+    TBlob blob(AlignUp(size));
+    TMemoryOutput output(blob.begin(), blob.size());
+    
+    WritePod(output, static_cast<i32>(refs.size()));
+    FOREACH(auto ref, refs) {
+        WritePod(output, static_cast<i64>(ref.Size()));
+        Write(output, TRef(ref));
+    }
+    WritePadding(output, size);
+
+    return TSharedRef(MoveRV(blob));
+}
+
+void UnpackRefs(TSharedRef ref, yvector<TSharedRef>* result)
+{
+    TMemoryInput input(ref.Begin(), ref.Size());
+
+    i32 refCount;
+    ReadPod(input, refCount);
+    *result = yvector<TSharedRef>(refCount);
+    for (i32 i = 0; i < refCount; ++i) {
+        i64 refSize;
+        ReadPod(input, refSize);
+        TRef ref(const_cast<char*>(input.Buf()), static_cast<size_t>(refSize));
+        (*result)[i] = TSharedRef::FromRefNonOwning(ref);
+        input.Skip(refSize);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 

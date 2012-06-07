@@ -486,10 +486,8 @@ public:
             }
 
             context->Response().set_records_read(recordData.ysize());
-            context->Response().Attachments().insert(
-                context->Response().Attachments().end(),
-                recordData.begin(),
-                recordData.end());
+            // Pack refs for minimize allocations number on the side of the request
+            context->Response().Attachments().push_back(PackRefs(recordData));
 
             context->SetResponseInfo("RecordCount: %d", recordData.ysize());
             context->Reply();
