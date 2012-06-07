@@ -22,6 +22,7 @@ using namespace NTableClient;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
+    , ChunkList_(NULL)
 { }
 
 TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
