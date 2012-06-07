@@ -103,7 +103,7 @@ public:
         ConsumeToken(TToken::EndOfStream);
 
         if (CurrentState() != EState::Parsed) {
-            ythrow yexception() << Sprintf("Cannot finish parsing in state %s (%s)",
+            ythrow yexception() << Sprintf("Premature end of stream (State: %s, %s)",
                 ~CurrentState().ToString(),
                 ~GetPositionInfo());
         }
