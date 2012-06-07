@@ -30,6 +30,7 @@ public:
     TSessionManagerPtr GetSessionManager() const;
     TJobExecutorPtr GetJobExecutor() const;
     IInvoker::TPtr GetControlInvoker(NCellNode::EControlThreadQueue queueIndex = NCellNode::EControlThreadQueue::Default) const;
+    IInvoker::TPtr GetWorkInvoker() const;
     TBlockStorePtr GetBlockStore();
     TPeerBlockTablePtr GetPeerBlockTable() const;
     TReaderCachePtr GetReaderCache() const;

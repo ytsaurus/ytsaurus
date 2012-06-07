@@ -83,6 +83,7 @@ void TBootstrap::Run()
     SchedulerChannel = CreateSchedulerChannel(Config->Masters->RpcTimeout, MasterChannel);
 
     ControlQueue = New<TMultiActionQueue>(EControlThreadQueue::GetDomainSize(), "Control");
+    WorkQueue = New<TActionQueue>("Work");
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
@@ -148,6 +149,11 @@ TIncarnationId TBootstrap::GetIncarnationId() const
 IInvoker::TPtr TBootstrap::GetControlInvoker(EControlThreadQueue queueIndex) const
 {
     return ControlQueue->GetInvoker(queueIndex);
+}
+
+IInvoker::TPtr TBootstrap::GetWorkInvoker() const
+{
+    return WorkQueue->GetInvoker();
 }
 
 IServerPtr TBootstrap::GetRpcServer() const

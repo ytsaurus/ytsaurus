@@ -100,6 +100,7 @@ class TActionQueue
     : public TActionQueueBase
 {
 public:
+    // TODO: TActionQueue::TPtr -> TActionQueuePtr, place to public.h
     typedef TIntrusivePtr<TActionQueue> TPtr;
 
     // TActionQueue is used internally by the logging infrastructure,

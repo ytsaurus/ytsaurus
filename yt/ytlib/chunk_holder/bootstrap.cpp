@@ -133,6 +133,11 @@ IInvoker::TPtr TBootstrap::GetControlInvoker(NCellNode::EControlThreadQueue queu
     return NodeBootstrap->GetControlInvoker(queueIndex);
 }
 
+IInvoker::TPtr TBootstrap::GetWorkInvoker() const
+{
+    return NodeBootstrap->GetWorkInvoker();
+}
+
 TBlockStorePtr TBootstrap::GetBlockStore()
 {
     return BlockStore;
