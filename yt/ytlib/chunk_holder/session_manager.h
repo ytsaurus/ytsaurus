@@ -169,6 +169,9 @@ public:
     TSessionPtr FindSession(const TChunkId& chunkId) const;
 
     //! Returns the number of currently active session.
+    /*!
+     * Thread safe.
+     */
     int GetSessionCount() const;
 
     //! Returns the list of all registered sessions.
@@ -184,6 +187,7 @@ private:
 
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;
+    TAtomic SessionCount;
 
     void OnLeaseExpired(TSessionPtr session);
     TChunkPtr OnSessionFinished(TSessionPtr session, TChunkPtr chunk);

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/invoker.h>
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/cell_node/public.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>
@@ -29,7 +29,7 @@ public:
     TChunkCachePtr GetChunkCache() const;
     TSessionManagerPtr GetSessionManager() const;
     TJobExecutorPtr GetJobExecutor() const;
-    IInvoker::TPtr GetControlInvoker(NCellNode::EControlThreadQueue queueIndex = NCellNode::EControlThreadQueue::Default) const;
+    IInvoker::TPtr GetControlInvoker() const;
     IInvoker::TPtr GetWorkInvoker() const;
     TBlockStorePtr GetBlockStore();
     TPeerBlockTablePtr GetPeerBlockTable() const;
@@ -41,6 +41,7 @@ private:
     TChunkHolderConfigPtr Config;
     NCellNode::TBootstrap* NodeBootstrap;
     
+    TActionQueue::TPtr WorkQueue;
     TChunkStorePtr ChunkStore;
     TChunkCachePtr ChunkCache;
     TSessionManagerPtr SessionManager;

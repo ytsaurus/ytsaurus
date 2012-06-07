@@ -68,9 +68,9 @@ TExecAgentConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker(NCellNode::EControlThreadQueue queueIndex) const
+IInvoker::TPtr TBootstrap::GetControlInvoker() const
 {
-    return NodeBootstrap->GetControlInvoker(queueIndex);
+    return NodeBootstrap->GetControlInvoker();
 }
 
 IChannelPtr TBootstrap::GetMasterChannel() const

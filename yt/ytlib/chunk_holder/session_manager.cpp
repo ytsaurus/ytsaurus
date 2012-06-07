@@ -436,6 +436,7 @@ TSessionPtr TSessionManager::StartSession(
         .Via(ServiceInvoker));
     session->SetLease(lease);
 
+    AtomicIncrement(SessionCount);
     YVERIFY(SessionMap.insert(MakePair(chunkId, session)).second);
 
     LOG_INFO("Session %s started at %s",
@@ -449,6 +450,7 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
     auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
+    AtomicDecrement(SessionCount);
 
     session->Cancel(error);
 
@@ -464,6 +466,7 @@ TFuture<TChunkPtr> TSessionManager::FinishSession(
     auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
+    AtomicDecrement(SessionCount);
 
     return session
         ->Finish(chunkMeta)
@@ -489,12 +492,13 @@ void TSessionManager::OnLeaseExpired(TSessionPtr session)
 
 int TSessionManager::GetSessionCount() const
 {
-    return SessionMap.ysize();
+    return SessionCount;
 }
 
 TSessionManager::TSessions TSessionManager::GetSessions() const
 {
     TSessions result;
+    YCHECK(SessionMap.ysize() == SessionCount);
     result.reserve(SessionMap.ysize());
     FOREACH (const auto& pair, SessionMap) {
         result.push_back(pair.second);

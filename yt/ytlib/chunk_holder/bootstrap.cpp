@@ -50,6 +50,8 @@ void TBootstrap::Init()
 {
     ReaderCache = New<TReaderCache>(Config);
 
+    WorkQueue = New<TActionQueue>("Work");
+
     auto chunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(
@@ -72,7 +74,7 @@ void TBootstrap::Init()
         Config,
         BlockStore,
         ChunkStore,
-        NodeBootstrap->GetControlInvoker());
+        GetWorkInvoker());
 
     JobExecutor = New<TJobExecutor>(
         Config,
@@ -128,14 +130,14 @@ TJobExecutorPtr TBootstrap::GetJobExecutor() const
     return JobExecutor;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker(NCellNode::EControlThreadQueue queueIndex) const
+IInvoker::TPtr TBootstrap::GetControlInvoker() const
 {
-    return NodeBootstrap->GetControlInvoker(queueIndex);
+    return NodeBootstrap->GetControlInvoker();
 }
 
 IInvoker::TPtr TBootstrap::GetWorkInvoker() const
 {
-    return NodeBootstrap->GetWorkInvoker();
+    return WorkQueue->GetInvoker();
 }
 
 TBlockStorePtr TBootstrap::GetBlockStore()

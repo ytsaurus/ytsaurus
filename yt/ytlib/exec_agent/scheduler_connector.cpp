@@ -22,7 +22,7 @@ TSchedulerConnector::TSchedulerConnector(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    , ControlInvoker(bootstrap->GetControlInvoker(NCellNode::EControlThreadQueue::Heartbeat))
+    , ControlInvoker(bootstrap->GetControlInvoker())
     , Proxy(bootstrap->GetSchedulerChannel())
 {
     YASSERT(config);

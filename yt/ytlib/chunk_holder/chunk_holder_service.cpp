@@ -52,13 +52,13 @@ TChunkHolderService::TChunkHolderService(
     YCHECK(config);
     YCHECK(bootstrap);
 
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk), Bootstrap->GetWorkInvoker());
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk), Bootstrap->GetWorkInvoker());
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks), Bootstrap->GetWorkInvoker());
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks), Bootstrap->GetWorkInvoker());
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock), Bootstrap->GetWorkInvoker());
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession), Bootstrap->GetWorkInvoker());
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
     RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(UpdatePeer));

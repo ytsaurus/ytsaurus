@@ -82,8 +82,7 @@ void TBootstrap::Run()
     // TODO(babenko): for now we use the same timeout both for masters and scheduler
     SchedulerChannel = CreateSchedulerChannel(Config->Masters->RpcTimeout, MasterChannel);
 
-    ControlQueue = New<TMultiActionQueue>(EControlThreadQueue::GetDomainSize(), "Control");
-    WorkQueue = New<TActionQueue>("Work");
+    ControlQueue = New<TActionQueue>("Control");
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
@@ -146,14 +145,9 @@ TIncarnationId TBootstrap::GetIncarnationId() const
     return IncarnationId;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker(EControlThreadQueue queueIndex) const
+IInvoker::TPtr TBootstrap::GetControlInvoker() const
 {
-    return ControlQueue->GetInvoker(queueIndex);
-}
-
-IInvoker::TPtr TBootstrap::GetWorkInvoker() const
-{
-    return WorkQueue->GetInvoker();
+    return ControlQueue->GetInvoker();
 }
 
 IServerPtr TBootstrap::GetRpcServer() const

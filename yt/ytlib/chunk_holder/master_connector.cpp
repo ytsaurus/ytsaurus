@@ -38,7 +38,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TMasterConnector::TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    , ControlInvoker(bootstrap->GetControlInvoker(NCellNode::EControlThreadQueue::Heartbeat))
+    , ControlInvoker(bootstrap->GetControlInvoker())
     , State(EState::Offline)
     , HolderId(InvalidHolderId)
 {

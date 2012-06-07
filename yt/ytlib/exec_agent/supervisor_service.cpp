@@ -17,7 +17,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     : NRpc::TServiceBase(
-        bootstrap->GetControlInvoker(NCellNode::EControlThreadQueue::Heartbeat),
+        bootstrap->GetControlInvoker(),
         TSupervisorServiceProxy::GetServiceName(),
         Logger.GetCategory())
     , Bootstrap(bootstrap)
