@@ -30,17 +30,33 @@ struct TExecuteRequest
 
     Persistent<Function> Callback;
 
+    Stroka Exception;
+
     TDriverRequest DriverRequest;
     TDriverResponse DriverResponse;
 
-    TExecuteRequest(TNodeJSDriver* host, Handle<Function> callback)
+    TExecuteRequest(
+        TNodeJSDriver* host,
+        TNodeJSInputStream* inputStream,
+        TNodeJSOutputStream* outputStream,
+        Handle<Function> callback)
         : Host(host)
+        , InputStream(inputStream)
+        , OutputStream(outputStream)
         , Callback(Persistent<Function>::New(callback))
     {
         THREAD_AFFINITY_IS_V8();
 
+        YASSERT(Host);
+        YASSERT(InputStream);
+        YASSERT(OutputStream);
+
+        DriverRequest.InputStream = InputStream;
+        DriverRequest.OutputStream = OutputStream;
+
         Host->Ref();
-        // TODO(sandello): Ref streams here also.
+        InputStream->Ref();
+        OutputStream->Ref();
     }
 
     ~TExecuteRequest()
@@ -50,7 +66,8 @@ struct TExecuteRequest
         Callback.Dispose();
         Callback.Clear();
 
-        // TODO(sandello): Unref streams here also.
+        OutputStream->Unref();
+        InputStream->Unref();
         Host->Unref();
     }
 };
@@ -83,27 +100,38 @@ TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
 {
     THREAD_AFFINITY_IS_V8();
 
+    bool stillOkay = true;
+
     INodePtr configNode;
-    try {
-        configNode = DeserializeFromYson(configuration);
-    } catch (const std::exception& ex) {
-        Message = Sprintf("Error reading configuration\n%s", ex.what());
+    if (stillOkay) {
+        try {
+            configNode = DeserializeFromYson(configuration);
+        } catch (const std::exception& ex) {
+            Message = Sprintf("Error reading configuration\n%s", ex.what());
+            stillOkay = false;
+        }
     }
 
     TDriverConfigPtr config;
-    try {
-        // Qualify namespace to avoid collision with v8-New().
-        config = ::NYT::New<NDriver::TDriverConfig>();
-        config->Load(~configNode);
-    } catch (const std::exception& ex) {
-        Message = Sprintf("Error parsing configuration\n%s", ex.what());
+    if (stillOkay) {
+        try {
+            // Qualify namespace to avoid collision with v8-New().
+            config = ::NYT::New<NDriver::TDriverConfig>();
+            config->Load(~configNode);
+        } catch (const std::exception& ex) {
+            Message = Sprintf("Error parsing configuration\n%s", ex.what());
+            stillOkay = false;
+        }
     }
 
-    try {
-        NLog::TLogManager::Get()->Configure(~configNode->AsMap()->GetChild("logging"));
-        Driver = CreateDriver(config);
-    } catch (const std::exception& ex) {
-        Message = Sprintf("Error initializing driver instance\n%s", ex.what());
+    if (stillOkay) {
+        try {
+            NLog::TLogManager::Get()->Configure(~configNode->AsMap()->GetChild("logging"));
+            Driver = CreateDriver(config);
+        } catch (const std::exception& ex) {
+            Message = Sprintf("Error initializing driver instance\n%s", ex.what());
+            stillOkay = false;
+        }
     }
 }
 
@@ -289,13 +317,13 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 
     TExecuteRequest* request = new TExecuteRequest(
         ObjectWrap::Unwrap<TNodeJSDriver>(args.This()),
+        inputStream,
+        outputStream,
         callback);
 
     // Fill in TDriverRequest structure.
     request->DriverRequest.CommandName = std::string(*commandName, commandName.length());
-    request->DriverRequest.InputStream = inputStream;
     request->DriverRequest.InputFormat = TFormat::FromYson(inputFormat);
-    request->DriverRequest.OutputStream = outputStream;
     request->DriverRequest.OutputFormat = TFormat::FromYson(outputFormat);
     // TODO(sandello): Arguments -> Parameters
     request->DriverRequest.Arguments = parameters->AsMap();
@@ -319,7 +347,11 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
     TBufferedOutput bufferedOutputStream(outputStream);
 
     request->DriverRequest.OutputStream = &bufferedOutputStream;
-    request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+    try {
+        request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+    } catch (const std::exception& ex) {
+        request->Exception = ex.what();
+    }
     request->DriverRequest.OutputStream = outputStream;
 }
 
@@ -335,9 +367,17 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         TryCatch block;
 
         Local<Value> args[] = {
-            Integer::New(request->DriverResponse.Error.GetCode()),
-            String::New(~request->DriverResponse.Error.GetMessage())
+            Local<Value>::New(v8::Null()),
+            Local<Value>::New(v8::Null()),
+            Local<Value>::New(v8::Null())
         };
+
+        if (!request->Exception.empty()) {
+            args[0] = String::New(~request->Exception);
+        } else {
+            args[1] = Integer::New(request->DriverResponse.Error.GetCode());
+            args[2] = String::New(~request->DriverResponse.Error.GetMessage());
+        }
 
         request->Callback->Call(
             Context::GetCurrent()->Global(),

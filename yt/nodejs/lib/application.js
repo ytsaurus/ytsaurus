@@ -242,8 +242,12 @@ YtCommand.prototype._execute = function(cb) {
     this.driver.execute(this.name,
         this.req, this.input_format,
         this.rsp, this.output_format,
-        this.parameters, function(code, message)
+        this.parameters, function(error, code, message)
         {
+            if (error) {
+                return cb(new Error(error));
+            }
+
             self.rsp.ytCode = code;
             self.rsp.ytMessage = message;
 
