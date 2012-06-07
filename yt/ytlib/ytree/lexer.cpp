@@ -204,7 +204,9 @@ private:
     {
         for (auto current = begin; current != end; ++current) {
             char ch = *current;
-            if (isalpha(ch) || isdigit(ch) || ch == '_' || ch == '-' || ch == '%') {
+            if (isalpha(ch) || isdigit(ch) ||
+                ch == '_' || ch == '-' || ch == '%' || ch == '.')
+            {
                 StringValue.append(ch);
             } else {
                 FinishString();
