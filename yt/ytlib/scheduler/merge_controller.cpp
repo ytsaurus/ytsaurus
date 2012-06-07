@@ -139,9 +139,15 @@ protected:
     yhash_map<Stroka, yhash_set<TMergeGroupPtr> > AddressToGroupsAwaitingMerge;
     yhash_set<TMergeGroupPtr> GroupsAwatingMerge;
 
+    bool IsGroupAwaitingMergeAt(TMergeGroupPtr group, const Stroka& address)
+    {
+        return group->ChunkPool.HasPendingLocalChunksAt(address);
+    }
+
     void RegisterPendingStripe(TMergeGroupPtr group, TChunkStripePtr stripe)
     {
         GroupsAwatingMerge.insert(group);
+
         FOREACH (const auto& chunk, stripe->InputChunks) {
             FOREACH (const auto& address, chunk.node_addresses()) {
                 AddressToGroupsAwaitingMerge[address].insert(group);
@@ -228,9 +234,13 @@ protected:
         // Try to fetch a group with local chunks.
         auto it = AddressToGroupsAwaitingMerge.find(address);
         if (it != AddressToGroupsAwaitingMerge.end()) {
-            const auto& set = it->second;
-            if (!set.empty()) {
-                return *set.begin();
+            auto& set = it->second;
+            while (!set.empty()) {
+                auto group = *set.begin();
+                if (IsGroupAwaitingMergeAt(group, address)) {
+                    return group;
+                }
+                set.erase(set.begin());
             }
         }
 
