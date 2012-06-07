@@ -167,7 +167,7 @@ private:
             : TTask(controller)
             , Controller(controller)
         {
-            ChunkPool = CreateUnorderedPool();
+            ChunkPool = CreateUnorderedChunkPool();
         }
 
         virtual Stroka GetId() const
@@ -281,7 +281,7 @@ private:
             , Controller(controller)
             , Partition(partition)
         {
-            ChunkPool = CreateUnorderedPool();
+            ChunkPool = CreateUnorderedChunkPool();
         }
 
         virtual Stroka GetId() const
@@ -480,9 +480,6 @@ private:
             ++Controller->CompletedMergeJobCount;
 
             YCHECK(ChunkPool->IsCompleted());
-
-            LOG_DEBUG("Partition merged (Partition: %d)", Partition->Index);
-
             Controller->CompletePartition(Partition, jip->ChunkListIds[0]);
         }
 

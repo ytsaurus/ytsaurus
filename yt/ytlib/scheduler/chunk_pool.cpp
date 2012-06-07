@@ -259,8 +259,10 @@ public:
         }
     }
 
-    TPoolExtractionResultPtr Extract(const Stroka& address)
+    TPoolExtractionResultPtr Extract(const Stroka& address, i64 weightThreshold)
     {
+        UNUSED(weightThreshold);
+
         Initialized = true;
         YASSERT(!Extracted);
 

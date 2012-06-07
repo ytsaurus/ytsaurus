@@ -86,7 +86,7 @@ protected:
             , TaskIndex(taskIndex)
             , PartitionIndex(partitionIndex)
         {
-            ChunkPool = CreateAtomicPool();
+            ChunkPool = CreateAtomicChunkPool();
         }
 
         virtual Stroka GetId() const

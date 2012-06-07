@@ -75,7 +75,7 @@ private:
             : TTask(controller)
             , Controller(controller)
         {
-            ChunkPool = CreateUnorderedPool();
+            ChunkPool = CreateUnorderedChunkPool();
         }
 
         virtual Stroka GetId() const

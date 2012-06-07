@@ -54,28 +54,31 @@ struct TPoolExtractionResult
 
 struct IChunkPool
 {
-    void Add(TChunkStripePtr stripe);
+    virtual ~IChunkPool()
+    { }
 
-    TPoolExtractionResultPtr Extract(
+    virtual void Add(TChunkStripePtr stripe) = 0;
+
+    virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        i64 weightThreshold = std::numeric_limits<i64>::max());
-    void OnFailed(TPoolExtractionResultPtr result);
-    void OnCompleted(TPoolExtractionResultPtr result);
+        i64 weightThreshold = std::numeric_limits<i64>::max()) = 0;
+    virtual void OnFailed(TPoolExtractionResultPtr result) = 0;
+    virtual void OnCompleted(TPoolExtractionResultPtr result) = 0;
 
-    i64 GetTotalWeight() const;
-    i64 GetPendingWeight() const;
-    i64 GetCompletedWeight() const;
+    virtual i64 GetTotalWeight() const = 0;
+    virtual i64 GetPendingWeight() const = 0;
+    virtual i64 GetCompletedWeight() const = 0;
 
-    bool IsCompleted() const;
-    bool IsPending() const;
+    virtual bool IsCompleted() const = 0;
+    virtual bool IsPending() const = 0;
     
-    i64 GetLocality(const Stroka& address) const;
+    virtual i64 GetLocality(const Stroka& address) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IChunkPool> CreateUnorderedPool();
-TAutoPtr<IChunkPool> CreateAtomicPool();
+TAutoPtr<IChunkPool> CreateUnorderedChunkPool();
+TAutoPtr<IChunkPool> CreateAtomicChunkPool();
 
 ////////////////////////////////////////////////////////////////////
 
