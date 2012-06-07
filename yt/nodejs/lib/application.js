@@ -2,7 +2,6 @@ var url = require("url");
 var crypto = require("crypto");
 
 var qs = require("qs");
-var flowless = require("flowless");
 
 var utils = require("./utils");
 var ytnode_wrappers = require("./ytnode_wrappers");
@@ -51,7 +50,7 @@ function YtCommand(logger, driver, req, rsp) {
 YtCommand.prototype.dispatch = function() {
     var self = this;
 
-    flowless.runSeq([
+    utils.callSeq(this, [
         this._computeHash,
         this._prologue,
         this._extractName,
@@ -62,9 +61,7 @@ YtCommand.prototype.dispatch = function() {
         this._addHeaders,
         this._execute,
         this._epilogue
-    ].map(function(func) {
-        return func.bind(self);
-    }), function andThen(error) {
+    ], function andThen(error) {
         var thereWasError = error || self.rsp.ytCode != 0;
         if (thereWasError) {
             var message = error ? error.cause.message : self.rsp.ytMessage;
