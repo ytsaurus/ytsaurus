@@ -15,6 +15,7 @@ TChunkStripe::TChunkStripe()
 { }
 
 TChunkStripe::TChunkStripe(const TInputChunk& inputChunk, i64 weight)
+    : Weight(0)
 {
     AddChunk(inputChunk, weight);
 }
