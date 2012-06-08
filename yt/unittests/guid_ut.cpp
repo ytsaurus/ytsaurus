@@ -16,14 +16,6 @@ TEST(TGuidTest, SerializationToProto)
     EXPECT_EQ(guid, deserializedGuid);
 }
 
-TEST(TGuidTest, SeializationToString)
-{
-    TGuid guid = TGuid::Create();
-    Stroka stringGuid = guid.ToString();
-    TGuid deserializedGuid = TGuid::FromString(stringGuid);
-    EXPECT_EQ(guid, deserializedGuid);
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
