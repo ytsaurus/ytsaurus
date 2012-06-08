@@ -856,6 +856,7 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
     auto branchedId = branchedNode->GetId();
     if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
         handler->Destroy(*branchedNode);
+        NodeMap.Remove(branchedId);
         LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedId.ToString());
         return;
     }
