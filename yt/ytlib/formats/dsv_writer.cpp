@@ -25,7 +25,7 @@ TDsvWriter::TDsvWriter(TOutputStream* stream, TDsvFormatConfigPtr config)
 void TDsvWriter::OnStringScalar(const TStringBuf& value)
 {
     if (State != EState::AfterKey) {
-        ythrow yexception() << "Unexpected call";
+        ythrow yexception() << "String scalars are only supported as values in map";
     }
     State = EState::ExpectKey;
     EscapeAndWrite(value);
@@ -34,7 +34,7 @@ void TDsvWriter::OnStringScalar(const TStringBuf& value)
 void TDsvWriter::OnIntegerScalar(i64 value)
 {
     if (State != EState::AfterKey) {
-        ythrow yexception() << "Unexpected call";
+        ythrow yexception() << "Integer scalars are only supported as values in map";
     }
     State = EState::ExpectKey;
     Stream->Write(ToString(value));
@@ -43,7 +43,7 @@ void TDsvWriter::OnIntegerScalar(i64 value)
 void TDsvWriter::OnDoubleScalar(double value)
 {
     if (State != EState::AfterKey) {
-        ythrow yexception() << "Unexpected call";
+        ythrow yexception() << "Double scalars are only supported as values in map";
     }
     State = EState::ExpectKey;
     Stream->Write(ToString(value));
@@ -62,7 +62,7 @@ void TDsvWriter::OnBeginList()
 void TDsvWriter::OnListItem()
 {
     if (State != EState::ExpectListItem) {
-        ythrow yexception() << "Unexpected call";
+        ythrow yexception() << "OnListItem is only supported at the beginning of record";
     }
     State = EState::ExpectBeginMap;
 
@@ -81,7 +81,7 @@ void TDsvWriter::OnEndList()
 void TDsvWriter::OnBeginMap()
 {
     if (State != EState::ExpectBeginMap) {
-        ythrow yexception() << "Unexpected call";
+        ythrow yexception() << "OnBeginMap is only supported at the beginning of record";
     }
     if (Config->LinePrefix) {
         Stream->Write(Config->LinePrefix.Get());
@@ -93,7 +93,7 @@ void TDsvWriter::OnBeginMap()
 void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 {
     if (State != EState::ExpectKey) {
-        ythrow yexception() << "Unexpected call";
+        YUNREACHABLE();
     }
     State = EState::AfterKey;
 
@@ -109,7 +109,7 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 void TDsvWriter::OnEndMap()
 {
     if (State != EState::ExpectKey) {
-        ythrow yexception() << "Unexpected call";
+        YUNREACHABLE();
     }
     State = EState::ExpectListItem;
 }
