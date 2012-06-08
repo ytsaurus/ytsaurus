@@ -137,7 +137,8 @@ Stroka TCreateExecutor::GetDriverCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TLockExecutor::TLockExecutor()
-    : PathArg("path", "path to an object in Cypress that must be locked", true, "", "path")
+    : TTransactedExecutor(true)
+    , PathArg("path", "path to an object in Cypress that must be locked", true, "", "path")
     , ModeArg("", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive")
 {
     CmdLine.add(PathArg);

@@ -22,6 +22,10 @@ Stroka TStartTxExecutor::GetDriverCommandName() const
 
 //////////////////////////////////////////////////////////////////////////////////
 
+TRenewTxExecutor::TRenewTxExecutor()
+    : TTransactedExecutor(true)
+{ }
+
 Stroka TRenewTxExecutor::GetDriverCommandName() const
 {
     return "renew_tx";
@@ -29,12 +33,20 @@ Stroka TRenewTxExecutor::GetDriverCommandName() const
 
 //////////////////////////////////////////////////////////////////////////////////
 
+TCommitTxExecutor::TCommitTxExecutor()
+    : TTransactedExecutor(true)
+{ }
+
 Stroka TCommitTxExecutor::GetDriverCommandName() const
 {
     return "commit_tx";
 }
 
 //////////////////////////////////////////////////////////////////////////////////
+
+TAbortTxExecutor::TAbortTxExecutor()
+    : TTransactedExecutor(true)
+{ }
 
 Stroka TAbortTxExecutor::GetDriverCommandName() const
 {

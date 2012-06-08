@@ -19,6 +19,9 @@ private:
 class TRenewTxExecutor
     : public TTransactedExecutor
 {
+public:
+    TRenewTxExecutor();
+
 private:
     virtual Stroka GetDriverCommandName() const;
 };
@@ -28,6 +31,9 @@ private:
 class TCommitTxExecutor
     : public TTransactedExecutor
 {
+public:
+    TCommitTxExecutor();
+
 private:
     virtual Stroka GetDriverCommandName() const;
 };
@@ -37,6 +43,9 @@ private:
 class TAbortTxExecutor
     : public TTransactedExecutor
 {
+public:
+    TAbortTxExecutor();
+
 private:
     virtual Stroka GetDriverCommandName() const;
 };

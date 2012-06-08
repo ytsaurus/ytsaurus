@@ -240,8 +240,8 @@ void TExecutorBase::DoExecute(const TDriverRequest& request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactedExecutor::TTransactedExecutor()
-    : TxArg("", "tx", "set transaction id", false, "", "transaction_id")
+TTransactedExecutor::TTransactedExecutor(bool required)
+    : TxArg("", "tx", "set transaction id", required, "", "transaction_id")
 {
     CmdLine.add(TxArg);
 }

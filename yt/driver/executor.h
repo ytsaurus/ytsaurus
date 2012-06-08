@@ -68,7 +68,7 @@ class TTransactedExecutor
     : public TExecutorBase
 {
 public:
-    TTransactedExecutor();
+    TTransactedExecutor(bool required = false);
 
 protected:
     TCLAP::ValueArg<Stroka> TxArg;
