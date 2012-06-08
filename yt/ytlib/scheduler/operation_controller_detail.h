@@ -6,8 +6,9 @@
 #include "chunk_list_pool.h"
 #include "private.h"
 
-#include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/nullable.h>
+#include <ytlib/logging/tagged_logger.h>
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
@@ -168,7 +169,9 @@ protected:
         virtual int GetChunkListCountPerJob() const = 0;
         virtual TDuration GetMaxLocalityDelay() const = 0;
 
+
         DEFINE_BYVAL_RW_PROPERTY(TInstant, LastNonlocalTime);
+
 
         void AddStripe(TChunkStripePtr stripe)
         {
@@ -179,18 +182,10 @@ protected:
             }
         }
 
-        i64 GetLocality(const Stroka& address) const
-        {
-            return ChunkPool->GetLocality(address);
-        }
-
-        bool IsCompleted() const
-        {
-            return ChunkPool->IsCompleted();
-        }
-
         TJobPtr ScheduleJob(TExecNodePtr node)
         {
+            using ::ToString;
+
             if (!Controller->CheckChunkListsPoolSize(GetChunkListCountPerJob())) {
                 return NULL;
             }
@@ -215,6 +210,32 @@ protected:
             jip->OnFailed = BIND(&TTask::OnJobFailed, this, Unretained(~jip));
 
             return Controller->CreateJob(jip, node, jobSpec);
+        }
+
+
+        i64 GetLocality(const Stroka& address) const
+        {
+            return ChunkPool->GetLocality(address);
+        }
+
+        bool IsPending() const
+        {
+            return ChunkPool->IsPending();
+        }
+
+        bool IsCompleted() const
+        {
+            return ChunkPool->IsCompleted();
+        }
+
+        const TProgressCounter& WeightCounter() const
+        {
+            return ChunkPool->WeightCounter();
+        }
+
+        const TProgressCounter& ChunkCounter() const
+        {
+            return ChunkPool->ChunkCounter();
         }
 
     private:

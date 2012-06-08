@@ -43,12 +43,6 @@ public:
         , Config(config)
         , Spec(spec)
         , TotalJobCount(0)
-        , TotalWeight(0)
-        , PendingWeight(0)
-        , CompletedWeight(0)
-        , TotalChunkCount(0)
-        , PendingChunkCount(0)
-        , CompletedChunkCount(0)
         , MapTask(New<TMapTask>(this))
     { }
 
@@ -58,12 +52,6 @@ private:
 
     // Counters.
     int TotalJobCount;
-    i64 TotalWeight;
-    i64 PendingWeight;
-    i64 CompletedWeight;
-    int TotalChunkCount;
-    int PendingChunkCount;
-    int CompletedChunkCount;
 
     // Map task.
 
@@ -86,9 +74,9 @@ private:
         virtual int GetPendingJobCount() const
         {
             return
-                Controller->PendingWeight == 0
-                ? 0
-                : Controller->TotalJobCount - Controller->RunningJobCount - Controller->CompletedJobCount;
+                IsPending()
+                ? Controller->TotalJobCount - Controller->RunningJobCount - Controller->CompletedJobCount
+                : 0;
         }
 
         virtual TDuration GetMaxLocalityDelay() const
@@ -111,7 +99,7 @@ private:
         {
             return GetJobWeightThresholdGeneric(
                 GetPendingJobCount(),
-                Controller->PendingWeight);
+                WeightCounter().GetPending());
         }
 
         virtual TJobSpec GetJobSpec(TJobInProgress* jip)
@@ -124,33 +112,14 @@ private:
             return jobSpec;
         }
 
-        virtual void OnJobStarted(TJobInProgress* jip)
-        {
-            TTask::OnJobStarted(jip);
-
-            Controller->PendingChunkCount -= jip->PoolResult->LocalChunkCount;
-            Controller->PendingWeight -= jip->PoolResult->TotalChunkWeight;
-        }
-
         virtual void OnJobCompleted(TJobInProgress* jip)
         {
             TTask::OnJobCompleted(jip);
-
-            Controller->CompletedChunkCount += jip->PoolResult->TotalChunkCount;
-            Controller->CompletedWeight += jip->PoolResult->TotalChunkWeight;
 
             for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
                 auto chunkListId = jip->ChunkListIds[index];
                 Controller->OutputTables[index].PartitionTreeIds.push_back(chunkListId);
             }
-        }
-
-        virtual void OnJobFailed(TJobInProgress* jip)
-        {
-            TTask::OnJobFailed(jip);
-
-            Controller->PendingChunkCount += jip->PoolResult->TotalChunkCount;
-            Controller->PendingWeight += jip->PoolResult->TotalChunkWeight;
         }
     };
     
@@ -213,35 +182,30 @@ private:
 
                     auto stripe = New<TChunkStripe>(inputChunk, weight);
                     MapTask->AddStripe(stripe);
-
-                    ++TotalChunkCount;
-                    TotalWeight += stripe->Weight;
                 }
             }
 
             // Check for empty inputs.
-            if (TotalWeight == 0) {
+            if (MapTask->IsCompleted()) {
                 LOG_INFO("Empty input");
                 FinalizeOperation();
                 return;
             }
 
             TotalJobCount = GetJobCount(
-                TotalWeight,
+                MapTask->WeightCounter().GetTotal(),
                 Config->MapJobIO->ChunkSequenceWriter->DesiredChunkSize,
                 Spec->JobCount,
-                TotalChunkCount);
-            PendingWeight = TotalWeight;
-            PendingChunkCount = TotalChunkCount;
+                MapTask->ChunkCounter().GetTotal());
             
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(OutputTables.size() * TotalJobCount + Config->SpareChunkListCount);
 
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
-                TotalWeight,
-                TotalChunkCount,
+            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
+                MapTask->WeightCounter().GetTotal(),
+                MapTask->ChunkCounter().GetTotal(),
                 TotalJobCount);
         }
     }
@@ -253,34 +217,22 @@ private:
     {
         LOG_DEBUG("Progress: "
             "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
-            "Chunks = {T: %d, C: %d, P: %d}, "
-            "Weight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}",
+            "Chunks = %s, "
+            "Weight = %s",
             TotalJobCount,
             RunningJobCount,
             CompletedJobCount,
             GetPendingJobCount(),
             FailedJobCount,
-            TotalChunkCount,
-            CompletedChunkCount,
-            PendingChunkCount,
-            TotalWeight,
-            CompletedWeight,
-            PendingWeight);
+            ~ToString(MapTask->ChunkCounter()),
+            ~ToString(MapTask->WeightCounter()));
     }
 
     virtual void DoGetProgress(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item("chunks").BeginMap()
-                .Item("total").Scalar(TotalChunkCount)
-                .Item("completed").Scalar(CompletedChunkCount)
-                .Item("pending").Scalar(PendingChunkCount)
-            .EndMap()
-            .Item("weight").BeginMap()
-                .Item("total").Scalar(TotalWeight)
-                .Item("completed").Scalar(CompletedWeight)
-                .Item("pending").Scalar(PendingWeight)
-            .EndMap();
+            .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &MapTask->ChunkCounter()))
+            .Item("weight").Do(BIND(&TProgressCounter::ToYson, &MapTask->WeightCounter()));
     }
 
 

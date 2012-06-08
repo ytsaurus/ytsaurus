@@ -44,12 +44,6 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Spec(spec)
         , TotalJobCount(0)
-        , TotalWeight(0)
-        , PendingWeight(0)
-        , CompletedWeight(0)
-        , TotalChunkCount(0)
-        , PendingChunkCount(0)
-        , CompletedChunkCount(0)
         , CurrentTaskWeight(0)
     { }
 
@@ -58,13 +52,10 @@ protected:
 
     // Counters.
     int TotalJobCount;
-    i64 TotalWeight;
-    i64 PendingWeight;
-    i64 CompletedWeight;
-    int TotalChunkCount;
-    int PendingChunkCount;
-    int CompletedChunkCount;
+    TProgressCounter WeightCounter;
+    TProgressCounter ChunkCounter;
 
+    // TODO(babenko): consider using std::vector
     yhash_map<int, TChunkStripePtr> CurrentTaskStripes;
     i64 CurrentTaskWeight;
 
@@ -91,7 +82,10 @@ protected:
 
         virtual Stroka GetId() const
         {
-            return Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
+            return
+                PartitionIndex < 0
+                ? Sprintf("Merge:%d", TaskIndex)
+                : Sprintf("Merge:%d,%d", TaskIndex, PartitionIndex);
         }
 
         virtual int GetPendingJobCount() const
@@ -139,16 +133,16 @@ protected:
         {
             TTask::OnJobStarted(jip);
 
-            Controller->PendingChunkCount -= jip->PoolResult->TotalChunkCount;
-            Controller->PendingWeight -= jip->PoolResult->TotalChunkWeight;
+            Controller->ChunkCounter.Start(jip->PoolResult->TotalChunkCount);
+            Controller->WeightCounter.Start(jip->PoolResult->TotalChunkWeight);
         }
 
         virtual void OnJobCompleted(TJobInProgress* jip)
         {
             TTask::OnJobCompleted(jip);
 
-            Controller->CompletedChunkCount += jip->PoolResult->TotalChunkCount;
-            Controller->CompletedWeight += jip->PoolResult->TotalChunkWeight;
+            Controller->ChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
+            Controller->WeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
             auto& table = Controller->OutputTables[0];
             table.PartitionTreeIds[PartitionIndex] = jip->ChunkListIds[0];
@@ -158,8 +152,8 @@ protected:
         {
             TTask::OnJobFailed(jip);
 
-            Controller->PendingChunkCount += jip->PoolResult->TotalChunkCount;
-            Controller->PendingWeight += jip->PoolResult->TotalChunkWeight;
+            Controller->ChunkCounter.Failed(jip->PoolResult->TotalChunkCount);
+            Controller->WeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
         }
 
     };
@@ -222,10 +216,9 @@ protected:
             stripe = it->second;
         }
 
-        TotalWeight += weight;
+        WeightCounter.Increment(weight);
+        ChunkCounter.Increment(1);
         CurrentTaskWeight += weight;
-
-        ++TotalChunkCount;
         stripe->AddChunk(chunk, weight);
 
         auto& table = OutputTables[0];
@@ -304,7 +297,7 @@ protected:
             EndInputChunks();
 
             // Check for trivial inputs.
-            if (TotalChunkCount == 0) {
+            if (ChunkCounter.GetTotal() == 0) {
                 LOG_INFO("Trivial merge");
                 FinalizeOperation();
                 return;
@@ -312,17 +305,15 @@ protected:
 
             // Init counters.
             TotalJobCount = static_cast<int>(MergeTasks.size());
-            PendingWeight = TotalWeight;
-            PendingChunkCount = TotalChunkCount;
 
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(TotalJobCount + Config->SpareChunkListCount);
 
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
-                TotalWeight,
-                TotalChunkCount,
+            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
+                WeightCounter.GetTotal(),
+                ChunkCounter.GetTotal(),
                 TotalJobCount);
         }
     }
@@ -351,34 +342,22 @@ protected:
     {
         LOG_DEBUG("Progress: "
             "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
-            "Chunks = {T: %d, C: %d, P: %d}, "
-            "Weight = {T: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 "}",
+            "Chunks = %s, "
+            "Weight = %s",
             TotalJobCount,
             RunningJobCount,
             CompletedJobCount,
             GetPendingJobCount(),
             FailedJobCount,
-            TotalChunkCount,
-            CompletedChunkCount,
-            PendingChunkCount,
-            TotalWeight,
-            CompletedWeight,
-            PendingWeight);
+            ~ToString(ChunkCounter),
+            ~ToString(WeightCounter));
     }
 
     virtual void DoGetProgress(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item("chunks").BeginMap()
-                .Item("total").Scalar(TotalChunkCount)
-                .Item("completed").Scalar(CompletedChunkCount)
-                .Item("pending").Scalar(PendingChunkCount)
-            .EndMap()
-            .Item("weight").BeginMap()
-                .Item("total").Scalar(TotalWeight)
-                .Item("completed").Scalar(CompletedWeight)
-                .Item("pending").Scalar(PendingWeight)
-            .EndMap();
+            .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &ChunkCounter))
+            .Item("weight").Do(BIND(&TProgressCounter::ToYson, &WeightCounter));
     }
 
 

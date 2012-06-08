@@ -68,22 +68,50 @@ void TPoolExtractionResult::Add(TChunkStripePtr stripe, const Stroka& address)
 
 ////////////////////////////////////////////////////////////////////
 
-class TUnorderedChunkPool
+class TChunkPoolBase
     : public IChunkPool
 {
 public:
-    TUnorderedChunkPool()
-        : TotalWeight(0)
-        , RunningWeight(0)
-        , PendingWeight(0)
-        , CompletedWeight(0)
-    { }
-
-    void Add(TChunkStripePtr stripe)
+    virtual const TProgressCounter& WeightCounter() const
     {
-        YASSERT(stripe->Weight > 0);
-        TotalWeight += stripe->Weight;
-        PendingWeight += stripe->Weight;
+        return WeightCounter_;
+    }
+
+    virtual const TProgressCounter& ChunkCounter() const
+    {
+        return ChunkCounter_;
+    }
+
+    virtual bool IsCompleted() const
+    {
+        return WeightCounter_.GetCompleted() == WeightCounter_.GetTotal();
+    }
+
+    virtual bool IsPending() const
+    {
+        return WeightCounter_.GetPending() > 0;
+    }
+
+
+protected:
+    TProgressCounter WeightCounter_;
+    TProgressCounter ChunkCounter_;
+
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TUnorderedChunkPool
+    : public TChunkPoolBase
+{
+public:
+    virtual void Add(TChunkStripePtr stripe)
+    {
+        YCHECK(stripe->Weight > 0);
+
+        WeightCounter_.Increment(stripe->Weight);
+        ChunkCounter_.Increment(stripe->Chunks.size());
+
         FOREACH (const auto& chunk, stripe->Chunks) {
             const auto& inputChunk = chunk.InputChunk;
             FOREACH (const auto& address, inputChunk.node_addresses()) {
@@ -92,10 +120,11 @@ public:
                 entry.TotalWeight += chunk.Weight;
             }
         }
+
         YVERIFY(GlobalChunks.insert(stripe).second);
     }
 
-    TPoolExtractionResultPtr Extract(
+    virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
         TNullable<i64> weightThreshold)
     {
@@ -133,67 +162,35 @@ public:
             Unregister(result->Stripes[index]);
         }
 
-        RunningWeight += result->TotalChunkWeight;
+        WeightCounter_.Start(result->TotalChunkWeight);
+        ChunkCounter_.Start(result->TotalChunkCount);
 
         return result;
     }
 
-    void OnFailed(TPoolExtractionResultPtr result)
+    virtual void OnFailed(TPoolExtractionResultPtr result)
     {
-        RunningWeight -= result->TotalChunkWeight;
+        WeightCounter_.Failed(result->TotalChunkWeight);
+        ChunkCounter_.Failed(result->TotalChunkCount);
+
         FOREACH (const auto& stripe, result->Stripes) {
             Add(stripe);
         }
     }
 
-    void OnCompleted(TPoolExtractionResultPtr result)
+    virtual void OnCompleted(TPoolExtractionResultPtr result)
     {
-        RunningWeight -= result->TotalChunkWeight;
-        CompletedWeight += result->TotalChunkWeight;
+        WeightCounter_.Completed(result->TotalChunkWeight);
+        ChunkCounter_.Completed(result->TotalChunkCount);
     }
 
-    i64 GetTotalWeight() const
-    {
-        return TotalWeight;
-    }
-
-    i64 GetRunningWeight() const
-    {
-        return RunningWeight;
-    }
-
-    i64 GetPendingWeight() const
-    {
-        return PendingWeight;
-    }
-
-    i64 GetCompletedWeight() const
-    {
-        return CompletedWeight;
-    }
-
-    bool IsCompleted() const
-    {
-        return CompletedWeight == TotalWeight;
-    }
-
-    bool IsPending() const
-    {
-        return !GlobalChunks.empty();
-    }
-
-    i64 GetLocality(const Stroka& address) const
+    virtual i64 GetLocality(const Stroka& address) const
     {
         auto it = LocalChunks.find(address);
         return it == LocalChunks.end() ? 0 : it->second.TotalWeight;
     }
 
 private:
-    i64 TotalWeight;
-    i64 RunningWeight;
-    i64 PendingWeight;
-    i64 CompletedWeight;
-
     yhash_set<TChunkStripePtr> GlobalChunks;
 
     struct TLocalityEntry
@@ -218,8 +215,8 @@ private:
                 entry.TotalWeight -= chunk.Weight;
             }
         }
+
         YVERIFY(GlobalChunks.erase(stripe) == 1);
-        PendingWeight -= stripe->Weight;
     }
 
     template <class TIterator>
@@ -247,21 +244,23 @@ TAutoPtr<IChunkPool> CreateUnorderedChunkPool()
 ////////////////////////////////////////////////////////////////////
 
 class TAtomicChunkPool
-    : public IChunkPool
+    : public TChunkPoolBase
 {
 public:
     TAtomicChunkPool()
-        : TotalWeight(0)
-        , Extracted(false)
+        : Extracted(false)
         , Initialized(false)
-        , Completed_(false)
     { }
 
-    void Add(TChunkStripePtr stripe)
+    virtual void Add(TChunkStripePtr stripe)
     {
-        YASSERT(!Initialized);
-        TotalWeight += stripe->Weight;
+        YCHECK(!Initialized);
+
+        WeightCounter_.Increment(stripe->Weight);
+        ChunkCounter_.Increment(stripe->Chunks.size());
+
         Stripes.push_back(stripe);
+        
         FOREACH (const auto& chunk, stripe->Chunks) {
             const auto& inputChunk = chunk.InputChunk;
             FOREACH (const auto& address, inputChunk.node_addresses()) {
@@ -270,12 +269,12 @@ public:
         }
     }
 
-    TPoolExtractionResultPtr Extract(const Stroka& address, TNullable<i64> weightThreshold)
+    virtual TPoolExtractionResultPtr Extract(const Stroka& address, TNullable<i64> weightThreshold)
     {
         UNUSED(weightThreshold);
 
         Initialized = true;
-        YASSERT(!Extracted);
+        YCHECK(!Extracted);
 
         auto result = New<TPoolExtractionResult>();
         FOREACH (const auto& stripe, Stripes) {
@@ -283,54 +282,32 @@ public:
         }
 
         Extracted = true;
+        WeightCounter_.Start(result->TotalChunkWeight);
+        ChunkCounter_.Start(result->TotalChunkCount);
+
         return result;
     }
 
-    void OnFailed(TPoolExtractionResultPtr result)
+    virtual void OnFailed(TPoolExtractionResultPtr result)
     {
-        YASSERT(Initialized);
-        YASSERT(Extracted);
+        YCHECK(Initialized);
+        YCHECK(Extracted);
+
         Extracted = false;
+        WeightCounter_.Failed(result->TotalChunkWeight);
+        ChunkCounter_.Failed(result->TotalChunkCount);
     }
 
-    void OnCompleted(TPoolExtractionResultPtr result)
+    virtual void OnCompleted(TPoolExtractionResultPtr result)
     {
-        YASSERT(Initialized);
-        YASSERT(Extracted);
-        Completed_ = true;
+        YCHECK(Initialized);
+        YCHECK(Extracted);
+
+        WeightCounter_.Completed(result->TotalChunkWeight);
+        ChunkCounter_.Completed(result->TotalChunkCount);
     }
 
-    i64 GetTotalWeight() const
-    {
-        return TotalWeight;
-    }
-
-    i64 GetRunningWeight() const
-    {
-        return Extracted ? TotalWeight : 0;
-    }
-
-    i64 GetPendingWeight() const
-    {
-        return Extracted ? 0 : TotalWeight;
-    }
-
-    i64 GetCompletedWeight() const
-    {
-        return Completed_ ? TotalWeight : 0;
-    }
-
-    bool IsCompleted() const
-    {
-        return Completed_;
-    }
-
-    bool IsPending() const
-    {
-        return !Extracted && !Stripes.empty();
-    }
-
-    i64 GetLocality(const Stroka& address) const
+    virtual i64 GetLocality(const Stroka& address) const
     {
         if (Extracted) {
             return 0;
@@ -340,20 +317,18 @@ public:
     }
 
 private:
-    i64 TotalWeight;
     std::vector<TChunkStripePtr> Stripes;
+
     //! Addresses of added chunks.
     yhash_map<Stroka, i64> AddressToLocality;
+
     //! Have the stripes been #Extract'ed?
     bool Extracted;
+
     //! Has any #Extract call been made already?
     bool Initialized;
-    //! Were extracted chunks processed successfully?
-    bool Completed_;
 
 };
-
-////////////////////////////////////////////////////////////////////
 
 TAutoPtr<IChunkPool> CreateAtomicChunkPool()
 {

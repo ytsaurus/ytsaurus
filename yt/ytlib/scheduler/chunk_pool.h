@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "progress_counter.h"
 
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/chunk_server/public.h>
@@ -65,10 +66,8 @@ struct IChunkPool
     virtual void OnFailed(TPoolExtractionResultPtr result) = 0;
     virtual void OnCompleted(TPoolExtractionResultPtr result) = 0;
 
-    virtual i64 GetTotalWeight() const = 0;
-    virtual i64 GetRunningWeight() const = 0;
-    virtual i64 GetPendingWeight() const = 0;
-    virtual i64 GetCompletedWeight() const = 0;
+    virtual const TProgressCounter& WeightCounter() const = 0;
+    virtual const TProgressCounter& ChunkCounter() const = 0;
 
     virtual bool IsCompleted() const = 0;
     virtual bool IsPending() const = 0;
