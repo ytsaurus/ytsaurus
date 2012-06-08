@@ -279,21 +279,29 @@ private:
 
         virtual TDuration GetMaxLocalityDelay() const
         {
-            // TODO(babenko): fixme
-            return TDuration::Zero();
+            return TDuration::Seconds(30);
         }
 
         virtual i64 GetLocality(const Stroka& address) const
         {
-            // TODO(babenko): fixme
-            // Sort locality does not depend on inputs (they are scattered anyway)
-            // but on outputs.
-            return 1;
+            // To make subsequent merges local,
+            // sort locality is assigned based not on inputs (they are scattered anyway)
+            // but on outputs (including those that are still running).
+            if (AddressToOutputLocality.empty()) {
+                // No primary node is chosen yet, anyone will do.
+                // Return some magic number.
+                return Controller->Spec->MaxSortJobDataSize;
+            } else {
+                auto it = AddressToOutputLocality.find(address);
+                return it == AddressToOutputLocality.end() ? 0 : it->second;
+            }
         }
 
     private:
         TSortController* Controller;
         TPartition* Partition;
+
+        yhash_map<Stroka, i64> AddressToOutputLocality;
 
         virtual int GetChunkListCountPerJob() const 
         {
@@ -339,6 +347,10 @@ private:
 
             ++Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
+
+            // Increment output locality.
+            auto address = jip->Job->GetNode()->GetAddress();
+            AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
         }
 
         virtual void OnJobCompleted(TJobInProgress* jip)
@@ -375,6 +387,12 @@ private:
 
             --Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
+
+            // Decrement output locality and purge zeros.
+            auto address = jip->Job->GetNode()->GetAddress();
+            if ((AddressToOutputLocality[address] -= jip->PoolResult->TotalChunkWeight) == 0) {
+                YCHECK(AddressToOutputLocality.erase(address) == 1);
+            }
         }
 
         virtual void OnTaskCompleted()
@@ -423,7 +441,8 @@ private:
 
         virtual TDuration GetMaxLocalityDelay() const
         {
-            return TDuration::Zero();
+            // TODO(babenko): make configurable
+            return TDuration::Seconds(30);
         }
 
     private:
