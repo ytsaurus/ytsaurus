@@ -119,7 +119,7 @@ class YTEnv:
         self.scheduler_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_scheduler_config.yson'))
         self.driver_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_driver_config.yson'))
 
-        hostname = socket.gethostname()
+        hostname = socket.getfqdn()
         master_addresses = [hostname + ':' + str(8001 + i) for i in xrange(self.NUM_MASTERS)]
         
         self.master_config['meta_state']['cell']['addresses'] = master_addresses
