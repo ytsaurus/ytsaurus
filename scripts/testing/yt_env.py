@@ -72,15 +72,19 @@ class YTEnv:
         print 'Setting up configuration with %s masters, %s holders, %s schedulers' % (
             self.NUM_MASTERS, self.NUM_HOLDERS, self.NUM_SCHEDULERS
             )
-        self._set_path(path_to_run)
-        self._clean_run_path()
-        self._prepare_configs()
-        self._run_masters()
-        self._wait_for_ready_masters()
-        self._run_holders()
-        self._wait_for_ready_holders()
-        self._run_schedulers()
-        self._wait_for_ready_schedulers()
+        try:
+            self._set_path(path_to_run)
+            self._clean_run_path()
+            self._prepare_configs()
+            self._run_masters()
+            self._wait_for_ready_masters()
+            self._run_holders()
+            self._wait_for_ready_holders()
+            self._run_schedulers()
+            self._wait_for_ready_schedulers()
+        except:
+            self.tearDown()
+            raise
 
     def tearDown(self):
         print 'Tearing down'
@@ -119,7 +123,9 @@ class YTEnv:
         self.scheduler_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_scheduler_config.yson'))
         self.driver_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_driver_config.yson'))
 
-        hostname = socket.getfqdn()
+        short_hostname = socket.gethostname()
+        hostname = socket.gethostbyname_ex(short_hostname)[0]
+
         master_addresses = [hostname + ':' + str(8001 + i) for i in xrange(self.NUM_MASTERS)]
         
         self.master_config['meta_state']['cell']['addresses'] = master_addresses
