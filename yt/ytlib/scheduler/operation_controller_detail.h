@@ -258,9 +258,7 @@ protected:
         {
             ChunkPool->OnCompleted(jip->PoolResult);
 
-            LOG_DEBUG("zzz: %d %s", (int) ChunkPool->IsCompleted(), ~ToString(ChunkPool->WeightCounter()));
-
-            if (ChunkPool->IsCompleted()) {
+            if (IsCompleted()) {
                 OnTaskCompleted();
             }
         }

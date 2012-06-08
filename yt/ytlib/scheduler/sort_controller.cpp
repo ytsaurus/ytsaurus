@@ -69,8 +69,6 @@ private:
     // Counters.
     int CompletedPartitionCount;
     TProgressCounter PartitionJobCounter;
-    TProgressCounter PartitionWeightCounter;
-    TProgressCounter PartitionChunkCounter;
     // Sort job counters.
     int MaxSortJobCount;
     int RunningSortJobCount;
@@ -177,7 +175,7 @@ private:
         {
             return GetJobWeightThresholdGeneric(
                 GetPendingJobCount(),
-                Controller->PartitionWeightCounter.GetPending());
+                WeightCounter().GetPending());
         }
 
         virtual TJobSpec GetJobSpec(TJobInProgress* jip)
@@ -191,8 +189,6 @@ private:
         virtual void OnJobStarted(TJobInProgress* jip)
         {
             Controller->PartitionJobCounter.Start(1);
-            Controller->PartitionChunkCounter.Start(jip->PoolResult->TotalChunkCount);
-            Controller->PartitionWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
 
             TTask::OnJobStarted(jip);
         }
@@ -200,8 +196,6 @@ private:
         virtual void OnJobCompleted(TJobInProgress* jip)
         {
             Controller->PartitionJobCounter.Completed(1);
-            Controller->PartitionChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
-            Controller->PartitionWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
             auto* resultExt = jip->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
             FOREACH (auto& partitionChunk, *resultExt->mutable_chunks()) {
@@ -229,8 +223,6 @@ private:
         virtual void OnJobFailed(TJobInProgress* jip)
         {
             Controller->PartitionJobCounter.Failed(1);
-            Controller->PartitionChunkCounter.Failed(jip->PoolResult->TotalChunkCount);
-            Controller->PartitionWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
 
             TTask::OnJobFailed(jip);
         }
@@ -570,9 +562,6 @@ private:
                     auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                     i64 weight = miscExt->data_weight();
 
-                    PartitionChunkCounter.Increment(1);
-                    PartitionWeightCounter.Increment(weight);
-
                     SamplesFetcher->AddChunk(chunk);
 
                     auto stripe = New<TChunkStripe>(chunk, weight);
@@ -581,15 +570,15 @@ private:
             }
 
             // Check for empty inputs.
-            if (PartitionChunkCounter.GetTotal() == 0) {
+            if (PartitionTask->IsCompleted()) {
                 LOG_INFO("Empty input");
                 FinalizeOperation();
                 return MakeFuture(TValueOrError<void>());
             }
 
             LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ")",
-                PartitionWeightCounter.GetTotal(),
-                PartitionChunkCounter.GetTotal());
+                PartitionTask->WeightCounter().GetTotal(),
+                PartitionTask->ChunkCounter().GetTotal());
 
             return SamplesFetcher->Run();
         }
@@ -664,10 +653,6 @@ private:
         Partitions.resize(1);
         auto partition = Partitions[0] = New<TPartition>(this, 0);
 
-        // There will be no partition jobs, reset partition counters.
-        PartitionChunkCounter.Set(0);
-        PartitionWeightCounter.Set(0);
-
         // Put all input chunks into this unique partition.
         int chunkCount = 0;
         FOREACH (const auto& table, InputTables) {
@@ -717,14 +702,14 @@ private:
 
         // Init counters.
         PartitionJobCounter.Set(GetJobCount(
-            PartitionWeightCounter.GetTotal(),
+            PartitionTask->WeightCounter().GetTotal(),
             Config->PartitionJobIO->ChunkSequenceWriter->DesiredChunkSize,
             Spec->PartitionJobCount,
-            PartitionChunkCounter.GetTotal()));
+            PartitionTask->ChunkCounter().GetTotal()));
 
         // Very rough estimates.
         MaxSortJobCount = GetJobCount(
-            PartitionWeightCounter.GetTotal(),
+            PartitionTask->WeightCounter().GetTotal(),
             Spec->MaxSortJobDataSize,
             Null,
             std::numeric_limits<int>::max()) + partitionCount;
@@ -780,8 +765,8 @@ private:
             CompletedPartitionCount,
             // PartitionJobs
             ~ToString(PartitionJobCounter),
-            ~ToString(PartitionChunkCounter),
-            ~ToString(PartitionWeightCounter),
+            ~ToString(PartitionTask->ChunkCounter()),
+            ~ToString(PartitionTask->WeightCounter()),
             // SortJobs
             MaxSortJobCount,
             RunningSortJobCount,
@@ -801,8 +786,8 @@ private:
                 .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap()
             .Item("partition_jobs").Do(BIND(&TProgressCounter::ToYson, &PartitionJobCounter))
-            .Item("partition_chunks").Do(BIND(&TProgressCounter::ToYson, &PartitionChunkCounter))
-            .Item("partition_weight").Do(BIND(&TProgressCounter::ToYson, &PartitionWeightCounter))
+            .Item("partition_chunks").Do(BIND(&TProgressCounter::ToYson, &PartitionTask->ChunkCounter()))
+            .Item("partition_weight").Do(BIND(&TProgressCounter::ToYson, &PartitionTask->WeightCounter()))
             .Item("sort_jobs").BeginMap()
                 .Item("max").Scalar(MaxSortJobCount)
                 .Item("running").Scalar(RunningSortJobCount)

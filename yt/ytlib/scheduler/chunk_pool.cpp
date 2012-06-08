@@ -113,16 +113,7 @@ public:
         WeightCounter_.Increment(stripe->Weight);
         ChunkCounter_.Increment(stripe->Chunks.size());
 
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            const auto& inputChunk = chunk.InputChunk;
-            FOREACH (const auto& address, inputChunk.node_addresses()) {
-                auto& entry = LocalChunks[address];
-                YVERIFY(entry.Stripes.insert(stripe).second);
-                entry.TotalWeight += chunk.Weight;
-            }
-        }
-
-        YVERIFY(GlobalChunks.insert(stripe).second);
+        Register(stripe);
     }
 
     virtual TPoolExtractionResultPtr Extract(
@@ -175,7 +166,7 @@ public:
         ChunkCounter_.Failed(result->TotalChunkCount);
 
         FOREACH (const auto& stripe, result->Stripes) {
-            Add(stripe);
+            Register(stripe);
         }
     }
 
@@ -205,6 +196,20 @@ private:
     };
     
     yhash_map<Stroka,  TLocalityEntry> LocalChunks;
+
+    void Register(TChunkStripePtr stripe)
+    {
+        FOREACH (const auto& chunk, stripe->Chunks) {
+            const auto& inputChunk = chunk.InputChunk;
+            FOREACH (const auto& address, inputChunk.node_addresses()) {
+                auto& entry = LocalChunks[address];
+                YVERIFY(entry.Stripes.insert(stripe).second);
+                entry.TotalWeight += chunk.Weight;
+            }
+        }
+
+        YVERIFY(GlobalChunks.insert(stripe).second);
+    }
 
     void Unregister(TChunkStripePtr stripe)
     {
