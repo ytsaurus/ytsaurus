@@ -206,8 +206,8 @@ protected:
             OnJobStarted(~jip);
 
             // Pass jip to handlers via raw pointer to avoid cyclic references.
-            jip->OnCompleted = BIND(&TTask::OnJobCompleted, this, Unretained(~jip));
-            jip->OnFailed = BIND(&TTask::OnJobFailed, this, Unretained(~jip));
+            jip->OnCompleted = BIND(&TTask::OnJobCompleted, MakeStrong(this), Unretained(~jip));
+            jip->OnFailed = BIND(&TTask::OnJobFailed, MakeStrong(this), Unretained(~jip));
 
             return Controller->CreateJob(jip, node, jobSpec);
         }
