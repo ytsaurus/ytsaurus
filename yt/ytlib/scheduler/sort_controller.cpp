@@ -353,7 +353,7 @@ private:
             // for all further jobs.
             auto address = jip->Job->GetNode()->GetAddress();
             AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
-            Controller->RegisterTaskLocalityHint(task, address);
+            Controller->RegisterTaskLocalityHint(this, address);
         }
 
         virtual void OnJobCompleted(TJobInProgress* jip)
