@@ -84,8 +84,8 @@ protected:
         {
             return
                 PartitionIndex < 0
-                ? Sprintf("Merge:%d", TaskIndex)
-                : Sprintf("Merge:%d,%d", TaskIndex, PartitionIndex);
+                ? Sprintf("Merge(%d)", TaskIndex)
+                : Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
         }
 
         virtual int GetPendingJobCount() const

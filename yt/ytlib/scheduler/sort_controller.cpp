@@ -76,7 +76,6 @@ private:
     int RunningSortJobCount;
     int CompletedSortJobCount;
     TProgressCounter SortWeightCounter;
-    TProgressCounter SortChunkCounter;
     // Merge job counters.
     int MaxMergeJobCount;
     int RunningMergeJobCount;
@@ -339,7 +338,6 @@ private:
             TTask::OnJobStarted(jip);
 
             ++Controller->RunningSortJobCount;
-            Controller->SortChunkCounter.Start(jip->PoolResult->TotalChunkCount);
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
         }
 
@@ -349,7 +347,6 @@ private:
 
             --Controller->RunningSortJobCount;
             ++Controller->CompletedSortJobCount;
-            Controller->SortChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
             if (!Partition->NeedsMerge) {
@@ -377,7 +374,6 @@ private:
             TTask::OnJobFailed(jip);
 
             --Controller->RunningSortJobCount;
-            Controller->SortChunkCounter.Failed(jip->PoolResult->TotalChunkCount);
             Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
         }
 
@@ -413,7 +409,7 @@ private:
 
         virtual Stroka GetId() const
         {
-            return Sprintf("Merge:%d", Partition->Index);
+            return Sprintf("Merge(%d)", Partition->Index);
         }
 
         virtual int GetPendingJobCount() const
@@ -603,7 +599,6 @@ private:
             FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                 i64 weight = miscExt->data_weight();
-                SortChunkCounter.Increment(1);
                 SortWeightCounter.Increment(weight);
             }
         }
@@ -646,6 +641,7 @@ private:
         PartitionWeightCounter.Set(0);
 
         // Put all input chunks into this unique partition.
+        int chunkCount = 0;
         FOREACH (const auto& table, InputTables) {
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
@@ -653,7 +649,7 @@ private:
                 auto stripe = New<TChunkStripe>(chunk, weight);
                 partition->SortTask->AddStripe(stripe);
                 SortWeightCounter.Increment(weight);
-                SortChunkCounter.Increment(1);
+                ++chunkCount;
             }
         }
 
@@ -662,7 +658,7 @@ private:
             SortWeightCounter.GetTotal(),
             Spec->MaxSortJobDataSize,
             Spec->SortJobCount,
-            SortChunkCounter.GetTotal());
+            chunkCount);
 
         LOG_INFO("Sorting without partitioning");
 
@@ -744,7 +740,6 @@ private:
             "PartitionChunks = {%s}, "
             "PartitionWeight = {%s}, "
             "SortJobs = {M: %d, R: %d, C: %d}, "
-            "SortChunks = {%s}, "
             "SortWeight = {%s}, "
             "MergeJobs = {M: %d, R: %d, C: %d}",
             // Jobs
@@ -763,7 +758,6 @@ private:
             MaxSortJobCount,
             RunningSortJobCount,
             CompletedSortJobCount,
-            ~ToString(SortChunkCounter),
             ~ToString(SortWeightCounter),
             // MergeJobs
             MaxMergeJobCount,
@@ -786,7 +780,6 @@ private:
                 .Item("running").Scalar(RunningSortJobCount)
                 .Item("completed").Scalar(CompletedSortJobCount)
             .EndMap()
-            .Item("sort_chunks").Do(BIND(&TProgressCounter::ToYson, &SortChunkCounter))
             .Item("sort_weight").Do(BIND(&TProgressCounter::ToYson, &SortWeightCounter))
             .Item("merge_jobs").BeginMap()
                 .Item("max").Scalar(MaxMergeJobCount)
