@@ -947,7 +947,7 @@ void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
         NodeMap.Remove(branchedNodeId);
 
         // Drop the implicit reference to the originator.
-        objectManager->UnrefObject(branchedNode);
+        objectManager->UnrefObject(branchedNodeId);
 
         LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedNodeId.ToString());
     }
