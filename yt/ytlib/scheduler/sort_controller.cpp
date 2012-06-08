@@ -98,8 +98,8 @@ private:
     {
         explicit TPartition(TSortController* controller, int index)
             : Index(index)
-            , Small(false)
             , Completed(false)
+            , NeedsMerge(false)
             , SortTask(New<TSortTask>(controller, this))
             , MergeTask(New<TMergeTask>(controller, this))
         { }
@@ -107,11 +107,11 @@ private:
         //! Sequential index (zero based).
         int Index;
 
-        //! Small partitions contain data that fits into a single sort job.
-        bool Small;
-
         //! Is partition completed?
         bool Completed;
+
+        //! Do we need to run merge tasks for this partition?
+        bool NeedsMerge;
 
         TSortTaskPtr SortTask;
         TMergeTaskPtr MergeTask;
@@ -236,7 +236,7 @@ private:
 
         virtual void OnTaskCompleted()
         {
-            // Kick-start all sort tasks.
+            // Check for small partitionsKick-start all sort tasks.
             FOREACH (auto partition, Controller->Partitions) {
                 Controller->RegisterTaskPendingHint(partition->SortTask);
             }
@@ -284,6 +284,7 @@ private:
     private:
         TSortController* Controller;
         TPartition* Partition;
+        TChunkListId SortedChunkListId;
 
         virtual int GetChunkListCountPerJob() const 
         {
@@ -303,9 +304,13 @@ private:
             AddTabularOutputSpec(&jobSpec, jip, Controller->OutputTables[0]);
 
             {
+                // Check if this sort job only handles a fraction of partition.
+                bool partialSort = Partition->NeedsMerge || !Controller->PartitionTask->IsCompleted();
+                Partition->NeedsMerge = partialSort;
+
                 // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
                 // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-                auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, Partition->Small);
+                auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, !partialSort);
                 jobSpec.set_io_config(SerializeToYson(ioConfig));
             }
 
@@ -337,9 +342,8 @@ private:
             Controller->SortChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
-            if (Partition->Small) {
-                // Sort outputs in small partitions go directly to the output table.
-                Controller->CompletePartition(Partition, jip->ChunkListIds[0]);
+            if (!Partition->NeedsMerge) {
+                SortedChunkListId = jip->ChunkListIds[0];
                 return;
             } 
 
@@ -370,7 +374,11 @@ private:
         virtual void OnTaskCompleted()
         {
             // Kick-start the corresponding merge task.
-            Controller->RegisterTaskPendingHint(Partition->MergeTask);
+            if (Partition->NeedsMerge) {
+                Controller->RegisterTaskPendingHint(Partition->MergeTask);
+            } else {
+                Controller->CompletePartition(Partition, SortedChunkListId);
+            }
         }
     };
 
@@ -397,10 +405,9 @@ private:
         virtual int GetPendingJobCount() const
         {
             return
-                !Partition->Small &&
                 Controller->PartitionTask->IsCompleted() &&
                 Partition->SortTask->IsCompleted() &&
-                ChunkPool->IsPending()
+                ChunkPool->ChunkCounter().GetTotal() >= 2
                 ? 1 : 0;
         }
 
@@ -617,7 +624,6 @@ private:
         // Create a single partition.
         Partitions.resize(1);
         auto partition = Partitions[0] = New<TPartition>(this, 0);
-        partition->Small = true;
 
         // There will be no partition jobs, reset partition counters.
         PartitionChunkCounter.Set(0);
