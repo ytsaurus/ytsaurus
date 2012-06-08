@@ -128,7 +128,7 @@ void TLockCommand::DoExecute()
     TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TCypressYPathProxy::Lock(WithTransaction(
         Request->Path,
-        GetTransactionId(false)));
+        GetTransactionId(true)));
 
     req->set_mode(Request->Mode);
 
