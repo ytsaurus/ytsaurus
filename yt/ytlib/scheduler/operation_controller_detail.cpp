@@ -327,8 +327,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                     feasibleTask = candidate;
                 }
             } else {
-                LOG_DEBUG("Task pending hint removed (Task: %s)",
-                    ~candidate->GetId());
+                LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
                 PendingTasks.erase(jt);
             }
         }
@@ -360,6 +359,7 @@ int TOperationControllerBase::GetPendingJobCount()
         const auto& candidate = *jt;
         int count = candidate->GetPendingJobCount();
         if (count == 0) {
+            LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
             PendingTasks.erase(jt);
         }
         result += count;

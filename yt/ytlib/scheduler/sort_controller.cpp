@@ -193,12 +193,12 @@ private:
             Controller->PartitionJobCounter.Start(1);
             Controller->PartitionChunkCounter.Start(jip->PoolResult->TotalChunkCount);
             Controller->PartitionWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
+
+            TTask::OnJobStarted(jip);
         }
 
         virtual void OnJobCompleted(TJobInProgress* jip)
         {
-            TTask::OnJobCompleted(jip);
-
             Controller->PartitionJobCounter.Completed(1);
             Controller->PartitionChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
             Controller->PartitionWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
@@ -222,15 +222,17 @@ private:
                     }
                 }
             }
+
+            TTask::OnJobCompleted(jip);
         }
 
         virtual void OnJobFailed(TJobInProgress* jip)
         {
-            TTask::OnJobFailed(jip);
-
             Controller->PartitionJobCounter.Failed(1);
             Controller->PartitionChunkCounter.Failed(jip->PoolResult->TotalChunkCount);
             Controller->PartitionWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
+
+            TTask::OnJobFailed(jip);
         }
 
         virtual void OnTaskCompleted()
@@ -345,8 +347,6 @@ private:
 
         virtual void OnJobStarted(TJobInProgress* jip)
         {
-            TTask::OnJobStarted(jip);
-
             ++Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
 
@@ -356,12 +356,12 @@ private:
             auto address = jip->Job->GetNode()->GetAddress();
             AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
             Controller->RegisterTaskLocalityHint(this, address);
+
+            TTask::OnJobStarted(jip);
         }
 
         virtual void OnJobCompleted(TJobInProgress* jip)
         {
-            TTask::OnJobCompleted(jip);
-
             --Controller->RunningSortJobCount;
             ++Controller->CompletedSortJobCount;
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
@@ -384,12 +384,12 @@ private:
 
             // Put the stripe into the pool.
             Partition->MergeTask->AddStripe(stripe);
+
+            TTask::OnJobCompleted(jip);
         }
 
         virtual void OnJobFailed(TJobInProgress* jip)
         {
-            TTask::OnJobFailed(jip);
-
             --Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
 
@@ -398,10 +398,14 @@ private:
             if ((AddressToOutputLocality[address] -= jip->PoolResult->TotalChunkWeight) == 0) {
                 YCHECK(AddressToOutputLocality.erase(address) == 1);
             }
+
+            TTask::OnJobFailed(jip);
         }
 
         virtual void OnTaskCompleted()
         {
+            TTask::OnTaskCompleted();
+
             // Kick-start the corresponding merge task.
             if (Partition->NeedsMerge) {
                 Controller->RegisterTaskPendingHint(Partition->MergeTask);
@@ -489,27 +493,27 @@ private:
 
         virtual void OnJobStarted(TJobInProgress* jip)
         {
-            TTask::OnJobStarted(jip);
-
             ++Controller->RunningMergeJobCount;
+
+            TTask::OnJobStarted(jip);
         }
 
         virtual void OnJobCompleted(TJobInProgress* jip)
         {
-            TTask::OnJobCompleted(jip);
-
             --Controller->RunningMergeJobCount;
             ++Controller->CompletedMergeJobCount;
 
             YCHECK(ChunkPool->IsCompleted());
             Controller->CompletePartition(Partition, jip->ChunkListIds[0]);
+
+            TTask::OnJobCompleted(jip);
         }
 
         virtual void OnJobFailed(TJobInProgress* jip)
         {
-            TTask::OnJobFailed(jip);
-
             --Controller->RunningMergeJobCount;
+
+            TTask::OnJobFailed(jip);
         }
     };
 
