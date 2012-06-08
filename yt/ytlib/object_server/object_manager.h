@@ -11,18 +11,7 @@
 #include <ytlib/cell_master/public.h>
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/object_server/object_manager.pb.h>
-
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations.
-namespace NYT {
-namespace NCypress {
-
-struct ICypressNode;
-
-}
-}
+#include <ytlib/cypress/public.h>
 
 namespace NYT {
 namespace NObjectServer {
