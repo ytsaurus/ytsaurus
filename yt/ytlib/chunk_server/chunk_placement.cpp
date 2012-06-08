@@ -59,8 +59,8 @@ void TChunkPlacement::OnHolderRegistered(THolder& holder)
 {
     double loadFactor = GetLoadFactor(holder);
     auto it = LoadFactorMap.insert(MakePair(loadFactor, &holder));
-    YVERIFY(IteratorMap.insert(MakePair(&holder, it)).second);
-    YVERIFY(HintedSessionsMap.insert(MakePair(&holder, 0)).second);
+    YCHECK(IteratorMap.insert(MakePair(&holder, it)).second);
+    YCHECK(HintedSessionsMap.insert(MakePair(&holder, 0)).second);
 }
 
 void TChunkPlacement::OnHolderUnregistered(THolder& holder)
@@ -70,7 +70,7 @@ void TChunkPlacement::OnHolderUnregistered(THolder& holder)
     auto preferenceIt = iteratorIt->second;
     LoadFactorMap.erase(preferenceIt);
     IteratorMap.erase(iteratorIt);
-    YVERIFY(HintedSessionsMap.erase(&holder) == 1);
+    YCHECK(HintedSessionsMap.erase(&holder) == 1);
 }
 
 void TChunkPlacement::OnHolderUpdated(THolder& holder)

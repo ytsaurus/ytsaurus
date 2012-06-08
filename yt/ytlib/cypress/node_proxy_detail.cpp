@@ -115,7 +115,7 @@ void TMapNodeProxy::Clear()
 
     const auto& children = DoGetChildren();
     FOREACH (const auto& pair, children) {
-        YVERIFY(impl.KeyToChild().insert(MakePair(pair.first, NullObjectId)).second);
+        YCHECK(impl.KeyToChild().insert(MakePair(pair.first, NullObjectId)).second);
         --impl.ChildCountDelta();
     }
 }
@@ -162,8 +162,8 @@ bool TMapNodeProxy::AddChild(INode* child, const TStringBuf& key)
     auto childId = childProxy->GetId();
     YASSERT(childId != NullObjectId);
 
-    YVERIFY(impl.KeyToChild().insert(MakePair(key, childId)).second);
-    YVERIFY(impl.ChildToKey().insert(MakePair(childId, key)).second);
+    YCHECK(impl.KeyToChild().insert(MakePair(key, childId)).second);
+    YCHECK(impl.ChildToKey().insert(MakePair(childId, key)).second);
     ++impl.ChildCountDelta();
 
     AttachChild(childImpl);
@@ -192,13 +192,13 @@ bool TMapNodeProxy::RemoveChild(const TStringBuf& key)
             impl.KeyToChild().erase(it);
         }
 
-        YVERIFY(impl.ChildToKey().erase(childId) > 0);
+        YCHECK(impl.ChildToKey().erase(childId) == 1);
         DetachChild(childImpl);
     } else {
         if (!DoFindChild(key, true)) {
             return false;
         }
-        YVERIFY(impl.KeyToChild().insert(MakePair(key, NullObjectId)).second);
+        YCHECK(impl.KeyToChild().insert(MakePair(key, NullObjectId)).second);
     }
     
     --impl.ChildCountDelta();
@@ -218,13 +218,13 @@ void TMapNodeProxy::RemoveChild(INode* child)
         if (DoFindChild(key, true)) {
             impl.KeyToChild().find(key)->second = NullObjectId;
         } else {
-            YVERIFY(impl.KeyToChild().erase(key) > 0);
+            YCHECK(impl.KeyToChild().erase(key) == 1);
         }
         impl.ChildToKey().erase(it);
         DetachChild(childImpl);    
     } else {
         const auto& key = GetChildKey(child);
-        YVERIFY(impl.KeyToChild().insert(MakePair(key, NullObjectId)).second);
+        YCHECK(impl.KeyToChild().insert(MakePair(key, NullObjectId)).second);
     }
     --impl.ChildCountDelta();
 }
@@ -255,7 +255,7 @@ void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
         oldChildImpl.SetParentId(NullObjectId);
     }
     impl.KeyToChild()[key] = newChildProxy->GetId();
-    YVERIFY(impl.ChildToKey().insert(MakePair(newChildProxy->GetId(), key)).second);    
+    YCHECK(impl.ChildToKey().insert(MakePair(newChildProxy->GetId(), key)).second);    
 
     AttachChild(newChildImpl);
 }
@@ -289,7 +289,7 @@ yhash_map<Stroka, ICypressNodeProxy::TPtr> TMapNodeProxy::DoGetChildren() const
         const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
         FOREACH (const auto& pair, map) {
             if (pair.second == NullTransactionId) {
-                YVERIFY(result.erase(pair.first) > 0);
+                YCHECK(result.erase(pair.first) == 1);
             } else {
                 result[pair.first] = GetProxy(pair.second);
             }
@@ -417,7 +417,7 @@ void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
     auto& childImpl = childProxy->GetImplForUpdate();
 
     if (beforeIndex < 0) {
-        YVERIFY(impl.ChildToIndex().insert(MakePair(childId, list.ysize())).second);
+        YCHECK(impl.ChildToIndex().insert(MakePair(childId, list.ysize())).second);
         list.push_back(childId);
     } else {
         // Update the indices.
@@ -426,7 +426,7 @@ void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
         }
 
         // Insert the new child.
-        YVERIFY(impl.ChildToIndex().insert(MakePair(childId, beforeIndex)).second);
+        YCHECK(impl.ChildToIndex().insert(MakePair(childId, beforeIndex)).second);
         list.insert(list.begin() + beforeIndex, childId);
     }
 
@@ -452,7 +452,7 @@ bool TListNodeProxy::RemoveChild(int index)
 
     // Remove the child.
     list.erase(list.begin() + index);
-    YVERIFY(impl.ChildToIndex().erase(childProxy->GetId()));
+    YCHECK(impl.ChildToIndex().erase(childProxy->GetId()));
     DetachChild(childImpl);
 
     return true;
@@ -461,7 +461,7 @@ bool TListNodeProxy::RemoveChild(int index)
 void TListNodeProxy::RemoveChild(INode* child)
 {
     int index = GetChildIndex(child);
-    YVERIFY(RemoveChild(index));
+    YCHECK(RemoveChild(index));
 }
 
 void TListNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
@@ -486,7 +486,7 @@ void TListNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
 
     impl.IndexToChild()[index] = newChildProxy->GetId();
     impl.ChildToIndex().erase(it);
-    YVERIFY(impl.ChildToIndex().insert(MakePair(newChildProxy->GetId(), index)).second);
+    YCHECK(impl.ChildToIndex().insert(MakePair(newChildProxy->GetId(), index)).second);
     AttachChild(newChildImpl);
 }
 

@@ -318,7 +318,7 @@ ITransactionPtr TTransactionManager::Attach(const TTransactionId& id)
 void TTransactionManager::RegisterTransaction(TTransactionPtr transaction)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YVERIFY(TransactionMap.insert(MakePair(transaction->GetId(), ~transaction)).second);
+    YCHECK(TransactionMap.insert(MakePair(transaction->GetId(), ~transaction)).second);
     LOG_DEBUG("Registered transaction %s", ~transaction->GetId().ToString());
 }
 

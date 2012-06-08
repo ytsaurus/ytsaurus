@@ -145,7 +145,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             auto value = TRefCounted::DangerousGetPtr(valueIt->second);
             if (value) {
                 auto* item = new TItem(value);
-                YVERIFY(ItemMap.insert(MakePair(key, item)).second);
+                YCHECK(ItemMap.insert(MakePair(key, item)).second);
 
                 LruList.PushFront(item);
                 ++Size;
@@ -186,7 +186,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         auto* item = it->second;
         item->ValueOrError.Set(value);
 
-        YVERIFY(ValueMap.insert(MakePair(key, ~value)).second);
+        YCHECK(ValueMap.insert(MakePair(key, ~value)).second);
     
         LruList.PushFront(item);
         ++Size;

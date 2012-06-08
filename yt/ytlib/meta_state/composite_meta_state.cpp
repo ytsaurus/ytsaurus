@@ -194,7 +194,7 @@ void TCompositeMetaState::RegisterLoader(const Stroka& name, TLoader loader)
 {
     YASSERT(!loader.IsNull());
 
-    YVERIFY(Loaders.insert(MakePair(name, MoveRV(loader))).second);
+    YCHECK(Loaders.insert(MakePair(name, MoveRV(loader))).second);
 }
 
 void TCompositeMetaState::RegisterSaver(
@@ -205,7 +205,7 @@ void TCompositeMetaState::RegisterSaver(
     YASSERT(!saver.IsNull());
 
     TSaverInfo info(name, MoveRV(saver), phase);
-    YVERIFY(Savers.insert(MakePair(name, info)).second);
+    YCHECK(Savers.insert(MakePair(name, info)).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

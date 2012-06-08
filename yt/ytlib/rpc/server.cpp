@@ -93,7 +93,7 @@ public:
     {
         YASSERT(service);
 
-        YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).second);
+        YCHECK(Services.insert(MakePair(service->GetServiceName(), service)).second);
         LOG_INFO("RPC service registered (ServiceName: %s)", ~service->GetServiceName());
     }
 

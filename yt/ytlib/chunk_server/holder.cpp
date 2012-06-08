@@ -71,18 +71,18 @@ void THolder::RemoveJob(TJob* job)
 void THolder::AddChunk(TChunk* chunk, bool cached)
 {
     if (cached) {
-        YVERIFY(CachedChunks_.insert(chunk).second);
+        YCHECK(CachedChunks_.insert(chunk).second);
     } else {
-        YVERIFY(StoredChunks_.insert(chunk).second);
+        YCHECK(StoredChunks_.insert(chunk).second);
     }
 }
 
 void THolder::RemoveChunk(TChunk* chunk, bool cached)
 {
     if (cached) {
-        YVERIFY(CachedChunks_.erase(chunk) == 1);
+        YCHECK(CachedChunks_.erase(chunk) == 1);
     } else {
-        YVERIFY(StoredChunks_.erase(chunk) == 1);
+        YCHECK(StoredChunks_.erase(chunk) == 1);
         UnapprovedChunks_.erase(chunk);
     }
 }
@@ -99,7 +99,7 @@ bool THolder::HasChunk(TChunk* chunk, bool cached) const
 void THolder::MarkChunkUnapproved(TChunk* chunk)
 {
     YASSERT(HasChunk(chunk, false));
-    YVERIFY(UnapprovedChunks_.insert(chunk).second);
+    YCHECK(UnapprovedChunks_.insert(chunk).second);
 }
 
 bool THolder::HasUnapprovedChunk(TChunk* chunk) const
@@ -110,7 +110,7 @@ bool THolder::HasUnapprovedChunk(TChunk* chunk) const
 void THolder::ApproveChunk(TChunk* chunk)
 {
     YASSERT(HasChunk(chunk, false));
-    YVERIFY(UnapprovedChunks_.erase(chunk) == 1);
+    YCHECK(UnapprovedChunks_.erase(chunk) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,7 +18,7 @@ public:
     virtual void OnOperationStarted(TOperationPtr operation)
     {
         auto it = Queue.insert(Queue.end(), operation);
-        YVERIFY(OpToIterator.insert(MakePair(operation, it)).second);
+        YCHECK(OpToIterator.insert(MakePair(operation, it)).second);
     }
 
     virtual void OnOperationFinished(TOperationPtr operation)

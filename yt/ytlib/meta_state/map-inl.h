@@ -37,7 +37,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue
     VERIFY_THREAD_AFFINITY(UserThread);
 
     YASSERT(value);
-    YVERIFY(Map.insert(MakePair(key, value)).second);
+    YCHECK(Map.insert(MakePair(key, value)).second);
     ++Size;
 }
 
@@ -227,7 +227,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(TInputStream* input)
         previousKey = key;
 
         auto value = Traits.Create(key);
-        YVERIFY(Map.insert(MakePair(key, value.Release())).second);
+        YCHECK(Map.insert(MakePair(key, value.Release())).second);
     }
 }
 

@@ -471,7 +471,7 @@ private:
             rowIndex < chunkReader->StartRowIndex; 
             ++rowIndex) 
         {
-            YVERIFY(channelReader->NextRow());
+            YCHECK(channelReader->NextRow());
         }
 
         LOG_DEBUG("Skipped initial rows for channel %d", channelIdx);

@@ -173,14 +173,14 @@ private:
             }
             
             FOREACH (const auto& key, attributeKeys) {
-                YVERIFY(attributeSet->Attributes().insert(MakePair(
+                YCHECK(attributeSet->Attributes().insert(MakePair(
                     key,
                     request->Attributes().GetYson(key))).second);
             }
         }
 
         if (transaction) {
-            YVERIFY(transaction->CreatedObjectIds().insert(objectId).second);
+            YCHECK(transaction->CreatedObjectIds().insert(objectId).second);
             objectManager->RefObject(objectId);
         }
 
@@ -310,7 +310,7 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
     
     if (parent) {
         transaction->SetParent(parent);
-        YVERIFY(parent->NestedTransactions().insert(transaction).second);
+        YCHECK(parent->NestedTransactions().insert(transaction).second);
         objectManager->RefObject(id);
     }
 
@@ -392,7 +392,7 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
 
     auto* parent = transaction.GetParent();
     if (parent) {
-        YVERIFY(parent->NestedTransactions().erase(&transaction) == 1);
+        YCHECK(parent->NestedTransactions().erase(&transaction) == 1);
         objectManager->UnrefObject(&transaction);
     }
 
@@ -479,7 +479,7 @@ void TTransactionManager::CreateLease(const TTransaction& transaction, TNullable
         .Via(
             Bootstrap->GetStateInvoker(),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));
-    YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);
+    YCHECK(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);
 }
 
 void TTransactionManager::CloseLease(const TTransaction& transaction)

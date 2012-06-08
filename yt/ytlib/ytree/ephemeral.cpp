@@ -163,7 +163,7 @@ public:
         YASSERT(child);
 
         if (KeyToChild.insert(MakePair(key, child)).second) {
-            YVERIFY(ChildToKey.insert(MakePair(child, key)).second);
+            YCHECK(ChildToKey.insert(MakePair(child, key)).second);
             child->SetParent(this);
             return true;
         } else {
@@ -180,7 +180,7 @@ public:
         auto child = it->second; 
         child->SetParent(NULL);
         KeyToChild.erase(it);
-        YVERIFY(ChildToKey.erase(child) == 1);
+        YCHECK(ChildToKey.erase(child) == 1);
 
         return true;
     }
@@ -197,7 +197,7 @@ public:
         // NB: don't use const auto& here, it becomes invalid!
         auto key = it->second;
         ChildToKey.erase(it);
-        YVERIFY(KeyToChild.erase(key) == 1);
+        YCHECK(KeyToChild.erase(key) == 1);
     }
 
     virtual void ReplaceChild(INode* oldChild, INode* newChild)
@@ -219,7 +219,7 @@ public:
 
         KeyToChild[key] = newChild;
         newChild->SetParent(this);
-        YVERIFY(ChildToKey.insert(MakePair(newChild, key)).second);
+        YCHECK(ChildToKey.insert(MakePair(newChild, key)).second);
     }
 
     virtual Stroka GetChildKey(const INode* child)
@@ -294,14 +294,14 @@ public:
         YASSERT(child);
 
         if (beforeIndex < 0) {
-            YVERIFY(ChildToIndex.insert(MakePair(child, IndexToChild.ysize())).second);
+            YCHECK(ChildToIndex.insert(MakePair(child, IndexToChild.ysize())).second);
             IndexToChild.push_back(child); 
         } else {
             for (auto it = IndexToChild.begin() + beforeIndex; it != IndexToChild.end(); ++it) {
                 ++ChildToIndex[*it];
             }
 
-            YVERIFY(ChildToIndex.insert(MakePair(child, beforeIndex)).second);
+            YCHECK(ChildToIndex.insert(MakePair(child, beforeIndex)).second);
             IndexToChild.insert(IndexToChild.begin() + beforeIndex, child);
         }
         child->SetParent(this);
@@ -319,7 +319,7 @@ public:
         }
         IndexToChild.erase(IndexToChild.begin() + index);
 
-        YVERIFY(ChildToIndex.erase(child));
+        YCHECK(ChildToIndex.erase(child) == 1);
         child->SetParent(NULL);
 
         return true;
@@ -342,7 +342,7 @@ public:
 
         IndexToChild[index] = newChild;
         ChildToIndex.erase(it);
-        YVERIFY(ChildToIndex.insert(MakePair(newChild, index)).second);
+        YCHECK(ChildToIndex.insert(MakePair(newChild, index)).second);
         newChild->SetParent(this);
     }
 

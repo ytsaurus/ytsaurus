@@ -106,7 +106,7 @@ public:
         // Create an empty chunk list and reference it from the node.
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
-        YVERIFY(chunkList->OwningNodes().insert(~node).second);
+        YCHECK(chunkList->OwningNodes().insert(~node).second);
 
         objectManager->RefObject(chunkList);
 
@@ -129,7 +129,7 @@ public:
 protected:
     virtual void DoDestroy(TTableNode& node)
     {
-        YVERIFY(node.GetChunkList()->OwningNodes().erase(&node) == 1);
+        YCHECK(node.GetChunkList()->OwningNodes().erase(&node) == 1);
         Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkList());
     }
 
@@ -150,7 +150,7 @@ protected:
         branchedChunkList->SetRebalancingEnabled(false);
 
         branchedNode.SetChunkList(branchedChunkList);
-        YVERIFY(branchedChunkList->OwningNodes().insert(&branchedNode).second);
+        YCHECK(branchedChunkList->OwningNodes().insert(&branchedNode).second);
         objectManager->RefObject(branchedChunkList);
 
         // Make the original chunk list a child of the composite one.
@@ -190,10 +190,10 @@ protected:
 
         // Assign this newly created chunk list to originatingNode.
         originatingNode.SetChunkList(newChunkList);
-        YVERIFY(newChunkList->OwningNodes().insert(&originatingNode).second);
-        YVERIFY(oldChunkList->OwningNodes().erase(&originatingNode) == 1);
+        YCHECK(newChunkList->OwningNodes().insert(&originatingNode).second);
+        YCHECK(oldChunkList->OwningNodes().erase(&originatingNode) == 1);
         objectManager->UnrefObject(oldChunkList);
-        YVERIFY(branchedChunkList->OwningNodes().erase(&branchedNode) == 1);
+        YCHECK(branchedChunkList->OwningNodes().erase(&branchedNode) == 1);
         objectManager->UnrefObject(branchedChunkList);
     }
 

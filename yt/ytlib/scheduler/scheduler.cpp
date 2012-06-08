@@ -335,7 +335,7 @@ private:
 
     void RegisterNode(TExecNodePtr node)
     {
-        YVERIFY(ExecNodes.insert(MakePair(node->GetAddress(), node)).second);    
+        YCHECK(ExecNodes.insert(MakePair(node->GetAddress(), node)).second);    
     }
 
     void UnregisterNode(TExecNodePtr node)
@@ -349,13 +349,13 @@ private:
                 ~job->GetOperation()->GetOperationId().ToString());
             OnJobFailed(job, TError("Node has gone offline"));
         }
-        YVERIFY(ExecNodes.erase(node->GetAddress()) == 1);
+        YCHECK(ExecNodes.erase(node->GetAddress()) == 1);
     }
 
     
     void RegisterOperation(TOperationPtr operation)
     {
-        YVERIFY(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
+        YCHECK(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
         Strategy->OnOperationStarted(operation);
         ProfileOperationCounters();
 
@@ -374,7 +374,7 @@ private:
 
     void UnregisterOperation(TOperationPtr operation)
     {
-        YVERIFY(Operations.erase(operation->GetOperationId()) == 1);
+        YCHECK(Operations.erase(operation->GetOperationId()) == 1);
         Strategy->OnOperationFinished(operation);
         ProfileOperationCounters();
 
@@ -391,9 +391,9 @@ private:
     {
         UpdateJobCounters(job, +1);
 
-        YVERIFY(Jobs.insert(MakePair(job->GetId(), job)).second);
-        YVERIFY(job->GetOperation()->Jobs().insert(job).second);
-        YVERIFY(job->GetNode()->Jobs().insert(job).second);
+        YCHECK(Jobs.insert(MakePair(job->GetId(), job)).second);
+        YCHECK(job->GetOperation()->Jobs().insert(job).second);
+        YCHECK(job->GetNode()->Jobs().insert(job).second);
         
         LOG_DEBUG("Registered job %s (OperationId: %s)",
             ~job->GetId().ToString(),
@@ -404,9 +404,9 @@ private:
     {
         UpdateJobCounters(job, -1);
 
-        YVERIFY(Jobs.erase(job->GetId()) == 1);
-        YVERIFY(job->GetOperation()->Jobs().erase(job) == 1);
-        YVERIFY(job->GetNode()->Jobs().erase(job) == 1);
+        YCHECK(Jobs.erase(job->GetId()) == 1);
+        YCHECK(job->GetOperation()->Jobs().erase(job) == 1);
+        YCHECK(job->GetNode()->Jobs().erase(job) == 1);
 
         LOG_DEBUG("Unregistered job %s (OperationId: %s)",
             ~job->GetId().ToString(),
@@ -679,7 +679,7 @@ private:
         yhash_set<TTransactionId> deadTransactionIds;
         for (int index = 0; index < rsp->GetSize(); ++index) {
             if (!rsp->GetResponse(index)->IsOK()) {
-                YVERIFY(deadTransactionIds.insert(transactionIds[index]).second);
+                YCHECK(deadTransactionIds.insert(transactionIds[index]).second);
             }
         }
 
@@ -753,14 +753,14 @@ private:
 
         yhash_set<TExecNodePtr> deadNodes;
         FOREACH (const auto& pair, ExecNodes) {
-            YVERIFY(deadNodes.insert(pair.second).second);
+            YCHECK(deadNodes.insert(pair.second).second);
         }
 
         
         FOREACH (const auto& address, onlineAddresses) {
             auto node = FindNode(address);
             if (node) {
-                YVERIFY(deadNodes.erase(node) == 1);
+                YCHECK(deadNodes.erase(node) == 1);
             } else {
                 LOG_INFO("Node %s is online", ~address.Quote());
                 auto node = New<TExecNode>(address);
@@ -1262,7 +1262,7 @@ private:
                     }
 
                     // Mark the job as no longer missing.
-                    YVERIFY(missingJobs.erase(job) == 1);
+                    YCHECK(missingJobs.erase(job) == 1);
 
                     job->SetState(state);
                 }

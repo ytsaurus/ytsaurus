@@ -127,7 +127,7 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     auto activeRequest = New<TActiveRequest>(runtimeInfo, timer);
 
     if (!context->IsOneWay()) {
-        YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).second);
+        YCHECK(ActiveRequests.insert(MakePair(context, activeRequest)).second);
     }
 
     guard.Release();
@@ -211,7 +211,7 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker:
         invoker,
         path);
     // Failure here means that such verb is already registered.
-    YVERIFY(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
+    YCHECK(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
 }
 
 void TServiceBase::InvokeHandler(

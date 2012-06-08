@@ -127,7 +127,7 @@ public:
             writers.push_back(writerIt->second);
         }
 
-        YVERIFY(CachedWriters.insert(MakePair(cacheKey, writers)).second);
+        YCHECK(CachedWriters.insert(MakePair(cacheKey, writers)).second);
 
         return writers;
     }

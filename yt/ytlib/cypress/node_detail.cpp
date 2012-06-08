@@ -176,11 +176,11 @@ void TMapNodeTypeHandler::DoMerge(
     FOREACH (const auto& pair, branchedNode.KeyToChild()) {
         auto it = originatingNode.KeyToChild().find(pair.first);
         if (it == originatingNode.KeyToChild().end()) {
-            YVERIFY(originatingNode.KeyToChild().insert(pair).second);
+            YCHECK(originatingNode.KeyToChild().insert(pair).second);
         } else {
             if (it->second != NullObjectId) {
                 objectManager->UnrefObject(it->second);
-                YVERIFY(originatingNode.ChildToKey().erase(it->second) > 0);
+                YCHECK(originatingNode.ChildToKey().erase(it->second) == 1);
             }
             it->second = pair.second;
             
@@ -212,7 +212,7 @@ void TMapNodeTypeHandler::DoMerge(
 
         }
         if (pair.second != NullObjectId) {
-            YVERIFY(originatingNode.ChildToKey().insert(MakePair(pair.second, pair.first)).second);
+            YCHECK(originatingNode.ChildToKey().insert(MakePair(pair.second, pair.first)).second);
         }
     }
     originatingNode.ChildCountDelta() += branchedNode.ChildCountDelta();

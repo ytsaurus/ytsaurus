@@ -91,12 +91,12 @@ public:
 
     void Register(const Stroka& prefix, TSyncHandler* handler)
     {
-        YVERIFY(SyncHandlers.insert(MakePair(prefix, handler)).second);
+        YCHECK(SyncHandlers.insert(MakePair(prefix, handler)).second);
     }
 
     void Register(const Stroka& prefix, TAsyncHandler* handler)
     {
-        YVERIFY(AsyncHandlers.insert(MakePair(prefix, handler)).second);
+        YCHECK(AsyncHandlers.insert(MakePair(prefix, handler)).second);
     }
 
 private:
@@ -379,12 +379,12 @@ public:
 
     void Register(const Stroka& prefix, TSyncHandler handler)
     {
-        YVERIFY(SyncHandlers.insert(MakePair(prefix, MoveRV(handler))).second);
+        YCHECK(SyncHandlers.insert(MakePair(prefix, MoveRV(handler))).second);
     }
 
     void Register(const Stroka& prefix, TAsyncHandler handler)
     {
-        YVERIFY(AsyncHandlers.insert(MakePair(prefix, MoveRV(handler))).second);
+        YCHECK(AsyncHandlers.insert(MakePair(prefix, MoveRV(handler))).second);
     }
 };
 

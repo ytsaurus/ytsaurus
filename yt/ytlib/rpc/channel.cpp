@@ -175,7 +175,7 @@ private:
                         timeout.Get());
                 }
 
-                YVERIFY(ActiveRequests.insert(MakePair(requestId, activeRequest)).second);
+                YCHECK(ActiveRequests.insert(MakePair(requestId, activeRequest)).second);
                 bus = Bus;
             }
 

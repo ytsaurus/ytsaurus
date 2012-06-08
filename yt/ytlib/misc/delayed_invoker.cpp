@@ -57,7 +57,7 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
             auto pair = Entries.insert(cookie);
-            YASSERT(pair.second);
+            YCHECK(pair.second);
             cookie->Iterator = pair.first;
         }
 

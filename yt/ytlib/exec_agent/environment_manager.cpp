@@ -21,7 +21,7 @@ void TEnvironmentManager::Register(
     const Stroka& envType, 
     IEnvironmentBuilderPtr envBuilder)
 {
-    YVERIFY(Builders.insert(MakePair(envType, envBuilder)).second);
+    YCHECK(Builders.insert(MakePair(envType, envBuilder)).second);
 }
 
 IProxyControllerPtr TEnvironmentManager::CreateProxyController(

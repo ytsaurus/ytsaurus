@@ -233,7 +233,7 @@ private:
 
         LOG_INFO("Creating bucket %s", ~path);
         auto bucket = New<TBucket>();
-        YVERIFY(PathToBucket.insert(MakePair(path, bucket)).second);
+        YCHECK(PathToBucket.insert(MakePair(path, bucket)).second);
 
         auto node = CreateVirtualNode(~bucket);
         ForceYPath(Root, path);

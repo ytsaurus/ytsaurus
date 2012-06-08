@@ -32,7 +32,7 @@ TSamplesFetcher::TSamplesFetcher(
 
 void TSamplesFetcher::AddChunk(const TInputChunk& chunk)
 {
-    YVERIFY(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
+    YCHECK(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);
 }
 
@@ -106,7 +106,7 @@ void TSamplesFetcher::SendRequests()
                 const auto& chunk = Chunks[chunkIndex];
                 auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                 chunkIndexes.push_back(chunkIndex);
-                YVERIFY(requestedChunkIndexes.insert(chunkIndex).second);
+                YCHECK(requestedChunkIndexes.insert(chunkIndex).second);
                 *req->add_chunk_ids() = chunkId.ToProto();
             }
         }
@@ -149,7 +149,7 @@ void TSamplesFetcher::OnResponse(
                     ~chunkId.ToString(),
                     ~address,
                     ~TError::FromProto(chunkSamples.error()).ToString());
-                YVERIFY(DeadChunks.insert(std::make_pair(address, chunkId)).second);
+                YCHECK(DeadChunks.insert(std::make_pair(address, chunkId)).second);
             } else {
                 LOG_TRACE("Received %d samples for chunk %s",
                     chunkSamples.items_size(),
@@ -158,7 +158,7 @@ void TSamplesFetcher::OnResponse(
                     Samples.push_back(sample);
                     ++samplesAdded;
                 }
-                YVERIFY(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
+                YCHECK(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             }
         }
         LOG_DEBUG("Received %d samples from %s",
@@ -168,7 +168,7 @@ void TSamplesFetcher::OnResponse(
         LOG_DEBUG("Error requesting samples from %s\n%s",
             ~address,
             ~rsp->GetError().ToString());
-        YVERIFY(DeadNodes.insert(address).second);
+        YCHECK(DeadNodes.insert(address).second);
     }
 }
 

@@ -931,7 +931,7 @@ private:
         FOREACH (const auto& pair, HolderMap) {
             auto* holder = pair.second;
             const auto& address = holder->GetAddress();
-            YVERIFY(HolderAddressMap.insert(MakePair(address, holder)).second);
+            YCHECK(HolderAddressMap.insert(MakePair(address, holder)).second);
             HolderHostNameMap.insert(MakePair(GetServiceHostName(address), holder));
         }
 
@@ -1049,7 +1049,7 @@ private:
             }
 
             const auto& address = holder.GetAddress();
-            YVERIFY(HolderAddressMap.erase(address) == 1);
+            YCHECK(HolderAddressMap.erase(address) == 1);
             {
                 auto hostNameRange = HolderHostNameMap.equal_range(Stroka(GetServiceHostName(address)));
                 for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
@@ -1346,7 +1346,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job->TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YVERIFY(sink.Jobs().insert(job).second);
+                    YCHECK(sink.Jobs().insert(job).second);
                 }
                 break;
             }
@@ -1365,7 +1365,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job->TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YVERIFY(sink.Jobs().erase(job) == 1);
+                    YCHECK(sink.Jobs().erase(job) == 1);
                     DropReplicationSinkIfEmpty(sink);
                 }
                 break;
@@ -1396,7 +1396,7 @@ private:
             // NB: Do not try to inline this variable! erase() will destroy the object
             // and will access the key afterwards.
             auto address = sink.GetAddress();
-            YVERIFY(ReplicationSinkMap.erase(address) == 1);
+            YCHECK(ReplicationSinkMap.erase(address) == 1);
         }
     }
 

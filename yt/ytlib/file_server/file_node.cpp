@@ -99,7 +99,7 @@ public:
         TAutoPtr<TFileNode> node(new TFileNode(nodeId));
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
-        YVERIFY(chunkList->OwningNodes().insert(~node).second);
+        YCHECK(chunkList->OwningNodes().insert(~node).second);
         objectManager->RefObject(chunkList);
 
         yvector<TChunkTreeRef> children;
@@ -138,7 +138,7 @@ protected:
         // Reference the list chunk from branchedNode.
         auto* chunkList = branchedNode.GetChunkList();
         Bootstrap->GetObjectManager()->RefObject(chunkList);
-        YVERIFY(chunkList->OwningNodes().insert(&branchedNode).second);
+        YCHECK(chunkList->OwningNodes().insert(&branchedNode).second);
     }
 
     virtual void DoMerge(TFileNode& originatingNode, TFileNode& branchedNode)

@@ -79,7 +79,7 @@ void TChunkBalancer::OnHolderRegistered(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
+    YCHECK(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
 
     FOREACH (auto& chunk, holder.StoredChunks()) {
         ScheduleChunkRefresh(chunk->GetId());
@@ -90,7 +90,7 @@ void TChunkBalancer::OnHolderUnregistered(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YVERIFY(HolderInfoMap.erase(holder.GetId()) == 1);
+    YCHECK(HolderInfoMap.erase(holder.GetId()) == 1);
 }
 
 void TChunkBalancer::OnChunkRemoved(const TChunk& chunk)
@@ -640,7 +640,7 @@ void TChunkBalancer::OnRefresh()
                 Refresh(*chunk);
             }
 
-            YVERIFY(RefreshSet.erase(entry.ChunkId) == 1);
+            YCHECK(RefreshSet.erase(entry.ChunkId) == 1);
             RefreshList.pop_front();
         }
     }

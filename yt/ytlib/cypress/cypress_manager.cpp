@@ -293,7 +293,7 @@ void TCypressManager::CreateNodeBehavior(const TNodeId& id)
     if (!behavior)
         return;
 
-    YVERIFY(NodeBehaviors.insert(MakePair(id, behavior)).second);
+    YCHECK(NodeBehaviors.insert(MakePair(id, behavior)).second);
 
     LOG_DEBUG("Created behavior for node %s",  ~id.ToString());
 }
@@ -630,7 +630,7 @@ TLockId TCypressManager::AcquireLock(
 
     // Assign the node to the node itself.
     auto& lockedNode = NodeMap.Get(nodeId);
-    YVERIFY(lockedNode.Locks().insert(lock).second);
+    YCHECK(lockedNode.Locks().insert(lock).second);
 
     // Snapshot locks always involve branching (unless the node is already branched by another Snapshot lock).
     if (mode == ELockMode::Snapshot) {
@@ -649,7 +649,7 @@ void TCypressManager::ReleaseLock(TLock* lock)
 {
     // Remove the lock from the node itself.
     auto& lockedNode = NodeMap.Get(lock->GetNodeId());
-    YVERIFY(lockedNode.Locks().erase(lock) == 1);
+    YCHECK(lockedNode.Locks().erase(lock) == 1);
 
     Bootstrap->GetObjectManager()->UnrefObject(lock);
 }

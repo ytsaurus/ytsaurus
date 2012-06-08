@@ -377,7 +377,7 @@ private:
             queue = it->second;
         } else {
             queue = New<TChangeLogQueue>(changeLog);
-            YVERIFY(ChangeLogQueues.insert(MakePair(changeLog, queue)).second);
+            YCHECK(ChangeLogQueues.insert(MakePair(changeLog, queue)).second);
         }
 
         AtomicIncrement(queue->UseCount);

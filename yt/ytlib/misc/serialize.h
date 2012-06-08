@@ -82,7 +82,7 @@ void LoadSet(TInputStream* input, TSet& set)
     for (size_t i = 0; i < size; ++i) {
         TKey key;
         ::Load(input, key);
-        YVERIFY(set.insert(key).second);
+        YCHECK(set.insert(key).second);
     }
 }
 
@@ -111,7 +111,7 @@ void LoadNullableSet(TInputStream* input, THolder<TSet>& set)
     for (size_t index = 0; index < size; ++index) {
         TKey key;
         ::Load(input, key);
-        YVERIFY(set->insert(key).second);
+        YCHECK(set->insert(key).second);
     }
 }
 
@@ -155,7 +155,7 @@ void LoadMap(TInputStream* input, TMap& map)
         ::Load(input, key);
         typename TMap::mapped_type value;
         ::Load(input, value);
-        YVERIFY(map.insert(MakePair(key, value)).second);
+        YCHECK(map.insert(MakePair(key, value)).second);
     }
 }
 

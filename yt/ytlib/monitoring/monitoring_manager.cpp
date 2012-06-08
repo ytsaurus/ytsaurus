@@ -29,13 +29,13 @@ TMonitoringManager::TMonitoringManager()
 void TMonitoringManager::Register(const TYPath& path, TYsonProducer producer)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YVERIFY(MonitoringMap.insert(MakePair(path, producer)).second);
+    YCHECK(MonitoringMap.insert(MakePair(path, producer)).second);
 }
 
 void TMonitoringManager::Unregister(const TYPath& path)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YVERIFY(MonitoringMap.erase(path) == 1);
+    YCHECK(MonitoringMap.erase(path) == 1);
 }
 
 INodePtr TMonitoringManager::GetRoot() const

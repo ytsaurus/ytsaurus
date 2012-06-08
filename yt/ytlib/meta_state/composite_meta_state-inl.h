@@ -21,7 +21,7 @@ void TMetaStatePart::RegisterMethod(
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
         Unretained(this),
         MoveRV(changeMethod));
-    YVERIFY(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
+    YCHECK(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
 }
 
 template <class TMessage, class TResult>
@@ -32,7 +32,7 @@ void TMetaStatePart::MethodThunk(
     YASSERT(!changeMethod.IsNull());
 
     TMessage message;
-    YVERIFY(DeserializeFromProto(&message, changeData));
+    YCHECK(DeserializeFromProto(&message, changeData));
 
     changeMethod.Run(message);
 }

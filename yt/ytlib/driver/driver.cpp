@@ -238,7 +238,7 @@ private:
         entry.Factory = BIND([] (ICommandContext* context) -> TAutoPtr<ICommand> {
             return new TCommand(context);
         });
-        YVERIFY(Commands.insert(MakePair(descriptor.CommandName, entry)).second);
+        YCHECK(Commands.insert(MakePair(descriptor.CommandName, entry)).second);
     }
 };
 

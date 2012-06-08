@@ -299,7 +299,7 @@ void TTableChunkWriter::EmitSample(TRow& row)
         SamplesSize += sizeof(i32);
 
         lexer.Reset();
-        YVERIFY(lexer.Read(pair.second));
+        YCHECK(lexer.Read(pair.second));
         YASSERT(lexer.GetState() == TLexer::EState::Terminal);
         auto& token = lexer.GetToken();
         switch (token.GetType()) {

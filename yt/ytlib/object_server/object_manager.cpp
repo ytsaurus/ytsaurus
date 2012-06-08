@@ -676,7 +676,7 @@ void TObjectManager::PromoteCreatedObjects(TTransaction& transaction)
     auto parentTransaction = transaction.GetParent();
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& objectId, transaction.CreatedObjectIds()) {
-        YVERIFY(parentTransaction->CreatedObjectIds().insert(objectId).second);
+        YCHECK(parentTransaction->CreatedObjectIds().insert(objectId).second);
     }
 }
 

@@ -15,7 +15,7 @@ namespace NObjectServer {
 template <class TTypedResponse>
 TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
-    YASSERT(index >= 0 && index < GetSize());
+    YCHECK(index >= 0 && index < GetSize());
     auto innerResponse = New<TTypedResponse>();
     int beginIndex = BeginPartIndexes[index];
     int endIndex = beginIndex + Body.part_counts(index);
@@ -30,14 +30,14 @@ TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse
 template <class TTypedResponse>
 TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
-    YASSERT(!key.empty());
+    YCHECK(!key.empty());
     auto range = KeyToIndexes.equal_range(key);
     auto it = range.first;
     // Failure here means that no responses with the given key are found.
-    YASSERT(range.first != range.second);
+    YCHECK(range.first != range.second);
     int index = it->second;
     // Failure here means that more than one response with the given key is found.
-    YASSERT(++it == range.second);
+    YCHECK(++it == range.second);
     return GetResponse<TTypedResponse>(index);
 }
 

@@ -139,14 +139,14 @@ void TTcpDispatcher::TImpl::Register(IEventLoopObjectPtr object)
     LOG_DEBUG("Object registered (%s)", ~object->GetLoggingId());
 
     object->SyncInitialize();
-    YVERIFY(Objects.insert(object).second);
+    YCHECK(Objects.insert(object).second);
 }
 
 void TTcpDispatcher::TImpl::Unregister(IEventLoopObjectPtr object)
 {
     LOG_DEBUG("Object unregistered (%s)", ~object->GetLoggingId());
 
-    YVERIFY(Objects.erase(object) == 1);
+    YCHECK(Objects.erase(object) == 1);
     object->SyncFinalize();
 }
 

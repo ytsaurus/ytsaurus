@@ -118,7 +118,7 @@ TJobPtr TJobManager::StartJob(
 
     job->Start(Bootstrap->GetEnvironmentManager());
 
-    YVERIFY(Jobs.insert(MakePair(jobId, job)).second);
+    YCHECK(Jobs.insert(MakePair(jobId, job)).second);
 
     LOG_DEBUG("Job created, preparing (JobId: %s, JobType: %s)",
         ~jobId.ToString(),
@@ -145,7 +145,7 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     auto job = FindJob(jobId);
     if (job) {
         YASSERT(job->GetProgress() > EJobProgress::Cleanup);
-        YVERIFY(Jobs.erase(jobId) == 1);
+        YCHECK(Jobs.erase(jobId) == 1);
     } else {
         LOG_WARNING("Removed job does not exist (JobId: %s)", ~jobId.ToString());
     }
