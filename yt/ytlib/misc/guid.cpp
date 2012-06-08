@@ -244,7 +244,7 @@ TGuid TGuid::Create()
 Stroka TGuid::ToString() const
 {
     char buf[1000];
-    sprintf(buf, "%x-%x-%x-%x", Parts[3], Parts[2], Parts[1], Parts[0]);
+    sprintf(buf, "%%%x-%x-%x-%x", Parts[3], Parts[2], Parts[1], Parts[0]);
     return buf;
 }
 
@@ -261,7 +261,7 @@ bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
 {
     if(sscanf(
         str.data(),
-        "%x-%x-%x-%x",
+        "%%%x-%x-%x-%x",
         &guid->Parts[3],
         &guid->Parts[2],
         &guid->Parts[1],
