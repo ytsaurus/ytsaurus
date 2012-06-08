@@ -251,8 +251,7 @@ private:
             TFormat outputFormat(EFormatType::Yson);
 
             if (Spec->Format) {
-                inputFormat = TFormat::FromYson(Spec->Format);
-                outputFormat = inputFormat;
+                inputFormat = outputFormat = TFormat::FromYson(Spec->Format);
             }
 
             if (Spec->InputFormat) {
