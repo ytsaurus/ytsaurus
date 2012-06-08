@@ -236,6 +236,8 @@ private:
 
         virtual void OnTaskCompleted()
         {
+            TTask::OnTaskCompleted();
+
             // Check for small partitionsKick-start all sort tasks.
             FOREACH (auto partition, Controller->Partitions) {
                 Controller->RegisterTaskPendingHint(partition->SortTask);
@@ -278,7 +280,16 @@ private:
 
         virtual TDuration GetMaxLocalityDelay() const
         {
+            // TODO(babenko): fixme
             return TDuration::Zero();
+        }
+
+        virtual i64 GetLocality(const Stroka& address) const
+        {
+            // TODO(babenko): fixme
+            // Sort locality does not depend on inputs (they are scattered anyway)
+            // but on outputs.
+            return 1;
         }
 
     private:
@@ -379,6 +390,12 @@ private:
             } else {
                 Controller->CompletePartition(Partition, SortedChunkListId);
             }
+        }
+
+        virtual void RegisterLocalityHint(TChunkStripePtr stripe)
+        {
+            UNUSED(stripe);
+            // See #GetLocality.
         }
     };
 

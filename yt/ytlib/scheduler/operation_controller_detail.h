@@ -175,8 +175,8 @@ protected:
         void AddStripe(TChunkStripePtr stripe)
         {
             ChunkPool->Add(stripe);
-            Controller->RegisterTaskLocalityHint(this, stripe);
-            Controller->RegisterTaskPendingHint(this);
+            RegisterLocalityHint(stripe);
+            RegisterPendingHint();
         }
 
         TJobPtr ScheduleJob(TExecNodePtr node)
@@ -256,7 +256,6 @@ protected:
             ChunkPool->OnCompleted(jip->PoolResult);
 
             if (ChunkPool->IsCompleted()) {
-                LOG_DEBUG("Task completed (Task: %s)", ~GetId());
                 OnTaskCompleted();
             }
         }
@@ -268,13 +267,26 @@ protected:
             Controller->ReleaseChunkLists(jip->ChunkListIds);
 
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                Controller->RegisterTaskLocalityHint(this, stripe);
+                RegisterLocalityHint(stripe);
             }
-            Controller->RegisterTaskPendingHint(this);
+            RegisterPendingHint();
         }
 
         virtual void OnTaskCompleted()
-        { }
+        {
+            LOG_DEBUG("Task completed (Task: %s)", ~GetId());
+        }
+
+
+        void RegisterPendingHint()
+        {
+            Controller->RegisterTaskPendingHint(this);
+        }
+
+        virtual void RegisterLocalityHint(TChunkStripePtr stripe)
+        {
+            Controller->RegisterTaskLocalityHint(this, stripe);
+        }
 
 
         static i64 GetJobWeightThresholdGeneric(int pendingJobCount, i64 pendingWeight)
