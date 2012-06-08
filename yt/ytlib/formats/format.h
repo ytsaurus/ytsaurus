@@ -24,7 +24,6 @@ DECLARE_ENUM(EFormatType,
     (Null)
     (Yson)
     (Json)
-    (Csv)
     (Dsv)
 );
 

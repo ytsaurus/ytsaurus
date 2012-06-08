@@ -162,6 +162,9 @@ TAutoPtr<IYsonConsumer> CreateConsumerForJson(
     IAttributeDictionary* attributes,
     TOutputStream* output)
 {
+    if (dataType != EDataType::Structured) {
+        ythrow yexception() << Sprintf("Json is supported only for Structured data");
+    }
     auto config = New<TJsonFormatConfig>();
     config->Load(attributes->ToMap());
     return new TJsonWriter(output, config);
@@ -172,6 +175,9 @@ TAutoPtr<IYsonConsumer> CreateConsumerForDsv(
     IAttributeDictionary* attributes,
     TOutputStream* output)
 {
+    if (dataType != EDataType::Tabular) {
+        ythrow yexception() << Sprintf("Dsv is supported only for Tabular data");
+    }
     auto config = New<TDsvFormatConfig>();
     config->Load(attributes->ToMap());
     return new TDsvWriter(output, config);
@@ -199,6 +205,9 @@ TYsonProducer CreateProducerForDsv(
     IAttributeDictionary* attributes,
     TInputStream* input)
 {
+    if (dataType != EDataType::Tabular) {
+        ythrow yexception() << Sprintf("Dsv is supported only for Tabular data");
+    }
     auto config = New<TDsvFormatConfig>();
     config->Load(attributes->ToMap());
     return BIND([=] (IYsonConsumer* consumer) {
@@ -208,6 +217,9 @@ TYsonProducer CreateProducerForDsv(
 
 TYsonProducer CreateProducerForJson(EDataType dataType, TInputStream* input)
 {
+    if (dataType != EDataType::Structured) {
+        ythrow yexception() << Sprintf("Json is supported only for Structured data");
+    }
     return BIND([=] (IYsonConsumer* consumer) {
         ParseJson(input, consumer);
     });
