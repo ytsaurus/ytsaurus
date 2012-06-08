@@ -197,7 +197,7 @@ protected:
 
             auto jip = New<TJobInProgress>();
             auto weightThreshold = GetJobWeightThreshold();
-            jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold.Get(std::numeric_limits<i64>::max()));
+            jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold);
 
             LOG_DEBUG("Chunks extracted (Address: %s, TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
                 ~node->GetAddress(),

@@ -74,6 +74,7 @@ class TUnorderedChunkPool
 public:
     TUnorderedChunkPool()
         : TotalWeight(0)
+        , RunningWeight(0)
         , PendingWeight(0)
         , CompletedWeight(0)
     { }
@@ -96,7 +97,7 @@ public:
 
     TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        i64 weightThreshold)
+        TNullable<i64> weightThreshold)
     {
         auto result = New<TPoolExtractionResult>();
 
@@ -132,11 +133,14 @@ public:
             Unregister(result->Stripes[index]);
         }
 
+        RunningWeight += result->TotalChunkWeight;
+
         return result;
     }
 
     void OnFailed(TPoolExtractionResultPtr result)
     {
+        RunningWeight -= result->TotalChunkWeight;
         FOREACH (const auto& stripe, result->Stripes) {
             Add(stripe);
         }
@@ -144,12 +148,18 @@ public:
 
     void OnCompleted(TPoolExtractionResultPtr result)
     {
+        RunningWeight -= result->TotalChunkWeight;
         CompletedWeight += result->TotalChunkWeight;
     }
 
     i64 GetTotalWeight() const
     {
         return TotalWeight;
+    }
+
+    i64 GetRunningWeight() const
+    {
+        return RunningWeight;
     }
 
     i64 GetPendingWeight() const
@@ -180,6 +190,7 @@ public:
 
 private:
     i64 TotalWeight;
+    i64 RunningWeight;
     i64 PendingWeight;
     i64 CompletedWeight;
 
@@ -216,11 +227,11 @@ private:
         TPoolExtractionResultPtr result,
         const TIterator& begin,
         const TIterator& end,
-        i64 weightThreshold,
+        TNullable<i64> weightThreshold,
         const Stroka& address)
     {
         for (auto it = begin; it != end; ++it) {
-            if (result->TotalChunkWeight >= weightThreshold) {
+            if (weightThreshold && result->TotalChunkWeight >= weightThreshold.Get()) {
                 break;
             }
             result->Add(*it, address);
@@ -259,7 +270,7 @@ public:
         }
     }
 
-    TPoolExtractionResultPtr Extract(const Stroka& address, i64 weightThreshold)
+    TPoolExtractionResultPtr Extract(const Stroka& address, TNullable<i64> weightThreshold)
     {
         UNUSED(weightThreshold);
 
@@ -292,6 +303,11 @@ public:
     i64 GetTotalWeight() const
     {
         return TotalWeight;
+    }
+
+    i64 GetRunningWeight() const
+    {
+        return Extracted ? TotalWeight : 0;
     }
 
     i64 GetPendingWeight() const

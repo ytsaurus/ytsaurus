@@ -61,11 +61,12 @@ struct IChunkPool
 
     virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        i64 weightThreshold = std::numeric_limits<i64>::max()) = 0;
+        TNullable<i64> weightThreshold) = 0;
     virtual void OnFailed(TPoolExtractionResultPtr result) = 0;
     virtual void OnCompleted(TPoolExtractionResultPtr result) = 0;
 
     virtual i64 GetTotalWeight() const = 0;
+    virtual i64 GetRunningWeight() const = 0;
     virtual i64 GetPendingWeight() const = 0;
     virtual i64 GetCompletedWeight() const = 0;
 

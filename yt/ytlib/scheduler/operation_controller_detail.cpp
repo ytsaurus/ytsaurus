@@ -238,12 +238,19 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
 
 void TOperationControllerBase::RegisterTaskPendingHint(TTaskPtr task)
 {
-    YVERIFY(PendingTasks.insert(task).second);
+    if (PendingTasks.insert(task).second) {
+        LOG_DEBUG("Task pending hint added (Task: %s)",
+            ~task->GetId());
+    }
 }
 
 void TOperationControllerBase::RegisterTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
-    AddressToLocalTasks[address].insert(task);
+    if (AddressToLocalTasks[address].insert(task).second) {
+        LOG_DEBUG("Task locality hint added (Task: %s, Address: %s)",
+            ~task->GetId(),
+            ~address);
+    }
 }
 
 void TOperationControllerBase::RegisterTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
