@@ -64,7 +64,7 @@ YtCommand.prototype.dispatch = function() {
     ], function andThen(error) {
         var thereWasError = error || self.rsp.ytCode != 0;
         if (thereWasError) {
-            var message = error ? error.cause.message : self.rsp.ytMessage;
+            var message = error ? error.message : self.rsp.ytMessage;
             self.logger.error(message, { hash : self.hash });
 
             if (!self.rsp._header) {
