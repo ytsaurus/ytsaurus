@@ -385,7 +385,9 @@ private:
             : TTask(controller)
             , Controller(controller)
             , Partition(partition)
-        { }
+        {
+            ChunkPool = CreateAtomicChunkPool();
+        }
 
         virtual Stroka GetId() const
         {
