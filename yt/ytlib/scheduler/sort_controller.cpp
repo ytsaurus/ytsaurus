@@ -349,8 +349,11 @@ private:
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
 
             // Increment output locality.
+            // Also notify the controller that we're willing to use this node
+            // for all further jobs.
             auto address = jip->Job->GetNode()->GetAddress();
             AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
+            Controller->RegisterTaskLocalityHint(task, address);
         }
 
         virtual void OnJobCompleted(TJobInProgress* jip)
@@ -403,7 +406,7 @@ private:
             }
         }
 
-        virtual void RegisterLocalityHint(TChunkStripePtr stripe)
+        virtual void RegisterInputLocalityHint(TChunkStripePtr stripe)
         {
             UNUSED(stripe);
             // See #GetLocality.

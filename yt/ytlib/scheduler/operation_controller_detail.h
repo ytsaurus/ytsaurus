@@ -175,7 +175,7 @@ protected:
         void AddStripe(TChunkStripePtr stripe)
         {
             ChunkPool->Add(stripe);
-            RegisterLocalityHint(stripe);
+            RegisterInputLocalityHint(stripe);
             RegisterPendingHint();
         }
 
@@ -267,7 +267,7 @@ protected:
             Controller->ReleaseChunkLists(jip->ChunkListIds);
 
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                RegisterLocalityHint(stripe);
+                RegisterInputLocalityHint(stripe);
             }
             RegisterPendingHint();
         }
@@ -283,7 +283,7 @@ protected:
             Controller->RegisterTaskPendingHint(this);
         }
 
-        virtual void RegisterLocalityHint(TChunkStripePtr stripe)
+        virtual void RegisterInputLocalityHint(TChunkStripePtr stripe)
         {
             Controller->RegisterTaskLocalityHint(this, stripe);
         }
