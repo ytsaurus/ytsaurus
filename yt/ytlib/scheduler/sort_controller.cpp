@@ -212,7 +212,7 @@ private:
                 RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.mutable_extensions());
 
                 YCHECK(partitionsExt->sizes_size() == Controller->Partitions.size());
-                LOG_DEBUG("Partition sizes are [%s]", ~JoinToString(partitionsExt->sizes()));
+                LOG_TRACE("Partition sizes are [%s]", ~JoinToString(partitionsExt->sizes()));
                 for (int index = 0; index < partitionsExt->sizes_size(); ++index) {
                     i64 weight = partitionsExt->sizes(index);
                     if (weight > 0) {
