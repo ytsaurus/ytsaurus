@@ -348,7 +348,7 @@ int TOperationControllerBase::GetPendingJobCount()
         const auto& candidate = *jt;
         int count = candidate->GetPendingJobCount();
         if (count == 0) {
-            PendingTasks.erase(it);
+            PendingTasks.erase(jt);
         }
         result += count;
     }
