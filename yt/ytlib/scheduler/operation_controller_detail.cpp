@@ -238,9 +238,11 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
 
 void TOperationControllerBase::RegisterTaskPendingHint(TTaskPtr task)
 {
-    if (PendingTasks.insert(task).second) {
-        LOG_DEBUG("Task pending hint added (Task: %s)",
-            ~task->GetId());
+    if (task->GetPendingJobCount() > 0) {
+        if (PendingTasks.insert(task).second) {
+            LOG_DEBUG("Task pending hint added (Task: %s)",
+                ~task->GetId());
+        }
     }
 }
 
@@ -350,6 +352,9 @@ int TOperationControllerBase::GetPendingJobCount()
         }
         result += count;
     }
+
+    YCHECK(result == 0 || !PendingTasks.empty());
+
     return result;
 }
 

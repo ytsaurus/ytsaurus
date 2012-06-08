@@ -176,10 +176,8 @@ protected:
         void AddStripe(TChunkStripePtr stripe)
         {
             ChunkPool->Add(stripe);
-            if (GetPendingJobCount() > 0) {
-                Controller->RegisterTaskLocalityHint(this, stripe);
-                Controller->RegisterTaskPendingHint(this);
-            }
+            Controller->RegisterTaskLocalityHint(this, stripe);
+            Controller->RegisterTaskPendingHint(this);
         }
 
         TJobPtr ScheduleJob(TExecNodePtr node)

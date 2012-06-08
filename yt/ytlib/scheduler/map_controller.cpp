@@ -207,6 +207,9 @@ private:
                 MapTask->WeightCounter().GetTotal(),
                 MapTask->ChunkCounter().GetTotal(),
                 TotalJobCount);
+
+            // Kick-start the map task.
+            RegisterTaskPendingHint(MapTask);
         }
     }
 

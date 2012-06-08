@@ -641,6 +641,9 @@ private:
             SortChunkCounter.GetTotal());
 
         LOG_INFO("Sorting without partitioning");
+
+        // Kick-start the sort task.
+        RegisterTaskPendingHint(partition->SortTask);
     }
 
     void BuildMulitplePartitions(int partitionCount)
@@ -680,6 +683,9 @@ private:
         MaxMergeJobCount = partitionCount;
 
         LOG_INFO("Sorting with %d partitions", partitionCount);
+
+        // Kick-start the partition task.
+        RegisterTaskPendingHint(PartitionTask);
     }
 
     void OnSamplesReceived()

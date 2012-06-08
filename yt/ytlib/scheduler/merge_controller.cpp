@@ -315,6 +315,11 @@ protected:
                 WeightCounter.GetTotal(),
                 ChunkCounter.GetTotal(),
                 TotalJobCount);
+
+            // Kick-start the tasks.
+            FOREACH (const auto task, MergeTasks) {
+                RegisterTaskPendingHint(task);
+            }
         }
     }
 
