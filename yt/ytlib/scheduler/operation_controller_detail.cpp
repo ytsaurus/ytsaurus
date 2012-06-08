@@ -329,9 +329,10 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
         }
 
         if (feasibleTask) {
-            LOG_DEBUG("Scheduling a non-local job (Task: %s, Address: %s)",
+            LOG_DEBUG("Scheduling a non-local job (Task: %s, Address: %s, LocalityDelay: %s)",
                 ~feasibleTask->GetId(),
-                ~node->GetAddress());
+                ~node->GetAddress(),
+                ~ToString(now - feasibleTask->GetNonLocalRequestTime().Get()));
             auto job = feasibleTask->ScheduleJob(node);
             if (job) {
                 feasibleTask->SetNonLocalRequestTime(Null);
