@@ -313,7 +313,7 @@ private:
 
             if (Spec->Format) {
                 inputFormat = TFormat::FromYson(Spec->Format);
-                inputFormat = outputFormat;
+                outputFormat = inputFormat;
             }
 
             if (Spec->InputFormat) {
