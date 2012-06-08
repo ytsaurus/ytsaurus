@@ -724,12 +724,12 @@ private:
         LOG_DEBUG("Progress: "
             "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
             "Partitions = {T: %d, C: %d}, "
-            "PartitionJobs = %s, "
-            "PartitionChunks = %s, "
-            "PartitionWeight = %s, "
+            "PartitionJobs = {%s}, "
+            "PartitionChunks = {%s}, "
+            "PartitionWeight = {%s}, "
             "SortJobs = {M: %d, R: %d, C: %d}, "
-            "SortChunks = %s, "
-            "SortWeight = %s, "
+            "SortChunks = {%s}, "
+            "SortWeight = {%s}, "
             "MergeJobs = {M: %d, R: %d, C: %d}",
             // Jobs
             RunningJobCount,

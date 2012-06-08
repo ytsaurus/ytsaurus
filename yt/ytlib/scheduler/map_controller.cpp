@@ -220,8 +220,8 @@ private:
     {
         LOG_DEBUG("Progress: "
             "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
-            "Chunks = %s, "
-            "Weight = %s",
+            "Chunks = {%s}, "
+            "Weight = {%s}",
             TotalJobCount,
             RunningJobCount,
             CompletedJobCount,

@@ -160,7 +160,6 @@ protected:
     public:
         explicit TTask(TOperationControllerBase* controller)
             : Controller(controller)
-            , LastNonlocalTime_(TInstant::Zero())
             , Logger(Controller->Logger)
         { }
 
@@ -170,7 +169,7 @@ protected:
         virtual TDuration GetMaxLocalityDelay() const = 0;
 
 
-        DEFINE_BYVAL_RW_PROPERTY(TInstant, LastNonlocalTime);
+        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
 
 
         void AddStripe(TChunkStripePtr stripe)

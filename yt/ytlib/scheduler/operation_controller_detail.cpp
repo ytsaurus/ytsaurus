@@ -296,9 +296,10 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
 
         if (bestTask) {
             // Reset locality timestamp and run custom scheduling.
-            bestTask->SetLastNonlocalTime(TInstant::Zero());
-            LOG_DEBUG("Scheduling a local job (Task: %s, Locality: %" PRId64 ")",
+            bestTask->SetNonLocalRequestTime(Null);
+            LOG_DEBUG("Scheduling a local job (Task: %s, Address: %s, Locality: %" PRId64 ")",
                 ~bestTask->GetId(),
+                ~node->GetAddress(),
                 bestLocality);
             return bestTask->ScheduleJob(node);
         }
@@ -316,7 +317,9 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
             bool isValid = false;
             if (candidate->GetPendingJobCount() > 0) {
                 // Check for locality timeout.
-                if (candidate->GetLastNonlocalTime() + candidate->GetMaxLocalityDelay() <= now) {
+                if (!candidate->GetNonLocalRequestTime()) {
+                    candidate->SetNonLocalRequestTime(now);
+                } else if (candidate->GetNonLocalRequestTime().Get() + candidate->GetMaxLocalityDelay() <= now) {
                     feasibleTask = candidate;
                 }
             } else {
@@ -325,10 +328,12 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
         }
 
         if (feasibleTask) {
-            LOG_DEBUG("Scheduling a non-local job (Task: %s)", ~feasibleTask->GetId());
+            LOG_DEBUG("Scheduling a non-local job (Task: %s, Address: %s)",
+                ~feasibleTask->GetId(),
+                ~node->GetAddress());
             auto job = feasibleTask->ScheduleJob(node);
             if (job) {
-                feasibleTask->SetLastNonlocalTime(now);
+                feasibleTask->SetNonLocalRequestTime(Null);
                 return job;
             }
         }
