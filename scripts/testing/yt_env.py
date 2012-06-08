@@ -130,6 +130,9 @@ class YTEnv:
         self.config_paths = {}
         self.configs = defaultdict(lambda : [])
 
+        #TODO(panin): refactor
+        self.master_logging_file = []
+
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
             p = subprocess.Popen([
@@ -148,11 +151,17 @@ class YTEnv:
         good_marker = "World initialization completed"
         bad_marker = "Active quorum lost"
 
-        if (not os.path.exists(self.leader_log)): return False
+        master_id = 0
+        for logging_file in self.master_logging_file:
+            if (not os.path.exists(logging_file)): continue
 
-        for line in reversed(open(self.leader_log).readlines()):
-            if bad_marker in line: return False
-            if good_marker in line: return True
+            for line in reversed(open(logging_file).readlines()):
+                if bad_marker in line: continue
+                if good_marker in line: 
+                    print 'Found leader: ', master_id
+                    self.leader_log = logging_file
+                    return True
+            master_id += 1
         return False
 
     def _run_holders(self):
@@ -247,9 +256,9 @@ class YTEnv:
             config_path = os.path.join(current, 'master_config.yson')
             write_config(master_config, config_path)
             self.config_paths['master'].append(config_path)
-            
-            if i == 0:
-                self.leader_log = logging_file_name
+
+            self.master_logging_file.append(logging_file_name)
+           
 
     def _prepare_holders_config(self):
         self.config_paths['holder'] = []
