@@ -63,29 +63,33 @@ public:
             MasterChannel);
 
         // Register all commands.
-        RegisterCommand<TStartTransactionCommand>(TCommandDescriptor("start_tx", EDataType::Null, EDataType::Structured));
-        RegisterCommand<TRenewTransactionCommand>(TCommandDescriptor("renew_tx", EDataType::Null, EDataType::Null));
-        RegisterCommand<TCommitTransactionCommand>(TCommandDescriptor("commit_tx", EDataType::Null, EDataType::Null));
-        RegisterCommand<TAbortTransactionCommand>(TCommandDescriptor("abort_tx", EDataType::Null, EDataType::Null));
+#define REGISTER(command, name, inDataType, outDataType) \
+        RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType));
 
-        RegisterCommand<TGetCommand>(TCommandDescriptor("get", EDataType::Null, EDataType::Structured));
-        RegisterCommand<TSetCommand>(TCommandDescriptor("set", EDataType::Structured, EDataType::Null));
-        RegisterCommand<TRemoveCommand>(TCommandDescriptor("remove", EDataType::Null, EDataType::Null));
-        RegisterCommand<TListCommand>(TCommandDescriptor("list", EDataType::Null, EDataType::Structured));
-        RegisterCommand<TCreateCommand>(TCommandDescriptor("create", EDataType::Null, EDataType::Structured));
-        RegisterCommand<TLockCommand>(TCommandDescriptor("lock", EDataType::Null, EDataType::Structured));
+        REGISTER(TStartTransactionCommand, "start_tx",  Null, Structured);
+        REGISTER(TRenewTransactionCommand, "renew_tx",  Null, Null);
+        REGISTER(TCommitTransactionCommand, "commit_tx", Null, Null);
+        REGISTER(TAbortTransactionCommand, "abort_tx",  Null, Null);
 
-        RegisterCommand<TDownloadCommand>(TCommandDescriptor("download", EDataType::Null, EDataType::Binary));
-        RegisterCommand<TUploadCommand>(TCommandDescriptor("upload", EDataType::Binary, EDataType::Structured));
+        REGISTER(TGetCommand, "get", Null, Structured);
+        REGISTER(TSetCommand, "set", Structured, Null);
+        REGISTER(TRemoveCommand, "remove", Null, Null);
+        REGISTER(TListCommand, "list", Null, Structured);
+        REGISTER(TCreateCommand, "create", Null, Structured);
+        REGISTER(TLockCommand, "lock", Null, Structured);
 
-        RegisterCommand<TWriteCommand>(TCommandDescriptor("write", EDataType::Tabular, EDataType::Null));
-        RegisterCommand<TReadCommand>(TCommandDescriptor("read", EDataType::Null, EDataType::Tabular));
+        REGISTER(TDownloadCommand, "download", Null, Binary);
+        REGISTER(TUploadCommand, "upload", Binary, Structured);
 
-        RegisterCommand<TMapCommand>(TCommandDescriptor("map", EDataType::Null, EDataType::Structured));
-        RegisterCommand<TMergeCommand>(TCommandDescriptor("merge", EDataType::Null, EDataType::Structured));
-        RegisterCommand<TSortCommand>(TCommandDescriptor("sort", EDataType::Structured, EDataType::Structured));
-        RegisterCommand<TEraseCommand>(TCommandDescriptor("erase", EDataType::Null, EDataType::Structured));
-        RegisterCommand<TAbortOperationCommand>(TCommandDescriptor("abort_op", EDataType::Null, EDataType::Null));
+        REGISTER(TWriteCommand, "write", Tabular, Null);
+        REGISTER(TReadCommand, "read", Null, Tabular);
+
+        REGISTER(TMapCommand, "map", Null, Structured);
+        REGISTER(TMergeCommand, "merge", Null, Structured);
+        REGISTER(TSortCommand, "sort", Null, Structured);
+        REGISTER(TEraseCommand, "erase", Null, Structured);
+        REGISTER(TAbortOperationCommand, "abort_op", Null, Null);
+#undef REGISTER
     }
 
     virtual TDriverResponse Execute(const TDriverRequest& request)
