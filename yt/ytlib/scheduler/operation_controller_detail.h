@@ -200,14 +200,15 @@ protected:
 
             auto jobSpec = GetJobSpec(~jip);
 
-            OnJobStarted(~jip);
-
             // Pass jip to handlers via raw pointer to avoid cyclic references.
             jip->OnCompleted = BIND(&TTask::OnJobCompleted, MakeStrong(this), Unretained(~jip));
             jip->OnFailed = BIND(&TTask::OnJobFailed, MakeStrong(this), Unretained(~jip));
 
             jip->Job = Controller->Host->CreateJob(Controller->Operation, node, jobSpec);
             Controller->RegisterJobInProgress(jip);
+
+            OnJobStarted(~jip);
+
             return jip->Job;
         }
 
