@@ -289,6 +289,9 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                         bestLocality = locality;
                     }
                 } else {
+                    LOG_TRACE("Task locality hint removed (Task: %s, Address: %s)",
+                        ~candidate->GetId(),
+                        ~address);
                     candidates.erase(jt);
                 }
             }
@@ -324,6 +327,8 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                     feasibleTask = candidate;
                 }
             } else {
+                LOG_DEBUG("Task pending hint removed (Task: %s)",
+                    ~candidate->GetId());
                 PendingTasks.erase(jt);
             }
         }

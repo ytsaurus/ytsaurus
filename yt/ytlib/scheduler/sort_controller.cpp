@@ -237,7 +237,7 @@ private:
         {
             TTask::OnTaskCompleted();
 
-            // Check for small partitionsKick-start all sort tasks.
+            // Kick-start all sort tasks.
             FOREACH (auto partition, Controller->Partitions) {
                 Controller->RegisterTaskPendingHint(partition->SortTask);
             }
