@@ -206,7 +206,9 @@ protected:
             jip->OnCompleted = BIND(&TTask::OnJobCompleted, MakeStrong(this), Unretained(~jip));
             jip->OnFailed = BIND(&TTask::OnJobFailed, MakeStrong(this), Unretained(~jip));
 
-            return Controller->CreateJob(jip, node, jobSpec);
+            jip->Job = Controller->Host->CreateJob(Controller->Operation, node, jobSpec);
+            Controller->RegisterJobInProgress(jip);
+            return jip->Job;
         }
 
 
@@ -342,10 +344,7 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
     // Jobs in progress management.
-    TJobPtr CreateJob(
-        TJobInProgressPtr jip,
-        TExecNodePtr node,
-        const NProto::TJobSpec& spec);
+    void RegisterJobInProgress(TJobInProgressPtr jip);
     TJobInProgressPtr GetJobInProgress(TJobPtr job);
     void RemoveJobInProgress(TJobPtr job);
 

@@ -319,7 +319,8 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                 // Check for locality timeout.
                 if (!candidate->GetNonLocalRequestTime()) {
                     candidate->SetNonLocalRequestTime(now);
-                } else if (candidate->GetNonLocalRequestTime().Get() + candidate->GetMaxLocalityDelay() <= now) {
+                }
+                if (candidate->GetNonLocalRequestTime().Get() + candidate->GetMaxLocalityDelay() <= now) {
                     feasibleTask = candidate;
                 }
             } else {
@@ -924,7 +925,7 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
 
 std::vector<Stroka> TOperationControllerBase::GetInputKeyColumns()
 {
-    YASSERT(!InputTables.empty());
+    YCHECK(!InputTables.empty());
     for (int index = 1; index < static_cast<int>(InputTables.size()); ++index) {
         if (InputTables[0].KeyColumns != InputTables[index].KeyColumns) {
             ythrow yexception() << Sprintf("Key columns mismatch in input tables %s and %s",
@@ -955,20 +956,15 @@ bool TOperationControllerBase::CheckChunkListsPoolSize(int minSize)
     return false;
 }
 
-TJobPtr TOperationControllerBase::CreateJob(
-    TJobInProgressPtr jip,
-    TExecNodePtr node,
-    const NProto::TJobSpec& spec)
+void TOperationControllerBase::RegisterJobInProgress(TJobInProgressPtr jip)
 {
-    jip->Job = Host->CreateJob(Operation, node, spec);
     YVERIFY(JobsInProgress.insert(MakePair(jip->Job, jip)).second);
-    return jip->Job;
 }
 
 TOperationControllerBase::TJobInProgressPtr TOperationControllerBase::GetJobInProgress(TJobPtr job)
 {
     auto it = JobsInProgress.find(job);
-    YASSERT(it != JobsInProgress.end());
+    YCHECK(it != JobsInProgress.end());
     return it->second;
 }
 
@@ -1017,7 +1013,7 @@ int TOperationControllerBase::GetJobCount(
         ? configJobCount.Get()
         : static_cast<int>(std::ceil((double) totalWeight / weightPerJob));
     result = std::min(result, chunkCount);
-    YASSERT(result > 0);
+    YCHECK(result > 0);
     return result;
 }
 

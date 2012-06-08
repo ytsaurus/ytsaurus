@@ -279,7 +279,9 @@ private:
 
         virtual TDuration GetMaxLocalityDelay() const
         {
-            return TDuration::Seconds(30);
+            // TODO(babenko): make customizable
+            // If no primary node is chosen yet then start the job immediately.
+            return AddressToOutputLocality.empty() ? TDuration::Zero() : TDuration::Seconds(30);
         }
 
         virtual i64 GetLocality(const Stroka& address) const
