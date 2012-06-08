@@ -249,7 +249,7 @@ void TOperationControllerBase::RegisterTaskPendingHint(TTaskPtr task)
 void TOperationControllerBase::RegisterTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
     if (AddressToLocalTasks[address].insert(task).second) {
-        LOG_DEBUG("Task locality hint added (Task: %s, Address: %s)",
+        LOG_TRACE("Task locality hint added (Task: %s, Address: %s)",
             ~task->GetId(),
             ~address);
     }
