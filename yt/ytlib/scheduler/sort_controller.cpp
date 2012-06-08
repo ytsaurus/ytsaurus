@@ -295,7 +295,6 @@ private:
     private:
         TSortController* Controller;
         TPartition* Partition;
-        TChunkListId SortedChunkListId;
 
         virtual int GetChunkListCountPerJob() const 
         {
@@ -354,7 +353,7 @@ private:
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
             if (!Partition->NeedsMerge) {
-                SortedChunkListId = jip->ChunkListIds[0];
+                Controller->CompletePartition(Partition, jip->ChunkListIds[0]);
                 return;
             } 
 
@@ -387,8 +386,6 @@ private:
             // Kick-start the corresponding merge task.
             if (Partition->NeedsMerge) {
                 Controller->RegisterTaskPendingHint(Partition->MergeTask);
-            } else {
-                Controller->CompletePartition(Partition, SortedChunkListId);
             }
         }
 
@@ -506,7 +503,9 @@ private:
         ++CompletedPartitionCount;
         YCHECK(!partition->Completed);
         partition->Completed = true;
-        LOG_INFO("Partition completed (Partition: %d)", partition->Index);
+        LOG_INFO("Partition completed (Partition: %d, ChunkTreeId: %s)",
+            partition->Index,
+            ~chunkTreeId.ToString());
     }
 
 
