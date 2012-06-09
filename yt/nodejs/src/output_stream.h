@@ -30,6 +30,9 @@ public:
     // Synchronous JS API.
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
+    static v8::Handle<v8::Value> IsEmpty(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoIsEmpty();
+
     // Asynchronous JS API.
     static void AsyncOnWrite(uv_work_t* request);
     void EnqueueOnWrite();

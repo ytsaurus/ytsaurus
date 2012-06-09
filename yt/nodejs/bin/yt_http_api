@@ -62,7 +62,8 @@ fs.readFile(opts.argv.c, function(err, configuration) {
         });
         connect()
             .use(connect.favicon())
-            .use(connect.logger("dev"))
+            .use(yt.YtAssignRequestID())
+            .use(yt.YtLogger(logger))
             .use("/api", yt.YtApplication(logger, configuration.toString()))
             .listen(opts.argv.p, opts.argv.i, function() {
                 if (opts.argv.g) {

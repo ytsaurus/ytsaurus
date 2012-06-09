@@ -2,6 +2,7 @@ var url = require("url");
 var crypto = require("crypto");
 
 var qs = require("qs");
+var uuid = require("node-uuid");
 
 var utils = require("./utils");
 var ytnode_wrappers = require("./ytnode_wrappers");
@@ -51,12 +52,12 @@ YtCommand.prototype.dispatch = function() {
     var self = this;
 
     utils.callSeq(this, [
-        this._computeHash,
         this._prologue,
         this._extractName,
         this._extractParameters,
         this._getInputFormat,
         this._getOutputFormat,
+        this._logInformation,
         this._getDescriptor,
         this._addHeaders,
         this._execute,
@@ -65,7 +66,7 @@ YtCommand.prototype.dispatch = function() {
         var thereWasError = error || self.rsp.ytCode != 0;
         if (thereWasError) {
             var message = error ? error.message : self.rsp.ytMessage;
-            self.logger.error(message, { hash : self.hash });
+            self.logger.error("Done (failure)", { request_id : self.req.uuid, message : message });
 
             if (!self.rsp._header) {
                 var body = JSON.stringify({ error : message });
@@ -78,7 +79,7 @@ YtCommand.prototype.dispatch = function() {
             }
         }
 
-        self.logger.info("Done", { hash : self.hash });
+        self.logger.debug("Done (success)", { request_id : self.req.uuid });
     });
 };
 
@@ -92,16 +93,6 @@ YtCommand.prototype._epilogue = function(cb) {
     cb(null);
 };
 
-YtCommand.prototype._computeHash = function(cb) {
-    var hasher = crypto.createHash("sha1");
-    hasher.update(new Date().toJSON());
-    hasher.update(JSON.stringify(this.req.method));
-    hasher.update(JSON.stringify(this.req.url));
-    hasher.update(JSON.stringify(this.req.headers));
-    this.hash = hasher.digest("base64");
-    cb(null);
-};
-
 YtCommand.prototype._extractName = function(cb) {
     this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
     if (!/^[a-z_]+$/.test(this.name)) {
@@ -109,7 +100,6 @@ YtCommand.prototype._extractName = function(cb) {
         throw new Error("Malformed command name '" + name + "'.");
     }
 
-    this.logger.debug("", { hash : this.hash, name : this.name });
     cb(null);
 };
 
@@ -120,7 +110,6 @@ YtCommand.prototype._extractParameters = function(cb) {
         throw new Error("Unable to parse parameters from the query string.");
     }
 
-    this.logger.debug("", { hash : this.hash, parameters : JSON.stringify(this.parameters) });
     cb(null);
 };
 
@@ -150,7 +139,6 @@ YtCommand.prototype._getInputFormat = function(cb) {
     }
 
     this.input_format = result;
-    this.logger.debug("", { hash : this.hash, input_format : this.input_format });
     cb(null);
 };
 
@@ -183,7 +171,17 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     }
 
     this.output_format = result;
-    this.logger.debug("", { hash : this.hash, output_format : this.output_format });
+    cb(null);
+};
+
+YtCommand.prototype._logInformation = function(cb) {
+    this.logger.debug("Gathered request parameters", {
+        request_id : this.req.uuid,
+        name : this.name,
+        parameters : this.parameters,
+        input_format : this.input_format,
+        output_format : this.output_format
+    });
     cb(null);
 };
 
@@ -205,8 +203,8 @@ YtCommand.prototype._getDescriptor = function(cb) {
     var actual_http_method = this.req.method;
 
     this.logger.debug("Successfully found command descriptor", {
-        hash : this.hash,
-        descriptor : JSON.stringify(this.descriptor),
+        request_id : this.req.uuid,
+        descriptor : this.descriptor,
         input_type_as_string : input_type_as_string,
         output_type_as_string : output_type_as_string,
         expected_http_method : expected_http_method,
@@ -229,7 +227,6 @@ YtCommand.prototype._addHeaders = function(cb) {
     this.rsp.setHeader("Transfer-Encoding", "chunked");
     this.rsp.setHeader("Access-Control-Allow-Origin", "*");
     this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
-    this.rsp.setHeader("X-YT-Request-Hash", this.hash);
 
     cb(null);
 };
@@ -242,13 +239,18 @@ YtCommand.prototype._execute = function(cb) {
         this.parameters, function(error, code, message)
         {
             if (error) {
+                self.logger.debug(
+                    "Command '" + self.name + "' thrown C++ exception",
+                    { request_id : self.req.uuid, message : error });
                 return cb(new Error(error));
+            } else {
+                self.logger.debug(
+                    "Command '" + self.name + "' successfully executed",
+                    { request_id : self.req.uuid, code : code, message : message });
             }
 
             self.rsp.ytCode = code;
             self.rsp.ytMessage = message;
-
-            self.logger.info("Command '" + self.name + "' successfully executed", { hash : self.hash, code : code, message : JSON.stringify(message) });
 
             if (code === 0) {
                 self.rsp.statusCode = 200;
@@ -278,6 +280,50 @@ function YtApplication(logger, configuration) {
     };
 };
 
+function YtLogger(logger) {
+    return function(req, rsp, next) {
+        req._startTime = new Date();
+        if (req._logging) {
+            return next();
+        }
+        req._logging = true;
+
+        logger.info("Handling request", {
+            request_id : req.uuid,
+            method : req.method,
+            url : req.originalUrl,
+            referrer : req.headers["referer"] || req.headers["referrer"],
+            remote_addr : req.socket && (req.socket.remoteAddress || (req.socket.socket && req.socket.socket.remoteAddress)),
+            user_agent : req.headers["user-agent"]
+        });
+
+        var end = rsp.end;
+        rsp.end = function(chunk, encoding) {
+            rsp.end = end;
+            rsp.end(chunk, encoding);
+            logger.info("Handled request", {
+                request_id : req.uuid,
+                request_time : new Date() - req._startTime,
+                status : rsp.statusCode
+            });
+        };
+
+        next();
+    };
+};
+
+function YtAssignRequestId() {
+    var buffer = new Buffer(16);
+    return function(req, rsp, next) {
+        uuid.v4(null, buffer);
+        req.uuid = buffer.toString("base64");
+        rsp.setHeader("X-YT-Request-Id", req.uuid);
+        next();
+    };
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 exports.YtApplication = YtApplication;
+exports.YtLogger = YtLogger;
+exports.YtAssignRequestID = YtAssignRequestId;

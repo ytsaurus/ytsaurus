@@ -43,12 +43,17 @@ function YtReadableStream() {
             self._emitData(chunk);
         }
     };
+    this._binding.on_drain = function() {
+        __DBG("Readable -> Bindings -> on_drain");
+        self.emit("_drain");
+    };
     this._binding.on_flush = function() {
         __DBG("Readable -> Bindings -> on_flush");
+        self.emit("_flush");
     };
     this._binding.on_finish = function() {
         __DBG("Readable -> Bindings -> on_finish");
-        self._end();
+        self._endSoon();
     };
 };
 
@@ -56,20 +61,20 @@ util.inherits(YtReadableStream, stream.Stream);
 
 YtReadableStream.prototype._emitData = function(chunk) {
     __DBG("Readable -> _emitData");
-    this.emit('data', chunk);
+    this.emit("data", chunk);
 };
 
 YtReadableStream.prototype._emitEnd = function() {
     __DBG("Readable -> _emitEnd");
     if (!this._ended) { 
-        this.emit('end');
+        this.emit("end");
     }
 
     this.readable = false;
     this._ended = true;
 }
 
-YtReadableStream.prototype._emitQueue = function(callback) {
+YtReadableStream.prototype._emitQueue = function() {
     __DBG("Readable -> _emitQueue");
     if (this._pending.length) {
         var self = this;
@@ -85,27 +90,28 @@ YtReadableStream.prototype._emitQueue = function(callback) {
                     self._emitEnd(chunk);
                 }
             }
-            if (callback) {
-                callback();
-            }
         });
-    } else {
-        if (callback) {
-            callback();
-        }
     }
 };
 
-YtReadableStream.prototype._end = function() {
-    __DBG("Readable -> _end");
+YtReadableStream.prototype._endSoon = function() {
+    __DBG("Readable -> _endSoon");
     if (!this.readable || this._ended) {
         return;
     }
-    if (this._paused || this._pending.length) {
-        this._pending.push(__EOF);
+    if (this._binding.IsEmpty()) {
+        var self = this;
+        process.nextTick(function() {
+            __DBG("Readable " + self._uuid + " -> _endSoon -> (inner-tick)");
+            if (self._paused || self._pending.length) {
+                self._pending.push(__EOF);
+            } else {
+                assert.ok(self._pending.length === 0);
+                self._emitEnd();
+            }
+        });
     } else {
-        assert.ok(this._pending.length === 0);
-        this._emitEnd();
+        this.once("_drain", this._endSoon.bind(this));
     }
 };
 
@@ -221,7 +227,7 @@ YtDriver.prototype.execute = function(name,
         parameters, function()
     {
         callback.apply(this, arguments);
-        process.nextTick(function() { wrapped_output_stream._end(); });
+        wrapped_output_stream._endSoon();
     });
 }
 

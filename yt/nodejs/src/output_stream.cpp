@@ -9,6 +9,7 @@ COMMON_V8_USES
 namespace {
 
 static Persistent<String> OnWriteSymbol;
+static Persistent<String> OnDrainSymbol;
 static Persistent<String> OnFlushSymbol;
 static Persistent<String> OnFinishSymbol;
 
@@ -22,6 +23,7 @@ void DeleteCallback(char* data, void* hint)
 Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 TNodeJSOutputStream::TNodeJSOutputStream()
 {
@@ -46,6 +48,7 @@ void TNodeJSOutputStream::Initialize(Handle<Object> target)
     HandleScope scope;
 
     OnWriteSymbol  = NODE_PSYMBOL("on_write");
+    OnDrainSymbol  = NODE_PSYMBOL("on_drain");
     OnFlushSymbol  = NODE_PSYMBOL("on_flush");
     OnFinishSymbol = NODE_PSYMBOL("on_finish");
 
@@ -54,6 +57,8 @@ void TNodeJSOutputStream::Initialize(Handle<Object> target)
 
     ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
     ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
+
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsEmpty", TNodeJSOutputStream::IsEmpty);
 
     target->Set(
         String::NewSymbol("TNodeJSOutputStream"),
@@ -91,6 +96,30 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
     }
 }
 
+Handle<Value> TNodeJSOutputStream::IsEmpty(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSOutputStream* stream =
+        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+
+    // Validate arguments.
+    YASSERT(args.Length() == 0);
+
+    // Do the work.
+    return scope.Close(stream->DoIsEmpty());
+}
+
+Handle<Value> TNodeJSOutputStream::DoIsEmpty()
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    return scope.Close(Boolean::New(Queue.IsEmpty()));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TNodeJSOutputStream::AsyncOnWrite(uv_work_t* request)
@@ -118,6 +147,9 @@ void TNodeJSOutputStream::DoOnWrite()
         // TODO(sandello): Use OnWriteSymbol here.
         node::MakeCallback(this->handle_, "on_write", ARRAY_SIZE(args), args);
     }
+
+    // TODO(sandello): Use OnDrainSymbol here.
+    node::MakeCallback(this->handle_, "on_drain", 0, NULL);
 
     AsyncUnref();
 }
