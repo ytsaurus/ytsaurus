@@ -102,7 +102,7 @@ private:
             YASSERT(Buffer || !Length);
 
             Host->Ref();
-            Host->Slave->Ref();
+            Host->Slave->AsyncRef(true);
         }
 
         ~TReadRequest()
@@ -116,7 +116,7 @@ private:
             Callback.Dispose();
             Callback.Clear();
 
-            Host->Slave->Unref();
+            Host->Slave->AsyncUnref();
             Host->Unref();
         }
     };
@@ -290,7 +290,7 @@ private:
             Length = ValueToBeWritten.length();
 
             Host->Ref();
-            Host->Slave->Ref();
+            Host->Slave->AsyncRef(true);
         }
 
         ~TWriteRequest()
@@ -300,7 +300,7 @@ private:
             Callback.Dispose();
             Callback.Clear();
 
-            Host->Slave->Unref();
+            Host->Slave->AsyncUnref();
             Host->Unref();
         }
     };

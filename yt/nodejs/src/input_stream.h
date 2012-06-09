@@ -62,6 +62,7 @@ private:
 
 inline void TNodeJSInputStream::EnqueueSweep()
 {
+    AsyncRef(false);
     // Post to V8 thread.
     uv_queue_work(
         uv_default_loop(), &SweepRequest,
@@ -70,6 +71,7 @@ inline void TNodeJSInputStream::EnqueueSweep()
 
 inline void TNodeJSInputStream::EnqueueClose()
 {
+    AsyncRef(false);
     // Post to any worker thread.
     uv_queue_work(
         uv_default_loop(), &CloseRequest,

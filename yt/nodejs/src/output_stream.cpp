@@ -118,6 +118,8 @@ void TNodeJSOutputStream::DoOnWrite()
         // TODO(sandello): Use OnWriteSymbol here.
         node::MakeCallback(this->handle_, "on_write", ARRAY_SIZE(args), args);
     }
+
+    AsyncUnref();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +139,8 @@ void TNodeJSOutputStream::DoOnFlush()
 
     // TODO(sandello): Use OnFlushSymbol here.
     node::MakeCallback(this->handle_, "on_flush", 0, NULL);
+
+    AsyncUnref();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +160,8 @@ void TNodeJSOutputStream::DoOnFinish()
 
     // TODO(sandello): Use OnFinishSymbol here.
     node::MakeCallback(this->handle_, "on_finish", 0, NULL);
+
+    AsyncUnref();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

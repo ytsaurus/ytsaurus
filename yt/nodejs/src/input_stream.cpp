@@ -206,6 +206,8 @@ void TNodeJSInputStream::DoSweep()
     }
 
     Queue.erase(Queue.begin(), it);
+
+    AsyncUnref();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,6 +246,8 @@ void TNodeJSInputStream::DoClose()
 
     IsAlive = false;
     Conditional.BroadCast();
+
+    AsyncUnref();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

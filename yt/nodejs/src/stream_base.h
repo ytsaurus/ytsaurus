@@ -13,9 +13,14 @@ protected:
     TNodeJSStreamBase();
     ~TNodeJSStreamBase();
 
+    NDetail::TVolatileCounter AsyncRefCounter;
+
 public:
     using node::ObjectWrap::Ref;
     using node::ObjectWrap::Unref;
+
+    void AsyncRef(bool acquireSyncRef);
+    void AsyncUnref();
 
     struct TOutputPart
     {
@@ -42,6 +47,9 @@ public:
 private:
     TNodeJSStreamBase(const TNodeJSStreamBase&);
     TNodeJSStreamBase& operator=(const TNodeJSStreamBase&);
+
+    static void UnrefCallback(uv_work_t*);
+    uv_work_t UnrefRequest;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

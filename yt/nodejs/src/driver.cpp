@@ -55,8 +55,8 @@ struct TExecuteRequest
         DriverRequest.OutputStream = OutputStream;
 
         Host->Ref();
-        InputStream->Ref();
-        OutputStream->Ref();
+        InputStream->AsyncRef(true);
+        OutputStream->AsyncRef(true);
     }
 
     ~TExecuteRequest()
@@ -66,8 +66,8 @@ struct TExecuteRequest
         Callback.Dispose();
         Callback.Clear();
 
-        OutputStream->Unref();
-        InputStream->Unref();
+        OutputStream->AsyncUnref();
+        InputStream->AsyncUnref();
         Host->Unref();
     }
 };

@@ -63,6 +63,7 @@ private:
 
 inline void TNodeJSOutputStream::EnqueueOnWrite()
 {
+    AsyncRef(false);
     // Post to V8 thread.
     uv_queue_work(
         uv_default_loop(), &WriteRequest,
@@ -71,6 +72,7 @@ inline void TNodeJSOutputStream::EnqueueOnWrite()
 
 inline void TNodeJSOutputStream::EnqueueOnFlush()
 {
+    AsyncRef(false);
     // Post to V8 thread.
     uv_queue_work(
         uv_default_loop(), &FlushRequest,
@@ -79,6 +81,7 @@ inline void TNodeJSOutputStream::EnqueueOnFlush()
 
 inline void TNodeJSOutputStream::EnqueueOnFinish()
 {
+    AsyncRef(false);
     // Post to V8 thread.
     uv_queue_work(
         uv_default_loop(), &FinishRequest,
