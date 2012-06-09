@@ -5,13 +5,51 @@
 #include <ytlib/ytree/null_yson_consumer.h>
 #include <ytlib/misc/assert.h>
 
-#include <util/charset/utf.h>
 #include <util/string/base64.h>
+
+// XXX(sandello): This is a direct hack to yajl's core just to not to implement
+// in-house UTF8 validator.
 
 namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+bool IsValidUtf8(const unsigned char* buffer, size_t length)
+{
+    YASSERT(buffer);
+    YASSERT(length);
+
+    const unsigned char* s = buffer;
+    while (length--) {
+        if (*s <= 0x7F) {
+        } else if ((*s >> 5) == 0x06) {
+            ++s;
+            if (!((*s >> 6) == 0x2)) return false;
+        } else if ((*s >> 4) == 0x0E) {
+            ++s;
+            if (!((*s >> 6) == 0x2)) return false;
+            ++s;
+            if (!((*s >> 6) == 0x2)) return false;
+        } else if ((*s >> 3) == 0x1E) {
+            ++s;
+            if (!((*s >> 6) == 0x2)) return false;
+            ++s;
+            if (!((*s >> 6) == 0x2)) return false;
+            ++s;
+            if (!((*s >> 6) == 0x2)) return false;
+        } else {
+            return false;
+        }
+        ++s;
+    }
+
+    return true;
+}
+} // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +150,12 @@ TJsonWriter::TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr co
 
 void TJsonWriter::WriteStringScalar(const TStringBuf &value)
 {
-    if (value.empty() || (value[0] != '&' && IsUtf(value))) {
+    if (
+        value.empty() ||
+        (value[0] != '&' && IsValidUtf8(
+            reinterpret_cast<const unsigned char*>(value.c_str()),
+            value.length()))
+    ) {
         JsonWriter->Write(value);
     } else {
         JsonWriter->Write("&" + Base64Encode(value));

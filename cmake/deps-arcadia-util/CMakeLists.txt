@@ -3,7 +3,6 @@ set( BASE ${CMAKE_SOURCE_DIR}/util/string )
 set( SRCS
   ${BASE}/base64.cpp
   ${BASE}/cast.cpp
-  ${BASE}/encodexml.cpp
   ${BASE}/escape.cpp
   ${BASE}/util.cpp
   ${BASE}/vector.cpp
@@ -197,40 +196,6 @@ set( ST_SRCS
   ${ST_BASE}/walk.h
 )
 
-set( CS_BASE ${CMAKE_SOURCE_DIR}/util/charset )
-set( IC_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/libiconv )
-
-set( CS_SRCS
-  ${CS_BASE}/codepage.cpp
-  ${CS_BASE}/cp_encrec.cpp
-  ${CS_BASE}/doccodes.cpp
-  ${CS_BASE}/utf.cpp
-  ${CS_BASE}/wide.cpp
-
-  ${CS_BASE}/recyr.hh
-  ${CS_BASE}/recyr_int.hh
-
-  ${CS_BASE}/normalization.cpp
-    
-  ${CS_BASE}/decomposition_table.h
-  ${CS_BASE}/iconv.h
-  ${CS_BASE}/unidata.h
-
-  ${CMAKE_SOURCE_DIR}/generated/cp_data.cpp
-  ${CMAKE_SOURCE_DIR}/generated/composition.cpp
-  ${CMAKE_SOURCE_DIR}/generated/decomposition.cpp
-  ${CMAKE_SOURCE_DIR}/generated/encrec_data.cpp
-  ${CMAKE_SOURCE_DIR}/generated/unidata.cpp
-  ${CMAKE_SOURCE_DIR}/generated/uniscripts.cpp
-
-  ${IC_BASE}/genaliases.c
-  ${IC_BASE}/genaliases2.c
-  #${IC_BASE}/genflags.c
-  #${IC_BASE}/gentranslit.c
-  ${IC_BASE}/iconv.c
-  #${IC_BASE}/relocatable.c
-)
-
 set( CF_BASE ${CMAKE_SOURCE_DIR}/util/config )
 
 set( CF_SRCS
@@ -239,7 +204,6 @@ set( CF_SRCS
   ${CF_BASE}/opt.cpp
   ${CF_BASE}/opt2.cpp
   ${CF_BASE}/posix_getopt.cpp
-  ${CF_BASE}/conf.cpp
   ${CF_BASE}/ygetopt.cpp
 )
 
@@ -334,7 +298,6 @@ set( SV_BASE ${CMAKE_SOURCE_DIR}/util/server )
 
 set( SV_SRCS
   ${SV_BASE}/http.cpp
-  ${SV_BASE}/static.cpp
   ${SV_BASE}/listen.cpp
   ${SV_BASE}/options.cpp
 )
@@ -379,7 +342,6 @@ add_library( ytext-arcadia-util STATIC
   ${S_SRCS}
   ${M_SRCS}
   ${ST_SRCS}
-  ${CS_SRCS}
   ${CF_SRCS}
   ${DU_SRCS}
   ${DJ_SRCS}
