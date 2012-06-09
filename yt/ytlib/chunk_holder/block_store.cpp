@@ -174,7 +174,14 @@ private:
             blockSize,
             PendingReadSize_);
 
-        auto data = reader->ReadBlock(blockId.BlockIndex);
+        TSharedRef data;
+        try {
+            data = reader->ReadBlock(blockId.BlockIndex);
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Error reading chunk block (BlockId: %s)\n%s",
+                ~blockId.ToString());
+        }
+
         AtomicSub(PendingReadSize_, blockSize);
         LOG_DEBUG("Pending read size decreased (BlockSize: %d, PendingReadSize: %" PRISZT,
             blockSize,
