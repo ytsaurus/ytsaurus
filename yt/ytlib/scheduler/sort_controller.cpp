@@ -284,11 +284,13 @@ private:
             // sort locality is assigned based on outputs (including those that are still running)
             // rather than on on inputs (they are scattered anyway).
             if (AddressToOutputLocality.empty()) {
-                // No primary node is chosen yet, anyone will do.
+                // No primary node is chosen yet, an arbitrary one will do.
                 // Return some magic number.
+                LOG_DEBUG("? locality %s ***", ~address);
                 return Controller->Spec->MaxSortJobDataSize;
             } else {
                 auto it = AddressToOutputLocality.find(address);
+                LOG_DEBUG("? locality %s %" PRId64, ~address, it == AddressToOutputLocality.end() ? 0 : it->second);
                 return it == AddressToOutputLocality.end() ? 0 : it->second;
             }
         }
@@ -363,8 +365,9 @@ private:
 
             // Increment output locality.
             // Also notify the controller that we're willing to use this node
-            // for all further jobs.
+            // for all subsequent jobs.
             auto address = jip->Job->GetNode()->GetAddress();
+            LOG_DEBUG("+locality %s %" PRId64, ~address, jip->PoolResult->TotalChunkWeight);
             AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
             Controller->AddTaskLocalityHint(this, address);
 
@@ -687,6 +690,7 @@ private:
             Spec->MaxSortJobDataSize,
             Spec->SortJobCount,
             chunkCount);
+        MaxMergeJobCount = 1;
 
         LOG_INFO("Sorting without partitioning");
 
