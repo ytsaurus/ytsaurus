@@ -88,7 +88,6 @@ public:
     virtual void Terminate(const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
         Connection->Terminate(error);
     }
 
