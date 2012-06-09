@@ -281,8 +281,8 @@ private:
         virtual i64 GetLocality(const Stroka& address) const
         {
             // To make subsequent merges local,
-            // sort locality is assigned based not on inputs (they are scattered anyway)
-            // but on outputs (including those that are still running).
+            // sort locality is assigned based on outputs (including those that are still running)
+            // rather than on on inputs (they are scattered anyway).
             if (AddressToOutputLocality.empty()) {
                 // No primary node is chosen yet, anyone will do.
                 // Return some magic number.
@@ -658,7 +658,7 @@ private:
         FOREACH (const auto& table, InputTables) {
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt->uncompressed_data_size();
+                i64 weight = miscExt->data_weight();
                 auto stripe = New<TChunkStripe>(chunk, weight);
                 partition->SortTask->AddStripe(stripe);
                 ++chunkCount;
