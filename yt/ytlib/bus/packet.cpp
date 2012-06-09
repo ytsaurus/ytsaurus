@@ -162,11 +162,11 @@ TPacketEncoder::TPacketEncoder()
     Header.Signature = PacketSignature;
 }
 
-size_t TPacketEncoder::GetPacketSize(
+i64 TPacketEncoder::GetPacketSize(
     EPacketType type,
     IMessagePtr message)
 {
-    size_t size = sizeof (TPacketHeader);
+    i64 size = sizeof (TPacketHeader);
     switch (type) {
         case EPacketType::Ack:
             break;

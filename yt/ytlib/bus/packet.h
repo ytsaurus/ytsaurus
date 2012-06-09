@@ -107,7 +107,7 @@ class TPacketEncoder
 public:
     TPacketEncoder();
 
-    static size_t GetPacketSize(EPacketType type, IMessagePtr message);
+    static i64 GetPacketSize(EPacketType type, IMessagePtr message);
 
     bool Start(EPacketType type, const TPacketId& packetId, IMessagePtr message);
     void NextChunk();

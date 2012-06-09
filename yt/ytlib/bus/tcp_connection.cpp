@@ -517,7 +517,7 @@ bool TTcpConnection::OnMessagePacketReceived()
 
 void TTcpConnection::EnqueuePacket(EPacketType type, const TPacketId& packetId, IMessagePtr message)
 {
-    size_t size = TPacketEncoder::GetPacketSize(type, message);
+    i64 size = TPacketEncoder::GetPacketSize(type, message);
     QueuedPackets.push(new TQueuedPacket(type, packetId, message, size));
     UpdatePendingOut(+1, +size);
     EncodeMoreFragments();
@@ -741,7 +741,7 @@ void  TTcpConnection::OnAckPacketSent(const TEncodedPacket& packet)
 
 void TTcpConnection::OnMessagePacketSent(const TEncodedPacket& packet)
 {
-    LOG_DEBUG("Outcoming message sent (ConnectionId: %s, PacketId: %s, PacketSize: %" PRISZT ")",
+    LOG_DEBUG("Outcoming message sent (ConnectionId: %s, PacketId: %s, PacketSize: %" PRId64 ")",
         ~Id.ToString(),
         ~packet.Packet->PacketId.ToString(),
         packet.Packet->Size);

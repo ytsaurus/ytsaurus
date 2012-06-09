@@ -81,7 +81,7 @@ private:
 
     struct TQueuedPacket
     {
-        TQueuedPacket(EPacketType type, const TPacketId& packetId, IMessagePtr message, size_t size)
+        TQueuedPacket(EPacketType type, const TPacketId& packetId, IMessagePtr message, i64 size)
             : Type(type)
             , PacketId(packetId)
             , Message(MoveRV(message))
@@ -91,7 +91,7 @@ private:
         EPacketType Type;
         TPacketId PacketId;
         IMessagePtr Message;
-        size_t Size;
+        i64 Size;
     };
 
     struct TUnackedMessage
