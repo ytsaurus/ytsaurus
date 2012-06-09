@@ -453,9 +453,9 @@ private:
         virtual int GetPendingJobCount() const
         {
             return
-                Controller->PartitionTask->IsCompleted() &&
-                Partition->SortTask->IsCompleted() &&
-                ChunkPool->ChunkCounter().GetTotal() >= 2
+                Partition->NeedsMerge &&
+                !Partition->Completed &&
+                Partition->SortTask->IsCompleted()
                 ? 1 : 0;
         }
 
