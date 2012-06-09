@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "table_node.h"
 #include "table_node_proxy.h"
+#include "common.h"
 
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
@@ -17,6 +18,10 @@ using namespace NCypress;
 using namespace NYTree;
 using namespace NChunkServer;
 using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,6 +166,12 @@ protected:
 
         // Propagate "sorted" attribute.
         branchedChunkList->SetSorted(originatingChunkList->GetSorted());
+
+        // TODO(babenko): IsRecovery
+        LOG_DEBUG("Table node branched (BranchedNodeId: %s, OriginatingChunkListId: %s, BranchedChunkListId: %s)",
+            ~branchedNode.GetId().ToString(),
+            ~originatingChunkList->GetId().ToString(),
+            ~branchedChunkList->GetId().ToString());
     }
 
     virtual void DoMerge(TTableNode& originatingNode, TTableNode& branchedNode)
@@ -169,30 +180,43 @@ protected:
         auto objectManager = Bootstrap->GetObjectManager();
 
         // Create a new chunk list obtained from the branched one
-        // by replacing the first child to its up-to-date state.
+        // by replacing the first child with its up-to-date state.
         auto* branchedChunkList = branchedNode.GetChunkList();
-        YASSERT(!branchedChunkList->Children().empty());
-        auto oldChunkList = originatingNode.GetChunkList();
-        TChunkTreeRef newFirstChildRef(oldChunkList);
+        auto* currentChunkList = originatingNode.GetChunkList();
+
+        // TODO(babenko): IsRecovery
+        LOG_DEBUG("Table node merged (BranchedNodeId: %s, CurrentChunkListId: %s, BranchedChunkListId: %s)",
+            ~branchedNode.GetId().ToString(),
+            ~currentChunkList->GetId().ToString(),
+            ~branchedChunkList->GetId().ToString());
+
+        // Construct newChunkList that will replace currentChunkList in originatingNode.
+        // Append the following items to it:
+        // 1) all children of currentChunkList
+        // 2) all children of branchedChunkList except the first one
         auto* newChunkList = chunkManager->CreateChunkList();
         objectManager->RefObject(newChunkList);
         chunkManager->AttachToChunkList(
             newChunkList,
-            &newFirstChildRef,
-            &newFirstChildRef + 1);
+            currentChunkList->Children());
+        const auto& branchedChildren = branchedChunkList->Children();
+        YASSERT(!branchedChildren.empty());
         chunkManager->AttachToChunkList(
             newChunkList,
-            &*branchedChunkList->Children().begin() + 1,
-            &*branchedChunkList->Children().begin() + branchedChunkList->Children().size());
+            &*branchedChildren.begin() + 1,
+            &*branchedChildren.begin() + branchedChildren.size());
+
+        // Configure rebalancing depending on its mode for currentChunkList.
+        newChunkList->SetRebalancingEnabled(currentChunkList->GetRebalancingEnabled());
 
         // Propagate "sorted" attribute back.
         newChunkList->SetSorted(branchedChunkList->GetSorted());
 
-        // Assign this newly created chunk list to originatingNode.
+        // Assign newChunkList to originatingNode.
         originatingNode.SetChunkList(newChunkList);
         YCHECK(newChunkList->OwningNodes().insert(&originatingNode).second);
-        YCHECK(oldChunkList->OwningNodes().erase(&originatingNode) == 1);
-        objectManager->UnrefObject(oldChunkList);
+        YCHECK(currentChunkList->OwningNodes().erase(&originatingNode) == 1);
+        objectManager->UnrefObject(currentChunkList);
         YCHECK(branchedChunkList->OwningNodes().erase(&branchedNode) == 1);
         objectManager->UnrefObject(branchedChunkList);
     }
