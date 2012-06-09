@@ -555,14 +555,16 @@ private:
             LOG_INFO("Processing inputs");
 
             // Prepare the fetcher.
+            int chunkCount = 0;
             FOREACH (const auto& table, InputTables) {
                 FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                     SamplesFetcher->AddChunk(chunk);
+                    ++chunkCount;
                 }
             }
 
             // Check for empty inputs.
-            if (PartitionTask->IsCompleted()) {
+            if (chunkCount == 0) {
                 LOG_INFO("Empty input");
                 FinalizeOperation();
                 return MakeFuture(TValueOrError<void>());
