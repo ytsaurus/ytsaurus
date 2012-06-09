@@ -136,21 +136,12 @@ struct TChangeLogCacheConfig
     //! A path where changelogs are stored.
     Stroka Path;
 
-    //! Disables physical changelog flush.
-    /*!
-     *  Enabling this option can cause meta state corruption and inconsistency.
-     *  Don't switch it on unless you understand the consequences.
-     */
-    bool DisableFlush;
-
     //! Maximum number of cached changelogs.
     int MaxSize;
 
     TChangeLogCacheConfig()
     {
         Register("path", Path);
-        Register("disable_flush", DisableFlush)
-            .Default(false);
         Register("max_size", MaxSize)
             .GreaterThan(0)
             .Default(4);

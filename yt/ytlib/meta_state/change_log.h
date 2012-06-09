@@ -23,7 +23,7 @@ public:
     TChangeLog(
         const Stroka& fileName,
         i32 id,
-        i64 indexBlockSize = 1024 * 1024);
+        i64 indexBlockSize = 1 * 1024 * 1024);
 
     ~TChangeLog();
 

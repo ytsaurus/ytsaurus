@@ -50,8 +50,7 @@ TChangeLogPtr TChangeLogCache::CreateChangeLog(i32 id)
 {
     return New<TChangeLog>(
         GetChangeLogFileName(id),
-        id,
-        Config->DisableFlush);
+        id);
 }
 
 TChangeLogCache::TGetResult TChangeLogCache::Get(i32 id)
@@ -91,7 +90,7 @@ TCachedAsyncChangeLogPtr TChangeLogCache::Create(
     auto fileName = GetChangeLogFileName(id);
 
     try {
-        auto changeLog = New<TChangeLog>(fileName, id, Config->DisableFlush);
+        auto changeLog = New<TChangeLog>(fileName, id);
         changeLog->Create(prevRecordCount);
         cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
     } catch (const std::exception& ex) {
