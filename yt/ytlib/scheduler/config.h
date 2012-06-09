@@ -212,7 +212,7 @@ struct TSortOperationSpec
             .GreaterThan(0);
         // TODO(babenko): update when the sort gets optimized
         Register("max_sort_job_data_size", MaxSortJobDataSize)
-            .Default((i64) 512 * 1024 * 1024)
+            .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
