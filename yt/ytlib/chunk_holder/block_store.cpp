@@ -179,7 +179,8 @@ private:
             data = reader->ReadBlock(blockId.BlockIndex);
         } catch (const std::exception& ex) {
             LOG_FATAL("Error reading chunk block (BlockId: %s)\n%s",
-                ~blockId.ToString());
+                ~blockId.ToString(),
+                ex.what());
         }
 
         AtomicSub(PendingReadSize_, blockSize);
