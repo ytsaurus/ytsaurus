@@ -341,32 +341,35 @@ private:
 
     TValueOrError<TSessionPtr> GetOrCreateSession()
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        
-        if (Session) {
-            return Session;
-        }
-
-        if (Terminated) {
-            return TError("Channel terminated");
-        }
-        
-        Session = New<TSession>(DefaultTimeout);
-        auto messageHandler = New<TMessageHandler>(Session);
-
         IBusPtr bus;
-        try {
-            bus = Client->CreateBus(messageHandler);
-        } catch (const std::exception& ex) {
-            return TError(ex.what());
+        TSessionPtr session;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+
+            if (Session) {
+                return Session;
+            }
+
+            if (Terminated) {
+                return TError("Channel terminated");
+            }
+
+            Session = session = New<TSession>(DefaultTimeout);
+            auto messageHandler = New<TMessageHandler>(session);
+
+            try {
+                bus = Client->CreateBus(messageHandler);
+            } catch (const std::exception& ex) {
+                return TError(ex.what());
+            }
+            session->Init(bus);
         }
 
-        Session->Init(bus);
         bus->SubscribeTerminated(BIND(
             &TChannel::OnBusTerminated,
             MakeWeak(this),
-            MakeWeak(Session)));
-        return Session;
+            MakeWeak(session)));
+        return session;
     }
 
     void OnBusTerminated(TWeakPtr<TSession> session, TError error)
