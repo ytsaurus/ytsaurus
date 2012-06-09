@@ -455,8 +455,8 @@ private:
         {
             return
                 Partition->NeedsMerge &&
-                !Partition->Completed &&
                 Partition->SortTask->IsCompleted()
+                IsPending() &&
                 ? 1 : 0;
         }
 
