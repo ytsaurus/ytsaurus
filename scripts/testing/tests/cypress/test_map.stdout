@@ -1,9 +1,0 @@
-{"hello"="world";"list"=[0;"a";{}];"n"=1}
-{"hello"="not_world";"list"=[0;"a";{}];"n"=1}
-{"hello"="not_world";"list"=[0;"a";{"some"="value"}];"n"=1}
-{"hello"="not_world";"list"=[0;"a";{"some"="value"}]}
-{"hello"="not_world";"list"=[]}
-{"hello"="not_world";"list"=[{"a"=1}]}
-{"hello"="not_world";"list"=[{"b"=2};{"a"=1}]}
-{"list"=[{"b"=2};{"a"=1}]}
-{}

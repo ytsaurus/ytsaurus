@@ -42,11 +42,15 @@ def upload(path, **kw): return command('upload', path, **kw)
 def table2py(yson):
     return yson_parser.parse_list_fragment(yson)
 
+def yson2py(yson):
+    return yson_parser.parse_string(yson)
+
+#TODO(panin): maybe rename to read_py?
 def read_table(path, **kw):
     return table2py(read(path, **kw))
 
-def yson2py(yson):
-    return yson_parser.parse_string(yson)
+def get_py(path, **kw):
+    return yson2py(get(path, **kw))
 
 def get_transactions(**kw):
     yson_map = get('//sys/transactions', **kw)
@@ -92,6 +96,75 @@ class TestCypressCommands(YTEnvSetup):
         # remove non existent child
         with pytest.raises(YTError): remove('//b')
 
+    def test_list(self):
+        set('//list', '[1;2;"some string"]')
+        assert get('//list') == '[1;2;"some string"]'
+
+        set('//list/+', '100')
+        assert get('//list') == '[1;2;"some string";100]'
+
+        set('//list/^0', '200')
+        assert get('//list') == '[200;1;2;"some string";100]'
+
+        set('//list/^0', '500')
+        assert get('//list') == '[500;200;1;2;"some string";100]'
+
+        set('//list/2^', '1000')
+        assert get('//list') == '[500;200;1;1000;2;"some string";100]'
+
+        set('//list/3', '777')
+        assert get('//list') == '[500;200;1;777;2;"some string";100]'
+
+        remove('//list/4')
+        assert get('//list') == '[500;200;1;777;"some string";100]'
+
+        remove('//list/4')
+        assert get('//list') == '[500;200;1;777;100]'
+
+        remove('//list/0')
+        assert get('//list') == '[200;1;777;100]'
+
+        set('//list/+', 'last')
+        assert get('//list') == '[200;1;777;100;"last"]'
+
+        set('//list/^0', 'first')
+        assert get('//list') == '["first";200;1;777;100;"last"]'
+
+        remove('//list')
+
+    def test_map(self):
+        set('//map', '{hello=world; list=[0;a;{}]; n=1}')
+        assert get_py('//map') == {"hello":"world","list":[0,"a",{}],"n":1}
+
+        set('//map/hello', 'not_world')
+        assert get_py('//map') == {"hello":"not_world","list":[0,"a",{}],"n":1}
+
+        set('//map/list/2/some', 'value')
+        assert get_py('//map') == {"hello":"not_world","list":[0,"a",{"some":"value"}],"n":1}
+
+        remove('//map/n')
+        assert get_py('//map') ==  {"hello":"not_world","list":[0,"a",{"some":"value"}]}
+
+        set('//map/list', '[]')
+        assert get_py('//map') == {"hello":"not_world","list":[]}
+
+        set('//map/list/+', '{}')
+        set('//map/list/0/a', '1')
+        assert get_py('//map') == {"hello":"not_world","list":[{"a":1}]}
+
+        set('//map/list/^0', '{}')
+        set('//map/list/0/b', '2')
+        assert get_py('//map') == {"hello":"not_world","list":[{"b":2},{"a":1}]}
+
+        remove('//map/hello')
+        assert get_py('//map') == {"list":[{"b":2},{"a":1}]}
+
+        remove('//map/list')
+        assert get_py('//map') == {}
+
+        remove('//map')
+
+
     def test_attributes(self):
         set('//t', '<attr=100;mode=rw> {nodes=[1; 2]}')
         assert get('//t/@attr') == '100'
@@ -114,6 +187,8 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//t/b/@dir/@') == '{"file"=<>-100}'
         assert get('//t/b/@dir/@file') == '<>-100'
         assert get('//t/b/@dir/@file/@') == '{}'
+
+        remove('//t')
 
 class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 1
