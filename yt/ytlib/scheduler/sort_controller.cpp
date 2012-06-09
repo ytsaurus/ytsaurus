@@ -286,11 +286,9 @@ private:
             if (AddressToOutputLocality.empty()) {
                 // No primary node is chosen yet, an arbitrary one will do.
                 // Return some magic number.
-                LOG_DEBUG("? locality %s ***", ~address);
                 return Controller->Spec->MaxSortJobDataSize;
             } else {
                 auto it = AddressToOutputLocality.find(address);
-                LOG_DEBUG("? locality %s %" PRId64, ~address, it == AddressToOutputLocality.end() ? 0 : it->second);
                 return it == AddressToOutputLocality.end() ? 0 : it->second;
             }
         }
