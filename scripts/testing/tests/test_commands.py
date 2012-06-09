@@ -185,7 +185,7 @@ class TestTxCommands(YTEnvSetup):
         assertItemsEqual(get_transactions(), [tx_id])
         renew_transaction(tx = tx_id)
 
-        time.sleep(2)
+        time.sleep(3)
         assertItemsEqual(get_transactions(), [tx_id])
         
         abort_transaction(tx = tx_id)
