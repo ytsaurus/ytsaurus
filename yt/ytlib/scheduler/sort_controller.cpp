@@ -319,7 +319,10 @@ private:
             {
                 // Check if this sort job only handles a fraction of partition.
                 bool partialSort = Partition->NeedsMerge || !Controller->PartitionTask->IsCompleted();
-                Partition->NeedsMerge = partialSort;
+                if (partialSort && !Partition->NeedsMerge) {
+                    LOG_DEBUG("Partition needs merge (Partition: %d)", Partition->Index);
+                    Partition->NeedsMerge = true;
+                }
 
                 // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
                 // Don't use replication for sort jobs in large partitions since their chunks will be merged.
