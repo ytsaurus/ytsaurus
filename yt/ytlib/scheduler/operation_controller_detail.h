@@ -168,6 +168,11 @@ protected:
         virtual int GetChunkListCountPerJob() const = 0;
         virtual TDuration GetMaxLocalityDelay() const = 0;
 
+        virtual i64 GetLocality(const Stroka& address) const
+        {
+            return ChunkPool->GetLocality(address);
+        }
+
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
 
@@ -212,11 +217,6 @@ protected:
             return jip->Job;
         }
 
-
-        i64 GetLocality(const Stroka& address) const
-        {
-            return ChunkPool->GetLocality(address);
-        }
 
         bool IsPending() const
         {
