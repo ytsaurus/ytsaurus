@@ -139,22 +139,63 @@ class TestTableCommands(YTEnvSetup):
         # mixed column keys
         # TODO(panin): check intersected columns
 
-    def test_shared_locks(self):
+    def test_shared_locks_two_chunks(self):
+        create('table', '//table')
+        tx_id = start_transaction()
+
+        write('//table', '{a=1}', tx=tx_id)
+        write('//table', '{b=2}', tx=tx_id)
+
+        assert read_table('//table') == []
+        assert read_table('//table', tx=tx_id) == [{'a':1}, {'b':2}]
+
+        commit_transaction(tx=tx_id)
+        assert read_table('//table') == [{'a':1}, {'b':2}]
+
+        remove('//table')
+
+    def test_shared_locks_three_chunks(self):
+        create('table', '//table')
+        tx_id = start_transaction()
+
+        write('//table', '{a=1}', tx=tx_id)
+        write('//table', '{b=2}', tx=tx_id)
+        write('//table', '{c=3}', tx=tx_id)
+        
+        assert read_table('//table') == []
+        assert read_table('//table', tx=tx_id) == [{'a':1}, {'b':2}, {'c' : 3}]
+
+        commit_transaction(tx=tx_id)
+        assert read_table('//table') == [{'a':1}, {'b':2}, {'c' : 3}]
+
+        remove('//table')
+
+
+
+    def test_shared_locks_parallel_tx(self):
         create('table', '//table')
 
-        write('//table', '[{a=1}]')
+        write('//table', '{a=1}')
 
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        write('//table', '[{b=2}]', tx=tx1)
+        write('//table', '{b=2}', tx=tx1)
 
-        write('//table', '[{c=3}]', tx=tx2)
-        write('//table', '[{d=4}]', tx=tx2)
+        write('//table', '{c=3}', tx=tx2)
+        write('//table', '{d=4}', tx=tx2)
 
+        # check which records are seen from different transactions
+        assert read_table('//table') == [{'a' : 1}]
+        assert read_table('//table', tx = tx1) == [{'a' : 1}, {'b': 2}]
+        assert read_table('//table', tx = tx2) == [{'a' : 1}, {'c': 3}, {'d' : 4}]
 
-
-
-
+        commit_transaction(tx = tx2)
+        assert read_table('//table') == [{'a' : 1}, {'c': 3}, {'d' : 4}]
+        assert read_table('//table', tx = tx1) == [{'a' : 1}, {'b': 2}]
+        
+        # now all records are in table in specific order
+        commit_transaction(tx = tx1)
+        assert read_table('//table') == [{'a' : 1}, {'c': 3}, {'d' : 4}, {'b' : 2}]
 
         
