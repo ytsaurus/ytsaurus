@@ -170,9 +170,9 @@ namespace {
 template<class T>
 void ValidateSignature(const T& header)
 {
-    LOG_FATAL_UNLESS(header.Signature == CorrectSignature,
+    LOG_FATAL_UNLESS(header.Signature == T::CorrectSignature,
         "Invalid signature (expected %" PRIx64 ", got %" PRIx64 ")",
-        CorrectSignature,
+        T::CorrectSignature,
         header.Signature);
 }
 

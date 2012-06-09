@@ -15,9 +15,6 @@ namespace NMetaState {
 
 // Binary Structures {{{
 
-//! Signature is used in TLogHeader and TIndexHeader
-//! for checking their correctness.
-static const ui64 CorrectSignature = 0x31303030494C5459ull; // YTLI0001
 
 //! Align all data structures by 4 bytes for gain
 //! independence from compiler and platform alignment.
@@ -25,6 +22,9 @@ static const ui64 CorrectSignature = 0x31303030494C5459ull; // YTLI0001
 
 struct TLogHeader
 {
+    //! Signature is used to check correctness of this header. It differs from index signature.
+    static const ui64 CorrectSignature = 0x313030304C435459ull; // YTCL0001
+
     ui64 Signature;
     i32 ChangeLogId;
     i32 PrevRecordCount;
@@ -69,6 +69,9 @@ static_assert(sizeof(TRecordHeader) == 16, "Binary size of TRecordHeader has cha
 
 struct TLogIndexHeader
 {
+    //! Signature is used to check correctness of this header.
+    static const ui64 CorrectSignature = 0x31303030494C5459ull; // YTLI0001
+
     ui64 Signature;
     i32 ChangeLogId;
     i32 IndexSize;
