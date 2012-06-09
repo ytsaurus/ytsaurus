@@ -209,7 +209,7 @@ private:
                 TotalJobCount);
 
             // Kick-start the map task.
-            RegisterTaskPendingHint(MapTask);
+            AddTaskPendingHint(MapTask);
         }
     }
 

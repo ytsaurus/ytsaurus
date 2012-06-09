@@ -318,7 +318,7 @@ protected:
 
             // Kick-start the tasks.
             FOREACH (const auto task, MergeTasks) {
-                RegisterTaskPendingHint(task);
+                AddTaskPendingHint(task);
             }
         }
     }

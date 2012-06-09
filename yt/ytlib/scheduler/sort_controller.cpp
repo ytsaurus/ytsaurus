@@ -233,7 +233,7 @@ private:
 
             // Kick-start all sort tasks.
             FOREACH (auto partition, Controller->Partitions) {
-                Controller->RegisterTaskPendingHint(partition->SortTask);
+                Controller->AddTaskPendingHint(partition->SortTask);
             }
         }
     };
@@ -347,7 +347,7 @@ private:
             // for all further jobs.
             auto address = jip->Job->GetNode()->GetAddress();
             AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
-            Controller->RegisterTaskLocalityHint(this, address);
+            Controller->AddTaskLocalityHint(this, address);
 
             TTask::OnJobStarted(jip);
         }
@@ -400,11 +400,11 @@ private:
 
             // Kick-start the corresponding merge task.
             if (Partition->NeedsMerge) {
-                Controller->RegisterTaskPendingHint(Partition->MergeTask);
+                Controller->AddTaskPendingHint(Partition->MergeTask);
             }
         }
 
-        virtual void RegisterInputLocalityHint(TChunkStripePtr stripe)
+        virtual void AddInputLocalityHint(TChunkStripePtr stripe)
         {
             UNUSED(stripe);
             // See #GetLocality.
@@ -553,19 +553,10 @@ private:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            // Compute statistics, populate partition pool, and prepare the fetcher.
-            for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
-                const auto& table = InputTables[tableIndex];
-
-                auto fetchRsp = table.FetchResponse;
-                FOREACH (const auto& chunk, fetchRsp->chunks()) {
-                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                    i64 weight = miscExt->data_weight();
-
+            // Prepare the fetcher.
+            FOREACH (const auto& table, InputTables) {
+                FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                     SamplesFetcher->AddChunk(chunk);
-
-                    auto stripe = New<TChunkStripe>(chunk, weight);
-                    PartitionTask->AddStripe(stripe);
                 }
             }
 
@@ -624,10 +615,13 @@ private:
         // Otherwise use size estimates.
         int partitionCount = Spec->PartitionCount
             ? Spec->PartitionCount.Get()
-            : static_cast<int>(ceil((double) SortWeightCounter.GetTotal() / Spec->MinSortPartitionSize));
+            : static_cast<int>(ceil((double) SortWeightCounter.GetTotal() / Spec->MaxSortJobDataSize));
 
         // Don't create more partitions than we have samples.
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
+
+        // Don't create more partitions than allowed by the global config.
+        partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
 
         YCHECK(partitionCount > 0);
 
@@ -661,7 +655,6 @@ private:
                 i64 weight = miscExt->uncompressed_data_size();
                 auto stripe = New<TChunkStripe>(chunk, weight);
                 partition->SortTask->AddStripe(stripe);
-                SortWeightCounter.Increment(weight);
                 ++chunkCount;
             }
         }
@@ -676,14 +669,14 @@ private:
         LOG_INFO("Sorting without partitioning");
 
         // Kick-start the sort task.
-        RegisterTaskPendingHint(partition->SortTask);
+        AddTaskPendingHint(partition->SortTask);
     }
 
     void BuildMulitplePartitions(int partitionCount)
     {
         // Take partition keys evenly.
-        for (int partIndex = 0; partIndex < partitionCount - 1; ++partIndex) {
-            int sampleIndex = (partIndex + 1) * (SortedSamples.size() - 1) / partitionCount;
+        for (int index = 0; index < partitionCount - 1; ++index) {
+            int sampleIndex = (index + 1) * (SortedSamples.size() - 1) / partitionCount;
             auto* key = SortedSamples[sampleIndex];
             // Avoid producing same keys.
             if (PartitionKeys.empty() || CompareKeys(*key, *SortedSamples.back()) != 0) {
@@ -696,8 +689,18 @@ private:
 
         // Prepare partitions.
         Partitions.resize(partitionCount);
-        for (int partIndex = 0; partIndex < static_cast<int>(Partitions.size()); ++partIndex) {
-            Partitions[partIndex] = New<TPartition>(this, partIndex);
+        for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
+            Partitions[index] = New<TPartition>(this, index);
+        }
+
+        // Populate the pool partition pool.
+        FOREACH (const auto& table, InputTables) {
+            FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
+                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                i64 weight = miscExt->data_weight();
+                auto stripe = New<TChunkStripe>(chunk, weight);
+                PartitionTask->AddStripe(stripe);
+            }
         }
 
         // Init counters.
@@ -715,10 +718,12 @@ private:
             std::numeric_limits<int>::max()) + partitionCount;
         MaxMergeJobCount = partitionCount;
 
-        LOG_INFO("Sorting with %d partitions", partitionCount);
+        LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
+            partitionCount,
+            PartitionJobCounter.GetTotal());
 
         // Kick-start the partition task.
-        RegisterTaskPendingHint(PartitionTask);
+        AddTaskPendingHint(PartitionTask);
     }
 
     void OnSamplesReceived()
@@ -735,9 +740,6 @@ private:
                 Config->SpareChunkListCount);
 
             InitJobSpecTemplates();
-
-            LOG_INFO("Samples processed (PartitionJobCount: %" PRId64 ")",
-                PartitionJobCounter.GetTotal());
         }
     }
 

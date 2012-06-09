@@ -236,7 +236,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
     return job;
 }
 
-void TOperationControllerBase::RegisterTaskPendingHint(TTaskPtr task)
+void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (task->GetPendingJobCount() > 0) {
         if (PendingTasks.insert(task).second) {
@@ -246,7 +246,7 @@ void TOperationControllerBase::RegisterTaskPendingHint(TTaskPtr task)
     }
 }
 
-void TOperationControllerBase::RegisterTaskLocalityHint(TTaskPtr task, const Stroka& address)
+void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
     if (AddressToLocalTasks[address].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %s, Address: %s)",
@@ -255,12 +255,12 @@ void TOperationControllerBase::RegisterTaskLocalityHint(TTaskPtr task, const Str
     }
 }
 
-void TOperationControllerBase::RegisterTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
+void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     FOREACH (const auto& chunk, stripe->Chunks) {
         const auto& inputChunk = chunk.InputChunk;
         FOREACH (const auto& address, inputChunk.node_addresses()) {
-            RegisterTaskLocalityHint(task, address);
+            AddTaskLocalityHint(task, address);
         }
     }
 }

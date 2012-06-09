@@ -175,8 +175,8 @@ protected:
         void AddStripe(TChunkStripePtr stripe)
         {
             ChunkPool->Add(stripe);
-            RegisterInputLocalityHint(stripe);
-            RegisterPendingHint();
+            AddInputLocalityHint(stripe);
+            AddPendingHint();
         }
 
         TJobPtr ScheduleJob(TExecNodePtr node)
@@ -270,9 +270,9 @@ protected:
             Controller->ReleaseChunkLists(jip->ChunkListIds);
 
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                RegisterInputLocalityHint(stripe);
+                AddInputLocalityHint(stripe);
             }
-            RegisterPendingHint();
+            AddPendingHint();
         }
 
         virtual void OnTaskCompleted()
@@ -281,14 +281,14 @@ protected:
         }
 
 
-        void RegisterPendingHint()
+        void AddPendingHint()
         {
-            Controller->RegisterTaskPendingHint(this);
+            Controller->AddTaskPendingHint(this);
         }
 
-        virtual void RegisterInputLocalityHint(TChunkStripePtr stripe)
+        virtual void AddInputLocalityHint(TChunkStripePtr stripe)
         {
-            Controller->RegisterTaskLocalityHint(this, stripe);
+            Controller->AddTaskLocalityHint(this, stripe);
         }
 
 
@@ -335,9 +335,9 @@ protected:
     yhash_set<TTaskPtr> PendingTasks;
     yhash_map<Stroka, yhash_set<TTaskPtr>> AddressToLocalTasks;
 
-    void RegisterTaskLocalityHint(TTaskPtr task, const Stroka& address);
-    void RegisterTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
-    void RegisterTaskPendingHint(TTaskPtr task);
+    void AddTaskLocalityHint(TTaskPtr task, const Stroka& address);
+    void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
+    void AddTaskPendingHint(TTaskPtr task);
 
     TJobPtr DoScheduleJob(TExecNodePtr node);
 
