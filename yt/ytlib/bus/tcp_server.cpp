@@ -99,7 +99,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
 
-    void OnConnectionTerminated(TTcpConnectionPtr connection, const TError& error)
+    void OnConnectionTerminated(TTcpConnectionPtr connection, TError error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         UNUSED(error);

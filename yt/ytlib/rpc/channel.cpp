@@ -369,7 +369,7 @@ private:
         return Session;
     }
 
-    void OnBusTerminated(TWeakPtr<TSession> session, const TError& error)
+    void OnBusTerminated(TWeakPtr<TSession> session, TError error)
     {
         auto session_ = session.Lock();
         if (!session_) {
