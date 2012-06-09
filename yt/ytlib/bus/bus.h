@@ -49,7 +49,7 @@ struct IBus
 
     //! Invoked upon bus termination
     //! (either due to call to #Terminate or other party's failure).
-    DECLARE_INTERFACE_SIGNAL(void(const TError&), Terminated);
+    DECLARE_INTERFACE_SIGNAL(void(TError), Terminated);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

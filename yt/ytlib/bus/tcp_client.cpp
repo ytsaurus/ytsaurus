@@ -92,13 +92,13 @@ public:
         Connection->Terminate(error);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback)
+    virtual void SubscribeTerminated(const TCallback<void(TError)>& callback)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection->SubscribeTerminated(callback);
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback)
+    virtual void UnsubscribeTerminated(const TCallback<void(TError)>& callback)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection->UnsubscribeTerminated(callback);

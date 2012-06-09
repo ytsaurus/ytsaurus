@@ -8,6 +8,7 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
+#include <ytlib/actions/future.h>
 
 #include <queue>
 #include <deque>
@@ -56,9 +57,11 @@ public:
     virtual TSendResult Send(IMessagePtr message);
     virtual void Terminate(const TError& error);
 
-    DEFINE_SIGNAL(void(const TError&), Terminated);
+    DECLARE_SIGNAL(void(TError), Terminated);
 
 private:
+    TPromise<TError> TerminatedPromise;
+
     struct TQueuedMessage
     {
         TQueuedMessage()

@@ -46,6 +46,7 @@ TTcpConnection::TTcpConnection(
     , Handler(handler)
     , State(EState::Opening)
     , ReadBuffer(ReadChunkSize)
+    , TerminatedPromise(NewPromise<TError>())
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
@@ -225,9 +226,8 @@ void TTcpConnection::SyncClose(const TError& error)
 
     // Invoke user callback.
     PROFILE_TIMING ("/terminate_handler_time") {
-        Terminated_.Fire(error);
+        TerminatedPromise.Set(error);
     }
-    Terminated_.Clear();
 
     LOG_INFO("Connection closed (ConnectionId: %s)\n%s",
         ~Id.ToString(),
@@ -305,6 +305,16 @@ void TTcpConnection::Terminate(const TError& error)
     }
 
     LOG_DEBUG("Bus termination requested (ConnectionId: %s)", ~Id.ToString());
+}
+
+void TTcpConnection::SubscribeTerminated(const TCallback<void(TError)>& callback)
+{
+    TerminatedPromise.Subscribe(callback);
+}
+
+void TTcpConnection::UnsubscribeTerminated(const TCallback<void(TError)>& callback)
+{
+    YUNREACHABLE();
 }
 
 void TTcpConnection::OnSocket(ev::io&, int revents)
