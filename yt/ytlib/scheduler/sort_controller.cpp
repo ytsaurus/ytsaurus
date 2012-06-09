@@ -365,7 +365,6 @@ private:
             // Also notify the controller that we're willing to use this node
             // for all subsequent jobs.
             auto address = jip->Job->GetNode()->GetAddress();
-            LOG_DEBUG("+locality %s %" PRId64, ~address, jip->PoolResult->TotalChunkWeight);
             AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
             Controller->AddTaskLocalityHint(this, address);
 
