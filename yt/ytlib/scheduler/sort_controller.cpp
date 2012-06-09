@@ -93,7 +93,7 @@ private:
     struct TPartition
         : public TIntrinsicRefCounted
     {
-        explicit TPartition(TSortController* controller, int index)
+        TPartition(TSortController* controller, int index)
             : Index(index)
             , Completed(false)
             , NeedsMerge(false)
@@ -508,6 +508,7 @@ private:
             TTask::OnJobFailed(jip);
         }
     };
+
 
     // Init/finish.
 
