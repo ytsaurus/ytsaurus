@@ -313,7 +313,7 @@ void TRecovery::ReplayChangeLog(
         LOG_FATAL("Not enough records in changelog %d: expected %d but found %d (StartRecordId: %d)",
             changeLog.GetId(),
             recordCount,
-            records.size(),
+            static_cast<int>(records.size()),
             startRecordId);
     }
 
