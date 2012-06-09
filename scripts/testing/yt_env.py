@@ -43,9 +43,6 @@ class YTEnv:
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 0
-    INIT_TIMEOUT = 1
-    SETUP_TIMEOUT = 8
-    TEARDOWN_TIMEOUT = 0
 
     DELTA_MASTER_CONFIG = {}
     DELTA_HOLDER_CONFIG = {}
@@ -88,7 +85,6 @@ class YTEnv:
 
     def tearDown(self):
         print 'Tearing down'
-        time.sleep(self.TEARDOWN_TIMEOUT)
         for p, name in self.process_to_kill:
             p.poll()
             if p.returncode is not None:
