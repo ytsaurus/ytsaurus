@@ -24,46 +24,38 @@ TDsvWriter::TDsvWriter(TOutputStream* stream, TDsvFormatConfigPtr config)
 
 void TDsvWriter::OnStringScalar(const TStringBuf& value)
 {
-    if (State != EState::AfterKey) {
-        ythrow yexception() << "String scalars are only supported as values in map";
-    }
+    YCHECK(State == EState::AfterKey);
     State = EState::ExpectKey;
     EscapeAndWrite(value);
 }
 
 void TDsvWriter::OnIntegerScalar(i64 value)
 {
-    if (State != EState::AfterKey) {
-        ythrow yexception() << "Integer scalars are only supported as values in map";
-    }
+    YCHECK(State == EState::AfterKey);
     State = EState::ExpectKey;
     Stream->Write(ToString(value));
 }
 
 void TDsvWriter::OnDoubleScalar(double value)
 {
-    if (State != EState::AfterKey) {
-        ythrow yexception() << "Double scalars are only supported as values in map";
-    }
+    YCHECK(State == EState::AfterKey);
     State = EState::ExpectKey;
     Stream->Write(ToString(value));
 }
 
 void TDsvWriter::OnEntity()
 {
-    ythrow yexception() << "Entities are not supported";
+    ythrow yexception() << "Entities are not supported by dsv";
 }
 
 void TDsvWriter::OnBeginList()
 {
-    ythrow yexception() << "Lists are not supported";
+    ythrow yexception() << "Embedded lists are not supported by dsv";
 }
 
 void TDsvWriter::OnListItem()
 {
-    if (State != EState::ExpectListItem) {
-        ythrow yexception() << "OnListItem is only supported at the beginning of record";
-    }
+    YCHECK(State == EState::ExpectListItem);
     State = EState::ExpectBeginMap;
 
     if (!FirstLine) {
@@ -75,13 +67,13 @@ void TDsvWriter::OnListItem()
 
 void TDsvWriter::OnEndList()
 {
-    ythrow yexception() << "Lists are not supported";
+    YUNREACHABLE();
 }
 
 void TDsvWriter::OnBeginMap()
 {
     if (State != EState::ExpectBeginMap) {
-        ythrow yexception() << "OnBeginMap is only supported at the beginning of record";
+        ythrow yexception() << "Embedded maps are not supported by dsv";
     }
     if (Config->LinePrefix) {
         Stream->Write(Config->LinePrefix.Get());
@@ -92,9 +84,7 @@ void TDsvWriter::OnBeginMap()
 
 void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 {
-    if (State != EState::ExpectKey) {
-        YUNREACHABLE();
-    }
+    YCHECK(State == EState::ExpectKey);
     State = EState::AfterKey;
 
     if (!FirstItem || Config->LinePrefix) {
@@ -108,20 +98,18 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 
 void TDsvWriter::OnEndMap()
 {
-    if (State != EState::ExpectKey) {
-        YUNREACHABLE();
-    }
+    YCHECK(State == EState::ExpectKey);
     State = EState::ExpectListItem;
 }
 
 void TDsvWriter::OnBeginAttributes()
 {
-    ythrow yexception() << "Attributes are not supported";
+    ythrow yexception() << "Attributes are not supported by dsv";
 }
 
 void TDsvWriter::OnEndAttributes()
 {
-    ythrow yexception() << "Attributes are not supported";
+    YUNREACHABLE();
 }
 
 void TDsvWriter::EscapeAndWrite(const TStringBuf& key)
