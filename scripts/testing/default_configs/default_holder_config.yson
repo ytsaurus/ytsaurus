@@ -58,24 +58,33 @@
         "addresses" = [];
         "rpc_timeout" = 5000
     };
-  "logging" = {
-    "rules" = [
-      {
-        "min_level" = "info";
-        "writers" = [
-          "file";
+    logging = {
+        rules = [
+            {
+                min_level = Info;
+                writers = [ file ];
+                categories  = [ "*" ];
+            };
+            {
+                min_level = Debug;
+                writers = [ raw ];
+                categories  = [ "*" ];
+            };
         ];
-        "categories" = [
-          "*";
-        ];
-      };
-    ];
-    "writers" = {
-      "file" = {
-        "file_name" = "holder-0.log";
-        "type" = "file";
-        "pattern" = "$(datetime) $(level) $(category) $(message)";
-      };
+        writers = {
+            stderr = {
+                type = StdErr;
+                pattern = "$(datetime) $(level) $(category) $(message)";
+            };
+            file = {
+                type = File;
+                file_name = "holder-0.log";
+                pattern = "$(datetime) $(level) $(category) $(message)";
+            };
+            raw = {
+                type = Raw;
+                file_name = "holder-0.debug.log";
+            };
+        }
     };
-  };
 }

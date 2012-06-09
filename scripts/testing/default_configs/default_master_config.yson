@@ -18,41 +18,33 @@
   transactions = {
     default_transaction_timeout = 300000;
   };
- "logging" = {
-  "rules" = [
-   {
-    "min_level" = "debug";
-    "writers" = [
-     "raw";
-    ];
-    "categories" = [
-     "*";
-    ];
-   };
-   {
-    "min_level" = "info";
-    "writers" = [
-     "file";
-    ];
-    "categories" = [
-     "*";
-    ];
-   };
-  ];
-  "writers" = {
-   "raw" = {
-    "file_name" = "master-0.debug.log";
-    "type" = "raw";
-   };
-   "c" = {
-    "pattern" = "$(datetime) $(level) $(category) $(message)";
-    "type" = "StdOut";
-   };
-   "file" = {
-    "file_name" = "master-0.log";
-    "type" = "file";
-    "pattern" = "$(datetime) $(level) $(category) $(message)";
-   };
+    logging = {
+        rules = [
+            {
+                min_level = Info;
+                writers = [ file ];
+                categories  = [ "*" ];
+            };
+            {
+                min_level = Debug;
+                writers = [ raw ];
+                categories  = [ "*" ];
+            };
+        ];
+        writers = {
+            stderr = {
+                type = StdErr;
+                pattern = "$(datetime) $(level) $(category) $(message)";
+            };
+            file = {
+                type = File;
+                file_name = "master-0.log";
+                pattern = "$(datetime) $(level) $(category) $(message)";
+            };
+            raw = {
+                type = raw;
+                file_name = "master-0.debug.log";
+            };
+        }
   };
- };
 }

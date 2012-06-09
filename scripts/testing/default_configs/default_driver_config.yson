@@ -8,8 +8,13 @@
     logging = {
         rules = [
             {
-                min_level = Debug;
+                min_level = Info;
                 writers = [ file ];
+                categories  = [ "*" ];
+            };
+            {
+                min_level = Debug;
+                writers = [ file_debug ];
                 categories  = [ "*" ];
             };
             {
@@ -26,6 +31,11 @@
             file = {
                 type = File;
                 file_name = "ytdriver.log";
+                pattern = "$(datetime) $(level) $(category) $(message)";
+            };
+            file_debug = {
+                type = File;
+                file_name = "ytdriver.debug.log";
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
         };

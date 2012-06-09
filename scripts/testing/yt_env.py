@@ -275,13 +275,17 @@ class YTEnv:
             chunk_cache = os.path.join(current, 'chunk_cache')
             chunk_store = os.path.join(current, 'chunk_store')
             slot_location = os.path.join(current, 'slot')
+
             logging_file_name = os.path.join(current, 'holder-' + str(i) + '.log')
+            debugging_file_name = os.path.join(current, 'holder-' + str(i) + '.debug.log')
+
 
             holder_config['chunk_holder']['cache_location']['path'] = chunk_cache
             holder_config['chunk_holder']['store_locations'].append( {'path': chunk_store})
             holder_config['exec_agent']['job_manager']['slot_location'] = slot_location
 
             holder_config['logging']['writers']['file']['file_name'] = logging_file_name
+            holder_config['logging']['writers']['raw']['file_name'] = debugging_file_name
 
             self.modify_holder_config(holder_config)
             deepupdate(holder_config, self.DELTA_HOLDER_CONFIG)

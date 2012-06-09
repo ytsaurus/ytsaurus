@@ -22,7 +22,7 @@ class TestTxCommands(YTEnvSetup):
         #check that transaction no longer exists
         assertItemsEqual(get_transactions(), [])
 
-        #couldn't commit commited transaction
+        #couldn't commit committed transaction
         with pytest.raises(YTError): commit_transaction(tx = tx_id)
         #could (!) abort commited transaction
         abort_transaction(tx = tx_id)
@@ -48,15 +48,23 @@ class TestTxCommands(YTEnvSetup):
 
         tx_id = start_transaction()
         set('//value', '100', tx = tx_id)
+
+        # check that changes are not seen outside of transaction
         assert get('//value', tx = tx_id) == '100'
         assert get('//value') == '42'
+
         commit_transaction(tx = tx_id)
+        # changes after commit are applied
         assert get('//value') == '100'
 
         tx_id = start_transaction()
         set('//value', '100500', tx = tx_id)
         abort_transaction(tx = tx_id)
+
+        #changes after abort are not applied
         assert get('//value') == '100'
+
+        remove('//value')
 
     def test_timeout(self):
         tx_id = start_transaction(opts = 'timeout=4000')

@@ -1,10 +1,9 @@
-
-
 import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+##################################################################
 
 class TestTableCommands(YTEnvSetup):
     NUM_MASTERS = 3
@@ -30,7 +29,7 @@ class TestTableCommands(YTEnvSetup):
         assert read_table('//table') == []
         assert get('//table/@row_count') == '0'
 
-        write('//table', '[{b="hello"}]')
+        write('//table', '{b="hello"}')
         assert read_table('//table') == [{"b":"hello"}]
         assert get('//table/@row_count') == '1'
 
@@ -123,16 +122,39 @@ class TestTableCommands(YTEnvSetup):
         assert read_table('//table{aaa:bx}') == [{'b' : 3, 'bb' : 4}] # (-, -)
 
         # open ranges
+        # from left
         assert read_table('//table{:aa}') == [{'a' : 1}] # + 
         assert read_table('//table{:aaa}') == [{'a' : 1, 'aa' : 2}] # -
 
+        # from right
         assert read_table('//table{bb:}') == [{'bb' : 4, 'c' : 5}] # + 
         assert read_table('//table{bz:}') == [{'c' : 5}] # -
         assert read_table('//table{xxx:}') == [{}]
 
+        # fully open
         assert read_table('//table{:}') == [{'a' :1, 'aa': 2,  'b': 3, 'bb' : 4, 'c': 5}]
 
         remove('//table')
 
         # mixed column keys
         # TODO(panin): check intersected columns
+
+    def test_shared_locks(self):
+        create('table', '//table')
+
+        write('//table', '[{a=1}]')
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+
+        write('//table', '[{b=2}]', tx=tx1)
+
+        write('//table', '[{c=3}]', tx=tx2)
+        write('//table', '[{d=4}]', tx=tx2)
+
+
+
+
+
+
+        
