@@ -299,6 +299,29 @@ private:
 
         yhash_map<Stroka, i64> AddressToOutputLocality;
 
+        bool CheckMergeNeeded()
+        {
+            if (Partition->NeedsMerge) {
+                return true;
+            }
+
+            // Check if this sort job only handles a fraction of partition.
+            // Two cases are possible:
+            // 1) Partition task is still running and thus may enqueue
+            // additional data to be sorted.
+            // 2) The sort pool hasn't been exhausted by the current job.
+            bool mergeNeeded =
+                !Controller->PartitionTask->IsCompleted() ||
+                IsPending();
+
+            if (mergeNeeded) {
+                LOG_DEBUG("Partition needs merge (Partition: %d)", Partition->Index);
+                Partition->NeedsMerge = true;
+            }
+
+            return mergeNeeded;
+        }
+
         virtual int GetChunkListCountPerJob() const 
         {
             return 1;
@@ -317,16 +340,9 @@ private:
             AddTabularOutputSpec(&jobSpec, jip, Controller->OutputTables[0]);
 
             {
-                // Check if this sort job only handles a fraction of partition.
-                bool partialSort = Partition->NeedsMerge || !Controller->PartitionTask->IsCompleted();
-                if (partialSort && !Partition->NeedsMerge) {
-                    LOG_DEBUG("Partition needs merge (Partition: %d)", Partition->Index);
-                    Partition->NeedsMerge = true;
-                }
-
                 // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
                 // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-                auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, !partialSort);
+                auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, !CheckMergeNeeded());
                 jobSpec.set_io_config(SerializeToYson(ioConfig));
             }
 
