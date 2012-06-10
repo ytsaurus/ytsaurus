@@ -88,31 +88,32 @@ TSharedRef PackRefs(const std::vector<TSharedRef>& refs)
         size += ref.Size();
     }
 
-    TBlob blob(AlignUp(size));
+    TBlob blob(size);
     TMemoryOutput output(blob.begin(), blob.size());
     
     WritePod(output, static_cast<i32>(refs.size()));
-    FOREACH (auto ref, refs) {
+    FOREACH (const auto& ref, refs) {
         WritePod(output, static_cast<i64>(ref.Size()));
         Write(output, TRef(ref));
     }
-    WritePaddingZeroes(output, size);
-
+ 
     return TSharedRef(MoveRV(blob));
 }
 
-void UnpackRefs(TSharedRef ref, std::vector<TSharedRef>* result)
+void UnpackRefs(TSharedRef ref, std::vector<TSharedRef>* refs)
 {
     TMemoryInput input(ref.Begin(), ref.Size());
 
     i32 refCount;
     ReadPod(input, refCount);
-    *result = std::vector<TSharedRef>(refCount);
+    YCHECK(refCount >= 0);
+
+    *refs = std::vector<TSharedRef>(refCount);
     for (i32 i = 0; i < refCount; ++i) {
         i64 refSize;
         ReadPod(input, refSize);
         TRef ref(const_cast<char*>(input.Buf()), static_cast<size_t>(refSize));
-        (*result)[i] = TSharedRef::FromRefNonOwning(ref);
+        (*refs)[i] = TSharedRef::FromRefNonOwning(ref);
         input.Skip(refSize);
     }
 }
