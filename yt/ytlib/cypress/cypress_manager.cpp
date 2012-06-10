@@ -823,7 +823,7 @@ void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    MergeBranchedNodes(transaction);
+    MergeNodes(transaction);
     if (transaction.GetParent()) {
         PromoteLocks(transaction);
         PromoteCreatedNodes(transaction);
@@ -849,7 +849,7 @@ void TCypressManager::ReleaseLocks(const TTransaction& transaction)
     }
 }
 
-void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode* branchedNode)
+void TCypressManager::MergeNode(TTransaction& transaction, ICypressNode* branchedNode)
 {
     auto handler = GetHandler(*branchedNode);
 
@@ -900,10 +900,10 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
     }
 }
 
-void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
+void TCypressManager::MergeNodes(TTransaction& transaction)
 {
     FOREACH (auto* node, transaction.BranchedNodes()) {
-        MergeBranchedNode(transaction, node);
+        MergeNode(transaction, node);
     }
 }
 

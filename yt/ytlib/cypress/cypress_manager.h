@@ -142,8 +142,8 @@ private:
     void OnTransactionAborted(NTransactionServer::TTransaction& transaction);
 
     void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
-    void MergeBranchedNodes(NTransactionServer::TTransaction& transaction);
-    void MergeBranchedNode(
+    void MergeNodes(NTransactionServer::TTransaction& transaction);
+    void MergeNode(
         NTransactionServer::TTransaction& transaction,
         ICypressNode* branchedNode);
     void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
