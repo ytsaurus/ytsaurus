@@ -259,7 +259,7 @@ TGuid TGuid::FromString(const TStringBuf& str)
 
 bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
 {
-    if(sscanf(
+    if (sscanf(
         str.data(),
         "%x-%x-%x-%x",
         &guid->Parts[3],

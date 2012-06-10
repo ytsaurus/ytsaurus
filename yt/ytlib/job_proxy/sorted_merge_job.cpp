@@ -35,8 +35,8 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 namespace {
 
 inline bool CompareReaders(
-	const TChunkSequenceReaderPtr& lhs,
-	const TChunkSequenceReaderPtr& rhs)
+    const TChunkSequenceReaderPtr& lhs,
+    const TChunkSequenceReaderPtr& rhs)
 {
     return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
 }

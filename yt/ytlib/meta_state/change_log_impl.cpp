@@ -43,7 +43,7 @@ void TChangeLog::TImpl::Append(const std::vector<TSharedRef>& records)
     LOG_DEBUG("Appending %" PRISZT " records to changelog", records.size());
 
     TGuard<TMutex> guard(Mutex);
-    FOREACH(const auto& record, records) {
+    FOREACH (const auto& record, records) {
         Append(record);
     }
 }
@@ -121,7 +121,7 @@ void Move(Stroka source, Stroka destination)
     YVERIFY(NFS::Rename(~source, ~destination));
 }
 
-template<class FileType, class HeaderType>
+template <class FileType, class HeaderType>
 void AtomicWriteHeader(
     const Stroka& fileName,
     const HeaderType& header,
@@ -168,7 +168,7 @@ void TChangeLog::TImpl::Create(i32 prevRecordCount)
 
 namespace {
 
-template<class T>
+template <class T>
 void ValidateSignature(const T& header)
 {
     LOG_FATAL_UNLESS(header.Signature == T::CorrectSignature,

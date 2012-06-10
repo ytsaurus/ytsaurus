@@ -313,7 +313,7 @@ private:
     void SelectChannels(TChunkReaderPtr chunkReader)
     {
         ChunkChannels.reserve(ChannelsExt->items_size());
-        for(int i = 0; i < ChannelsExt->items_size(); ++i) {
+        for (int i = 0; i < ChannelsExt->items_size(); ++i) {
             ChunkChannels.push_back(TChannel::FromProto(ChannelsExt->items(i).channel()));
         }
 

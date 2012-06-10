@@ -22,7 +22,7 @@ namespace NYT {
 
 /// TSmallString - A TSmallString is just a TSmallVector with methods and accessors
 /// that make it work better as a string (e.g. operator+ etc).
-template<unsigned InternalLen>
+template <unsigned InternalLen>
 class TSmallString : public TSmallVector<char, InternalLen> {
 public:
 

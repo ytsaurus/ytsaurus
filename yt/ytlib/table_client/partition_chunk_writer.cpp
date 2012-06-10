@@ -58,10 +58,10 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         }
 
         // Compose single channel that contains all fixed columns.
-        FOREACH(const auto& channel, channels) {
-            FOREACH(const auto& column, channel.GetColumns()) {
+        FOREACH (const auto& channel, channels) {
+            FOREACH (const auto& column, channel.GetColumns()) {
                 bool isKnownColumn = false;
-                FOREACH(const auto& existingColumns, Channel.GetColumns()) {
+                FOREACH (const auto& existingColumns, Channel.GetColumns()) {
                     if (existingColumns == column) {
                         isKnownColumn = true;
                         break;
@@ -82,7 +82,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     *ChannelsExt.add_items()->mutable_channel() = Channel.ToProto();
 
     PartitionKeys.reserve(partitionKeys.size());
-    FOREACH(const auto& key, partitionKeys) {
+    FOREACH (const auto& key, partitionKeys) {
         PartitionKeys.push_back(TOwningKey());
         PartitionKeys.back().FromProto(key);
     }
@@ -109,7 +109,7 @@ TAsyncError TPartitionChunkWriter::AsyncWriteRow(const TRow& row)
     TNonOwningKey key(KeyColumnCount);
     {
         TLexer lexer;
-        FOREACH(const auto& pair, row) {
+        FOREACH (const auto& pair, row) {
             auto it = ColumnIndexes.find(pair.first);
             if (it != ColumnIndexes.end() && it->second < KeyColumnCount) {
                 key.SetKeyPart(it->second, pair.second, lexer);
@@ -122,7 +122,7 @@ TAsyncError TPartitionChunkWriter::AsyncWriteRow(const TRow& row)
     auto& channelWriter = ChannelWriters[partitionTag];
 
     i64 rowDataSize = 1;
-    FOREACH(const auto& pair, row) {
+    FOREACH (const auto& pair, row) {
         auto it = ColumnIndexes.find(pair.first);
         channelWriter->Write(
             it == ColumnIndexes.end() ? TChannelWriter::UnknownIndex : it->second,

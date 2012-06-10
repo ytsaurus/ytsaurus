@@ -425,7 +425,7 @@ Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key)
     return "[" + JoinToString(key.Parts) + "]";
 }
 
-template<class TLhsBuffer, class TRhsBuffer>
+template <class TLhsBuffer, class TRhsBuffer>
 int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs)
 {
     int minSize = std::min(lhs.Parts.size(), rhs.Parts.size());

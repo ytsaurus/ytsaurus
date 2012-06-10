@@ -87,14 +87,14 @@ static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
 
 // Expand macros to null but take care of trailing semicolon.
 #define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct PP_CONCAT(TNullThreadAffinitySlot__,  __LINE__) { }
-#define VERIFY_THREAD_AFFINITY(slot)           do { } while(0)
-#define VERIFY_SPINLOCK_AFFINITY(spinLock)     do { } while(0)
-#define VERIFY_INVOKER_AFFINITY(invoker, slot) do { } while(0)
+#define VERIFY_THREAD_AFFINITY(slot)           do { } while (0)
+#define VERIFY_SPINLOCK_AFFINITY(spinLock)     do { } while (0)
+#define VERIFY_INVOKER_AFFINITY(invoker, slot) do { } while (0)
 
 #endif
 
 //! This is a mere declaration and intentionally does not check anything.
-#define VERIFY_THREAD_AFFINITY_ANY()           do { } while(0)
+#define VERIFY_THREAD_AFFINITY_ANY()           do { } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 

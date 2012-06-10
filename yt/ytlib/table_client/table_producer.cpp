@@ -31,7 +31,7 @@ bool TTableProducer::ProduceRow()
 
     Consumer->OnListItem();
     Consumer->OnBeginMap();
-    FOREACH(auto& pair, Reader->GetRow()) {
+    FOREACH (auto& pair, Reader->GetRow()) {
         Consumer->OnKeyedItem(pair.first);
         Consumer->OnRaw(pair.second, EYsonType::Node);
     }

@@ -129,7 +129,7 @@ void TestReplies(int numRequests, int numParts)
     }
 
     result.Get();
-    if(!handler->Event_.WaitT(TDuration::Seconds(2))) {
+    if (!handler->Event_.WaitT(TDuration::Seconds(2))) {
         EXPECT_IS_TRUE(false); // timeout occurred
     }
 

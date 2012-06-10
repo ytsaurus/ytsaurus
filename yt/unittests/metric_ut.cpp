@@ -55,7 +55,7 @@ TEST_F(TMetricTest, ManyValues)
     }
 
     double sum = 0;
-    for(int i = 0; i < x.ysize(); ++i) {
+    for (int i = 0; i < x.ysize(); ++i) {
         sum += x[i];
     }
 

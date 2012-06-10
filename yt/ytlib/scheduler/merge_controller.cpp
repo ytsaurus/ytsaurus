@@ -173,7 +173,7 @@ protected:
             static_cast<int>(MergeTasks.size()),
             static_cast<int>(table.PartitionTreeIds.size()));
 
-        FOREACH(auto& pair, CurrentTaskStripes) {
+        FOREACH (auto& pair, CurrentTaskStripes) {
             task->AddStripe(pair.second);
         }
 

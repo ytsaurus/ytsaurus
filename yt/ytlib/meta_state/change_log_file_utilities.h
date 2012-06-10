@@ -90,7 +90,7 @@ private:
 };
 
 //! This class forces you to work within reachable file content.
-template<class FileObject>
+template <class FileObject>
 class TCheckableFileReader
 {
 public:

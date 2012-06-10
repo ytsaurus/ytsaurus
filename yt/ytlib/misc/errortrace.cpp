@@ -96,7 +96,7 @@ static const char * print_symbol(FILE *f, int frame_index, void *const addr)
         int status;
         char *tmp = __cxxabiv1::__cxa_demangle(symname, NULL, 0, &status);
 
-        if(status == 0 && tmp)
+        if (status == 0 && tmp)
             symname = tmp;
         fprintf(f, "% 2d: %p <%s+%d> (%s)\n",
                 frame_index,
@@ -105,7 +105,7 @@ static const char * print_symbol(FILE *f, int frame_index, void *const addr)
                 (unsigned int)((char*)addr - (char*)info.dli_saddr),
                 info.dli_fname);
 
-        if(tmp)
+        if (tmp)
             free(tmp);
 
         return symname;
@@ -139,7 +139,7 @@ void print_backtrace_symbols(FILE *f, void *const *bt, int size)
     for (int i = 0; i < size; ++i) {
         // frame numbers are 1-based
         const char * name = print_symbol(f, i + 1, bt[i]);
-        if(name && strcmp(name, "main") == 0) {
+        if (name && strcmp(name, "main") == 0) {
             break;
         }
     }
@@ -159,7 +159,7 @@ static int print_backtrace(FILE *f, int depth, void ** frame, void * addr)
         }
         // frame numbers are 1-based
         const char * name = print_symbol(f, ++i, addr);
-        if(name && strcmp(name, "main") == 0) {
+        if (name && strcmp(name, "main") == 0) {
             break;
         }
         addr = frame[1];

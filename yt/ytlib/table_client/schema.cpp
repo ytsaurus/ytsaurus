@@ -314,7 +314,7 @@ TChannel TChannel::FromNode(INodePtr node)
 void operator-= (TChannel& lhs, const TChannel& rhs)
 {
     std::vector<Stroka> newColumns;
-    FOREACH(auto column, lhs.Columns) {
+    FOREACH (auto column, lhs.Columns) {
         if (!rhs.Contains(column)) {
             newColumns.push_back(column);
         }

@@ -32,7 +32,7 @@ namespace NYT {
             stderr); \
         __builtin_trap(); \
         __builtin_unreachable(); \
-    } while(0)
+    } while (0)
 #else
 #define YUNREACHABLE() \
     ::std::terminate()
@@ -47,7 +47,7 @@ namespace NYT {
             stderr); \
         __builtin_trap(); \
         __builtin_unreachable(); \
-    } while(0)
+    } while (0)
 #else
 #define YUNIMPLEMENTED() \
     ::std::terminate()

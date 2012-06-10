@@ -54,7 +54,7 @@
             return ThrowException(Exception::TypeError( \
                 String::New("Expected " #value " to be a " #type))); \
         } \
-    } while(0)
+    } while (0)
 
 #define EXPECT_THAT_HAS_INSTANCE(value, type) \
     do { \
@@ -62,7 +62,7 @@
             return ThrowException(Exception::TypeError( \
                 String::New("Expected " #value " to be an instance of " #type))); \
         } \
-    } while(0)
+    } while (0)
 
 namespace NYT {
 

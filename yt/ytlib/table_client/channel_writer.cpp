@@ -65,7 +65,7 @@ void TChannelWriter::Write(
 
 void TChannelWriter::EndRow()
 {
-    for(int columnIdx = 0; columnIdx < IsColumnUsed.size(); ++columnIdx) {
+    for (int columnIdx = 0; columnIdx < IsColumnUsed.size(); ++columnIdx) {
         if (IsColumnUsed[columnIdx]) {
             // Clean flags
             IsColumnUsed[columnIdx] = false;

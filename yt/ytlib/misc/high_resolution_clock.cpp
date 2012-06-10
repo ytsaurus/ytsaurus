@@ -40,7 +40,7 @@ static double EstimateCPUClock()
 {
     ui64 startCycle = 0;
     ui64 startMS = 0;
-    for(;;) {
+    for (;;) {
         startMS = MicroSeconds();
         startCycle = GetCycleCount();
         ui64 n = MicroSeconds();
@@ -51,7 +51,7 @@ static double EstimateCPUClock()
     Sleep(TDuration::MicroSeconds(5000));
     ui64 finishCycle = 0;
     ui64 finishMS = 0;
-    for(;;) {
+    for (;;) {
         finishMS = MicroSeconds();
         if (finishMS - startMS < 100)
             continue;

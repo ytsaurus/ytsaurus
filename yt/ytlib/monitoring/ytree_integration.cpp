@@ -17,7 +17,7 @@ TYPathServiceProducer CreateMonitoringProducer(
 {
     auto monitoringManager_ = MakeStrong(monitoringManager);
     return BIND([=] () -> IYPathServicePtr {
-		return ~monitoringManager_->GetRoot();
+    	return ~monitoringManager_->GetRoot();
     });
 }
 
