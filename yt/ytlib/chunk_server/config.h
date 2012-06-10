@@ -15,18 +15,25 @@ struct TChunkBalancerConfig
 {
     //! Minimum number of holders the cell must have online to enable starting new jobs.
     TNullable<int> MinOnlineHolderCount;
+    
     //! Max lost chunk fraction the cell is allowed to have to enable starting new jobs.
     TNullable<double> MaxLostChunkFraction;
+    
     //! Maximum number of upload targets during replication and balancing.
     int MaxReplicationFanOut;
+    
     //! Maximum number of incoming upload sessions during replication and balancing.
     int MaxReplicationFanIn;
+    
     //! Maximum number of concurrent removal jobs that can be scheduled to a holder.
     int MaxRemovalJobsPerHolder;
+    
     //! Minimum difference in fill coefficient (between the most and the least loaded holders) to start balancing.
     double MinBalancingFillCoeffDiff;
+    
     //! Minimum fill coefficient of the most loaded holder to start balancing.
     double MinBalancingFillCoeff;
+    
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
 
