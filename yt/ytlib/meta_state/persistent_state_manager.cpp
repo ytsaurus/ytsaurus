@@ -472,26 +472,37 @@ public:
             throw TServiceException(result);
         }
 
-        auto changeLog = result.Value();
-        IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
-            VERIFY_THREAD_AFFINITY(IOThread);
+        IOQueue->GetInvoker()->Invoke(context->Wrap(BIND(
+            &TThis::DoReadChangeLog,
+            MakeStrong(this),
+            result.Value(),
+            startRecordId,
+            recordCount)));
+    }
 
-            std::vector<TSharedRef> recordData;
-            try {
-                changeLog->Read(startRecordId, recordCount, &recordData);
-            } catch (const std::exception& ex) {
-                LOG_FATAL("IO error while reading changelog (ChangeLogId: %d)\n%s",
-                    changeLogId,
-                    ex.what());
-            }
+    void DoReadChangeLog(
+        TCachedAsyncChangeLogPtr changeLog,
+        i32 startRecordId,
+        i32 recordCount,
+        TCtxReadChangeLogPtr context)
+    {
+        VERIFY_THREAD_AFFINITY(IOThread);
 
-            context->Response().set_records_read(recordData.size());
-            // Pack refs for minimize allocations number on the side of the request
-            context->Response().Attachments().push_back(PackRefs(recordData));
+        std::vector<TSharedRef> recordData;
+        try {
+            changeLog->Read(startRecordId, recordCount, &recordData);
+        } catch (const std::exception& ex) {
+            LOG_FATAL("IO error while reading changelog %d\n%s",
+                changeLog->GetId(),
+                ex.what());
+        }
 
-            context->SetResponseInfo("RecordCount: %d", recordData.size());
-            context->Reply();
-        })));
+        context->Response().set_records_read(recordData.size());
+        // Pack refs for minimize allocations.
+        context->Response().Attachments().push_back(PackRefs(recordData));
+
+        context->SetResponseInfo("RecordCount: %d", recordData.size());
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ApplyChanges)
