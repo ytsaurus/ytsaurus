@@ -588,7 +588,7 @@ private:
         }
 
         PROFILE_TIMING ("/chunk_tree_rebalancing_time") {
-            LOG_DEBUG_IF(!IsRecovery(), "Starting rebalancing chunk list (ChunkListId: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Starting rebalancing chunk list (ChunkListId: %s)",
                 ~root->GetId().ToString());
 
             YASSERT(root->Parents().empty());
@@ -624,7 +624,7 @@ private:
             YASSERT(newStatistics.CompressedSize == oldStatistics.CompressedSize);
             YASSERT(newStatistics.ChunkCount == oldStatistics.ChunkCount);
 
-            LOG_DEBUG_IF(!IsRecovery(), "Chunk list rebalanced (ChunkListId: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list rebalanced (ChunkListId: %s)",
                 ~root->GetId().ToString());
         }
     }
@@ -718,13 +718,13 @@ private:
     
         auto* existingHolder = FindHolderByAddresss(address);
         if (existingHolder) {
-            LOG_INFO_IF(!IsRecovery(), "Holder kicked out due to address conflict (Address: %s, HolderId: %d)",
+            LOG_INFO_UNLESS(IsRecovery(), "Holder kicked out due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
                 existingHolder->GetId());
             DoUnregisterHolder(*existingHolder);
         }
 
-        LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, IncarnationId: %s, %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Holder registered (Address: %s, HolderId: %d, IncarnationId: %s, %s)",
             ~address,
             holderId,
             ~incarnationId.ToString(),
@@ -776,7 +776,7 @@ private:
 
             auto& holder = GetHolder(holderId);
 
-            LOG_DEBUG_IF(!IsRecovery(), "Full heartbeat received (Address: %s, HolderId: %d, State: %s, %s, Chunks: %d)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Full heartbeat received (Address: %s, HolderId: %d, State: %s, %s, Chunks: %d)",
                 ~holder.GetAddress(),
                 holderId,
                 ~holder.GetState().ToString(),
@@ -792,7 +792,7 @@ private:
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
-            LOG_INFO_IF(!IsRecovery(), "Holder online (Address: %s, HolderId: %d)",
+            LOG_INFO_UNLESS(IsRecovery(), "Holder online (Address: %s, HolderId: %d)",
                 ~holder.GetAddress(),
                 holderId);
 
@@ -816,7 +816,7 @@ private:
 
             auto& holder = GetHolder(holderId);
 
-            LOG_DEBUG_IF(!IsRecovery(), "Incremental heartbeat received (Address: %s, HolderId: %d, State: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Incremental heartbeat received (Address: %s, HolderId: %d, State: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
                 ~holder.GetAddress(),
                 holderId,
                 ~holder.GetState().ToString(),
@@ -868,7 +868,7 @@ private:
                 }
             }
 
-            LOG_DEBUG_IF(!IsRecovery(), "Holder jobs updated (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Holder jobs updated (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
                 ~holder.GetAddress(),
                 holderId,
                 static_cast<int>(message.started_jobs_size()),
@@ -1027,7 +1027,7 @@ private:
         PROFILE_TIMING ("/holder_unregistration_time") {
             auto holderId = holder.GetId();
 
-            LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
+            LOG_INFO_UNLESS(IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
                 ~holder.GetAddress(),
                 holderId);
 
@@ -1076,7 +1076,7 @@ private:
         auto holderId = holder.GetId();
 
         if (holder.HasChunk(chunk, cached)) {
-            LOG_DEBUG_IF(!IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
                 ~reason.ToString(),
@@ -1131,7 +1131,7 @@ private:
         auto holderId = holder.GetId();
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !holder.HasChunk(chunk, cached)) {
-            LOG_DEBUG_IF(!IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
                 ~reason.ToString(),
@@ -1197,7 +1197,7 @@ private:
 
         RegisterReplicationSinks(job);
 
-        LOG_INFO_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
             ~holder.GetAddress(),
             holder.GetId(),
@@ -1233,7 +1233,7 @@ private:
 
         JobMap.Remove(jobId);
 
-        LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s)", ~jobId.ToString());
+        LOG_INFO_UNLESS(IsRecovery(), "Job removed (JobId: %s)", ~jobId.ToString());
     }
 
 
@@ -1254,7 +1254,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s)",
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
@@ -1268,7 +1268,7 @@ private:
         }
 
         if (!cached && holder.HasUnapprovedChunk(chunk)) {
-            LOG_DEBUG_IF(!IsRecovery(), "Chunk approved (Address: %s, HolderId: %d, ChunkId: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (Address: %s, HolderId: %d, ChunkId: %s)",
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString());
@@ -1306,7 +1306,7 @@ private:
 
         auto* chunk = FindChunk(chunkId);
         if (!chunk) {
-            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
                  ~FormatBool(cached),
                  ~holder.GetAddress(),
@@ -1667,14 +1667,14 @@ private:
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolderByAddresss(address);
             if (!holder) {
-                LOG_DEBUG_IF(!Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown holder %s",
+                LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown holder %s",
                     ~Id.ToString(),
                     ~address);
                 continue;
             }
 
             if (holder->GetState() != EHolderState::Online) {
-                LOG_DEBUG_IF(!Owner->IsRecovery(), "Tried to confirm chunk %s at holder %s with invalid state %s",
+                LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Tried to confirm chunk %s at holder %s with invalid state %s",
                     ~Id.ToString(),
                     ~address,
                     ~FormatEnum(holder->GetState()));
@@ -1692,7 +1692,7 @@ private:
         }
 
         chunk.ChunkMeta().CopyFrom(request->chunk_meta());
-        LOG_INFO_IF(!Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
+        LOG_INFO_UNLESS(Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
 
         context->Reply();
     }
@@ -1738,7 +1738,7 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
+        LOG_INFO_UNLESS(Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
             ~JoinToString(responseExt->node_addresses()),
             ~chunk->GetId().ToString(),
             ~ToString(preferredHostName),

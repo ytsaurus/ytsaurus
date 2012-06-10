@@ -322,7 +322,7 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
 
     TransactionStarted_.Fire(*transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Started transaction %s (ParentId: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Started transaction %s (ParentId: %s)",
         ~id.ToString(),
         ~GetObjectId(parent).ToString());
 
@@ -353,7 +353,7 @@ void TTransactionManager::Commit(TTransaction& transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Committed transaction %s", ~id.ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Committed transaction %s", ~id.ToString());
 }
 
 void TTransactionManager::Abort(TTransaction& transaction)
@@ -383,7 +383,7 @@ void TTransactionManager::Abort(TTransaction& transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Aborted transaction %s", ~id.ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Aborted transaction %s", ~id.ToString());
 }
 
 void TTransactionManager::FinishTransaction(TTransaction& transaction)

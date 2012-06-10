@@ -360,7 +360,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
         counter & 0xffffffff,
         counter >> 32);
 
-    LOG_DEBUG_IF(!IsRecovery(), "Object id generated (Type: %s, Id: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object id generated (Type: %s, Id: %s)",
         ~type.ToString(),
         ~id.ToString());
 
@@ -372,7 +372,7 @@ void TObjectManager::RefObject(const TObjectId& id)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = GetHandler(id)->RefObject(id);
-    LOG_DEBUG_IF(!IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
         ~id.ToString(),
         refCounter);
 }
@@ -398,11 +398,11 @@ void TObjectManager::UnrefObject(const TObjectId& id)
 
     auto handler = GetHandler(id);
     i32 refCounter = handler->UnrefObject(id);
-    LOG_DEBUG_IF(!IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
         ~id.ToString(),
         refCounter);
     if (refCounter == 0) {
-        LOG_DEBUG_IF(!IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
             ~handler->GetType().ToString(),
             ~id.ToString());
     }
@@ -563,7 +563,7 @@ void TObjectManager::ExecuteVerb(
     IServiceContextPtr context,
     TCallback<void(NRpc::IServiceContextPtr)> action)
 {
-    LOG_INFO_IF(!IsRecovery(), "Executing %s request with path %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Executing %s request with path %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),
         ~context->GetPath().Quote(),
         ~id.ObjectId.ToString(),

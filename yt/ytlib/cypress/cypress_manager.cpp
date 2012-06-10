@@ -444,7 +444,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
             if (currentTransaction == transaction) {
                 // Update the lock mode if a higher one was requested (unless this is the null transaction).
                 if (currentTransaction != NULL && currentNode->GetLockMode() < requestedMode) {
-                    LOG_INFO_IF(!IsRecovery(), "Upgraded node %s lock from %s to %s at transaction %s",
+                    LOG_INFO_UNLESS(IsRecovery(), "Upgraded node %s lock from %s to %s at transaction %s",
                         ~nodeId.ToString(),
                         ~FormatEnum(currentNode->GetLockMode()).Quote(),
                         ~FormatEnum(requestedMode).Quote(),
@@ -622,7 +622,7 @@ TLockId TCypressManager::AcquireLock(
     transaction->Locks().push_back(lock);
     objectManager->RefObject(lock);
 
-    LOG_INFO_IF(!IsRecovery(), "Locked node %s with mode %s at transaction %s (LockId: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Locked node %s with mode %s at transaction %s (LockId: %s)",
         ~nodeId.ToString(),
         ~FormatEnum(mode).Quote(),
         ~transaction->GetId().ToString(),
@@ -686,7 +686,7 @@ void TCypressManager::RegisterNode(
         Bootstrap->GetObjectManager()->RefObject(nodeId);
     }
 
-    LOG_INFO_IF(!IsRecovery(), "Registered node %s of type %s at transaction %s",
+    LOG_INFO_UNLESS(IsRecovery(), "Registered node %s of type %s at transaction %s",
         ~nodeId.ToString(),
         ~TypeFromId(nodeId).ToString(),
         ~GetObjectId(transaction).ToString());
@@ -718,7 +718,7 @@ ICypressNode& TCypressManager::BranchNode(
     // The branched node holds an implicit reference to its originator.
     Bootstrap->GetObjectManager()->RefObject(id);
     
-    LOG_INFO_IF(!IsRecovery(), "Branched node %s with %s mode",
+    LOG_INFO_UNLESS(IsRecovery(), "Branched node %s with %s mode",
         ~id.ToString(),
         ~FormatEnum(mode).Quote());
 
@@ -857,7 +857,7 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
     if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
         handler->Destroy(*branchedNode);
         NodeMap.Remove(branchedId);
-        LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedId.ToString());
+        LOG_INFO_UNLESS(IsRecovery(), "Removed branched node %s", ~branchedId.ToString());
         return;
     }
 
@@ -867,14 +867,14 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
     if (originatingNode) {
         // Merge changes back.
         handler->Merge(*originatingNode, *branchedNode);
-        LOG_INFO_IF(!IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
+        LOG_INFO_UNLESS(IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
 
         // Upgrade lock mode if needed.
         if (parentTransaction && originatingNode->GetLockMode() < branchedNode->GetLockMode()) {
             YASSERT(originatingNode->GetLockMode() != ELockMode::Snapshot);
             YASSERT(branchedNode->GetLockMode() != ELockMode::Snapshot);
             originatingNode->SetLockMode(branchedNode->GetLockMode());
-            LOG_INFO_IF(!IsRecovery(), "Upgraded lock mode of node %s to %s",
+            LOG_INFO_UNLESS(IsRecovery(), "Upgraded lock mode of node %s to %s",
                 ~originatingId.ToString(),
                 ~FormatEnum(originatingNode->GetLockMode()).Quote());
         }
@@ -894,7 +894,7 @@ void TCypressManager::MergeBranchedNode(TTransaction& transaction, ICypressNode*
         parentTransaction->BranchedNodes().push_back(branchedNode);
         branchedNode->PromoteToTransaction(parentTransaction);
 
-        LOG_DEBUG_IF(!IsRecovery(), "Promoted branched node %s to transaction %s",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Promoted branched node %s to transaction %s",
             ~branchedId.ToString(),
             ~parentTransaction->GetId().ToString());
     }
@@ -912,7 +912,7 @@ void TCypressManager::PromoteCreatedNodes(NTransactionServer::TTransaction& tran
     auto* parentTransaction = transaction.GetParent();
     FOREACH (auto* node, transaction.CreatedNodes()) {
         parentTransaction->CreatedNodes().push_back(node);
-        LOG_DEBUG_IF(!IsRecovery(), "Promoted node %s to transaction %s",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Promoted node %s to transaction %s",
             ~node->GetId().ObjectId.ToString(),
             ~parentTransaction->GetId().ToString());
     }
@@ -932,7 +932,7 @@ void TCypressManager::PromoteLocks(TTransaction& transaction)
     FOREACH (auto* lock, transaction.Locks()) {
         lock->PromoteToTransaction(parentTransaction);
         parentTransaction->Locks().push_back(lock);
-        LOG_DEBUG_IF(!IsRecovery(), "Promoted lock %s to transaction %s",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Promoted lock %s to transaction %s",
             ~lock->GetId().ToString(),
             ~parentTransaction->GetId().ToString());
     }
@@ -950,7 +950,7 @@ void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(branchedNodeId);
 
-        LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~branchedNodeId.ToString());
+        LOG_INFO_UNLESS(IsRecovery(), "Removed branched node %s", ~branchedNodeId.ToString());
     }
 }
 
