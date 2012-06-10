@@ -27,13 +27,22 @@ public:
 
     ~TChangeLog();
 
+    //! Opens existing changelog.
+    //! Throws exception on failure.
     void Open();
+    //! Creates new changelog.
+    //! Throws exception on failure.
     void Create(i32 prevRecordCount);
+    //! Finalizes current changelog.
     void Finalize();
 
+    //! Appends records to the changelog.
     void Append(i32 firstRecordId, const std::vector<TSharedRef>& records);
+    //! Flushes the changelog.
     void Flush();
+    //! Reads #recordCount records starting from record with id #firstRecordId.
     void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result);
+    //! Deletes all records with id greater or equal than #atRecordId.
     void Truncate(i32 atRecordId);
 
     i32 GetId() const;
@@ -43,7 +52,6 @@ public:
 
 private:
     class TImpl;
-
     THolder<TImpl> Impl;
 };
 

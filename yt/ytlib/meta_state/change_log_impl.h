@@ -2,8 +2,8 @@
 
 #include "common.h"
 #include "change_log.h"
+#include "change_log_file_utilities.h"
 
-#include <ytlib/misc/buffered_file.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/checksum.h>
 #include <ytlib/logging/tagged_logger.h>
@@ -15,14 +15,12 @@ namespace NMetaState {
 
 // Binary Structures {{{
 
-
-//! Align all data structures by 4 bytes for gain
-//! independence from compiler and platform alignment.
 #pragma pack(push, 4)
 
 struct TLogHeader
 {
-    //! Signature is used to check correctness of this header. It differs from index signature.
+    //! Signature is used to check correctness of this header.
+    //! Have to be different from the index signature.
     static const ui64 CorrectSignature = 0x313030304C435459ull; // YTCL0001
 
     ui64 Signature;
@@ -132,15 +130,17 @@ public:
         i64 indexBlockSize);
 
     void Open();
-    //! Creates changelog atomically
     void Create(i32 previousRecordCount);
+
     void Append(const std::vector<TSharedRef>&);
     void Append(i32 firstRecordId, const std::vector<TSharedRef>&);
-    void Finalize();
+    void Append(const TSharedRef& ref);
+
     void Flush();
-    //! Deletes all records with id greater or equal than atRecordId.
-    void Truncate(i32 atRecordId);
     void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* records);
+    void Truncate(i32 atRecordId);
+
+    void Finalize();
 
     i32 GetId() const;
     i32 GetPrevRecordCount() const;
@@ -179,10 +179,7 @@ private:
         TLogIndexRecord LowerBound;
         TLogIndexRecord UpperBound;
         TSharedRef Blob;
-   };
-
-    //! Append one record without Mutex.
-    void Append(const TSharedRef& ref);
+    };
 
     //! Processes currently read or written record to changelog.
     /*! Checks correctness of record id, updates the index, record count,
@@ -190,15 +187,16 @@ private:
      */
     void ProcessRecord(i32 recordId, i32 readSize);
 
-    //! Refresh index header by current number of records.
+    //! Refresh index header and update current number of records.
     void RefreshIndexHeader();
+
     //! Reads maximal correct prefix of index, truncate bad index records.
     void ReadIndex();
 
     //! Reads piece of changelog that contains firstRecordId and lastRecordId.
     TEnvelopeData ReadEnvelope(i32 firstRecordId, i32 lastRecordId);
 
-    //! Upreads changelog from the end of the current index.
+    //! Reads changelog starting from the last indexed record until the end of file.
     void ReadChangeLogUntilEnd();
 
     //! Constant data.

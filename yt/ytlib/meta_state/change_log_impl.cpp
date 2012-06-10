@@ -111,7 +111,6 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, std::vector<TSh
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 namespace {
 
 void Move(Stroka source, Stroka destination)
@@ -139,6 +138,8 @@ void AtomicWriteHeader(
 }
 
 } // anonymous namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TChangeLog::TImpl::Create(i32 prevRecordCount)
 {
@@ -197,7 +198,9 @@ size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index)
     return correctPrefixLength;
 }
 
-} //anonymous namespace
+} // anonymous namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TChangeLog::TImpl::Open()
 {
