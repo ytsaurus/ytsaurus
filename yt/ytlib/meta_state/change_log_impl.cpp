@@ -444,7 +444,7 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
 
     // Seek to proper position in file, initialize checkable reader.
     File->Seek(CurrentFilePosition, sSet);
-    auto checkableFile = makeCheckableReader(*File);
+    auto checkableFile = CreateCheckableReader(*File);
 
     TNullable<TRecordInfo> recordInfo;
     if (!Index.empty()) {

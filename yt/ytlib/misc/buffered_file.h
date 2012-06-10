@@ -10,7 +10,7 @@
 namespace NYT {
 namespace NMetaState {
 
-//! Wrapper on File and BufferedFileOutput.
+//! Wrapper on TFile and TBufferedFileOutput.
 class TBufferedFile
 {
 public:
@@ -31,34 +31,33 @@ public:
         File_.Flush();
     }
 
-    void Append(const void* buf, size_t len)
+    void Append(const void* buffer, size_t length)
     {
-        // You promise that write at the end of the file.
-        FileOutput_.Write(buf, len);
+        FileOutput_.Write(buffer, length);
     }
     
-    void Write(const void* buf, size_t len)
+    void Write(const void* buffer, size_t length)
     {
         FileOutput_.Flush();
-        File_.Write(buf, len);
+        File_.Write(buffer, length);
     }
 
-    size_t Pread(void* buf, size_t len, i64 offset)
+    size_t Pread(void* buffer, size_t length, i64 offset)
     {
         FileOutput_.Flush();
-        return File_.Pread(buf, len, offset);
+        return File_.Pread(buffer, length, offset);
     }
 
-    size_t Read(void* buf, size_t len)
+    size_t Read(void* buffer, size_t length)
     {
         FileOutput_.Flush();
-        return File_.Read(buf, len);
+        return File_.Read(buffer, length);
     }
 
-    void Skip(size_t len)
+    void Skip(size_t length)
     {
         FileOutput_.Flush();
-        File_.Seek(len, sCur);
+        File_.Seek(length, sCur);
     }
 
     size_t GetPosition()
@@ -73,10 +72,10 @@ public:
         return File_.GetLength();
     }
     
-    void Resize(size_t len)
+    void Resize(size_t length)
     {
         FileOutput_.Flush();
-        File_.Resize(len);
+        File_.Resize(length);
     }
 
     void Close()
@@ -90,7 +89,7 @@ private:
     TBufferedFileOutput FileOutput_;
 };
 
-//! Using this class you promise don't work with file externally.
+//! This class forces you to work within reachable file content.
 template<class FileObject>
 class TCheckableFileReader
 {
@@ -102,30 +101,30 @@ public:
         Success_(true)
     { }
     
-    size_t Read(void* buf, size_t len)
+    size_t Read(void* buffer, size_t length)
     {
-        if (Check(len)) {
-            size_t readLength = File_.Read(buf, len);
-            CurrentOffset_ += readLength;
-            return readLength;
+        if (Check(length)) {
+            size_t bytesRead = File_.Read(buffer, length);
+            CurrentOffset_ += bytesRead;
+            return bytesRead;
         }
         return 0;
     }
     
-    void Skip(size_t len)
+    void Skip(size_t length)
     {
-        if (Check(len)) {
-            File_.Skip(len);
-            CurrentOffset_ += len;
+        if (Check(length)) {
+            File_.Skip(length);
+            CurrentOffset_ += length;
         }
     }
 
-    bool Check(size_t len)
+    bool Check(size_t length)
     {
         if (!Success_) {
             return false;
         }
-        if (CurrentOffset_ + len > FileLength_) {
+        if (CurrentOffset_ + length > FileLength_) {
             Success_ = false;
             return false;
         }
@@ -145,7 +144,8 @@ private:
 };
 
 template <class FileObject>
-TCheckableFileReader<FileObject> makeCheckableReader(FileObject& file) {
+TCheckableFileReader<FileObject> CreateCheckableReader(FileObject& file)
+{
     return TCheckableFileReader<FileObject>(file);
 }
 
