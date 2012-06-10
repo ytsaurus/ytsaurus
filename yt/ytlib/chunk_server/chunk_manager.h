@@ -89,6 +89,8 @@ public:
         TChunkList* chunkList,
         const std::vector<TChunkTreeRef>& children);
 
+    void ClearChunkList(TChunkList* chunkList);
+
     void ScheduleJobs(
         THolder* holder,
         const std::vector<NProto::TJobInfo>& runningJobs,

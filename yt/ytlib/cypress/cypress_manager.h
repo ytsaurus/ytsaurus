@@ -108,7 +108,7 @@ private:
     class TNodeMapTraits
     {
     public:
-        TNodeMapTraits(TCypressManager* cypressManager);
+        explicit TNodeMapTraits(TCypressManager* cypressManager);
 
         TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) const;
 

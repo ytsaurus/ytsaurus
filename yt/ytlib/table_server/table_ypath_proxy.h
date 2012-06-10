@@ -16,6 +16,7 @@ struct TTableYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, GetChunkListForUpdate);
     DEFINE_YPATH_PROXY_METHOD(NProto, Fetch);
     DEFINE_YPATH_PROXY_METHOD(NProto, SetSorted);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Clear);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

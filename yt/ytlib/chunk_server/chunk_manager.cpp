@@ -148,8 +148,8 @@ public:
         , StartJobCounter("/start_job_rate")
         , StopJobCounter("/stop_job_rate")
     {
-        YASSERT(config);
-        YASSERT(bootstrap);
+        YCHECK(config);
+        YCHECK(bootstrap);
 
         RegisterMethod(BIND(&TImpl::FullHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::IncrementalHeartbeat, Unretained(this)));
@@ -337,6 +337,21 @@ public:
     }
 
 
+    void ClearChunkList(TChunkList* chunkList)
+    {
+        // TODO(babenko): currently we only support clearing a chunklist with no parents.
+        YCHECK(chunkList->Parents().empty());
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        FOREACH (auto childRef, chunkList->Children()) {
+            objectManager->UnrefObject(childRef.GetId());
+        }
+        chunkList->Children().clear();
+        chunkList->RowCountSums().clear();
+        chunkList->Statistics() = TChunkTreeStatistics();
+    }
+
+
     void ScheduleJobs(
         THolder* holder,
         const std::vector<TJobInfo>& runningJobs,
@@ -466,14 +481,18 @@ private:
         // Go upwards and apply delta.
         // Also reset Sorted flags.
         // Check that parents are unique along the way.
-        ++statisticsDelta->Rank;
-        chunkList->Statistics().Accumulate(*statisticsDelta);
-        chunkList->SetSorted(false);
+        while (true) {
+            ++statisticsDelta->Rank;
+            chunkList->Statistics().Accumulate(*statisticsDelta);
+            chunkList->SetSorted(false);
 
-        const auto& parents = chunkList->Parents();
-        if (!parents.empty()) {
-            YASSERT(parents.size() == 1);
-            UpdateStatistics(*parents.begin(), statisticsDelta);
+            const auto& parents = chunkList->Parents();
+            if (parents.empty()) {
+                break;
+            }
+
+            YCHECK(parents.size() == 1);
+            chunkList = *parents.begin();
         }
     }
 
@@ -596,14 +615,14 @@ private:
             auto oldStatistics = root->Statistics();
 
             // Create new children list.
-            YASSERT(root->Statistics().Rank > 1); // We can't put root into new children
+            YASSERT(root->Statistics().Rank > 1); // Can't put root into new children.
             std::vector<TChunkTreeRef> newChildren;
             TChunkTreeRef rootRef(root);
             AddChunkRef(&newChildren, rootRef);
             YASSERT(!newChildren.empty());
             YASSERT(newChildren.front() != rootRef);
 
-            // Rewrite root->
+            // Rewrite root.
             auto oldChildren = root->Children();
             root->Children().clear(); // We'll drop the references later.
             root->RowCountSums().clear();
@@ -783,7 +802,7 @@ private:
                 ~ToString(statistics),
                 static_cast<int>(message.chunks_size()));
 
-            YASSERT(holder.GetState() == EHolderState::Registered);
+            YCHECK(holder.GetState() == EHolderState::Registered);
             holder.SetState(EHolderState::Online);
             holder.Statistics() = statistics;
 
@@ -796,8 +815,8 @@ private:
                 ~holder.GetAddress(),
                 holderId);
 
-            YASSERT(holder.StoredChunks().empty());
-            YASSERT(holder.CachedChunks().empty());
+            YCHECK(holder.StoredChunks().empty());
+            YCHECK(holder.CachedChunks().empty());
 
             FOREACH (const auto& chunkInfo, message.chunks()) {
                 ProcessAddedChunk(holder, chunkInfo, false);
@@ -824,7 +843,7 @@ private:
                 static_cast<int>(message.added_chunks_size()),
                 static_cast<int>(message.removed_chunks_size()));
 
-            YASSERT(holder.GetState() == EHolderState::Online);
+            YCHECK(holder.GetState() == EHolderState::Online);
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
@@ -1382,11 +1401,13 @@ private:
     TReplicationSink& GetOrCreateReplicationSink(const Stroka& address)
     {
         auto it = ReplicationSinkMap.find(address);
-        if (it != ReplicationSinkMap.end())
+        if (it != ReplicationSinkMap.end()) {
             return it->second;
+        }
 
         auto pair = ReplicationSinkMap.insert(MakePair(address, TReplicationSink(address)));
-        YASSERT(pair.second);
+        YCHECK(pair.second);
+
         return pair.first->second;
     }
 
@@ -1640,7 +1661,7 @@ private:
         UNUSED(response);
 
         auto& holderAddresses = request->node_addresses();
-        YASSERT(holderAddresses.size() != 0);
+        YCHECK(holderAddresses.size() != 0);
 
         context->SetRequestInfo("Size: %" PRId64 ", HolderAddresses: [%s]",
             request->chunk_info().size(),
@@ -2035,6 +2056,11 @@ void TChunkManager::AttachToChunkList(
     const std::vector<TChunkTreeRef>& children)
 {
     Impl->AttachToChunkList(chunkList, children);
+}
+
+void TChunkManager::ClearChunkList(TChunkList* chunkList)
+{
+    Impl->ClearChunkList(chunkList);
 }
 
 void TChunkManager::ScheduleJobs(

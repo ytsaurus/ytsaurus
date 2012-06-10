@@ -9,11 +9,20 @@ namespace NChunkServer {
 
 struct TChunkTreeStatistics
 {
+    //! Total number of rows in the tree.
     i64 RowCount;
+    
+    //! Sum of uncompressed sizes of chunks in the tree.
     i64 UncompressedSize;
+    
+    //! Sum of compressed sizes of chunks in the tree.
     i64 CompressedSize;
-    i32 ChunkCount;
-    i32 Rank; // Rank is a distance to leaves (chunks) in edges. Chunks have rank = 0.
+    
+    //! Total number of chunks in the tree.
+    int ChunkCount;
+
+    //! Distance to leaves (chunks) in edges. Leaves have rank zero.
+    int Rank;
 
     TChunkTreeStatistics()
         : RowCount(0)

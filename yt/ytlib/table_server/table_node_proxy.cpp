@@ -571,6 +571,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 {
     UNUSED(request);
 
+    context->SetRequestInfo("");
+
     auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
 
     const auto& chunkListId = impl.GetChunkList()->GetId();
@@ -583,6 +585,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
+    context->SetRequestInfo("");
+
     const auto& impl = GetTypedImpl();
 
     auto channel = TChannel::CreateEmpty();
@@ -654,7 +658,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
-    context->SetRequestInfo("KeyColumnsCount: %d", request->key_columns_size());
+    context->SetRequestInfo("KeyColumns: [%s]", ~JoinToString(request->key_columns()));
 
     auto& impl = GetTypedImplForUpdate();
     impl.KeyColumns() = FromProto<Stroka>(request->key_columns());
@@ -662,6 +666,21 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     auto* rootChunkList = impl.GetChunkList();
     YASSERT(rootChunkList->Parents().empty());
     rootChunkList->SetSorted(true);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
+{
+    context->SetRequestInfo("");
+
+    // This takes exclusive lock.
+    auto& impl = GetTypedImplForUpdate();
+
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto* chunkList = impl.GetChunkList();
+    chunkManager->ClearChunkList(chunkList);
+    chunkList->SetRebalancingEnabled(true);
 
     context->Reply();
 }

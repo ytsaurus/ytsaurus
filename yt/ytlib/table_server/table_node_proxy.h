@@ -62,6 +62,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
     DECLARE_RPC_SERVICE_METHOD(NProto, SetSorted);
+    DECLARE_RPC_SERVICE_METHOD(NProto, Clear);
 
 };
 
