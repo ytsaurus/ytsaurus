@@ -36,13 +36,19 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
         int index = Body.part_counts_size();
         KeyToIndexes.insert(MakePair(key, index));
     }
-    auto innerMessage = innerRequest->Serialize();
-    const auto& innerParts = innerMessage->GetParts();
-    Body.add_part_counts(static_cast<int>(innerParts.size()));
-    Attachments_.insert(
-        Attachments_.end(),
-        innerParts.begin(),
-        innerParts.end());
+
+    if (innerRequest) {
+        auto innerMessage = innerRequest->Serialize();
+        const auto& innerParts = innerMessage->GetParts();
+        Body.add_part_counts(static_cast<int>(innerParts.size()));
+        Attachments_.insert(
+            Attachments_.end(),
+            innerParts.begin(),
+            innerParts.end());
+    } else {
+        Body.add_part_counts(0);
+    }
+
     return this;
 }
 
@@ -65,7 +71,7 @@ TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     const std::multimap<Stroka, int>& keyToIndexes)
     : TClientResponse(requestId)
     , KeyToIndexes(keyToIndexes)
-    , Promise(NewPromise<TPtr>())
+    , Promise(NewPromise<TRspExecuteBatchPtr>())
 { }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>

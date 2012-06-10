@@ -16,14 +16,19 @@ template <class TTypedResponse>
 TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
     YCHECK(index >= 0 && index < GetSize());
-    auto innerResponse = New<TTypedResponse>();
     int beginIndex = BeginPartIndexes[index];
     int endIndex = beginIndex + Body.part_counts(index);
-    yvector<TSharedRef> innerParts(
+    if (beginIndex == endIndex) {
+        // This is the empty response.
+        return NULL;
+    }
+
+    std::vector<TSharedRef> innerParts(
         Attachments_.begin() + beginIndex,
         Attachments_.begin() + endIndex);
     auto innerMessage = NBus::CreateMessageFromParts(MoveRV(innerParts));
-    innerResponse->Deserialize(~innerMessage);
+    auto innerResponse = New<TTypedResponse>();
+    innerResponse->Deserialize(innerMessage);
     return innerResponse;
 }
 
@@ -42,7 +47,7 @@ TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse
 }
 
 template <class TTypedResponse>
-std::vector< TIntrusivePtr<TTypedResponse> > TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key)    const
+std::vector< TIntrusivePtr<TTypedResponse> > TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
 {
     std::vector< TIntrusivePtr<TTypedResponse> > responses;
     if (key.empty()) {
@@ -79,7 +84,7 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
             auto error = outerResponse->GetError();
             if (error.IsOK()) {
                 auto innerResponseMessage = NBus::CreateMessageFromParts(outerResponse->Attachments());
-                innerResponse->Deserialize(~innerResponseMessage);
+                innerResponse->Deserialize(innerResponseMessage);
             } else if (NRpc::IsRpcError(error)) {
                 innerResponse->SetError(error);
             } else {

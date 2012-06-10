@@ -35,20 +35,23 @@ public:
     class TReqExecuteBatch;
     class TRspExecuteBatch;
 
+    //! Mimics the types introduced by |DEFINE_RPC_PROXY_METHOD|.
+    typedef TIntrusivePtr<TReqExecuteBatch> TReqExecuteBatchPtr;
+    typedef TIntrusivePtr<TRspExecuteBatch> TRspExecuteBatchPtr;
+    typedef TFuture<TRspExecuteBatchPtr> TInvExecuteBatch;
+
     //! A batched request to Cypress that holds a vector of individual requests that
     //! are transferred within a single RPC envelope.
     class TReqExecuteBatch
         : public NRpc::TClientRequest
     {
     public:
-        typedef TIntrusivePtr<TReqExecuteBatch> TPtr;
-
         TReqExecuteBatch(
             NRpc::IChannelPtr channel,
             const Stroka& path,
             const Stroka& verb);
 
-        TFuture< TIntrusivePtr<TRspExecuteBatch> > Invoke();
+        TFuture<TRspExecuteBatchPtr> Invoke();
 
         // Overrides base method for fluent use.
         TIntrusivePtr<TReqExecuteBatch> SetTimeout(TNullable<TDuration> timeout)
@@ -62,6 +65,11 @@ public:
          *  Each individual request may be marked with a key.
          *  These keys can be used to retrieve the corresponding responses
          *  (thus avoiding complicated and error-prone index calculations).
+         *  
+         *  The client is allowed to issue an empty (|NULL|) request. This request is treated
+         *  like any other and it sent to the server. The server typically sends an empty (|NULL|)
+         *  response back. This feature is useful for adding dummy requests to keep
+         *  the request list aligned with some other data structure.
          */
         TIntrusivePtr<TReqExecuteBatch> AddRequest(
             NYTree::TYPathRequestPtr innerRequest,
@@ -91,20 +99,19 @@ public:
      *  different actual types, the client must supply an additional type parameter.
      *  Responses may also be retrieved by specifying a key that was used during
      *  request insertion.
-     *  
+     *
      */
     class TRspExecuteBatch
         : public NRpc::TClientResponse
     {
     public:
-        typedef TIntrusivePtr<TRspExecuteBatch> TPtr;
         typedef std::multimap<Stroka, int> TKeyToIndexMultimap;
 
         TRspExecuteBatch(
             const NRpc::TRequestId& requestId,
             const TKeyToIndexMultimap& keyToIndexes);
 
-        TFuture<TPtr> GetAsyncResult();
+        TFuture<TRspExecuteBatchPtr> GetAsyncResult();
 
         //! Returns the number of individual responses in the batch.
         int GetSize() const;
@@ -134,7 +141,7 @@ public:
 
     private:
         TKeyToIndexMultimap KeyToIndexes;
-        TPromise<TPtr> Promise;
+        TPromise<TRspExecuteBatchPtr> Promise;
         NProto::TRspExecute Body;
         yvector<int> BeginPartIndexes;
 
@@ -142,12 +149,6 @@ public:
         virtual void DeserializeBody(const TRef& data);
 
     };
-
-    // TODO(panin): think about introducing macros
-    //! Mimics the types introduced by |DEFINE_RPC_PROXY_METHOD|.
-    typedef TIntrusivePtr<TRspExecuteBatch> TRspExecuteBatchPtr;
-    typedef TIntrusivePtr<TReqExecuteBatch> TReqExecuteBatchPtr;
-    typedef TFuture<TRspExecuteBatchPtr> TInvExecuteBatch;
 
     //! Executes a batched Cypress request.
     TReqExecuteBatchPtr ExecuteBatch();

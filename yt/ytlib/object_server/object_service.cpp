@@ -28,9 +28,7 @@ class TObjectService::TExecuteSession
     : public TIntrinsicRefCounted
 {
 public:
-    typedef TIntrusivePtr<TExecuteSession> TPtr;
-
-    TExecuteSession(TObjectService* owner, TCtxExecute* context)
+    TExecuteSession(TObjectService* owner, TCtxExecutePtr context)
         : Context(context)
         , Owner(owner)
     { }
@@ -48,13 +46,18 @@ public:
         auto awaiter = New<TParallelAwaiter>();
         for (int requestIndex = 0; requestIndex < request.part_counts_size(); ++requestIndex) {
             int partCount = request.part_counts(requestIndex);
-            YASSERT(partCount >= 2);
-            yvector<TSharedRef> requestParts(
+            if (partCount == 0) {
+                // Skip empty requests.
+                continue;
+            }
+
+            YCHECK(partCount >= 2);
+            std::vector<TSharedRef> requestParts(
                 attachments.begin() + requestPartIndex,
                 attachments.begin() + requestPartIndex + partCount);
             auto requestMessage = CreateMessageFromParts(MoveRV(requestParts));
 
-            auto requestHeader = GetRequestHeader(~requestMessage);
+            auto requestHeader = GetRequestHeader(requestMessage);
             TYPath path = requestHeader.path();
             Stroka verb = requestHeader.verb();
 
@@ -69,7 +72,7 @@ public:
                 ->GetRootService();
 
             awaiter->Await(
-                ExecuteVerb(rootService, ~requestMessage),
+                ExecuteVerb(rootService, requestMessage),
                 BIND(&TExecuteSession::OnResponse, MakeStrong(this), requestIndex));
 
             requestPartIndex += partCount;
@@ -85,7 +88,7 @@ private:
 
     void OnResponse(int requestIndex, IMessagePtr responseMessage)
     {
-        auto responseHeader = GetResponseHeader(~responseMessage);
+        auto responseHeader = GetResponseHeader(responseMessage);
         auto error = TError::FromProto(responseHeader.error());
 
         LOG_DEBUG("Execute[%d] -> Error: %s",
@@ -100,6 +103,12 @@ private:
         auto& response = Context->Response();
 
         FOREACH (const auto& responseMessage, ResponseMessages) {
+            if (!responseMessage) {
+                // Skip empty responses.
+                response.add_part_counts(0);
+                continue;
+            }
+
             const auto& responseParts = responseMessage->GetParts();
             response.add_part_counts(static_cast<int>(responseParts.size()));
             response.Attachments().insert(
@@ -131,7 +140,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    New<TExecuteSession>(this, ~context)->Run();
+    New<TExecuteSession>(this, context)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
