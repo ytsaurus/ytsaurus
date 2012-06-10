@@ -31,7 +31,6 @@ set( SRCS
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
   ${BASE}/snapshot_ut.cpp
-  ${BASE}/stdafx.cpp
   ${BASE}/serialize_ut.cpp
 #  ${BASE}/table_client_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
