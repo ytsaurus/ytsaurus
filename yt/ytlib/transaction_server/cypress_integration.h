@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/cypress/type_handler.h>
+#include <ytlib/cypress/public.h>
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {
@@ -8,7 +8,7 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypress::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

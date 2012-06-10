@@ -66,23 +66,23 @@ private:
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
-        const auto& transaction = GetTypedImpl();
+        const auto* transaction = &GetTypedImpl();
         
         if (name == "state") {
             BuildYsonFluently(consumer)
-                .Scalar(FormatEnum(transaction.GetState()));
+                .Scalar(FormatEnum(transaction->GetState()));
             return true;
         }
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
-                .Scalar(GetObjectId(transaction.GetParent()).ToString());
+                .Scalar(GetObjectId(transaction->GetParent()).ToString());
             return true;
         }
 
         if (name == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
+                .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
                     fluent.Item().Scalar(nestedTransaction->GetId().ToString());
                 });
             return true;
@@ -90,7 +90,7 @@ private:
 
         if (name == "created_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id) {
+                .DoListFor(transaction->CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id) {
                     fluent.Item().Scalar(id.ToString());
                 });
             return true;
@@ -114,7 +114,8 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->Commit(GetTypedImpl());
+        context->SetRequestInfo("");
+        Owner->Commit(&GetTypedImpl());
         context->Reply();
     }
 
@@ -123,7 +124,8 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->Abort(GetTypedImpl());
+        context->SetRequestInfo("");
+        Owner->Abort(&GetTypedImpl());
         context->Reply();
     }
 
@@ -132,7 +134,8 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->RenewLease(GetId());
+        context->SetRequestInfo("");
+        Owner->RenewLease(&GetTypedImpl());
         context->Reply();
     }
 
@@ -196,8 +199,8 @@ private:
 
         context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
 
-        auto& transaction = GetTypedImpl();
-        if (transaction.CreatedObjectIds().erase(objectId) != 1) {
+        auto* transaction = &GetTypedImpl();
+        if (transaction->CreatedObjectIds().erase(objectId) != 1) {
             ythrow yexception() << "Transaction does not own the object";
         }
 
@@ -232,11 +235,11 @@ public:
         UNUSED(response);
 
         auto timeout = request->Attributes().Find<TDuration>("timeout");
-        auto& transaction = Owner->Start(parent, timeout);
-        return transaction.GetId();
+        auto* transaction = Owner->Start(parent, timeout);
+        return transaction->GetId();
     }
 
-    virtual IObjectProxy::TPtr GetProxy(
+    virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
         NTransactionServer::TTransaction* transaction)
     {
@@ -295,7 +298,7 @@ void TTransactionManager::Init()
     objectManager->RegisterHandler(~New<TTransactionTypeHandler>(this));
 }
 
-TTransaction& TTransactionManager::Start(TTransaction* parent, TNullable<TDuration> timeout)
+TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDuration> timeout)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -315,31 +318,31 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
     }
 
     if (IsLeader()) {
-        CreateLease(*transaction, timeout);
+        CreateLease(transaction, timeout);
     }
 
     transaction->SetState(ETransactionState::Active);
 
-    TransactionStarted_.Fire(*transaction);
+    TransactionStarted_.Fire(transaction);
 
     LOG_INFO_UNLESS(IsRecovery(), "Started transaction %s (ParentId: %s)",
         ~id.ToString(),
         ~GetObjectId(parent).ToString());
 
-    return *transaction;
+    return transaction;
 }
 
-void TTransactionManager::Commit(TTransaction& transaction)
+void TTransactionManager::Commit(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (transaction.GetState() != ETransactionState::Active) {
+    if (transaction->GetState() != ETransactionState::Active) {
         ythrow yexception() << "Cannot commit an inactive transaction";
     }
 
-    auto id = transaction.GetId();
+    auto id = transaction->GetId();
 
-    if (!transaction.NestedTransactions().empty()) {
+    if (!transaction->NestedTransactions().empty()) {
         ythrow yexception() << "Cannot commit since the transaction has nested transactions in progress";
     }
 
@@ -347,7 +350,7 @@ void TTransactionManager::Commit(TTransaction& transaction)
         CloseLease(transaction);
     }
 
-    transaction.SetState(ETransactionState::Committed);
+    transaction->SetState(ETransactionState::Committed);
 
     TransactionCommitted_.Fire(transaction);
 
@@ -356,28 +359,28 @@ void TTransactionManager::Commit(TTransaction& transaction)
     LOG_INFO_UNLESS(IsRecovery(), "Committed transaction %s", ~id.ToString());
 }
 
-void TTransactionManager::Abort(TTransaction& transaction)
+void TTransactionManager::Abort(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (transaction.GetState() != ETransactionState::Active) {
+    if (transaction->GetState() != ETransactionState::Active) {
         ythrow yexception() << "Cannot abort an inactive transaction";
     }
 
-    auto id = transaction.GetId();
+    auto id = transaction->GetId();
 
     // Make a copy, the set will be modified.
-    auto nestedTransactions = transaction.NestedTransactions();
+    auto nestedTransactions = transaction->NestedTransactions();
     FOREACH (auto* nestedTransaction, nestedTransactions) {
-        Abort(*nestedTransaction);
+        Abort(nestedTransaction);
     }
-    YASSERT(transaction.NestedTransactions().empty());
+    YASSERT(transaction->NestedTransactions().empty());
 
     if (IsLeader()) {
         CloseLease(transaction);
     }
 
-    transaction.SetState(ETransactionState::Aborted);
+    transaction->SetState(ETransactionState::Aborted);
 
     TransactionAborted_.Fire(transaction);
 
@@ -386,30 +389,30 @@ void TTransactionManager::Abort(TTransaction& transaction)
     LOG_INFO_UNLESS(IsRecovery(), "Aborted transaction %s", ~id.ToString());
 }
 
-void TTransactionManager::FinishTransaction(TTransaction& transaction)
+void TTransactionManager::FinishTransaction(TTransaction* transaction)
 {
     auto objectManager = Bootstrap->GetObjectManager();
 
-    auto* parent = transaction.GetParent();
+    auto* parent = transaction->GetParent();
     if (parent) {
-        YCHECK(parent->NestedTransactions().erase(&transaction) == 1);
-        objectManager->UnrefObject(&transaction);
+        YCHECK(parent->NestedTransactions().erase(transaction) == 1);
+        objectManager->UnrefObject(transaction);
     }
 
     // Kill the fake reference.
-    objectManager->UnrefObject(&transaction);
+    objectManager->UnrefObject(transaction);
 }
 
-void TTransactionManager::RenewLease(const TTransaction& transaction)
+void TTransactionManager::RenewLease(const TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (transaction.GetState() != ETransactionState::Active) {
+    if (transaction->GetState() != ETransactionState::Active) {
         ythrow yexception() << "Cannot renew lease for an inactive transaction";
     }
 
-    auto it = LeaseMap.find(transaction.GetId());
-    YASSERT(it != LeaseMap.end());
+    auto it = LeaseMap.find(transaction->GetId());
+    YCHECK(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
 }
 
@@ -453,7 +456,7 @@ void TTransactionManager::OnLeaderRecoveryComplete()
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& pair, TransactionMap) {
         const auto& id = pair.first;
-        const auto& transaction = *pair.second;
+        const auto* transaction = pair.second;
         auto proxy = objectManager->GetProxy(id, NULL);
         auto timeout = proxy->Attributes().Find<TDuration>("timeout");
         CreateLease(transaction, timeout);
@@ -468,24 +471,24 @@ void TTransactionManager::OnStopLeading()
     LeaseMap.clear();
 }
 
-void TTransactionManager::CreateLease(const TTransaction& transaction, TNullable<TDuration> timeout)
+void TTransactionManager::CreateLease(const TTransaction* transaction, TNullable<TDuration> timeout)
 {
     auto actualTimeout = Min(
         timeout.Get(Config->DefaultTransactionTimeout),
         Config->MaximumTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
         actualTimeout,
-        BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
+        BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
         .Via(
             Bootstrap->GetStateInvoker(),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));
-    YCHECK(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);
+    YCHECK(LeaseMap.insert(MakePair(transaction->GetId(), lease)).second);
 }
 
-void TTransactionManager::CloseLease(const TTransaction& transaction)
+void TTransactionManager::CloseLease(const TTransaction* transaction)
 {
-    auto it = LeaseMap.find(transaction.GetId());
-    YASSERT(it != LeaseMap.end());
+    auto it = LeaseMap.find(transaction->GetId());
+    YCHECK(it != LeaseMap.end());
     TLeaseManager::CloseLease(it->second);
     LeaseMap.erase(it);
 }
@@ -505,7 +508,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     ExecuteVerb(proxy, req);
 }
 
-IObjectProxy::TPtr TTransactionManager::GetRootTransactionProxy()
+IObjectProxyPtr TTransactionManager::GetRootTransactionProxy()
 {
     return New<TTransactionProxy>(this, NullTransactionId);
 }

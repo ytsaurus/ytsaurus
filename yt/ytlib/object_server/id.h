@@ -122,7 +122,7 @@ struct TObjectIdTraits<
 template <class T>
 TObjectId GetObjectId(
     T object,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, TObjectWithIdBase*>, void* >::TType = NULL)
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, const TObjectWithIdBase*>, void* >::TType = NULL)
 {
     return object ? object->GetId() : NullObjectId;
 }

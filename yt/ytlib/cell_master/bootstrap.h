@@ -35,7 +35,7 @@ public:
     TWorldInitializerPtr GetWorldInitializer() const;
     NMetaState::IMetaStateManagerPtr GetMetaStateManager() const;
     NMetaState::TCompositeMetaStatePtr GetMetaState() const;
-    NObjectServer::TObjectManager::TPtr GetObjectManager() const;
+    NObjectServer::TObjectManagerPtr GetObjectManager() const;
     NChunkServer::TChunkManagerPtr GetChunkManager() const;
     NChunkServer::IHolderAuthorityPtr GetHolderAuthority() const;
 
@@ -53,7 +53,7 @@ private:
     TWorldInitializerPtr WorldInitializer;
     NMetaState::IMetaStateManagerPtr MetaStateManager;
     NMetaState::TCompositeMetaStatePtr MetaState;
-    NObjectServer::TObjectManager::TPtr ObjectManager;
+    NObjectServer::TObjectManagerPtr ObjectManager;
     NChunkServer::TChunkManagerPtr ChunkManager;
     NChunkServer::IHolderAuthorityPtr HolderAuthority;
 

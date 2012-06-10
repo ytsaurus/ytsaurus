@@ -153,7 +153,7 @@ protected:
 
 };
 
-INodeTypeHandler::TPtr CreateFileTypeHandler(NCellMaster::TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateFileTypeHandler(NCellMaster::TBootstrap* bootstrap)
 {
     return New<TFileNodeTypeHandler>(bootstrap);
 }

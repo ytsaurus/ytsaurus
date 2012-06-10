@@ -112,7 +112,7 @@ TCompositeMetaStatePtr TBootstrap::GetMetaState() const
     return MetaState;
 }
 
-TObjectManager::TPtr TBootstrap::GetObjectManager() const
+TObjectManagerPtr TBootstrap::GetObjectManager() const
 {
     return ObjectManager;
 }

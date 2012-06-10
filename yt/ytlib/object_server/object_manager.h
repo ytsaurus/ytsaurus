@@ -27,11 +27,9 @@ class TObjectManager
     : public NMetaState::TMetaStatePart
 {
 public:
-    typedef TIntrusivePtr<TObjectManager> TPtr;
-
     //! Initializes a new instance.
     TObjectManager(
-        TObjectManagerConfig* config,
+        TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     //! Registers a new type handler.
@@ -74,12 +72,12 @@ public:
     bool ObjectExists(const TObjectId& id);
 
     //! Returns a proxy for the object with the given versioned id or NULL if there's no such object.
-    IObjectProxy::TPtr FindProxy(
+    IObjectProxyPtr FindProxy(
         const TObjectId& id,
         NTransactionServer::TTransaction* transaction = NULL);
 
     //! Returns a proxy for the object with the given versioned id or NULL. Fails if there's no such object.
-    IObjectProxy::TPtr GetProxy(
+    IObjectProxyPtr GetProxy(
         const TObjectId& id,
         NTransactionServer::TTransaction* transaction = NULL);
 
@@ -148,10 +146,10 @@ private:
 
     TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);
 
-    void OnTransactionCommitted(NTransactionServer::TTransaction& transaction);
-    void OnTransactionAborted(NTransactionServer::TTransaction& transaction);
-    void PromoteCreatedObjects(NTransactionServer::TTransaction& transaction);
-    void ReleaseCreatedObjects(NTransactionServer::TTransaction& transaction);
+    void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
+    void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
+    void PromoteCreatedObjects(NTransactionServer::TTransaction* transaction);
+    void ReleaseCreatedObjects(NTransactionServer::TTransaction* transaction);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };

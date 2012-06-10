@@ -249,7 +249,7 @@ protected:
 
 };
 
-INodeTypeHandler::TPtr CreateTableTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)
 {
     return New<TTableNodeTypeHandler>(bootstrap);
 }

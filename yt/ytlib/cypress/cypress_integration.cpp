@@ -50,7 +50,7 @@ private:
     }
 };
 
-INodeTypeHandler::TPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
@@ -99,7 +99,7 @@ private:
     }
 };
 
-INodeTypeHandler::TPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 

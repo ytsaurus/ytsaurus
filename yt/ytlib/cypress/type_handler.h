@@ -38,8 +38,6 @@ struct INodeBehavior
 struct INodeTypeHandler
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<INodeTypeHandler> TPtr;
-
     //! Constructs a proxy.
     /*!
      *  \param transactionId The id of the transaction for which the proxy
@@ -84,7 +82,7 @@ struct INodeTypeHandler
      *  \note This method is only called for committed and uncommitted nodes.
      *  It is not called for branched ones.
      */
-    virtual void Destroy(ICypressNode& node) = 0;
+    virtual void Destroy(ICypressNode* node) = 0;
 
     //! Returns True if the given locking mode is supported.
     virtual bool IsLockModeSupported(ELockMode mode) = 0;
@@ -96,7 +94,7 @@ struct INodeTypeHandler
      *  \returns The branched node.
      */
     virtual TAutoPtr<ICypressNode> Branch(
-        const ICypressNode& node,
+        const ICypressNode* node,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) = 0;
 
@@ -108,8 +106,8 @@ struct INodeTypeHandler
      *  #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
      */
     virtual void Merge(
-        ICypressNode& originatingNode,
-        ICypressNode& branchedNode) = 0;
+        ICypressNode* originatingNode,
+        ICypressNode* branchedNode) = 0;
 
     //! Creates a behavior object.
     /*!

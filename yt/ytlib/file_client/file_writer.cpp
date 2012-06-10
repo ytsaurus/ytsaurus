@@ -9,6 +9,7 @@
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/transaction.h>
 
 namespace NYT {
 namespace NFileClient {

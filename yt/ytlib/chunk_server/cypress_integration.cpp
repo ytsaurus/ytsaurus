@@ -109,7 +109,7 @@ private:
     }
 };
 
-INodeTypeHandler::TPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
@@ -119,7 +119,7 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap)
         New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::All));
 }
 
-INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
@@ -129,7 +129,7 @@ INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
         New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Lost));
 }
 
-INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
@@ -139,7 +139,7 @@ INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* boots
         New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Overreplicated));
 }
 
-INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
@@ -183,7 +183,7 @@ private:
     }
 };
 
-INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
@@ -239,7 +239,7 @@ class THolderProxy
 {
 public:
     THolderProxy(
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
@@ -368,7 +368,7 @@ public:
     }
 };
 
-INodeTypeHandler::TPtr CreateHolderTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateHolderTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
@@ -439,7 +439,7 @@ class THolderMapProxy
 {
 public:
     THolderMapProxy(
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
@@ -577,7 +577,7 @@ public:
     }
 };
 
-INodeTypeHandler::TPtr CreateHolderMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateHolderMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 

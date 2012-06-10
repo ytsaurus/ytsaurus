@@ -20,6 +20,7 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/object_server/object_service_proxy.h>
 

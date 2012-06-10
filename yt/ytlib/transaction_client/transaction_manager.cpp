@@ -1,14 +1,15 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
+#include "transaction.h"
 #include "config.h"
-
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include "private.h"
 
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/actions/signal.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {

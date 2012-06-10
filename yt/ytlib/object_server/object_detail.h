@@ -115,7 +115,7 @@ protected:
         : public NYTree::IAttributeDictionary
     {
     public:
-        TUserAttributeDictionary(TObjectManager* objectManager, const TObjectId& objectId);
+        TUserAttributeDictionary(TObjectManagerPtr objectManager, const TObjectId& objectId);
 
         // NYTree::IAttributeDictionary members
         virtual yhash_set<Stroka> List() const;
@@ -124,7 +124,7 @@ protected:
         virtual bool Remove(const Stroka& key);
 
     protected:
-        TObjectManager::TPtr ObjectManager;
+        TObjectManagerPtr ObjectManager;
         TObjectId ObjectId;
     };
 };

@@ -10,9 +10,6 @@ namespace NTransactionClient {
 
 extern NLog::TLogger TransactionClientLogger;
 
-using NObjectServer::TTransactionId;
-using NObjectServer::NullTransactionId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionClient

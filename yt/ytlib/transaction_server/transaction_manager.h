@@ -13,7 +13,7 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
 #include <ytlib/meta_state/map.h>
-#include <ytlib/object_server/object_manager.h>
+#include <ytlib/object_server/public.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -24,13 +24,14 @@ namespace NTransactionServer {
 class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
-    // TODO(babenko): clarify what "during" means
     //! Raised when a new transaction is started.
-    DEFINE_SIGNAL(void(TTransaction&), TransactionStarted);
-    //! Raised during transaction commit.
-    DEFINE_SIGNAL(void(TTransaction&), TransactionCommitted);
-    //! Raised during transaction abort.
-    DEFINE_SIGNAL(void(TTransaction&), TransactionAborted);
+    DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
+
+    //! Raised when a transaction is committed.
+    DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
+
+    //! Raised when a transaction is aborted.
+    DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
 
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
@@ -42,12 +43,12 @@ public:
 
     void Init();
 
-    NObjectServer::IObjectProxy::TPtr GetRootTransactionProxy();
+    NObjectServer::IObjectProxyPtr GetRootTransactionProxy();
 
-    TTransaction& Start(TTransaction* parent, TNullable<TDuration> timeout);
-    void Commit(TTransaction& transaction);
-    void Abort(TTransaction& transaction);
-    void RenewLease(const TTransaction& transaction);
+    TTransaction* Start(TTransaction* parent, TNullable<TDuration> timeout);
+    void Commit(TTransaction* transaction);
+    void Abort(TTransaction* transaction);
+    void RenewLease(const TTransaction* transaction);
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
@@ -72,9 +73,9 @@ private:
 
     void OnTransactionExpired(const TTransactionId& id);
 
-    void CreateLease(const TTransaction& transaction, TNullable<TDuration> timeout);
-    void CloseLease(const TTransaction& transaction);
-    void FinishTransaction(TTransaction& transaction);
+    void CreateLease(const TTransaction* transaction, TNullable<TDuration> timeout);
+    void CloseLease(const TTransaction* transaction);
+    void FinishTransaction(TTransaction* transaction);
 
     // TMetaStatePart overrides
     void SaveKeys(TOutputStream* output);

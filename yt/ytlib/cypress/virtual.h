@@ -2,7 +2,7 @@
 
 #include "type_handler.h"
 
-#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/cypress/public.h>
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {
@@ -14,12 +14,12 @@ typedef
     TCallback< NYTree::IYPathServicePtr(const TNodeId&) >
     TYPathServiceProducer;
 
-INodeTypeHandler::TPtr CreateVirtualTypeHandler(
+INodeTypeHandlerPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     EObjectType objectType,
     TYPathServiceProducer producer);
 
-INodeTypeHandler::TPtr CreateVirtualTypeHandler(
+INodeTypeHandlerPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     EObjectType objectType,
     NYTree::IYPathServicePtr service);

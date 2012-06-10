@@ -31,7 +31,7 @@ struct IObjectTypeHandler
 
     //! Given a versioned object id, constructs a proxy for it.
     //! The object with the given id must exist.
-    virtual IObjectProxy::TPtr GetProxy(
+    virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
         NTransactionServer::TTransaction* transaction) = 0;
 

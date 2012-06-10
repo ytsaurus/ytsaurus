@@ -146,7 +146,7 @@ private:
     }
 };
 
-INodeTypeHandler::TPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
 {
     return CreateVirtualTypeHandler(
         bootstrap,

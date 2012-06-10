@@ -273,7 +273,7 @@ void ParseRowLimits(
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNodeProxy::TTableNodeProxy(
-    INodeTypeHandler* typeHandler,
+    INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
     const TNodeId& nodeId)
@@ -468,8 +468,8 @@ void TTableNodeProxy::TraverseChunkTree(
 
 void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
-    const auto& tableNode = GetTypedImpl();
-    const auto& chunkList = *tableNode.GetChunkList();
+    const auto* tableNode = GetTypedImpl();
+    const auto* chunkList = tableNode->GetChunkList();
 
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
@@ -479,25 +479,25 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("compression_ratio");
     attributes->push_back("row_count");
     attributes->push_back("sorted");
-    attributes->push_back(TAttributeInfo("key_columns", chunkList.GetSorted()));
+    attributes->push_back(TAttributeInfo("key_columns", chunkList->GetSorted()));
     TBase::GetSystemAttributes(attributes);
 }
 
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
 {
-    const auto& tableNode = GetTypedImpl();
-    const auto& chunkList = *tableNode.GetChunkList();
-    const auto& statistics = chunkList.Statistics();
+    const auto* tableNode = GetTypedImpl();
+    const auto* chunkList = tableNode->GetChunkList();
+    const auto& statistics = chunkList->Statistics();
 
     if (name == "chunk_list_id") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.GetId().ToString());
+            .Scalar(chunkList->GetId().ToString());
         return true;
     }
 
     if (name == "chunk_ids") {
         std::vector<TChunkId> chunkIds;
-        TraverseChunkTree(&chunkIds, tableNode.GetChunkList());
+        TraverseChunkTree(&chunkIds, tableNode->GetChunkList());
         BuildYsonFluently(consumer)
             .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId) {
                 fluent.Item().Scalar(chunkId.ToString());
@@ -533,20 +533,20 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
     if (name == "row_count") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.Statistics().RowCount);
+            .Scalar(chunkList->Statistics().RowCount);
         return true;
     }
 
     if (name == "sorted") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.GetSorted());
+            .Scalar(chunkList->GetSorted());
         return true;
     }
 
-    if (chunkList.GetSorted()) {
+    if (chunkList->GetSorted()) {
         if (name == "key_columns") {
             BuildYsonFluently(consumer)
-                .List(tableNode.KeyColumns());
+                .List(tableNode->KeyColumns());
             return true;
         }
     }
@@ -573,9 +573,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 
     context->SetRequestInfo("");
 
-    auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
+    auto* tableNode = GetTypedImplForUpdate(ELockMode::Shared);
 
-    const auto& chunkListId = impl.GetChunkList()->GetId();
+    const auto& chunkListId = tableNode->GetChunkList()->GetId();
     *response->mutable_chunk_list_id() = chunkListId.ToProto();
 
     context->SetResponseInfo("ChunkListId: %s", ~chunkListId.ToString());
@@ -587,12 +587,12 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
     context->SetRequestInfo("");
 
-    const auto& impl = GetTypedImpl();
+    const auto& tableNode = GetTypedImpl();
 
     auto channel = TChannel::CreateEmpty();
     TReadLimit lowerLimit, upperLimit;
     ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
-    auto* chunkList = impl.GetChunkList();
+    auto* chunkList = tableNode->GetChunkList();
 
     if (lowerLimit.has_key() || upperLimit.has_key()) {
         if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
@@ -660,10 +660,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
     context->SetRequestInfo("KeyColumns: [%s]", ~JoinToString(request->key_columns()));
 
-    auto& impl = GetTypedImplForUpdate();
-    impl.KeyColumns() = FromProto<Stroka>(request->key_columns());
+    auto* tableNode = GetTypedImplForUpdate();
+    tableNode->KeyColumns() = FromProto<Stroka>(request->key_columns());
 
-    auto* rootChunkList = impl.GetChunkList();
+    auto* rootChunkList = tableNode->GetChunkList();
     YASSERT(rootChunkList->Parents().empty());
     rootChunkList->SetSorted(true);
 
@@ -675,10 +675,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
     context->SetRequestInfo("");
 
     // This takes exclusive lock.
-    auto& impl = GetTypedImplForUpdate();
+    auto* tableNode = GetTypedImplForUpdate();
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto* chunkList = impl.GetChunkList();
+    auto* chunkList = tableNode->GetChunkList();
     chunkManager->ClearChunkList(chunkList);
     chunkList->SetRebalancingEnabled(true);
 

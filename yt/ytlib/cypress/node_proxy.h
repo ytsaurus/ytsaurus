@@ -16,8 +16,6 @@ struct ICypressNodeProxy
     : public virtual NYTree::INode
     , public virtual NObjectServer::IObjectProxy
 {
-    typedef TIntrusivePtr<ICypressNodeProxy> TPtr;
-
     // TODO: removing this causes link error, investigate!
     ICypressNodeProxy()
     { }
@@ -26,10 +24,10 @@ struct ICypressNodeProxy
     virtual TTransactionId GetTransactionId() const = 0;
 
     //! Returns the physical node.
-    virtual const ICypressNode& GetImpl() const = 0;
+    virtual const ICypressNode* GetImpl() const = 0;
     
     //! Returns the physical node and allows its mutation.
-    virtual ICypressNode& GetImplForUpdate() = 0;
+    virtual ICypressNode* GetImplForUpdate() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,9 @@ typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
 class TObjectBase;
 class TObjectWithIdBase;
 
+struct IObjectProxy;
+typedef TIntrusivePtr<IObjectProxy> IObjectProxyPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NObjectServer

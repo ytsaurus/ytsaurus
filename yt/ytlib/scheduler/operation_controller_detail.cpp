@@ -4,6 +4,7 @@
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
 
+#include <ytlib/transaction_client/transaction.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/object_server/object_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>

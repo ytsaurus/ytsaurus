@@ -201,9 +201,9 @@ TVersionedObjectId TObjectProxyBase::GetVersionedId() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
-    TObjectManager* objectManager,
+    TObjectManagerPtr objectManager,
     const TObjectId& objectId)
-    : ObjectManager(objectManager)
+    : ObjectManager(MoveRV(objectManager))
     , ObjectId(objectId)
 { }
 

@@ -56,7 +56,7 @@ public:
         return obj.GetObjectRefCounter();
     }
 
-    virtual IObjectProxy::TPtr GetProxy(
+    virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
         NTransactionServer::TTransaction* transaction)
     {

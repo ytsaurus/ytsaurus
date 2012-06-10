@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/configurable.h>
-#include <ytlib/cypress/type_handler.h>
+#include <ytlib/cypress/public.h>
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {
@@ -30,7 +30,7 @@ struct TOrchidManifest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandler::TPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypress::INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

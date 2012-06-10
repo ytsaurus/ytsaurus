@@ -7,6 +7,7 @@
 #include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/transaction_client/transaction.h>
 #include <ytlib/table_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>

@@ -24,7 +24,7 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileNodeProxy::TFileNodeProxy(
-    INodeTypeHandler* typeHandler,
+    INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
     const TNodeId& nodeId)
@@ -94,8 +94,8 @@ void TFileNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes
 
 bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
 {
-    const auto& fileNode = GetTypedImpl();
-    const auto* chunkList = fileNode.GetChunkList();
+    const auto* fileNode = GetTypedImpl();
+    const auto* chunkList = fileNode->GetChunkList();
     const auto& statistics = chunkList->Statistics();
     YASSERT(chunkList->Children().size() == 1);
     auto chunkRef = chunkList->Children()[0];
@@ -152,7 +152,7 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
 
     const auto& fileNode = GetTypedImpl();
     
-    const auto* chunkList = fileNode.GetChunkList();
+    const auto* chunkList = fileNode->GetChunkList();
     YASSERT(chunkList->Children().size() == 1);
     
     auto chunkRef = chunkList->Children()[0];

@@ -5,14 +5,19 @@
 
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/ypath_format.h>
+#include <ytlib/ytree/serialize.h>
 
 #include <ytlib/cell_master/load_context.h>
+
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
-#include <ytlib/ytree/serialize.h>
+
 #include <ytlib/rpc/message.h>
+
 #include <ytlib/cypress/cypress_manager.h>
+
 #include <ytlib/cell_master/bootstrap.h>
+
 #include <ytlib/profiling/profiler.h>
 
 #include <util/digest/murmur.h>
@@ -41,7 +46,7 @@ class TObjectManager::TServiceContextWrapper
     : public IServiceContext
 {
 public:
-    TServiceContextWrapper(IServiceContextPtr underlyingContext)
+    explicit TServiceContextWrapper(IServiceContextPtr underlyingContext)
         : UnderlyingContext(underlyingContext)
         , Replied(false)
     { }
@@ -162,7 +167,7 @@ class TObjectManager::TRootService
     : public IYPathService
 {
 public:
-    TRootService(TBootstrap* bootstrap)
+    explicit TRootService(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
     { }
 
@@ -241,7 +246,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectManager::TObjectManager(
-    TObjectManagerConfig* config,
+    TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
         ~bootstrap->GetMetaStateManager(),
@@ -479,11 +484,11 @@ bool TObjectManager::ObjectExists(const TObjectId& id)
     return handler->Exists(id);
 }
 
-IObjectProxy::TPtr TObjectManager::FindProxy(
+IObjectProxyPtr TObjectManager::FindProxy(
     const TObjectId& id,
     TTransaction* transaction)
 {
-    // (NullObjectId, NullTransaction) means the root transaction.
+    // (NullObjectId, NullTransaction) means the root transaction->
     if (id == NullObjectId && !transaction) {
         return Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
     }
@@ -502,7 +507,7 @@ IObjectProxy::TPtr TObjectManager::FindProxy(
     return handler->GetProxy(id, transaction);
 }
 
-IObjectProxy::TPtr TObjectManager::GetProxy(
+IObjectProxyPtr TObjectManager::GetProxy(
     const TObjectId& id,
     TTransaction* transaction)
 {
@@ -657,33 +662,33 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
     return TVoid();
 }
 
-void TObjectManager::OnTransactionCommitted(TTransaction& transaction)
+void TObjectManager::OnTransactionCommitted(TTransaction* transaction)
 {
-    if (transaction.GetParent()) {
+    if (transaction->GetParent()) {
         PromoteCreatedObjects(transaction);
     } else {
         ReleaseCreatedObjects(transaction);
     }
 }
 
-void TObjectManager::OnTransactionAborted(TTransaction& transaction)
+void TObjectManager::OnTransactionAborted(TTransaction* transaction)
 {
     ReleaseCreatedObjects(transaction);
 }
 
-void TObjectManager::PromoteCreatedObjects(TTransaction& transaction)
+void TObjectManager::PromoteCreatedObjects(TTransaction* transaction)
 {
-    auto parentTransaction = transaction.GetParent();
+    auto parentTransaction = transaction->GetParent();
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& objectId, transaction.CreatedObjectIds()) {
+    FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
         YCHECK(parentTransaction->CreatedObjectIds().insert(objectId).second);
     }
 }
 
-void TObjectManager::ReleaseCreatedObjects(TTransaction& transaction)
+void TObjectManager::ReleaseCreatedObjects(TTransaction* transaction)
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& objectId, transaction.CreatedObjectIds()) {
+    FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
         objectManager->UnrefObject(objectId);
     }
 }

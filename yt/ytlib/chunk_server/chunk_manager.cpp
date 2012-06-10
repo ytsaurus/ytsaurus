@@ -84,7 +84,7 @@ public:
         TReqCreateObject* request,
         TRspCreateObject* response);
 
-    virtual IObjectProxy::TPtr GetProxy(
+    virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
         TTransaction* transaction);
 
@@ -113,7 +113,7 @@ public:
         TReqCreateObject* request,
         TRspCreateObject* response);
 
-    virtual IObjectProxy::TPtr GetProxy(
+    virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
         TTransaction* transaction);
 
@@ -1726,7 +1726,7 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(
+IObjectProxyPtr TChunkManager::TChunkTypeHandler::GetProxy(
     const TObjectId& id,
     TTransaction* transaction)
 {
@@ -1944,7 +1944,7 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(
+IObjectProxyPtr TChunkManager::TChunkListTypeHandler::GetProxy(
     const TObjectId& id,
     TTransaction* transaction)
 {

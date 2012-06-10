@@ -21,7 +21,7 @@ public:
     typedef TIntrusivePtr<TFileNodeProxy> TPtr;
 
     TFileNodeProxy(
-        NCypress::INodeTypeHandler* typeHandler,
+        NCypress::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const NCypress::TNodeId& nodeId);

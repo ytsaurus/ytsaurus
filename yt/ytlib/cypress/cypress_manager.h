@@ -35,9 +35,9 @@ public:
 
     explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
 
-    void RegisterHandler(INodeTypeHandler::TPtr handler);
-    INodeTypeHandler::TPtr FindHandler(EObjectType type);
-    INodeTypeHandler::TPtr GetHandler(EObjectType type);
+    void RegisterHandler(INodeTypeHandlerPtr handler);
+    INodeTypeHandlerPtr FindHandler(EObjectType type);
+    INodeTypeHandlerPtr GetHandler(EObjectType type);
 
     //! Returns the id of the root node.
     /*!
@@ -56,18 +56,18 @@ public:
 
     ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction);
+        const NTransactionServer::TTransaction* transaction);
 
-    ICypressNode& GetVersionedNode(
+    ICypressNode* GetVersionedNode(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction);
+        const NTransactionServer::TTransaction* transaction);
 
     ICypressNode* FindVersionedNodeForUpdate(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode = ELockMode::Exclusive);
 
-    ICypressNode& GetVersionedNodeForUpdate(
+    ICypressNode* GetVersionedNodeForUpdate(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode = ELockMode::Exclusive);
@@ -89,7 +89,7 @@ public:
         NTransactionServer::TTransaction* transaction,
         TAutoPtr<ICypressNode> node);
 
-    NYTree::TYPath GetNodePath(ICypressNodeProxy::TPtr proxy);
+    NYTree::TYPath GetNodePath(ICypressNodeProxyPtr proxy);
     NYTree::TYPath GetNodePath(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction);
@@ -121,7 +121,7 @@ private:
     NMetaState::TMetaStateMap<TVersionedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
-    yvector<INodeTypeHandler::TPtr> TypeToHandler;
+    yvector<INodeTypeHandlerPtr> TypeToHandler;
 
     yhash_map<TNodeId, INodeBehavior::TPtr> NodeBehaviors;
 
@@ -138,20 +138,20 @@ private:
     virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
 
-    void OnTransactionCommitted(NTransactionServer::TTransaction& transaction);
-    void OnTransactionAborted(NTransactionServer::TTransaction& transaction);
+    void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
+    void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
 
-    void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
-    void MergeNodes(NTransactionServer::TTransaction& transaction);
+    void ReleaseLocks(const NTransactionServer::TTransaction* transaction);
+    void MergeNodes(NTransactionServer::TTransaction* transaction);
     void MergeNode(
-        NTransactionServer::TTransaction& transaction,
+        NTransactionServer::TTransaction* transaction,
         ICypressNode* branchedNode);
-    void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
-    void PromoteCreatedNodes(NTransactionServer::TTransaction& transaction);
-    void ReleaseCreatedNodes(NTransactionServer::TTransaction& transaction);
-    void PromoteLocks(NTransactionServer::TTransaction& transaction);
+    void RemoveBranchedNodes(const NTransactionServer::TTransaction* transaction);
+    void PromoteCreatedNodes(NTransactionServer::TTransaction* transaction);
+    void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
+    void PromoteLocks(NTransactionServer::TTransaction* transaction);
 
-    INodeTypeHandler::TPtr GetHandler(const ICypressNode& node);
+    INodeTypeHandlerPtr GetHandler(const ICypressNode* node);
 
     void CreateNodeBehavior(const TNodeId& id);
     void DestroyNodeBehavior(const TNodeId& id);
@@ -174,8 +174,8 @@ private:
         ELockMode mode);
     void ReleaseLock(TLock* lock);
 
-   ICypressNode& BranchNode(
-       ICypressNode& node,
+   ICypressNode* BranchNode(
+       ICypressNode* node,
        NTransactionServer::TTransaction* transaction,
        ELockMode mode);
 

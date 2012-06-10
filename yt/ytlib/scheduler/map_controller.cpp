@@ -10,6 +10,7 @@
 #include <ytlib/table_client/schema.h>
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/transaction_client/transaction.h>
 
 #include <cmath>
 

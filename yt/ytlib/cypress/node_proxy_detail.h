@@ -45,7 +45,7 @@ private:
     NTransactionServer::TTransaction* Transaction;
     yvector<TNodeId> CreatedNodeIds;
 
-    ICypressNodeProxy::TPtr DoCreate(EObjectType type);
+    ICypressNodeProxyPtr DoCreate(EObjectType type);
 
 };
 
@@ -62,7 +62,7 @@ public:
     typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
 
     TCypressNodeProxyBase(
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
@@ -100,12 +100,12 @@ public:
     }
 
 
-    virtual const ICypressNode& GetImpl() const
+    virtual const ICypressNode* GetImpl() const
     {
         return this->GetTypedImpl();
     }
 
-    virtual ICypressNode& GetImplForUpdate()
+    virtual ICypressNode* GetImplForUpdate()
     {
         return this->GetTypedImplForUpdate();
     }
@@ -113,13 +113,13 @@ public:
 
     virtual NYTree::ICompositeNodePtr GetParent() const
     {
-        auto nodeId = GetImpl().GetParentId();
+        auto nodeId = GetImpl()->GetParentId();
         return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
     }
 
     virtual void SetParent(NYTree::ICompositeNode* parent)
     {
-        GetImplForUpdate().SetParentId(
+        GetImplForUpdate()->SetParentId(
             parent
             ? ToProxy(parent)->GetId()
             : NullObjectId);
@@ -144,7 +144,7 @@ public:
     }
 
 protected:
-    INodeTypeHandler::TPtr TypeHandler;
+    INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
     NTransactionServer::TTransaction* Transaction;
     TNodeId NodeId;
@@ -168,19 +168,19 @@ protected:
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
-        const auto& node = GetImpl();
-        // NB: Locks are only valid for originating nodes.
-        const auto& origniatingNode = Bootstrap->GetCypressManager()->GetNode(Id);
+        const auto* node = GetImpl();
+        // NB: Locks are stored in originating nodes.
+        const auto* origniatingNode = &Bootstrap->GetCypressManager()->GetNode(Id);
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
-                .Scalar(node.GetParentId().ToString());
+                .Scalar(node->GetParentId().ToString());
             return true;
         }
 
         if (name == "lock_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(origniatingNode.Locks(), [=] (NYTree::TFluentList fluent, TLock* lock) {
+                .DoListFor(origniatingNode->Locks(), [=] (NYTree::TFluentList fluent, TLock* lock) {
                     fluent.Item().Scalar(lock->GetId().ToString());
                 });
             return true;
@@ -189,7 +189,7 @@ protected:
         if (Transaction) {
             if (name == "lock_mode") {
                 BuildYsonFluently(consumer)
-                    .Scalar(FormatEnum(node.GetLockMode()));
+                    .Scalar(FormatEnum(node->GetLockMode()));
                 return true;
             }
         }
@@ -203,7 +203,7 @@ protected:
 
         if (name == "creation_time") {
             BuildYsonFluently(consumer)
-                .Scalar(node.GetCreationTime().ToString());
+                .Scalar(node->GetCreationTime().ToString());
             return true;
         }
 
@@ -255,29 +255,29 @@ protected:
     }
 
 
-    const ICypressNode& GetImpl(const TNodeId& nodeId) const
+    const ICypressNode* GetImpl(const TNodeId& nodeId) const
     {
         return Bootstrap->GetCypressManager()->GetVersionedNode(nodeId, Transaction);
     }
 
-    ICypressNode& GetImplForUpdate(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive)
+    ICypressNode* GetImplForUpdate(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive)
     {
         return Bootstrap->GetCypressManager()->GetVersionedNodeForUpdate(nodeId, Transaction, requestedMode);
     }
 
 
-    const TImpl& GetTypedImpl() const
+    const TImpl* GetTypedImpl() const
     {
-        return static_cast<const TImpl&>(GetImpl(NodeId));
+        return static_cast<const TImpl*>(GetImpl(NodeId));
     }
 
-    TImpl& GetTypedImplForUpdate(ELockMode requestedMode = ELockMode::Exclusive)
+    TImpl* GetTypedImplForUpdate(ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return static_cast<TImpl&>(GetImplForUpdate(NodeId, requestedMode));
+        return static_cast<TImpl*>(GetImplForUpdate(NodeId, requestedMode));
     }
 
 
-    ICypressNodeProxy::TPtr GetProxy(const TNodeId& nodeId) const
+    ICypressNodeProxyPtr GetProxy(const TNodeId& nodeId) const
     {
         YASSERT(nodeId != NullObjectId);
         return Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, Transaction);
@@ -286,26 +286,26 @@ protected:
     static ICypressNodeProxy* ToProxy(INode* node)
     {
         YASSERT(node);
-        return &dynamic_cast<ICypressNodeProxy&>(*node);
+        return dynamic_cast<ICypressNodeProxy*>(node);
     }
 
     static const ICypressNodeProxy* ToProxy(const INode* node)
     {
         YASSERT(node);
-        return &dynamic_cast<const ICypressNodeProxy&>(*node);
+        return dynamic_cast<const ICypressNodeProxy*>(node);
     }
 
 
-    void AttachChild(ICypressNode& child)
+    void AttachChild(ICypressNode* child)
     {
-        child.SetParentId(NodeId);
-        Bootstrap->GetObjectManager()->RefObject(&child);
+        child->SetParentId(NodeId);
+        Bootstrap->GetObjectManager()->RefObject(child);
     }
 
-    void DetachChild(ICypressNode& child)
+    void DetachChild(ICypressNode* child)
     {
-        child.SetParentId(NullObjectId);
-        Bootstrap->GetObjectManager()->UnrefObject(&child);
+        child->SetParentId(NullObjectId);
+        Bootstrap->GetObjectManager()->UnrefObject(child);
     }
 
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes()
@@ -398,7 +398,7 @@ protected:
             auto id = Bootstrap
                 ->GetCypressManager()
                 ->GetVersionedNodeForUpdate(ObjectId, Transaction)
-                .GetId();
+                ->GetId();
 
             if (Transaction == NULL) {
                 return TUserAttributeDictionary::Remove(name);
@@ -450,7 +450,7 @@ class TScalarNodeProxy
 {
 public:
     TScalarNodeProxy(
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
@@ -463,12 +463,12 @@ public:
 
     virtual TValue GetValue() const
     {
-        return this->GetTypedImpl().Value();
+        return this->GetTypedImpl()->Value();
     }
 
     virtual void SetValue(const TValue& value)
     {
-        this->GetTypedImplForUpdate(ELockMode::Exclusive).Value() = value;
+        this->GetTypedImplForUpdate(ELockMode::Exclusive)->Value() = value;
     }
 };
 
@@ -482,7 +482,7 @@ public:
     \
     public: \
         T##key##NodeProxy( \
-            INodeTypeHandler* typeHandler, \
+            INodeTypeHandlerPtr typeHandler, \
             NCellMaster::TBootstrap* bootstrap, \
             NTransactionServer::TTransaction* transaction, \
             const TNodeId& id) \
@@ -495,7 +495,7 @@ public:
     }; \
     \
     template <> \
-    inline ICypressNodeProxy::TPtr TScalarNodeTypeHandler<type>::GetProxy( \
+    inline ICypressNodeProxyPtr TScalarNodeTypeHandler<type>::GetProxy( \
         const TNodeId& nodeId, \
         NTransactionServer::TTransaction* transaction) \
     { \
@@ -533,7 +533,7 @@ protected:
     typedef TCypressNodeProxyBase<IBase, TImpl> TBase;
 
     TCompositeNodeProxyBase(
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
@@ -627,7 +627,7 @@ class TMapNodeProxy
 
 public:
     TMapNodeProxy(
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId);
@@ -651,7 +651,7 @@ protected:
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
 
-    yhash_map<Stroka, ICypressNodeProxy::TPtr> DoGetChildren() const;
+    yhash_map<Stroka, ICypressNodeProxyPtr> DoGetChildren() const;
     NYTree::INodePtr DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const;
 };
 
@@ -665,7 +665,7 @@ class TListNodeProxy
 
 public:
     TListNodeProxy(
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId);

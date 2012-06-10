@@ -1,6 +1,6 @@
 #pragma once
 
-#include "transaction.h"
+#include "public.h"
 
 namespace NYT {
 namespace NTransactionClient {
@@ -15,7 +15,7 @@ protected:
     TTransactionListener();
 
     //! Starts listening for transaction abort.
-    void ListenTransaction(ITransaction* transaction);
+    void ListenTransaction(ITransactionPtr transaction);
 
     //! Checks if any of transactions that we are listening to were aborted.
     //! If so, raises an exception.

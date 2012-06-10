@@ -42,7 +42,7 @@ public:
     typedef TCypressNodeProxyBase<IEntityNode, TVirtualNode> TBase;
 
     TVirtualNodeProxy(
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TTransaction* transaction,
         const TNodeId& nodeId,
@@ -121,7 +121,7 @@ private:
 
 };
 
-INodeTypeHandler::TPtr CreateVirtualTypeHandler(
+INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
     TYPathServiceProducer producer)
@@ -132,7 +132,7 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
         objectType);
 }
 
-INodeTypeHandler::TPtr CreateVirtualTypeHandler(
+INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
     IYPathServicePtr service)

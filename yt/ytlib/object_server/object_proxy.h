@@ -15,8 +15,6 @@ struct IObjectProxy
     : public virtual NYTree::IYPathService
     , public virtual NYTree::IAttributeProvider
 {
-    typedef TIntrusivePtr<IObjectProxy> TPtr;
-
     //! Returns object id.
     virtual TObjectId GetId() const = 0;
 };

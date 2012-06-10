@@ -36,7 +36,7 @@ class TTransaction
     DEFINE_BYREF_RW_PROPERTY(std::vector<NCypress::ICypressNode*>, CreatedNodes);
 
 public:
-    TTransaction(const TTransactionId& id);
+    explicit TTransaction(const TTransactionId& id);
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

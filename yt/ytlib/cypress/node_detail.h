@@ -36,9 +36,9 @@ protected:
     NCellMaster::TBootstrap* Bootstrap;
     TNodeId NodeId;
 
-    TImpl& GetImpl()
+    TImpl* GetImpl()
     {
-        return Bootstrap->GetCypressManager()->GetNode(NodeId);
+        return &Bootstrap->GetCypressManager()->GetNode(NodeId);
     }
 
     TIntrusivePtr<TProxy> GetProxy()
@@ -86,15 +86,15 @@ public:
         return nodeId;
     }
 
-    virtual void Destroy(ICypressNode& node)
+    virtual void Destroy(ICypressNode* node)
     {
-        auto id = node.GetId();
+        auto id = node->GetId();
         auto objectManager = Bootstrap->GetObjectManager();
         if (objectManager->FindAttributes(id)) {
             objectManager->RemoveAttributes(id);
         }
 
-        DoDestroy(dynamic_cast<TImpl&>(node));
+        DoDestroy(dynamic_cast<TImpl*>(node));
     }
 
     virtual bool IsLockModeSupported(ELockMode mode)
@@ -105,44 +105,44 @@ public:
     }
 
     virtual TAutoPtr<ICypressNode> Branch(
-        const ICypressNode& originatingNode,
+        const ICypressNode* originatingNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode)
     {
-        const auto& typedOriginatingNode = dynamic_cast<const TImpl&>(originatingNode);
+        const auto* typedOriginatingNode = dynamic_cast<const TImpl*>(originatingNode);
 
-        auto originatingId = originatingNode.GetId();
+        auto originatingId = originatingNode->GetId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
 
         // Create a branched copy.
-        TAutoPtr<TImpl> branchedNode = new TImpl(branchedId, typedOriginatingNode);
+        TAutoPtr<TImpl> branchedNode(new TImpl(branchedId, *typedOriginatingNode));
         branchedNode->SetLockMode(mode);
 
         // Branch user attributes.
         Bootstrap->GetObjectManager()->BranchAttributes(originatingId, branchedId);
         
         // Run custom branching.
-        DoBranch(typedOriginatingNode, *branchedNode);
+        DoBranch(typedOriginatingNode, ~branchedNode);
 
         return branchedNode.Release();
     }
 
     virtual void Merge(
-        ICypressNode& originatingNode,
-        ICypressNode& branchedNode)
+        ICypressNode* originatingNode,
+        ICypressNode* branchedNode)
     {
-        auto originatingId = originatingNode.GetId();
-        auto branchedId = branchedNode.GetId();
+        auto originatingId = originatingNode->GetId();
+        auto branchedId = branchedNode->GetId();
         YASSERT(branchedId.IsBranched());
 
         // Merge user attributes.
         Bootstrap->GetObjectManager()->MergeAttributes(originatingId, branchedId);
 
         // Merge parent id.
-        originatingNode.SetParentId(branchedNode.GetParentId());
+        originatingNode->SetParentId(branchedNode->GetParentId());
 
         // Run custom merging.
-        DoMerge(dynamic_cast<TImpl&>(originatingNode), dynamic_cast<TImpl&>(branchedNode));
+        DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& id)
@@ -154,22 +154,22 @@ public:
 protected:
     NCellMaster::TBootstrap* Bootstrap;
 
-    virtual void DoDestroy(TImpl& node)
+    virtual void DoDestroy(TImpl* node)
     {
         UNUSED(node);
     }
 
     virtual void DoBranch(
-        const TImpl& originatingNode,
-        TImpl& branchedNode)
+        const TImpl* originatingNode,
+        TImpl* branchedNode)
     {
         UNUSED(originatingNode);
         UNUSED(branchedNode);
     }
 
     virtual void DoMerge(
-        TImpl& originatingNode,
-        TImpl& branchedNode)
+        TImpl* originatingNode,
+        TImpl* branchedNode)
     {
         UNUSED(originatingNode);
         UNUSED(branchedNode);
@@ -360,15 +360,15 @@ public:
 private:
     typedef TMapNodeTypeHandler TThis;
 
-    virtual void DoDestroy(TMapNode& node);
+    virtual void DoDestroy(TMapNode* node);
 
     virtual void DoBranch(
-        const TMapNode& originatingNode,
-        TMapNode& branchedNode);
+        const TMapNode* originatingNode,
+        TMapNode* branchedNode);
 
     virtual void DoMerge(
-        TMapNode& originatingNode,
-        TMapNode& branchedNode);
+        TMapNode* originatingNode,
+        TMapNode* branchedNode);
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -409,15 +409,15 @@ public:
 private:
     typedef TListNodeTypeHandler TThis;
 
-    virtual void DoDestroy(TListNode& node);
+    virtual void DoDestroy(TListNode* node);
 
     virtual void DoBranch(
-        const TListNode& originatingNode,
-        TListNode& branchedNode);
+        const TListNode* originatingNode,
+        TListNode* branchedNode);
 
     virtual void DoMerge(
-        TListNode& originatingNode,
-        TListNode& branchedNode);
+        TListNode* originatingNode,
+        TListNode* branchedNode);
 
 };
 
