@@ -66,7 +66,7 @@ private:
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
-        const auto* transaction = &GetTypedImpl();
+        const auto* transaction = GetTypedImpl();
         
         if (name == "state") {
             BuildYsonFluently(consumer)
@@ -115,7 +115,7 @@ private:
         UNUSED(response);
 
         context->SetRequestInfo("");
-        Owner->Commit(&GetTypedImpl());
+        Owner->Commit(GetTypedImpl());
         context->Reply();
     }
 
@@ -125,7 +125,7 @@ private:
         UNUSED(response);
 
         context->SetRequestInfo("");
-        Owner->Abort(&GetTypedImpl());
+        Owner->Abort(GetTypedImpl());
         context->Reply();
     }
 
@@ -135,7 +135,7 @@ private:
         UNUSED(response);
 
         context->SetRequestInfo("");
-        Owner->RenewLease(&GetTypedImpl());
+        Owner->RenewLease(GetTypedImpl());
         context->Reply();
     }
 
@@ -147,7 +147,7 @@ private:
             ~GetId().ToString(),
             ~type.ToString());
 
-        auto* transaction = GetId() == NullTransactionId ? NULL : &GetTypedImpl();
+        auto* transaction = GetId() == NullTransactionId ? NULL : GetTypedImpl();
 
         auto objectManager = Owner->Bootstrap->GetObjectManager();
         auto handler = objectManager->FindHandler(type);
@@ -199,7 +199,7 @@ private:
 
         context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
 
-        auto* transaction = &GetTypedImpl();
+        auto* transaction = GetTypedImpl();
         if (transaction->CreatedObjectIds().erase(objectId) != 1) {
             ythrow yexception() << "Transaction does not own the object";
         }

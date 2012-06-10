@@ -11,7 +11,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TGetExecutor::TGetExecutor()
-    : PathArg("path", "path to an object in Cypress that must be retrieved", true, "", "path")
+    : PathArg("path", "path to an object in Cypress that must be retrieved", true, "", "ypath")
 {
     CmdLine.add(PathArg);
 }
@@ -35,7 +35,7 @@ Stroka TGetExecutor::GetDriverCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TSetExecutor::TSetExecutor()
-    : PathArg("path", "path to an object in Cypress that must be set", true, "", "path")
+    : PathArg("path", "path to an object in Cypress that must be set", true, "", "ypath")
     , ValueArg("value", "value to set", true, "", "yson")
 {
     CmdLine.add(PathArg);
@@ -62,7 +62,7 @@ Stroka TSetExecutor::GetDriverCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TRemoveExecutor::TRemoveExecutor()
-    : PathArg("path", "path to an object in Cypress that must be removed", true, "", "path")
+    : PathArg("path", "path to an object in Cypress that must be removed", true, "", "ypath")
 {
     CmdLine.add(PathArg);
 }
@@ -86,7 +86,7 @@ Stroka TRemoveExecutor::GetDriverCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TListExecutor::TListExecutor()
-    : PathArg("path", "path to a object in Cypress whose children must be listed", true, "", "path")
+    : PathArg("path", "path to a object in Cypress whose children must be listed", true, "", "ypath")
 {
     CmdLine.add(PathArg);
 }
@@ -138,7 +138,7 @@ Stroka TCreateExecutor::GetDriverCommandName() const
 
 TLockExecutor::TLockExecutor()
     : TTransactedExecutor(true)
-    , PathArg("path", "path to an object in Cypress that must be locked", true, "", "path")
+    , PathArg("path", "path to an object in Cypress that must be locked", true, "", "ypath")
     , ModeArg("", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive")
 {
     CmdLine.add(PathArg);

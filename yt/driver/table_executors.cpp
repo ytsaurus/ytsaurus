@@ -37,7 +37,7 @@ Stroka TReadExecutor::GetDriverCommandName() const
 TWriteExecutor::TWriteExecutor()
     : PathArg("path", "path to a table in Cypress that must be written", true, "", "ypath")
     , ValueArg("value", "row(s) to write", false, "", "yson")
-    , SortedBy("", "sorted_by", "key columns names (table must initially be empty, input data must be sorted)", false, "", "list_fragment")
+    , SortedBy("", "sorted_by", "key columns names (table must initially be empty, input data must be sorted)", false, "", "yson_list_fragment")
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);

@@ -289,6 +289,7 @@ void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
+    DISPATCH_YPATH_SERVICE_METHOD(Clear);
     TBase::DoInvoke(context);
 }
 
@@ -681,6 +682,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
     auto* chunkList = tableNode->GetChunkList();
     chunkManager->ClearChunkList(chunkList);
     chunkList->SetRebalancingEnabled(true);
+    tableNode->SetBranchMode(ETableBranchMode::Overwrite);
 
     context->Reply();
 }

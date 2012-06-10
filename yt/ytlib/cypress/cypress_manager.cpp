@@ -91,23 +91,23 @@ private:
 
     virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
-        const auto& lock = GetTypedImpl();
+        const auto* lock = GetTypedImpl();
 
         if (name == "mode") {
             BuildYsonFluently(consumer)
-                .Scalar(FormatEnum(lock.GetMode()));
+                .Scalar(FormatEnum(lock->GetMode()));
             return true;
         }
 
         if (name == "node_id") {
             BuildYsonFluently(consumer)
-                .Scalar(lock.GetNodeId().ToString());
+                .Scalar(lock->GetNodeId().ToString());
             return true;
         }
 
         if (name == "transaction_id") {
             BuildYsonFluently(consumer)
-                .Scalar(lock.GetTransaction()->GetId().ToString());
+                .Scalar(lock->GetTransaction()->GetId().ToString());
             return true;
         }
 
@@ -462,7 +462,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
             return NULL;
         }
 
-        // Move to the parent transaction->
+        // Move to the parent transaction.
         currentTransaction = currentTransaction->GetParent();
     }
 }
@@ -867,7 +867,7 @@ void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branche
     if (originatingNode) {
         // Merge changes back.
         handler->Merge(originatingNode, branchedNode);
-        LOG_INFO_UNLESS(IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
+        LOG_INFO_UNLESS(IsRecovery(), "Merged node %s", ~branchedId.ToString());
 
         // Upgrade lock mode if needed.
         if (parentTransaction && originatingNode->GetLockMode() < branchedNode->GetLockMode()) {

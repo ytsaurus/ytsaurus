@@ -671,7 +671,7 @@ bool TChunkBalancer::IsEnabled()
         int gotOnline = HolderLeaseTracker->GetOnlineHolderCount();
         if (gotOnline < needOnline) {
             if (!LastEnabled || LastEnabled.Get()) {
-                LOG_INFO("Job scheduler disabled: too few online holders, needed >= %d but got %d",
+                LOG_INFO("Chunk balancer disabled: too few online nodes, needed >= %d but got %d",
                     needOnline,
                     gotOnline);
                 LastEnabled = false;
@@ -687,7 +687,7 @@ bool TChunkBalancer::IsEnabled()
         double gotFraction = (double) chunkManager->LostChunkIds().size() / chunkManager->GetChunkCount();
         if (gotFraction > needFraction) {
             if (!LastEnabled || LastEnabled.Get()) {
-                LOG_INFO("Job scheduler disabled: too many lost chunks, needed <= %lf but got %lf",
+                LOG_INFO("Chunk balancer disabled: too many lost chunks, needed <= %lf but got %lf",
                     needFraction,
                     gotFraction);
                 LastEnabled = false;
@@ -697,7 +697,7 @@ bool TChunkBalancer::IsEnabled()
     }
 
     if (!LastEnabled || !LastEnabled.Get()) {
-        LOG_INFO("Job scheduler enabled");
+        LOG_INFO("Chunk balancer enabled");
         LastEnabled = true;
     }
 

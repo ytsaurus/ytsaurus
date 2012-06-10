@@ -130,25 +130,25 @@ protected:
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
     }
 
-    virtual void DoBranch(const TFileNode& originatingNode, TFileNode& branchedNode)
+    virtual void DoBranch(const TFileNode* originatingNode, TFileNode* branchedNode)
     {
         UNUSED(originatingNode);
 
         // branchedNode is a copy of originatingNode.
         // Reference the list chunk from branchedNode.
-        auto* chunkList = branchedNode.GetChunkList();
+        auto* chunkList = branchedNode->GetChunkList();
         Bootstrap->GetObjectManager()->RefObject(chunkList);
-        YCHECK(chunkList->OwningNodes().insert(&branchedNode).second);
+        YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
     }
 
-    virtual void DoMerge(TFileNode& originatingNode, TFileNode& branchedNode)
+    virtual void DoMerge(TFileNode* originatingNode, TFileNode* branchedNode)
     {
         UNUSED(originatingNode);
 
         // Drop the reference from branchedNode.
-        auto* chunkList = branchedNode.GetChunkList();
+        auto* chunkList = branchedNode->GetChunkList();
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
-        YVERIFY(chunkList->OwningNodes().erase(&branchedNode) == 1);
+        YVERIFY(chunkList->OwningNodes().erase(branchedNode) == 1);
     }
 
 };

@@ -91,9 +91,7 @@ public:
     TEraseExecutor();
 
 private:
-    TCLAP::ValueArg<Stroka> InArg;
-    TCLAP::ValueArg<Stroka> OutArg;
-
+    TUnlabeledStringArg PathArg;
     TCLAP::SwitchArg CombineArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);

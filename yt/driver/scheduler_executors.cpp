@@ -245,9 +245,9 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
 //////////////////////////////////////////////////////////////////////////////////
 
 TMapExecutor::TMapExecutor()
-    : InArg("", "in", "input tables", false, "ypath")
-    , OutArg("", "out", "output tables", false, "ypath")
-    , FilesArg("", "file", "additional files", false, "ypath")
+    : InArg("", "in", "input table path", false, "ypath")
+    , OutArg("", "out", "output table path", false, "ypath")
+    , FilesArg("", "file", "additional file path", false, "ypath")
     , MapperArg("", "mapper", "mapper shell command", true, "", "command")
 {
     CmdLine.add(InArg);
@@ -287,8 +287,8 @@ EOperationType TMapExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TMergeExecutor::TMergeExecutor()
-    : InArg("", "in", "input tables", false, "ypath")
-    , OutArg("", "out", "output table", false, "", "ypath")
+    : InArg("", "in", "input table path", false, "ypath")
+    , OutArg("", "out", "output table path", false, "", "ypath")
     , ModeArg("", "mode", "merge mode", false, TMode(EMergeMode::Unordered), "unordered, ordered, sorted")
     , CombineArg("", "combine", "combine small output chunks into larger ones")
 {
@@ -328,9 +328,9 @@ EOperationType TMergeExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TSortExecutor::TSortExecutor()
-    : InArg("", "in", "input tables", false, "ypath")
-    , OutArg("", "out", "output table", false, "", "ypath")
-    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "list_fragment")
+    : InArg("", "in", "input table path", false, "ypath")
+    , OutArg("", "out", "output table path", false, "", "ypath")
+    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "yson_list_fragment")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -366,24 +366,20 @@ EOperationType TSortExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TEraseExecutor::TEraseExecutor()
-    : InArg("", "in", "input table", false, "", "ypath")
-    , OutArg("", "out", "output table", false, "", "ypath")
+    : PathArg("path", "path to a table where rows must be removed", true, "", "ypath")
     , CombineArg("", "combine", "combine small output chunks into larger ones")
 {
-    CmdLine.add(InArg);
-    CmdLine.add(OutArg);
+    CmdLine.add(PathArg);
     CmdLine.add(CombineArg);
 }
 
 void TEraseExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto input = PreprocessYPath(InArg.getValue());
-    auto output = PreprocessYPath(OutArg.getValue());
+    auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_path").Scalar(input)
-            .Item("output_table_path").Scalar(output)
+            .Item("table_path").Scalar(path)
             .Item("combine_chunks").Scalar(CombineArg.getValue())
             .Do(BIND(&TEraseExecutor::BuildOptions, Unretained(this)))
         .EndMap();

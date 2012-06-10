@@ -143,7 +143,7 @@ protected:
         Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkList());
     }
 
-    virtual void DoBranch(const TTableNode& originatingNode, TTableNode& branchedNode)
+    virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode)
     {
         // branchedNode is a copy of originatingNode.
         
@@ -151,7 +151,7 @@ protected:
         auto objectManager = Bootstrap->GetObjectManager();
       
         // Default branch mode is Append.
-        branchedNode.SetBranchMode(ETableBranchMode::Append);
+        branchedNode->SetBranchMode(ETableBranchMode::Append);
 
         // Create composite chunk list and place it in the root of branchedNode.
         auto* branchedChunkList = chunkManager->CreateChunkList();
@@ -162,13 +162,13 @@ protected:
         // unwanted modifications of the children set.
         branchedChunkList->SetRebalancingEnabled(false);
 
-        branchedNode.SetChunkList(branchedChunkList);
-        YCHECK(branchedChunkList->OwningNodes().insert(&branchedNode).second);
+        branchedNode->SetChunkList(branchedChunkList);
+        YCHECK(branchedChunkList->OwningNodes().insert(branchedNode).second);
         objectManager->RefObject(branchedChunkList);
 
         // Make the original chunk list a child of the composite one.
         std::vector<TChunkTreeRef> children;
-        auto* originatingChunkList = originatingNode.GetChunkList();
+        auto* originatingChunkList = originatingNode->GetChunkList();
         children.push_back(TChunkTreeRef(originatingChunkList));
         chunkManager->AttachToChunkList(branchedChunkList, children);
 
@@ -177,29 +177,29 @@ protected:
 
         // TODO(babenko): IsRecovery
         LOG_DEBUG("Table node branched (BranchedNodeId: %s, OriginatingChunkListId: %s, BranchedChunkListId: %s)",
-            ~branchedNode.GetId().ToString(),
+            ~branchedNode->GetId().ToString(),
             ~originatingChunkList->GetId().ToString(),
             ~branchedChunkList->GetId().ToString());
     }
 
-    virtual void DoMerge(TTableNode& originatingNode, TTableNode& branchedNode)
+    virtual void DoMerge(TTableNode* originatingNode, TTableNode* branchedNode)
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
         // Create a new chunk list obtained from the branched one
         // by replacing the first child with its up-to-date state.
-        auto* branchedChunkList = branchedNode.GetChunkList();
-        auto* currentChunkList = originatingNode.GetChunkList();
+        auto* branchedChunkList = branchedNode->GetChunkList();
+        auto* currentChunkList = originatingNode->GetChunkList();
 
         // TODO(babenko): IsRecovery
         LOG_DEBUG("Table node merged (BranchedNodeId: %s, BranchMode: %s, CurrentChunkListId: %s, BranchedChunkListId: %s)",
-            ~branchedNode.GetId().ToString(),
-            ~branchedNode.GetBranchMode().ToString(),
+            ~branchedNode->GetId().ToString(),
+            ~branchedNode->GetBranchMode().ToString(),
             ~currentChunkList->GetId().ToString(),
             ~branchedChunkList->GetId().ToString());
 
-        switch (branchedNode.GetBranchMode()) {
+        switch (branchedNode->GetBranchMode()) {
             case ETableBranchMode::Append: {
                 // Construct newChunkList that will replace currentChunkList in originatingNode.
                 // Append the following items to it:
@@ -224,11 +224,11 @@ protected:
                 newChunkList->SetSorted(branchedChunkList->GetSorted());
 
                 // Assign newChunkList to originatingNode.
-                originatingNode.SetChunkList(newChunkList);
-                YCHECK(newChunkList->OwningNodes().insert(&originatingNode).second);
-                YCHECK(currentChunkList->OwningNodes().erase(&originatingNode) == 1);
+                originatingNode->SetChunkList(newChunkList);
+                YCHECK(newChunkList->OwningNodes().insert(originatingNode).second);
+                YCHECK(currentChunkList->OwningNodes().erase(originatingNode) == 1);
                 objectManager->UnrefObject(currentChunkList);
-                YCHECK(branchedChunkList->OwningNodes().erase(&branchedNode) == 1);
+                YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
                 objectManager->UnrefObject(branchedChunkList);
 
                 break;
@@ -236,8 +236,10 @@ protected:
 
             case ETableBranchMode::Overwrite: {
                 // Just replace currentChunkList with branchedChunkList.
-                originatingNode.SetChunkList(branchedChunkList);
+                originatingNode->SetChunkList(branchedChunkList);
                 objectManager->UnrefObject(currentChunkList);
+                YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
+                YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
                 YCHECK(branchedChunkList->GetRebalancingEnabled());
                 break;
             }

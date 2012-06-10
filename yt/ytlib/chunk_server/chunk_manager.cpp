@@ -514,16 +514,16 @@ private:
                 break;
             }
             case EObjectType::ChunkList: {
-                const auto& chunkList = *child.AsChunkList();
-                if (lastChunkList->Children().size() + chunkList.Children().size() <=
+                const auto* chunkList = child.AsChunkList();
+                if (lastChunkList->Children().size() + chunkList->Children().size() <=
                     Config->MaxChunkListSize)
                 {
                     // Just appending the chunk list to the last chunk list.
-                    AttachToChunkList(lastChunkList, chunkList.Children());
+                    AttachToChunkList(lastChunkList, chunkList->Children());
                 } else {
                     // The chunk list is too large. We have to copy chunks by blocks.
                     int mergedCount = 0;
-                    while (mergedCount < chunkList.Children().size()) {
+                    while (mergedCount < chunkList->Children().size()) {
                         if (lastChunkList->Children().size() >= Config->MinChunkListSize) {
                             // The last chunk list is too large. Creating a new one.
                             YASSERT(lastChunkList->Children().size() == Config->MinChunkListSize);
@@ -532,11 +532,11 @@ private:
                         }
                         int count = Min(
                             Config->MinChunkListSize - lastChunkList->Children().size(),
-                            chunkList.Children().size() - mergedCount);
+                            chunkList->Children().size() - mergedCount);
                         AttachToChunkList(
                             lastChunkList,
-                            &*chunkList.Children().begin() + mergedCount,
-                            &*chunkList.Children().begin() + mergedCount + count);
+                            &*chunkList->Children().begin() + mergedCount,
+                            &*chunkList->Children().begin() + mergedCount + count);
                         mergedCount += count;
                     }
                 }
@@ -551,16 +551,16 @@ private:
     {
         // Expand child if it has high rank.
         if (child.GetType() == EObjectType::ChunkList) {
-            const auto& chunkList = *child.AsChunkList();
-            if (chunkList.Statistics().Rank > 1) {
-                FOREACH (const auto& childRef, chunkList.Children()) {
+            const auto* chunkList = child.AsChunkList();
+            if (chunkList->Statistics().Rank > 1) {
+                FOREACH (const auto& childRef, chunkList->Children()) {
                     AddChunkRef(children, childRef);
                 }
                 return;
             }
         }
 
-        // Can we reuse last chunk list?
+        // Can we reuse the last chunk list?
         bool merge = false;
         if (!children->empty()) {
             auto* lastChild = children->back().AsChunkList();
@@ -1510,8 +1510,8 @@ private:
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
-        const auto& chunk = GetTypedImpl();
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.ChunkMeta().extensions());
+        const auto* chunk = GetTypedImpl();
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
 
         attributes->push_back("confirmed");
         attributes->push_back("cached_locations");
@@ -1524,27 +1524,27 @@ private:
         attributes->push_back(TAttributeInfo("codec_id", miscExt->has_codec_id()));
         attributes->push_back(TAttributeInfo("row_count", miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("sorted", miscExt->has_sorted()));
-        attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
-        attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
+        attributes->push_back(TAttributeInfo("size", chunk->IsConfirmed()));
+        attributes->push_back(TAttributeInfo("chunk_type", chunk->IsConfirmed()));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         TBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
-        const auto& chunk = GetTypedImpl();
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.ChunkMeta().extensions());
+        const auto* chunk = GetTypedImpl();
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
 
         if (name == "confirmed") {
             BuildYsonFluently(consumer)
-                .Scalar(FormatBool(chunk.IsConfirmed()));
+                .Scalar(FormatBool(chunk->IsConfirmed()));
             return true;
         }
 
         if (name == "cached_locations") {
-            if (~chunk.CachedLocations()) {
+            if (~chunk->CachedLocations()) {
                 BuildYsonFluently(consumer)
-                    .DoListFor(*chunk.CachedLocations(), [=] (TFluentList fluent, THolderId holderId) {
+                    .DoListFor(*chunk->CachedLocations(), [=] (TFluentList fluent, THolderId holderId) {
                         const auto& holder = Owner->GetHolder(holderId);
                         fluent.Item().Scalar(holder.GetAddress());
                     });
@@ -1558,7 +1558,7 @@ private:
 
         if (name == "stored_locations") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunk.StoredLocations(), [=] (TFluentList fluent, THolderId holderId) {
+                .DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, THolderId holderId) {
                     const auto& holder = Owner->GetHolder(holderId);
                     fluent.Item().Scalar(holder.GetAddress());
                 });
@@ -1567,7 +1567,7 @@ private:
 
         if (name == "replication_factor") {
             BuildYsonFluently(consumer)
-                .Scalar(chunk.GetReplicationFactor());
+                .Scalar(chunk->GetReplicationFactor());
             return true;
         }
 
@@ -1609,19 +1609,19 @@ private:
 
         if (name == "master_meta_size") {
             BuildYsonFluently(consumer)
-                .Scalar(chunk.ChunkMeta().ByteSize());
+                .Scalar(chunk->ChunkMeta().ByteSize());
             return true;
         }
 
-        if (chunk.IsConfirmed()) {
+        if (chunk->IsConfirmed()) {
             if (name == "size") {
                 BuildYsonFluently(consumer)
-                    .Scalar(chunk.ChunkInfo().size());
+                    .Scalar(chunk->ChunkInfo().size());
                 return true;
             }
 
             if (name == "chunk_type") {
-                auto type = EChunkType(chunk.ChunkMeta().type());
+                auto type = EChunkType(chunk->ChunkMeta().type());
                 BuildYsonFluently(consumer)
                     .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
                 return true;
@@ -1629,7 +1629,7 @@ private:
         }
 
         if (name == "owning_nodes") {
-            Owner->GetChunkRefOwningNodes(TChunkTreeRef(const_cast<TChunk*>(&chunk)), consumer);
+            Owner->GetChunkRefOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)), consumer);
             return true;
         }
 
@@ -1647,8 +1647,8 @@ private:
     {
         UNUSED(request);
 
-        const auto& chunk = GetTypedImpl();
-        Owner->FillHolderAddresses(response->mutable_node_addresses(), chunk);
+        const auto* chunk = GetTypedImpl();
+        Owner->FillHolderAddresses(response->mutable_node_addresses(), *chunk);
 
         context->SetResponseInfo("NodeAddresses: [%s]",
             ~JoinToString(response->node_addresses()));
@@ -1667,23 +1667,23 @@ private:
             request->chunk_info().size(),
             ~JoinToString(holderAddresses));
 
-        auto& chunk = GetTypedImpl();
+        auto* chunk = GetTypedImpl();
 
         // Skip chunks that are already confirmed.
-        if (chunk.IsConfirmed()) {
+        if (chunk->IsConfirmed()) {
             context->SetResponseInfo("Chunk is already confirmed");
             context->Reply();
             return;
         }
 
         // Use the size reported by the client, but check it for consistency first.
-        if (!chunk.ValidateChunkInfo(request->chunk_info())) {
+        if (!chunk->ValidateChunkInfo(request->chunk_info())) {
             LOG_FATAL("Mismatched chunk %s info reported by client: expected %s, received %s",
                 ~Id.ToString(),
-                ~chunk.ChunkInfo().DebugString(),
+                ~chunk->ChunkInfo().DebugString(),
                 ~request->chunk_info().DebugString());
         }
-        chunk.ChunkInfo().CopyFrom(request->chunk_info());
+        chunk->ChunkInfo().CopyFrom(request->chunk_info());
 
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolderByAddresss(address);
@@ -1702,17 +1702,17 @@ private:
                 continue;
             }
 
-            if (!holder->HasChunk(&chunk, false)) {
+            if (!holder->HasChunk(chunk, false)) {
                 Owner->AddChunkReplica(
                     *holder,
-                    &chunk,
+                    chunk,
                     false,
                     TImpl::EAddReplicaReason::Confirmation);
-                holder->MarkChunkUnapproved(&chunk);
+                holder->MarkChunkUnapproved(chunk);
             }
         }
 
-        chunk.ChunkMeta().CopyFrom(request->chunk_meta());
+        chunk->ChunkMeta().CopyFrom(request->chunk_meta());
         LOG_INFO_UNLESS(Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
 
         context->Reply();
@@ -1808,6 +1808,7 @@ private:
         attributes->push_back("compressed_size");
         attributes->push_back("chunk_count");
         attributes->push_back("rank");
+        attributes->push_back("rebalancing_enabled");
         attributes->push_back(TAttributeInfo("tree", true, true));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         TBase::GetSystemAttributes(attributes);
@@ -1820,16 +1821,16 @@ private:
                 consumer->OnStringScalar(ref.GetId().ToString());
                 break;
             case EObjectType::ChunkList: {
-                const auto& chunkList = *ref.AsChunkList();
+                const auto* chunkList = ref.AsChunkList();
                 consumer->OnBeginAttributes();
                 consumer->OnKeyedItem("id");
-                consumer->OnStringScalar(chunkList.GetId().ToString());
+                consumer->OnStringScalar(chunkList->GetId().ToString());
                 consumer->OnKeyedItem("rank");
-                consumer->OnIntegerScalar(chunkList.Statistics().Rank);
+                consumer->OnIntegerScalar(chunkList->Statistics().Rank);
                 consumer->OnEndAttributes();
 
                 consumer->OnBeginList();
-                FOREACH (auto childRef, chunkList.Children()) {
+                FOREACH (auto childRef, chunkList->Children()) {
                     consumer->OnListItem();
                     BuildTree(childRef, consumer);
                 }
@@ -1843,11 +1844,11 @@ private:
 
     virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
-        const auto& chunkList = GetTypedImpl();
+        const auto* chunkList = GetTypedImpl();
 
         if (name == "children_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList.Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef) {
+                .DoListFor(chunkList->Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef) {
                         fluent.Item().Scalar(chunkRef.GetId());
                 });
             return true;
@@ -1855,13 +1856,13 @@ private:
 
         if (name == "parent_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList.Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
+                .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
                     fluent.Item().Scalar(chunkList->GetId());
                 });
             return true;
         }
 
-        const auto& statistics = chunkList.Statistics();
+        const auto& statistics = chunkList->Statistics();
 
         if (name == "row_count") {
             BuildYsonFluently(consumer)
@@ -1893,13 +1894,19 @@ private:
             return true;
         }
 
+        if (name == "rebalancing_enabled") {
+            BuildYsonFluently(consumer)
+                .Scalar(chunkList->GetRebalancingEnabled());
+            return true;
+        }
+
         if (name == "tree") {
-            BuildTree(TChunkTreeRef(const_cast<TChunkList*>(&chunkList)), consumer);
+            BuildTree(TChunkTreeRef(const_cast<TChunkList*>(chunkList)), consumer);
             return true;
         }
 
         if (name == "owning_nodes") {
-            Owner->GetChunkRefOwningNodes(TChunkTreeRef(const_cast<TChunkList*>(&chunkList)), consumer);
+            Owner->GetChunkRefOwningNodes(TChunkTreeRef(const_cast<TChunkList*>(chunkList)), consumer);
             return true;
         }
 
@@ -1930,8 +1937,8 @@ private:
             children.push_back(chunkRef);
         }
 
-        auto& chunkList = GetTypedImpl();
-        Owner->AttachToChunkList(&chunkList, children);
+        auto* chunkList = GetTypedImpl();
+        Owner->AttachToChunkList(chunkList, children);
 
         context->Reply();
     }

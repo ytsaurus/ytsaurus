@@ -628,7 +628,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path, InputTransaction->GetId()));
-        // TODO(babenko): should we allow nonempty path suffixes for output tables as well?
+        // TODO(babenko): should we allow this?
+        req->set_allow_nonempty_path_suffix(true);
         batchReq->AddRequest(req, "get_out_id");
     }
 
@@ -724,6 +725,10 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TYPathProxy::Get(WithTransaction(ypath, OutputTransaction->GetId()) + "/@row_count");
             batchReq->AddRequest(req, "get_out_row_count");
         }
+        if (table.Clear) {
+            auto req = TTableYPathProxy::Clear(WithTransaction(ypath, OutputTransaction->GetId()));
+            batchReq->AddRequest(req, "clear_out");
+        }
     }
 
     FOREACH (const auto& file, Files) {
@@ -793,6 +798,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
     {
         auto lockOutRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out");
+        auto clearOutRsps = batchRsp->GetResponses<TTableYPathProxy::TRspClear>("clear_out");
         auto getOutChunkListRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_chunk_list");
         auto getOutChannelsRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_channels");
         auto getOutRowCountRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_row_count");
@@ -803,13 +809,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 CheckResponse(
                     rsp,
                     Sprintf("Error locking output table %s", ~table.Path));
-            }
-            {
-                auto rsp = getOutChunkListRsps[index];
-                CheckResponse(
-                    rsp,
-                    Sprintf("Error getting output chunk list for table %s", ~table.Path));
-                table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
             }
             {
                 auto rsp = getOutChannelsRsps[index];
@@ -824,6 +823,19 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error getting \"row_count\" attribute for output table %s", ~table.Path));
                 table.InitialRowCount = DeserializeFromYson<i64>(rsp->value());
+            }
+            {
+                auto rsp = getOutChunkListRsps[index];
+                CheckResponse(
+                    rsp,
+                    Sprintf("Error getting output chunk list for table %s", ~table.Path));
+                table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
+            }
+            if (table.Clear) {
+                auto rsp = clearOutRsps[index];
+                CheckResponse(
+                    rsp,
+                    Sprintf("Error clearing output table %s", ~table.Path));
             }
         }
     }

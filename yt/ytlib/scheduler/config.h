@@ -158,14 +158,13 @@ struct TMergeOperationSpec
 struct TEraseOperationSpec
     : public TOperationSpecBase
 {
-    NYTree::TYPath InputTablePath;
+    NYTree::TYPath TablePath;
     NYTree::TYPath OutputTablePath;
     bool CombineChunks;
 
     TEraseOperationSpec()
     {
-        Register("input_table_path", InputTablePath);
-        Register("output_table_path", OutputTablePath);
+        Register("table_path", TablePath);
         Register("combine_chunks", CombineChunks)
             .Default(false);
     }

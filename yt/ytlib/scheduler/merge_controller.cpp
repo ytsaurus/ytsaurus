@@ -476,8 +476,10 @@ private:
     virtual void CustomInitialize()
     {
         if (OperationType == EOperationType::Erase) {
-            // For erase operation the rowset specified by the user must actually be removed.
+            // For erase operation the rowset specified by the user must actually be removed...
             InputTables[0].NegateFetch = true;
+            // ...and the output table must be cleared.
+            OutputTables[0].Clear = true;
         }
     }
 
@@ -487,8 +489,6 @@ private:
 
         if (OperationType == EOperationType::Erase) {
             // For erase operation:
-            // - the output must be empty
-            CheckOutputTablesEmpty();
             // - if the input is sorted then the output is marked as sorted as well
             if (InputTables[0].Sorted) {
                 SetOutputTablesSorted(InputTables[0].KeyColumns);
@@ -693,8 +693,8 @@ IOperationControllerPtr CreateEraseController(
 
     // Create a fake spec for the ordered merge controller.
     auto mergeSpec = New<TMergeOperationSpec>();
-    mergeSpec->InputTablePaths.push_back(eraseSpec->InputTablePath);
-    mergeSpec->OutputTablePath = eraseSpec->OutputTablePath;
+    mergeSpec->InputTablePaths.push_back(eraseSpec->TablePath);
+    mergeSpec->OutputTablePath = eraseSpec->TablePath;
     mergeSpec->Mode = EMergeMode::Ordered;
     mergeSpec->CombineChunks = eraseSpec->CombineChunks;
     return New<TOrderedMergeController>(config, EOperationType::Erase, mergeSpec, host, operation);

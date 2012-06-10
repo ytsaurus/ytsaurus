@@ -111,10 +111,12 @@ protected:
         TOutputTable()
             : InitialRowCount(0)
             , SetSorted(false)
+            , Clear(false)
         { }
 
         i64 InitialRowCount;
         bool SetSorted;
+        bool Clear;
         std::vector<Stroka> KeyColumns;
         NYTree::TYson Channels;
         // Chunk list for appending the output.
