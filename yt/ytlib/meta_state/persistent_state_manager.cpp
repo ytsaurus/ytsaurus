@@ -132,7 +132,7 @@ public:
 
         CellManager = New<TCellManager>(~Config->Cell);
 
-        LOG_INFO("Self peer address is %s and peer id is %d",
+        LOG_INFO("SelfAddress: %s, PeerId: %d",
             ~CellManager->GetSelfAddress(),
             CellManager->GetSelfId());
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "progress_counter.h"
 
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/chunk_server/public.h>
@@ -11,18 +12,25 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWeightedChunk
+{
+    NTableClient::NProto::TInputChunk InputChunk;
+    i64 Weight;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     TChunkStripe();
     TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
-    TChunkStripe(const std::vector<NTableClient::NProto::TInputChunk>& inputChunks, i64 weight);
 
     void AddChunk(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
 
     std::vector<NChunkServer::TChunkId> GetChunkIds() const;
 
-    TSmallVector<NTableClient::NProto::TInputChunk, 1> InputChunks;
+    TSmallVector<TWeightedChunk, 1> Chunks;
     i64 Weight;
 };
 
@@ -45,64 +53,32 @@ struct TPoolExtractionResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedChunkPool
+struct IChunkPool
 {
-public:
-    TUnorderedChunkPool();
-    ~TUnorderedChunkPool();
+    virtual ~IChunkPool()
+    { }
 
-    void Add(TChunkStripePtr stripe);
+    virtual void Add(TChunkStripePtr stripe) = 0;
 
-    TPoolExtractionResultPtr Extract(
+    virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        i64 weightThreshold,
-        bool needLocal);
-    void OnFailed(TPoolExtractionResultPtr result);
-    void OnCompleted(TPoolExtractionResultPtr result);
+        TNullable<i64> weightThreshold) = 0;
+    virtual void OnFailed(TPoolExtractionResultPtr result) = 0;
+    virtual void OnCompleted(TPoolExtractionResultPtr result) = 0;
 
-    i64 GetTotalWeight() const;
-    i64 GetPendingWeight() const;
-    i64 GetCompletedWeight() const;
+    virtual const TProgressCounter& WeightCounter() const = 0;
+    virtual const TProgressCounter& ChunkCounter() const = 0;
 
-    bool IsCompleted() const;
-    bool HasPendingChunks() const;
-    bool HasPendingLocalChunksAt(const Stroka& address) const;
-
-private:
-    class TImpl;
-    THolder<TImpl> Impl;
-
+    virtual bool IsCompleted() const = 0;
+    virtual bool IsPending() const = 0;
+    
+    virtual i64 GetLocality(const Stroka& address) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
 
-class TAtomicChunkPool
-{
-public:
-    TAtomicChunkPool();
-    ~TAtomicChunkPool();
-
-    void Add(TChunkStripePtr stripe);
-
-    TPoolExtractionResultPtr Extract(
-        const Stroka& address,
-        bool needLocal);
-    void OnFailed(TPoolExtractionResultPtr result);
-    void OnCompleted(TPoolExtractionResultPtr result);
-
-    i64 GetTotalWeight() const;
-    i64 GetPendingWeight() const;
-    i64 GetCompletedWeight() const;
-
-    bool IsCompleted() const;
-    bool HasPendingChunks() const;
-    bool HasPendingLocalChunksAt(const Stroka& address) const;
-     
-private:
-    class TImpl;
-    THolder<TImpl> Impl;
-
-};
+TAutoPtr<IChunkPool> CreateUnorderedChunkPool();
+TAutoPtr<IChunkPool> CreateAtomicChunkPool();
 
 ////////////////////////////////////////////////////////////////////
 

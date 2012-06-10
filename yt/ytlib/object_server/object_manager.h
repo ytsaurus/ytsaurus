@@ -29,8 +29,6 @@ class TObjectManager
 public:
     typedef TIntrusivePtr<TObjectManager> TPtr;
 
-    // TODO(babenko): move to config.h
-
     //! Initializes a new instance.
     TObjectManager(
         TObjectManagerConfig* config,

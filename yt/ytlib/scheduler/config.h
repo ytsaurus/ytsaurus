@@ -37,6 +37,9 @@ struct TSchedulerConfig
     //! job scheduling gets suspended until |count * ChunkListAllocationMultiplier| chunk lists are allocated.
     int ChunkListAllocationMultiplier;
 
+    //! Maximum number of partitions during sort, ever.
+    int MaxPartitionCount;
+
     NJobProxy::TJobIOConfigPtr MapJobIO;
     NJobProxy::TJobIOConfigPtr MergeJobIO;
     NJobProxy::TJobIOConfigPtr PartitionJobIO;
@@ -64,6 +67,10 @@ struct TSchedulerConfig
             .GreaterThanOrEqual(0);
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
             .Default(20)
+            .GreaterThan(0);
+        // TODO(babenko): consider decreasing
+        Register("max_partition_count", MaxPartitionCount)
+            .Default(2000)
             .GreaterThan(0);
         Register("map_job_io", MapJobIO).DefaultNew();
         Register("merge_job_io", MergeJobIO).DefaultNew();
@@ -182,14 +189,11 @@ struct TSortOperationSpec
     //! Only used if no partitioning is done.
     TNullable<int> SortJobCount;
 
-    //! Controls the minimum data size of a partition during sort.
-    //! This is only a hint, the controller may still produce smaller partitions, e.g.
-    //! when the user sets the number of partitions explicitly.
-    i64 MinSortPartitionSize;
-
     //! Maximum amount of (uncompressed) data to be given to a single sort job.
+    //! By default, the controller computes the number of partitions by dividing
+    //! the total input size by this number. The user, however, may specify a custom
+    //! number of partitions.
     i64 MaxSortJobDataSize;
-
 
     TSortOperationSpec()
     {
@@ -206,11 +210,9 @@ struct TSortOperationSpec
         Register("sort_job_count", SortJobCount)
             .Default()
             .GreaterThan(0);
-        Register("min_sort_partition_size", MinSortPartitionSize)
-            .Default((i64) 4 * 1024 * 1024 * 1024)
-            .GreaterThan(0);
+        // TODO(babenko): update when the sort gets optimized
         Register("max_sort_job_data_size", MaxSortJobDataSize)
-            .Default((i64) 4 * 1024 * 1024 * 1024)
+            .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
 };

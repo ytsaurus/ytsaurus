@@ -19,8 +19,7 @@ namespace NMetaState {
 
 struct TLogHeader
 {
-    //! Signature is used to check correctness of this header.
-    //! Have to be different from the index signature.
+    //! Used to check correctness of this header.
     static const ui64 CorrectSignature = 0x313030304C435459ull; // YTCL0001
 
     ui64 Signature;
@@ -67,7 +66,7 @@ static_assert(sizeof(TRecordHeader) == 16, "Binary size of TRecordHeader has cha
 
 struct TLogIndexHeader
 {
-    //! Signature is used to check correctness of this header.
+    //! Used to check correctness of this header.
     static const ui64 CorrectSignature = 0x31303030494C5459ull; // YTLI0001
 
     ui64 Signature;

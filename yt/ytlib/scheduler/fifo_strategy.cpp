@@ -33,9 +33,10 @@ public:
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort)
     {
+        // TODO(babenko): fixme
         // Process operations in FIFO order asking them to perform job scheduling.
         // Stop when no free slots are left.
-        // Try not to schedule more then a single job from an operation to a node (no guarantees, though).
+        // Try not to schedule more then 2 jobs from an operation to a node (no guarantees, though).
         int freeCount = node->Utilization().free_slot_count();
         int allocatedCount = 0;
         FOREACH (auto operation, Queue) {

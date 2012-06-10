@@ -2,6 +2,7 @@
 #include "operation_controller_detail.h"
 #include "private.h"
 #include "chunk_list_pool.h"
+#include "chunk_pool.h"
 
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/object_server/object_ypath_proxy.h>
@@ -233,6 +234,140 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
     }
 
     return job;
+}
+
+void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
+{
+    if (task->GetPendingJobCount() > 0) {
+        if (PendingTasks.insert(task).second) {
+            LOG_DEBUG("Task pending hint added (Task: %s)",
+                ~task->GetId());
+        }
+    }
+}
+
+void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
+{
+    if (AddressToLocalTasks[address].insert(task).second) {
+        LOG_TRACE("Task locality hint added (Task: %s, Address: %s)",
+            ~task->GetId(),
+            ~address);
+    }
+}
+
+void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
+{
+    FOREACH (const auto& chunk, stripe->Chunks) {
+        const auto& inputChunk = chunk.InputChunk;
+        FOREACH (const auto& address, inputChunk.node_addresses()) {
+            AddTaskLocalityHint(task, address);
+        }
+    }
+}
+
+TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
+{
+    // Look for local tasks first.
+    auto address = node->GetAddress();
+    auto localIt = AddressToLocalTasks.find(address);
+    if (localIt != AddressToLocalTasks.end()) {
+        // Find the best with max locality among hinted ones.
+        // Perform lazy cleanup of locality hints.
+        auto& candidates = localIt->second;
+        TTaskPtr bestTask = NULL;
+        i64 bestLocality = 0;
+        auto it = candidates.begin();
+        while (it != candidates.end()) {
+            auto jt = it++;
+            const auto& candidate = *jt;
+            bool isValid = false;
+            if (candidate->GetPendingJobCount() > 0) {
+                i64 locality = candidate->GetLocality(address);
+                if (locality > 0) {
+                    if (locality > bestLocality) {
+                        bestTask = candidate;
+                        bestLocality = locality;
+                    }
+                } else {
+                    LOG_TRACE("Task locality hint removed (Task: %s, Address: %s)",
+                        ~candidate->GetId(),
+                        ~address);
+                    candidates.erase(jt);
+                }
+            }
+        }
+
+        if (bestTask) {
+            // Reset locality timestamp and run custom scheduling.
+            bestTask->SetNonLocalRequestTime(Null);
+            LOG_DEBUG("Scheduling a local job (Task: %s, Address: %s, Locality: %" PRId64 ")",
+                ~bestTask->GetId(),
+                ~node->GetAddress(),
+                bestLocality);
+            return bestTask->ScheduleJob(node);
+        }
+    }
+
+    // Examine all (potentially) pending tasks.
+    // Perform lazy cleanup of pending hints.
+    {
+        auto now = TInstant::Now();
+        TTaskPtr feasibleTask = NULL;
+        auto it = PendingTasks.begin();
+        while (it != PendingTasks.end()) {
+            auto jt = it++;
+            auto candidate = *jt;
+            bool isValid = false;
+            if (candidate->GetPendingJobCount() > 0) {
+                // Check for locality timeout.
+                if (!candidate->GetNonLocalRequestTime()) {
+                    candidate->SetNonLocalRequestTime(now);
+                }
+                if (candidate->GetNonLocalRequestTime().Get() + candidate->GetMaxLocalityDelay() <= now) {
+                    feasibleTask = candidate;
+                }
+            } else {
+                LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
+                PendingTasks.erase(jt);
+            }
+        }
+
+        if (feasibleTask) {
+            LOG_DEBUG("Scheduling a non-local job (Task: %s, Address: %s, LocalityDelay: %s)",
+                ~feasibleTask->GetId(),
+                ~node->GetAddress(),
+                ~ToString(now - feasibleTask->GetNonLocalRequestTime().Get()));
+            auto job = feasibleTask->ScheduleJob(node);
+            if (job) {
+                feasibleTask->SetNonLocalRequestTime(Null);
+                return job;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+int TOperationControllerBase::GetPendingJobCount()
+{
+    // Examine all (potentially) pending tasks.
+    // Perform lazy cleanup of pending hints.
+    int result = 0;
+    auto it = PendingTasks.begin();
+    while (it != PendingTasks.end()) {
+        auto jt = it++;
+        const auto& candidate = *jt;
+        int count = candidate->GetPendingJobCount();
+        if (count == 0) {
+            LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
+            PendingTasks.erase(jt);
+        }
+        result += count;
+    }
+
+    YCHECK(result == 0 || !PendingTasks.empty());
+
+    return result;
 }
 
 void TOperationControllerBase::FailOperation(const TError& error)
@@ -796,7 +931,7 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
 
 std::vector<Stroka> TOperationControllerBase::GetInputKeyColumns()
 {
-    YASSERT(!InputTables.empty());
+    YCHECK(!InputTables.empty());
     for (int index = 1; index < static_cast<int>(InputTables.size()); ++index) {
         if (InputTables[0].KeyColumns != InputTables[index].KeyColumns) {
             ythrow yexception() << Sprintf("Key columns mismatch in input tables %s and %s",
@@ -827,17 +962,15 @@ bool TOperationControllerBase::CheckChunkListsPoolSize(int minSize)
     return false;
 }
 
-i64 TOperationControllerBase::GetJobWeightThreshold(int pendingJobCount, i64 pendingWeight)
+void TOperationControllerBase::RegisterJobInProgress(TJobInProgressPtr jip)
 {
-    YASSERT(pendingJobCount > 0);
-    YASSERT(pendingWeight > 0);
-    return static_cast<i64>(std::ceil((double) pendingWeight / pendingJobCount));
+    YVERIFY(JobsInProgress.insert(MakePair(jip->Job, jip)).second);
 }
 
 TOperationControllerBase::TJobInProgressPtr TOperationControllerBase::GetJobInProgress(TJobPtr job)
 {
     auto it = JobsInProgress.find(job);
-    YASSERT(it != JobsInProgress.end());
+    YCHECK(it != JobsInProgress.end());
     return it->second;
 }
 
@@ -886,7 +1019,7 @@ int TOperationControllerBase::GetJobCount(
         ? configJobCount.Get()
         : static_cast<int>(std::ceil((double) totalWeight / weightPerJob));
     result = std::min(result, chunkCount);
-    YASSERT(result > 0);
+    YCHECK(result > 0);
     return result;
 }
 

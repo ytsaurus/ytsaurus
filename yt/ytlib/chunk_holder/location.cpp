@@ -35,7 +35,7 @@ TLocation::TLocation(
     , SessionCount(0)
     , Logger(ChunkHolderLogger)
 {
-    Logger.AddTag(Sprintf("Path: %s", ~Config->Path.Quote()));
+    Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
 }
 
 TLocation::~TLocation()
@@ -200,7 +200,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
             RemoveFile(chunkDataFileName);
         } else if (!hasData) {
             LOG_WARNING("Missing data file for %s, removing meta file", ~chunkMetaFileName.Quote());
-            RemoveFile(chunkDataFileName);
+            RemoveFile(chunkMetaFileName);
         }
     }
 
