@@ -16,7 +16,7 @@ class TCachedAsyncChangeLog
     , public TAsyncChangeLog
 {
 public:
-    TCachedAsyncChangeLog(TChangeLogPtr changeLog);
+    explicit TCachedAsyncChangeLog(TChangeLogPtr changeLog);
 
 };
 
@@ -28,7 +28,7 @@ class TChangeLogCache
 public:
     typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
 
-    TChangeLogCache(TChangeLogCacheConfigPtr config);
+    explicit TChangeLogCache(TChangeLogCacheConfigPtr config);
 
     void Start();
 
