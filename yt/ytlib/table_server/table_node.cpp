@@ -67,7 +67,7 @@ class TTableNodeTypeHandler
 public:
     typedef TCypressNodeTypeHandlerBase<TTableNode> TBase;
 
-    TTableNodeTypeHandler(TBootstrap* bootstrap)
+    explicit TTableNodeTypeHandler(TBootstrap* bootstrap)
         : TBase(bootstrap)
     { }
 
@@ -137,10 +137,10 @@ public:
     }
 
 protected:
-    virtual void DoDestroy(TTableNode& node)
+    virtual void DoDestroy(TTableNode* node)
     {
-        YCHECK(node.GetChunkList()->OwningNodes().erase(&node) == 1);
-        Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkList());
+        YCHECK(node->GetChunkList()->OwningNodes().erase(node) == 1);
+        Bootstrap->GetObjectManager()->UnrefObject(node->GetChunkList());
     }
 
     virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode)
@@ -198,6 +198,11 @@ protected:
             ~branchedNode->GetBranchMode().ToString(),
             ~currentChunkList->GetId().ToString(),
             ~branchedChunkList->GetId().ToString());
+
+        // If originatingNode is branched too, then it must inherit the branching mode.
+        if (originatingNode->GetId().IsBranched()) {
+            originatingNode->SetBranchMode(branchedNode->GetBranchMode());
+        }
 
         switch (branchedNode->GetBranchMode()) {
             case ETableBranchMode::Append: {

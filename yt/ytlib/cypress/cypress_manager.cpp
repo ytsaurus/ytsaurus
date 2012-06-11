@@ -851,18 +851,25 @@ void TCypressManager::ReleaseLocks(const TTransaction* transaction)
 
 void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branchedNode)
 {
+    auto objectManager = Bootstrap->GetObjectManager();
     auto handler = GetHandler(branchedNode);
-
+    
     auto branchedId = branchedNode->GetId();
+    auto* parentTransaction = transaction->GetParent();
+    auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
+
     if (branchedNode->GetLockMode() == ELockMode::Snapshot) {
+        // Remove the branched copy.
         handler->Destroy(branchedNode);
         NodeMap.Remove(branchedId);
+
+        // Drop the implicit reference to the originator.
+        objectManager->UnrefObject(originatingId);
+
         LOG_INFO_UNLESS(IsRecovery(), "Removed branched node %s", ~branchedId.ToString());
         return;
     }
 
-    auto* parentTransaction = transaction->GetParent();
-    auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
     auto* originatingNode = NodeMap.Find(originatingId);
     if (originatingNode) {
         // Merge changes back.
@@ -883,10 +890,9 @@ void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branche
         NodeMap.Remove(branchedId);
 
         // Drop the implicit reference to the originator.
-        auto objectManager = Bootstrap->GetObjectManager();
         objectManager->UnrefObject(originatingId);
     } else {
-        // Promote branched node to the parent transaction->
+        // Promote branched node to the parent transaction.
         YASSERT(parentTransaction);
         originatingNode = branchedNode;
         NodeMap.Release(branchedId);

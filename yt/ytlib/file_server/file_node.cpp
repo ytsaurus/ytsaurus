@@ -123,10 +123,10 @@ public:
     }
 
 protected:
-    virtual void DoDestroy(TFileNode& node)
+    virtual void DoDestroy(TFileNode* node)
     {
-        auto* chunkList = node.GetChunkList();
-        YVERIFY(chunkList->OwningNodes().erase(&node) == 1);
+        auto* chunkList = node->GetChunkList();
+        YVERIFY(chunkList->OwningNodes().erase(node) == 1);
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
     }
 

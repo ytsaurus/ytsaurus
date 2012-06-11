@@ -725,9 +725,12 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TYPathProxy::Get(WithTransaction(ypath, OutputTransaction->GetId()) + "/@row_count");
             batchReq->AddRequest(req, "get_out_row_count");
         }
-        if (table.Clear) {
+        {
             auto req = TTableYPathProxy::Clear(WithTransaction(ypath, OutputTransaction->GetId()));
-            batchReq->AddRequest(req, "clear_out");
+            // If |Clear| is false then we add a dummy request to keep "clear_out" requests aligned with output tables.
+            batchReq->AddRequest(
+                table.Clear ? req : NULL,
+                "clear_out");
         }
     }
 

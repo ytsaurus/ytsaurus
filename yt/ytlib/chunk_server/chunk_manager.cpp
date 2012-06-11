@@ -344,11 +344,15 @@ public:
 
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (auto childRef, chunkList->Children()) {
+            ResetChunkTreeParent(chunkList, childRef);
             objectManager->UnrefObject(childRef.GetId());
         }
         chunkList->Children().clear();
         chunkList->RowCountSums().clear();
         chunkList->Statistics() = TChunkTreeStatistics();
+
+        // TODO(babenko): IsRecovery
+        LOG_DEBUG("Chunk list cleared (ChunkListId: %s)", ~chunkList->GetId().ToString());
     }
 
 

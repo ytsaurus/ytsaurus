@@ -308,6 +308,7 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkListForUpdate);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(SetSorted);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Clear);
     return TBase::IsWriteRequest(context);
 }
 
@@ -480,6 +481,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("compression_ratio");
     attributes->push_back("row_count");
     attributes->push_back("sorted");
+    attributes->push_back("branch_mode");
     attributes->push_back(TAttributeInfo("key_columns", chunkList->GetSorted()));
     TBase::GetSystemAttributes(attributes);
 }
@@ -541,6 +543,12 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
     if (name == "sorted") {
         BuildYsonFluently(consumer)
             .Scalar(chunkList->GetSorted());
+        return true;
+    }
+
+    if (name == "branch_mode") {
+        BuildYsonFluently(consumer)
+            .Scalar(FormatEnum(tableNode->GetBranchMode()));
         return true;
     }
 
