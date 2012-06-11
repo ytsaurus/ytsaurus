@@ -356,10 +356,9 @@ protected:
     template <class TResponse>
     static void CheckResponse(TResponse response, const Stroka& failureMessage) 
     {
-        if (response->IsOK())
-            return;
-
-        ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+        if (!response->IsOK()) {
+            ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+        }
     }
 
 
@@ -442,17 +441,22 @@ protected:
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
+    
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
+    
     //! Called to extract file paths from the spec.
     virtual std::vector<NYTree::TYPath> GetFilePaths();
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkServer::TChunkId& chunkId);
 
-    //! Called when a job is unable to read a chunk that is not a part of the input.
+    //! Called when a job is unable to read an intermediate chunk
+    //! (i.e. that is not a part of the input).
     /*!
-     *  The default implementation calls |YUNREACHABLE|.
+     *  The default implementation fails the operation immediately.
+     *  Those operations providing some fault tolerance for intermediate chunks
+     *  must override this method.
      */
     virtual void OnIntermediateChunkFailed(const NChunkServer::TChunkId& chunkId);
 
