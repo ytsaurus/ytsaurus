@@ -115,7 +115,10 @@ void TAbortOperationCommand::DoExecute()
     TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
     auto abortOpReq = proxy.AbortOperation();
     *abortOpReq->mutable_operation_id() = Request->OperationId.ToProto();
-    abortOpReq->Invoke().Get();
+    auto abortOpRsp = abortOpReq->Invoke().Get();
+    if (!abortOpRsp->IsOK()) {
+        ythrow yexception() << abortOpRsp->GetError().ToString();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
