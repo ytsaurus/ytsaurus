@@ -29,7 +29,7 @@ class TJob
 
     DEFINE_BYREF_RW_PROPERTY(NProto::TJobSpec, Spec);
 
-    //! Some rough approximation what is updated with every heartbeat.
+    //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
 
 public:
