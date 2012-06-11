@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "chunk_pool.h"
-#include "private.h"
 
 namespace NYT {
 namespace NScheduler {
