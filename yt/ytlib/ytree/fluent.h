@@ -319,7 +319,7 @@ public:
         typedef TAttributes<TParent> TThis;
 
         explicit TAttributes(IYsonConsumer* consumer, const TParent& parent)
-            : TFluentFragmentBase<TAttributes, TParent>(consumer, parent)
+            : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, parent)
         { }
 
         TAny<TThis> Item(const Stroka& key)
@@ -330,8 +330,7 @@ public:
 
         TThis& Items(IMapNodePtr map)
         {
-            FOREACH (const auto& pair, map->GetChildren())
-            {
+            FOREACH (const auto& pair, map->GetChildren()) {
                 this->Consumer->OnKeyedItem(pair.first);
                 VisitTree(~pair.second, this->Consumer);
             }
@@ -340,8 +339,7 @@ public:
 
         TThis& Items(IAttributeDictionary* attributes)
         {
-            FOREACH (const auto& key, attributes->List())
-            {
+            FOREACH (const auto& key, attributes->List()) {
                 const auto& yson = attributes->GetYson(key);
                 this->Consumer->OnKeyedItem(key);
                 ParseYson(yson, this->Consumer);
@@ -364,7 +362,7 @@ public:
         typedef TList<TParent> TThis;
 
         explicit TList(IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentFragmentBase<TList, TParent>(consumer, parent)
+            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, parent)
         { }
 
         TAny<TThis> Item()
@@ -375,8 +373,7 @@ public:
 
         TThis& Items(IListNodePtr list)
         {
-            FOREACH (const auto& item, list->GetChildren())
-            {
+            FOREACH (const auto& item, list->GetChildren()) {
                 this->Consumer->OnListItem();
                 VisitTree(~item, this->Consumer);
             }
@@ -399,7 +396,7 @@ public:
         typedef TMap<TParent> TThis;
 
         explicit TMap(IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentFragmentBase<TMap, TParent>(consumer, parent)
+            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, parent)
         { }
 
         TAny<TThis> Item(const Stroka& key)
@@ -410,8 +407,7 @@ public:
 
         TThis& Items(IMapNodePtr map)
         {
-            FOREACH (const auto& pair, map->GetChildren())
-            {
+            FOREACH (const auto& pair, map->GetChildren()) {
                 this->Consumer->OnKeyedItem(pair.first);
                 VisitTree(~pair.second, this->Consumer);
             }
@@ -420,8 +416,7 @@ public:
 
         TThis& Items(IAttributeDictionary* attributes)
         {
-            FOREACH (const auto& key, attributes->List())
-            {
+            FOREACH (const auto& key, attributes->List()) {
                 const auto& yson = attributes->GetYson(key);
                 this->Consumer->OnKeyedItem(key);
                 ParseYson(yson, this->Consumer);
