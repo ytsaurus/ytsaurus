@@ -33,6 +33,7 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
 {
     if (!FileWriter) {
         FileWriter = new TFileChunkOutput(Config, MasterChannel, TransactionId);
+        FileWriter->Open();
     }
 
     FileWriter->Write(buf, len);
@@ -45,13 +46,9 @@ void TErrorOutput::DoFinish()
     }
 }
 
-TNullable<TChunkId> TErrorOutput::GetChunkId() const
+TChunkId TErrorOutput::GetChunkId() const
 {
-    if (!FileWriter) {
-        return Null;
-    }
-
-    return FileWriter->GetChunkId();
+    return ~FileWriter ? FileWriter->GetChunkId() : NullChunkId;
 }
 
 ////////////////////////////////////////////////////////////////////

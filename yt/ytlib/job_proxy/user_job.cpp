@@ -36,19 +36,21 @@
 namespace NYT {
 namespace NJobProxy {
 
-static NLog::TLogger& Logger = JobProxyLogger;
-
-using namespace NScheduler::NProto;
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NFormats;
+using namespace NScheduler::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
 
 // ToDo(psushin): set sigint handler?
-// ToDo(psushin): extract it to separate file.
+// ToDo(psushin): extract to a separate file.
 TError StatusToError(int status)
 {
     if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
@@ -83,10 +85,11 @@ TUserJob::TUserJob(
 
 #ifdef _linux_
 
-NScheduler::NProto::TJobResult TUserJob::Run()
+TJobResult TUserJob::Run()
 {
     // ToDo(psushin): use tagged logger here.
-    LOG_DEBUG("Running new user job");
+    LOG_DEBUG("Starting job process");
+
     InitPipes();
 
     ProcessId = fork();
@@ -104,16 +107,16 @@ NScheduler::NProto::TJobResult TUserJob::Run()
 
     DoJobIO();
 
-    LOG_DEBUG("Job successfully finished");
+    LOG_DEBUG("Job process finished successfully");
 
-    NScheduler::NProto::TJobResult result;
+    TJobResult result;
     *result.mutable_error() = JobExitStatus.ToProto();
-
+    auto* resultExt = result.MutableExtension(TUserJobResultExt::user_job_result_ext);
     {
         auto chunkId = ErrorOutput->GetChunkId();
-        if (chunkId) {
-            auto* resultExt = result.MutableExtension(NScheduler::NProto::TUserJobResultExt::user_job_result_ext);
-            *resultExt->mutable_stderr_chunk_id() = chunkId->ToProto();
+        if (chunkId != NullChunkId) {
+            LOG_DEBUG("Stderr chunk is is %s", chunkId.ToString());
+            *resultExt->mutable_stderr_chunk_id() = chunkId.ToProto();
         }
     }
 
@@ -125,7 +128,7 @@ void TUserJob::InitPipes()
 {
     LOG_DEBUG("Initializing pipes");
 
-    // We use a special convention to numerate input and output file descriptors
+    // We use the following convention for designating input and output file descriptors
     // in job processes:
     // fd == 3 * (N - 1) for the N-th input table (if exists)
     // fd == 3 * (N - 1) + 1 for the N-th output table (if exists)
@@ -138,7 +141,7 @@ void TUserJob::InitPipes()
     // 4 - second output
     // etc.
     // 
-    // Special option (ToDo: which?) makes possible to concatenate 
+    // A special option (ToDo(psushin): which?) enables concatenating
     // all input streams into fd == 0.
 
     int maxReservedDescriptor = std::max(
@@ -321,7 +324,7 @@ void TUserJob::DoJobIO()
 
 // Streaming jobs are not supposed to work on windows for now.
 
-NScheduler::NProto::TJobResult TUserJob::Run()
+TJobResult TUserJob::Run()
 {
     YUNIMPLEMENTED();
 }

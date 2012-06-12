@@ -26,7 +26,7 @@ public:
 
     ~TErrorOutput() throw();
 
-    TNullable<NChunkServer::TChunkId> GetChunkId() const;
+    NChunkServer::TChunkId GetChunkId() const;
 
 private: 
     void DoWrite(const void* buf, size_t len);
