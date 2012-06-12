@@ -310,10 +310,10 @@ public:
 
 protected:
     virtual void DoMerge(
-        TScalarNode<TValue>& originatingNode,
-        TScalarNode<TValue>& branchedNode)
+        TScalarNode<TValue>* originatingNode,
+        TScalarNode<TValue>* branchedNode)
     {
-        originatingNode.Value() = branchedNode.Value();
+        originatingNode->Value() = branchedNode->Value();
     }
 
 };
