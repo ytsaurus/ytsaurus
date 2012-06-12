@@ -122,11 +122,16 @@ class TestCypressCommands(YTEnvSetup):
         set('//t/a/@author', '"not_ignat"')
         assert get('//t/a/@author') == '"not_ignat"'
 
-        #nested attributes (actually shows <>)
+        # nested attributes (actually shows <>)
         set('//t/b', '<dir = <file = <>-100> #> []')
         assert get('//t/b/@dir/@') == '{"file"=<>-100}'
         assert get('//t/b/@dir/@file') == '<>-100'
         assert get('//t/b/@dir/@file/@') == '{}'
+
+        # a couple of attributes
+        set('//t', '<key1=value1,key2=value2>{}')
+        assert get('//t/@key1') == '"value1"'
+        assert get('//t/@key2') == '"value2"'
 
         remove('//t')
 
