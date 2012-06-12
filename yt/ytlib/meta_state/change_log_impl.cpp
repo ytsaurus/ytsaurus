@@ -394,7 +394,7 @@ void TChangeLog::TImpl::ProcessRecord(i32 recordId, i32 readSize)
         LOG_DEBUG("Changelog index record added (RecordId: %d, Offset: %" PRId64 ")",
             recordId, CurrentFilePosition);
     }
-    // Successfuly append record.
+    // Record appended successfully.
     CurrentBlockSize += readSize;
     CurrentFilePosition += readSize;
     RecordCount += 1;
@@ -404,24 +404,30 @@ void TChangeLog::TImpl::ProcessRecord(i32 recordId, i32 readSize)
 
 void TChangeLog::TImpl::ReadIndex()
 {
-    TMappedFileInput indexStream(IndexFileName);
+    // Read an existing index.
+    {
+        TMappedFileInput indexStream(IndexFileName);
 
-    // Read and check index header.
-    TLogIndexHeader indexHeader;
-    ReadPod(indexStream, indexHeader);
-    ValidateSignature(indexHeader);
-    YCHECK(indexHeader.IndexSize >= 0);
+        // Read and check index header.
+        TLogIndexHeader indexHeader;
+        ReadPod(indexStream, indexHeader);
+        ValidateSignature(indexHeader);
+        YCHECK(indexHeader.IndexSize >= 0);
 
-    // Read index records.
-    for (i32 i = 0; i < indexHeader.IndexSize; ++i) {
-        TLogIndexRecord indexRecord;
-        ReadPod(indexStream, indexRecord);
-        Index.push_back(indexRecord);
+        // Read index records.
+        for (i32 i = 0; i < indexHeader.IndexSize; ++i) {
+            TLogIndexRecord indexRecord;
+            ReadPod(indexStream, indexRecord);
+            Index.push_back(indexRecord);
+        }
     }
-    Index.resize(GetMaxCorrectIndexPrefix(Index));
+    // Compute the maximum correct prefix and truncate the index.
+    {
+        Index.resize(GetMaxCorrectIndexPrefix(Index));
 
-    IndexFile.Reset(new TFile(IndexFileName, RdWr|Seq));
-    IndexFile->Resize(sizeof(TLogIndexHeader) + Index.size() * sizeof(TLogIndexRecord));
+        IndexFile.Reset(new TFile(IndexFileName, RdWr|Seq));
+        IndexFile->Resize(sizeof(TLogIndexHeader) + Index.size() * sizeof(TLogIndexRecord));
+    }
 }
 
 void TChangeLog::TImpl::RefreshIndexHeader()
@@ -511,7 +517,8 @@ TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(i32 firstRecord
     {
         TBlob blob(result.Length());
         TGuard<TMutex> guard(Mutex);
-        File->Pread(blob.begin(), result.Length(), result.StartPosition());
+        size_t bytesRead = File->Pread(blob.begin(), result.Length(), result.StartPosition());
+        YCHECK(bytesRead == result.Length());
         result.Blob = TSharedRef(MoveRV(blob));
     }
     return result;
