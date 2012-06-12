@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "attribute_consumer.h"
-
 #include "attributes.h"
 
 namespace NYT {
