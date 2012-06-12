@@ -14,7 +14,7 @@ DECLARE_PROTO_EXTENSION(NChunkHolder::NProto::TBlocksExt, 1)
 
 namespace NChunkHolder {
 
-NChunkHolder::NProto::TChunkMeta ExtractChunkMetaExtensions(
+NChunkHolder::NProto::TChunkMeta FilterChunkMetaExtensions(
     const NChunkHolder::NProto::TChunkMeta& chunkMeta,
     const std::vector<int>& tags);
 

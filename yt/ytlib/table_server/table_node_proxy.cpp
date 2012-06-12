@@ -638,25 +638,30 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    for (int i = 0; i < response->chunks_size(); ++i) {
-        auto* inputChunk = response->mutable_chunks(i);
-
-        *inputChunk->mutable_channel() = channel.ToProto();
-        inputChunk->mutable_extensions();
-
-        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
+    FOREACH (auto& inputChunk, *response->mutable_chunks()) {
+        auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
         const auto& chunk = chunkManager->GetChunk(chunkId);
         if (!chunk.IsConfirmed()) {
-            ythrow yexception() << Sprintf("Attempt to fetch a table containing an unconfirmed chunk %s",
+            ythrow yexception() << Sprintf("Cannot fetch a table containing an unconfirmed chunk %s",
                 ~chunkId.ToString());
         }
 
+        *inputChunk.mutable_channel() = channel.ToProto();
+
         if (request->fetch_node_addresses()) {
-            chunkManager->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
+            chunkManager->FillNodeAddresses(inputChunk.mutable_node_addresses(), chunk);
         }
 
         if (request->fetch_all_meta_extensions()) {
-            *inputChunk->mutable_extensions() = chunk.ChunkMeta().extensions();
+            *inputChunk.mutable_extensions() = chunk.ChunkMeta().extensions();
+        } else {
+            yhash_set<int> tags(
+                request->extension_tags().begin(),
+                request->extension_tags().end());
+            FilterProtoExtensions(
+                inputChunk.mutable_extensions(),
+                chunk.ChunkMeta().extensions(),
+                tags);
         }
     }
 

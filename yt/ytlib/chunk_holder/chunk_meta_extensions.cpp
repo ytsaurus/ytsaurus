@@ -8,7 +8,7 @@ using namespace NChunkHolder::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChunkMeta ExtractChunkMetaExtensions(const TChunkMeta& chunkMeta, const std::vector<int>& tags)
+TChunkMeta FilterChunkMetaExtensions(const TChunkMeta& chunkMeta, const std::vector<int>& tags)
 {
     TChunkMeta result;
     result.set_type(chunkMeta.type());

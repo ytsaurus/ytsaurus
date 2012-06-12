@@ -35,6 +35,19 @@ void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
     YVERIFY(DeserializeFromProto(&message, TRef::FromBlob(blob)));
 }
 
+void FilterProtoExtensions(
+    NProto::TExtensionSet* target,
+    const NProto::TExtensionSet& source,
+    const yhash_set<int>& tags)
+{
+    target->Clear();
+    FOREACH (const auto& extension, source.extensions()) {
+        if (tags.find(extension.tag()) != tags.end()) {
+            *target->add_extensions() = extension;
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

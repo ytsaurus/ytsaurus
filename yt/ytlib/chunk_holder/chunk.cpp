@@ -57,7 +57,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
         if (HasMeta) {
             return MakeFuture(TGetMetaResult(
                 tags
-                ? ExtractChunkMetaExtensions(Meta, *tags)
+                ? FilterChunkMetaExtensions(Meta, *tags)
                 : Meta));
         }
     }
@@ -73,7 +73,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
             }
             YASSERT(HasMeta);
             return tags_
-                ? ExtractChunkMetaExtensions(Meta, tags_.Get())
+                ? FilterChunkMetaExtensions(Meta, tags_.Get())
                 : Meta;
         }).AsyncVia(invoker));
 }
