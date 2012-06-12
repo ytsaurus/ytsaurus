@@ -346,7 +346,7 @@ public:
     {
         UNUSED(verb);
 
-        // Make a rigorous coarse check at the right thread.
+        // Make a rigorous check at the right thread.
         if (Bootstrap->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading) {
             ythrow yexception() << "Not a leader";
         }
