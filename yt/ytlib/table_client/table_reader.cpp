@@ -9,6 +9,7 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -51,9 +52,7 @@ void TTableReader::Open()
 
     LOG_INFO("Fetching table info");
     auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
-
-    // ToDo(psushin): in fact only TMiscExt is required.
-    fetchReq->set_fetch_all_meta_extensions(true);
+    fetchReq->add_extension_tags(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
     fetchReq->set_fetch_node_addresses(true);
 
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
@@ -62,18 +61,17 @@ void TTableReader::Open()
             ~fetchRsp->GetError().ToString());
     }
 
-    std::vector<NProto::TInputChunk> inputChunks = 
-        FromProto<NProto::TInputChunk>(fetchRsp->chunks());
+    auto inputChunks = FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
     Reader = New<TChunkSequenceReader>(
         Config,
-        ~MasterChannel,
+        MasterChannel,
         BlockCache,
         inputChunks);
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {
-        ListenTransaction(~Transaction);
+        ListenTransaction(Transaction);
     }
 
     IsOpen = true;
