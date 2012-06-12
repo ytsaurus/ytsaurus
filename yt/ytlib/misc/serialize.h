@@ -254,7 +254,7 @@ void LoadMap(TInputStream* input, TMap& map)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef PackRefs(const std::vector<TSharedRef>& refs);
-void UnpackRefs(TSharedRef ref, std::vector<TSharedRef>* result);
+void UnpackRefs(const TSharedRef& packedRef, std::vector<TSharedRef>* refs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
