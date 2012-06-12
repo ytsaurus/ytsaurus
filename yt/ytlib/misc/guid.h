@@ -24,7 +24,7 @@ struct TGuid
     TGuid(ui64 part0, ui64 part1);
 
     //! Copy constructor.
-    TGuid(const TGuid& guid); // copy ctor
+    TGuid(const TGuid& guid);
 
     //! Checks if TGuid is zero.
     bool IsEmpty() const;
