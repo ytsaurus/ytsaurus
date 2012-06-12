@@ -129,7 +129,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//t/b/@dir/@file/@') == '{}'
 
         # a couple of attributes
-        set('//t', '<key1=value1,key2=value2>{}')
+        set('//t', '<key1=value1;key2=value2>{}')
         assert get('//t/@key1') == '"value1"'
         assert get('//t/@key2') == '"value2"'
 
