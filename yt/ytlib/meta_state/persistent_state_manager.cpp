@@ -497,8 +497,7 @@ public:
                 ex.what());
         }
 
-        context->Response().set_records_read(recordData.size());
-        // Pack refs for minimize allocations.
+        // Pack refs to minimize allocations.
         context->Response().Attachments().push_back(PackRefs(recordData));
 
         context->SetResponseInfo("RecordCount: %d", recordData.size());
