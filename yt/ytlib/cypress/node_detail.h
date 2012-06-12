@@ -175,6 +175,11 @@ protected:
         UNUSED(branchedNode);
     }
 
+    bool IsRecovery() const
+    {
+        return Bootstrap->GetMetaStateManager()->IsRecovery();
+    }
+
 private:
     typedef TCypressNodeTypeHandlerBase<TImpl> TThis;
 

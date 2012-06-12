@@ -65,20 +65,17 @@ void TMetaStatePart::Clear()
 
 bool TMetaStatePart::IsLeader() const
 {
-    auto status = MetaStateManager->GetStateStatus();
-    return status == EPeerStatus::Leading;
+    return MetaStateManager->IsLeader();
 }
 
 bool TMetaStatePart::IsFolllower() const
 {
-    auto status = MetaStateManager->GetStateStatus();
-    return status == EPeerStatus::Following;
+    return MetaStateManager->IsFolllower();
 }
 
 bool TMetaStatePart::IsRecovery() const
 {
-    auto status = MetaStateManager->GetStateStatus();
-    return status == EPeerStatus::LeaderRecovery || status == EPeerStatus::FollowerRecovery;
+    return MetaStateManager->IsRecovery();
 }
 
 void TMetaStatePart::OnStartLeading()

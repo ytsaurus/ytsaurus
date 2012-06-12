@@ -115,6 +115,12 @@ struct IMetaStateManager
     DECLARE_INTERFACE_SIGNAL(void(), FollowerRecoveryComplete);
     //! Raised within the   state thread when the state has started leading.
     DECLARE_INTERFACE_SIGNAL(void(), StopFollowing);
+
+    // Extension methods.
+    bool IsLeader() const;
+    bool IsFolllower() const;
+    bool IsRecovery() const;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-
 #include <ytlib/rpc/server.h>
 
 namespace NYT {

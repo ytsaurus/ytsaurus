@@ -175,8 +175,7 @@ protected:
         // Propagate "sorted" attribute.
         branchedChunkList->SetSorted(originatingChunkList->GetSorted());
 
-        // TODO(babenko): IsRecovery
-        LOG_DEBUG("Table node branched (BranchedNodeId: %s, OriginatingChunkListId: %s, BranchedChunkListId: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, OriginatingChunkListId: %s, BranchedChunkListId: %s)",
             ~branchedNode->GetId().ToString(),
             ~originatingChunkList->GetId().ToString(),
             ~branchedChunkList->GetId().ToString());
@@ -192,8 +191,7 @@ protected:
         auto* branchedChunkList = branchedNode->GetChunkList();
         auto* currentChunkList = originatingNode->GetChunkList();
 
-        // TODO(babenko): IsRecovery
-        LOG_DEBUG("Table node merged (BranchedNodeId: %s, BranchMode: %s, CurrentChunkListId: %s, BranchedChunkListId: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table node merged (BranchedNodeId: %s, BranchMode: %s, CurrentChunkListId: %s, BranchedChunkListId: %s)",
             ~branchedNode->GetId().ToString(),
             ~branchedNode->GetBranchMode().ToString(),
             ~currentChunkList->GetId().ToString(),
