@@ -67,7 +67,7 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
         JobSpec.input_specs(0).chunks().begin(),
         JobSpec.input_specs(0).chunks().end());
 
-    LOG_DEBUG("Creating %d input from %d chunks", 
+    LOG_DEBUG("Opening input %d with %d chunks", 
         index, 
         static_cast<int>(chunks.size()));
 
@@ -79,7 +79,6 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
     auto syncReader = New<TSyncReaderAdapter>(reader);
     syncReader->Open();
 
-    // ToDo(psushin): extract format from operation spec.
     return new TTableProducer(syncReader, consumer);
 }
 
