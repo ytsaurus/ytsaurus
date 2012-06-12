@@ -19,7 +19,7 @@ namespace NFileClient {
 //! A client-side facade for writing files.
 /*!
  *  The client must call #Open and then feed the data in by calling #Write.
- *  Finally it must call #Close.
+ *  Finally it must call #Finish.
  */
 class TFileChunkOutput
     : public TOutputStream
@@ -33,6 +33,7 @@ public:
 
     ~TFileChunkOutput() throw();
 
+    void Open();
     NChunkServer::TChunkId GetChunkId() const;
 
 private:

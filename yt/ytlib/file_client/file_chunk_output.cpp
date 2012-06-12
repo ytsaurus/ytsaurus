@@ -42,7 +42,10 @@ TFileChunkOutput::TFileChunkOutput(
     YASSERT(masterChannel);
 
     Codec = GetCodec(Config->CodecId);
+}
 
+void TFileChunkOutput::Open()
+{
     LOG_INFO("Opening file chunk output (ReplicationFactor: %d, UploadReplicationFactor: %d)",
         Config->ReplicationFactor,
         Config->UploadReplicationFactor);
@@ -82,7 +85,7 @@ TFileChunkOutput::TFileChunkOutput(
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
     Writer = New<TRemoteWriter>(
-        ~Config->RemoteWriter,
+        Config->RemoteWriter,
         ChunkId,
         addresses);
 
