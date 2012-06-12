@@ -311,6 +311,7 @@ private:
             BuildYsonFluently()
                 .BeginAttributes()
                     .Do(BIND(&BuildOperationAttributes, operation))
+                    .Item("opaque").Scalar("true")
                 .EndAttributes()
                 .BeginMap()
                     .Item("jobs").BeginMap()

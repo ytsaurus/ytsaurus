@@ -11,101 +11,89 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Some handy shortcuts.
+typedef TIntrusivePtr<const INode>     IConstNodePtr;
+typedef TIntrusivePtr<const IMapNode>  IConstMapNodePtr;
+typedef TIntrusivePtr<const IListNode> IConstListNodePtr;
+
 //! Traverses a YTree and invokes appropriate methods of IYsonConsumer.
 class TTreeVisitor
     : private TNonCopyable
 {
 public:
-    //! Initializes an instance.
-    /*!
-     *  \param consumer A consumer to call.
-     *  \param visitAttributes Enables going into attribute maps during traversal.
-     */
-    TTreeVisitor(IYsonConsumer* consumer, bool visitAttributes);
+    TTreeVisitor(IYsonConsumer* consumer, bool visitAttributes)
+        : Consumer(consumer)
+        , VisitAttributes_(visitAttributes)
+    { }
 
-    //! Starts the traversal.
-    /*!
-     *  \param root A root from which to start.
-     */
-    void Visit(INodePtr root);
+    void Visit(INodePtr root)
+    {
+        // NB: converting from INodePtr to IConstNodePtr ensures that
+        // the constant overload of Attributes() is called.
+        // Calling non-const version mutates the node and
+        // makes TreeVisitor thread unsafe.
+        VisitAny(root, true);
+    }
 
 private:
     IYsonConsumer* Consumer;
     bool VisitAttributes_;
 
-    void VisitAny(INodePtr node);
-    void VisitAttributes(INodePtr node);
-    void VisitScalar(INodePtr node);
-    void VisitEntity(INodePtr node);
-    void VisitList(IListNodePtr node);
-    void VisitMap(IMapNodePtr node);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTreeVisitor::TTreeVisitor(IYsonConsumer* consumer, bool visitAttributes)
-    : Consumer(consumer)
-    , VisitAttributes_(visitAttributes)
-{ }
-
-void TTreeVisitor::Visit(INodePtr root)
-{
-    VisitAny(root);
-}
-
-void TTreeVisitor::VisitAny(INodePtr node)
-{
-    if (VisitAttributes_) {
-        VisitAttributes(node);
-    }
-
-    switch (node->GetType()) {
-        case ENodeType::String:
-        case ENodeType::Integer:
-        case ENodeType::Double:
-            VisitScalar(node);
-            break;
-
-        case ENodeType::Entity:
-            VisitEntity(node);
-            break;
-
-        case ENodeType::List:
-            VisitList(node->AsList());
-            break;
-
-        case ENodeType::Map:
-            VisitMap(node->AsMap());
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
-}
-
-void TTreeVisitor::VisitAttributes(INodePtr node)
-{
-    //NB: this cast enforces calling the constant overload of Attributes() getter.
-    // Calling non-const version mutates node and makes TreeVisitor thread unsafe.
-    auto constNode = const_cast<const INode*>(~node);
-
-    yhash_set<Stroka> attributeKeySet = constNode->Attributes().List();
-    if (!attributeKeySet.empty()) {
-        std::vector<Stroka> attributeKeyList(attributeKeySet.begin(), attributeKeySet.end());
-        std::sort(attributeKeyList.begin(), attributeKeyList.end());
-        Consumer->OnBeginAttributes();
-        FOREACH (const auto& key, attributeKeyList) {
-            Consumer->OnKeyedItem(key);
-            auto value = node->Attributes().GetYson(key);
-            ProducerFromYson(value).Run(Consumer);
+    void VisitAny(IConstNodePtr node, bool isRoot = false)
+    {
+        if (VisitAttributes_) {
+            VisitAttributes(node);
         }
-        Consumer->OnEndAttributes();
-    }
-}
 
-void TTreeVisitor::VisitScalar(INodePtr node)
-{
-    switch (node->GetType()) {
+        if (!isRoot && node->Attributes().Get<bool>("opaque", false)) {
+            // This node is opaque, i.e. replaced by entity during tree traversal.
+            Consumer->OnEntity();
+            return;
+        }
+
+        switch (node->GetType()) {
+            case ENodeType::String:
+            case ENodeType::Integer:
+            case ENodeType::Double:
+                VisitScalar(node);
+                break;
+
+            case ENodeType::Entity:
+                VisitEntity(node);
+                break;
+
+            case ENodeType::List:
+                VisitList(node->AsList());
+                break;
+
+            case ENodeType::Map:
+                VisitMap(node->AsMap());
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void VisitAttributes(IConstNodePtr node)
+    {
+        auto attributeKeySet = node->Attributes().List();
+        if (!attributeKeySet.empty()) {
+            std::vector<Stroka> attributeKeyList(attributeKeySet.begin(), attributeKeySet.end());
+            std::sort(attributeKeyList.begin(), attributeKeyList.end());
+            Consumer->OnBeginAttributes();
+            FOREACH (const auto& key, attributeKeyList) {
+                Consumer->OnKeyedItem(key);
+                auto value = node->Attributes().GetYson(key);
+                ProducerFromYson(value).Run(Consumer);
+            }
+            Consumer->OnEndAttributes();
+        }
+    }
+
+    void VisitScalar(IConstNodePtr node)
+    {
+        switch (node->GetType()) {
         case ENodeType::String:
             Consumer->OnStringScalar(node->GetValue<Stroka>());
             break;
@@ -120,37 +108,38 @@ void TTreeVisitor::VisitScalar(INodePtr node)
 
         default:
             YUNREACHABLE();
+        }
     }
-}
 
-void TTreeVisitor::VisitEntity(INodePtr node)
-{
-    UNUSED(node);
-    Consumer->OnEntity();
-}
-
-void TTreeVisitor::VisitList(IListNodePtr node)
-{
-    Consumer->OnBeginList();
-    for (int i = 0; i < node->GetChildCount(); ++i) {
-        auto child = node->GetChild(i);
-        Consumer->OnListItem();
-        VisitAny(child);
+    void VisitEntity(IConstNodePtr node)
+    {
+        UNUSED(node);
+        Consumer->OnEntity();
     }
-    Consumer->OnEndList();
-}
 
-void TTreeVisitor::VisitMap(IMapNodePtr node)
-{
-    Consumer->OnBeginMap();
-    auto children = node->GetChildren();
-    std::sort(children.begin(), children.end());
-    FOREACH (const auto& pair, children) {
-        Consumer->OnKeyedItem(pair.first);
-        VisitAny(pair.second);
+    void VisitList(IConstListNodePtr node)
+    {
+        Consumer->OnBeginList();
+        for (int i = 0; i < node->GetChildCount(); ++i) {
+            auto child = node->GetChild(i);
+            Consumer->OnListItem();
+            VisitAny(child);
+        }
+        Consumer->OnEndList();
     }
-    Consumer->OnEndMap();
-}
+
+    void VisitMap(IConstMapNodePtr node)
+    {
+        Consumer->OnBeginMap();
+        auto children = node->GetChildren();
+        std::sort(children.begin(), children.end());
+        FOREACH (const auto& pair, children) {
+            Consumer->OnKeyedItem(pair.first);
+            VisitAny(pair.second);
+        }
+        Consumer->OnEndMap();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

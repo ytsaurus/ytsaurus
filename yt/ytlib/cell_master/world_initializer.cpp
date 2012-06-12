@@ -92,7 +92,7 @@ private:
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/scheduler", transactionId),
-                "{}");
+                "<opaque = true>{}");
 
             SyncYPathSet(
                 service,
@@ -107,17 +107,21 @@ private:
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/operations", transactionId),
-                "{}");
+                "<opaque = true>{}");
 
             SyncYPathCreate(
                 service,
                 WithTransaction("//sys/holders", transactionId),
                 EObjectType::HolderMap);
+            SyncYPathSet(
+                service,
+                WithTransaction("//sys/holders/@opaque", transactionId),
+                "true");
 
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/masters", transactionId),
-                "{}");
+                "<opaque = true>{}");
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
                 auto addressPath = "/" + EscapeYPathToken(address);
