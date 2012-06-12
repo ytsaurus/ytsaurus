@@ -45,7 +45,7 @@ TFileWriter::TFileWriter(
         transaction ? ~transaction->GetId().ToString() : "None"));
 
     if (Transaction) {
-        ListenTransaction(~Transaction);
+        ListenTransaction(Transaction);
     }
 }
 
@@ -63,11 +63,12 @@ void TFileWriter::Open()
             ex.what());
     }
 
-    ListenTransaction(~UploadTransaction);
+    ListenTransaction(UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~UploadTransaction->GetId().ToString());
 
     Writer = new TFileChunkOutput(Config, MasterChannel, UploadTransaction->GetId());
+    Writer->Open();
 }
 
 void TFileWriter::Write(TRef data)
