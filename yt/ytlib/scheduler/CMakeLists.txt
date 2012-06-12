@@ -18,6 +18,7 @@ set( SRCS
   ${BASE}/scheduler_channel.cpp
   ${BASE}/sort_controller.cpp
   ${BASE}/progress_counter.cpp
+  ${BASE}/master_connector.cpp
 )
 set( HDRS
   ${BASE}/chunk_list_pool.h
@@ -42,6 +43,7 @@ set( HDRS
   ${BASE}/scheduler_strategy.h
   ${BASE}/sort_controller.h
   ${BASE}/progress_counter.h
+  ${BASE}/master_connector.h
 )
 
 list(APPEND YT_SOURCE_FILES

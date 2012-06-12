@@ -9,7 +9,12 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYPath GetOperationPath(const TOperationId& id);
+NYTree::TYPath GetOperationPath(const TOperationId& operationId);
+NYTree::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
+
+void BuildOperationAttributes(TOperationPtr operation, NYTree::IYsonConsumer* consumer);
+void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer);
+void BuildExecNodeAttributes(TExecNodePtr node, NYTree::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

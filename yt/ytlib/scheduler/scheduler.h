@@ -26,6 +26,9 @@ public:
     NRpc::IServicePtr GetService();
     NYTree::TYPathServiceProducer CreateOrchidProducer();
 
+    std::vector<TOperationPtr> GetOperations();
+    std::vector<TExecNodePtr> GetExecNodes();
+
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;

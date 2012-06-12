@@ -60,21 +60,6 @@ message TJobResult
     extensions 100 to max;
 }
 
-// Defines how to store stderr from a job.
-message TStdErrSpecExt
-{
-    extend TJobSpec
-    {
-        optional TStdErrSpecExt stderr_spec_ext = 101;
-    }
-
-    // The transaction for uploading stderr chunks.
-    required NYT.NProto.TGuid transaction_id = 1;
-
-    // The chunk list where stderr chunks must be placed.
-    required NYT.NProto.TGuid chunk_list_id = 2;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TUserJobSpecExt

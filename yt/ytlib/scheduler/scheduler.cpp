@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "scheduler.h"
-#include "private.h"
 #include "scheduler_strategy.h"
 #include "null_strategy.h"
 #include "fifo_strategy.h"
@@ -10,6 +9,8 @@
 #include "sort_controller.h"
 #include "scheduler_proxy.h"
 #include "helpers.h"
+#include "master_connector.h"
+#include "private.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -49,6 +50,8 @@ using namespace NYTree;
 using namespace NObjectServer;
 using namespace NProto;
 
+using NChunkServer::TChunkId;
+
 ////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = SchedulerLogger;
@@ -70,8 +73,8 @@ public:
             SchedulerLogger.GetCategory())
         , Config(config)
         , Bootstrap(bootstrap)
-        , ObjectProxy(bootstrap->GetMasterChannel())
         , BackgroundQueue(New<TActionQueue>("Background"))
+        , MasterConnector(new TMasterConnector(Config, Bootstrap))
     {
         YASSERT(config);
         YASSERT(bootstrap);
@@ -83,42 +86,65 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
 
         JobTypeCounters.resize(EJobType::GetDomainSize());
+
+        MasterConnector->SubscribePrimaryTransactionAborted(BIND(
+            &TThis::OnPrimaryTransactionAborted,
+            Unretained(this)));
+        MasterConnector->SubscribeNodeOnline(BIND(
+            &TThis::OnNodeOnline,
+            Unretained(this)));
+        MasterConnector->SubscribeNodeOffline(BIND(
+            &TThis::OnNodeOffline,
+            Unretained(this)));
     }
 
     void Start()
     {
-        Register();
-        InitStrategy();
-        StartRefresh();
+        MasterConnector->Start();
         LoadOperations();
+        InitStrategy();
     }
 
     NYTree::TYPathServiceProducer CreateOrchidProducer()
     {
         // TODO(babenko): virtualize
-        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
+        auto producer = BIND(&TThis::BuildOrchidYson, MakeStrong(this));
         return BIND([=] () {
             return IYPathService::FromProducer(producer);
         });
     }
 
+    std::vector<TOperationPtr> GetOperations()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TOperationPtr> operations;
+        FOREACH (const auto& pair, Operations) {
+            operations.push_back(pair.second);
+        }
+        return operations;
+    }
+
+    std::vector<TExecNodePtr> GetExecNodes()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TExecNodePtr> execNodes;
+        FOREACH (const auto& pair, ExecNodes) {
+            execNodes.push_back(pair.second);
+        }
+        return execNodes;
+    }
+
 private:
     typedef TImpl TThis;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
     TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* Bootstrap;
-    NObjectServer::TObjectServiceProxy ObjectProxy;
     TActionQueue::TPtr BackgroundQueue;
+    THolder<TMasterConnector> MasterConnector;
 
     TAutoPtr<ISchedulerStrategy> Strategy;
-
-    NTransactionClient::ITransactionPtr BootstrapTransaction;
-
-    TPeriodicInvoker::TPtr TransactionRefreshInvoker;
-    TPeriodicInvoker::TPtr ExecNodesRefreshInvoker;
-    TPeriodicInvoker::TPtr OperationNodesUpdateInvoker;
 
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
     TExecNodeMap ExecNodes;
@@ -129,6 +155,56 @@ private:
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
     TJobMap Jobs;
     std::vector<int> JobTypeCounters;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void OnPrimaryTransactionAborted(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        switch (operation->GetState()) {
+            case EOperationState::Preparing:
+            case EOperationState::Running:
+            case EOperationState::Reviving:
+                LOG_INFO("Operation %s belongs to an expired transaction %s, aborting",
+                    ~operation->GetOperationId().ToString(),
+                    ~operation->GetTransactionId().ToString());
+                AbortOperation(operation, EAbortReason::TransactionExpired);
+                break;
+
+            case EOperationState::Completed:
+            case EOperationState::Aborted:
+            case EOperationState::Failed:
+                LOG_INFO("Operation %s belongs to an expired transaction %s, sweeping",
+                    ~operation->GetOperationId().ToString(),
+                    ~operation->GetTransactionId().ToString());
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+
+        UnregisterOperation(operation);
+        MasterConnector->RemoveOperationNode(operation);
+    }
+
+    void OnNodeOnline(const Stroka& address)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto node = New<TExecNode>(address);
+        RegisterNode(node);
+    }
+
+    void OnNodeOffline(const Stroka& address)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto node = GetNode(address);
+        UnregisterNode(node);
+    }
+
 
     typedef TValueOrError<TOperationPtr> TStartResult;
 
@@ -148,7 +224,7 @@ private:
             spec,
             TInstant::Now());
 
-        LOG_INFO("Starting %s operation %s (TransactionId: %s)",
+        LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s)",
             ~FormatEnum(type).Quote(),
             ~operationId.ToString(),
             ~transactionId.ToString());
@@ -160,26 +236,28 @@ private:
             operation->SetState(EOperationState::Initializing);
             InitializeOperation(operation);
         } catch (const std::exception& ex) {
-            return MakeFuture(TStartResult(TError("Operation failed to start\n%s", ex.what())));
+            return MakeFuture(TStartResult(TError("Operation %s has failed to start\n%s",
+                ~operationId.ToString(),
+                ex.what())));
         }
 
         YASSERT(operation->GetState() == EOperationState::Initializing);
         operation->SetState(EOperationState::Preparing);
 
         // Create a node in Cypress that will represent the operation.
-        LOG_INFO("Creating operation node %s", ~operationId.ToString());
-        auto setReq = TYPathProxy::Set(GetOperationPath(operationId));
-        setReq->set_value(SerializeToYson(BIND(
-            &TImpl::BuildOperationYson,
-            MakeStrong(this),
-            operation)));
+        return MasterConnector->CreateOperationNode(operation).Apply(
+            BIND([=] (TError error) -> TStartResult {
+                if (!error.IsOK()) {
+                    return error;
+                }
 
-        return ObjectProxy
-            .Execute(setReq)
-            .Apply(BIND(
-                &TImpl::OnOperationNodeCreated,
-                MakeStrong(this),
-                operation)
+                RegisterOperation(operation);
+                LOG_INFO("Operation has started (OperationId: %s)", ~operationId.ToString());
+
+                PrepareOperation(operation);
+
+                return operation;
+            })
             .AsyncVia(GetControlInvoker()));
     }
 
@@ -192,29 +270,6 @@ private:
         operation->GetController()->Initialize();
     }
 
-    TValueOrError<TOperationPtr> OnOperationNodeCreated(
-        TOperationPtr operation,
-        NYTree::TYPathProxy::TRspSetPtr rsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto id = operation->GetOperationId();
-        if (!rsp->IsOK()) {
-            auto error = rsp->GetError();
-            LOG_ERROR("Error creating operation node %s\n%s",
-                ~id.ToString(),
-                ~error.ToString());
-            return error;
-        }
-
-        RegisterOperation(operation);
-        LOG_INFO("Operation %s has started", ~id.ToString());
-
-        PrepareOperation(operation);
-
-        return operation;
-    }
-
     void PrepareOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -223,7 +278,7 @@ private:
         LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
         operation->GetController()->Prepare()
             .Subscribe(
-                BIND(&TImpl::OnOperationPrepared, MakeStrong(this), operation)
+                BIND(&TThis::OnOperationPrepared, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -256,7 +311,7 @@ private:
         // Run async revival.
         LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
         operation ->GetController()->Revive().Subscribe(
-            BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
+            BIND(&TThis::OnOperationRevived, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -296,7 +351,12 @@ private:
             TError error("Operation aborted (Reason: %s)", ~reason.ToString());
             *operation->Result().mutable_error() = error.ToProto();
 
-            FinalizeOperationNode(operation);
+            MasterConnector->FinalizeOperationNode(operation).Subscribe(
+                BIND([=] (TError error) {
+                    // TODO(babenko): can we do anything about the error? Seems not.
+                    operation->SetFinished();
+                })
+                .Via(GetControlInvoker()));
         }
     }
 
@@ -325,6 +385,13 @@ private:
     {
         auto it = ExecNodes.find(address);
         return it == ExecNodes.end() ? NULL : it->second;
+    }
+
+    TExecNodePtr GetNode(const Stroka& address)
+    {
+        auto node = FindNode(address);
+        YCHECK(node);
+        return node;
     }
 
     TJobPtr FindJob(const TJobId& jobId)
@@ -438,6 +505,7 @@ private:
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobCompleted(job);
+            UpdateJobNodeOnFinish(job);
         }
         UnregisterJob(job);
     }
@@ -445,9 +513,11 @@ private:
     void OnJobFailed(TJobPtr job, const NProto::TJobResult& result)
     {
         job->Result() = result;
+
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobFailed(job);
+            UpdateJobNodeOnFinish(job);
         }
         UnregisterJob(job);
     }
@@ -457,6 +527,20 @@ private:
         NProto::TJobResult result;
         *result.mutable_error() = error.ToProto();
         OnJobFailed(job, result);
+    }
+
+    void UpdateJobNodeOnFinish(TJobPtr job)
+    {
+        const auto& result = job->Result();
+        if (result.HasExtension(TUserJobResultExt::user_job_result_ext)) {
+            const auto& resultExt = result.GetExtension(TUserJobResultExt::user_job_result_ext);
+            if (resultExt.has_stderr_chunk_id()) {
+                auto chunkId = TChunkId::FromProto(resultExt.stderr_chunk_id());
+                MasterConnector->SetJobStdErr(job, chunkId);
+            }
+        }
+
+        MasterConnector->UpdateJobNode(job);
     }
 
 
@@ -477,370 +561,22 @@ private:
         }
     }
 
-
-    void Register()
-    {
-        while (true) {
-            try {
-                TryRegister();
-                // Registration was successful, bail out.
-                return;
-            } catch (const std::exception& ex) {
-                LOG_WARNING("Registration failed, will retry in %s\n%s",
-                    ~ToString(Config->StartupRetryPeriod),
-                    ex.what());
-                Sleep(Config->StartupRetryPeriod);
-            }
-        }
-    }
-
-    void TryRegister()
-    {
-        // Take a lock to prevent multiple instances of scheduler from running simultaneously.
-        // To this aim, create an auxiliary transaction that takes care of this lock.
-        // We never commit this transaction, so it gets aborted (and the lock gets released)
-        // when the scheduler dies.
-        
-        try {
-            BootstrapTransaction = Bootstrap->GetTransactionManager()->Start();
-        } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Failed to start bootstrap transaction\n%s", ex.what());
-        }
-
-        try {
-            LOG_INFO("Taking lock");
-            {
-                auto req = TCypressYPathProxy::Lock(WithTransaction(
-                    "//sys/scheduler/lock",
-                    BootstrapTransaction->GetId()));
-                req->set_mode(ELockMode::Exclusive);
-                auto rsp = ObjectProxy.Execute(req).Get();
-                if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
-                        ~rsp->GetError().ToString());
-                }
-            }
-            LOG_INFO("Lock taken");
-
-            LOG_INFO("Publishing scheduler address");
-            {
-                auto req = TYPathProxy::Set("//sys/scheduler/@address");
-                req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-                auto rsp = ObjectProxy.Execute(req).Get();
-                if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
-                        ~rsp->GetError().ToString());
-                }
-            }
-            LOG_INFO("Scheduler address published");
-
-            LOG_INFO("Registering at orchid");
-            {
-                auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_address");
-                req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-                auto rsp = ObjectProxy.Execute(req).Get();
-                if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
-                        ~rsp->GetError().ToString());
-                }
-            }
-            LOG_INFO("Registered at orchid");
-        } catch (...) {
-            // Abort the bootstrap transaction (will need a new one anyway).
-            BootstrapTransaction->Abort();
-            BootstrapTransaction.Reset();
-            throw;
-        }
-    }
-
     void LoadOperations()
     {
-        LOG_INFO("Requesting operations list");
-        std::vector<TOperationId> operationIds;
-        {
-            auto req = TYPathProxy::List("//sys/operations");
-            auto rsp = ObjectProxy.Execute(req).Get();
-            if (!rsp->IsOK()) {
-                ythrow yexception() << Sprintf("Failed to get operations list\n%s",
-                    ~rsp->GetError().ToString());
+        auto operations = MasterConnector->LoadOperations();
+        FOREACH (auto operation, operations) {
+            if (operation->GetState() != EOperationState::Completed &&
+                operation->GetState() != EOperationState::Aborted &&
+                operation->GetState() != EOperationState::Failed)
+            {
+                operation->SetController(CreateController(operation.Get()));
+                MasterConnector->RemoveOperationNode(operation);
+                Bootstrap->GetControlInvoker()->Invoke(BIND(
+                    &TThis::ReviveOperation,
+                    MakeStrong(this),
+                    operation));
             }
-            LOG_INFO("Found %d operations", rsp->keys_size());
-            FOREACH (const auto& key, rsp->keys()) {
-                operationIds.push_back(TOperationId::FromString(key));
-            }
-        }
-
-        LOG_INFO("Requesting operations info");
-        {
-            auto batchReq = ObjectProxy.ExecuteBatch();
-            FOREACH (const auto& operationId, operationIds) {
-                auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-                batchReq->AddRequest(req);
-            }
-            auto batchRsp = batchReq->Invoke().Get();
-            if (!batchRsp->IsOK()) {
-                ythrow yexception() << Sprintf("Failed to get operations info\n%s",
-                    ~batchRsp->GetError().ToString());
-            }
-
-            for (int index = 0; index < batchRsp->GetSize(); ++index) {
-                const auto& operationId = operationIds[index];
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(index);
-                if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to get operation %s info\n%s",
-                        ~operationId.ToString(),
-                        ~rsp->GetError().ToString());
-                }
-
-                auto operation = ParseOperationYson(operationId, rsp->value());
-                if (operation->GetState() != EOperationState::Completed &&
-                    operation->GetState() != EOperationState::Aborted &&
-                    operation->GetState() != EOperationState::Failed)
-                {
-                    operation->SetController(CreateController(operation.Get()));
-                    Bootstrap->GetControlInvoker()->Invoke(BIND(
-                        &TThis::ReviveOperation,
-                        MakeStrong(this),
-                        operation));
-                }
-            }
-        }
-        LOG_INFO("Operations loaded successfully")
-    }
-
-    void StartRefresh()
-    {
-        TransactionRefreshInvoker = New<TPeriodicInvoker>(
-            GetControlInvoker(),
-            BIND(&TImpl::RefreshTransactions, MakeWeak(this)),
-            Config->TransactionsRefreshPeriod);
-        TransactionRefreshInvoker->Start();
-
-        ExecNodesRefreshInvoker = New<TPeriodicInvoker>(
-            GetControlInvoker(),
-            BIND(&TImpl::RefreshExecNodes, MakeWeak(this)),
-            Config->NodesRefreshPeriod);
-        ExecNodesRefreshInvoker->Start();
-
-        OperationNodesUpdateInvoker = New<TPeriodicInvoker>(
-            GetControlInvoker(),
-            BIND(&TImpl::UpdateOperationNodes, MakeWeak(this)),
-            Config->OperationsUpdatePeriod);
-        OperationNodesUpdateInvoker->Start();
-    }
-
-
-    void RefreshTransactions()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // Collect all transactions that are used by currently running operations.
-        yhash_set<TTransactionId> transactionIds;
-        FOREACH (const auto& pair, Operations) {
-            auto operation = pair.second;
-            auto transactionId = operation->GetTransactionId();
-            if (transactionId != NullTransactionId) {
-                transactionIds.insert(transactionId);
-            }
-        }
-
-        // Invoke GetId verbs for these transactions to see if they are alive.
-        std::vector<TTransactionId> transactionIdsList;
-        auto batchReq = ObjectProxy.ExecuteBatch();
-        FOREACH (const auto& id, transactionIds) {
-            auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
-            transactionIdsList.push_back(id);
-            batchReq->AddRequest(checkReq);
-        }
-
-        LOG_INFO("Refreshing %d transactions", batchReq->GetSize());
-        batchReq->Invoke().Subscribe(BIND(
-                &TImpl::OnTransactionsRefreshed,
-                MakeStrong(this),
-                Passed(MoveRV(transactionIdsList)))
-            .Via(GetControlInvoker()));
-    }
-
-    void OnTransactionsRefreshed(
-        const std::vector<TTransactionId>& transactionIds,
-        NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr rsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        TransactionRefreshInvoker->ScheduleNext();
-
-        if (!rsp->IsOK()) {
-            LOG_ERROR("Error refreshing transactions\n%s", ~rsp->GetError().ToString());
-            return;
-        }
-
-        LOG_INFO("Transactions refreshed successfully");
-
-        // Collect the list of dead transactions.
-        yhash_set<TTransactionId> deadTransactionIds;
-        for (int index = 0; index < rsp->GetSize(); ++index) {
-            if (!rsp->GetResponse(index)->IsOK()) {
-                YCHECK(deadTransactionIds.insert(transactionIds[index]).second);
-            }
-        }
-
-        // Collect the list of operations corresponding to dead transactions.
-        std::vector<TOperationPtr> deadOperations;
-        FOREACH (const auto& pair, Operations) {
-            auto operation = pair.second;
-            if (deadTransactionIds.find(operation->GetTransactionId()) != deadTransactionIds.end()) {
-                deadOperations.push_back(operation);
-            }
-        }
-
-        // Abort dead operations.
-        FOREACH (auto operation, deadOperations) {
-            switch (operation->GetState()) {
-                case EOperationState::Preparing:
-                case EOperationState::Running:
-                case EOperationState::Reviving:
-                    LOG_INFO("Operation %s belongs to an expired transaction %s, aborting",
-                        ~operation->GetOperationId().ToString(),
-                        ~operation->GetTransactionId().ToString());
-                    AbortOperation(operation, EAbortReason::TransactionExpired);
-                    break;
-
-                case EOperationState::Completed:
-                case EOperationState::Aborted:
-                case EOperationState::Failed:
-                    LOG_INFO("Operation %s belongs to an expired transaction %s, sweeping",
-                        ~operation->GetOperationId().ToString(),
-                        ~operation->GetTransactionId().ToString());
-                    break;
-
-                default:
-                    YUNREACHABLE();
-            }
-
-            UnregisterOperation(operation);
-            RemoveOperationNode(operation);
-        }
-    }
-
-
-    void RefreshExecNodes()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // Get the list of online nodes from the master.
-        LOG_INFO("Refreshing exec nodes");
-        auto req = TYPathProxy::Get("//sys/holders/@online");
-        ObjectProxy.Execute(req).Subscribe(
-            BIND(&TImpl::OnExecNodesRefreshed, MakeStrong(this))
-            .Via(GetControlInvoker()));
-    }
-
-    void OnExecNodesRefreshed(NYTree::TYPathProxy::TRspGetPtr rsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        ExecNodesRefreshInvoker->ScheduleNext();
-
-        if (!rsp->IsOK()) {
-            LOG_ERROR("Error refreshing exec nodes\n%s", ~rsp->GetError().ToString());
-            return;
-        }
-
-        auto onlineAddresses = DeserializeFromYson< yvector<Stroka> >(rsp->value());
-        LOG_INFO("Exec nodes refreshed successfully, %d nodes found",
-            static_cast<int>(onlineAddresses.size()));
-
-        // Examine the list of nodes returned by master and figure out the difference.
-
-        yhash_set<TExecNodePtr> deadNodes;
-        FOREACH (const auto& pair, ExecNodes) {
-            YCHECK(deadNodes.insert(pair.second).second);
-        }
-
-        
-        FOREACH (const auto& address, onlineAddresses) {
-            auto node = FindNode(address);
-            if (node) {
-                YCHECK(deadNodes.erase(node) == 1);
-            } else {
-                LOG_INFO("Node %s is online", ~address.Quote());
-                auto node = New<TExecNode>(address);
-                RegisterNode(node);
-            }
-        }
-
-        FOREACH (auto node, deadNodes) {
-            LOG_INFO("Node %s is offline", ~node->GetAddress().Quote());
-            UnregisterNode(node);
-        }
-    }
-
-
-    void UpdateOperationNodes()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Updating operation nodes");
-
-        // Create a batch update for all operations.
-        auto batchReq = ObjectProxy.ExecuteBatch();
-        FOREACH (const auto& pair, Operations) {
-            AddOperationUpdateRequests(pair.second, batchReq);
-        }
-        batchReq->Invoke().Subscribe(
-            BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this))
-            .Via(GetControlInvoker()));
-    }
-
-    void AddOperationUpdateRequests(
-        TOperationPtr operation,
-        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
-    {
-        auto operationPath = GetOperationPath(operation->GetOperationId());
-        
-        // Set state.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@state");
-            req->set_value(SerializeToYson(operation->GetState()));
-            batchReq->AddRequest(req);
-        }
-
-        // Set progress.
-        if (operation->GetState() == EOperationState::Running) {
-            auto req = TYPathProxy::Set(operationPath + "/@progress");
-            req->set_value(SerializeToYson(BIND(&IOperationController::BuildProgressYson, operation->GetController())));
-            batchReq->AddRequest(req);
-        }
-
-        // Set result.
-        if (operation->GetState() == EOperationState::Completed ||
-            operation->GetState() == EOperationState::Failed)
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@result");
-            req->set_value(SerializeToYson(BIND(&IOperationController::BuildResultYson, operation->GetController())));
-            batchReq->AddRequest(req);
-        }
-    }
-
-    void OnOperationNodesUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        OperationNodesUpdateInvoker->ScheduleNext();
-
-        // Just check every response and log the errors.
-        if (!batchRsp->IsOK()) {
-            LOG_ERROR("Error updating operations\n%s", ~batchRsp->GetError().ToString());
-            return;
-        }
-
-        FOREACH (auto rsp, batchRsp->GetResponses()) {
-            if (!rsp->IsOK()) {
-                LOG_ERROR("Error updating operations\n%s", ~rsp->GetError().ToString());
-            }
-        }
-
-        LOG_INFO("Operation nodes updated successfully");
+        } 
     }
 
 
@@ -907,78 +643,12 @@ private:
     }
 
 
-    void RemoveOperationNode(TOperationPtr operation)
-    {
-        // Remove information about the operation from Cypress.
-        auto id = operation->GetOperationId();
-        LOG_INFO("Removing operation node %s", ~id.ToString());
-        auto req = TYPathProxy::Remove(GetOperationPath(id));
-        ObjectProxy.Execute(req).Subscribe(
-            BIND(&TImpl::OnOperationNodeRemoved, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
-    }
-
-    void OnOperationNodeRemoved(
-        TOperationPtr operation,
-        TYPathProxy::TRspRemovePtr rsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // TODO(babenko): retry failed attempts
-        if (!rsp->IsOK()) {
-            LOG_WARNING("Error removing operation node %s\n%s",
-                ~operation->GetOperationId().ToString(),
-                ~rsp->GetError().ToString());
-            return;
-        }
-
-        LOG_INFO("Operation node %s removed successfully",
-            ~operation->GetOperationId().ToString());
-    }
-
-
-    void FinalizeOperationNode(TOperationPtr operation)
-    {
-        LOG_INFO("Finalizing operation node %s", ~operation->GetOperationId().ToString());
-
-        auto batchReq = ObjectProxy.ExecuteBatch();
-        AddOperationUpdateRequests(operation, batchReq);
-
-        return batchReq->Invoke().Subscribe(BIND(
-            &TThis::OnOperationNodeFinalized,
-            MakeStrong(this),
-            operation));
-    }
-
-    void OnOperationNodeFinalized(
-        TOperationPtr operation,
-        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-    {
-        // TODO(babenko): add retries
-        if (!batchRsp->IsOK()) {
-            LOG_ERROR("Error finalizing operation node\n%s", ~batchRsp->GetError().ToString());
-            return;
-        }
-
-        FOREACH (auto rsp, batchRsp->GetResponses()) {
-            if (!rsp->IsOK()) {
-                LOG_ERROR("Error finalizing operation node\n%s", ~batchRsp->GetError().ToString());
-                return;
-            }
-        }
-
-        LOG_INFO("Operation node %s finalized successfully", ~operation->GetOperationId().ToString());
-
-        operation->SetFinished();
-    }
-
-
     virtual void OnOperationCompleted(
         TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         GetControlInvoker()->Invoke(BIND(
-            &TImpl::DoOperationCompleted,
+            &TThis::DoOperationCompleted,
             MakeStrong(this),
             operation));
     }
@@ -1007,7 +677,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         GetControlInvoker()->Invoke(BIND(
-            &TImpl::DoOperationFailed,
+            &TThis::DoOperationFailed,
             MakeStrong(this),
             operation,
             error));
@@ -1038,11 +708,20 @@ private:
         DoOperationFinished(operation);
     }
 
-
     void DoOperationFinished(TOperationPtr operation)
     {
-        FinalizeOperationNode(operation);
         CancelOperationJobs(operation);
+        MasterConnector->FinalizeOperationNode(operation).Subscribe(BIND(
+            &TThis::OnOperationNodeFinalized,
+            MakeStrong(this),
+            operation));
+    }
+
+    void OnOperationNodeFinalized(TOperationPtr operation, TError error)
+    {
+        UNUSED(error);
+        // Can't do anything about the error anyway.
+        operation->SetFinished();
     }
 
 
@@ -1053,78 +732,23 @@ private:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
-                    fluent.Item(pair.first.ToString());
-                    BuildOperationYson(pair.second, consumer);
+                    fluent
+                        .Item(pair.first.ToString()).BeginMap()
+                            .Do(BIND(&BuildOperationAttributes, pair.second))
+                        .EndMap();
                 })
                 .Item("jobs").DoMapFor(Jobs, [=] (TFluentMap fluent, TJobMap::value_type pair) {
-                    fluent.Item(pair.first.ToString());
-                    BuildJobYson(pair.second, consumer);
+                    fluent
+                        .Item(pair.first.ToString()).BeginMap()
+                            .Do(BIND(&BuildJobAttributes, pair.second))
+                        .EndMap();
                 })
                 .Item("exec_nodes").DoMapFor(ExecNodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
-                    fluent.Item(pair.first);
-                    BuildExecNodeYson(pair.second, consumer);
+                    fluent
+                        .Item(pair.first).BeginMap()
+                            .Do(BIND(&BuildExecNodeAttributes, pair.second))
+                        .EndMap();
                 })
-            .EndMap();
-    }
-
-    void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
-    {
-        BuildYsonFluently(consumer)
-            .BeginAttributes()
-                .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
-                .Item("transaction_id").Scalar(operation->GetTransactionId())
-                .Item("state").Scalar(FormatEnum(operation->GetState()))
-                .Item("start_time").Scalar(operation->GetStartTime())
-                .Item("progress").BeginMap().EndMap()
-                .Item("spec").Node(operation->GetSpec())
-            .EndAttributes()
-            .BeginMap()
-            .EndMap();
-    }
-
-    TOperationPtr ParseOperationYson(const TOperationId& operationId, const TYson& yson)
-    {
-        // TODO(babenko): simplify
-        auto node = DeserializeFromYson(yson)->AsMap();
-        auto attributes = CreateEphemeralAttributes();
-        attributes->MergeFrom(node);
-
-        return New<TOperation>(
-            operationId,
-            attributes->Get<EOperationType>("operation_type"),
-            attributes->Get<TTransactionId>("transaction_id"),
-            attributes->Get<INode>("spec")->AsMap(),
-            attributes->Get<TInstant>("start_time"),
-            attributes->Get<EOperationState>("state"));
-    }
-
-    void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)
-    {
-        BuildYsonFluently(consumer)
-            .BeginAttributes()
-                .Item("type").Scalar(FormatEnum(EJobType(job->Spec().type())))
-                .Item("state").Scalar(FormatEnum(job->GetState()))
-                //.DoIf(!job->Result().IsOK(), [=] (TFluentMap fluent) {
-                //    auto error = TError::FromProto(job->Result().error());
-                //    fluent.Item("result").BeginMap()
-                //        .Item("code").Scalar(error.GetCode())
-                //        .Item("message").Scalar(error.GetMessage())
-                //    .EndMap();
-                //})
-            .EndAttributes()
-            .BeginMap()
-            .EndMap();
-    }
-
-    void BuildExecNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
-    {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("utilization").BeginMap()
-                    .Item("total_slot_count").Scalar(node->Utilization().total_slot_count())
-                    .Item("free_slot_count").Scalar(node->Utilization().free_slot_count())
-                .EndMap()
-                .Item("job_count").Scalar(static_cast<int>(node->Jobs().size()))
             .EndMap();
     }
 
@@ -1174,6 +798,8 @@ private:
 
         auto operation = GetOperation(operationId);
         AbortOperation(operation, EAbortReason::UserRequest);
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)
@@ -1346,10 +972,13 @@ private:
                 ~EJobType(job->Spec().type()).ToString(),
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
+            
             auto* jobInfo = response->add_jobs_to_start();
             *jobInfo->mutable_job_id() = job->GetId().ToProto();
             *jobInfo->mutable_spec() = job->Spec();
+
             RegisterJob(job);
+            MasterConnector->CreateJobNode(job);
         }
 
         FOREACH (auto job, jobsToAbort) {
@@ -1358,7 +987,10 @@ private:
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
             *response->add_jobs_to_remove() = job->GetId().ToProto();
+            
+            job->SetState(EJobState::Aborted);
             UnregisterJob(job);
+            MasterConnector->UpdateJobNode(job);
         }
 
         context->Reply();
@@ -1390,6 +1022,16 @@ NRpc::IServicePtr TScheduler::GetService()
 NYTree::TYPathServiceProducer TScheduler::CreateOrchidProducer()
 {
     return Impl->CreateOrchidProducer();
+}
+
+std::vector<TOperationPtr> TScheduler::GetOperations()
+{
+    return Impl->GetOperations();
+}
+
+std::vector<TExecNodePtr> TScheduler::GetExecNodes()
+{
+    return Impl->GetExecNodes();
 }
 
 ////////////////////////////////////////////////////////////////////
