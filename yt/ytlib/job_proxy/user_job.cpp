@@ -114,7 +114,7 @@ TJobResult TUserJob::Run()
     auto* resultExt = result.MutableExtension(TUserJobResultExt::user_job_result_ext);
     {
         auto chunkId = ErrorOutput->GetChunkId();
-        if (chunkId != NullChunkId) {
+        if (chunkId != NChunkServer::NullChunkId) {
             LOG_DEBUG("Stderr chunk generated (ChunkId: %s)", ~chunkId.ToString());
             *resultExt->mutable_stderr_chunk_id() = chunkId.ToProto();
         }
