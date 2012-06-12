@@ -9,7 +9,7 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NTableClient {
