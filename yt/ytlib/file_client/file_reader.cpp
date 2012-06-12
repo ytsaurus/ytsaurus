@@ -56,7 +56,7 @@ void TFileReader::Open()
     TFileReaderBase::Open(chunkId, holderAddresses);
 
     if (Transaction) {
-        ListenTransaction(~Transaction);
+        ListenTransaction(Transaction);
     }
 }
 
