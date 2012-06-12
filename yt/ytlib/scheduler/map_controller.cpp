@@ -277,8 +277,6 @@ private:
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
         JobSpecTemplate.set_io_config(SerializeToYson(Config->MapJobIO));
-
-        // TODO(babenko): stderr
     }
 
 };
