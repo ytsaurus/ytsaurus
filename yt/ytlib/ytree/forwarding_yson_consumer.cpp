@@ -53,8 +53,6 @@ void TForwardingYsonConsumer::FinishForwarding()
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void TForwardingYsonConsumer::OnStringScalar(const TStringBuf& value)
 {
     if (!CheckForwarding()) {
