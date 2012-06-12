@@ -100,15 +100,8 @@ public:
     template <class TParent>
     class TFluentBase
     {
-    public:
-        TParent Do(TYsonProducer producer)
-        {
-            producer.Run(this->Consumer);
-            return this->Parent;
-        }
-
     protected:
-        TFluentBase(IYsonConsumer* consumer, const TParent& parent)
+        explicit TFluentBase(IYsonConsumer* consumer, const TParent& parent)
             : Consumer(consumer)
             , Parent(parent)
         { }
@@ -118,16 +111,73 @@ public:
 
     };
 
+    template <template <class TParent> class TThis, class TParent>
+    class TFluentFragmentBase
+        : public TFluentBase<TParent>
+    {
+    public:
+        typedef TThis<TParent> TDeepThis;
+        typedef TThis<TNoParentTag> TShallowThis;
+
+        explicit TFluentFragmentBase(IYsonConsumer* consumer, const TParent& parent = TParent())
+            : TFluentBase<TParent>(consumer, parent)
+        { }
+
+        TDeepThis& Do(TYsonProducer producer)
+        {
+            producer.Run(this->Consumer);
+            return *static_cast<TDeepThis*>(this);
+        }
+
+        template <class TFunc>
+        TDeepThis& Do(const TFunc& func)
+        {
+            func(TShallowThis(this->Consumer));
+            return *static_cast<TDeepThis*>(this);
+        }
+
+        template <class TFunc>
+        TDeepThis& DoIf(bool condition, const TFunc& func)
+        {
+            if (condition) {
+                func(TShallowThis(this->Consumer));
+            }
+            return *static_cast<TDeepThis*>(this);
+        }
+
+        template <class TFunc, class TIterator>
+        TDeepThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
+        {
+            for (auto current = begin; current != end; ++current) {
+                func(TShallowThis(this->Consumer), current);
+            }
+            return *static_cast<TDeepThis*>(this);
+        }
+
+        template <class TFunc, class TCollection>
+        TDeepThis& DoFor(const TCollection& collection, const TFunc& func)
+        {
+            FOREACH (const auto& item, collection) {
+                func(TShallowThis(this->Consumer), item);
+            }
+            return *static_cast<TDeepThis*>(this);
+        }
+    };
+
     template <class TParent>
     class TAnyWithoutAttributes
         : public TFluentBase<TParent>
     {
     public:
-        typedef TAnyWithoutAttributes<TParent> TThis;
-
-        TAnyWithoutAttributes(IYsonConsumer* consumer, const TParent& parent)
-            : TFluentBase<TParent>(consumer, parent)
+        explicit TAnyWithoutAttributes(IYsonConsumer* consumer, const TParent& parent)
+            : TFluentBase(consumer, parent)
         { }
+
+        TParent Do(TYsonProducer producer)
+        {
+            producer.Run(this->Consumer);
+            return this->Parent;
+        }
 
         template <class T>
         TParent Scalar(T value)
@@ -246,11 +296,10 @@ public:
         : public TAnyWithoutAttributes<TParent>
     {
     public:
-        typedef TAny<TParent> TThis;
         typedef TAnyWithoutAttributes<TParent> TBase;
 
-        TAny(IYsonConsumer* consumer, const TParent& parent)
-            : TAnyWithoutAttributes<TParent>(consumer, parent)
+        explicit TAny(IYsonConsumer* consumer, const TParent& parent)
+            : TBase(consumer, parent)
         { }
 
         TAttributes<TBase> BeginAttributes()
@@ -264,13 +313,13 @@ public:
 
     template <class TParent>
     class TAttributes
-        : public TFluentBase<TParent>
+        : public TFluentFragmentBase<TAttributes, TParent>
     {
     public:
         typedef TAttributes<TParent> TThis;
 
-        TAttributes(IYsonConsumer* consumer, const TParent& parent)
-            : TFluentBase<TParent>(consumer, parent)
+        explicit TAttributes(IYsonConsumer* consumer, const TParent& parent)
+            : TFluentFragmentBase(consumer, parent)
         { }
 
         TAny<TThis> Item(const Stroka& key)
@@ -309,13 +358,13 @@ public:
 
     template <class TParent = TNoParentTag>
     class TList
-        : public TFluentBase<TParent>
+        : public TFluentFragmentBase<TList, TParent>
     {
     public:
         typedef TList<TParent> TThis;
 
-        TList(IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentBase<TParent>(consumer, parent)
+        explicit TList(IYsonConsumer* consumer, const TParent& parent = TParent())
+            : TFluentFragmentBase(consumer, parent)
         { }
 
         TAny<TThis> Item()
@@ -334,46 +383,7 @@ public:
             return *this;
         }
 
-        TList& Do(TYsonProducer producer)
-        {
-            producer.Run(this->Consumer);
-            return *this;
-        }
-
-        template <class TFunc>
-        TThis& Do(const TFunc& func)
-        {
-            func(TList(this->Consumer));
-            return *this;
-        }
-
-        template <class TFunc>
-        TThis& DoIf(bool condition, const TFunc& func)
-        {
-            if (condition) {
-                func(TList(this->Consumer));
-            }
-            return *this;
-        }
-
-        template <class TFunc, class TIterator>
-        TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
-        {
-            for (auto current = begin; current != end; ++current) {
-                func(TList<TNoParentTag>(this->Consumer), current);
-            }
-            return *this;
-        }
-
-        template <class TFunc, class TCollection>
-        TThis& DoFor(const TCollection& collection, const TFunc& func)
-        {
-            FOREACH (const auto& item, collection) {
-                func(TList(this->Consumer), item);
-            }
-            return *this;
-        }
-
+        // TODO(panin): forbid this call for TParent = TNoParentTag
         TParent EndList()
         {
             this->Consumer->OnEndList();
@@ -383,13 +393,13 @@ public:
 
     template <class TParent = TNoParentTag>
     class TMap
-        : public TFluentBase<TParent>
+        : public TFluentFragmentBase<TMap, TParent>
     {
     public:
         typedef TMap<TParent> TThis;
 
-        TMap(IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentBase<TParent>(consumer, parent)
+        explicit TMap(IYsonConsumer* consumer, const TParent& parent = TParent())
+            : TFluentFragmentBase(consumer, parent)
         { }
 
         TAny<TThis> Item(const Stroka& key)
@@ -415,46 +425,6 @@ public:
                 const auto& yson = attributes->GetYson(key);
                 this->Consumer->OnKeyedItem(key);
                 ParseYson(yson, this->Consumer);
-            }
-            return *this;
-        }
-
-        TMap& Do(TYsonProducer producer)
-        {
-            producer.Run(this->Consumer);
-            return *this;
-        }
-
-        template <class TFunc>
-        TThis& Do(const TFunc& func)
-        {
-            func(TMap(this->Consumer));
-            return *this;
-        }
-
-        template <class TFunc>
-        TThis& DoIf(bool condition, const TFunc& func)
-        {
-            if (condition) {
-                func(TMap(this->Consumer));
-            }
-            return *this;
-        }
-
-        template <class TFunc, class TIterator>
-        TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
-        {
-            for (auto current = begin; current != end; ++current) {
-                func(TMap(this->Consumer), current);
-            }
-            return *this;
-        }
-
-        template <class TFunc, class TCollection>
-        TThis& DoFor(const TCollection& collection, const TFunc& func)
-        {
-            FOREACH (const auto& item, collection) {
-                func(TMap(this->Consumer), item);
             }
             return *this;
         }
