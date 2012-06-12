@@ -10,7 +10,7 @@ using namespace NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TBlob SerializeChange(const NProto::TMsgChangeHeader& header, TRef messageData)
+TBlob SerializeChange(const NProto::TChangeHeader& header, TRef messageData)
 {
     TFixedChangeHeader fixedHeader;
     fixedHeader.HeaderSize = header.ByteSize();
@@ -37,7 +37,7 @@ TBlob SerializeChange(const NProto::TMsgChangeHeader& header, TRef messageData)
 
 void DeserializeChangeHeader(
     TRef changeData,
-    TMsgChangeHeader* header)
+    TChangeHeader* header)
 {
     auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
     YVERIFY(DeserializeFromProto(
@@ -47,7 +47,7 @@ void DeserializeChangeHeader(
 
 void DeserializeChange(
     TRef changeData,
-    TMsgChangeHeader* header,
+    TChangeHeader* header,
     TRef* messageData)
 {
     auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());

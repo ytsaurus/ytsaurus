@@ -165,7 +165,7 @@ void TCompositeMetaState::Load(TInputStream* input)
 
 void TCompositeMetaState::ApplyChange(const TRef& changeData)
 {
-    TMsgChangeHeader header;
+    TChangeHeader header;
     TRef messageData;
     DeserializeChange(
         changeData,
@@ -175,9 +175,9 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
     Stroka changeType = header.change_type();
 
     auto it = Methods.find(changeType);
-    YASSERT(it != Methods.end());
+    YCHECK(it != Methods.end());
 
-    it->second.Run(messageData);
+    it->second.Run(header, messageData);
 }
 
 void TCompositeMetaState::Clear()

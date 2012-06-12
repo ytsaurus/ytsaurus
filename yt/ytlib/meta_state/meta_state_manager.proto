@@ -4,7 +4,7 @@ import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMsgChangeHeader
+message TChangeHeader
 {
     required bytes change_type = 1;
     optional uint64 timestamp = 2;
@@ -37,9 +37,7 @@ message TReqReadChangeLog
 
 message TRspReadChangeLog
 {
-    optional int32 records_read = 2;
-    // Changelog records are passed via attachments
-    // (one attachment per record).
+    // Changelog records are passed in the attachment and are packed with PackRefs.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,7 +85,7 @@ message TReqApplyChanges
     required int32 segment_id = 1;
     required int32 record_count = 2;
     required NYT.NProto.TGuid epoch = 3;
-    // Data of changes are passed via attachment.
+    // Changes data is passed via attachments.
 }
 
 message TRspApplyChanges

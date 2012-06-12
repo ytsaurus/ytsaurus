@@ -3,6 +3,8 @@
 #include "public.h"
 #include "meta_state.h"
 
+#include <ytlib/meta_state/meta_state_manager.pb.h>
+
 namespace NYT {
 namespace NMetaState {
 
@@ -21,7 +23,10 @@ protected:
     TCompositeMetaStatePtr MetaState;
 
     template <class TMessage, class TResult>
-    void RegisterMethod(TCallback<TResult(const TMessage&)> changeMethod);
+    void RegisterMethod(TCallback<TResult(const NProto::TChangeHeader& header, const TMessage& message)> changeMethod);
+
+    template <class TMessage, class TResult>
+    void RegisterMethod(TCallback<TResult(const TMessage& message)> changeMethod);
 
     bool IsLeader() const;
     bool IsFolllower() const;
@@ -45,10 +50,16 @@ private:
     typedef TMetaStatePart TThis;
 
     template <class TMessage, class TResult>
-    void MethodThunk(
-        TCallback<TResult(const TMessage&)> changeMethod,
+    void MethodThunkWithHeader(
+        TCallback<TResult(const NProto::TChangeHeader& header, const TMessage& message)> changeMethod,
+        const NProto::TChangeHeader& header,
         const TRef& changeData);
 
+    template <class TMessage, class TResult>
+    void MethodThunkWithoutHeader(
+        TCallback<TResult(const TMessage& message)> changeMethod,
+        const NProto::TChangeHeader& header,
+        const TRef& changeData);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +94,7 @@ private:
         TSaverInfo(const Stroka& name, TSaver saver, ESavePhase phase);
     };
 
-    typedef yhash_map< Stroka, TCallback<void(const TRef&)> > TMethodMap;
+    typedef yhash_map< Stroka, TCallback<void(const NProto::TChangeHeader& header, const TRef& message)> > TMethodMap;
     TMethodMap Methods;
 
     std::vector<TMetaStatePartPtr> Parts;

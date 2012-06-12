@@ -22,20 +22,20 @@ struct TFixedChangeHeader
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NProto::TMsgChangeHeader& header,
+    const NProto::TChangeHeader& header,
     const TMessage& message);
 
 TBlob SerializeChange(
-    const NProto::TMsgChangeHeader& header,
+    const NProto::TChangeHeader& header,
     TRef messageData);
 
 void DeserializeChangeHeader(
     TRef changeData,
-    NProto::TMsgChangeHeader* header);
+    NProto::TChangeHeader* header);
 
 void DeserializeChange(
     TRef changeData,
-    NMetaState::NProto::TMsgChangeHeader* header,
+    NMetaState::NProto::TChangeHeader* header,
     TRef* messageData);
 
 ////////////////////////////////////////////////////////////////////////////////

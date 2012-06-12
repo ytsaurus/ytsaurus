@@ -624,7 +624,9 @@ void TObjectManager::ExecuteVerb(
         ->Commit();
 }
 
-TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
+TVoid TObjectManager::ReplayVerb(
+    const NMetaState::NProto::TChangeHeader& changeHeader,
+    const TMsgExecuteVerb& message)
 {
     auto objectId = TObjectId::FromProto(message.object_id());
     auto transactionId = TTransactionId::FromProto(message.transaction_id());
@@ -635,8 +637,8 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
         ?  NULL
         : &transactionManager->GetTransaction(transactionId);
 
-    yvector<TSharedRef> parts(message.request_parts_size());
-    for (int partIndex = 0; partIndex < static_cast<int>(message.request_parts_size()); ++partIndex) {
+    std::vector<TSharedRef> parts(message.request_parts_size());
+    for (int partIndex = 0; partIndex < message.request_parts_size(); ++partIndex) {
         // Construct a non-owning TSharedRef to avoid copying.
         // This is feasible since the message will outlive the request.
         const auto& part = message.request_parts(partIndex);
@@ -644,12 +646,12 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
     }
 
     auto requestMessage = CreateMessageFromParts(MoveRV(parts));
-    auto header = GetRequestHeader(~requestMessage);
-    TYPath path = header.path();
-    Stroka verb = header.verb();
+    auto requestHeader = GetRequestHeader(requestMessage);
+    TYPath path = requestHeader.path();
+    Stroka verb = requestHeader.verb();
 
     auto context = CreateYPathContext(
-        ~requestMessage,
+        requestMessage,
         path,
         verb,
         "",
@@ -657,7 +659,7 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
 
     auto proxy = GetProxy(objectId, transaction);
 
-    proxy->Invoke(~context);
+    proxy->Invoke(context);
 
     return TVoid();
 }

@@ -144,7 +144,9 @@ private:
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
     virtual void Clear();
 
-    TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);
+    TVoid ReplayVerb(
+        const NMetaState::NProto::TChangeHeader& changeHeader,
+        const NProto::TMsgExecuteVerb& message);
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);

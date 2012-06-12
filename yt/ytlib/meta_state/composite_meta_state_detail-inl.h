@@ -9,7 +9,7 @@ namespace NMetaState {
 
 template <class TMessage>
 TBlob SerializeChange(
-    const NMetaState::NProto::TMsgChangeHeader& header,
+    const NMetaState::NProto::TChangeHeader& header,
     const TMessage& message)
 {
     TFixedChangeHeader fixedHeader;

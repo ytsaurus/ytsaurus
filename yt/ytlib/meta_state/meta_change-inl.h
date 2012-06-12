@@ -108,9 +108,9 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TMessage>
-NProto::TMsgChangeHeader GetMetaChangeHeader(const TMessage& message)
+NProto::TChangeHeader GetMetaChangeHeader(const TMessage& message)
 {
-    NProto::TMsgChangeHeader header;
+    NProto::TChangeHeader header;
     header.set_change_type(message.GetTypeName());
     header.set_timestamp(TInstant::Now().GetValue());
     header.set_random_seed(RandomNumber<ui32>());

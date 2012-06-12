@@ -11,25 +11,47 @@ namespace NMetaState {
 
 template <class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(
-    TCallback<TResult(const TMessage&)> changeMethod)
+    TCallback<TResult(const NProto::TChangeHeader& header, const TMessage&)> changeMethod)
 {
-    YASSERT(!changeMethod.IsNull());
-
     Stroka changeType = TMessage().GetTypeName();
-
     auto action = BIND(
-        &TMetaStatePart::MethodThunk<TMessage, TResult>,
+        &TMetaStatePart::MethodThunkWithHeader<TMessage, TResult>,
         Unretained(this),
         MoveRV(changeMethod));
     YCHECK(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
 }
 
 template <class TMessage, class TResult>
-void TMetaStatePart::MethodThunk(
-    TCallback<TResult(const TMessage&)> changeMethod,
+void TMetaStatePart::RegisterMethod(
+    TCallback<TResult(const TMessage&)> changeMethod)
+{
+    Stroka changeType = TMessage().GetTypeName();
+    auto action = BIND(
+        &TMetaStatePart::MethodThunkWithoutHeader<TMessage, TResult>,
+        Unretained(this),
+        MoveRV(changeMethod));
+    YCHECK(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
+}
+
+template <class TMessage, class TResult>
+void TMetaStatePart::MethodThunkWithHeader(
+    TCallback<TResult(const NProto::TChangeHeader& header, const TMessage& message)> changeMethod,
+    const NProto::TChangeHeader& header,
     const TRef& changeData)
 {
-    YASSERT(!changeMethod.IsNull());
+    TMessage message;
+    YCHECK(DeserializeFromProto(&message, changeData));
+
+    changeMethod.Run(header, message);
+}
+
+template <class TMessage, class TResult>
+void TMetaStatePart::MethodThunkWithoutHeader(
+    TCallback<TResult(const TMessage& message)> changeMethod,
+    const NProto::TChangeHeader& header,
+    const TRef& changeData)
+{
+    UNUSED(header);
 
     TMessage message;
     YCHECK(DeserializeFromProto(&message, changeData));
