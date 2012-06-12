@@ -76,7 +76,7 @@ void TTableWriter::Open()
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());
     }
-    ListenTransaction(~UploadTransaction);
+    ListenTransaction(UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)", ~UploadTransaction->GetId().ToString());
 
     LOG_INFO("Requesting table info");
@@ -168,7 +168,7 @@ void TTableWriter::Open()
     Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
     if (Transaction) {
-        ListenTransaction(~Transaction);
+        ListenTransaction(Transaction);
     }
 
     IsOpen = true;
