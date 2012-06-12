@@ -133,6 +133,7 @@ class TNodeSetterBase
 {
 protected:
     TNodeSetterBase(INode* node, ITreeBuilder* builder);
+    ~TNodeSetterBase();
 
     void ThrowInvalidType(ENodeType actualType);
     virtual ENodeType GetExpectedType() = 0;
@@ -147,22 +148,15 @@ protected:
     virtual void OnMyBeginMap();
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyKeyedItem(const TStringBuf& key);
     virtual void OnMyEndAttributes();
 
 protected:
-    typedef TNodeSetterBase TThis;
+    class TAttributesSetter;
 
     INodePtr Node;
     ITreeBuilder* TreeBuilder;
     INodeFactoryPtr NodeFactory;
-
-    Stroka AttributeKey;
-    TYson AttributeValue;
-    TStringOutput AttributeStream;
-    TYsonWriter AttributeWriter;
-
-    void OnFinished();
+    THolder<TAttributesSetter> AttributesSetter;
 
 };
 
@@ -243,13 +237,12 @@ private:
 
     void OnForwardingFinished()
     {
-        YVERIFY(Map->AddChild(~TreeBuilder->EndTree(), ItemKey));
+        YCHECK(Map->AddChild(~TreeBuilder->EndTree(), ItemKey));
         ItemKey.clear();
     }
 
     virtual void OnMyEndMap()
     {
-
         // Just do nothing.
     }
 };

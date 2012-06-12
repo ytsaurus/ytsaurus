@@ -661,12 +661,49 @@ ISystemAttributeProvider* TSupportsAttributes::GetSystemAttributeProvider()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNodeSetterBase::TAttributesSetter
+    : public TForwardingYsonConsumer
+{
+public:
+    explicit TAttributesSetter(IAttributeDictionary* attributes)
+        : Attributes(attributes)
+        , AttributeStream(AttributeValue)
+        , AttributeWriter(&AttributeStream)
+    { }
+
+private:
+    IAttributeDictionary* Attributes;
+
+    Stroka AttributeKey;
+    TYson AttributeValue;
+    TStringOutput AttributeStream;
+    TYsonWriter AttributeWriter;
+
+    virtual void OnMyKeyedItem(const TStringBuf& key)
+    {
+        AttributeKey = key;
+        Forward(&AttributeWriter, BIND(&TAttributesSetter::OnAttributeFinished, this));
+    }
+
+    void OnAttributeFinished()
+    {
+        Attributes->SetYson(AttributeKey, AttributeValue);
+        AttributeKey.clear();
+        AttributeValue.clear();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
     , TreeBuilder(builder)
     , NodeFactory(node->CreateFactory())
-    , AttributeStream(AttributeValue)
-    , AttributeWriter(&AttributeStream)
+{
+    Node->Attributes().Clear();
+}
+
+TNodeSetterBase::~TNodeSetterBase()
 { }
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
@@ -699,7 +736,6 @@ void TNodeSetterBase::OnMyDoubleScalar(double value)
 
 void TNodeSetterBase::OnMyEntity()
 {
-
     ThrowInvalidType(ENodeType::Entity);
 }
 
@@ -715,24 +751,14 @@ void TNodeSetterBase::OnMyBeginMap()
 
 void TNodeSetterBase::OnMyBeginAttributes()
 {
-    Node->Attributes().Clear();
-}
-
-void TNodeSetterBase::OnMyKeyedItem(const TStringBuf& key)
-{
-    AttributeKey = key;
-    Forward(&AttributeWriter, BIND(&TThis::OnFinished, this));
-}
-
-void TNodeSetterBase::OnFinished()
-{
-    Node->Attributes().Set(AttributeKey, AttributeValue);
-    AttributeKey.clear();
-    AttributeValue.clear();
+    AttributesSetter.Reset(new TAttributesSetter(&Node->Attributes()));
+    Forward(~AttributesSetter, TClosure(), EYsonType::KeyedFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
-{ }
+{
+    AttributesSetter.Destroy();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
