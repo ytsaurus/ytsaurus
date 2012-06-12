@@ -115,7 +115,7 @@ TJobResult TUserJob::Run()
     {
         auto chunkId = ErrorOutput->GetChunkId();
         if (chunkId != NChunkServer::NullChunkId) {
-            LOG_DEBUG("Stderr chunk generated (ChunkId: %s)", ~chunkId.ToString());
+            LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~chunkId.ToString());
             *resultExt->mutable_stderr_chunk_id() = chunkId.ToProto();
         }
     }
@@ -141,7 +141,7 @@ void TUserJob::InitPipes()
     // 4 - second output
     // etc.
     // 
-    // A special option (ToDo(psushin): which?) enables concatenating
+    // A special option (ToDo(psushin): which one?) enables concatenating
     // all input streams into fd == 0.
 
     int maxReservedDescriptor = std::max(
