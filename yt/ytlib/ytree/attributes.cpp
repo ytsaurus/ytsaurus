@@ -120,6 +120,7 @@ TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes()
 class TEmptyAttributeDictionary
     : public IAttributeDictionary
 {
+public:
     virtual yhash_set<Stroka> List() const
     {
         return yhash_set<Stroka>();
@@ -152,7 +153,7 @@ TAutoPtr<IAttributeDictionary> DeserializeAttributesFromYson(const TYson& yson)
 {
     auto attributes = CreateEphemeralAttributes();
     TAttributeConsumer consumer(attributes.Get());
-    ParseYson(yson, &consumer, EYsonType::KeyedFragment);
+    ParseYson(yson, &consumer);
     return attributes;
 }
 
