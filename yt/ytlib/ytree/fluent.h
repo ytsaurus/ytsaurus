@@ -170,7 +170,7 @@ public:
     {
     public:
         explicit TAnyWithoutAttributes(IYsonConsumer* consumer, const TParent& parent)
-            : TFluentBase(consumer, parent)
+            : TFluentBase<TParent>(consumer, parent)
         { }
 
         TParent Do(TYsonProducer producer)
@@ -319,7 +319,7 @@ public:
         typedef TAttributes<TParent> TThis;
 
         explicit TAttributes(IYsonConsumer* consumer, const TParent& parent)
-            : TFluentFragmentBase(consumer, parent)
+            : TFluentFragmentBase<TAttributes, TParent>(consumer, parent)
         { }
 
         TAny<TThis> Item(const Stroka& key)
@@ -364,7 +364,7 @@ public:
         typedef TList<TParent> TThis;
 
         explicit TList(IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentFragmentBase(consumer, parent)
+            : TFluentFragmentBase<TList, TParent>(consumer, parent)
         { }
 
         TAny<TThis> Item()
@@ -399,7 +399,7 @@ public:
         typedef TMap<TParent> TThis;
 
         explicit TMap(IYsonConsumer* consumer, const TParent& parent = TParent())
-            : TFluentFragmentBase(consumer, parent)
+            : TFluentFragmentBase<TMap, TParent>(consumer, parent)
         { }
 
         TAny<TThis> Item(const Stroka& key)
