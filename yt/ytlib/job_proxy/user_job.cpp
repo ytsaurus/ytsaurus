@@ -115,7 +115,7 @@ TJobResult TUserJob::Run()
     {
         auto chunkId = ErrorOutput->GetChunkId();
         if (chunkId != NullChunkId) {
-            LOG_DEBUG("Stderr chunk is is %s", chunkId.ToString());
+            LOG_DEBUG("Stderr chunk generated (ChunkId: %s)", ~chunkId.ToString());
             *resultExt->mutable_stderr_chunk_id() = chunkId.ToProto();
         }
     }
