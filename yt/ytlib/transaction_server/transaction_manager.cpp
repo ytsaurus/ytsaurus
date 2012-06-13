@@ -23,6 +23,7 @@ using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NYTree;
+using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +62,9 @@ private:
         attributes->push_back("parent_id");
         attributes->push_back("nested_transaction_ids");
         attributes->push_back("created_object_ids");
+        attributes->push_back("created_node_ids");
+        attributes->push_back("branched_node_ids");
+        attributes->push_back("lock_ids");
         TBase::GetSystemAttributes(attributes);
     }
 
@@ -90,8 +94,32 @@ private:
 
         if (name == "created_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id) {
+                .DoListFor(transaction->CreatedObjectIds(), [=] (TFluentList fluent, const TTransactionId& id) {
                     fluent.Item().Scalar(id.ToString());
+                });
+            return true;
+        }
+
+        if (name == "created_node_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->CreatedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
+                    fluent.Item().Scalar(node->GetId().ObjectId.ToString());
+                });
+            return true;
+        }
+
+        if (name == "branched_node_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
+                    fluent.Item().Scalar(node->GetId().ObjectId.ToString());
+            });
+            return true;
+        }
+
+        if (name == "lock_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
+                    fluent.Item().Scalar(lock->GetId().ToString());
                 });
             return true;
         }
