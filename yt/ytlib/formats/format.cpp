@@ -175,12 +175,9 @@ TAutoPtr<IYsonConsumer> CreateConsumerForDsv(
     IAttributeDictionary* attributes,
     TOutputStream* output)
 {
-    if (dataType != EDataType::Tabular) {
-        ythrow yexception() << Sprintf("Dsv is supported only for Tabular data");
-    }
     auto config = New<TDsvFormatConfig>();
     config->Load(attributes->ToMap());
-    return new TDsvWriter(output, EYsonType::ListFragment, config);
+    return new TDsvWriter(output, DataTypeToYsonType(dataType), config);
 }
 
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)

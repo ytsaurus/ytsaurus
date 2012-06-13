@@ -250,9 +250,8 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
-            TYson txYson = TxArg.getValue();
-            ValidateYson(txYson);
-            fluent.Item("transaction_id").Node(txYson);
+            Stroka txId = TxArg.getValue();
+            fluent.Item("transaction_id").Scalar(txId);
         });
 
     TExecutorBase::BuildArgs(consumer);
