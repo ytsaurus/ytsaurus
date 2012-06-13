@@ -11,11 +11,15 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Note: line_prefix is only supported for tabular data
+
 class TDsvWriter
     : public NYTree::TYsonConsumerBase
 {
 public:
-    explicit TDsvWriter(TOutputStream* stream, TDsvFormatConfigPtr config = NULL);
+    explicit TDsvWriter(TOutputStream* stream,
+        NYTree::EYsonType type = NYTree::EYsonType::ListFragment,
+        TDsvFormatConfigPtr config = NULL);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);
@@ -32,6 +36,8 @@ public:
     virtual void OnEndAttributes();
 
 private:
+    NYTree::EYsonType Type;
+
     TOutputStream* Stream;
     TDsvFormatConfigPtr Config;
 
@@ -41,14 +47,8 @@ private:
     char EscapedSymbols[4];
     void EscapeAndWrite(const TStringBuf& key);
 
-    DECLARE_ENUM(EState,
-        (ExpectListItem)
-        (ExpectBeginMap)
-        (ExpectKey)
-        (AfterKey)
-    );
-
-    EState State;
+    bool AllowBeginList;
+    bool AllowBeginMap;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

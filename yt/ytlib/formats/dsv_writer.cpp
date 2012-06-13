@@ -4,18 +4,30 @@
 namespace NYT {
 namespace NFormats {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvWriter::TDsvWriter(TOutputStream* stream, TDsvFormatConfigPtr config)
+TDsvWriter::TDsvWriter(
+    TOutputStream* stream,
+    EYsonType type,
+    TDsvFormatConfigPtr config)
     : Stream(stream)
     , Config(config)
     , FirstLine(true)
     , FirstItem(true)
-    , State(EState::ExpectListItem)
+    , AllowBeginMap(true)
+    , Type(type)
 {
     if (!Config) {
         Config = New<TDsvFormatConfig>();
     }
+    if (Type == EYsonType::Node) {
+        AllowBeginList = true;
+    } else {
+        AllowBeginList = false;
+    }
+
     EscapedSymbols[0] = Config->EscapingSymbol;
     EscapedSymbols[1] = Config->KeyValueSeparator;
     EscapedSymbols[2] = Config->FieldSeparator;
@@ -24,87 +36,77 @@ TDsvWriter::TDsvWriter(TOutputStream* stream, TDsvFormatConfigPtr config)
 
 void TDsvWriter::OnStringScalar(const TStringBuf& value)
 {
-    YCHECK(State == EState::AfterKey);
-    State = EState::ExpectKey;
     EscapeAndWrite(value);
 }
 
 void TDsvWriter::OnIntegerScalar(i64 value)
 {
-    YCHECK(State == EState::AfterKey);
-    State = EState::ExpectKey;
     Stream->Write(ToString(value));
 }
 
 void TDsvWriter::OnDoubleScalar(double value)
 {
-    YCHECK(State == EState::AfterKey);
-    State = EState::ExpectKey;
     Stream->Write(ToString(value));
 }
 
 void TDsvWriter::OnEntity()
 {
-    ythrow yexception() << "Entities are not supported by dsv";
+    ythrow yexception() << "Entities are not supported by Dsv";
 }
 
 void TDsvWriter::OnBeginList()
 {
-    ythrow yexception() << "Embedded lists are not supported by dsv";
+    if (!AllowBeginList) {
+        ythrow yexception() << "Embedded lists are not supported by Dsv";
+    }
+    AllowBeginList = false;
 }
 
 void TDsvWriter::OnListItem()
 {
-    YCHECK(State == EState::ExpectListItem);
-    State = EState::ExpectBeginMap;
-
     if (!FirstLine) {
         Stream->Write(Config->RecordSeparator);
-    }
-    FirstItem = true;
-    FirstLine = false;
-}
-
-void TDsvWriter::OnEndList()
-{
-    YUNREACHABLE();
-}
-
-void TDsvWriter::OnBeginMap()
-{
-    if (State != EState::ExpectBeginMap) {
-        ythrow yexception() << "Embedded maps are not supported by dsv";
     }
     if (Config->LinePrefix) {
         Stream->Write(Config->LinePrefix.Get());
     }
+    FirstLine = false;
+}
 
-    State = EState::ExpectKey;
+void TDsvWriter::OnEndList()
+{ }
+
+void TDsvWriter::OnBeginMap()
+{
+    if (!AllowBeginMap) {
+        ythrow yexception() << "Embedded maps are not supported by Dsv";
+    }
+    AllowBeginMap = false;
+    AllowBeginList = false;
+
+    FirstItem = true;
 }
 
 void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 {
-    YCHECK(State == EState::ExpectKey);
-    State = EState::AfterKey;
-
     if (!FirstItem || Config->LinePrefix) {
         Stream->Write(Config->FieldSeparator);
     }
 
     EscapeAndWrite(key);
     Stream->Write(Config->KeyValueSeparator);
+
     FirstItem = false;
 }
 
 void TDsvWriter::OnEndMap()
 {
-    YCHECK(State == EState::ExpectKey);
-    State = EState::ExpectListItem;
+    AllowBeginMap = true;
 }
 
 void TDsvWriter::OnBeginAttributes()
 {
-    ythrow yexception() << "Attributes are not supported by dsv";
+    ythrow yexception() << "Attributes are not supported by Dsv";
 }
 
 void TDsvWriter::OnEndAttributes()

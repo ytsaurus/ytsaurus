@@ -7,9 +7,11 @@
 namespace NYT {
 namespace NFormats {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TDsvWriterTest, Simple)
+TEST(TDsvWriterTest, SimpleTabular)
 {
     TStringStream outputStream;
     TDsvWriter writer(&outputStream);
@@ -35,18 +37,85 @@ TEST(TDsvWriterTest, Simple)
         "integer=42\tstring=some\tdouble=10.\n"
         "foo=bar\tone=1";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
+
+TEST(TDsvWriterTest, StringScalar)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::Node);
+
+    writer.OnStringScalar("0-2-xb-1234");
+    EXPECT_EQ("0-2-xb-1234", outputStream.Str());
+}
+
+TEST(TDsvWriterTest, ListContainingDifferentTypes)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::Node);
+
+    writer.OnBeginList();
+    writer.OnListItem();
+    writer.OnIntegerScalar(100);
+    writer.OnListItem();
+    writer.OnStringScalar("foo");
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("a");
+        writer.OnStringScalar("10");
+        writer.OnKeyedItem("b");
+        writer.OnStringScalar("c");
+    writer.OnEndMap();
+    writer.OnEndList();
+
+    Stroka output =
+        "100\n"
+        "foo\n"
+        "a=10\tb=c";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TDsvWriterTest, ListInsideList)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::Node);
+
+    writer.OnBeginList();
+    writer.OnListItem();
+    EXPECT_ANY_THROW(writer.OnBeginList());
+}
+
+TEST(TDsvWriterTest, ListInsideMap)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::Node);
+
+    writer.OnBeginMap();
+    writer.OnKeyedItem("foo");
+    EXPECT_ANY_THROW(writer.OnBeginList());
+}
+
+TEST(TDsvWriterTest, MapInsideMap)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::Node);
+
+    writer.OnBeginMap();
+    writer.OnKeyedItem("foo");
+    EXPECT_ANY_THROW(writer.OnBeginMap());
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTskvWriterTest, Simple)
+TEST(TTskvWriterTest, SimpleTabular)
 {
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, config);
+    TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -72,7 +141,7 @@ TEST(TTskvWriterTest, Simple)
         "tskv\n"
         "tskv\tid=1\tguid=100500\n"
         "tskv\tid=2\tguid=20025";
-
+//    Cout << outputStream.Str() << Endl;
     EXPECT_EQ(outputStream.Str(), output);
 }
 
@@ -82,7 +151,7 @@ TEST(TTskvWriterTest, Escaping)
     config->LinePrefix = "tskv";
 
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, config);
+    TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
 
     writer.OnListItem();
     writer.OnBeginMap();

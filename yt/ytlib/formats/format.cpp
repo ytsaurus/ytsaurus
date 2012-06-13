@@ -180,7 +180,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForDsv(
     }
     auto config = New<TDsvFormatConfig>();
     config->Load(attributes->ToMap());
-    return new TDsvWriter(output, config);
+    return new TDsvWriter(output, EYsonType::ListFragment, config);
 }
 
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
