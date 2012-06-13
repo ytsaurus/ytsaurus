@@ -160,7 +160,7 @@ protected:
         // meaning: it captures the state of the table at the moment it was branched.
         // Suppress rebalancing for this chunk list to prevent
         // unwanted modifications of the children set.
-        branchedChunkList->SetRebalancingEnabled(false);
+        branchedChunkList->SetBranchedRoot(false);
 
         branchedNode->SetChunkList(branchedChunkList);
         YCHECK(branchedChunkList->OwningNodes().insert(branchedNode).second);
@@ -221,7 +221,7 @@ protected:
                     &*branchedChildren.begin() + branchedChildren.size());
 
                 // Configure rebalancing depending on its mode for currentChunkList.
-                newChunkList->SetRebalancingEnabled(currentChunkList->GetRebalancingEnabled());
+                newChunkList->SetBranchedRoot(currentChunkList->GetBranchedRoot());
 
                 // Propagate "sorted" attribute back.
                 newChunkList->SetSorted(branchedChunkList->GetSorted());
@@ -243,7 +243,7 @@ protected:
                 objectManager->UnrefObject(currentChunkList);
                 YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
                 YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
-                YCHECK(branchedChunkList->GetRebalancingEnabled());
+                YCHECK(branchedChunkList->GetBranchedRoot());
                 break;
             }
 

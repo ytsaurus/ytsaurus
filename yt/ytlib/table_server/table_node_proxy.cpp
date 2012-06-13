@@ -694,7 +694,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunkList = tableNode->GetChunkList();
     chunkManager->ClearChunkList(chunkList);
-    chunkList->SetRebalancingEnabled(true);
+    chunkList->SetBranchedRoot(true);
     tableNode->SetBranchMode(ETableBranchMode::Overwrite);
 
     context->Reply();

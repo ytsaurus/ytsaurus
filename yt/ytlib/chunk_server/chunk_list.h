@@ -32,7 +32,7 @@ class TChunkList
     // Rebalancing affects the root, i.e. changes the set of children.
     // For some chunk lists (e.g. those corresponding to roots of branched tables)
     // such changes are not allowed since they would break the invariants.
-    DEFINE_BYVAL_RW_PROPERTY(bool, RebalancingEnabled);
+    DEFINE_BYVAL_RW_PROPERTY(bool, BranchedRoot);
 
 public:
     explicit TChunkList(const TChunkListId& id);

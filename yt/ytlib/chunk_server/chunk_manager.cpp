@@ -604,7 +604,7 @@ private:
 
     void RebalanceChunkTreeIfNeeded(TChunkList* root)
     {
-        if (!root->GetRebalancingEnabled() ||
+        if (root->Children().size() <= Config->MaxChunkListSize &&
             root->Statistics().Rank <= Config->MaxChunkTreeRank)
         {
             return;
@@ -621,8 +621,21 @@ private:
             // Create new children list.
             YASSERT(root->Statistics().Rank > 1); // Can't put root into new children.
             std::vector<TChunkTreeRef> newChildren;
+
             TChunkTreeRef rootRef(root);
-            AddChunkRef(&newChildren, rootRef);
+            if (root->GetBranchedRoot())  {
+                // We have to add first child as is.
+                YCHECK(!root->Children().empty());
+                auto it = root->Children().begin();
+                newChildren.push_back(*it);
+                ++it;
+                while (it != root->Children().end()) {
+                    AddChunkRef(&newChildren, *it);
+                    ++it;
+                }
+            } else {
+                AddChunkRef(&newChildren, rootRef);
+            }
             YASSERT(!newChildren.empty());
             YASSERT(newChildren.front() != rootRef);
 
@@ -1898,9 +1911,9 @@ private:
             return true;
         }
 
-        if (name == "rebalancing_enabled") {
+        if (name == "branched_root") {
             BuildYsonFluently(consumer)
-                .Scalar(chunkList->GetRebalancingEnabled());
+                .Scalar(chunkList->GetBranchedRoot());
             return true;
         }
 
