@@ -462,7 +462,7 @@ TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedChanges()
     THolder<TPostponedChanges> changes(new TPostponedChanges());
     changes->swap(PostponedChanges);
 
-    LOG_INFO("Captured %d postponed changes", changes->size());
+    LOG_INFO("Captured %" PRISZT " postponed changes", changes->size());
 
     return BIND(
                &TFollowerRecovery::ApplyPostponedChanges,
@@ -477,7 +477,7 @@ TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedChanges(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LOG_INFO("Applying %d postponed changes", changes->size());
+    LOG_INFO("Applying %" PRISZT " postponed changes", changes->size());
     
     FOREACH (const auto& change, *changes) {
         switch (change.Type) {
@@ -561,7 +561,7 @@ TRecovery::EResult TFollowerRecovery::PostponeChanges(
         return EResult::Failed;
     }
 
-    LOG_DEBUG("Postponing %d changes at version %s",
+    LOG_DEBUG("Postponing %" PRISZT " changes at version %s",
         changes.size(),
         ~PostponedVersion.ToString());
 
