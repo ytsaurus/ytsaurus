@@ -242,6 +242,7 @@ set( DT_BASE ${CMAKE_SOURCE_DIR}/util/datetime )
 
 set( DT_SRCS
   ${DT_BASE}/base.cpp
+  ${DT_BASE}/parser.cpp
   ${DT_BASE}/constants.h
   ${DT_BASE}/cputimer.cpp
   ${DT_BASE}/systime.cpp
