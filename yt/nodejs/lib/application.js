@@ -46,7 +46,7 @@ function YtCommand(logger, driver, req, rsp) {
     this.rsp = rsp;
 
     this.req.parsedUrl = url.parse(this.req.url);
-};
+}
 
 YtCommand.prototype.dispatch = function() {
     var self = this;
@@ -63,7 +63,7 @@ YtCommand.prototype.dispatch = function() {
         this._execute,
         this._epilogue
     ], function andThen(error) {
-        var thereWasError = error || self.rsp.ytCode != 0;
+        var thereWasError = error || self.rsp.ytCode !== 0;
         if (thereWasError) {
             var errorMessage = error ? error.message : self.rsp.ytMessage;
             self.logger.error("Done (failure)", { request_id : self.req.uuid, error : errorMessage });
@@ -279,7 +279,7 @@ function YtApplication(logger, configuration) {
     return function(req, rsp) {
         return (new YtCommand(logger, driver, req, rsp)).dispatch();
     };
-};
+}
 
 function YtLogger(logger) {
     return function(req, rsp, next) {
@@ -311,7 +311,7 @@ function YtLogger(logger) {
 
         next();
     };
-};
+}
 
 function YtAssignRequestId() {
     var buffer = new Buffer(16);
@@ -321,7 +321,7 @@ function YtAssignRequestId() {
         rsp.setHeader("X-YT-Request-Id", req.uuid);
         next();
     };
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

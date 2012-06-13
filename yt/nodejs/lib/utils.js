@@ -16,14 +16,13 @@ exports.is = function(type, str) {
         type = type.split("/");
         str = str.split("/");
 
-        return (type[0] == "*" && type[1] == str[1])
-            || (type[1] == "*" && type[0] == str[0])
-            || (type[0] == "*" && type[1] == "*");
+        return (type[0] == "*" && type[1] == str[1]) ||
+               (type[1] == "*" && type[0] == str[0]) ||
+               (type[0] == "*" && type[1] == "*");
     }
 
     return type == str;
-}
-
+};
 
 /**
  * Check if `type(s)` are acceptable based on the given `str`.
@@ -78,7 +77,7 @@ exports.parseQuality = function(str) {
     var quality = parts[1] ? parseFloat(parts[1].split(/ *= */)[1]) : 1.0;
 
     return { value: value, quality: quality };
-}
+};
 
 /**
  * Check if `type` array is acceptable for `other`.
@@ -86,8 +85,8 @@ exports.parseQuality = function(str) {
 
 exports.testAccept = function(type, other) {
     var parts = type.split("/");
-    return (parts[0] == other.type || "*" == other.type)
-        && (parts[1] == other.subtype || "*" == other.subtype);
+    return (parts[0] == other.type || "*" == other.type) ||
+           (parts[1] == other.subtype || "*" == other.subtype);
 };
 
 /**
@@ -97,7 +96,9 @@ exports.testAccept = function(type, other) {
 exports.numerify = function(obj) {
     if (typeof(obj) === "object") {
         for (var key in obj) {
-            obj[key] = exports.numerify(obj[key]);
+            if (obj.hasOwnProperty(key)) {
+                obj[key] = exports.numerify(obj[key]);
+            }
         }
     } else if (typeof(obj) === "array") {
         for (var index in obj) {
@@ -133,6 +134,6 @@ exports.callSeq = function(context, functions, callback) {
         } else {
             callback.call(context, null);
         }
-    })(context, functions, callback);
+    }(context, functions, callback));
 };
 

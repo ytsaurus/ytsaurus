@@ -20,7 +20,7 @@ if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
 
 function YtReadableStream() {
     if (__DBG.UUID) {
-        this.__DBG  = function(x) { __DBG("Readable (" + this.__UUID + ") -> " + x); }
+        this.__DBG  = function(x) { __DBG("Readable (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
     } else {
         this.__DBG  = function( ) { };
@@ -63,7 +63,7 @@ function YtReadableStream() {
         self.__DBG("Bindings -> on_finish");
         self._endSoon();
     };
-};
+}
 
 util.inherits(YtReadableStream, stream.Stream);
 
@@ -136,20 +136,20 @@ YtReadableStream.prototype.resume = function() {
     this.__DBG("resume");
     this._paused = false;
     this._emitQueue();
-}
+};
 
 YtReadableStream.prototype.destroy = function() {
     this.__DBG("destroy");
     this._binding.Destroy();
     this.readable = false;
     this._ended = true;
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtWritableStream() {
     if (__DBG.UUID) {
-        this.__DBG  = function(x) { __DBG("Writable (" + this.__UUID + ") -> " + x); }
+        this.__DBG  = function(x) { __DBG("Writable (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
     } else {
         this.__DBG  = function( ) { };
@@ -165,7 +165,7 @@ function YtWritableStream() {
     this._closed = false;
 
     this._binding = new binding.TNodeJSInputStream();
-};
+}
 
 util.inherits(YtWritableStream, stream.Stream);
 
@@ -177,7 +177,7 @@ YtWritableStream.prototype._emitClose = function() {
     }
 
     this._closed = true;
-}
+};
 
 YtWritableStream.prototype.write = function(chunk, encoding) {
     this.__DBG("write");
@@ -196,7 +196,7 @@ YtWritableStream.prototype.write = function(chunk, encoding) {
     } else {
         return false;
     }
-}
+};
 
 YtWritableStream.prototype.end = function(chunk, encoding) {
     this.__DBG("end");
@@ -212,7 +212,7 @@ YtWritableStream.prototype.end = function(chunk, encoding) {
 
     var self = this;
     process.nextTick(function() { self._emitClose(); });
-}
+};
 
 YtWritableStream.prototype.destroy = function() {
     this.__DBG("destroy");
@@ -222,13 +222,13 @@ YtWritableStream.prototype.destroy = function() {
     this.writable = false;
     this._ended = true;
     this._closed = true;
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtDriver(configuration) {
     if (__DBG.UUID) {
-        this.__DBG  = function(x) { __DBG("Driver (" + this.__UUID + ") -> " + x); }
+        this.__DBG  = function(x) { __DBG("Driver (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
     } else {
         this.__DBG  = function( ) { };
@@ -257,10 +257,10 @@ YtDriver.prototype.execute = function(name,
     var self = this;
 
     function on_error(err) {
-        self.__DBG("execute -> on_error")
+        self.__DBG("execute -> on_error");
         wrapped_input_stream.destroy();
         wrapped_output_stream.destroy();
-    };
+    }
 
     input_stream.on("error", on_error);
     output_stream.on("error", on_error);
@@ -274,17 +274,17 @@ YtDriver.prototype.execute = function(name,
         callback.apply(this, arguments);
         wrapped_output_stream._endSoon();
     });
-}
+};
 
 YtDriver.prototype.find_command_descriptor = function(command_name) {
     this.__DBG("find_command_descriptor");
     return this._binding.FindCommandDescriptor(command_name);
-}
+};
 
 YtDriver.prototype.get_command_descriptors = function() {
     this.__DBG("get_command_descriptors");
     return this._binding.GetCommandDescriptors();
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
