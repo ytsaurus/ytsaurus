@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+var cluster = require("cluster");
 var fs = require("fs");
 
 var connect = require("connect");
@@ -22,6 +23,10 @@ var opts = require("optimist")
     .default("i", "0.0.0.0")
     .describe("i", "Specify interface to listen")
 
+    .alias("n", "number-of-workers")
+    .default("n", 8)
+    .describe("n", "Specify number of worker processes")
+
     .alias("l", "log")
     .describe("l", "Specify log file")
 
@@ -41,47 +46,77 @@ if (opts.argv.h) {
     process.exit(0);
 }
 
-process.title = 'YtHttpApi';
+////////////////////////////////////////////////////////////////////////////////
 
-fs.readFile(opts.argv.c, function(err, configuration) {
-    if (err) {
-        throw err;
-    }
-    try {
-        var logger = new winston.Logger({
-            transports: [ opts.argv.l
-                ? new winston.transports.File({
-                    filename: opts.argv.l,
-                    timestamp: true,
-                    raw: true
-                })
-                : new winston.transports.Console({
-                    timestamp: true,
-                    raw: true
-                })
-            ]
-        });
-        connect()
-            .use(connect.favicon())
-            .use(yt.YtAssignRequestID())
-            .use(yt.YtLogger(logger))
-            .use("/api", yt.YtApplication(logger, configuration.toString()))
-            .listen(opts.argv.p, opts.argv.i, function() {
-                if (opts.argv.g) {
-                    process.setgid(opts.argv.g);
-                }
+process.title = "YtHttpApi";
 
-                if (opts.argv.u) {
-                    process.setuid(opts.argv.u);
-                }
-
-                if (process.getuid() == 0 || process.getgid() == 0) {
-                    console.error("Error: [Failed to drop privileges; aborting.]");
-                    process.exit(100);
-                }
-            });
-    } catch(err) {
-        console.error("Error: [%s] Call: [%s]", err.message, err.syscall);
-        process.exit(200);
-    }
+var logger = new winston.Logger({
+    transports: [ opts.argv.l
+        ? new winston.transports.File({
+            filename: opts.argv.l,
+            timestamp: true,
+            raw: true
+        })
+        : new winston.transports.Console({
+            timestamp: true,
+            raw: true
+        })
+    ]
 });
+
+if (cluster.isMaster) {
+    var spawnWorker = function() {
+        var worker = cluster.fork();
+
+        logger.info("Spawned worker", { pid : worker.pid });
+
+        worker.on("message", function(message) {
+            if (message && message.fatal) {
+                logger.error("Worker has generated a fatal error", { pid : worker.pid });
+                logger.error("Terminating master process");
+                process.exit(1);
+            }
+        });
+    }
+
+    for (var i = 0; i < opts.argv.n; ++i) {
+        spawnWorker();
+    }
+
+    cluster.on("death", function(worker) {
+        logger.info("Worker has died; restarting", { pid : worker.pid });
+        spawnWorker();
+    });
+} else {
+    fs.readFile(opts.argv.c, function(err, configuration) {
+        if (err) {
+            throw err;
+        }
+        try {
+            connect()
+                .use(connect.favicon())
+                .use(yt.YtAssignRequestID())
+                .use(yt.YtLogger(logger))
+                .use("/api", yt.YtApplication(logger, configuration.toString()))
+                .listen(opts.argv.p, opts.argv.i, function() {
+                    if (opts.argv.g) {
+                        process.setgid(opts.argv.g);
+                    }
+
+                    if (opts.argv.u) {
+                        process.setuid(opts.argv.u);
+                    }
+
+                    if (process.getuid() == 0 || process.getgid() == 0) {
+                        logger.error("Failed to drop privileges; aborting");
+                        process.send({ fatal : true });
+                        process.exit(100);
+                    }
+                });
+        } catch(err) {
+            logger.error("Error '%s' while calling '%s'; aborting", err.message, err.syscall);
+            process.send({ fatal : true });
+            process.exit(200);
+        }
+    });
+}
