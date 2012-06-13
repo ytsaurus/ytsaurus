@@ -11,7 +11,7 @@ var ytnode_wrappers = require("./ytnode_wrappers");
 
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YT/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { console.error("YT Application:", x); };
 } else {
     __DBG = function( ) { };
@@ -250,8 +250,8 @@ YtCommand.prototype._execute = function(cb) {
                     { request_id : self.req.uuid, code : code, error : message });
             }
 
-            self.rsp.ytCode = code;
-            self.rsp.ytMessage = message;
+            self.rsp.yt_code = code;
+            self.rsp.yt_message = message;
 
             if (code === 0) {
                 self.rsp.statusCode = 200;
@@ -261,7 +261,7 @@ YtCommand.prototype._execute = function(cb) {
                 self.rsp.statusCode = 400;
             }
 
-            if (code != 0) {
+            if (code !== 0) {
                 self.rsp.addTrailers({
                     "X-YT-Response-Code" : JSON.stringify(code),
                     "X-YT-Response-Message" : JSON.stringify(message)
@@ -269,13 +269,6 @@ YtCommand.prototype._execute = function(cb) {
             }
 
             cb(null);
-        },
-        function errorback(err)
-        {
-            self.logger.error(
-                "Command '" + self.name + "' was interrupted by an error",
-                { request_id : self.req.uuid, error : err.message });
-            return cb(err);
         });
 };
 

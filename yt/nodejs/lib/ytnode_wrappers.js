@@ -10,7 +10,7 @@ var __EOF = {};
 var __DBG;
 
 if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(self, x) { console.error("YT Node Wrappers: (" + self._uuid + ")", x); };
+    __DBG = function(x) { console.error("YT Wrappers:", x); };
     __DBG.UUID = require("node-uuid");
 } else {
     __DBG = function( ) { };
@@ -19,8 +19,14 @@ if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtReadableStream() {
-    if (__DBG.UUID) { this._uuid = __DBG.UUID.v4(); }
-    __DBG(this, "Readable -> New");
+    if (__DBG.UUID) {
+        this.__DBG  = function(x) { __DBG("Readable (" + this.__UUID + ") -> " + x); }
+        this.__UUID = __DBG.UUID.v4();
+    } else {
+        this.__DBG  = function( ) { };
+    }
+
+    this.__DBG("New");
     stream.Stream.call(this);
 
     this.readable = true;
@@ -34,7 +40,7 @@ function YtReadableStream() {
 
     this._binding = new binding.TNodeJSOutputStream();
     this._binding.on_write = function(chunk) {
-        __DBG(self, "Readable -> Bindings -> on_write");
+        self.__DBG("Bindings -> on_write");
         if (!self.readable || self._ended) {
             return;
         }
@@ -46,15 +52,15 @@ function YtReadableStream() {
         }
     };
     this._binding.on_drain = function() {
-        __DBG(self, "Readable -> Bindings -> on_drain");
+        self.__DBG("Bindings -> on_drain");
         self.emit("_drain");
     };
     this._binding.on_flush = function() {
-        __DBG(self, "Readable -> Bindings -> on_flush");
+        self.__DBG("Bindings -> on_flush");
         self.emit("_flush");
     };
     this._binding.on_finish = function() {
-        __DBG(self, "Readable -> Bindings -> on_finish");
+        self.__DBG("Bindings -> on_finish");
         self._endSoon();
     };
 };
@@ -62,26 +68,28 @@ function YtReadableStream() {
 util.inherits(YtReadableStream, stream.Stream);
 
 YtReadableStream.prototype._emitData = function(chunk) {
-    __DBG(this, "Readable -> _emitData");
+    this.__DBG("_emitData");
     this.emit("data", chunk);
 };
 
 YtReadableStream.prototype._emitEnd = function() {
-    __DBG(this, "Readable -> _emitEnd");
+    this.__DBG("_emitEnd");
+
     if (!this._ended) { 
         this.emit("end");
     }
 
     this.readable = false;
     this._ended = true;
-}
+};
 
 YtReadableStream.prototype._emitQueue = function() {
-    __DBG(this, "Readable -> _emitQueue");
+    this.__DBG("_emitQueue");
+
     if (this._pending.length) {
         var self = this;
         process.nextTick(function() {
-            __DBG(self, "Readable -> _emitQueue -> (inner-cycle)");
+            self.__DBG("_emitQueue -> (inner-cycle)");
             while (self.readable && !self._ended && !self._paused && self._pending.length) {
                 var chunk = self._pending.shift();
                 if (chunk !== __EOF) {
@@ -97,14 +105,16 @@ YtReadableStream.prototype._emitQueue = function() {
 };
 
 YtReadableStream.prototype._endSoon = function() {
-    __DBG(this, "Readable -> _endSoon");
+    this.__DBG("_endSoon");
+
     if (!this.readable || this._ended) {
         return;
     }
+
     if (this._binding.IsEmpty()) {
         var self = this;
         process.nextTick(function() {
-            __DBG(self, "Readable " + self._uuid + " -> _endSoon -> (inner-tick)");
+            self.__DBG("_endSoon -> (inner-tick)");
             if (self._paused || self._pending.length) {
                 self._pending.push(__EOF);
             } else {
@@ -118,18 +128,18 @@ YtReadableStream.prototype._endSoon = function() {
 };
 
 YtReadableStream.prototype.pause = function() {
-    __DBG(this, "Readable -> pause");
+    this.__DBG("pause");
     this._paused = true;
 };
 
 YtReadableStream.prototype.resume = function() {
-    __DBG(this, "Readable -> resume");
+    this.__DBG("resume");
     this._paused = false;
     this._emitQueue();
 }
 
 YtReadableStream.prototype.destroy = function() {
-    __DBG(this, "Readable -> destory");
+    this.__DBG("destroy");
     this.readable = false;
     this._ended = true;
 }
@@ -137,8 +147,14 @@ YtReadableStream.prototype.destroy = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtWritableStream() {
-    if (__DBG.UUID) { this._uuid = __DBG.UUID.v4(); }
-    __DBG(this, "Writable -> New")
+    if (__DBG.UUID) {
+        this.__DBG  = function(x) { __DBG("Writable (" + this.__UUID + ") -> " + x); }
+        this.__UUID = __DBG.UUID.v4();
+    } else {
+        this.__DBG  = function( ) { };
+    }
+
+    this.__DBG("New");
     stream.Stream.call(this);
 
     this.readable = false;
@@ -153,7 +169,8 @@ function YtWritableStream() {
 util.inherits(YtWritableStream, stream.Stream);
 
 YtWritableStream.prototype._emitClose = function() {
-    __DBG(this, "Writable -> _emitClose");
+    this.__DBG("_emitClose");
+
     if (!this._closed) {
         this.emit("close");
     }
@@ -162,7 +179,8 @@ YtWritableStream.prototype._emitClose = function() {
 }
 
 YtWritableStream.prototype.write = function(chunk, encoding) {
-    __DBG(this, "Writable -> write");
+    this.__DBG("write");
+
     if (typeof(chunk) !== "string" && !Buffer.isBuffer(chunk)) {
         throw new TypeError("Expected first argument to be a String or Buffer");
     }
@@ -180,7 +198,8 @@ YtWritableStream.prototype.write = function(chunk, encoding) {
 }
 
 YtWritableStream.prototype.end = function(chunk, encoding) {
-    __DBG(this, "Writable -> end");
+    this.__DBG("end");
+
     if (chunk) {
         this.write(chunk, encoding);
     }
@@ -195,8 +214,7 @@ YtWritableStream.prototype.end = function(chunk, encoding) {
 }
 
 YtWritableStream.prototype.destroy = function() {
-    __DBG(this, "Writable -> destroy");
-    this._binding.Close();
+    this.__DBG("destroy");
 
     this.writable = false;
     this._ended = true;
@@ -206,8 +224,14 @@ YtWritableStream.prototype.destroy = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtDriver(configuration) {
-    if (__DBG.UUID) { this._uuid = __DBG.UUID.v4(); }
-    __DBG(this, "Driver -> New");
+    if (__DBG.UUID) {
+        this.__DBG  = function(x) { __DBG("Driver (" + this.__UUID + ") -> " + x); }
+        this.__UUID = __DBG.UUID.v4();
+    } else {
+        this.__DBG  = function( ) { };
+    }
+
+    this.__DBG("New");
 
     this._binding = new binding.TNodeJSDriver(configuration);
 }
@@ -215,50 +239,39 @@ function YtDriver(configuration) {
 YtDriver.prototype.execute = function(name,
     input_stream, input_format,
     output_stream, output_format,
-    parameters, callback, errorback
+    parameters, cb
 ) {
-    __DBG(this, "Driver -> execute");
+    this.__DBG("execute");
 
     var wrapped_input_stream = new YtWritableStream();
     var wrapped_output_stream = new YtReadableStream();
 
-    __DBG(this, "Driver -> execute <<(" + wrapped_input_stream._uuid + ") >>(" + wrapped_output_stream._uuid + ")");
+    this.__DBG("execute <<(" + wrapped_input_stream._uuid + ") >>(" + wrapped_output_stream._uuid + ")");
+
+    input_stream.pipe(wrapped_input_stream);
+    wrapped_output_stream.pipe(output_stream);
 
     var self = this;
 
-    util.pump(input_stream, wrapped_input_stream, function(err) {
-        __DBG(self, "Driver -> execute -> pump-in-callback");
-        if (err) {
-            errorback.call(this,
-                new Error("Error while pumping from input_stream to YtWritableStream: " + err.message));
-        }
-    });
-    util.pump(wrapped_output_stream, output_stream, function(err) {
-        __DBG(self, "Driver -> execute -> pump-out-callback");
-        if (err) {
-            errorback.call(this,
-                new Error("Error while pumping from YtReadableStream to output_stream: " + err.message));
-        }
-    });
 
     var result = this._binding.Execute(name,
         wrapped_input_stream._binding, input_format,
         wrapped_output_stream._binding, output_format,
         parameters, function()
     {
-        __DBG(self, "Driver -> execute -> callback");
+        self.__DBG("execute -> callback");
         callback.apply(this, arguments);
         wrapped_output_stream._endSoon();
     });
 }
 
 YtDriver.prototype.find_command_descriptor = function(command_name) {
-    __DBG(this, "Driver -> find_command_descriptor");
+    this.__DBG("find_command_descriptor");
     return this._binding.FindCommandDescriptor(command_name);
 }
 
 YtDriver.prototype.get_command_descriptors = function() {
-    __DBG(this, "Driver -> get_command_descriptors");
+    this.__DBG("get_command_descriptors");
     return this._binding.GetCommandDescriptors();
 }
 
