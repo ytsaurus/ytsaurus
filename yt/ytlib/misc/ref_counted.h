@@ -22,6 +22,14 @@ namespace NDetail {
     // Note that returning previous value is a micro-tiny-bit faster.
     // (see http://lwn.net/Articles/256433/)
 
+    static inline TNonVolatileCounter AtomicallyStore(TVolatileCounter* p, TNonVolatileCounter v)
+    {
+        __sync_synchronize();
+        *p = v;
+        __sync_synchronize();
+        return v;
+    }
+
     static inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
     {
         return __sync_fetch_and_add(const_cast<TVolatileCounter*>(p), 0);

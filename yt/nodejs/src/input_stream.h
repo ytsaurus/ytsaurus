@@ -30,23 +30,21 @@ public:
     static v8::Handle<v8::Value> Push(const v8::Arguments& args);
     v8::Handle<v8::Value> DoPush(v8::Persistent<v8::Value> handle, char *data, size_t offset, size_t length);
 
+    static v8::Handle<v8::Value> Close(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoClose();
+
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Sweep(const v8::Arguments& args);
     static void AsyncSweep(uv_work_t* request);
     void EnqueueSweep();
     void DoSweep();
 
-    static v8::Handle<v8::Value> Close(const v8::Arguments& args);
-    static void AsyncClose(uv_work_t* request);
-    void EnqueueClose();
-    void DoClose();
-
 protected:
     // C++ API.
     size_t DoRead(void* data, size_t length);
 
 private:
-    bool IsAlive;
+    NDetail::TVolatileCounter IsAlive;
 
     TMutex Mutex;
     TCondVar Conditional;
@@ -67,15 +65,6 @@ inline void TNodeJSInputStream::EnqueueSweep()
     uv_queue_work(
         uv_default_loop(), &SweepRequest,
         DoNothing, TNodeJSInputStream::AsyncSweep);
-}
-
-inline void TNodeJSInputStream::EnqueueClose()
-{
-    AsyncRef(false);
-    // Post to any worker thread.
-    uv_queue_work(
-        uv_default_loop(), &CloseRequest,
-        TNodeJSInputStream::AsyncClose, DoNothing);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

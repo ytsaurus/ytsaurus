@@ -12,7 +12,7 @@ Persistent<FunctionTemplate> TNodeJSInputStream::ConstructorTemplate;
 
 TNodeJSInputStream::TNodeJSInputStream()
     : TNodeJSStreamBase()
-    , IsAlive(true)
+    , IsAlive(1)
 {
     THREAD_AFFINITY_IS_V8();
 }
@@ -132,6 +132,37 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSInputStream* stream =
+        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+
+    // Validate arguments.
+    YASSERT(args.Length() == 0);
+
+    // Do the work.
+    return scope.Close(stream->DoClose());
+}
+
+Handle<Value> TNodeJSInputStream::DoClose()
+{
+    THREAD_AFFINITY_IS_V8();
+
+    {
+        TGuard<TMutex> guard(&Mutex);
+        NDetail::AtomicallyStore(&IsAlive, 0);
+        Conditional.BroadCast();
+    }
+
+    return Undefined();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 struct TAlreadyLockedOps {
     static inline void Acquire(T* t)
@@ -212,46 +243,6 @@ void TNodeJSInputStream::DoSweep()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // Unwrap.
-    TNodeJSInputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
-
-    // Validate arguments.
-    YASSERT(args.Length() == 0);
-
-    // Do the work.
-    stream->EnqueueClose();
-
-    return Undefined();
-}
-
-void TNodeJSInputStream::AsyncClose(uv_work_t* request)
-{
-    THREAD_AFFINITY_IS_UV();
-    TNodeJSInputStream* stream =
-        container_of(request, TNodeJSInputStream, CloseRequest);
-    stream->DoClose();
-}
-
-void TNodeJSInputStream::DoClose()
-{
-    THREAD_AFFINITY_IS_UV();
-
-    TGuard<TMutex> guard(&Mutex);
-
-    IsAlive = false;
-    Conditional.BroadCast();
-
-    AsyncUnref();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 size_t TNodeJSInputStream::DoRead(void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
@@ -290,7 +281,7 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
         }
 
         if (!canReadSomething) {
-            if (IsAlive) {
+            if (NDetail::AtomicallyFetch(&IsAlive)) {
                 Conditional.WaitI(Mutex);
                 continue;
             } else {
