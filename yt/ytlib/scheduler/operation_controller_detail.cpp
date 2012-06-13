@@ -156,7 +156,6 @@ TFuture<void> TOperationControllerBase::Commit()
             Active = false;
             if (result.IsOK()) {
                 LOG_INFO("Operation committed");
-                this_->Host->OnOperationCompleted(this_->Operation);
             } else {
                 LOG_WARNING("Operation has failed to commit\n%s", ~result.ToString());
                 this_->Host->OnOperationFailed(this_->Operation, result);
