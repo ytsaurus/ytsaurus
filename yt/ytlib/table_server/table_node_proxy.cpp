@@ -481,7 +481,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("compression_ratio");
     attributes->push_back("row_count");
     attributes->push_back("sorted");
-    attributes->push_back("branch_mode");
+    attributes->push_back("update_mode");
     attributes->push_back(TAttributeInfo("key_columns", chunkList->GetSorted()));
     TBase::GetSystemAttributes(attributes);
 }
@@ -546,9 +546,9 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         return true;
     }
 
-    if (name == "branch_mode") {
+    if (name == "update_mode") {
         BuildYsonFluently(consumer)
-            .Scalar(FormatEnum(tableNode->GetBranchMode()));
+            .Scalar(FormatEnum(tableNode->GetUpdateMode()));
         return true;
     }
 
@@ -695,7 +695,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
     auto* chunkList = tableNode->GetChunkList();
     chunkManager->ClearChunkList(chunkList);
     chunkList->SetBranchedRoot(false);
-    tableNode->SetBranchMode(ETableBranchMode::Overwrite);
+    tableNode->SetUpdateMode(ETableUpdateMode::Overwrite);
 
     context->Reply();
 }

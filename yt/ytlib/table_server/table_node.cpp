@@ -28,14 +28,14 @@ static NLog::TLogger& Logger = TableServerLogger;
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(NULL)
-    , BranchMode_(ETableBranchMode::None)
+    , UpdateMode_(ETableUpdateMode::None)
 { }
 
 TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
     : TCypressNodeBase(id, other)
     , ChunkList_(other.ChunkList_)
     , KeyColumns_(other.KeyColumns_)
-    , BranchMode_(other.BranchMode_)
+    , UpdateMode_(other.UpdateMode_)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -48,7 +48,7 @@ void TTableNode::Save(TOutputStream* output) const
     TCypressNodeBase::Save(output);
     SaveObjectRef(output, ChunkList_);
     ::Save(output, KeyColumns_);
-    ::Save(output, BranchMode_);
+    ::Save(output, UpdateMode_);
 }
 
 void TTableNode::Load(const TLoadContext& context, TInputStream* input)
@@ -56,7 +56,7 @@ void TTableNode::Load(const TLoadContext& context, TInputStream* input)
     TCypressNodeBase::Load(context, input);
     LoadObjectRef(input, ChunkList_, context);
     ::Load(input, KeyColumns_);
-    ::Load(input, BranchMode_);
+    ::Load(input, UpdateMode_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +151,7 @@ protected:
         auto objectManager = Bootstrap->GetObjectManager();
       
         // Default branch mode is Append.
-        branchedNode->SetBranchMode(ETableBranchMode::Append);
+        branchedNode->SetUpdateMode(ETableUpdateMode::Append);
 
         // Create composite chunk list and place it in the root of branchedNode.
         auto* branchedChunkList = chunkManager->CreateChunkList();
@@ -191,19 +191,19 @@ protected:
         auto* branchedChunkList = branchedNode->GetChunkList();
         auto* currentChunkList = originatingNode->GetChunkList();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table node merged (BranchedNodeId: %s, BranchMode: %s, CurrentChunkListId: %s, BranchedChunkListId: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table node merged (BranchedNodeId: %s, UpdateMode: %s, CurrentChunkListId: %s, BranchedChunkListId: %s)",
             ~branchedNode->GetId().ToString(),
-            ~branchedNode->GetBranchMode().ToString(),
+            ~branchedNode->GetUpdateMode().ToString(),
             ~currentChunkList->GetId().ToString(),
             ~branchedChunkList->GetId().ToString());
 
         // If originatingNode is branched too, then it must inherit the branching mode.
         if (originatingNode->GetId().IsBranched()) {
-            originatingNode->SetBranchMode(branchedNode->GetBranchMode());
+            originatingNode->SetUpdateMode(branchedNode->GetUpdateMode());
         }
 
-        switch (branchedNode->GetBranchMode()) {
-            case ETableBranchMode::Append: {
+        switch (branchedNode->GetUpdateMode()) {
+            case ETableUpdateMode::Append: {
                 // Construct newChunkList that will replace currentChunkList in originatingNode.
                 // Append the following items to it:
                 // 1) all children of currentChunkList
@@ -237,7 +237,7 @@ protected:
                 break;
             }
 
-            case ETableBranchMode::Overwrite: {
+            case ETableUpdateMode::Overwrite: {
                 // Just replace currentChunkList with branchedChunkList.
                 originatingNode->SetChunkList(branchedChunkList);
                 objectManager->UnrefObject(currentChunkList);

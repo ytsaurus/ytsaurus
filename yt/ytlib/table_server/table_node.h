@@ -9,7 +9,7 @@ namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETableBranchMode,
+DECLARE_ENUM(ETableUpdateMode,
     (None)
     (Append)
     (Overwrite)
@@ -20,7 +20,7 @@ class TTableNode
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, KeyColumns);
-    DEFINE_BYVAL_RW_PROPERTY(ETableBranchMode, BranchMode);
+    DEFINE_BYVAL_RW_PROPERTY(ETableUpdateMode, UpdateMode);
 
 public:
     explicit TTableNode(const NCypress::TVersionedNodeId& id);
