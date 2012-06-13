@@ -18,6 +18,9 @@ TChannelCache::TChannelCache()
     : IsTerminated(false)
 { }
 
+TChannelCache::~TChannelCache()
+{ }
+
 IChannelPtr TChannelCache::GetChannel(const Stroka& address)
 {
     VERIFY_THREAD_AFFINITY_ANY();

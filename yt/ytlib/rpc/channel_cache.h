@@ -18,6 +18,9 @@ public:
     //! Creates a new instance.
     TChannelCache();
 
+    //! Needed for storing incomplete class IChannel
+    ~TChannelCache();
+
     //! Constructs new or gets an earlier created channel for a given address.
     IChannelPtr GetChannel(const Stroka& address);
 
