@@ -668,11 +668,19 @@ private:
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationNodeFlushed(
-        TOperationPtr operation,
-        TError error)
+    void OnOperationNodeFlushed(TOperationPtr operation, TError error)
     {
         UNUSED(error);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        operation->GetController()->Commit().Subscribe(
+            BIND(&TImpl::OnOperationCommitted, MakeStrong(this), operation)
+            .Via(GetControlInvoker()));
+    }
+
+    void OnOperationCommitted(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         operation->SetState(EOperationState::Completed);
         DoOperationFinished(operation);
