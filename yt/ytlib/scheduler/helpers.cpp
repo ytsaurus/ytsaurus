@@ -43,16 +43,18 @@ void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
 
 void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
 {
+    // TODO(babenko): refactor this once new TError is ready
+    auto state = job->GetState();
+    auto error = TError::FromProto(job->Result().error());
     BuildYsonMapFluently(consumer)
         .Item("job_type").Scalar(FormatEnum(EJobType(job->Spec().type())))
-        .Item("state").Scalar(FormatEnum(job->GetState()));
-        //.DoIf(!job->Result().IsOK(), [=] (TFluentMap fluent) {
-        //    auto error = TError::FromProto(job->Result().error());
-        //    fluent.Item("result").BeginMap()
-        //        .Item("code").Scalar(error.GetCode())
-        //        .Item("message").Scalar(error.GetMessage())
-        //    .EndMap();
-        //})
+        .Item("state").Scalar(FormatEnum(state))
+        .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
+            fluent.Item("error").BeginMap()
+                .Item("code").Scalar(error.GetCode())
+                .Item("message").Scalar(error.GetMessage())
+            .EndMap();
+        });
 }
 
 void BuildExecNodeAttributes(TExecNodePtr node, IYsonConsumer* consumer)
