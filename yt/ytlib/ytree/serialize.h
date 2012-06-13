@@ -2,13 +2,14 @@
 
 #include "ephemeral.h"
 #include "yson_writer.h"
+#include "yson_producer.h"
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/mpl.h>
 #include <ytlib/misc/guid.h>
 
 namespace NYT {
-    class TConfigurable;
+    class TYsonSerializable;
 }
 
 namespace NYT {
@@ -16,239 +17,179 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class>
-struct TDeserializeTraits
-{
-    typedef T TReturnType;
-};
-
 template <class T>
-struct TDeserializeTraits<
-    T, 
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TRefCounted*> >::TType
->
-{
-    typedef TIntrusivePtr<T> TReturnType;
-};
+EYsonType GetYsonType(const T&);
+EYsonType GetYsonType(const TYsonString& yson);
+EYsonType GetYsonType(const TYsonInput& input);
+EYsonType GetYsonType(const TYsonProducer& producer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodePtr CloneNode(
-    INodePtr node,
-    INodeFactory* factory = GetEphemeralNodeFactory());
-
-TYsonProducer ProducerFromYson(TInputStream* input, EYsonType type = EYsonType::Node);
-
-TYsonProducer ProducerFromYson(const TYson& data, EYsonType type = EYsonType::Node);
-
-TYsonProducer ProducerFromNode(INodePtr node);
-
-//! Checks YSON stream for correctness, throws exception on error.
-void ValidateYson(TInputStream* input);
-
-//! Checks YSON string for correctness, throws exception on error.
-void ValidateYson(const TYson& yson);
-
-////////////////////////////////////////////////////////////////////////////////
-
-INodePtr DeserializeFromYson(
-    TInputStream* input,
-    INodeFactory* factory = GetEphemeralNodeFactory());
-
-INodePtr DeserializeFromYson(
-    const TYson& yson,
-    INodeFactory* factory = GetEphemeralNodeFactory());
-
-INodePtr DeserializeFromYson(
-    const TStringBuf& yson,
-    INodeFactory* factory = GetEphemeralNodeFactory());
-
-INodePtr DeserializeFromYson(
-    TYsonProducer producer,
-    INodeFactory* factory = GetEphemeralNodeFactory());
-
 template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson);
-
-template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson, const TYPath& path);
-
-template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node);
-
-template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node, const TYPath& path);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOutputStream& SerializeToYson(
-    INodePtr node,
-    TOutputStream& output,
-    EYsonFormat format = EYsonFormat::Binary);
-
-TYson SerializeToYson(
-    TYsonProducer producer,
+void WriteYson(
+    TOutputStream* output,
+    const T& value,
+    EYsonType type,
     EYsonFormat format = EYsonFormat::Binary);
 
 template <class T>
-TYson SerializeToYson(
+void WriteYson(
+    TOutputStream* output,
+    const T& value,
+    EYsonFormat format = EYsonFormat::Binary);
+
+template <class T>
+void WriteYson(
+    const TYsonOutput& output,
     const T& value,
     EYsonFormat format = EYsonFormat::Binary);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TIntrusivePtr<TConfigurable>
 template <class T>
-void Read(
-    TIntrusivePtr<T>& parameter,
-    INodePtr node,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType = 0);
+void Serialize(T* value, IYsonConsumer* consumer);
+
+template <class T>
+void Serialize(const TIntrusivePtr<T>& value, IYsonConsumer* consumer);
 
 // i64
-void Read(i64& parameter, INodePtr node);
+void Serialize(i64 value, IYsonConsumer* consumer);
 
 // i32
-void Read(i32& parameter, INodePtr node);
+void Serialize(i32 value, IYsonConsumer* consumer);
 
 // ui32
-void Read(ui32& parameter, INodePtr node);
+void Serialize(ui32 value, IYsonConsumer* consumer);
 
 // ui16
-void Read(ui16& parameter, INodePtr node);
+void Serialize(ui16 value, IYsonConsumer* consumer);
 
 // double
-void Read(double& parameter, INodePtr node);
+void Serialize(double value, IYsonConsumer* consumer);
 
 // Stroka
-void Read(Stroka& parameter, INodePtr node);
+void Serialize(const Stroka& value, IYsonConsumer* consumer);
 
 // bool
-void Read(bool& parameter, INodePtr node);
+void Serialize(bool value, IYsonConsumer* consumer);
 
 // char
-void Read(char& parameter, INodePtr node);
+void Serialize(char value, IYsonConsumer* consumer);
 
 // TDuration
-void Read(TDuration& parameter, INodePtr node);
+void Serialize(TDuration value, IYsonConsumer* consumer);
 
 // TInstant
-void Read(TInstant& parameter, INodePtr node);
+void Serialize(TInstant value, IYsonConsumer* consumer);
 
 // TGuid
-void Read(TGuid& parameter, INodePtr node);
+void Serialize(const TGuid& value, IYsonConsumer* consumer);
+
+// TInputStream
+void Serialize(TInputStream& input, IYsonConsumer* consumer);
 
 // TEnumBase
 template <class T>
-void Read(
-    T& parameter,
-    INodePtr node,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType = 0);
+void Serialize(
+    T value,
+    IYsonConsumer* consumer,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType = 0);
 
 // TNullable
 template <class T>
-void Read(TNullable<T>& parameter, INodePtr node);
+void Serialize(const TNullable<T>& value, IYsonConsumer* consumer);
 
-// TNodePtr
-void Read(
-    INodePtr& parameter,
-    INodePtr node);
+// TODO(roizner): move to ytree.h
+void Serialize(INode& value, IYsonConsumer* consumer);
 
 // yvector
 template <class T>
-void Read(yvector<T>& parameter, INodePtr node);
+void Serialize(const yvector<T>& value, IYsonConsumer* consumer);
 
 // std::vector
 template <class T>
-void Read(std::vector<T>& parameter, INodePtr node);
+void Serialize(const std::vector<T>& value, IYsonConsumer* consumer);
 
 // yhash_set
 template <class T>
-void Read(yhash_set<T>& parameter, INodePtr node);
+void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer);
 
 // yhash_map
 template <class T>
-void Read(yhash_map<Stroka, T>& parameter, INodePtr node);
+void Serialize(const yhash_map<Stroka, T>& value, IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void Write(T* parameter, IYsonConsumer* consumer);
+void Deserialize(TIntrusivePtr<T>& value, INodePtr node);
 
 template <class T>
-void Write(const TIntrusivePtr<T>& parameter, IYsonConsumer* consumer);
-
-// TIntrusivePtr<TConfigurable>
-template <class T>
-void Write(
-    const T& parameter,
-    IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType = 0);
+void Deserialize(TAutoPtr<T>& value, INodePtr node);
 
 // i64
-void Write(i64 parameter, IYsonConsumer* consumer);
+void Deserialize(i64& value, INodePtr node);
 
 // i32
-void Write(i32 parameter, IYsonConsumer* consumer);
+void Deserialize(i32& value, INodePtr node);
 
 // ui32
-void Write(ui32 parameter, IYsonConsumer* consumer);
+void Deserialize(ui32& value, INodePtr node);
 
 // ui16
-void Write(ui16 parameter, IYsonConsumer* consumer);
+void Deserialize(ui16& value, INodePtr node);
 
 // double
-void Write(double parameter, IYsonConsumer* consumer);
+void Deserialize(double& value, INodePtr node);
 
 // Stroka
-void Write(const Stroka& parameter, IYsonConsumer* consumer);
+void Deserialize(Stroka& value, INodePtr node);
 
 // bool
-void Write(bool parameter, IYsonConsumer* consumer);
+void Deserialize(bool& value, INodePtr node);
 
 // char
-void Write(char parameter, IYsonConsumer* consumer);
+void Deserialize(char& value, INodePtr node);
 
 // TDuration
-void Write(TDuration parameter, IYsonConsumer* consumer);
+void Deserialize(TDuration& value, INodePtr node);
 
 // TInstant
-void Write(TInstant parameter, IYsonConsumer* consumer);
+void Deserialize(TInstant& value, INodePtr node);
 
 // TGuid
-void Write(const TGuid& parameter, IYsonConsumer* consumer);
+void Deserialize(TGuid& value, INodePtr node);
 
 // TEnumBase
 template <class T>
-void Write(
-    T parameter,
-    IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType = 0);
+void Deserialize(
+    T& value,
+    INodePtr node,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType = 0);
 
 // TNullable
 template <class T>
-void Write(const TNullable<T>& parameter, IYsonConsumer* consumer);
+void Deserialize(TNullable<T>& value, INodePtr node);
 
-// TNodePtr
-void Write(INode& parameter, IYsonConsumer* consumer);
+// INode
+void Deserialize(
+    INodePtr& value,
+    INodePtr node);
 
 // yvector
 template <class T>
-void Write(const yvector<T>& parameter, IYsonConsumer* consumer);
+void Deserialize(yvector<T>& value, INodePtr node);
 
 // std::vector
 template <class T>
-void Write(const std::vector<T>& parameter, IYsonConsumer* consumer);
+void Deserialize(std::vector<T>& value, INodePtr node);
 
 // yhash_set
 template <class T>
-void Write(const yhash_set<T>& parameter, IYsonConsumer* consumer);
+void Deserialize(yhash_set<T>& value, INodePtr node);
 
 // yhash_map
 template <class T>
-void Write(const yhash_map<Stroka, T>& parameter, IYsonConsumer* consumer);
-
-// TYsonProducer
-void Write(TYsonProducer parameter, IYsonConsumer* consumer);
+void Deserialize(yhash_map<Stroka, T>& value, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

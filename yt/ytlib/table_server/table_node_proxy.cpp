@@ -674,7 +674,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
     auto keyColumns = FromProto<Stroka>(request->key_columns());
 
-    context->SetRequestInfo("KeyColumns: %s", ~SerializeToYson(keyColumns, EYsonFormat::Text));
+    context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
     // This takes an exclusive lock.
     auto* tableNode = GetTypedImplForUpdate();

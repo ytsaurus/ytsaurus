@@ -10,6 +10,7 @@
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/rpc/channel.h>
+#include <ytlib/ytree/convert.h>
 
 #include <limits>
 
@@ -90,7 +91,8 @@ void TChunkSequenceReader::PrepareNextChunk()
         remoteReader,
         slice.start_limit(),
         slice.end_limit(),
-        inputChunk.row_attributes(),
+        // TODO(ignat) yson type ?
+        NYTree::TYsonString(inputChunk.row_attributes()),
         PartitionTag,
         Options); // ToDo(psushin): pass row attributes here.
 
@@ -217,7 +219,7 @@ TRow& TChunkSequenceReader::GetRow()
     return CurrentReader->GetRow();
 }
 
-const NYTree::TYson& TChunkSequenceReader::GetRowAttributes() const
+const NYTree::TYsonString& TChunkSequenceReader::GetRowAttributes() const
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(IsValid());

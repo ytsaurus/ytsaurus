@@ -19,6 +19,7 @@
 #include <ytlib/cell_node/bootstrap.h>
 
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/yson_string.h>
 #include <ytlib/ytree/virtual.h>
 
 #include <ytlib/rpc/server.h>
@@ -95,7 +96,7 @@ void TBootstrap::Init()
         NodeBootstrap->GetOrchidRoot(),
         "/cached_chunks",
         CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
-    SyncYPathSet(~NodeBootstrap->GetOrchidRoot(), "/@service_name", "node");
+    SyncYPathSet(~NodeBootstrap->GetOrchidRoot(), "/@service_name", NYTree::TYsonString("node"));
 
     MasterConnector->Start();
 }

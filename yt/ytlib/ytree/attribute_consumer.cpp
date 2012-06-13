@@ -9,8 +9,6 @@ namespace NYTree {
 
 TAttributeConsumer::TAttributeConsumer(IAttributeDictionary* attributes)
     : Attributes(attributes)
-    , Output(Value)
-    , Writer(&Output)
 { }
 
 IAttributeDictionary* TAttributeConsumer::GetAttributes() const
@@ -20,12 +18,12 @@ IAttributeDictionary* TAttributeConsumer::GetAttributes() const
 
 void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
 {
-    Key = key;
-    Forward(&Writer, BIND([=] () {
-        Attributes->SetYson(Key, Value);
-        // TODO(babenko): "this" is needed by VC
-        this->Key.clear();
-        this->Value.clear();
+    Stroka localKey(key);
+    Writer.Reset(new TYsonWriter(&Output));
+    Forward(Writer.Get(), BIND([=] () {
+        Writer.Reset(NULL);
+        Attributes->SetYson(localKey, TYsonString(Output.Str()));
+        Output.clear();
     }));
 }
 

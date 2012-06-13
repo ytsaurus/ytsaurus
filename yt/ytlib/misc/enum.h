@@ -141,13 +141,13 @@ protected:
             return PP_COUNT(seq); \
         } \
         \
-        static std::vector<int> GetDomainValues() \
+        static std::vector<EDomain> GetDomainValues() \
         { \
-            static const int values[] = { \
+            static const EDomain values[] = { \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
-                -1 \
+                static_cast<EDomain>(-1) \
             }; \
-            return std::vector<int>(values, values + sizeof(values) / sizeof(values[0]) - 1); \
+            return std::vector<EDomain>(values, values + sizeof(values) / sizeof(values[0]) - 1); \
         }; \
         static name FromString(const char* str) \
         { \
@@ -246,7 +246,7 @@ protected:
     ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(item) \
-    static_cast<int>(item),
+    (item),
 
 //! Declaration of relational operators; all at once.
 #define ENUM__RELATIONAL_OPERATORS(name) \

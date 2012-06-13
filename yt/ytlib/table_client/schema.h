@@ -58,7 +58,7 @@ public:
     NProto::TChannel ToProto() const;
     static TChannel FromProto(const NProto::TChannel& protoChannel);
 
-    static TChannel FromYson(const NYTree::TYson& yson);
+    static TChannel FromYson(const NYTree::TYsonString& yson);
     static TChannel FromNode(NYTree::INodePtr node);
 
     const std::vector<Stroka>& GetColumns() const;
@@ -79,7 +79,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TChannel> ChannelsFromYson(const NYTree::TYson& yson);
+std::vector<TChannel> ChannelsFromYson(const NYTree::TYsonString& yson);
 
 ////////////////////////////////////////////////////////////////////////////////
 

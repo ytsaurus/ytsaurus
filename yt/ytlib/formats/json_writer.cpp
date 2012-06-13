@@ -124,7 +124,7 @@ void TJsonWriter::OnMyBeginAttributes()
     JsonWriter->OpenMap();
 
     ForwardedJsonWriter.Reset(new TJsonWriter(JsonWriter, Config));
-    Forward(~ForwardedJsonWriter, TClosure(), EYsonType::KeyedFragment);
+    Forward(~ForwardedJsonWriter, TClosure(), EYsonType::MapFragment);
 }
 
 void TJsonWriter::OnMyEndAttributes()

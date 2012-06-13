@@ -2,12 +2,13 @@
 
 #include "ypath_service.h"
 #include "yson_consumer.h"
+#include "yson_producer.h"
 #include "tree_builder.h"
 #include "yson_writer.h"
 #include "forwarding_yson_consumer.h"
-#include <ytlib/ytree/ypath.pb.h>
 #include "attributes.h"
 
+#include <ytlib/ytree/ypath.pb.h>
 #include <ytlib/misc/assert.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/rpc/service.h>
@@ -118,12 +119,11 @@ protected:
     // is updated (added, removed or changed).
     virtual void OnUpdateAttribute(
         const Stroka& key,
-        const TNullable<NYTree::TYson>& oldValue,
-        const TNullable<NYTree::TYson>& newValue);
+        const TNullable<NYTree::TYsonString>& oldValue,
+        const TNullable<NYTree::TYsonString>& newValue);
 
 private:
     IAttributeDictionary& GetOrCreateCombinedAttributes();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,7 +325,6 @@ void SetNodeFromProducer(
     ITreeBuilder* builder)
 {
     YASSERT(node);
-    YASSERT(!producer.IsNull());
     YASSERT(builder);
 
     TNodeSetter<TNode> setter(node, builder);

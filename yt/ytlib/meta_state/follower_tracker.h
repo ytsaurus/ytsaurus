@@ -5,7 +5,6 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/lease_manager.h>
-#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NMetaState {

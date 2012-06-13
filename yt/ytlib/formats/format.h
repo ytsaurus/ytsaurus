@@ -40,10 +40,11 @@ public:
     NYTree::IAttributeDictionary* GetAttributes() const;
 
     static TFormat FromYson(NYTree::INodePtr node);
-    static TFormat FromYson(const NYTree::TYson& yson);
+    static TFormat FromYson(const NYTree::TYsonString& yson);
 
+    //TODO(ignat): rename to consume
     void ToYson(NYTree::IYsonConsumer* consumer) const;
-    NYTree::TYson ToYson() const;
+    NYTree::TYsonString ToYson() const;
 
 private:
     TAutoPtr<NYTree::IAttributeDictionary> Attributes;

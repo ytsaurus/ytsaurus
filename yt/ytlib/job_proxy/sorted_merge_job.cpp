@@ -14,6 +14,7 @@
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
 #include <ytlib/table_client/merging_reader.h>
+#include <ytlib/ytree/yson_string.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -73,7 +74,7 @@ TSortedMergeJob::TSortedMergeJob(
             ~masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-            ChannelsFromYson(jobSpec.output_specs(0).channels()));
+            ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())));
 
         Writer = CreateSyncWriter(asyncWriter);
     }

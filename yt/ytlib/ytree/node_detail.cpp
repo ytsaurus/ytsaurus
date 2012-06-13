@@ -1,13 +1,13 @@
 #include "stdafx.h"
 #include "node_detail.h"
 
+#include "convert.h"
 #include "ypath_detail.h"
 #include "ypath_service.h"
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "yson_writer.h"
 #include "ypath_client.h"
-#include "serialize.h"
 #include "tokenizer.h"
 #include "ypath_format.h"
 
@@ -73,7 +73,7 @@ void TCompositeNodeMixin::SetRecursive(
     UNUSED(response);
 
     auto factory = CreateFactory();
-    auto value = DeserializeFromYson(request->value(), ~factory);
+    auto value = ConvertToNode(TYsonString(request->value()), ~factory);
     SetRecursive(path, ~value);
     context->Reply();
 }

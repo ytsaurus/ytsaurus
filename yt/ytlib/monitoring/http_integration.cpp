@@ -9,7 +9,6 @@
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/virtual.h>
-#include <ytlib/ytree/serialize.h>
 
 #include <library/json/json_writer.h>
 
@@ -33,7 +32,7 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
     // TODO(babenko): maybe extract method
     TStringStream output;
     NFormats::TJsonWriter writer(&output);
-    ParseYson(rsp->value(), &writer);
+    Consume(TYsonString(rsp->value()), &writer);
     writer.Flush();
 
     return FormatOKResponse(output.Str());
@@ -54,11 +53,11 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
         }
 
         Stroka key = param.substr(0, eqIndex);
-        TYson value = param.substr(eqIndex + 1);
+        TYsonString value(param.substr(eqIndex + 1));
 
         // Just a check, IAttributeDictionary takes raw YSON anyway.
         try {
-            ValidateYson(value);
+            TYsonString(value).Validate();
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing value of query parameter %s\n%s",
                 ~key,

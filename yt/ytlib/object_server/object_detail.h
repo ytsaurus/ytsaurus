@@ -108,7 +108,7 @@ protected:
     // NYTree::ISystemAttributeProvider members
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer);
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYson& value);
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value);
 
     // We need definition of this class in header because we want to inherit it.
     class TUserAttributeDictionary
@@ -119,8 +119,8 @@ protected:
 
         // NYTree::IAttributeDictionary members
         virtual yhash_set<Stroka> List() const;
-        virtual TNullable<NYTree::TYson> FindYson(const Stroka& key) const;
-        virtual void SetYson(const Stroka& key, const NYTree::TYson& value);
+        virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& key) const;
+        virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value);
         virtual bool Remove(const Stroka& key);
 
     protected:
@@ -155,7 +155,7 @@ protected:
     {
         UNUSED(request);
 
-        response->set_value(NYTree::BuildYsonFluently().Entity());
+        response->set_value(NYTree::BuildYsonFluently().Entity().ToString());
         context->Reply();
     }
 

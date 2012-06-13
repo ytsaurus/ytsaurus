@@ -1,6 +1,7 @@
 #pragma once
 
 #include "yson_consumer.h"
+#include "yson_string.h"
 
 #include <ytlib/actions/callback.h>
 

@@ -5,13 +5,11 @@
 
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/ypath_format.h>
-#include <ytlib/ytree/serialize.h>
 
 #include <ytlib/cell_master/load_context.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
-
 #include <ytlib/rpc/message.h>
 
 #include <ytlib/cypress/cypress_manager.h>
@@ -552,7 +550,7 @@ void TObjectManager::MergeAttributes(
             Attributes.Release(branchedId));
     } else {
         FOREACH (const auto& pair, branchedAttributes->Attributes()) {
-            if (pair.second.empty() && !originatingId.IsBranched()) {
+            if (!pair.second && !originatingId.IsBranched()) {
                 originatingAttributes->Attributes().erase(pair.first);
             } else {
                 originatingAttributes->Attributes()[pair.first] = pair.second;

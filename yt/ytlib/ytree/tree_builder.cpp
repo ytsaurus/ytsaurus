@@ -107,7 +107,7 @@ public:
         YASSERT(!AttributeConsumer);
         Attributes.Reset(CreateEphemeralAttributes().Release());
         AttributeConsumer.Reset(new TAttributeConsumer(Attributes.Get()));
-        Forward(~AttributeConsumer, TClosure(), EYsonType::KeyedFragment);
+        Forward(~AttributeConsumer, TClosure(), EYsonType::MapFragment);
     }
 
     virtual void OnMyEndAttributes()

@@ -37,9 +37,9 @@ private:
         ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
     }
 
-    static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const NYTree::TYson& progress);
+    static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const NYTree::TYsonString& progress);
 
-    Stroka FormatProgress(const NYTree::TYson& progress);
+    Stroka FormatProgress(const NYTree::TYsonString& progress);
     void DumpProgress();
     EExitCode DumpResult();
 

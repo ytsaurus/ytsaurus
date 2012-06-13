@@ -36,10 +36,12 @@ TYPED_TEST_P(TYTreeFluentStringScalarTest, Ok)
         .Scalar(passedScalar);
 }
 
-typedef Types<const char*, Stroka>
-    TYTreeFluentStringScalarTestTypes;
+typedef Types<const char*, Stroka> TYTreeFluentStringScalarTestTypes;
+
 REGISTER_TYPED_TEST_CASE_P(TYTreeFluentStringScalarTest, Ok);
-INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentStringScalarTest,
+INSTANTIATE_TYPED_TEST_CASE_P(
+    TypeParametrized,
+    TYTreeFluentStringScalarTest,
     TYTreeFluentStringScalarTestTypes
 );
 
@@ -153,7 +155,7 @@ TEST(TYTreeFluentMapTest, Items)
     StrictMock<TMockYsonConsumer> mock;
     InSequence dummy;
 
-    auto node = DeserializeFromYson(Stroka("{bar = 10}"));
+    auto node = ConvertToNode(TYsonString("{bar = 10}"));
 
     EXPECT_CALL(mock, OnBeginMap());
     EXPECT_CALL(mock, OnKeyedItem("bar"));
@@ -241,7 +243,7 @@ TEST(TYTreeFluentListTest, Items)
     StrictMock<TMockYsonConsumer> mock;
     InSequence dummy;
 
-    auto node = DeserializeFromYson(Stroka("[10; 20; 30]"));
+    auto node = ConvertToNode(TYsonString("[10; 20; 30]"));
 
     EXPECT_CALL(mock, OnBeginList());
     EXPECT_CALL(mock, OnListItem());

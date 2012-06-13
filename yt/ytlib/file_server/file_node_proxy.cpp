@@ -43,15 +43,15 @@ void TFileNodeProxy::DoInvoke(IServiceContextPtr context)
 
 void TFileNodeProxy::OnUpdateAttribute(
     const Stroka& key,
-    const TNullable<NYTree::TYson>& oldValue,
-    const TNullable<NYTree::TYson>& newValue)
+    const TNullable<NYTree::TYsonString>& oldValue,
+    const TNullable<NYTree::TYsonString>& newValue)
 {
     if (key == "executable" && newValue) {
-        DeserializeFromYson<bool>(*newValue);
+        ConvertTo<bool>(*newValue);
     } else if (key == "file_name" && newValue) {
         // File name must be string.
         // ToDo(psushin): write more sophisticated validation.
-        DeserializeFromYson<Stroka>(*newValue);
+        ConvertTo<Stroka>(*newValue);
     }
 }
 

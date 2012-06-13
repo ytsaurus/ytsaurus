@@ -2,7 +2,6 @@
 #include "ypath_detail.h"
 
 #include "ypath_client.h"
-#include "serialize.h"
 #include "tokenizer.h"
 #include "ypath_format.h"
 
@@ -163,7 +162,7 @@ IMPLEMENT_SUPPORTS_VERB(Remove)
 
 namespace {
 
-TYson DoGetAttribute(
+TYsonString DoGetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
@@ -176,7 +175,7 @@ TYson DoGetAttribute(
             if (isSystem) {
                 *isSystem = true;
             }
-            return stream.Str();
+            return TYsonString(stream.Str());
         }
     }
 
@@ -191,7 +190,7 @@ TYson DoGetAttribute(
     return userAttributes->GetYson(key);
 }
 
-TNullable<TYson> DoFindAttribute(
+TNullable<TYsonString> DoFindAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
@@ -204,7 +203,7 @@ TNullable<TYson> DoFindAttribute(
             if (isSystem) {
                 *isSystem = true;
             }
-            return stream.Str();
+            return TYsonString(stream.Str());
         }
     }
 
@@ -223,7 +222,7 @@ void DoSetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
-    const TYson& value,
+    const TYsonString& value,
     bool isSystem)
 {
     if (isSystem) {
@@ -243,7 +242,7 @@ void DoSetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
-    const TYson& value)
+    const TYsonString& value)
 {
     if (systemAttributeProvider) {
         if (systemAttributeProvider->SetSystemAttribute(key, value)) {
@@ -328,12 +327,12 @@ public:
         return yhash_set<Stroka>(keys.begin(), keys.end());
     }
 
-    virtual TNullable<TYson> FindYson(const Stroka& key) const
+    virtual TNullable<TYsonString> FindYson(const Stroka& key) const
     {
         return DoFindAttribute(UserAttributes, SystemAttributeProvider, key);
     }
 
-    virtual void SetYson(const Stroka& key, const TYson& value)
+    virtual void SetYson(const Stroka& key, const TYsonString& value)
     {
         DoSetAttribute(UserAttributes, SystemAttributeProvider, key, value);
     }
@@ -405,7 +404,7 @@ void TSupportsAttributes::GetAttribute(
             std::sort(userAttributeList.begin(), userAttributeList.end());
             FOREACH (const auto& key, userAttributeList) {
                 writer.OnKeyedItem(key);
-                writer.OnRaw(userAttributes->GetYson(key));
+                Consume(userAttributes->GetYson(key), &writer);
             }
         }
         
@@ -413,18 +412,18 @@ void TSupportsAttributes::GetAttribute(
 
         response->set_value(stream.Str());
     } else {
-        auto yson =
+        TYsonString yson =
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
                 Stroka(tokenizer.CurrentToken().GetStringValue()));
 
         if (!tokenizer.ParseNext()) {
-            response->set_value(yson);
+            response->set_value(yson.Data());
         } else {
-            auto wholeValue = DeserializeFromYson(yson);
-            auto value = SyncYPathGet(wholeValue, TYPath(tokenizer.CurrentInput()));
-            response->set_value(value);
+            INodePtr node = ConvertToNode(yson);
+            TYsonString value = SyncYPathGet(node, TYPath(tokenizer.CurrentInput()));
+            response->set_value(value.Data());
         }
     }
 
@@ -447,12 +446,12 @@ void TSupportsAttributes::ListAttribute(
     if (!tokenizer.ParseNext()) {
         keys = DoListAttributes(userAttributes, systemAttributeProvider);
     } else  {
-        auto wholeValue = DeserializeFromYson(
+        INodePtr node = ConvertToNode(
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
                 Stroka(tokenizer.CurrentToken().GetStringValue())));
-        keys = SyncYPathList(wholeValue, TYPath(tokenizer.GetCurrentSuffix()));
+        keys = SyncYPathList(node, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
     std::sort(keys.begin(), keys.end());
@@ -473,9 +472,7 @@ void TSupportsAttributes::SetAttribute(
     TTokenizer tokenizer(path);
 
     if (!tokenizer.ParseNext()) {
-        auto newAttributes = DeserializeAttributesFromYson(request->value());
-
-        // Construct deltas.
+        auto newAttributes = ConvertToAttributes(TYsonString(request->value()));
         auto newKeys = newAttributes->List();
         yhash_set<Stroka> userKeys;
         if (userAttributes) {
@@ -520,8 +517,8 @@ void TSupportsAttributes::SetAttribute(
                 ythrow yexception() << "Attribute key cannot be empty";
             }
             auto oldValue = DoFindAttribute(userAttributes, systemAttributeProvider, key);
-            auto newValue = request->value();
-            ValidateYson(newValue);
+            auto newValue = TYsonString(request->value());
+            newValue.Validate();
             OnUpdateAttribute(
                 key,
                 oldValue,
@@ -533,15 +530,15 @@ void TSupportsAttributes::SetAttribute(
                 newValue);
         } else {
             bool isSystem;
-            auto yson =
+            TYsonString yson =
                 DoGetAttribute(
                     userAttributes,
                     systemAttributeProvider,
                     key,
                     &isSystem);
-            auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathSet(wholeValue, TYPath(tokenizer.CurrentInput()), request->value());
-            auto updatedYson = SerializeToYson(wholeValue);
+            INodePtr node = ConvertToNode(yson);
+            SyncYPathSet(node, TYPath(tokenizer.CurrentInput()), TYsonString(request->value()));
+            TYsonString updatedYson = ConvertToYsonString(~node);
             OnUpdateAttribute(
                 key,
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
@@ -592,14 +589,14 @@ void TSupportsAttributes::RemoveAttribute(
             }
         } else {
             bool isSystem;
-            auto yson = DoGetAttribute(
+            TYsonString yson = DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
                 key,
                 &isSystem);
-            auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathRemove(wholeValue, TYPath(tokenizer.CurrentInput()));
-            auto updatedYson = SerializeToYson(wholeValue);
+            INodePtr node = ConvertToNode(yson);
+            SyncYPathRemove(node, TYPath(tokenizer.CurrentInput()));
+            TYsonString updatedYson = ConvertToYsonString(~node);
             OnUpdateAttribute(
                 key,
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
@@ -618,8 +615,8 @@ void TSupportsAttributes::RemoveAttribute(
 
 void TSupportsAttributes::OnUpdateAttribute(
     const Stroka& key,
-    const TNullable<NYTree::TYson>& oldValue,
-    const TNullable<NYTree::TYson>& newValue)
+    const TNullable<NYTree::TYsonString>& oldValue,
+    const TNullable<NYTree::TYsonString>& newValue)
 {
     UNUSED(key);
     UNUSED(oldValue);
@@ -672,29 +669,25 @@ class TNodeSetterBase::TAttributesSetter
 public:
     explicit TAttributesSetter(IAttributeDictionary* attributes)
         : Attributes(attributes)
-        , AttributeStream(AttributeValue)
-        , AttributeWriter(&AttributeStream)
     { }
 
 private:
     IAttributeDictionary* Attributes;
 
-    Stroka AttributeKey;
-    TYson AttributeValue;
-    TStringOutput AttributeStream;
-    TYsonWriter AttributeWriter;
+    TStringStream AttributeStream;
+    THolder<TYsonWriter> AttributeWriter;
 
     virtual void OnMyKeyedItem(const TStringBuf& key)
     {
-        AttributeKey = key;
-        Forward(&AttributeWriter, BIND(&TAttributesSetter::OnAttributeFinished, this));
-    }
-
-    void OnAttributeFinished()
-    {
-        Attributes->SetYson(AttributeKey, AttributeValue);
-        AttributeKey.clear();
-        AttributeValue.clear();
+        Stroka localKey(key);
+        AttributeWriter.Reset(new TYsonWriter(&AttributeStream));
+        Forward(~AttributeWriter,
+            BIND( [=] ()
+            {
+                AttributeWriter.Reset(NULL);
+                Attributes->SetYson(localKey, TYsonString(AttributeStream.Str()));
+                AttributeStream.clear();
+            }));
     }
 };
 
@@ -757,7 +750,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     AttributesSetter.Reset(new TAttributesSetter(&Node->Attributes()));
-    Forward(~AttributesSetter, TClosure(), EYsonType::KeyedFragment);
+    Forward(~AttributesSetter, TClosure(), EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()

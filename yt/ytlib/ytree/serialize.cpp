@@ -1,268 +1,196 @@
 #include "stdafx.h"
-#include "serialize.h"
+#include "yson_producer.h"
 #include "ytree.h"
 #include "yson_parser.h"
+#include "yson_stream.h"
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "null_yson_consumer.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonProducer ProducerFromYson(TInputStream* input, EYsonType type)
+EYsonType GetYsonType(const TYsonString& yson)
 {
-    return BIND([=] (IYsonConsumer* consumer) {
-        ParseYson(input, consumer, type);
-    });
+    return yson.GetType();
 }
 
-TYsonProducer ProducerFromYson(const TYson& data, EYsonType type)
+EYsonType GetYsonType(const TYsonInput& input)
 {
-    return BIND([=] (IYsonConsumer* consumer) {
-        ParseYson(data, consumer, type);
-    });
+    return input.GetType();
 }
 
-TYsonProducer ProducerFromNode(INodePtr node)
+EYsonType GetYsonType(const TYsonProducer& producer)
 {
-    return BIND([=] (IYsonConsumer* consumer) {
-        VisitTree(node, consumer);
-    });
-}
-
-void ValidateYson(TInputStream* input)
-{
-    ParseYson(input, GetNullYsonConsumer());
-}
-
-void ValidateYson(const TYson& yson)
-{
-    ParseYson(yson, GetNullYsonConsumer());
-}
-
-INodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
-{
-    auto builder = CreateBuilderFromFactory(factory);
-    builder->BeginTree();
-    ParseYson(input, ~builder);
-    return builder->EndTree();
-}
-
-INodePtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
-{
-    TStringInput input(yson);
-    return DeserializeFromYson(&input, factory);
-}
-
-INodePtr DeserializeFromYson(const TStringBuf& yson, INodeFactory* factory)
-{
-    TMemoryInput input(yson.data(), yson.length());
-    return DeserializeFromYson(&input, factory);
-}
-
-INodePtr DeserializeFromYson(TYsonProducer producer, INodeFactory* factory)
-{
-    auto builder = CreateBuilderFromFactory(factory);
-    builder->BeginTree();
-    producer.Run(~builder);
-    return builder->EndTree();
-}
-
-TOutputStream& SerializeToYson(
-    INodePtr node,
-    TOutputStream& output,
-    EYsonFormat format)
-{
-    TYsonWriter writer(&output, format);
-    VisitTree(node, &writer);
-    return output;
-}
-
-TYson SerializeToYson(
-    TYsonProducer producer,
-    EYsonFormat format)
-{
-    TStringStream output;
-    TYsonWriter writer(&output, format);
-    producer.Run(&writer);
-    return output.Str();
-}
-
-INodePtr CloneNode(INodePtr node, INodeFactory* factory)
-{
-    auto builder = CreateBuilderFromFactory(factory);
-    builder->BeginTree();
-    VisitTree(node, ~builder);
-    return builder->EndTree();
+    return producer.GetType();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // i64
-void Read(i64& parameter, INodePtr node)
+void Serialize(i64 value, IYsonConsumer* consumer)
 {
-    parameter = node->AsInteger()->GetValue();
+    consumer->OnIntegerScalar(value);
 }
 
 // i32
-void Read(i32& parameter, INodePtr node)
+void Serialize(i32 value, IYsonConsumer* consumer)
 {
-    parameter = CheckedStaticCast<i32>(node->AsInteger()->GetValue());
+    consumer->OnIntegerScalar(value);
 }
 
 // ui32
-void Read(ui32& parameter, INodePtr node)
+void Serialize(ui32 value, IYsonConsumer* consumer)
 {
-    parameter = CheckedStaticCast<ui32>(node->AsInteger()->GetValue());
+    consumer->OnIntegerScalar(value);
 }
 
 // ui16
-void Read(ui16& parameter, INodePtr node)
+void Serialize(ui16 value, IYsonConsumer* consumer)
 {
-    parameter = CheckedStaticCast<ui16>(node->AsInteger()->GetValue());
+    consumer->OnIntegerScalar(value);
 }
 
 // double
-void Read(double& parameter, INodePtr node)
+void Serialize(double value, IYsonConsumer* consumer)
 {
-    parameter = node->AsDouble()->GetValue();
+    consumer->OnDoubleScalar(value);
 }
 
 // Stroka
-void Read(Stroka& parameter, INodePtr node)
+void Serialize(const Stroka& value, IYsonConsumer* consumer)
 {
-    parameter = node->AsString()->GetValue();
+    consumer->OnStringScalar(value);
 }
 
 // bool
-void Read(bool& parameter, INodePtr node)
+void Serialize(bool value, IYsonConsumer* consumer)
 {
-    Stroka value = node->AsString()->GetValue();
-    parameter = ParseBool(value);
+    consumer->OnStringScalar(FormatBool(value));
 }
 
 // char
-void Read(char& parameter, INodePtr node)
+void Serialize(char value, IYsonConsumer* consumer)
 {
-    Stroka value = node->AsString()->GetValue();
-    if (value.size() != 1) {
-        ythrow yexception() <<
-            Sprintf("Expected string of length 1 but found of length %" PRISZT, value.size());
-    }
-    parameter = value[0];
+    consumer->OnStringScalar(Stroka(value));
 }
 
-
 // TDuration
-void Read(TDuration& parameter, INodePtr node)
+void Serialize(TDuration value, IYsonConsumer* consumer)
 {
-    parameter = TDuration::MilliSeconds(node->AsInteger()->GetValue());
+    consumer->OnIntegerScalar(value.MilliSeconds());
 }
 
 // TInstant
-void Read(TInstant& parameter, INodePtr node)
+void Serialize(TInstant value, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(value.ToString());
+}
+
+// TGuid
+void Serialize(const TGuid& value, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(value.ToString());
+}
+
+// TInputStream
+void Serialize(TInputStream& input, IYsonConsumer* consumer)
+{
+    Serialize(TYsonInput(&input), consumer);
+}
+
+// TNodePtr
+void Serialize(INode& value, IYsonConsumer* consumer)
+{
+    VisitTree(&value, consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// i64
+void Deserialize(i64& value, INodePtr node)
+{
+    value = node->AsInteger()->GetValue();
+}
+
+// i32
+void Deserialize(i32& value, INodePtr node)
+{
+    value = CheckedStaticCast<i32>(node->AsInteger()->GetValue());
+}
+
+// ui32
+void Deserialize(ui32& value, INodePtr node)
+{
+    value = CheckedStaticCast<ui32>(node->AsInteger()->GetValue());
+}
+
+// ui16
+void Deserialize(ui16& value, INodePtr node)
+{
+    value = CheckedStaticCast<ui16>(node->AsInteger()->GetValue());
+}
+
+// double
+void Deserialize(double& value, INodePtr node)
+{
+    value = node->AsDouble()->GetValue();
+}
+
+// Stroka
+void Deserialize(Stroka& value, INodePtr node)
+{
+    value = node->AsString()->GetValue();
+}
+
+// bool
+void Deserialize(bool& value, INodePtr node)
+{
+    Stroka stringValue = node->AsString()->GetValue();
+    value = ParseBool(stringValue);
+}
+
+// char
+void Deserialize(char& value, INodePtr node)
+{
+    Stroka stringValue = node->AsString()->GetValue();
+    if (stringValue.size() != 1) {
+        ythrow yexception() <<
+            Sprintf("Expected string of length 1 but found of length %" PRISZT, stringValue.size());
+    }
+    value = stringValue[0];
+}
+
+// TDuration
+void Deserialize(TDuration& value, INodePtr node)
+{
+    value = TDuration::MilliSeconds(node->AsInteger()->GetValue());
+}
+
+// TInstant
+void Deserialize(TInstant& value, INodePtr node)
 {
     if (node->GetType() == ENodeType::Integer) {
-        parameter = TInstant::MilliSeconds(node->AsInteger()->GetValue());
+        value = TInstant::MilliSeconds(node->AsInteger()->GetValue());
     } else {
-        parameter = TInstant::ParseIso8601(node->AsString()->GetValue());
+        value = TInstant::ParseIso8601(node->AsString()->GetValue());
     }
 }
 
 // TGuid
-void Read(TGuid& parameter, INodePtr node)
+void Deserialize(TGuid& value, INodePtr node)
 {
-    parameter = TGuid::FromString(node->AsString()->GetValue());
+    value = TGuid::FromString(node->AsString()->GetValue());
 }
 
 // TNodePtr
-void Read(INodePtr& parameter, INodePtr node)
+void Deserialize(INodePtr& value, INodePtr node)
 {
-    parameter = node;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// i64
-void Write(i64 parameter, IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(parameter);
-}
-
-// i32
-void Write(i32 parameter, IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(parameter);
-}
-
-// ui32
-void Write(ui32 parameter, IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(parameter);
-}
-
-// ui16
-void Write(ui16 parameter, IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(parameter);
-}
-
-// double
-void Write(double parameter, IYsonConsumer* consumer)
-{
-    consumer->OnDoubleScalar(parameter);
-}
-
-// Stroka
-void Write(const Stroka& parameter, IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(parameter);
-}
-
-// bool
-void Write(bool parameter, IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(FormatBool(parameter));
-}
-
-// char
-void Write(char parameter, IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(Stroka(parameter));
-}
-
-// TDuration
-void Write(TDuration parameter, IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(parameter.MilliSeconds());
-}
-
-// TInstant
-void Write(TInstant parameter, IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(parameter.ToString());
-}
-
-// TGuid
-void Write(const TGuid& parameter, IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(parameter.ToString());
-}
-
-// TNodePtr
-void Write(INode& parameter, IYsonConsumer* consumer)
-{
-    VisitTree(&parameter, consumer);
-}
-
-// TYsonProducer
-void Write(TYsonProducer parameter, IYsonConsumer* consumer)
-{
-    parameter.Run(consumer);
+    value = node;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

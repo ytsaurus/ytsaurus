@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 project(YT)
 
+# set(YT_BUILD_ENABLE_NODEJS 1)
+
 # TODO(sandello): Move this version-related stuff into a separate file.
 set(YT_VERSION_MAJOR 0)
 set(YT_VERSION_MINOR 2)

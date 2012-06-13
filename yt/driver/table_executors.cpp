@@ -50,7 +50,7 @@ void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
     // TODO(babenko): refactor
-    auto sortedBy = DeserializeFromYson< yvector<Stroka> >("[" + SortedBy.getValue() + "]");
+    auto sortedBy = ConvertTo< yvector<Stroka> >(TYsonString(SortedBy.getValue(), EYsonType::ListFragment));
 
     const auto& value = ValueArg.getValue();
     if (!value.empty()) {

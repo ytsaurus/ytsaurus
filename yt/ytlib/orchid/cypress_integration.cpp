@@ -4,7 +4,6 @@
 #include <ytlib/misc/lazy_ptr.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/ytree/ephemeral.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/cypress/virtual.h>
 #include <ytlib/orchid/orchid_service_proxy.h>
@@ -106,7 +105,7 @@ private:
     TOrchidManifest::TPtr LoadManifest()
     {
         auto manifest = New<TOrchidManifest>();
-        auto manifestNode = Bootstrap->GetObjectManager()->GetProxy(Id)->Attributes().ToMap();
+        auto manifestNode = ConvertToNode(Bootstrap->GetObjectManager()->GetProxy(Id)->Attributes());
         try {
             manifest->Load(manifestNode);
         } catch (const std::exception& ex) {

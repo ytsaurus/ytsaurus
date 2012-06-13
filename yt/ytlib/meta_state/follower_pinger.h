@@ -4,7 +4,6 @@
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/periodic_invoker.h>
-#include <ytlib/misc/configurable.h>
 #include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {

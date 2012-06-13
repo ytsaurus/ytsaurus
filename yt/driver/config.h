@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/driver/config.h>
 
@@ -10,7 +10,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFormatDefaultsConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     NYTree::INodePtr Structured;
     NYTree::INodePtr Tabular;
@@ -19,17 +19,18 @@ struct TFormatDefaultsConfig
     {
         // Keep this in sync with ytlib/driver/format.cpp
         Register("structured", Structured)
-            .Default(NYTree::DeserializeFromYson(NYTree::BuildYsonFluently()
-                .BeginAttributes()
-                    .Item("format").Scalar("pretty")
-                .EndAttributes()
-                .Scalar("yson")));
+            .Default(NYTree::ConvertToNode(
+                NYTree::BuildYsonFluently()
+                    .BeginAttributes()
+                        .Item("format").Scalar("pretty")
+                    .EndAttributes()
+                    .Scalar("yson").GetYsonString()));
         Register("tabular", Tabular)
-            .Default(NYTree::DeserializeFromYson(NYTree::BuildYsonFluently()
+            .Default(NYTree::ConvertToNode(NYTree::BuildYsonFluently()
                 .BeginAttributes()
                     .Item("format").Scalar("text")
                 .EndAttributes()
-                .Scalar("yson")));
+                .Scalar("yson").GetYsonString()));
     }
 };
 

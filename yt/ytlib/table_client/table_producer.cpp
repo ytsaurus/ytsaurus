@@ -3,6 +3,7 @@
 #include "sync_reader.h"
 
 #include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/ytree/yson_string.h>
 #include <ytlib/misc/foreach.h>
 
 namespace NYT {

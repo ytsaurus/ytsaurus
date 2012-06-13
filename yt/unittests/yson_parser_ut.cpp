@@ -30,7 +30,7 @@ public:
 
     void Run()
     {
-        ParseYson(Input, &Mock, Mode);
+        Mock.OnRaw(Input, Mode);
     }
 };
 
@@ -361,10 +361,10 @@ TEST_F(TYsonParserTest, EmptyListFragment)
     Run();
 }
 
-TEST_F(TYsonParserTest, KeyedFragment)
+TEST_F(TYsonParserTest, MapFragment)
 {
     Input = "  a = 1 ;b=2; c= 3; d =4;e=5  ";
-    Mode = EYsonType::KeyedFragment;
+    Mode = EYsonType::MapFragment;
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnKeyedItem("a"));
@@ -381,10 +381,10 @@ TEST_F(TYsonParserTest, KeyedFragment)
     Run();
 }
 
-TEST_F(TYsonParserTest, KeyedFragmentWithTrailingSemicolon)
+TEST_F(TYsonParserTest, MapFragmentWithTrailingSemicolon)
 {
     Input = "map={};list=[];entity=#;";
-    Mode = EYsonType::KeyedFragment;
+    Mode = EYsonType::MapFragment;
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnKeyedItem("map"));
@@ -399,10 +399,10 @@ TEST_F(TYsonParserTest, KeyedFragmentWithTrailingSemicolon)
     Run();
 }
 
-TEST_F(TYsonParserTest, OneKeyedFragment)
+TEST_F(TYsonParserTest, OneMapFragment)
 {
     Input = "   \"1\" = 100500  ";
-    Mode = EYsonType::KeyedFragment;
+    Mode = EYsonType::MapFragment;
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnKeyedItem("1"));
@@ -411,10 +411,10 @@ TEST_F(TYsonParserTest, OneKeyedFragment)
     Run();
 }
 
-TEST_F(TYsonParserTest, EmptyKeyedFragment)
+TEST_F(TYsonParserTest, EmptyMapFragment)
 {
     Input = "  ";
-    Mode = EYsonType::KeyedFragment;
+    Mode = EYsonType::MapFragment;
 
     InSequence dummy;
     Run();

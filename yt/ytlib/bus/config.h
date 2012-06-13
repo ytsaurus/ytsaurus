@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
     
 namespace NYT {
 namespace NBus {
@@ -10,7 +10,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTcpBusServerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     int Port;
     int Priority;
@@ -28,7 +28,7 @@ struct TTcpBusServerConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTcpBusClientConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     Stroka Address;
     int Priority;

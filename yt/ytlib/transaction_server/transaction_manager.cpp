@@ -10,7 +10,6 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ephemeral.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/object_server/object_service_proxy.h>

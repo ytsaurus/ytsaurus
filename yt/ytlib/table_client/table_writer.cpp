@@ -117,7 +117,7 @@ void TTableWriter::Open()
                     LOG_ERROR_AND_THROW(yexception(), "Error getting table row count\n%s",
                         ~rsp->GetError().ToString());
                 }
-                auto rowCount = DeserializeFromYson<i64>(rsp->value());
+                auto rowCount = ConvertTo<i64>(TYsonString(rsp->value()));
                 if (rowCount > 0) {
                     LOG_ERROR_AND_THROW(yexception(), "Cannot perform sorted write to a nonempty table");
                 }
@@ -137,7 +137,7 @@ void TTableWriter::Open()
             auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspGet>("get_channels");
             if (rsp->IsOK()) {
                 try {
-                    channels = ChannelsFromYson(rsp->value());
+                    channels = ChannelsFromYson(TYsonString(rsp->value()));
                 }
                 catch (const std::exception& ex) {
                     ythrow yexception() << Sprintf("Error parsing table channels\n%s", ex.what());
@@ -199,7 +199,7 @@ void TTableWriter::Close()
 
     if (KeyColumns) {
         auto keyColumns = KeyColumns.Get();
-        LOG_INFO("Marking table as sorted by %s", ~SerializeToYson(keyColumns, EYsonFormat::Text));
+        LOG_INFO("Marking table as sorted by %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
         auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
         ToProto(req->mutable_key_columns(), keyColumns);
         auto rsp = ObjectProxy.Execute(req).Get();

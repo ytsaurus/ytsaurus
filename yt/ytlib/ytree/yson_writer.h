@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "yson_consumer.h"
+#include "yson_string.h"
 
 namespace NYT {
 namespace NYTree {

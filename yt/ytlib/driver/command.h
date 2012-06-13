@@ -5,12 +5,12 @@
 #include "driver.h"
 
 #include <ytlib/misc/error.h>
-#include <ytlib/misc/configurable.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/transaction_client/transaction.h>
@@ -22,7 +22,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRequestBase
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TRequestBase()
     {
@@ -88,7 +88,7 @@ protected:
     explicit TUntypedCommandBase(ICommandContext* host);
 
     void ReplyError(const TError& error);
-    void ReplySuccess(const NYTree::TYson& yson);
+    void ReplySuccess(const NYTree::TYsonString& yson);
 
 };
 

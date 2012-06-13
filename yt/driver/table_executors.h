@@ -32,8 +32,7 @@ private:
     TUnlabeledStringArg PathArg;
     // TODO(panin) : think of extracting common part of this and TSetExecutor
     TUnlabeledStringArg ValueArg;
-
-    TCLAP::ValueArg<NYTree::TYson> SortedBy;
+    TCLAP::ValueArg<Stroka> SortedBy;
 
     bool UseStdIn;
     TStringStream Stream;

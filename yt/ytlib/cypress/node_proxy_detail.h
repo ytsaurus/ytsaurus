@@ -11,7 +11,7 @@
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/node_detail.h>
-#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/object_server/object_detail.h>
@@ -346,7 +346,7 @@ protected:
                 const auto* userAttributes = objectManager->FindAttributes(parentId);
                 if (userAttributes) {
                     FOREACH (const auto& pair, userAttributes->Attributes()) {
-                        if (pair.second.empty()) {
+                        if (pair.second) {
                             attributes.erase(pair.first);
                         } else {
                             attributes.insert(pair.first);
@@ -357,7 +357,7 @@ protected:
             return attributes;
         }
 
-        virtual TNullable<NYTree::TYson> FindYson(const Stroka& name) const
+        virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& name) const
         {
             if (Transaction == NULL) {
                 return TUserAttributeDictionary::FindYson(name);
@@ -371,7 +371,7 @@ protected:
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
                     if (it != userAttributes->Attributes().end()) {
-                        if (it->second.empty()) {
+                        if (it->second) {
                             break;
                         } else {
                             return it->second;
@@ -382,7 +382,7 @@ protected:
             return Null;
         }
 
-        virtual void SetYson(const Stroka& name, const NYTree::TYson& value)
+        virtual void SetYson(const Stroka& name, const NYTree::TYsonString& value)
         {
             // This takes the lock.
             Bootstrap
@@ -413,7 +413,7 @@ protected:
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
                     if (it != userAttributes->Attributes().end()) {
-                        if (!it->second.empty()) {
+                        if (!it->second) {
                             contains = true;
                         }
                         break;
@@ -426,7 +426,7 @@ protected:
                 if (!userAttributes) {
                     userAttributes = objectManager->CreateAttributes(id);
                 }
-                userAttributes->Attributes()[name] = "";
+                userAttributes->Attributes()[name] = Null;
                 return true;
             } else {
                 if (!userAttributes) {

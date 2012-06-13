@@ -98,7 +98,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TAbortOperationRequest
-    : public TConfigurable
+    : public TYsonSerializable
 {
     NScheduler::TOperationId OperationId;
 

@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/election/leader_lookup.h>
+//#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/config.h>
 #include <ytlib/file_client/config.h>
 #include <ytlib/table_client/config.h>
@@ -14,7 +15,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDriverConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     NElection::TLeaderLookup::TConfigPtr Masters;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;

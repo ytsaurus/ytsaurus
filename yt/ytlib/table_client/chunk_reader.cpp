@@ -663,7 +663,7 @@ TChunkReader::TChunkReader(TSequentialReaderConfigPtr config,
     NChunkClient::IAsyncReaderPtr chunkReader,
     const NProto::TReadLimit& startLimit,
     const NProto::TReadLimit& endLimit,
-    const NYTree::TYson& rowAttributes,
+    const NYTree::TYsonString& rowAttributes,
     int partitionTag,
     TReaderOptions options)
     : Codec(NULL)
@@ -862,7 +862,7 @@ bool TChunkReader::IsValid() const
     return EndValidator->IsValid(CurrentKey);
 }
 
-const TYson& TChunkReader::GetRowAttributes() const
+const TYsonString& TChunkReader::GetRowAttributes() const
 {
     return RowAttributes;
 }

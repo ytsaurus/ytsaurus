@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/job_proxy/config.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -12,7 +12,7 @@ namespace NExecAgent {
 
 //! Describes configuration of a single environment.
 struct TEnvironmentConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     Stroka Type;
 
@@ -30,7 +30,7 @@ struct TEnvironmentConfig
 
 //! Describes configuration for a collection of named environments.
 struct TEnvironmentManagerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
 public:
     TEnvironmentManagerConfig()
@@ -52,7 +52,7 @@ public:
 };
 
 struct TJobManagerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     int  SlotCount;
     Stroka SlotLocation;
@@ -67,7 +67,7 @@ struct TJobManagerConfig
 };
 
 struct TSchedulerConnectorConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
@@ -85,7 +85,7 @@ struct TSchedulerConnectorConfig
 };
 
 struct TExecAgentConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TJobManagerConfigPtr JobManager;
     TEnvironmentManagerConfigPtr EnvironmentManager;

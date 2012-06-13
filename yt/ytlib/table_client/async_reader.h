@@ -48,7 +48,7 @@ struct IAsyncReader
     virtual TRow& GetRow() = 0;
 
     virtual const TNonOwningKey& GetKey() const = 0;
-    virtual const NYTree::TYson& GetRowAttributes() const = 0;
+    virtual const NYTree::TYsonString& GetRowAttributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -127,13 +127,13 @@ TYPath EscapeYPathToken(const Stroka& value)
     if (isIdentifer) {
         return value;
     } else {
-        return SerializeToYson(value, EYsonFormat::Text);
+        return YsonizeString(value, EYsonFormat::Text);
     }
 }
 
 TYPath EscapeYPathToken(i64 value)
 {
-    return SerializeToYson(value, EYsonFormat::Text);
+    return ConvertToYsonString(value, EYsonFormat::Text).Data();
 }
 
 void ResolveYPath(
@@ -256,20 +256,20 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
         }));
 }
 
-TFuture< TValueOrError<TYson> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path)
+TFuture< TValueOrError<TYsonString> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Get(path);
     return
         ExecuteVerb(service, request)
-        .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
-            return
-                response->IsOK()
-                ? TValueOrError<TYson>(response->value())
-                : TValueOrError<TYson>(response->GetError());
-        }));
+            .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
+                return
+                    response->IsOK()
+                    ? TValueOrError<TYsonString>(TYsonString(response->value()))
+                    : TValueOrError<TYsonString>(response->GetError());
+            }));
 }
 
-TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path)
+TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path)
 {
     auto result = AsyncYPathGet(service, path).Get();
     if (!result.IsOK()) {
@@ -278,10 +278,10 @@ TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path)
     return result.Value();
 }
 
-void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& value)
+void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value)
 {
     auto request = TYPathProxy::Set(path);
-    request->set_value(value);
+    request->set_value(value.Data());
     auto response = ExecuteVerb(service, request).Get();
     response->ThrowIfError();
 }
@@ -316,7 +316,8 @@ void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
         path.append(tokenizer.CurrentToken().ToString());
     }
 
-    auto value = TYson(tokenizer.GetCurrentSuffix());
+    //! TODO: or ConvertToYsonString?
+    auto value = TYsonString(Stroka(tokenizer.GetCurrentSuffix()));
 
     ForceYPath(root, path);
     SyncYPathSet(root, path, value);

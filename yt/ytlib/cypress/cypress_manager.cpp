@@ -10,7 +10,6 @@
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/misc/singleton.h>
 #include <ytlib/ytree/ephemeral.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/object_server/type_handler_detail.h>
 #include <ytlib/object_server/object_service_proxy.h>

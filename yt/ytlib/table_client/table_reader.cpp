@@ -107,7 +107,7 @@ TRow& TTableReader::GetRow()
     return Reader->GetRow();
 }
 
-const NYTree::TYson& TTableReader::GetRowAttributes() const
+const NYTree::TYsonString& TTableReader::GetRowAttributes() const
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);

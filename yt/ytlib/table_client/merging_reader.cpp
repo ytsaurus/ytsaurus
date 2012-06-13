@@ -4,6 +4,7 @@
 #include "key.h"
 
 #include <ytlib/misc/sync.h>
+#include <ytlib/ytree/yson_string.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -60,7 +61,7 @@ TRow& TMergingReader::GetRow()
     return ReaderHeap.back()->GetRow();
 }
 
-const NYTree::TYson& TMergingReader::GetRowAttributes() const
+const NYTree::TYsonString& TMergingReader::GetRowAttributes() const
 {
     throw ReaderHeap.back()->GetRowAttributes();
 }

@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 

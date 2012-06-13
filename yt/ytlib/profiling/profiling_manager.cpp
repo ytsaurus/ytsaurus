@@ -113,7 +113,7 @@ private:
         context->SetRequestInfo("");
         auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));
         auto range = GetSamples(fromTime);
-        TYson yson = BuildYsonFluently()
+        Stroka responseString = BuildYsonFluently()
             .DoListFor(range.first, range.second, [] (TFluentList fluent, const TSamplesIterator& it) {
                 const auto& sample = *it;
                 fluent
@@ -122,8 +122,8 @@ private:
                         .Item("time").Scalar(static_cast<i64>(sample.Time.MicroSeconds()))
                         .Item("value").Scalar(sample.Value)
                     .EndMap();
-            });
-        response->set_value(yson);
+            }).ToString();
+        response->set_value(responseString);
         context->Reply();
     }
 
@@ -271,7 +271,7 @@ private:
     }
 };
 
-// TODO(babenko): make configurable
+// TODO(babenko): make yson serializable
 const TDuration TProfilingManager::TImpl::MaxKeepInterval = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////

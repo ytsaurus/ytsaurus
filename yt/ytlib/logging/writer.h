@@ -4,7 +4,7 @@
 #include "pattern.h"
 
 #include <ytlib/misc/ref_counted.h>
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 #include <util/system/file.h>
 #include <util/stream/file.h>
@@ -35,7 +35,7 @@ struct ILogWriter
     );
 
     struct TConfig
-        : public TConfigurable
+        : public TYsonSerializable
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 

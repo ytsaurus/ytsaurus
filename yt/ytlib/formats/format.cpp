@@ -60,9 +60,9 @@ TFormat TFormat::FromYson(INodePtr node)
     return TFormat(type, &node->Attributes());
 }
 
-TFormat TFormat::FromYson(const TYson& yson)
+TFormat TFormat::FromYson(const TYsonString& yson)
 {
-    return FromYson(DeserializeFromYson(yson));
+    return FromYson(ConvertToNode(yson));
 }
 
 void TFormat::ToYson(IYsonConsumer* consumer) const
@@ -74,12 +74,12 @@ void TFormat::ToYson(IYsonConsumer* consumer) const
         .Scalar(Type_.ToString());
 }
 
-TYson TFormat::ToYson() const
+TYsonString TFormat::ToYson() const
 {
     TStringStream stream;
     TYsonWriter writer(&stream);
     ToYson(&writer);
-    return stream;
+    return TYsonString(stream.Str());
 }
 
 IAttributeDictionary* TFormat::GetAttributes() const
@@ -166,7 +166,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForJson(
         ythrow yexception() << Sprintf("Json is supported only for Structured data");
     }
     auto config = New<TJsonFormatConfig>();
-    config->Load(attributes->ToMap());
+    config->Load(ConvertToNode(attributes)->AsMap());
     return new TJsonWriter(output, config);
 }
 
@@ -176,7 +176,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForDsv(
     TOutputStream* output)
 {
     auto config = New<TDsvFormatConfig>();
-    config->Load(attributes->ToMap());
+    config->Load(ConvertToNode(attributes)->AsMap());
     return new TDsvWriter(output, DataTypeToYsonType(dataType), config);
 }
 
@@ -206,7 +206,7 @@ TYsonProducer CreateProducerForDsv(
         ythrow yexception() << Sprintf("DSV is only supported only for tabular data");
     }
     auto config = New<TDsvFormatConfig>();
-    config->Load(attributes->ToMap());
+    config->Load(ConvertToNode(attributes)->AsMap());
     return BIND([=] (IYsonConsumer* consumer) {
         ParseDsv(input, consumer, config);
     });
@@ -225,7 +225,7 @@ TYsonProducer CreateProducerForJson(EDataType dataType, TInputStream* input)
 TYsonProducer CreateProducerForYson(EDataType dataType, TInputStream* input)
 {
     auto ysonType = DataTypeToYsonType(dataType);
-    return ProducerFromYson(input, ysonType);
+    return ConvertToProducer(TYsonInput(input, ysonType));
 }
 
 TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType, TInputStream* input)
@@ -254,7 +254,7 @@ TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType
             return new TJsonParser(consumer);
         case EFormatType::Dsv: {
             auto config = New<TDsvFormatConfig>();
-            config->Load(format.GetAttributes()->ToMap());
+            config->Load(ConvertToNode(format.GetAttributes())->AsMap());
             return new TDsvParser(consumer, config);
         }
         default:

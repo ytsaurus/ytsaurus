@@ -11,7 +11,7 @@ namespace NCellScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellSchedulerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! RPC interface port number.
     int RpcPort;
@@ -26,9 +26,9 @@ struct TCellSchedulerConfig
     TCellSchedulerConfig()
     {
         Register("rpc_port", RpcPort)
-            .Default(11000);
+            .Default(9001);
         Register("monitoring_port", MonitoringPort)
-            .Default(10000);
+            .Default(10001);
         Register("masters", Masters).
             DefaultNew();
         Register("transaction_manager", TransactionManager)

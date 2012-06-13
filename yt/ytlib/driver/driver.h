@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <ytlib/formats/format.h>
-#include <ytlib/misc/configurable.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_consumer.h>

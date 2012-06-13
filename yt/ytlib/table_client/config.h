@@ -2,9 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/misc/codec.h>
-#include <ytlib/misc/configurable.h>
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/misc/codec.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -12,7 +13,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTableConsumerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     /*! 
      *  If true consumer fails when encounters repeated column name.
@@ -31,7 +32,7 @@ struct TTableConsumerConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkWriterConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     i64 BlockSize;
     ECodecId CodecId;
@@ -70,7 +71,7 @@ struct TChunkWriterConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequenceWriterConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     i64 DesiredChunkSize;
     i64 MaxMetaSize;
@@ -113,7 +114,7 @@ struct TChunkSequenceWriterConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequenceReaderConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     NChunkClient::TRemoteReaderConfigPtr RemoteReader;
     NChunkClient::TSequentialReaderConfigPtr SequentialReader;

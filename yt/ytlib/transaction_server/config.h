@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -10,7 +10,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTransactionManagerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration DefaultTransactionTimeout;
     TDuration TransactionAbortBackoffTime;

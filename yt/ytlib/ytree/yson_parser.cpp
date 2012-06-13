@@ -4,6 +4,7 @@
 #include "yson_consumer.h"
 #include "lexer.h"
 #include "yson_format.h"
+#include "yson_stream.h"
 
 #include <ytlib/misc/foreach.h>
 
@@ -65,7 +66,7 @@ public:
                 StateStack.push(EState::ListBeforeItem);
                 break;
 
-            case EYsonType::KeyedFragment:
+            case EYsonType::MapFragment:
                 StateStack.push(EState::MapBeforeKey);
                 break;
 
@@ -273,7 +274,7 @@ private:
 
     void ConsumeMap(const TToken& token)
     {
-        bool inFragment = Type == EYsonType::KeyedFragment && StateStack.size() == 1;
+        bool inFragment = Type == EYsonType::MapFragment && StateStack.size() == 1;
         auto tokenType = token.GetType();
         auto& topState = StateStack.top();
         
@@ -481,36 +482,21 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t ParseChunkSize = 1 << 16;
+static const size_t ParseChunkSize = 1 << 16;
 
-void ParseYson(
-    TInputStream* input,
-    IYsonConsumer* consumer,
-    EYsonType type,
-    bool enableLinePositionInfo)
+void ParseYson(const TYsonInput& input, IYsonConsumer* consumer, bool enableLinePositionInfo)
 {
-    TYsonParser parser(consumer, type, enableLinePositionInfo);
+    TYsonParser parser(consumer, input.GetType(), enableLinePositionInfo);
     char chunk[ParseChunkSize];
     while (true) {
         // Read a chunk.
-        size_t bytesRead = input->Read(chunk, ParseChunkSize);
+        size_t bytesRead = input.GetStream()->Read(chunk, ParseChunkSize);
         if (bytesRead == 0) {
             break;
         }
         // Parse the chunk.
         parser.Read(TStringBuf(chunk, bytesRead));
     }
-    parser.Finish();
-}
-
-void ParseYson(
-    const TStringBuf& yson,
-    IYsonConsumer* consumer,
-    EYsonType type,
-    bool enableLinePositionInfo)
-{
-    TYsonParser parser(consumer, type, enableLinePositionInfo);
-    parser.Read(yson);
     parser.Finish();
 }
 

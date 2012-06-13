@@ -22,12 +22,12 @@ void TUntypedCommandBase::ReplyError(const TError& error)
     Replied = true;
 }
 
-void TUntypedCommandBase::ReplySuccess(const TYson& yson)
+void TUntypedCommandBase::ReplySuccess(const TYsonString& yson)
 {
     YASSERT(!Replied);
 
     auto consumer = Context->CreateOutputConsumer();
-    ParseYson(yson, ~consumer);
+    Consume(yson, ~consumer);
 
     Context->GetResponse()->Error = TError();
     Replied = true;

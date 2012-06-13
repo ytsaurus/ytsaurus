@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NRpc {
@@ -10,7 +10,7 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRetryConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration BackoffTime;
     int RetryCount;

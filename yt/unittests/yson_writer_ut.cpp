@@ -2,8 +2,8 @@
 
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/yson_parser.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
+#include <ytlib/ytree/yson_stream.h>
 
 #include <util/string/escape.h>
 
@@ -192,7 +192,7 @@ TEST_F(TYsonWriterTest, Escaping)
     EXPECT_EQ(outputStream.Str(), output);
 }
 
-TEST_F(TYsonWriterTest, SerializeToYson)
+TEST_F(TYsonWriterTest, ConvertToYson)
 {
     TStringStream outputStream;
     TYsonWriter writer(&outputStream, EYsonFormat::Text);
@@ -279,7 +279,7 @@ TEST(TYsonFragmentWriterTest, NewLinesInMap)
 {
     TStringStream outputStream;
 
-    TYsonWriter writer(&outputStream, EYsonFormat::Text, EYsonType::KeyedFragment);
+    TYsonWriter writer(&outputStream, EYsonFormat::Text, EYsonType::MapFragment);
     writer.OnKeyedItem("a");
         writer.OnIntegerScalar(100);
     writer.OnKeyedItem("b");
@@ -309,7 +309,7 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
 {
     TStringStream outputStream;
 
-    TYsonWriter writer(&outputStream, EYsonFormat::Pretty, EYsonType::KeyedFragment);
+    TYsonWriter writer(&outputStream, EYsonFormat::Pretty, EYsonType::MapFragment);
     writer.OnKeyedItem("a1");
         writer.OnBeginMap();
             writer.OnKeyedItem("key");

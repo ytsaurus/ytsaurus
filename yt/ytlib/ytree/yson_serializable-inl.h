@@ -1,19 +1,19 @@
-#ifndef CONFIGURABLE_INL_H_
-#error "Direct inclusion of this file is not allowed, include configurable.h"
+#ifndef YSON_SERIALIZABLE_INL_H_
+#error "Direct inclusion of this file is not allowed, include yson_serializable.h"
 #endif
-#undef CONFIGURABLE_INL_H_
+#undef YSON_SERIALIZABLE_INL_H_
 
-#include "guid.h"
-#include "string.h"
-#include "nullable.h"
-#include "enum.h"
-#include "demangle.h"
+#include "convert.h"
+#include "tree_visitor.h"
+#include "yson_consumer.h"
+
+#include <ytlib/misc/guid.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/misc/nullable.h>
+#include <ytlib/misc/enum.h>
+#include <ytlib/misc/demangle.h>
 
 #include <ytlib/actions/bind.h>
-#include <ytlib/ytree/serialize.h>
-#include <ytlib/ytree/tree_visitor.h>
-#include <ytlib/ytree/yson_consumer.h>
-
 #include <util/datetime/base.h>
 
 // Avoid circular references.
@@ -35,18 +35,18 @@ struct TLoadHelper
     static void Load(T& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         UNUSED(path);
-        NYTree::Read(parameter, node);
+        NYTree::Deserialize(parameter, node);
     }
 };
 
-// TConfigurable
+// TYsonSerializable
 template <class T>
 struct TLoadHelper<
-    T,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TConfigurable*> >::TType
+    TIntrusivePtr<T>,
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T&, TYsonSerializable&> >::TType
 >
 {
-    static void Load(T& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         if (!parameter) {
             parameter = New<T>();
@@ -136,7 +136,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
             TLoadHelper<T>::Load(
                 value,
                 pair.second,
-                path + "/" + NYTree::SerializeToYson(key));
+                path + "/" + NYTree::YsonizeString(key, NYTree::EYsonFormat::Binary));
             parameter.insert(MakePair(key, MoveRV(value)));
         }
     }
@@ -150,12 +150,12 @@ inline void ValidateSubconfigs(
     const NYTree::TYPath& /* path */)
 { }
 
-// TConfigurable
+// TYsonSerializable
 template <class T>
 inline void ValidateSubconfigs(
     const TIntrusivePtr<T>* parameter,
     const NYTree::TYPath& path,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TYsonSerializable* >, int>::TType = 0)
 {
     if (*parameter) {
         (*parameter)->Validate(path);
@@ -255,7 +255,7 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
 template <class T>
 void TParameter<T>::Save(NYTree::IYsonConsumer* consumer) const
 {
-    NYTree::Write(Parameter, consumer);
+    NYTree::Serialize(Parameter, consumer);
 }
 
 template <class T>
@@ -350,7 +350,7 @@ DEFINE_VALIDATOR(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-NConfig::TParameter<T>& TConfigurable::Register(const Stroka& parameterName, T& value)
+NConfig::TParameter<T>& TYsonSerializable::Register(const Stroka& parameterName, T& value)
 {
     auto parameter = New< NConfig::TParameter<T> >(value);
     YVERIFY(Parameters.insert(
@@ -363,7 +363,7 @@ NConfig::TParameter<T>& TConfigurable::Register(const Stroka& parameterName, T& 
 template <class T>
 inline TIntrusivePtr<T> CloneConfigurable(TIntrusivePtr<T> obj)
 {
-    return NYTree::DeserializeFromYson<T>(NYTree::SerializeToYson(obj));
+    return NYTree::ConvertTo< TIntrusivePtr<T> >(NYTree::ConvertToYsonString(*obj));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

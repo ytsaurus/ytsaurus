@@ -104,7 +104,7 @@ public:
                 ythrow yexception() << Sprintf("Invalid table channels\n%s", ex.what());
             }
         } else {
-            request->Attributes().SetYson("channels", "[]");
+            request->Attributes().SetYson("channels", TYsonString("[]"));
         }
 
         auto nodeId = objectManager->GenerateId(EObjectType::Table);

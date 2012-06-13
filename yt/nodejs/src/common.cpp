@@ -1,8 +1,11 @@
 #include "common.h"
 
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/yson_string.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/convert.h>
 
 extern "C" {
     // XXX(sandello): This is extern declaration of eio's internal functions.
@@ -138,8 +141,8 @@ Handle<Value> GetYsonRepresentation(const Arguments& args)
 
     YASSERT(args.Length() == 1);
 
-    Stroka yson = SerializeToYson(ConvertV8ValueToNode(args[0]), EYsonFormat::Text);
-    return scope.Close(String::New(~yson));
+    TYsonString yson = ConvertToYsonString(ConvertV8ValueToNode(args[0]), EYsonFormat::Text);
+    return scope.Close(String::New(~yson.Data()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +208,7 @@ INodePtr ConvertV8ValueToNode(Handle<Value> value)
 INodePtr ConvertV8StringToNode(Handle<String> string)
 {
     String::AsciiValue value(string);
-    return DeserializeFromYson(TStringBuf(*value, value.length()));
+    return ConvertToNode(TYsonString(Stroka(*value, value.length())));
 }
 
 void Initialize(Handle<Object> target)

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/cypress/public.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {
@@ -10,7 +10,7 @@ namespace NOrchid {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOrchidManifest
-    : public TConfigurable
+    : public TYsonSerializable
 {
     typedef TIntrusivePtr<TOrchidManifest> TPtr;
 

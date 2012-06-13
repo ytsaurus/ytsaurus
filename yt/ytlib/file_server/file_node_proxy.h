@@ -37,8 +37,8 @@ private:
 
     virtual void OnUpdateAttribute(
         const Stroka& key,
-        const TNullable<NYTree::TYson>& oldValue,
-        const TNullable<NYTree::TYson>& newValue);
+        const TNullable<NYTree::TYsonString>& oldValue,
+        const TNullable<NYTree::TYsonString>& newValue);
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
 

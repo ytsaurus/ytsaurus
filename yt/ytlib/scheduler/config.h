@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/job_proxy/public.h>
 
 namespace NYT {
@@ -11,7 +11,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration StartupRetryPeriod;
 
@@ -82,7 +82,7 @@ struct TSchedulerConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationSpecBase
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TNullable<int> JobCount;
 
@@ -98,7 +98,7 @@ struct TOperationSpecBase
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUserJobSpec
-    : public TConfigurable
+    : public TYsonSerializable
 {
     Stroka Command;
     yvector<NYTree::TYPath> FilePaths;

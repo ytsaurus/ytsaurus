@@ -57,7 +57,7 @@ private:
     TModeArg ModeArg;
 
     TCLAP::SwitchArg CombineArg;
-    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
+    TCLAP::ValueArg<Stroka> KeyColumnsArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
@@ -75,7 +75,7 @@ public:
 private:
     TCLAP::MultiArg<Stroka> InArg;
     TCLAP::ValueArg<Stroka> OutArg;
-    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
+    TCLAP::ValueArg<Stroka> KeyColumnsArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
@@ -112,7 +112,7 @@ private:
     TCLAP::MultiArg<Stroka> OutArg;
     TCLAP::MultiArg<Stroka> FilesArg;
     TCLAP::ValueArg<Stroka> ReducerArg;
-    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
+    TCLAP::ValueArg<Stroka> KeyColumnsArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;

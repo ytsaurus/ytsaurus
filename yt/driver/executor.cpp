@@ -111,7 +111,7 @@ void TExecutor::InitConfig()
     INodePtr configNode;
     try {
         TIFStream configStream(fileName);
-        configNode = DeserializeFromYson(&configStream);
+        configNode = ConvertToNode(&configStream);
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
     }
@@ -124,8 +124,8 @@ void TExecutor::InitConfig()
         ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
     }
 
-    // Now convert back YSON tree to populate the defaults.
-    configNode = DeserializeFromYson(BIND(&TConfigurable::Save, Config));
+    // Now convert back YSON tree to populate defaults.
+    configNode = ConvertToNode(BIND(&TYsonSerializable::Save, Config));
 
     // Patch config from command line.
     FOREACH (const auto& opt, ConfigOptArg.getValue()) {
@@ -156,13 +156,21 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     auto descriptor = Driver->FindCommandDescriptor(commandName);
     YASSERT(descriptor);
 
-    auto inputFormat = FormatArg.getValue();
-    auto outputFormat = FormatArg.getValue();
+    Stroka inputFormatString = FormatArg.getValue();
+    Stroka outputFormatString = FormatArg.getValue();
     if (!InputFormatArg.getValue().empty()) {
-        inputFormat = InputFormatArg.getValue();
+        inputFormatString = InputFormatArg.getValue();
     }
     if (!OutputFormatArg.getValue().empty()) {
-        outputFormat = OutputFormatArg.getValue();
+        outputFormatString = OutputFormatArg.getValue();
+    }
+    
+    TNullable<TYsonString> inputFormat, outputFormat;
+    if (!inputFormatString.empty()) {
+        inputFormat = TYsonString(inputFormatString);
+    }
+    if (!outputFormatString.empty()) {
+        outputFormat = TYsonString(outputFormatString);
     }
 
     // Set stream buffers.
@@ -180,16 +188,16 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     return DoExecute(request);
 }
 
-TFormat TExecutor::GetFormat(EDataType dataType, const Stroka& custom)
+TFormat TExecutor::GetFormat(EDataType dataType, const TNullable<TYsonString>& yson)
 {
-    if (!custom.empty()) {
-        INodePtr customNode;
+    if (yson) {
+        INodePtr node;
         try {
-            customNode = DeserializeFromYson(custom);
+            node = ConvertToNode(*yson);
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing format description\n%s", ex.what());
         }
-        return TFormat::FromYson(customNode);
+        return TFormat::FromYson(node);
     }
 
     switch (dataType) {

@@ -34,7 +34,7 @@ TRow& TSyncReaderAdapter::GetRow()
     return AsyncReader->GetRow();
 }
 
-const NYTree::TYson& TSyncReaderAdapter::GetRowAttributes() const
+const NYTree::TYsonString& TSyncReaderAdapter::GetRowAttributes() const
 {
     return AsyncReader->GetRowAttributes();
 }

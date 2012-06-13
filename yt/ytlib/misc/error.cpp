@@ -98,7 +98,7 @@ void TError::ToYson(IYsonConsumer* consumer) const
 TError TError::FromYson(INodePtr node)
 {
     // TODO(babenko): refactor
-    auto attributes = IAttributeDictionary::FromMap(node->AsMap());
+    auto attributes = ConvertToAttributes(node->AsMap());
     return TError(
         attributes->Get<int>("code", Fail),
         attributes->Get<Stroka>("message"));

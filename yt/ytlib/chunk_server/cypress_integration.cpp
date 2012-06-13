@@ -328,13 +328,13 @@ private:
 
     virtual void OnUpdateAttribute(
         const Stroka& key,
-        const TNullable<NYTree::TYson>& oldValue,
-        const TNullable<NYTree::TYson>& newValue)
+        const TNullable<NYTree::TYsonString>& oldValue,
+        const TNullable<NYTree::TYsonString>& newValue)
     {
         UNUSED(oldValue);
         if (key == "banned") {
             if (newValue) {
-                DeserializeFromYson<bool>(*newValue);
+                ConvertTo<bool>(*newValue);
             }
         }
     }
@@ -415,7 +415,7 @@ private:
             {
                 auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address) + "/orchid");
                 req->set_type(EObjectType::Orchid);
-                req->Attributes().Set("remote_address", address);
+                req->Attributes().Set<Stroka>("remote_address", address);
                 ExecuteVerb(service, req);
             }
         })

@@ -10,7 +10,7 @@ namespace NChunkHolder {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPeerBlockTableConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     int MaxPeersPerBlock;
     TDuration SweepPeriod;
@@ -27,7 +27,7 @@ struct TPeerBlockTableConfig
 
 //! Describes a chunk location.
 struct TLocationConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! Location root path.
     Stroka Path;
@@ -64,7 +64,7 @@ struct TLocationConfig
 
 //! Describes a configuration of TChunkHolder.
 struct TChunkHolderConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;

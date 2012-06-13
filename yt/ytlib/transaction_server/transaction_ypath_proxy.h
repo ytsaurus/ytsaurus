@@ -1,8 +1,6 @@
 #pragma once
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/object_server/object_ypath_proxy.h>
-
 #include <ytlib/transaction_server/transaction_ypath.pb.h>
 
 namespace NYT {

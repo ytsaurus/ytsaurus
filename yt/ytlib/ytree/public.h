@@ -9,7 +9,6 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef Stroka TYPath;
-typedef Stroka TYson;
 
 //! A static node type.
 DECLARE_ENUM(ENodeType,
@@ -27,11 +26,9 @@ DECLARE_ENUM(ENodeType,
     (Entity)
 );
 
-DECLARE_ENUM(EYsonType,
-    (Node)
-    (ListFragment)
-    (KeyedFragment)
-);
+class EYsonType;
+
+class TYsonString;
 
 class ETokenType;
 
@@ -67,10 +64,10 @@ struct INodeFactory;
 typedef TIntrusivePtr<INodeFactory> INodeFactoryPtr;
 
 struct IYsonConsumer;
+class TYsonProducer;
 
-//! A callback capable of generating YSON by calling appropriate
-//! methods for its IYsonConsumer argument.
-typedef TCallback<void(IYsonConsumer*)> TYsonProducer;
+class TYsonInput;
+class TYsonOutput;
 
 struct IAttributeDictionary;
 

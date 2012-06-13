@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "yson_file_service.h"
-#include "serialize.h"
 #include "tree_builder.h"
 #include "ephemeral.h"
 #include "virtual.h"
+#include "convert.h"
 
 #include <ytlib/rpc/service.h>
 
@@ -190,8 +190,8 @@ private:
     {
         try {
             TOFStream stream(FileName);
-            // TODO(babenko): make format configurable
-            SerializeToYson(~Root, stream, EYsonFormat::Pretty);
+            // TODO(babenko): make format yson serializable
+            WriteYson(&stream, ~Root, EYsonFormat::Pretty);
         } catch (const std::exception& ex) {
             throw yexception() << Sprintf("Error saving YSON file %s\n%s",
                 ~FileName.Quote(),
@@ -243,7 +243,7 @@ private:
     {
         try {
             TIFStream stream(FileName);
-           return DeserializeFromYson(&stream);
+            return ConvertToNode(&stream);
         } catch (const std::exception& ex) {
             throw yexception() << Sprintf("Error loading YSON file %s\n%s",
                 ~FileName.Quote(),

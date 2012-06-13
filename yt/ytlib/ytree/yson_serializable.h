@@ -1,10 +1,10 @@
 #pragma once
 
-#include "mpl.h"
-#include "property.h"
-#include "nullable.h"
+#include "public.h"
 
-#include <ytlib/ytree/public.h>
+#include <ytlib/misc/mpl.h>
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/nullable.h>
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/callback.h>
@@ -70,13 +70,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfigurable
+class TYsonSerializable
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TConfigurable> TPtr;
+    typedef TIntrusivePtr<TYsonSerializable> TPtr;
 
-    TConfigurable();
+    TYsonSerializable();
 
     virtual void Load(NYTree::INodePtr node, bool validate = true, const NYTree::TYPath& path = "");
     void Validate(const NYTree::TYPath& path = "") const;
@@ -107,10 +107,13 @@ private:
 template <class T>
 TIntrusivePtr<T> CloneConfigurable(TIntrusivePtr<T> obj);
 
+void Serialize(const TYsonSerializable& value, NYTree::IYsonConsumer* consumer);
+void Deserialize(TYsonSerializable& value, NYTree::INodePtr node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-#define CONFIGURABLE_INL_H_
-#include "configurable-inl.h"
-#undef CONFIGURABLE_INL_H_
+#define YSON_SERIALIZABLE_INL_H_
+#include "yson_serializable-inl.h"
+#undef YSON_SERIALIZABLE_INL_H_

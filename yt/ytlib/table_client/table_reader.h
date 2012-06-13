@@ -52,7 +52,7 @@ public:
     bool IsValid() const;
 
     TRow& GetRow();
-    const NYTree::TYson& GetRowAttributes() const;
+    const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
     TChunkSequenceReaderConfigPtr Config;

@@ -3,7 +3,6 @@
 
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/bus/config.h>
 #include <ytlib/bus/tcp_client.h>
 #include <ytlib/rpc/roaming_channel.h>
@@ -27,7 +26,7 @@ TValueOrError<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGetPtr rsp)
         return rsp->GetError();
     }
 
-    auto address = DeserializeFromYson<Stroka>(rsp->value());
+    auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
 
     // TODO(babenko): get rid of this hardcoded priority
     auto config = New<TTcpBusClientConfig>(address);

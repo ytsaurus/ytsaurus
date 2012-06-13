@@ -5,7 +5,6 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/cell_master/bootstrap.h>
 
@@ -185,7 +184,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYson& value)
+bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     UNUSED(key);
     UNUSED(value);
@@ -214,14 +213,14 @@ yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List() const
     if (attributeSet) {
         FOREACH (const auto& pair, attributeSet->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
-            YASSERT(!pair.second.empty());
+            YASSERT(pair.second);
             attributes.insert(pair.first);
         }
     }
     return attributes;
 }
 
-TNullable<TYson> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& key) const
+TNullable<TYsonString> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& key) const
 {
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
@@ -232,14 +231,15 @@ TNullable<TYson> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stro
         return Null;
     }
     // Attribute cannot be empty (i.e. deleted) in null transaction.
-    YASSERT(!it->second.empty());
+    YASSERT(it->second);
     return it->second;
 }
 
 void TObjectProxyBase::TUserAttributeDictionary::SetYson(
     const Stroka& key,
-    const NYTree::TYson& value)
+    const NYTree::TYsonString& value)
 {
+    YASSERT(value.Data() != "");
     auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
         attributeSet = ObjectManager->CreateAttributes(ObjectId);
@@ -258,7 +258,7 @@ bool TObjectProxyBase::TUserAttributeDictionary::Remove(const Stroka& key)
         return false;
     }
     // Attribute cannot be empty (i.e. deleted) in null transaction.
-    YASSERT(!it->second.empty());
+    YASSERT(it->second);
     attributeSet->Attributes().erase(it);
     if (attributeSet->Attributes().empty()) {
         ObjectManager->RemoveAttributes(ObjectId);

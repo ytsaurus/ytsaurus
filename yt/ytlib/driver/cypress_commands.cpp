@@ -4,7 +4,6 @@
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NDriver {
@@ -30,7 +29,7 @@ void TGetCommand::DoExecute()
         return;
     }
 
-    ReplySuccess(rsp->value());
+    ReplySuccess(TYsonString(rsp->value()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,8 +42,8 @@ void TSetCommand::DoExecute()
         GetTransactionId(false)));
 
     auto producer = Context->CreateInputProducer();
-    auto value = SerializeToYson(producer);
-    req->set_value(value);
+    TYsonString value = ConvertToYsonString(producer);
+    req->set_value(value.Data());
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();

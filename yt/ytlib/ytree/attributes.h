@@ -18,10 +18,10 @@ struct IAttributeDictionary
     virtual yhash_set<Stroka> List() const = 0;
 
     //! Returns the value of the attribute (NULL indicates that the attribute is not found).
-    virtual TNullable<TYson> FindYson(const Stroka& key) const = 0;
+    virtual TNullable<TYsonString> FindYson(const Stroka& key) const = 0;
 
     //! Sets the value of the attribute.
-    virtual void SetYson(const Stroka& key, const TYson& value) = 0;
+    virtual void SetYson(const Stroka& key, const TYsonString& value) = 0;
 
     //! Removes the attribute.
     virtual bool Remove(const Stroka& key) = 0;
@@ -32,25 +32,20 @@ struct IAttributeDictionary
     void Clear();
 
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
-    TYson GetYson(const Stroka& key) const;
+    TYsonString GetYson(const Stroka& key) const;
 
     template <class T>
-    typename TDeserializeTraits<T>::TReturnType Get(const Stroka& key) const;
+    T Get(const Stroka& key) const;
 
     template <class T>
     T Get(const Stroka& key, const T& defaultValue) const;
 
     template <class T>
-    typename TNullableTraits<
-        typename TDeserializeTraits<T>::TReturnType
-    >::TNullableType Find(const Stroka& key) const;
+    typename TNullableTraits<T>::TNullableType Find(const Stroka& key) const;
 
     template <class T>
     void Set(const Stroka& key, const T& value);
     
-    //! Converts the instance into a map node (by copying and deserializing the values).
-    IMapNodePtr ToMap() const;
-
     //! Constructs an instance from a map node (by serializing the values).
     static TAutoPtr<IAttributeDictionary> FromMap(IMapNodePtr node);
 
@@ -63,11 +58,19 @@ struct IAttributeDictionary
     TAutoPtr<IAttributeDictionary> Clone();
 };
 
+//! Creates attributes dictionary in memory
 TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
+
+//! Creates empty attributes dictionary with deprecated method Set
 const IAttributeDictionary& EmptyAttributes();
 
-TAutoPtr<IAttributeDictionary> DeserializeAttributesFromYson(const TYson& yson);
+//! Serialize attributes to consumer. Used in ConvertTo* functions.
+void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer);
 
+template <class T>
+TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value);
+
+//! Protobuf convertion methods
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
 TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
 

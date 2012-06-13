@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NFormats {
@@ -10,7 +10,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDsvFormatConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     char RecordSeparator;
     char KeyValueSeparator;
@@ -38,7 +38,7 @@ struct TDsvFormatConfig
 };
 
 struct TJsonFormatConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     bool Pretty;
 

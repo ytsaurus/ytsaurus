@@ -9,6 +9,7 @@
 #include <ytlib/object_server/object_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/convert.h>
 #include <ytlib/formats/format.h>
 
 #include <cmath>
@@ -166,7 +167,7 @@ void TOperationControllerBase::TTask::AddTabularOutputSpec(
     const TOutputTable& table)
 {
     auto* outputSpec = jobSpec->add_output_specs();
-    outputSpec->set_channels(table.Channels);
+    outputSpec->set_channels(table.Channels.Data());
     auto chunkListId = Controller->ChunkListPool->Extract();
     jip->ChunkListIds.push_back(chunkListId);
     *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
@@ -956,7 +957,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 CheckResponse(
                     rsp,
                     Sprintf("Error getting \"sorted\" attribute for input table %s", ~table.Path));
-                table.Sorted = DeserializeFromYson<bool>(rsp->value());
+                table.Sorted = ConvertTo<bool>(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s is %s",
                     ~table.Path,
                     table.Sorted ? "sorted" : "not sorted");
@@ -966,10 +967,10 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 CheckResponse(
                     rsp,
                     Sprintf("Error getting \"key_columns\" attribute for input table %s", ~table.Path));
-                table.KeyColumns = DeserializeFromYson< yvector<Stroka> >(rsp->value());
+                table.KeyColumns = ConvertTo< yvector<Stroka> >(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s has key columns %s",
                     ~table.Path,
-                    ~SerializeToYson(table.KeyColumns, EYsonFormat::Text));
+                    ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data());
             }
         }
     }
@@ -995,18 +996,18 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 CheckResponse(
                     rsp,
                     Sprintf("Error getting channels for output table %s", ~table.Path));
-                table.Channels = rsp->value();
+                table.Channels = TYsonString(rsp->value());
                 LOG_INFO("Output table %s has channels %s",
                     ~table.Path,
                     // TODO(babenko): refactor
-                    ~SerializeToYson(DeserializeFromYson(table.Channels), EYsonFormat::Text));
+                    ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data());
             }
             {
                 auto rsp = getOutRowCountRsps[index];
                 CheckResponse(
                     rsp,
                     Sprintf("Error getting \"row_count\" attribute for output table %s", ~table.Path));
-                table.InitialRowCount = DeserializeFromYson<i64>(rsp->value());
+                table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
             }
             {
                 auto rsp = getOutChunkListRsps[index];
@@ -1131,8 +1132,8 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
             if (!AreKeysCompatible(table.KeyColumns, keyColumns.Get())) {
                 ythrow yexception() << Sprintf("Input table %s has key columns %s that are not compatible with the requested key columns %s",
                     ~table.Path,
-                    ~SerializeToYson(table.KeyColumns, EYsonFormat::Text),
-                    ~SerializeToYson(keyColumns.Get(), EYsonFormat::Text));
+                    ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
+                    ~ConvertToYsonString(keyColumns.Get(), EYsonFormat::Text).Data());
             }
         }
         return keyColumns.Get();
@@ -1142,9 +1143,9 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
             if (table.KeyColumns != referenceTable.KeyColumns) {
                 ythrow yexception() << Sprintf("Key columns do not match: input table %s is sorted by %s while input table %s is sorted by %s",
                     ~table.Path,
-                    ~SerializeToYson(table.KeyColumns, EYsonFormat::Text),
+                    ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
                     ~referenceTable.Path,
-                    ~SerializeToYson(referenceTable.KeyColumns, EYsonFormat::Text));
+                    ~ConvertToYsonString(referenceTable.KeyColumns, EYsonFormat::Text).Data());
             }
         }
         return referenceTable.KeyColumns;
@@ -1282,8 +1283,8 @@ void TOperationControllerBase::InitUserJobSpec(
             outputFormat = TFormat::FromYson(config->OutputFormat);
         }
 
-        proto->set_input_format(inputFormat.ToYson());
-        proto->set_output_format(outputFormat.ToYson());
+        proto->set_input_format(inputFormat.ToYson().Data());
+        proto->set_output_format(outputFormat.ToYson().Data());
     }
 
     // TODO(babenko): think about per-job files

@@ -159,12 +159,12 @@ private:
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
 
-                TNullable<TYson> rowAttributes;
+                TNullable<TYsonString> rowAttributes;
                 if (InputTables.size() > 1) {
                     rowAttributes = BuildYsonFluently()
                         .BeginMap()
                             .Item("table_index").Scalar(tableIndex)
-                        .EndMap();
+                        .EndMap().GetYsonString();
                 }
 
                 FOREACH (auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
@@ -172,7 +172,7 @@ private:
                     YCHECK(!inputChunk.has_row_attributes());
 
                     if (rowAttributes) {
-                        inputChunk.set_row_attributes(rowAttributes.Get());
+                        inputChunk.set_row_attributes(rowAttributes->Data());
                     }
 
                     // TODO(babenko): make customizable: choose either data_weight or row_count as weight
@@ -250,7 +250,7 @@ private:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        JobSpecTemplate.set_io_config(SerializeToYson(Config->MapJobIO));
+        JobSpecTemplate.set_io_config(ConvertToYsonString(Config->MapJobIO).Data());
     }
 
 };

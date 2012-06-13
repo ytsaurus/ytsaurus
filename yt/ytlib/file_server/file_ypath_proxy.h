@@ -3,7 +3,7 @@
 #include "common.h"
 #include <ytlib/file_server/file_ypath.pb.h>
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/chunk_server/public.h>
 

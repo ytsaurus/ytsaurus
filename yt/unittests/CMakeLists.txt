@@ -3,6 +3,7 @@ include_directories(
 )
 set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
 set( SRCS
+  ${BASE}/attributes_ut.cpp
   ${BASE}/async_change_log_ut.cpp
   ${BASE}/async_result_ut.cpp
   ${BASE}/bind_ut.cpp
@@ -41,6 +42,7 @@ set( SRCS
   ${BASE}/varint_ut.cpp
   ${BASE}/weak_ptr_ut.cpp
   ${BASE}/ypath_ut.cpp
+  ${BASE}/yson_ut.cpp
   ${BASE}/yson_parser_ut.cpp
   ${BASE}/yson_writer_ut.cpp
   ${BASE}/ytree_fluent_ut.cpp

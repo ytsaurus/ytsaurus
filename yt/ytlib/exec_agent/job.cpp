@@ -80,7 +80,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     {
         INodePtr ioConfigNode;
         try {
-            ioConfigNode = DeserializeFromYson(JobSpec.io_config());
+            ioConfigNode = ConvertToNode(TYsonString(JobSpec.io_config()));
         } catch (const std::exception& ex) {
             Stroka message = Sprintf(
                 "Error deserializing job IO configuration (JobId: %s)\n%s", 

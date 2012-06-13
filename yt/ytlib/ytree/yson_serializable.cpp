@@ -1,9 +1,8 @@
 #include "stdafx.h"
-#include "configurable.h"
+#include "yson_serializable.h"
 
 #include <ytlib/ytree/ytree.h>
 #include <ytlib/ytree/ephemeral.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/yson_consumer.h>
 
@@ -13,17 +12,17 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConfigurable::TConfigurable()
+TYsonSerializable::TYsonSerializable()
     : KeepOptions_(false)
 { }
 
-NYTree::IMapNodePtr TConfigurable::GetOptions() const
+NYTree::IMapNodePtr TYsonSerializable::GetOptions() const
 {
     YASSERT(KeepOptions_);
     return Options;
 }
 
-void TConfigurable::Load(NYTree::INodePtr node, bool validate, const NYTree::TYPath& path)
+void TYsonSerializable::Load(NYTree::INodePtr node, bool validate, const NYTree::TYPath& path)
 {
     YASSERT(node);
 
@@ -46,7 +45,7 @@ void TConfigurable::Load(NYTree::INodePtr node, bool validate, const NYTree::TYP
             const auto& key = pair.first;
             auto child = pair.second;
             if (Parameters.find(key) == Parameters.end()) {
-                Options->AddChild(~CloneNode(child), key);
+                Options->AddChild(~ConvertToNode(child), key);
             }
         }
     }
@@ -56,7 +55,7 @@ void TConfigurable::Load(NYTree::INodePtr node, bool validate, const NYTree::TYP
     }
 }
 
-void TConfigurable::Validate(const NYTree::TYPath& path) const
+void TYsonSerializable::Validate(const NYTree::TYPath& path) const
 {
     FOREACH (auto pair, Parameters) {
         pair.second->Validate(path + "/" + pair.first);
@@ -70,10 +69,10 @@ void TConfigurable::Validate(const NYTree::TYPath& path) const
     }
 }
 
-void TConfigurable::DoValidate() const
+void TYsonSerializable::DoValidate() const
 { }
 
-void TConfigurable::Save(IYsonConsumer* consumer) const
+void TYsonSerializable::Save(IYsonConsumer* consumer) const
 {
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(Parameters);
@@ -85,6 +84,18 @@ void TConfigurable::Save(IYsonConsumer* consumer) const
         }
     }
     consumer->OnEndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TYsonSerializable& value, IYsonConsumer* consumer)
+{
+    value.Save(consumer);
+}
+
+void Deserialize(TYsonSerializable& value, INodePtr node)
+{
+    value.Load(node, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

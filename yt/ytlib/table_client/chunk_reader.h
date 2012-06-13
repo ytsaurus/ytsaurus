@@ -13,6 +13,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/lexer.h>
+#include <ytlib/ytree/yson_string.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -30,7 +31,7 @@ public:
         NChunkClient::IAsyncReaderPtr chunkReader,
         const NProto::TReadLimit& startLimit,
         const NProto::TReadLimit& endLimit,
-        const NYTree::TYson& rowAttributes,
+        const NYTree::TYsonString& rowAttributes,
         int partitionTag,
         TReaderOptions options);
 
@@ -41,7 +42,7 @@ public:
 
     virtual TRow& GetRow();
     virtual const TNonOwningKey& GetKey() const;
-    virtual const NYTree::TYson& GetRowAttributes() const;
+    virtual const NYTree::TYsonString& GetRowAttributes() const;
 
     i64 GetRowCount() const;
 
@@ -73,7 +74,7 @@ private:
     TAsyncStreamState State;
     TReaderOptions Options;
 
-    NYTree::TYson RowAttributes;
+    NYTree::TYsonString RowAttributes;
     TRow CurrentRow;
     TNonOwningKey CurrentKey;
 

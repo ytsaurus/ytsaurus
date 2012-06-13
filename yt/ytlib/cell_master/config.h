@@ -14,7 +14,7 @@ namespace NCellMaster {
 
 //! Describes a configuration of TCellMaster.
 struct TCellMasterConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! Meta state configuration.
     NMetaState::TPersistentStateManagerConfigPtr MetaState;

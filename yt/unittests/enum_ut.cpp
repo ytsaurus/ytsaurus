@@ -168,17 +168,18 @@ TEST(TEnumTest, DomainSize)
 
 TEST(TEnumTest, DomainValues)
 {
-    std::vector<int> simpleValues, colorValues;
-    simpleValues.push_back(0);
-    simpleValues.push_back(1);
-    simpleValues.push_back(2);
-    colorValues.push_back(10);
-    colorValues.push_back(20);
-    colorValues.push_back(30);
-    colorValues.push_back(31);
-    colorValues.push_back(32);
-
+    std::vector<ESimple::EDomain> simpleValues;
+    simpleValues.push_back(ESimple::X);
+    simpleValues.push_back(ESimple::Y);
+    simpleValues.push_back(ESimple::Z);
     EXPECT_EQ(simpleValues, ESimple::GetDomainValues());
+
+    std::vector<EColor::EDomain> colorValues;
+    colorValues.push_back(EColor::Red);
+    colorValues.push_back(EColor::Green);
+    colorValues.push_back(EColor::Blue);
+    colorValues.push_back(EColor::Black);
+    colorValues.push_back(EColor::White);
     EXPECT_EQ(colorValues, EColor::GetDomainValues());
 }
 

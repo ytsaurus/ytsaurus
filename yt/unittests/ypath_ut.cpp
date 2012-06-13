@@ -29,17 +29,14 @@ public:
         RootService = GetEphemeralNodeFactory()->CreateMap();
     }
 
-    static TYson TextifyYson(const TYson& data)
+    static TYsonString TextifyYson(const TYsonString& data)
     {
-        TStringStream outputStream;
-        TYsonWriter writer(&outputStream, EYsonFormat::Text);
-        ParseYson(data, &writer);
-        return outputStream.Str();
+        return ConvertToYsonString(data, EYsonFormat::Text);
     }
 
-    void Set(const TYPath& path, const TYson& value)
+    void Set(const TYPath& path, const Stroka& value)
     {
-        SyncYPathSet(~RootService, path, value);
+        SyncYPathSet(~RootService, path, TYsonString(value));
     }
 
     void Remove(const TYPath& path)
@@ -47,7 +44,7 @@ public:
         SyncYPathRemove(~RootService, path);
     }
 
-    TYson Get(const TYPath& path)
+    TYsonString Get(const TYPath& path)
     {
         return TextifyYson(SyncYPathGet(~RootService, path));
     }
@@ -57,13 +54,13 @@ public:
         return SyncYPathList(~RootService, path);
     }
 
-    void Check(const TYPath& path, TYson expected)
+    void Check(const TYPath& path, const Stroka& expected)
     {
-        TYson output = Get(path);
-        EXPECT_EQ(expected, output);
+        TYsonString output = Get(path);
+        EXPECT_EQ(TYsonString(expected), output);
     }
 
-    void CheckList(const TYPath& path, TYson expected)
+    void CheckList(const TYPath& path, Stroka expected)
     {
         VectorStrok result;
         SplitStroku(&result, expected, ";");
@@ -176,7 +173,7 @@ TEST_F(TYPathTest, Ls)
     auto result = List("");
     std::sort(result.begin(), result.end());
 
-    yvector<Stroka> expected;
+    std::vector<Stroka> expected;
     expected.push_back("a");
     expected.push_back("c");
     expected.push_back("d");

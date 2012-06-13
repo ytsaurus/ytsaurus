@@ -355,7 +355,7 @@ private:
                 // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
                 // Don't use replication for sort jobs in large partitions since their chunks will be merged.
                 auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, !CheckMergeNeeded());
-                jobSpec.set_io_config(SerializeToYson(ioConfig));
+                jobSpec.set_io_config(ConvertToYsonString(ioConfig).Data());
             }
 
             {
@@ -506,7 +506,7 @@ private:
                 auto chunkListId = Controller->ChunkListPool->Extract();
                 jip->ChunkListIds.push_back(chunkListId);
                 *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
-                outputSpec->set_channels(ouputTable.Channels);
+                outputSpec->set_channels(ouputTable.Channels.Data());
             }
 
             return jobSpec;
@@ -871,8 +871,8 @@ private:
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
             // Don't replicate partition chunks.
-            PartitionJobSpecTemplate.set_io_config(SerializeToYson(
-                PrepareJobIOConfig(Config->PartitionJobIO, false)));
+            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(
+                PrepareJobIOConfig(Config->PartitionJobIO, false)).Data());
         }
         {
             SortJobSpecTemplate.set_type(Partitions.size() == 1 ? EJobType::SimpleSort : EJobType::PartitionSort);
@@ -888,8 +888,8 @@ private:
             MergeJobSpecTemplate.set_type(EJobType::SortedMerge);
             *MergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-            MergeJobSpecTemplate.set_io_config(SerializeToYson(
-                PrepareJobIOConfig(Config->MergeJobIO, true)));
+            MergeJobSpecTemplate.set_io_config(ConvertToYsonString(
+                PrepareJobIOConfig(Config->MergeJobIO, true)).Data());
         }
     }
 };

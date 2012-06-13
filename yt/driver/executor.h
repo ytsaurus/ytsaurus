@@ -4,7 +4,6 @@
 
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_client.h>
 
@@ -56,7 +55,7 @@ protected:
     void InitConfig();
     void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
     
-    NFormats::TFormat GetFormat(NFormats::EDataType dataType, const NYTree::TYson& custom);
+    NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYTree::TYsonString>& yson);
 
     NYTree::IMapNodePtr GetArgs();
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);

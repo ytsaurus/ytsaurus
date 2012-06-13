@@ -5,7 +5,6 @@
 #include "async_writer.h"
 #include <ytlib/chunk_server/chunk_service.pb.h>
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/thread_affinity.h>

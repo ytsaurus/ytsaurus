@@ -2,9 +2,8 @@
 #include "schema.h"
 
 #include <ytlib/misc/foreach.h>
-#include <ytlib/misc/configurable.h>
 #include <ytlib/ytree/ytree.h>
-#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/convert.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -248,9 +247,9 @@ TChannel TChannel::CreateEmpty()
     return TChannel();
 }
 
-TChannel TChannel::FromYson(const NYTree::TYson& yson)
+TChannel TChannel::FromYson(const NYTree::TYsonString& yson)
 {
-    return FromNode(~DeserializeFromYson(yson));
+    return FromNode(~ConvertToNode(yson));
 }
 
 TChannel TChannel::FromNode(INodePtr node)
@@ -360,13 +359,11 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TChannel> ChannelsFromYson(const NYTree::TYson& yson)
+std::vector<TChannel> ChannelsFromYson(const NYTree::TYsonString& yson)
 {
     try {
-        auto node = DeserializeFromYson(yson)->AsList();
-
         std::vector<TChannel> result;
-        FOREACH (auto channelNode, node->GetChildren()) {
+        FOREACH (auto channelNode, ConvertToNode(yson)->AsList()->GetChildren()) {
             result.push_back(TChannel::FromNode(channelNode));
         }
         return result;

@@ -12,6 +12,7 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/ytree.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -99,7 +100,7 @@ public:
                         ~rsp->GetError().ToString());
                 }
 
-                auto operation = ParseOperationYson(operationId, rsp->value());
+                auto operation = ParseOperationYson(operationId, TYsonString(rsp->value()));
                 operations.push_back(operation);
             }
         }
@@ -120,7 +121,7 @@ public:
         CreateOperationUpdateList(operation);
 
         auto setReq = TYPathProxy::Set(GetOperationPath(id));
-        setReq->set_value(BuildOperationYson(operation));
+        setReq->set_value(BuildOperationYson(operation).Data());
         return ObjectProxy
             .Execute(setReq)
             .Apply(
@@ -141,7 +142,7 @@ public:
             YCHECK(operation->GetState() == EOperationState::Reviving);
             
             auto req = TYPathProxy::Set(GetOperationPath(operation->GetOperationId()));
-            req->set_value(BuildOperationYson(operation));
+            req->set_value(BuildOperationYson(operation).Data());
             batchReq->AddRequest(req);
         }
 
@@ -311,7 +312,7 @@ private:
             LOG_INFO("Publishing scheduler address");
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
-                req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
+                req->set_value(YsonizeString(Bootstrap->GetPeerAddress(), EYsonFormat::Binary));
                 auto rsp = ObjectProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
                     ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
@@ -323,7 +324,7 @@ private:
             LOG_INFO("Registering at orchid");
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_address");
-                req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
+                req->set_value(YsonizeString(Bootstrap->GetPeerAddress(), EYsonFormat::Binary));
                 auto rsp = ObjectProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
                     ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
@@ -340,7 +341,7 @@ private:
     }
 
 
-    TYson BuildOperationYson(TOperationPtr operation)
+    TYsonString BuildOperationYson(TOperationPtr operation)
     {
         return
             BuildYsonFluently()
@@ -351,10 +352,10 @@ private:
                 .BeginMap()
                     .Item("jobs").BeginMap()
                     .EndMap()
-                .EndMap();
+                .EndMap().GetYsonString();
     }
 
-    TYson BuildJobYson(TJobPtr job)
+    TYsonString BuildJobYson(TJobPtr job)
     {
         return
             BuildYsonFluently()
@@ -362,22 +363,22 @@ private:
                     .Do(BIND(&BuildJobAttributes, job))
                 .EndAttributes()
                 .BeginMap()
-                .EndMap();
+                .EndMap().GetYsonString();
     }
 
-    TYson BuildJobAttributesYson(TJobPtr job)
+    TYsonString BuildJobAttributesYson(TJobPtr job)
     {
         return
             BuildYsonFluently()
                 .BeginMap()
                     .Do(BIND(&BuildJobAttributes, job))
-                .EndMap();
+                .EndMap().GetYsonString();
     }
 
-    TOperationPtr ParseOperationYson(const TOperationId& operationId, const TYson& yson)
+    TOperationPtr ParseOperationYson(const TOperationId& operationId, const TYsonString& yson)
     {
         // TODO(babenko): simplify
-        auto node = DeserializeFromYson(yson)->AsMap();
+        auto node = ConvertToNode(yson)->AsMap();
         auto attributes = CreateEphemeralAttributes();
         attributes->MergeFrom(node);
 
@@ -385,7 +386,7 @@ private:
             operationId,
             attributes->Get<EOperationType>("operation_type"),
             attributes->Get<TTransactionId>("transaction_id"),
-            attributes->Get<INode>("spec")->AsMap(),
+            attributes->Get<INodePtr>("spec")->AsMap(),
             attributes->Get<TInstant>("start_time"),
             attributes->Get<EOperationState>("state"));
     }
@@ -499,7 +500,7 @@ private:
             return;
         }
 
-        auto onlineAddresses = DeserializeFromYson< yvector<Stroka> >(rsp->value());
+        auto onlineAddresses = ConvertTo< yvector<Stroka> >(TYsonString(rsp->value()));
         LOG_INFO("Exec nodes refreshed successfully, %d nodes found",
             static_cast<int>(onlineAddresses.size()));
 
@@ -575,28 +576,40 @@ private:
         // Set state.
         {
             auto req = TYPathProxy::Set(operationPath + "/@state");
-            req->set_value(SerializeToYson(operation->GetState()));
+            req->set_value(ConvertToYsonString(operation->GetState()).Data());
             batchReq->AddRequest(req);
         }
 
         // Set progress.
         if (state == EOperationState::Running || operation->IsFinished()) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
-            req->set_value(SerializeToYson(BIND(&IOperationController::BuildProgressYson, operation->GetController())));
+            req->set_value(
+                ConvertToYsonString(
+                    BIND(
+                        &IOperationController::BuildProgressYson,
+                        operation->GetController()))
+                .Data()
+            );
             batchReq->AddRequest(req);
         }
 
         // Set result.
         if (operation->IsFinished()) {
             auto req = TYPathProxy::Set(operationPath + "/@result");
-            req->set_value(SerializeToYson(BIND(&IOperationController::BuildResultYson, operation->GetController())));
+            req->set_value(
+                ConvertToYsonString(
+                    BIND(
+                        &IOperationController::BuildResultYson,
+                        operation->GetController()))
+                .Data()
+            );
             batchReq->AddRequest(req);
         }
 
         // Set end time, if given.
         if (operation->GetEndTime()) {
             auto req = TYPathProxy::Set(operationPath + "/@end_time");
-            req->set_value(SerializeToYson(operation->GetEndTime().Get()));
+            req->set_value(ConvertToYsonString(operation->GetEndTime().Get()).Data());
             batchReq->AddRequest(req);
         }
 
@@ -604,7 +617,7 @@ private:
         FOREACH (auto job, list->PendingJobCreations) {
             auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
             auto req = TYPathProxy::Set(jobPath);
-            req->set_value(BuildJobYson(job));
+            req->set_value(BuildJobYson(job).Data());
             batchReq->AddRequest(req);
         }
         list->PendingJobCreations.clear();
@@ -613,7 +626,7 @@ private:
         FOREACH (auto job, list->PendingJobUpdates) {
             auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
             auto req = TYPathProxy::Set(jobPath + "/@");
-            req->set_value(BuildJobAttributesYson(job));
+            req->set_value(BuildJobAttributesYson(job).Data());
             batchReq->AddRequest(req);
         }
         list->PendingJobUpdates.clear();

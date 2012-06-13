@@ -4,7 +4,6 @@
 #include <ytlib/bus/tcp_dispatcher.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_holder/config.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
@@ -127,7 +126,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // Parse configuration file.
         try {
             TIFStream configStream(configFileName);
-            configNode = DeserializeFromYson(&configStream);
+            configNode = ConvertToNode(&configStream);
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error reading server configuration\n%s",
                 ex.what());

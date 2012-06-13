@@ -3,7 +3,8 @@
 #endif
 #undef ATTRIBUTES_INL_H_
 
-#include "serialize.h"
+#include "convert.h"
+#include "attribute_consumer.h"
 
 namespace NYT {
 namespace NYTree {
@@ -11,10 +12,10 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-typename TDeserializeTraits<T>::TReturnType IAttributeDictionary::Get(const Stroka& key) const
+T IAttributeDictionary::Get(const Stroka& key) const
 {
-    const auto& yson = GetYson(key);
-    return DeserializeFromYson<T>(yson);
+    TYsonString yson = GetYson(key);
+    return ConvertTo<T>(yson);
 }
 
 template <class T>
@@ -24,25 +25,37 @@ T IAttributeDictionary::Get(const Stroka& key, const T& defaultValue) const
 }
 
 template <class T>
-typename TNullableTraits<
-    typename TDeserializeTraits<T>::TReturnType
->::TNullableType IAttributeDictionary::Find(const Stroka& key) const
+typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const Stroka& key) const
 {
-    const auto& yson = FindYson(key);
+    auto yson = FindYson(key);
     if (!yson) {
-        return
-            typename TNullableTraits<
-                typename TDeserializeTraits<T>::TReturnType
-            >::TNullableType();
+        return typename TNullableTraits<T>::TNullableType();
     }
-    return DeserializeFromYson<T>(*yson);
+    return ConvertTo<T>(*yson);
 }
 
 template <class T>
 void IAttributeDictionary::Set(const Stroka& key, const T& value)
 {
-    const auto& yson = SerializeToYson(value);
+    TYsonString yson = ConvertToYsonString(value);
     SetYson(key, yson);
+}
+
+template <>
+inline void IAttributeDictionary::Set(const Stroka& key, const Stroka& value)
+{
+    Set(key, RawString(value));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value)
+{
+    auto attributes = CreateEphemeralAttributes();
+    TAttributeConsumer consumer(attributes.Get());
+    Consume(value, &consumer);
+    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

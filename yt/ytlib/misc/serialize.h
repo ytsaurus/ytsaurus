@@ -154,14 +154,18 @@ yvector <typename yhash_set<TKey>::const_iterator> GetSortedIterators(
     return iterators;
 }
 
+using ::Load;
+using ::Save;
+using ::SaveSize;
+
 template <class TSet>
 void SaveSet(TOutputStream* output, const TSet& set)
 {
     typedef typename TSet::key_type TKey;
     auto iterators = GetSortedIterators(set);
-    ::SaveSize(output, iterators.size());
+    SaveSize(output, iterators.size());
     FOREACH (const auto& ptr, iterators) {
-        ::Save(output, *ptr);
+        Save(output, *ptr);
     }
 }
 
@@ -173,7 +177,7 @@ void LoadSet(TInputStream* input, TSet& set)
     set.clear();
     for (size_t i = 0; i < size; ++i) {
         TKey key;
-        ::Load(input, key);
+        Load(input, key);
         YCHECK(set.insert(key).second);
     }
 }
@@ -184,7 +188,7 @@ void SaveNullableSet(TOutputStream* output, const THolder<TSet>& set)
     if (~set) {
         SaveSet(output, *set);
     } else {
-        ::SaveSize(output, 0);
+        SaveSize(output, 0);
     }
 }
 
@@ -202,7 +206,7 @@ void LoadNullableSet(TInputStream* input, THolder<TSet>& set)
     set.Reset(new TSet());
     for (size_t index = 0; index < size; ++index) {
         TKey key;
-        ::Load(input, key);
+        Load(input, key);
         YCHECK(set->insert(key).second);
     }
 }
@@ -230,10 +234,10 @@ template <class TMap>
 void SaveMap(TOutputStream* output, const TMap& map)
 {
     auto iterators = GetSortedIterators(map);
-    ::SaveSize(output, iterators.size());
+    SaveSize(output, iterators.size());
     FOREACH (const auto& it, iterators) {
-        ::Save(output, it->first);
-        ::Save(output, it->second);
+        Save(output, it->first);
+        Save(output, it->second);
     }
 }
 
@@ -244,9 +248,9 @@ void LoadMap(TInputStream* input, TMap& map)
     size_t size = ::LoadSize(input);
     for (size_t index = 0; index < size; ++index) {
         typename TMap::key_type key;
-        ::Load(input, key);
+        Load(input, key);
         typename TMap::mapped_type value;
-        ::Load(input, value);
+        Load(input, value);
         YCHECK(map.insert(MakePair(key, value)).second);
     }
 }

@@ -342,6 +342,21 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void Save(TOutputStream* output, const TNullable<T>& obj)
+{
+    YASSERT(obj);
+    Save(output, *obj);
+}
+
+template <class T>
+void Load(TInputStream* input, TNullable<T>& optionalObj)
+{
+    T obj;
+    Load(input, obj);
+    optionalObj = obj;
+}
+
 } //namespace NYT
 
 template <class T>

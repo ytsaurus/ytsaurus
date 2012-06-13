@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -10,7 +10,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TObjectManagerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! A number identifying the cell in the whole world.
     ui16 CellId;

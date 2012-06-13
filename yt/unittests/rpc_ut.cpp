@@ -306,14 +306,14 @@ TEST_F(TRpcTest, Attachments)
 DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttributes)
 {
     const auto& attributes = request->Attributes();
-    EXPECT_EQ("stroka1", attributes.GetYson("value1"));
-    EXPECT_EQ("stroka2", attributes.GetYson("value2"));
-    EXPECT_EQ("stroka3", attributes.GetYson("value3"));
+    EXPECT_EQ(NYTree::TYsonString("stroka1"), attributes.GetYson("value1"));
+    EXPECT_EQ(NYTree::TYsonString("stroka2"), attributes.GetYson("value2"));
+    EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
 
     auto& new_attributes = response->Attributes();
     new_attributes.MergeFrom(attributes);
     new_attributes.Remove("value1");
-    new_attributes.SetYson("value2", "another_stroka");
+    new_attributes.SetYson("value2", NYTree::TYsonString("another_stroka"));
 
     context->Reply();
 }
@@ -323,17 +323,17 @@ TEST_F(TRpcTest, Attributes)
     TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
     auto request = proxy->ModifyAttributes();
 
-    request->Attributes().SetYson("value1", "stroka1");
-    request->Attributes().SetYson("value2", "stroka2");
-    request->Attributes().SetYson("value3", "stroka3");
+    request->Attributes().SetYson("value1", NYTree::TYsonString("stroka1"));
+    request->Attributes().SetYson("value2", NYTree::TYsonString("stroka2"));
+    request->Attributes().SetYson("value3", NYTree::TYsonString("stroka3"));
 
     auto response = request->Invoke().Get();
     const auto& attributes = response->Attributes();
 
     EXPECT_IS_FALSE(attributes.FindYson("value1").IsInitialized());
-    EXPECT_EQ("another_stroka", attributes.GetYson("value2"));
-    EXPECT_EQ("stroka3", attributes.GetYson("value3"));
-}
+    EXPECT_EQ(NYTree::TYsonString("another_stroka"), attributes.GetYson("value2"));
+    EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
+} 
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -411,8 +411,8 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));
 
     auto& attributes = request->Attributes();
-    EXPECT_EQ("world", attributes.GetYson("hello"));
-    EXPECT_EQ("42", attributes.GetYson("value"));
+    EXPECT_EQ(NYTree::TYsonString("world"), attributes.GetYson("hello"));
+    EXPECT_EQ(NYTree::TYsonString("42"), attributes.GetYson("value"));
 
     EXPECT_EQ("world", attributes.Get<Stroka>("hello"));
     EXPECT_EQ(42, attributes.Get<i64>("value"));
@@ -434,8 +434,8 @@ TEST_F(TRpcTest, OneWaySend)
     request->Attachments().push_back(SharedRefFromString("are"));
     request->Attachments().push_back(SharedRefFromString("ok"));
 
-    request->Attributes().SetYson("hello", "world");
-    request->Attributes().SetYson("value", "42");
+    request->Attributes().SetYson("hello", NYTree::TYsonString("world"));
+    request->Attributes().SetYson("value", NYTree::TYsonString("42"));
 
     auto response = request->Invoke().Get();
     EXPECT_EQ(TError::OK, response->GetErrorCode());

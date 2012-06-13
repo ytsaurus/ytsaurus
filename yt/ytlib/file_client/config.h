@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+//#include <ytlib/chunk_client/public.h>
+//#include <ytlib/chunk_client/config.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/misc/codec.h>
 #include <ytlib/chunk_client/config.h>
 
@@ -12,7 +14,7 @@ namespace NFileClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFileWriterConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     i64 BlockSize;
     ECodecId CodecId;
@@ -48,7 +50,7 @@ struct TFileWriterConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFileReaderConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     NChunkClient::TSequentialReaderConfigPtr SequentialReader;
     NChunkClient::TRemoteReaderConfigPtr RemoteReader;

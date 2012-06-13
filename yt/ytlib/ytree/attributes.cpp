@@ -3,7 +3,6 @@
 
 #include "ytree.h"
 #include "ephemeral.h"
-#include "serialize.h"
 #include "attribute_consumer.h"
 #include "yson_parser.h"
 
@@ -15,7 +14,7 @@ namespace NYTree {
 IAttributeDictionary::~IAttributeDictionary()
 { }
 
-TYson IAttributeDictionary::GetYson(const Stroka& key) const
+TYsonString IAttributeDictionary::GetYson(const Stroka& key) const
 {
     const auto& result = FindYson(key);
     if (!result) {
@@ -24,31 +23,11 @@ TYson IAttributeDictionary::GetYson(const Stroka& key) const
     return *result;
 }
 
-IMapNodePtr IAttributeDictionary::ToMap() const
-{
-    auto map = GetEphemeralNodeFactory()->CreateMap();
-    auto keys = List();
-    FOREACH (const auto& key, keys) {
-        auto value = DeserializeFromYson(GetYson(key));
-        map->AddChild(~value, key);
-    }
-    return map;
-}
-
-TAutoPtr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)
-{
-    auto attributes = CreateEphemeralAttributes();
-    FOREACH (const auto& pair, node->GetChildren()) {
-        attributes->SetYson(pair.first, SerializeToYson(pair.second));
-    }
-    return attributes;
-}
-
 void IAttributeDictionary::MergeFrom(const IMapNodePtr other)
 {
     FOREACH (const auto& pair, other->GetChildren()) {
         const auto& key = pair.first;
-        auto value = SerializeToYson(~pair.second);
+        auto value = ConvertToYsonString(pair.second);
         SetYson(key, value);
     }
 }
@@ -56,7 +35,7 @@ void IAttributeDictionary::MergeFrom(const IMapNodePtr other)
 void IAttributeDictionary::MergeFrom(const IAttributeDictionary& other)
 {
     FOREACH (const auto& key, other.List()) {
-        auto value = other.GetYson(key);
+        TYsonString value = other.GetYson(key);
         SetYson(key, value);
     }
 }
@@ -93,15 +72,16 @@ class TEphemeralAttributeDictionary
         return keys;
     }
 
-    virtual TNullable<TYson> FindYson(const Stroka& key) const
+    virtual TNullable<TYsonString> FindYson(const Stroka& key) const
     {
         auto it = Map.find(key);
-        return it == Map.end() ? Null : MakeNullable(it->second);
+        return it == Map.end() ? Null : MakeNullable(TYsonString(it->second));
     }
 
-    virtual void SetYson(const Stroka& key, const TYson& value)
+    virtual void SetYson(const Stroka& key, const TYsonString& value)
     {
-        Map[key] = value;
+        YASSERT(value.GetType() == EYsonType::Node);
+        Map[key] = value.Data();
     }
 
     virtual bool Remove(const Stroka& key)
@@ -126,12 +106,12 @@ public:
         return yhash_set<Stroka>();
     }
 
-    virtual TNullable<TYson> FindYson(const Stroka& key) const
+    virtual TNullable<TYsonString> FindYson(const Stroka& key) const
     {
         return Null;
     }
 
-    virtual void SetYson(const Stroka& key, const TYson& value)
+    virtual void SetYson(const Stroka& key, const TYsonString& value)
     {
         YUNREACHABLE();
     }
@@ -149,21 +129,13 @@ const IAttributeDictionary& EmptyAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IAttributeDictionary> DeserializeAttributesFromYson(const TYson& yson)
-{
-    auto attributes = CreateEphemeralAttributes();
-    TAttributeConsumer consumer(attributes.Get());
-    ParseYson(yson, &consumer);
-    return attributes;
-}
-
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
 {
     FOREACH (const auto& key, attributes.List()) {
         auto value = attributes.GetYson(key);
         auto protoAttribute = protoAttributes->add_attributes();
         protoAttribute->set_key(key);
-        protoAttribute->set_value(value);
+        protoAttribute->set_value(value.Data());
     }
 }
 
@@ -173,9 +145,23 @@ TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttribu
     FOREACH (const auto& protoAttribute, protoAttributes.attributes()) {
         const auto& key = protoAttribute.key();
         const auto& value = protoAttribute.value();
-        attributes->SetYson(key, value);
+        attributes->SetYson(key, TYsonString(value));
     }
     return attributes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
+{
+    auto list = attributes.List();
+    consumer->OnBeginMap();
+    FOREACH (const auto& key, list) {
+        consumer->OnKeyedItem(key);
+        auto yson = attributes.GetYson(key);
+        consumer->OnRaw(yson.Data(), yson.GetType());
+    }
+    consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

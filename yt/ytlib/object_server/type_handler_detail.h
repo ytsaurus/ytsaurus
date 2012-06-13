@@ -4,7 +4,6 @@
 #include "object_detail.h"
 #include "object_manager.h"
 
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
 

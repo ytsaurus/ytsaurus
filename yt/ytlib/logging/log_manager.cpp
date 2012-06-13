@@ -3,11 +3,10 @@
 #include "writer.h"
 
 #include <ytlib/misc/pattern_formatter.h>
-#include <ytlib/misc/configurable.h>
 #include <ytlib/actions/action_queue.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/profiling/profiler.h>
 
 #include <util/system/sigset.h>
@@ -40,7 +39,7 @@ static NProfiling::TProfiler Profiler("/logging");
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRule
-    : public TConfigurable
+    : public TYsonSerializable
 {
     typedef TIntrusivePtr<TRule> TPtr;
 
@@ -63,7 +62,7 @@ struct TRule
 
     virtual void Load(INodePtr node, bool validate, const TYPath& path)
     {
-        TConfigurable::Load(node, validate, path);
+        TYsonSerializable::Load(node, validate, path);
 
         if (Categories.size() == 1 && *Categories.begin() == AllCategoriesName) {
             AllCategories = true;
@@ -90,13 +89,13 @@ typedef yvector<ILogWriter::TPtr> TLogWriters;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
 public:
     typedef TIntrusivePtr<TLogConfig> TPtr;
     
     /*!
-     * Needs to be public for TConfigurable.
+     * Needs to be public for TYsonSerializable.
      * Not for public use.
      * Use #CreateDefault instead.
      */
@@ -274,8 +273,8 @@ public:
 
     void Configure(INode* node, const TYPath& path = "")
     {
-        auto config = TLogConfig::CreateFromNode(node, path);
         if (IsRunning()) {
+            auto config = TLogConfig::CreateFromNode(node, path);
             ConfigsToUpdate.Enqueue(config);
             Signal();
         }
@@ -286,8 +285,8 @@ public:
         try {
             LOG_TRACE("Configuring logging (FileName: %s, Path: %s)", ~fileName, ~path);
             TIFStream configStream(fileName);
-            auto root = DeserializeFromYson(&configStream);
-            auto configNode = GetNodeByYPath(root, path);
+            INodePtr root = ConvertToNode(&configStream);
+            INodePtr configNode = GetNodeByYPath(root, path);
             Configure(~configNode, path);
         } catch (const std::exception& ex) {
             LOG_ERROR("Error while configuring logging\n%s", ex.what())

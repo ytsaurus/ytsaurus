@@ -3,8 +3,6 @@
 #include "config.h"
 #include "driver.h"
 
-#include <ytlib/misc/configurable.h>
-
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/config.h>
 
@@ -14,7 +12,6 @@
 #include <ytlib/job_proxy/config.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NDriver {
@@ -41,7 +38,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
         auto startOpReq = proxy.StartOperation();
         startOpReq->set_type(type);
         *startOpReq->mutable_transaction_id() = (transaction ? transaction->GetId() : NullTransactionId).ToProto();
-        startOpReq->set_spec(SerializeToYson(Request->Spec));
+        startOpReq->set_spec(ConvertToYsonString(Request->Spec).Data());
 
         auto startOpRsp = startOpReq->Invoke().Get();
         if (!startOpRsp->IsOK()) {
@@ -51,7 +48,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
         operationId = TOperationId::FromProto(startOpRsp->operation_id());
     }
 
-    ReplySuccess(BuildYsonFluently().Scalar(operationId.ToString()));
+    ReplySuccess(BuildYsonFluently().Scalar(operationId).GetYsonString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

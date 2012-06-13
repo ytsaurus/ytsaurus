@@ -1,12 +1,11 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/tree_visitor.h>
-#include <ytlib/ytree/serialize.h>
 
 #include <contrib/testing/framework.h>
 
@@ -21,7 +20,7 @@ DECLARE_ENUM(ETestEnum,
 );
 
 struct TTestSubconfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     typedef TIntrusivePtr<TTestSubconfig> TPtr;
 
@@ -40,7 +39,7 @@ struct TTestSubconfig
 };
 
 struct TTestConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     typedef TIntrusivePtr<TTestConfig> TPtr;
     
@@ -359,7 +358,7 @@ TEST(TConfigTest, Save)
     config->SubconfigList.push_back(New<TTestSubconfig>());
     config->SubconfigMap["item"] = New<TTestSubconfig>();
 
-    auto output = SerializeToYson(~config, EYsonFormat::Text);
+    auto output = ConvertToYsonString(config, EYsonFormat::Text);
 
     Stroka subconfigYson;
     subconfigYson += "{\"my_bool\"=\"false\";";
@@ -373,7 +372,7 @@ TEST(TConfigTest, Save)
     expected += "\"sub_list\"=[" + subconfigYson + "];";
     expected += "\"sub_map\"={\"item\"=" + subconfigYson + "}}";
 
-    EXPECT_EQ(expected, output);
+    EXPECT_EQ(expected, output.Data());
 }
 
 } // namespace NYT

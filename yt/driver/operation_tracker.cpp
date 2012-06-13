@@ -1,6 +1,7 @@
 #include "operation_tracker.h"
 
 #include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/ytree/yson_string.h>
 
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/helpers.h>
@@ -56,14 +57,15 @@ EExitCode TOperationTracker::Run()
 void TOperationTracker::AppendPhaseProgress(
     Stroka* out,
     const Stroka& phase,
-    const TYson& progress)
+    const TYsonString& progress)
 {
-    i64 total = DeserializeFromYson<i64>(progress, "/total");
+    INodePtr progressNode = ConvertToNode(progress);
+    i64 total = ConvertTo<i64>(NYTree::GetNodeByYPath(progressNode, "/total"));
     if (total == 0) {
         return;
     }
 
-    i64 completed = DeserializeFromYson<i64>(progress, "/completed");
+    i64 completed = ConvertTo<i64>(GetNodeByYPath(progressNode, "/completed"));
     int percentComplete  = (completed * 100) / total;
 
     if (!out->empty()) {
@@ -85,10 +87,10 @@ void TOperationTracker::AppendPhaseProgress(
     out->append(")");
 }
 
-Stroka TOperationTracker::FormatProgress(const TYson& progress)
+Stroka TOperationTracker::FormatProgress(const TYsonString& progress)
 {
     // TODO(babenko): refactor
-    auto progressAttributes = IAttributeDictionary::FromMap(DeserializeFromYson(progress)->AsMap());
+    auto progressAttributes = ConvertToAttributes(progress);
 
     Stroka result;
     switch (OperationType) {
@@ -134,14 +136,14 @@ void TOperationTracker::DumpProgress()
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
         CheckResponse(rsp, "Error getting operation state");
-        state = DeserializeFromYson<EOperationState>(rsp->value());
+        state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
     }
 
-    TYson progress;
+    TYsonString progress;
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
         CheckResponse(rsp, "Error getting operation progress");
-        progress = rsp->value();
+        progress = TYsonString(rsp->value());
     }
 
     if (state == EOperationState::Running) {
@@ -179,7 +181,7 @@ EExitCode TOperationTracker::DumpResult()
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_result");
         CheckResponse(rsp, "Error getting operation result");
         // TODO(babenko): refactor!
-        auto errorNode = DeserializeFromYson<INodePtr>(rsp->value(), "/error");
+        auto errorNode = NYTree::GetNodeByYPath(ConvertToNode(TYsonString(rsp->value())), "/error");
         auto error = TError::FromYson(errorNode);
         if (error.IsOK()) {
             printf("Operation completed successfully\n");
@@ -200,7 +202,7 @@ EExitCode TOperationTracker::DumpResult()
         std::vector<int> failedJobCount(jobTypeCount);
         std::vector<int> abortedJobCount(jobTypeCount);
 
-        auto jobs = DeserializeFromYson(rsp->value())->AsMap();
+        auto jobs = ConvertToNode(TYsonString(rsp->value()))->AsMap();
         if (jobs->GetChildCount() == 0) {
             return exitCode;
         }
@@ -284,7 +286,7 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
     auto req = TYPathProxy::Get(operationPath + "/@operation_type");
     auto rsp = proxy.Execute(req).Get();
     CheckResponse(rsp, "Error getting operation type");
-    return DeserializeFromYson<EOperationType>(rsp->value());
+    return ConvertTo<EOperationType>(TYsonString(rsp->value()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

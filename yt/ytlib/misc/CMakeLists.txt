@@ -7,7 +7,6 @@ set( SRCS
   ${BASE}/blob_range.cpp
   ${BASE}/checksum.cpp
   ${BASE}/codec.cpp
-  ${BASE}/configurable.cpp
   ${BASE}/delayed_invoker.cpp
   ${BASE}/demangle.cpp
   ${BASE}/error.cpp
@@ -46,8 +45,6 @@ set( HDRS
   ${BASE}/checksum.h
   ${BASE}/codec.h
   ${BASE}/common.h
-  ${BASE}/configurable-inl.h
-  ${BASE}/configurable.h
   ${BASE}/delayed_invoker.h
   ${BASE}/demangle.h
   ${BASE}/enum.h

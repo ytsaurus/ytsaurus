@@ -49,9 +49,9 @@ int TUserJobIO::GetOutputCount() const
 NTableClient::ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
 {
     YASSERT(index < GetOutputCount());
-    const TYson& channels = JobSpec.output_specs(index).channels();
-    YASSERT(!channels.empty());
-
+    Stroka channelsString = JobSpec.output_specs(index).channels();
+    YASSERT(!channelsString.empty());
+    const TYsonString& channels = TYsonString(channelsString);
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         Config->ChunkSequenceWriter,
         MasterChannel,

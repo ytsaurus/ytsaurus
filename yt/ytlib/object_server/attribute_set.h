@@ -3,6 +3,8 @@
 #include "id.h"
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/ytree/yson_string.h>
+#include <ytlib/misc/nullable.h>
 #include <ytlib/cell_master/public.h>
 
 #include <ytlib/misc/property.h>
@@ -14,7 +16,7 @@ namespace NObjectServer {
 
 class TAttributeSet
 {
-    typedef yhash_map<Stroka, NYTree::TYson> TAttributeMap;
+    typedef yhash_map<Stroka, TNullable<NYTree::TYsonString> > TAttributeMap;
     DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);
     
 public:

@@ -2,10 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/table_client/config.h>
 #include <ytlib/file_client/config.h>
 #include <ytlib/election/leader_lookup.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/bus/config.h>
 
 namespace NYT {
@@ -14,7 +15,7 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobIOConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     NTableClient::TTableConsumerConfigPtr TableConsumer;
     NTableClient::TChunkSequenceReaderConfigPtr ChunkSequenceReader;
@@ -41,7 +42,7 @@ struct TJobIOConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobProxyConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     // Filled by exec agent.
     NBus::TTcpBusClientConfigPtr SupervisorConnection;

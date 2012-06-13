@@ -84,20 +84,23 @@ private:
 
             auto transactionId = StartTransaction();
 
+            TYsonString emptyMap("{}");
+            TYsonString opaqueEmptyMap("<opaque = true>{}");
+
             SyncYPathSet(
                 service,
                 WithTransaction("//sys", transactionId),
-                "{}");
+                emptyMap);
 
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/scheduler", transactionId),
-                "<opaque = true>{}");
+                opaqueEmptyMap);
 
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/scheduler/lock", transactionId),
-                "{}");
+                emptyMap);
 
             SyncYPathCreate(
                 service,
@@ -107,7 +110,7 @@ private:
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/operations", transactionId),
-                "<opaque = true>{}");
+                opaqueEmptyMap);
 
             SyncYPathCreate(
                 service,
@@ -116,19 +119,19 @@ private:
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/holders/@opaque", transactionId),
-                "true");
+                TYsonString("true"));
 
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/masters", transactionId),
-                "<opaque = true>{}");
+                opaqueEmptyMap);
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
                 auto addressPath = "/" + EscapeYPathToken(address);
                 SyncYPathSet(
                     service,
                     WithTransaction("//sys/masters" + addressPath, transactionId),
-                    "{}");
+                    emptyMap);
 
                 SyncYPathCreate(
                     service,
@@ -137,7 +140,7 @@ private:
                     BuildYsonFluently()
                         .BeginMap()
                             .Item("remote_address").Scalar(address)
-                        .EndMap());
+                        .EndMap().GetYsonString());
             }
 
             SyncYPathCreate(
@@ -183,12 +186,12 @@ private:
             SyncYPathSet(
                 service,
                 WithTransaction("//tmp", transactionId),
-                "{}");
+                emptyMap);
 
             SyncYPathSet(
                 service,
                 WithTransaction("//home", transactionId),
-                "{}");
+                emptyMap);
 
             CommitTransaction(transactionId);
         } catch (const std::exception& ex) {
@@ -220,11 +223,11 @@ private:
         IYPathServicePtr service,
         const TYPath& path,
         EObjectType type,
-        const TYson& attributes = "{}")
+        const TYsonString& attributes = TYsonString("{}"))
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(type);
-        req->Attributes().MergeFrom(DeserializeFromYson(attributes)->AsMap());
+        req->Attributes().MergeFrom(ConvertToNode(attributes)->AsMap());
         auto rsp = SyncExecuteVerb(service, req);
         return TObjectId::FromProto(rsp->object_id());
     }

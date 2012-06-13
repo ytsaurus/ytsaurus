@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -10,7 +10,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteReaderConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! Timeout for a block request.
     TDuration HolderRpcTimeout;
@@ -55,7 +55,7 @@ struct TRemoteReaderConfig
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TClientBlockCacheConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! The maximum number of bytes that block are allowed to occupy.
     //! Zero means that no blocks are cached.
@@ -72,7 +72,7 @@ struct TClientBlockCacheConfig
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TSequentialReaderConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! Prefetch window size (in bytes).
     i64 WindowSize;
@@ -101,7 +101,7 @@ struct TSequentialReaderConfig
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteWriterConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! Maximum window size (in bytes).
     int WindowSize;

@@ -2,9 +2,9 @@
 
 #include "public.h"
 #include "yson_consumer.h"
+#include "yson_producer.h"
 #include "yson_parser.h"
 #include "tree_visitor.h"
-#include "serialize.h"
 #include "attributes.h"
 
 #include <ytlib/actions/callback.h>
@@ -101,7 +101,7 @@ public:
     class TFluentBase
     {
     protected:
-        explicit TFluentBase(IYsonConsumer* consumer, const TParent& parent)
+        TFluentBase(IYsonConsumer* consumer, const TParent& parent)
             : Consumer(consumer)
             , Parent(parent)
         { }
@@ -127,6 +127,11 @@ public:
         {
             producer.Run(this->Consumer);
             return *static_cast<TDeepThis*>(this);
+        }
+        
+        TDeepThis& Do(TYsonCallback ysonCallback)
+        {
+            return Do(TYsonProducer(ysonCallback));
         }
 
         template <class TFunc>
@@ -169,7 +174,7 @@ public:
         : public TFluentBase<TParent>
     {
     public:
-        explicit TAnyWithoutAttributes(IYsonConsumer* consumer, const TParent& parent)
+        TAnyWithoutAttributes(IYsonConsumer* consumer, const TParent& parent)
             : TFluentBase<TParent>(consumer, parent)
         { }
 
@@ -186,9 +191,9 @@ public:
             return this->Parent;
         }
 
-        TParent Node(const TYson& value)
+        TParent Node(const TYsonString& value)
         {
-            ParseYson(value, this->Consumer);
+            Consume(value, this->Consumer);
             return this->Parent;
         }
 
@@ -318,7 +323,7 @@ public:
     public:
         typedef TAttributes<TParent> TThis;
 
-        explicit TAttributes(IYsonConsumer* consumer, const TParent& parent)
+        TAttributes(IYsonConsumer* consumer, const TParent& parent)
             : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, parent)
         { }
 
@@ -342,7 +347,7 @@ public:
             FOREACH (const auto& key, attributes->List()) {
                 const auto& yson = attributes->GetYson(key);
                 this->Consumer->OnKeyedItem(key);
-                ParseYson(yson, this->Consumer);
+                this->Consumer->OnRaw(yson.Data(), EYsonType::Node);
             }
             return *this;
         }
@@ -466,7 +471,7 @@ public:
         : Writer(&Output, format)
     { }
 
-    TYson GetYson() const
+    const Stroka& GetString() const
     {
         return Output.Str();
     }
@@ -488,9 +493,14 @@ public:
         : Consumer(consumer)
     { }
 
-    operator TYson() const
+    const Stroka& ToString() const
     {
-        return Consumer->GetYson();
+        return Consumer->GetString();
+    }
+    
+    TYsonString GetYsonString() const
+    {
+        return TYsonString(ToString());
     }
 
 private:

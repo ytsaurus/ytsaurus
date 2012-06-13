@@ -37,7 +37,6 @@
 
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/fluent.h>
 
 namespace NYT {
@@ -789,7 +788,6 @@ private:
             .EndMap();
     }
 
-
     // RPC handlers
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
@@ -801,7 +799,7 @@ private:
 
         IMapNodePtr spec;
         try {
-            spec = DeserializeFromYson(request->spec())->AsMap();
+            spec = ConvertToNode(TYsonString(request->spec()))->AsMap();
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
         }

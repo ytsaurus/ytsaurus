@@ -46,7 +46,7 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
         ythrow yexception() << response.Error.ToString();
     }
 
-    auto operationId = DeserializeFromYson<TOperationId>(output.Str());
+    auto operationId = ConvertTo<TOperationId>(TYsonString(output.Str()));
     printf("done, %s\n", ~operationId.ToString());
 
     TOperationTracker tracker(Config, Driver, operationId);
@@ -119,7 +119,7 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
     // TODO(babenko): refactor
-    auto keyColumns = DeserializeFromYson< yvector<Stroka> >("[" + KeyColumnsArg.getValue() + "]");
+    auto keyColumns = ConvertTo< yvector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -162,7 +162,7 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
     // TODO(babenko): refactor
-    auto keyColumns = DeserializeFromYson< yvector<Stroka> >("[" + KeyColumnsArg.getValue() + "]");
+    auto keyColumns = ConvertTo< yvector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()

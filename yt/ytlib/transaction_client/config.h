@@ -8,7 +8,7 @@ namespace NTransactionClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTransactionManagerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! An internal between successive transaction pings.
     TDuration PingPeriod;

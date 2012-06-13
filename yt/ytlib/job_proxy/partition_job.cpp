@@ -60,7 +60,7 @@ TPartitionJob::TPartitionJob(
         masterChannel,
         TTransactionId::FromProto(jobSpec.output_transaction_id()),
         TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-        ChannelsFromYson(jobSpec.output_specs(0).channels()),
+        ChannelsFromYson(TYsonString(jobSpec.output_specs(0).channels())),
         FromProto<Stroka>(jobSpecExt.key_columns()),
         MoveRV(partitionKeys));
 }

@@ -61,7 +61,5 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
     return new TTableProducer(syncReader, consumer);
 }
 
-////////////////////////////////////////////////////////////////////
-
 } // namespace NJobProxy
 } // namespace NYT

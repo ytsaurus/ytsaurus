@@ -4,10 +4,13 @@
 #undef SERIALIZE_INL_H_
 
 #include "ytree.h"
+#include "yson_stream.h"
+#include "yson_string.h"
+#include "yson_serializable.h"
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/serialize.h>
-#include <ytlib/misc/configurable.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NYTree {
@@ -15,48 +18,144 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson)
+EYsonType GetYsonType(const T&)
 {
-    auto node = DeserializeFromYson(yson, GetEphemeralNodeFactory());
-    return DeserializeFromYson<T>(node);
-}
-
-template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson, const TYPath& path)
-{
-    auto node = DeserializeFromYson(yson);
-    return DeserializeFromYson<T>(node, path);
-}
-
-template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node)
-{
-    typedef typename TDeserializeTraits<T>::TReturnType TResult;
-    TResult value;
-    Read(value, node);
-    return value;
-}
-
-INodePtr GetNodeByYPath(INodePtr root, const TYPath& path);
-
-template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node, const TYPath& path)
-{
-    auto subnode = GetNodeByYPath(node, path);
-    return DeserializeFromYson<T>(subnode);
+    return EYsonType::Node;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TYson SerializeToYson(
+void WriteYson(
+    TOutputStream* output,
     const T& value,
-    EYsonFormat format)
+    EYsonType type,
+    EYsonFormat format = EYsonFormat::Binary)
 {
-    TStringStream output;
-    TYsonWriter writer(&output, format);
-    Write(value, &writer);
-    return output.Str();
+    TYsonWriter writer(output, format, type);
+    Consume(value, &writer);
+}
+
+template <class T>
+void WriteYson(
+    TOutputStream* output,
+    const T& value,
+    EYsonFormat format = EYsonFormat::Binary)
+{
+    WriteYson(output, value, GetYsonType(value), format);
+}
+
+template <class T>
+void WriteYson(
+    const TYsonOutput& output,
+    const T& value,
+    EYsonFormat format = EYsonFormat::Binary)
+{
+    WriteYson(output.GetStream(), value, output.GetType(), format);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void Serialize(T* value, IYsonConsumer* consumer)
+{
+    YASSERT(value);
+    Serialize(*value, consumer);
+}
+
+template <class T>
+void Serialize(const TIntrusivePtr<T>& value, IYsonConsumer* consumer)
+{
+    Serialize(~value, consumer);
+}
+
+// TEnumBase
+template <class T>
+void Serialize(
+    T value,
+    IYsonConsumer* consumer,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType)
+{
+    consumer->OnStringScalar(FormatEnum(value));
+}
+
+// TNullable
+template <class T>
+void Serialize(const TNullable<T>& value, IYsonConsumer* consumer)
+{
+    YASSERT(value);
+    Serialize(*value, consumer);
+}
+
+// TODO(panin): kill this once we get rid of yvector
+// yvector
+template <class T>
+void Serialize(const yvector<T>& value, IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    FOREACH (const auto& value, value) {
+        consumer->OnListItem();
+        Serialize(value, consumer);
+    }
+    consumer->OnEndList();
+}
+
+// std::vector
+template <class T>
+void Serialize(const std::vector<T>& value, IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    FOREACH (const auto& value, value) {
+        consumer->OnListItem();
+        Serialize(value, consumer);
+    }
+    consumer->OnEndList();
+}
+
+// yhash_set
+template <class T>
+void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    auto sortedItems = GetSortedIterators(value);
+    FOREACH (const auto& value, sortedItems) {
+        consumer->OnListItem();
+        Serialize(*value, consumer);
+    }
+    consumer->OnEndList();
+}
+
+// yhash_map
+template <class T>
+void Serialize(const yhash_map<Stroka, T>& value, IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    auto sortedItems = GetSortedIterators(value);
+    FOREACH (const auto& pair, sortedItems) {
+        consumer->OnKeyedItem(pair->first);
+        Serialize(pair->second, consumer);
+    }
+    consumer->OnEndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void Deserialize(TIntrusivePtr<T>& value, INodePtr node)
+{
+    if (!value) {
+        value = New<T>();
+    }
+    Deserialize(*value, node);
+}
+
+template <class T>
+void Deserialize(TAutoPtr<T>& value, INodePtr node)
+{
+    if (!value) {
+        value.Reset(new T());
+    }
+    Deserialize(*value, node);
 }
 
 template <class T>
@@ -69,172 +168,75 @@ T CheckedStaticCast(i64 value)
     return static_cast<T>(value);
 }
 
-// TIntrusivePtr<TConfigurable>
-template <class T>
-void Read(
-    TIntrusivePtr<T>& parameter,
-    INodePtr node,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
-{
-    if (!parameter) {
-        parameter = New<T>();
-    }
-    // static_cast is needed because T can override method Load
-    // without default value for parameter path
-    static_cast<TConfigurable*>(~parameter)->Load(node, false);
-}
-
 // TEnumBase
 template <class T>
-void Read(
-    T& parameter,
+void Deserialize(
+    T& value,
     INodePtr node, 
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType)
 {
-    auto value = node->AsString()->GetValue();
-    parameter = ParseEnum<T>(value);
+    auto stringValue = node->AsString()->GetValue();
+    value = ParseEnum<T>(stringValue);
 }
 
 // TNullable
 template <class T>
-void Read(TNullable<T>& parameter, INodePtr node)
+void Deserialize(TNullable<T>& value, INodePtr node)
 {
-    T value;
-    Read(value, node);
-    parameter = value;
+    if (!value) {
+        value = T();
+    }
+    Deserialize(*value, node);
 }
 
 // yvector
 template <class T>
-void Read(yvector<T>& parameter, INodePtr node)
+void Deserialize(yvector<T>& value, INodePtr node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
-    parameter.resize(size);
+    value.resize(size);
     for (int i = 0; i < size; ++i) {
-        Read(parameter[i], listNode->GetChild(i));
+        Deserialize(value[i], listNode->GetChild(i));
+    }
+}
+
+// std::vector
+template <class T>
+void Deserialize(std::vector<T>& value, INodePtr node)
+{
+    auto listNode = node->AsList();
+    auto size = listNode->GetChildCount();
+    value.resize(size);
+    for (int i = 0; i < size; ++i) {
+        Deserialize(value[i], listNode->GetChild(i));
     }
 }
 
 // yhash_set
 template <class T>
-void Read(yhash_set<T>& parameter, INodePtr node)
+void Deserialize(yhash_set<T>& value, INodePtr node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     for (int i = 0; i < size; ++i) {
         T value;
-        Read(value, listNode->GetChild(i));
-        parameter.insert(MoveRV(value));
+        Deserialize(value, listNode->GetChild(i));
+        value.insert(MoveRV(value));
     }
 }
 
 // yhash_map
 template <class T>
-void Read(yhash_map<Stroka, T>& parameter, INodePtr node)
+void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {
         auto& key = pair.first;
         T value;
-        Read(value, pair.second);
-        parameter.insert(MakePair(key, MoveRV(value)));
+        Deserialize(value, pair.second);
+        value.insert(MakePair(key, MoveRV(value)));
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-void Write(T* parameter, IYsonConsumer* consumer)
-{
-    YASSERT(parameter);
-    Write(*parameter, consumer);
-}
-
-template <class T>
-void Write(const TIntrusivePtr<T>& parameter, IYsonConsumer* consumer)
-{
-    YASSERT(parameter);
-    Write(*parameter, consumer);
-}
-
-// TIntrusivePtr<TConfigurable>
-template <class T>
-void Write(
-    const T& parameter,
-    IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
-{
-    parameter.Save(consumer);
-}
-
-// TEnumBase
-template <class T>
-void Write(
-    T parameter,
-    IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
-{
-    consumer->OnStringScalar(FormatEnum(parameter));
-}
-
-// TNullable
-template <class T>
-void Write(const TNullable<T>& parameter, IYsonConsumer* consumer)
-{
-    YASSERT(parameter);
-    Write(*parameter, consumer);
-}
-
-// TODO(panin): kill this once we get rid of yvector
-// yvector
-template <class T>
-void Write(const yvector<T>& parameter, IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    FOREACH (const auto& value, parameter) {
-        consumer->OnListItem();
-        Write(value, consumer);
-    }
-    consumer->OnEndList();
-}
-
-// std::vector
-template <class T>
-void Write(const std::vector<T>& parameter, IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    FOREACH (const auto& value, parameter) {
-        consumer->OnListItem();
-        Write(value, consumer);
-    }
-    consumer->OnEndList();
-}
-
-// yhash_set
-template <class T>
-void Write(const yhash_set<T>& parameter, IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    auto sortedItems = GetSortedIterators(parameter);
-    FOREACH (const auto& value, sortedItems) {
-        consumer->OnListItem();
-        Write(*value, consumer);
-    }
-    consumer->OnEndList();
-}
-
-// yhash_map
-template <class T>
-void Write(const yhash_map<Stroka, T>& parameter, IYsonConsumer* consumer)
-{
-    consumer->OnBeginMap();
-    auto sortedItems = GetSortedIterators(parameter);
-    FOREACH (const auto& pair, sortedItems) {
-        consumer->OnKeyedItem(pair->first);
-        Write(pair->second, consumer);
-    }
-    consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

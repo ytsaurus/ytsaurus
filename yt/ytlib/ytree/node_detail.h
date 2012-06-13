@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ytree.h"
-#include "serialize.h"
+#include "convert.h"
 #include "ypath_service.h"
 #include "tree_builder.h"
 #include "ypath_detail.h"
@@ -52,12 +52,11 @@ public:
 
 protected:
     template <class TNode>
-    void DoSetSelf(TNode* node, const TYson& value)
+    void DoSetSelf(TNode* node, const TYsonString& value)
     {
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(~factory);
-        TStringInput input(value);
-        SetNodeFromProducer(node, ProducerFromYson(&input), ~builder);
+        SetNodeFromProducer(node, ConvertToProducer(value), ~builder);
     }
     
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
@@ -152,7 +151,7 @@ public: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context) \
     { \
         UNUSED(response); \
-        DoSetSelf< ::NYT::NYTree::I##name##Node >(this, request->value()); \
+        DoSetSelf< ::NYT::NYTree::I##name##Node >(this, NYTree::TYsonString(request->value())); \
         context->Reply(); \
     }
 

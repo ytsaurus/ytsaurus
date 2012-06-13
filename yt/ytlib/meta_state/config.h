@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/election/config.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -11,7 +11,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChangeLogDownloaderConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration LookupTimeout;
     TDuration ReadTimeout;
@@ -34,7 +34,7 @@ struct TChangeLogDownloaderConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSnapshotDownloaderConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration LookupTimeout;
     TDuration ReadTimeout;
@@ -57,7 +57,7 @@ struct TSnapshotDownloaderConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSnapshotBuilderConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration RemoteTimeout;
     TDuration LocalTimeout;
@@ -76,7 +76,7 @@ struct TSnapshotBuilderConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFollowerPingerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration PingInterval;
     TDuration RpcTimeout;
@@ -95,7 +95,7 @@ struct TFollowerPingerConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFollowerTrackerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration PingTimeout;
 
@@ -110,7 +110,7 @@ struct TFollowerTrackerConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLeaderCommitterConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration RpcTimeout;
     TDuration MaxBatchDelay;
@@ -131,7 +131,7 @@ struct TLeaderCommitterConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChangeLogCacheConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! A path where changelogs are stored.
     Stroka Path;
@@ -157,7 +157,7 @@ struct TChangeLogCacheConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSnapshotStoreConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! A path where snapshots are stored.
     Stroka Path;
@@ -176,7 +176,7 @@ struct TSnapshotStoreConfig
 
 //! Describes a configuration of TMetaStateManager.
 struct TPersistentStateManagerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TChangeLogCacheConfigPtr ChangeLogs;
     TSnapshotStoreConfigPtr Snapshots;

@@ -7,7 +7,6 @@
 #include "private.h"
 #include "environment_manager.h"
 
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/misc/fs.h>
 
@@ -115,7 +114,6 @@ TJobPtr TJobManager::StartJob(
         Bootstrap->GetJobProxyConfig(),
         Bootstrap->GetChunkCache(),
         emptySlot);
-
     job->Start(Bootstrap->GetEnvironmentManager());
 
     YCHECK(Jobs.insert(MakePair(jobId, job)).second);

@@ -18,7 +18,7 @@ struct ISyncReader
     virtual bool IsValid() const = 0;
 
     virtual TRow& GetRow() = 0;
-    virtual const NYTree::TYson& GetRowAttributes() const = 0;
+    virtual const NYTree::TYsonString& GetRowAttributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ public:
     bool IsValid() const;
 
     TRow& GetRow();
-    const NYTree::TYson& GetRowAttributes() const;
+    const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
     IAsyncReaderPtr AsyncReader;

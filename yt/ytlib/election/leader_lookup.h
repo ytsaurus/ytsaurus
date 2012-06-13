@@ -3,9 +3,9 @@
 #include "common.h"
 #include "election_manager_proxy.h"
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/actions/future.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NElection {
@@ -24,7 +24,7 @@ public:
 
     //! Lookup configuration.
     struct TConfig
-        : public TConfigurable
+        : public TYsonSerializable
     {
         //! List of peer addresses.
         yvector<Stroka> Addresses;

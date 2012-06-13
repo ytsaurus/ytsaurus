@@ -8,8 +8,6 @@
 #include "attribute_provider_detail.h"
 #include "tokenizer.h"
 
-#include <ytlib/misc/configurable.h>
-
 namespace NYT {
 namespace NYTree {
 
@@ -102,7 +100,7 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     return false;
 }
 
-bool TVirtualMapBase::SetSystemAttribute(const Stroka& key, const TYson& value)
+bool TVirtualMapBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     UNUSED(key);
     UNUSED(value);

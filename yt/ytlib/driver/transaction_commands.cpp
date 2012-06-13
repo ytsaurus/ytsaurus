@@ -20,7 +20,7 @@ using namespace NObjectServer;
 
 void TStartTransactionCommand::DoExecute()
 {
-    auto attributes = IAttributeDictionary::FromMap(Request->GetOptions());
+    auto attributes = ConvertToAttributes(Request->GetOptions());
     auto transactionManager = Context->GetTransactionManager();
     auto newTransaction = transactionManager->Start(
         ~attributes,

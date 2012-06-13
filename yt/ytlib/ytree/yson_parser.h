@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "parser.h"
+#include "yson_string.h"
 
 #include <ytlib/misc/property.h>
 
@@ -29,17 +30,9 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 void ParseYson(
-    TInputStream* input,
+    const TYsonInput& input,
     IYsonConsumer* consumer,
-    EYsonType type = EYsonType::Node,
-    bool enableLinePositionInfo = false);
-
-void ParseYson(
-    const TStringBuf& yson,
-    IYsonConsumer* consumer,
-    EYsonType type = EYsonType::Node,
     bool enableLinePositionInfo = false);
 
 ////////////////////////////////////////////////////////////////////////////////

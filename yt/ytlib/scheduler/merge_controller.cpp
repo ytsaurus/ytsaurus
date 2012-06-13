@@ -427,7 +427,7 @@ protected:
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
         // ToDo(psushin): set larger PrefetchWindow for unordered merge.
-        JobSpecTemplate.set_io_config(SerializeToYson(Config->MergeJobIO));
+        JobSpecTemplate.set_io_config(ConvertToYsonString(Config->MergeJobIO).Data());
     }
 };
 
@@ -812,10 +812,10 @@ protected:
         UNUSED(batchRsp);
 
         auto specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %s", specKeyColumns ? ~SerializeToYson(specKeyColumns.Get(), EYsonFormat::Text) : "<Null>");
+        LOG_INFO("Spec key columns are %s", specKeyColumns ? ~ConvertToYsonString(specKeyColumns.Get(), EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
-        LOG_INFO("Adjusted key columns are %s", ~SerializeToYson(KeyColumns, EYsonFormat::Text));
+        LOG_INFO("Adjusted key columns are %s", ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
     }
 };
 

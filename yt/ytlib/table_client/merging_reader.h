@@ -21,7 +21,7 @@ public:
     virtual TRow& GetRow();
     const TNonOwningKey& GetKey() const;
 
-    virtual const NYTree::TYson& GetRowAttributes() const;
+    virtual const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
     std::vector<TChunkSequenceReaderPtr> Readers;

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/misc/serialize.h>
-#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/convert.h>
 
 #include <contrib/testing/framework.h>
 
@@ -29,21 +29,21 @@ Stroka deleteSpaces(const Stroka& str) {
 
 TEST(TYTreeSerializationTest, All)
 {
-    Stroka someYson = "<\"acl\"={\"read\"=[\"*\"];\"write\"=[\"sandello\"]};"
+    TYsonString someYson("<\"acl\"={\"read\"=[\"*\"];\"write\"=[\"sandello\"]};"
                       "\"lock_scope\"=\"mytables\">"
-                      "{\"mode\"=755;\"path\"=\"/home/sandello\"}";
-    auto root = DeserializeFromYson(someYson);
-    auto deserializedYson = SerializeToYson(root.Get(), EYsonFormat::Text);
-    EXPECT_EQ(deleteSpaces(someYson), deserializedYson) <<
-        "Before deserialize/serialize: " << someYson << "\n" <<
-        "After: " << deserializedYson;
+                      "{\"mode\"=755;\"path\"=\"/home/sandello\"}");
+    auto root = ConvertToNode(someYson);
+    auto deserializedYson = ConvertToYsonString(root, EYsonFormat::Text);
+    EXPECT_EQ(deleteSpaces(someYson.Data()), deserializedYson.Data()) <<
+        "Before deserialize/serialize: " << someYson.Data() << "\n" <<
+        "After: " << deserializedYson.Data();
 }
 
 TEST(TCustomTypeSerializationTest, TInstant)
 {
     TInstant value = TInstant::MilliSeconds(100500);
-    auto yson = SerializeToYson(value);
-    auto deserializedValue = DeserializeFromYson<TInstant>(yson);
+    auto yson = ConvertToYsonString(value);
+    auto deserializedValue = ConvertTo<TInstant>(yson);
     EXPECT_EQ(value, deserializedValue);
 }
 

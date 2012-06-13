@@ -137,7 +137,7 @@ void TYsonWriter::WriteIndent()
 
 bool TYsonWriter::IsTopLevelFragmentContext() const
 {
-    return Depth == 0 && (Type == EYsonType::ListFragment || Type == EYsonType::KeyedFragment);
+    return Depth == 0 && (Type == EYsonType::ListFragment || Type == EYsonType::MapFragment);
 }
 
 void TYsonWriter::EndNode()

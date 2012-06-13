@@ -119,7 +119,7 @@ protected:
         bool SetSorted;
         bool Clear;
         std::vector<Stroka> KeyColumns;
-        NYTree::TYson Channels;
+        NYTree::TYsonString Channels;
         // Chunk list for appending the output.
         NChunkServer::TChunkListId OutputChunkListId;
         // Chunk trees comprising the output (the order matters).
@@ -218,7 +218,6 @@ protected:
 
     private:
         void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe);
-
     };
 
     yhash_set<TTaskPtr> PendingTasks;

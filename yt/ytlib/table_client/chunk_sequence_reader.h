@@ -35,7 +35,7 @@ public:
 
     virtual TRow& GetRow();
     virtual const TNonOwningKey& GetKey() const;
-    virtual const NYTree::TYson& GetRowAttributes() const;
+    virtual const NYTree::TYsonString& GetRowAttributes() const;
 
     double GetProgress() const;
 

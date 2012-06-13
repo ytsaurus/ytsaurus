@@ -12,7 +12,7 @@ namespace NCellNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellNodeConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! RPC interface port number.
     int RpcPort;

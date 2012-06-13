@@ -2,6 +2,7 @@
 #include "pipes.h"
 
 #include <ytlib/ytree/yson_parser.h>
+#include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>
 

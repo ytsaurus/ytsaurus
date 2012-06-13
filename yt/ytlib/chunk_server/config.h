@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/misc/nullable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -11,7 +11,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkBalancerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! Minimum number of holders the cell must have online to enable starting new jobs.
     TNullable<int> MinOnlineHolderCount;
@@ -59,7 +59,7 @@ struct TChunkBalancerConfig
 };
 
 struct TChunkManagerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration OnlineHolderTimeout;
     TDuration RegisteredHolderTimeout;

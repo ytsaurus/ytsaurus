@@ -12,6 +12,7 @@
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
+#include <ytlib/ytree/yson_string.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -59,7 +60,7 @@ TOrderedMergeJob::TOrderedMergeJob(
         masterChannel,
         TTransactionId::FromProto(jobSpec.output_transaction_id()),
         TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-        ChannelsFromYson(jobSpec.output_specs(0).channels()));
+        ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())));
 
     Writer = CreateSyncWriter(asyncWriter);
 }

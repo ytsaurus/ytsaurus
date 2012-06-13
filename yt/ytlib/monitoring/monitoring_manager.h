@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/ytree/yson_producer.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/misc/periodic_invoker.h>
 
@@ -56,7 +57,7 @@ public:
 private:
     typedef yhash<Stroka, NYTree::TYsonProducer> TProducerMap;
 
-    static const TDuration Period; // TODO: make configurable
+    static const TDuration Period; // TODO: make yson serializable
 
     bool IsStarted;
     TActionQueue::TPtr ActionQueue;

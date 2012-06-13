@@ -9,7 +9,6 @@
 #include "scheduler_commands.h"
 
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/ephemeral.h>

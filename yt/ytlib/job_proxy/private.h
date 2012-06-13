@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/configurable.h>
 #include <ytlib/misc/error.h>
 
 #include <ytlib/logging/log.h>

@@ -185,8 +185,7 @@ void TUserJob::InitPipes()
 
     // Make pipe for each input and each output table.
     {
-        auto format = TFormat::FromYson(UserJobSpec.input_format());
-
+        auto format = TFormat::FromYson(TYsonString(UserJobSpec.input_format()));
         for (int i = 0; i < JobIO->GetInputCount(); ++i) {
             TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
             TAutoPtr<IYsonConsumer> consumer = CreateConsumerForFormat(
@@ -203,7 +202,7 @@ void TUserJob::InitPipes()
     }
 
     {
-        auto format = TFormat::FromYson(UserJobSpec.output_format());
+        auto format = TFormat::FromYson(TYsonString(UserJobSpec.output_format()));
         int outputCount = JobIO->GetOutputCount();
         TableOutput.resize(outputCount);
 

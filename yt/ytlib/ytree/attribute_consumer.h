@@ -3,6 +3,7 @@
 #include "public.h"
 #include "forwarding_yson_consumer.h"
 #include "yson_writer.h"
+#include "yson_stream.h"
 
 namespace NYT {
 namespace NYTree {
@@ -25,11 +26,8 @@ protected:
 
 private:
     IAttributeDictionary* Attributes;
-    TStringOutput Output;
-    TYsonWriter Writer;
-
-    Stroka Key;
-    TYson Value;
+    TStringStream Output;
+    THolder<TYsonWriter> Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

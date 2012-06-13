@@ -10,7 +10,9 @@ namespace NYTree {
 
 void TYsonConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    ParseYson(yson, this, type);
+    TYsonParser parser(this, type);
+    parser.Read(yson);
+    parser.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

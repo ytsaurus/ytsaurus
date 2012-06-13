@@ -16,7 +16,6 @@
 
 #include <ytlib/bus/tcp_dispatcher.h>
 
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/yson_parser.h>
 
 #include <ytlib/exec_agent/config.h>

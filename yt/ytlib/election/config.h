@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NElection {
@@ -10,7 +10,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     //! RPC interface port number.
     int RpcPort;
@@ -37,7 +37,7 @@ struct TCellConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TElectionManagerConfig
-    : public TConfigurable
+    : public TYsonSerializable
 {
     TDuration VotingRoundInterval;
     TDuration RpcTimeout;

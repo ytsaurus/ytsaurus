@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
-#include "serialize.h"
 #include "attributes.h"
+#include "yson_producer.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/assert.h>
@@ -85,7 +85,7 @@ private:
             FOREACH (const auto& key, attributeKeyList) {
                 Consumer->OnKeyedItem(key);
                 auto value = node->Attributes().GetYson(key);
-                ProducerFromYson(value).Run(Consumer);
+                Consume(value, Consumer);
             }
             Consumer->OnEndAttributes();
         }
