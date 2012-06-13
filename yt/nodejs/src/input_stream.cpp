@@ -20,11 +20,6 @@ TNodeJSInputStream::TNodeJSInputStream()
 TNodeJSInputStream::~TNodeJSInputStream() throw()
 {
     THREAD_AFFINITY_IS_V8();
-
-    {
-        TGuard<TMutex> guard(&Mutex);
-        YASSERT(Queue.empty());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
