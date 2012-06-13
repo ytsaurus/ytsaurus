@@ -28,10 +28,13 @@ public:
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
     static v8::Handle<v8::Value> Push(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoPush(v8::Persistent<v8::Value> handle, char *data, size_t offset, size_t length);
+    v8::Handle<v8::Value> DoPush(v8::Persistent<v8::Value> handle, char* data, size_t offset, size_t length);
 
-    static v8::Handle<v8::Value> Close(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoClose();
+    static v8::Handle<v8::Value> End(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoEnd();
+
+    static v8::Handle<v8::Value> Destroy(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoDestroy();
 
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Sweep(const v8::Arguments& args);
@@ -48,7 +51,8 @@ private:
 
     TMutex Mutex;
     TCondVar Conditional;
-    std::deque<TInputPart*> Queue;
+    std::deque<TInputPart*> ActiveQueue;
+    std::deque<TInputPart*> InactiveQueue;
 
     uv_work_t SweepRequest;
     uv_work_t CloseRequest;

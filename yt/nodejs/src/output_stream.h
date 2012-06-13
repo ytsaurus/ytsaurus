@@ -30,6 +30,9 @@ public:
     // Synchronous JS API.
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
+    static v8::Handle<v8::Value> Destroy(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoDestroy();
+
     static v8::Handle<v8::Value> IsEmpty(const v8::Arguments& args);
     v8::Handle<v8::Value> DoIsEmpty();
 
@@ -53,6 +56,8 @@ protected:
     void DoFinish();
 
 private:
+    NDetail::TVolatileCounter IsAlive;
+
     uv_work_t WriteRequest;
     uv_work_t FlushRequest;
     uv_work_t FinishRequest;

@@ -140,6 +140,7 @@ YtReadableStream.prototype.resume = function() {
 
 YtReadableStream.prototype.destroy = function() {
     this.__DBG("destroy");
+    this._binding.Destroy();
     this.readable = false;
     this._ended = true;
 }
@@ -204,7 +205,7 @@ YtWritableStream.prototype.end = function(chunk, encoding) {
         this.write(chunk, encoding);
     }
 
-    this._binding.Close();
+    this._binding.End();
 
     this.writable = false;
     this._ended = true;
@@ -215,6 +216,8 @@ YtWritableStream.prototype.end = function(chunk, encoding) {
 
 YtWritableStream.prototype.destroy = function() {
     this.__DBG("destroy");
+
+    this._binding.Destroy();
 
     this.writable = false;
     this._ended = true;
@@ -253,6 +256,14 @@ YtDriver.prototype.execute = function(name,
 
     var self = this;
 
+    function on_error(err) {
+        self.__DBG("execute -> on_error")
+        wrapped_input_stream.destroy();
+        wrapped_output_stream.destroy();
+    };
+
+    input_stream.on("error", on_error);
+    output_stream.on("error", on_error);
 
     var result = this._binding.Execute(name,
         wrapped_input_stream._binding, input_format,

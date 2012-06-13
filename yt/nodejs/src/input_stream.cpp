@@ -35,9 +35,10 @@ void TNodeJSInputStream::Initialize(Handle<Object> target)
     ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
     ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSInputStream"));
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Push",  TNodeJSInputStream::Push );
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Push", TNodeJSInputStream::Push);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Sweep", TNodeJSInputStream::Sweep);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Close", TNodeJSInputStream::Close);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "End", TNodeJSInputStream::End);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TNodeJSInputStream::Destroy);
 
     target->Set(
         String::NewSymbol("TNodeJSInputStream"),
@@ -117,7 +118,7 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer,
 
     {
         TGuard<TMutex> guard(&Mutex);
-        Queue.push_back(part);
+        ActiveQueue.push_back(part);
         Conditional.BroadCast();
     }
 
@@ -127,7 +128,7 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
+Handle<Value> TNodeJSInputStream::End(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -140,10 +141,10 @@ Handle<Value> TNodeJSInputStream::Close(const Arguments& args)
     YASSERT(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(stream->DoClose());
+    return scope.Close(stream->DoEnd());
 }
 
-Handle<Value> TNodeJSInputStream::DoClose()
+Handle<Value> TNodeJSInputStream::DoEnd()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -152,6 +153,46 @@ Handle<Value> TNodeJSInputStream::DoClose()
         NDetail::AtomicallyStore(&IsAlive, 0);
         Conditional.BroadCast();
     }
+
+    EnqueueSweep();
+
+    return Undefined();
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSInputStream::Destroy(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSInputStream* stream =
+        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+
+    // Validate arguments.
+    YASSERT(args.Length() == 0);
+
+    // Do the work.
+    return scope.Close(stream->DoDestroy());
+}
+
+Handle<Value> TNodeJSInputStream::DoDestroy()
+{
+    THREAD_AFFINITY_IS_V8();
+
+    {
+        TGuard<TMutex> guard(&Mutex);
+
+        InactiveQueue.insert(InactiveQueue.end(), ActiveQueue.begin(), ActiveQueue.end());
+        ActiveQueue.clear();
+
+        NDetail::AtomicallyStore(&IsAlive, 0);
+        Conditional.BroadCast();
+    }
+
+    EnqueueSweep();
 
     return Undefined();
 }
@@ -187,7 +228,6 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
     return Undefined();
 }
 
-
 void TNodeJSInputStream::AsyncSweep(uv_work_t* request)
 {
     THREAD_AFFINITY_IS_V8();
@@ -207,6 +247,9 @@ void TNodeJSInputStream::DoSweep()
     {
         if (!Mutex.TryAcquire()) {
             EnqueueSweep();
+
+            AsyncUnref();
+
             return;
         }
     }
@@ -214,24 +257,23 @@ void TNodeJSInputStream::DoSweep()
     TGuard< TMutex, TAlreadyLockedOps<TMutex> > guard(&Mutex);
 
     auto
-        it = Queue.begin(),
-        jt = Queue.end();
+        it = InactiveQueue.begin(),
+        jt = InactiveQueue.end();
 
     while (it != jt) {
         TInputPart* part = *it;
 
-        if (part->Length > 0) {
-            break;
-        } else {
-            part->Handle.Dispose();
-            part->Handle.Clear();
-            delete part;
+        YASSERT(part->Length == 0);
 
-            ++it;
-        }
+        part->Handle.Dispose();
+        part->Handle.Clear();
+
+        delete part;
+
+        ++it;
     }
 
-    Queue.erase(Queue.begin(), it);
+    InactiveQueue.clear();
 
     AsyncUnref();
 }
@@ -247,8 +289,9 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
     size_t result = 0;
     while (length > 0 && result == 0) {
         auto
-            it = Queue.begin(),
-            jt = Queue.end();
+            it = ActiveQueue.begin(),
+            jt = ActiveQueue.end(),
+            kt = ActiveQueue.begin();
 
         size_t canRead;
         bool canReadSomething = false;
@@ -272,16 +315,24 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
 
             YASSERT(length == 0 || part->Length == 0);
 
+            if (part->Length == 0) {
+                YASSERT(it == kt);
+                ++kt;
+            }
+
             ++it;
         }
 
+        InactiveQueue.insert(InactiveQueue.end(), ActiveQueue.begin(), kt);
+        ActiveQueue.erase(ActiveQueue.begin(), kt);
+
         if (!canReadSomething) {
-            if (NDetail::AtomicallyFetch(&IsAlive)) {
-                Conditional.WaitI(Mutex);
-                continue;
-            } else {
+            if (!NDetail::AtomicallyFetch(&IsAlive)) {
                 return 0;
             }
+
+            Conditional.WaitI(Mutex);
+            continue;
         }
     };
 

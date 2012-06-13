@@ -26,6 +26,8 @@ Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
 
 
 TNodeJSOutputStream::TNodeJSOutputStream()
+    : TNodeJSStreamBase()
+    , IsAlive(1)
 {
     THREAD_AFFINITY_IS_V8();
 }
@@ -34,6 +36,7 @@ TNodeJSOutputStream::~TNodeJSOutputStream() throw()
 {
     THREAD_AFFINITY_IS_V8();
 
+    // Diagnostics about deleting with non-empty queue.
     TOutputPart part;
     while (Queue.Dequeue(&part)) {
         DeleteCallback(part.Buffer, NULL);
@@ -58,6 +61,7 @@ void TNodeJSOutputStream::Initialize(Handle<Object> target)
     ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
     ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
 
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TNodeJSOutputStream::Destroy);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsEmpty", TNodeJSOutputStream::IsEmpty);
 
     target->Set(
@@ -95,6 +99,41 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
         return ThrowException(Exception::Error(String::New(ex.what())));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSOutputStream::Destroy(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TNodeJSOutputStream* stream =
+        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+
+    // Validate arguments.
+    YASSERT(args.Length() == 0);
+
+    // Do the work.
+    return scope.Close(stream->DoDestroy());
+}
+
+Handle<Value> TNodeJSOutputStream::DoDestroy()
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    NDetail::AtomicallyStore(&IsAlive, 0);
+
+    TOutputPart part;
+    while (Queue.Dequeue(&part)) {
+        DeleteCallback(part.Buffer, NULL);
+    }
+
+    return Undefined();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 Handle<Value> TNodeJSOutputStream::IsEmpty(const Arguments& args)
 {
@@ -203,6 +242,10 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
     THREAD_AFFINITY_IS_ANY();
 
     if (length == 0) {
+        return;
+    }
+
+    if (!NDetail::AtomicallyFetch(&IsAlive)) {
         return;
     }
 
