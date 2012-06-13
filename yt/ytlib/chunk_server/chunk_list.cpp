@@ -15,7 +15,7 @@ using namespace NCellMaster;
 TChunkList::TChunkList(const TChunkListId& id)
     : TObjectWithIdBase(id)
     , Sorted_(false)
-    , BranchedRoot_(true)
+    , BranchedRoot_(false)
 { }
 
 void TChunkList::Save(TOutputStream* output) const

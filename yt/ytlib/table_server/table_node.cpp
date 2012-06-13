@@ -160,7 +160,7 @@ protected:
         // meaning: it captures the state of the table at the moment it was branched.
         // Suppress rebalancing for this chunk list to prevent
         // unwanted modifications of the children set.
-        branchedChunkList->SetBranchedRoot(tru);
+        branchedChunkList->SetBranchedRoot(true);
 
         branchedNode->SetChunkList(branchedChunkList);
         YCHECK(branchedChunkList->OwningNodes().insert(branchedNode).second);
