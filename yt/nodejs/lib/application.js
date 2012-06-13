@@ -65,11 +65,11 @@ YtCommand.prototype.dispatch = function() {
     ], function andThen(error) {
         var thereWasError = error || self.rsp.ytCode != 0;
         if (thereWasError) {
-            var message = error ? error.message : self.rsp.ytMessage;
-            self.logger.error("Done (failure)", { request_id : self.req.uuid, message : message });
+            var errorMessage = error ? error.message : self.rsp.ytMessage;
+            self.logger.error("Done (failure)", { request_id : self.req.uuid, error : errorMessage });
 
             if (!self.rsp._header) {
-                var body = JSON.stringify({ error : message });
+                var body = JSON.stringify({ error : errorMessage });
                 self.rsp.removeHeader("Transfer-Encoding");
                 self.rsp.setHeader("Content-Type", "application/json");
                 self.rsp.setHeader("Content-Length", body.length);
@@ -79,7 +79,7 @@ YtCommand.prototype.dispatch = function() {
             }
         }
 
-        self.logger.debug("Done (success)", { request_id : self.req.uuid });
+        self.logger.info("Done (success)", { request_id : self.req.uuid });
     });
 };
 
@@ -242,12 +242,12 @@ YtCommand.prototype._execute = function(cb) {
             if (error) {
                 self.logger.error(
                     "Command '" + self.name + "' thrown C++ exception",
-                    { request_id : self.req.uuid, message : error });
+                    { request_id : self.req.uuid, error : error });
                 return cb(new Error(error));
             } else {
                 self.logger.debug(
                     "Command '" + self.name + "' successfully executed",
-                    { request_id : self.req.uuid, code : code, message : message });
+                    { request_id : self.req.uuid, code : code, error : message });
             }
 
             self.rsp.ytCode = code;
@@ -274,7 +274,7 @@ YtCommand.prototype._execute = function(cb) {
         {
             self.logger.error(
                 "Command '" + self.name + "' was interrupted by an error",
-                { request_id : self.req.uuid, message : err.message });
+                { request_id : self.req.uuid, error : err.message });
             return cb(err);
         });
 };
