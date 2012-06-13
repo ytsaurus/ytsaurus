@@ -51,9 +51,9 @@ fs.readFile(opts.argv.c, function(err, configuration) {
         var logger = new winston.Logger({
             transports: [ opts.argv.l
                 ? new winston.transports.File({
-                    level: "debug",
                     filename: opts.argv.l,
-                    timestamp: true
+                    timestamp: true,
+                    raw: true
                 })
                 : new winston.transports.Console({
                     timestamp: true,
