@@ -146,10 +146,15 @@ Stroka TToken::ToString() const
 void TToken::CheckType(ETokenType expectedType) const
 {
     if (Type_ != expectedType) {
-        ythrow yexception() << Sprintf("Unexpected token (Token: %s, TokenType: %s, ExpectedType: %s)",
-            ~ToString().Quote(),
-            ~Type_.ToString(),
-            ~expectedType.ToString());
+        if (Type_ == ETokenType::EndOfStream) {
+            ythrow yexception() << Sprintf("Unexpected end of stream (token of type %s was expected)",
+                ~expectedType.ToString());
+        } else {
+            ythrow yexception() << Sprintf("Unexpected token (Token: %s, TokenType: %s, ExpectedType: %s)",
+                ~ToString().Quote(),
+                ~Type_.ToString(),
+                ~expectedType.ToString());
+        }
     }
 }
 
