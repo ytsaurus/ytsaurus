@@ -177,27 +177,6 @@ void ValidateSignature(const T& header)
         header.Signature);
 }
 
-// Calculates maximal correct prefix of index.
-size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index)
-{
-    size_t correctPrefixLength = 0;
-    for (i32 i = 0; i < index.size(); ++i) {
-        bool correct;
-        if (i == 0) {
-            correct = index[i].FilePosition == sizeof(TLogHeader) && index[i].RecordId == 0;
-        } else {
-            correct =
-                index[i].FilePosition > index[i - 1].FilePosition &&
-                index[i].RecordId > index[i - 1].RecordId;
-        }
-        if (!correct) {
-            break;
-        }
-        correctPrefixLength += 1;
-    }
-    return correctPrefixLength;
-}
-
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,11 +223,12 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
     if (atRecordId == 0) {
         Index.clear();
     } else {
+        auto cutBound = (envelope.LowerBound.RecordId == atRecordId) ? envelope.LowerBound : envelope.UpperBound;
         auto indexPosition =
-            std::lower_bound(Index.begin(), Index.end(), envelope.UpperBound) - Index.begin();
+            std::lower_bound(Index.begin(), Index.end(), cutBound) - Index.begin();
         Index.resize(indexPosition);
     }
-
+    
     i64 readSize = 0;
     TMemoryInput inputStream(envelope.Blob.Begin(), envelope.Length());
     for (i32 i = envelope.StartRecordId(); i < atRecordId; ++i) {
@@ -373,6 +353,47 @@ TNullable<TRecordInfo> ReadRecord(TCheckableFileReader<Stream>& input)
     return TRecordInfo(header.RecordId, readSize);
 }
 
+// Calculates maximal correct prefix of index.
+size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index, TBufferedFile* changelogFile)
+{
+    // Check adequacy of index
+    size_t correctPrefixLength = 0;
+    for (i32 i = 0; i < index.size(); ++i) {
+        bool correct;
+        if (i == 0) {
+            correct = index[i].FilePosition == sizeof(TLogHeader) && index[i].RecordId == 0;
+        } else {
+            correct =
+                index[i].FilePosition > index[i - 1].FilePosition &&
+                index[i].RecordId > index[i - 1].RecordId;
+        }
+        if (!correct) {
+            break;
+        }
+        correctPrefixLength += 1;
+    }
+    
+    // Truncate excess index records
+    i64 fileLength = changelogFile->GetLength();
+    while (correctPrefixLength > 0 && index[correctPrefixLength - 1].FilePosition > fileLength) {
+        correctPrefixLength -= 1;
+    }
+    
+    if (correctPrefixLength == 0) {
+        return 0;
+    }
+
+    // Truncate last index record if changelog file is corrupted
+    changelogFile->Seek(index[correctPrefixLength - 1].FilePosition, sSet);
+    auto checkableFile = CreateCheckableReader(*changelogFile);
+    if (!ReadRecord(checkableFile)) {
+        correctPrefixLength -= 1;
+    }
+
+    return correctPrefixLength;
+}
+
+
 } // anonymous namespace
 
 
@@ -423,10 +444,13 @@ void TChangeLog::TImpl::ReadIndex()
     }
     // Compute the maximum correct prefix and truncate the index.
     {
-        Index.resize(GetMaxCorrectIndexPrefix(Index));
+        auto correctPrefixSize = GetMaxCorrectIndexPrefix(Index, &(*File));
+        LOG_ERROR_IF(correctPrefixSize < Index.size(), "Changelog index contains incorrect records.");
+        Index.resize(correctPrefixSize);
 
         IndexFile.Reset(new TFile(IndexFileName, RdWr|Seq));
         IndexFile->Resize(sizeof(TLogIndexHeader) + Index.size() * sizeof(TLogIndexRecord));
+        IndexFile->Seek(0, sEnd);
     }
 }
 
@@ -441,16 +465,17 @@ void TChangeLog::TImpl::RefreshIndexHeader()
 void TChangeLog::TImpl::ReadChangeLogUntilEnd()
 {
     // Extract changelog properties from index.
+    i64 fileLength = File->GetLength();
     CurrentBlockSize = 0;
     if (Index.empty()) {
         RecordCount = 0;
         CurrentFilePosition = sizeof(TLogHeader);
-    } else {
-        RecordCount = Index.back().RecordId;
+    }
+    else {
+        // Record count would be set below.
         CurrentFilePosition = Index.back().FilePosition;
     }
-    i64 fileLength = File->GetLength();
-
+    
     // Seek to proper position in file, initialize checkable reader.
     File->Seek(CurrentFilePosition, sSet);
     auto checkableFile = CreateCheckableReader(*File);
@@ -459,9 +484,10 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
     if (!Index.empty()) {
         // Skip first record.
         recordInfo = ReadRecord(checkableFile);
-        LOG_FATAL_UNLESS(recordInfo, "Incorrect indexed changelog record");
+        // It should be correct because we have already check index.
+        YASSERT(recordInfo);
+        RecordCount = Index.back().RecordId + 1;
         CurrentFilePosition += recordInfo->TotalSize;
-        RecordCount += 1;
     }
 
     while (CurrentFilePosition < fileLength) {

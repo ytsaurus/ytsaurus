@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/meta_state/change_log.h>
+#include <ytlib/profiling/single_timer.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
@@ -18,11 +19,13 @@ class TChangeLogTest
 protected:
     THolder<TTempFile> TemporaryFile;
     THolder<TTempFile> TemporaryIndexFile;
+    i64 IndexSize;
 
     virtual void SetUp()
     {
         TemporaryFile.Reset(new TTempFile(GenerateRandomFileName("ChangeLog")));
         TemporaryIndexFile.Reset(new TTempFile(TemporaryFile->Name() + ".index"));
+        IndexSize = 64;
     }
 
     virtual void TearDown()
@@ -34,18 +37,18 @@ protected:
     template <class RecordType>
     TChangeLogPtr CreateChangeLog(size_t recordsCount) const
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
         changeLog->Create(0);
-        std::vector<TSharedRef> records = MakeRecords<RecordType>(0, recordsCount);
+        yvector<TSharedRef> records = MakeRecords<RecordType>(0, recordsCount);
         changeLog->Append(0, records);
         changeLog->Flush();
         return changeLog;
     }
 
     template <class RecordType>
-    std::vector<TSharedRef> MakeRecords(i32 from, i32 to) const
+    yvector<TSharedRef> MakeRecords(i32 from, i32 to) const
     {
-        std::vector<TSharedRef> records(to - from);
+        yvector<TSharedRef> records(to - from);
         for (i32 recordId = from; recordId < to; ++recordId) {
             TBlob blob(sizeof(RecordType));
             *reinterpret_cast<RecordType*>(blob.begin()) = static_cast<RecordType>(recordId);
@@ -56,16 +59,16 @@ protected:
 
     TChangeLogPtr OpenChangeLog() const
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), /*id*/ 0);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
         changeLog->Open();
         return changeLog;
     }
 
     template <class T>
-    static void CheckRecord(T data, TRef record)
+    static void CheckRecord(const T& data, const TRef& record)
     {
         EXPECT_EQ(record.Size(), sizeof(data));
-        EXPECT_EQ(*(reinterpret_cast<T*>(record.Begin())), data);
+        EXPECT_EQ(*(reinterpret_cast<const T*>(record.Begin())), data);
     }
 
     template <class T>
@@ -75,7 +78,7 @@ protected:
         i32 recordCount,
         i32 logRecordCount)
     {
-        std::vector<TSharedRef> records;
+        yvector<TSharedRef> records;
         changeLog->Read(firstRecordId, recordCount, &records);
 
         i32 expectedRecordCount =
@@ -102,12 +105,12 @@ protected:
 TEST_F(TChangeLogTest, EmptyChangeLog)
 {
     ASSERT_NO_THROW({
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), /*id*/ 0);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
         changeLog->Create(0);
     });
 
     ASSERT_NO_THROW({
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), /*id*/ 0);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
         changeLog->Open();
     });
 }
@@ -116,19 +119,14 @@ TEST_F(TChangeLogTest, EmptyChangeLog)
 TEST_F(TChangeLogTest, Finalized)
 {
     const int logRecordCount = 256;
-
     {
         TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
         EXPECT_EQ(changeLog->IsFinalized(), false);
-
         changeLog->Finalize();
         EXPECT_EQ(changeLog->IsFinalized(), true);
     }
-
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Open();
-
+        TChangeLogPtr changeLog = OpenChangeLog();
         EXPECT_EQ(changeLog->IsFinalized(), true);
     }
 }
@@ -137,17 +135,13 @@ TEST_F(TChangeLogTest, Finalized)
 TEST_F(TChangeLogTest, ReadWrite)
 {
     const int logRecordCount = 16;
-
     {
         TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckReads<ui32>(changeLog, logRecordCount);
     }
-
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Open();
-
+        TChangeLogPtr changeLog = OpenChangeLog();
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckReads<ui32>(changeLog, logRecordCount);
     }
@@ -156,11 +150,9 @@ TEST_F(TChangeLogTest, ReadWrite)
 TEST_F(TChangeLogTest, TestCorrupted)
 {
     const int logRecordCount = 1024;
-
     {
         TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
     }
-
     {
         // Truncate file.
         TFile changeLogFile(TemporaryFile->Name(), RdWr);
@@ -168,15 +160,14 @@ TEST_F(TChangeLogTest, TestCorrupted)
     }
 
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Open();
+        TChangeLogPtr changeLog = OpenChangeLog();
 
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount - 1);
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount - 1);
 
         TBlob blob(sizeof(i32));
         *reinterpret_cast<i32*>(blob.begin()) = static_cast<i32>(logRecordCount - 1);
-        std::vector<TSharedRef> records;
+        yvector<TSharedRef> records;
         records.push_back(MoveRV(blob));
         changeLog->Append(logRecordCount - 1, records);
         changeLog->Flush();
@@ -186,9 +177,7 @@ TEST_F(TChangeLogTest, TestCorrupted)
     }
 
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Open();
-
+        TChangeLogPtr changeLog = OpenChangeLog();
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
@@ -206,14 +195,11 @@ TEST_F(TChangeLogTest, Truncate)
 
     for (int recordId = logRecordCount; recordId >= 0; --recordId) {
         {
-            TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-            changeLog->Open();
+            TChangeLogPtr changeLog = OpenChangeLog();
             changeLog->Truncate(recordId);
         }
         {
-            TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-            changeLog->Open();
-
+            TChangeLogPtr changeLog = OpenChangeLog();
             EXPECT_EQ(changeLog->GetRecordCount(), recordId);
             CheckRead<ui32>(changeLog, 0, recordId, recordId);
         }
@@ -233,10 +219,8 @@ TEST_F(TChangeLogTest, TruncateAppend)
     int truncatedRecordId = logRecordCount / 2;
     {
         // Truncate
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Open();
+        TChangeLogPtr changeLog = OpenChangeLog();
         changeLog->Truncate(truncatedRecordId);
-
         CheckRead<ui32>(changeLog, 0, truncatedRecordId, truncatedRecordId);
     }
     {
@@ -246,9 +230,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
     }
     {
         // Check
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Open();
-
+        TChangeLogPtr changeLog = OpenChangeLog();
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
     }
 }
@@ -258,23 +240,74 @@ TEST_F(TChangeLogTest, UnalighnedChecksum)
     const int logRecordCount = 256;
 
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Create(0);
-
-        yvector<TSharedRef> records(logRecordCount);
-        for (i32 recordId = 0; recordId < logRecordCount; ++recordId) {
-            TBlob blob(sizeof(ui8));
-            *reinterpret_cast<ui8*>(blob.begin()) = static_cast<ui8>(recordId);
-            records[recordId] = MoveRV(blob);
-        }
-        changeLog->Append(0, records);
+        TChangeLogPtr changeLog = CreateChangeLog<ui8>(logRecordCount);
     }
     {
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
-        changeLog->Open();
-
+        TChangeLogPtr changeLog = OpenChangeLog();
         CheckRead<ui8>(changeLog, 0, logRecordCount, logRecordCount);
     }
+}
+
+// This structure is hack to make changelog with huge blobs.
+// Remove it with refactoring.
+class BigStruct {
+public:
+    BigStruct(i32 num) {
+        memset(str, 0, sizeof(str));
+    }
+
+private:
+    char str[1000000];
+};
+
+TEST_F(TChangeLogTest, DISABLED_Profiling)
+{
+    IndexSize = 1024 * 1024;
+    for (int i = 0; i < 2; ++i) {
+        int recordsCount;
+        if (i == 0) { // A lot of small records
+            recordsCount = 10000000;
+            NProfiling::TSingleTimer timer;
+            TChangeLogPtr changeLog = CreateChangeLog<ui32>(recordsCount);
+            std::cerr << "Make changelog of size " << recordsCount <<
+                ", with blob of size " << sizeof(ui32) <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+        }
+        else {
+            recordsCount = 50;
+            NProfiling::TSingleTimer timer;
+            TChangeLogPtr changeLog = CreateChangeLog<BigStruct>(recordsCount);
+            std::cerr << "Make changelog of size " << recordsCount <<
+                ", with blob of size " << sizeof(BigStruct) <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+        }
+
+        {
+            NProfiling::TSingleTimer timer;
+            TChangeLogPtr changeLog = OpenChangeLog();
+            std::cerr << "Open changelog of size " << recordsCount <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+        }
+        {
+            TChangeLogPtr changeLog = OpenChangeLog();
+            NProfiling::TSingleTimer timer;
+            yvector<TSharedRef> records;
+            changeLog->Read(0, recordsCount, &records);
+            std::cerr << "Read full changelog of size " << recordsCount <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+
+            timer.Restart();
+            changeLog->Truncate(recordsCount / 2);
+            std::cerr << "Truncating changelog of size " << recordsCount <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+
+            timer.Restart();
+            changeLog->Finalize();
+            std::cerr << "Finalizing changelog of size " << recordsCount / 2 <<
+                ", time " << timer.ElapsedTimeAsString() << std::endl;
+        }
+    }
+    SUCCEED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
