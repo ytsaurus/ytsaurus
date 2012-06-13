@@ -28,6 +28,7 @@ public:
     TAsyncError CreateOperationNode(TOperationPtr operation);
     void ReviveOperationNode(TOperationPtr operation);
     void RemoveOperationNode(TOperationPtr operation);
+    TAsyncError FlushOperationNode(TOperationPtr operation);
     TAsyncError FinalizeOperationNode(TOperationPtr operation);
 
     void CreateJobNode(TJobPtr job);

@@ -586,7 +586,7 @@ private:
             // Check for empty inputs.
             if (chunkCount == 0) {
                 LOG_INFO("Empty input");
-                FinalizeOperation();
+                OnOperationCompleted();
                 return MakeFuture(TValueOrError<void>());
             }
 

@@ -300,7 +300,7 @@ protected:
             // Check for trivial inputs.
             if (ChunkCounter.GetTotal() == 0) {
                 LOG_INFO("Trivial merge");
-                FinalizeOperation();
+                OnOperationCompleted();
                 return;
             }
 

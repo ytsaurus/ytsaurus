@@ -130,12 +130,38 @@ TFuture<void> TOperationControllerBase::Revive()
     try {
         Initialize();
     } catch (const std::exception& ex) {
-        FailOperation(TError("Operation has failed to initialize\n%s",
+        OnOperationFailed(TError("Operation has failed to initialize\n%s",
             ex.what()));
         // This promise is never fulfilled.
         return NewPromise<void>();
     }
     return Prepare();
+}
+
+TFuture<void> TOperationControllerBase::Commit()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YCHECK(Active);
+    YCHECK(!Running);
+
+    LOG_INFO("Committing operation");
+
+    auto this_ = MakeStrong(this);
+    return StartAsyncPipeline(Host->GetBackgroundInvoker())
+        ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
+        ->Run()
+        .Apply(BIND([=] (TValueOrError<void> result) {
+            Active = false;
+            if (result.IsOK()) {
+                LOG_INFO("Operation committed");
+                this_->Host->OnOperationCompleted(this_->Operation);
+            } else {
+                LOG_WARNING("Operation has failed to commit\n%s", ~result.ToString());
+                this_->Host->OnOperationFailed(this_->Operation, result);
+            }
+        }));
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
@@ -158,7 +184,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     LogProgress();
 
     if (RunningJobCount == 0 && GetPendingJobCount() == 0) {
-        FinalizeOperation();
+        OnOperationCompleted();
     }
 }
 
@@ -177,7 +203,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     LogProgress();
 
     if (FailedJobCount >= Config->FailedJobsLimit) {
-        FailOperation(TError("Failed jobs limit %d has been reached",
+        OnOperationFailed(TError("Failed jobs limit %d has been reached",
             Config->FailedJobsLimit));
     }
 
@@ -199,19 +225,26 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 
 void TOperationControllerBase::OnInputChunkFailed(const TChunkId& chunkId)
 {
-    FailOperation(TError("Unable to read input chunk %s", ~chunkId.ToString()));
+    OnOperationFailed(TError("Unable to read input chunk %s", ~chunkId.ToString()));
 }
 
 void TOperationControllerBase::OnIntermediateChunkFailed(const TChunkId& chunkId)
 {
-    FailOperation(TError("Unable to read intermediate chunk %s", ~chunkId.ToString()));
+    OnOperationFailed(TError("Unable to read intermediate chunk %s", ~chunkId.ToString()));
 }
 
-void TOperationControllerBase::OnOperationAborted()
+void TOperationControllerBase::Abort()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    AbortOperation();
+    LOG_INFO("Aborting operation");
+
+    Running = false;
+    Active = false;
+
+    AbortTransactions();
+
+    LOG_INFO("Operation aborted");
 }
 
 TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
@@ -371,7 +404,19 @@ int TOperationControllerBase::GetPendingJobCount()
     return result;
 }
 
-void TOperationControllerBase::FailOperation(const TError& error)
+void TOperationControllerBase::OnOperationCompleted()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    YCHECK(Active);
+    LOG_INFO("Operation completed");
+
+    Running = false;
+
+    Host->OnOperationCompleted(Operation);
+}
+
+void TOperationControllerBase::OnOperationFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -386,20 +431,6 @@ void TOperationControllerBase::FailOperation(const TError& error)
     Host->OnOperationFailed(Operation, error);
 }
 
-void TOperationControllerBase::AbortOperation()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Aborting operation");
-
-    Running = false;
-    Active = false;
-
-    AbortTransactions();
-
-    LOG_INFO("Operation aborted");
-}
-
 void TOperationControllerBase::AbortTransactions()
 {
     LOG_INFO("Aborting transactions")
@@ -410,31 +441,6 @@ void TOperationControllerBase::AbortTransactions()
     }
 
     // No need to abort the others.
-}
-
-void TOperationControllerBase::FinalizeOperation()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    LOG_INFO("Finalizing operation");
-
-    Running = false;
-
-    auto this_ = MakeStrong(this);
-    StartAsyncPipeline(Host->GetBackgroundInvoker())
-        ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
-        ->Run()
-        .Subscribe(BIND([=] (TValueOrError<void> result) {
-            Active = false;
-            if (result.IsOK()) {
-                LOG_INFO("Operation finalized and completed");
-                this_->Host->OnOperationCompleted(this_->Operation);
-            } else {
-                LOG_WARNING("Operation has failed to finalize\n%s", ~result.ToString());
-                this_->Host->OnOperationFailed(this_->Operation, result);
-            }
-    }));
 }
 
 TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()

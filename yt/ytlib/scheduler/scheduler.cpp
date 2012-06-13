@@ -345,7 +345,7 @@ private:
                 ~state.ToString(),
                 ~reason.ToString());
                 
-            operation->GetController()->OnOperationAborted();
+            operation->GetController()->Abort();
 
             operation->SetState(EOperationState::Aborted);
             TError error("Operation aborted (Reason: %s)", ~reason.ToString());
@@ -643,10 +643,10 @@ private:
     }
 
 
-    virtual void OnOperationCompleted(
-        TOperationPtr operation)
+    virtual void OnOperationCompleted(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
         GetControlInvoker()->Invoke(BIND(
             &TThis::DoOperationCompleted,
             MakeStrong(this),
@@ -663,10 +663,18 @@ private:
             return;
         }
 
+        MasterConnector->FlushOperationNode(operation).Subscribe(
+            BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
+            .Via(GetControlInvoker()));
+    }
+
+    void OnOperationNodeFlushed(
+        TOperationPtr operation,
+        TError error)
+    {
+        UNUSED(error);
+
         operation->SetState(EOperationState::Completed);
-
-        LOG_INFO("Operation %s completed", ~operation->GetOperationId().ToString());
-
         DoOperationFinished(operation);
     }
     
@@ -696,11 +704,7 @@ private:
             return;
         }
 
-        LOG_INFO("Operation %s failed\n%s",
-            ~operation->GetOperationId().ToString(),
-            ~error.GetMessage());
-
-        operation->GetController()->OnOperationAborted();
+        operation->GetController()->Abort();
 
         operation->SetState(EOperationState::Failed);
         *operation->Result().mutable_error() = error.ToProto();
@@ -711,10 +715,9 @@ private:
     void DoOperationFinished(TOperationPtr operation)
     {
         CancelOperationJobs(operation);
-        MasterConnector->FinalizeOperationNode(operation).Subscribe(BIND(
-            &TThis::OnOperationNodeFinalized,
-            MakeStrong(this),
-            operation));
+        MasterConnector->FinalizeOperationNode(operation).Subscribe(
+            BIND(&TThis::OnOperationNodeFinalized, MakeStrong(this), operation)
+            .Via(GetControlInvoker()));
     }
 
     void OnOperationNodeFinalized(TOperationPtr operation, TError error)

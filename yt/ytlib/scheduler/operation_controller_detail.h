@@ -31,12 +31,13 @@ public:
     virtual void Initialize();
     virtual TFuture<void> Prepare();
     virtual TFuture<void> Revive();
+    virtual TFuture<void> Commit();
 
     virtual void OnJobRunning(TJobPtr job);
     virtual void OnJobCompleted(TJobPtr job);
     virtual void OnJobFailed(TJobPtr job);
 
-    virtual void OnOperationAborted();
+    virtual void Abort();
 
     virtual TJobPtr ScheduleJob(TExecNodePtr node);
 
@@ -416,8 +417,6 @@ protected:
 
     // Here comes the completion pipeline.
 
-    void FinalizeOperation();
-
     // Round 1.
     // - Attach chunk trees.
     // - (Custom)
@@ -469,12 +468,11 @@ protected:
     
     // Abort is not a pipeline really :)
 
-    virtual void AbortOperation();
-
     void AbortTransactions();
 
 
-    void FailOperation(const TError& error);
+    void OnOperationCompleted();
+    void OnOperationFailed(const TError& error);
 
 
     // Unsorted helpers.

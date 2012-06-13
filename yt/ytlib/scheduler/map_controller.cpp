@@ -189,7 +189,7 @@ private:
             // Check for empty inputs.
             if (MapTask->IsCompleted()) {
                 LOG_INFO("Empty input");
-                FinalizeOperation();
+                OnOperationCompleted();
                 return;
             }
 

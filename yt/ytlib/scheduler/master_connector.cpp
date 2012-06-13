@@ -143,6 +143,23 @@ public:
             .Via(Bootstrap->GetControlInvoker()));
     }
 
+    TAsyncError FlushOperationNode(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Flushing operation node (OperationId: %s)", ~operation->GetOperationId().ToString());
+
+        auto* list = GetOperationUpdateList(operation);
+
+        // Create a batch update for this particular operation.
+        auto batchReq = ObjectProxy.ExecuteBatch();
+        PrepareOperationUpdate(list, batchReq);
+
+        return batchReq->Invoke().Apply(
+            BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
+            .AsyncVia(Bootstrap->GetControlInvoker()));
+    }
+
     TAsyncError FinalizeOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -655,6 +672,28 @@ private:
             ~operation->GetOperationId().ToString());
     }
 
+    TError OnOperationNodeFlushed(
+        TOperationPtr operation,
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operationId = operation->GetOperationId();
+
+        // Just check every response and log the errors.
+        auto error = GetBatchError(batchRsp);
+        if (error.IsOK()) {
+            LOG_INFO("Operation node flushed successfully (OperationId: %s)",
+                ~operationId.ToString());
+        } else {
+            LOG_ERROR("Error flushing operation node (OperationId: %s)\n%s",
+                ~operationId.ToString(),
+                ~error.ToString());
+        }
+
+        return error;
+    }
+
     void OnOperationNodeFinalized(
         TOperationPtr operation,
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -666,16 +705,7 @@ private:
 
         // Just check every response and log the errors.
         // TODO(babenko): retry?
-        TError error;
-        if (batchRsp->IsOK()) {
-            FOREACH (auto rsp, batchRsp->GetResponses()) {
-                error = rsp->GetError();
-                break;
-            }
-        } else {
-            error = batchRsp->GetError();
-        }
-
+        auto error = GetBatchError(batchRsp);
         if (error.IsOK()) {
             LOG_INFO("Operation node finalized successfully (OperationId: %s)",
                 ~operationId.ToString());
@@ -690,6 +720,23 @@ private:
         }
 
         RemoveOperationUpdateList(operation);
+    }
+
+    static TError GetBatchError(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        TError error;
+        if (!batchRsp->IsOK()) {
+            return batchRsp->GetError();
+        }
+
+        FOREACH (auto rsp, batchRsp->GetResponses()) {
+            auto error = rsp->GetError();
+            if (!error.IsOK()) {
+                return error;
+            }
+        }
+        
+        return TError();
     }
 };
 
@@ -727,6 +774,11 @@ void TMasterConnector::ReviveOperationNode(TOperationPtr operation)
 void TMasterConnector::RemoveOperationNode(TOperationPtr operation)
 {
     Impl->RemoveOperationNode(operation);
+}
+
+TAsyncError TMasterConnector::FlushOperationNode( TOperationPtr operation )
+{
+    return Impl->FlushOperationNode(operation);
 }
 
 TAsyncError TMasterConnector::FinalizeOperationNode(TOperationPtr operation)

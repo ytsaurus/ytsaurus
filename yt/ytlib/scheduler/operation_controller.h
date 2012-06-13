@@ -104,6 +104,12 @@ struct IOperationController
      */
     virtual TFuture<void> Prepare() = 0;
 
+    //! Called by a scheduler in response to IOperationHost::OnOperationCompleted.
+    /*!
+     *  The controller must the transactions related to the operation.
+     */
+    virtual TFuture<void> Commit() = 0;
+
     //! Reactivates an already running operation.
     /*!
      *  This method is called during scheduler state recovery for each existing operation.
@@ -111,6 +117,14 @@ struct IOperationController
      *  IOperationHost::OnOperationFailed can be called during revival to indicate an error.
      */
     virtual TFuture<void> Revive() = 0;
+
+    //! Called by the scheduler notify the controller that the operation has been aborted.
+    /*!
+     *  All jobs are aborted automatically.
+     *  The operation, however, may carry out any additional cleanup it finds necessary.
+     */
+    virtual void Abort() = 0;
+
 
     //! Returns the number of jobs the controller still needs to start right away.
     virtual int GetPendingJobCount() = 0;
@@ -123,13 +137,6 @@ struct IOperationController
 
     //! Called during heartbeat processing to notify the controller that a job has failed.
     virtual void OnJobFailed(TJobPtr job) = 0;
-
-    //! Called by the scheduler notify the controller that the operation has been aborted.
-    /*!
-     *  All jobs are aborted automatically.
-     *  The operation, however, may carry out any additional cleanup it finds necessary.
-     */
-    virtual void OnOperationAborted() = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
     //! Returns a new job of NULL is no job must be started.
