@@ -322,7 +322,7 @@ public:
             accumulatedDelta.Accumulate(delta);
         }
 
-        UpdateStatistics(chunkList, &accumulatedDelta);
+        UpdateStatistics(chunkList, accumulatedDelta);
         RebalanceChunkTreeIfNeeded(chunkList);
     }
 
@@ -480,14 +480,15 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-    void UpdateStatistics(TChunkList* chunkList, TChunkTreeStatistics* statisticsDelta)
+    void UpdateStatistics(TChunkList* chunkList, const TChunkTreeStatistics& statisticsDelta)
     {
         // Go upwards and apply delta.
         // Also reset Sorted flags.
         // Check that parents are unique along the way.
+        auto statisticsCopy = statisticsDelta;
         while (true) {
-            ++statisticsDelta->Rank;
-            chunkList->Statistics().Accumulate(*statisticsDelta);
+            ++statisticsCopy.Rank;
+            chunkList->Statistics().Accumulate(statisticsCopy);
             chunkList->SetSorted(false);
 
             const auto& parents = chunkList->Parents();
