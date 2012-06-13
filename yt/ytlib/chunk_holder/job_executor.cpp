@@ -111,7 +111,7 @@ void TJob::Start()
                     this_->ChunkMeta = result.Value();
 
                     this_->Writer = New<TRemoteWriter>(
-                        ~this_->Owner->Config->ReplicationRemoteWriter,
+                        this_->Owner->Config->ReplicationRemoteWriter,
                         this_->Chunk->GetId(),
                         this_->TargetAddresses);
                     this_->Writer->Open();
