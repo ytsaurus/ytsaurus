@@ -211,12 +211,25 @@ function YtDriver(configuration) {
 YtDriver.prototype.execute = function(name,
     input_stream, input_format,
     output_stream, output_format,
-    parameters, callback
+    parameters, callback, errorback
 ) {
     __DBG("Driver -> execute");
 
     var wrapped_input_stream = new YtWritableStream();
     var wrapped_output_stream = new YtReadableStream();
+
+    util.pump(input_stream, wrapped_input_stream, function(err) {
+        if (err) {
+            errorback.call(this,
+                new Error("Error while pumping from input_stream to YtWritableStream: " + err.message));
+        }
+    });
+    util.pump(wrapped_output_stream, output_stream, function(err) {
+        if (err) {
+            errorback.call(this,
+                new Error("Error while pumping from YtReadableStream to output_stream: " + err.message));
+        }
+    });
 
     input_stream.pipe(wrapped_input_stream);
     wrapped_output_stream.pipe(output_stream);

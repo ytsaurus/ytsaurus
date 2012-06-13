@@ -236,10 +236,11 @@ YtCommand.prototype._execute = function(cb) {
     this.driver.execute(this.name,
         this.req, this.input_format,
         this.rsp, this.output_format,
-        this.parameters, function(error, code, message)
+        this.parameters,
+        function callback(error, code, message)
         {
             if (error) {
-                self.logger.debug(
+                self.logger.error(
                     "Command '" + self.name + "' thrown C++ exception",
                     { request_id : self.req.uuid, message : error });
                 return cb(new Error(error));
@@ -268,6 +269,13 @@ YtCommand.prototype._execute = function(cb) {
             }
 
             cb(null);
+        },
+        function errorback(err)
+        {
+            self.logger.error(
+                "Command '" + self.name + "' was interrupted by an error",
+                { request_id : self.req.uuid, message : err.message });
+            return cb(err);
         });
 };
 
