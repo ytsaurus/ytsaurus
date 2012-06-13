@@ -203,7 +203,7 @@ TYsonProducer CreateProducerForDsv(
     TInputStream* input)
 {
     if (dataType != EDataType::Tabular) {
-        ythrow yexception() << Sprintf("Dsv is supported only for Tabular data");
+        ythrow yexception() << Sprintf("DSV is only supported only for tabular data");
     }
     auto config = New<TDsvFormatConfig>();
     config->Load(attributes->ToMap());
@@ -215,7 +215,7 @@ TYsonProducer CreateProducerForDsv(
 TYsonProducer CreateProducerForJson(EDataType dataType, TInputStream* input)
 {
     if (dataType != EDataType::Structured) {
-        ythrow yexception() << Sprintf("Json is supported only for Structured data");
+        ythrow yexception() << Sprintf("JSON is only supported only for structured data");
     }
     return BIND([=] (IYsonConsumer* consumer) {
         ParseJson(input, consumer);
