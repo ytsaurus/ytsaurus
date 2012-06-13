@@ -231,9 +231,6 @@ YtDriver.prototype.execute = function(name,
         }
     });
 
-    input_stream.pipe(wrapped_input_stream);
-    wrapped_output_stream.pipe(output_stream);
-
     var result = this._binding.Execute(name,
         wrapped_input_stream._binding, input_format,
         wrapped_output_stream._binding, output_format,
