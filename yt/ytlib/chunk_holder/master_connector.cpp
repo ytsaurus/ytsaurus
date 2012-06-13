@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "master_connector.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "location.h"
 #include "block_store.h"

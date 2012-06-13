@@ -9,12 +9,12 @@ set( SRCS
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_registry.cpp
   ${BASE}/chunk_store.cpp
-  ${BASE}/common.cpp
   ${BASE}/job_executor.cpp
   ${BASE}/location.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/peer_block_table.cpp
   ${BASE}/peer_block_updater.cpp
+  ${BASE}/private.cpp
   ${BASE}/reader_cache.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
@@ -29,13 +29,13 @@ set( HDRS
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_registry.h
   ${BASE}/chunk_store.h
-  ${BASE}/common.h
   ${BASE}/config.h
   ${BASE}/job_executor.h
   ${BASE}/location.h
   ${BASE}/master_connector.h
   ${BASE}/peer_block_table.h
   ${BASE}/peer_block_updater.h
+  ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/reader_cache.h
   ${BASE}/session_manager.h

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "common.h"
+#include "private.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -7,6 +7,7 @@ namespace NChunkHolder {
 ////////////////////////////////////////////////////////////////////////////////
 
 NLog::TLogger ChunkHolderLogger("ChunkHolder");
+NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 

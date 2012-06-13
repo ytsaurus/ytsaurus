@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "block_store.h"
-#include "common.h"
+#include "private.h"
 #include "chunk.h"
 #include "config.h"
 #include "chunk_registry.h"

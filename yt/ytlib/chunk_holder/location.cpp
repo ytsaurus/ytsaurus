@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "location.h"
-#include "common.h"
+#include "private.h"
 #include "chunk.h"
 #include "reader_cache.h"
 #include "config.h"

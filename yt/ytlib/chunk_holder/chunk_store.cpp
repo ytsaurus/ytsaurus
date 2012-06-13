@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "location.h"
 #include "chunk.h"

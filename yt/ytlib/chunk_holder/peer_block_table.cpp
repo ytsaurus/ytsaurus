@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "common.h"
+#include "private.h"
 #include "peer_block_table.h"
 #include "config.h"
 

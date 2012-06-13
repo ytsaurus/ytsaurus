@@ -4,7 +4,6 @@
 #include "chunk_holder_service_proxy.h"
 
 #include <ytlib/rpc/service.h>
-#include <ytlib/rpc/channel_cache.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -25,7 +24,6 @@ private:
 
     TChunkHolderConfigPtr Config;
     TBootstrap* Bootstrap;
-    NRpc::TChannelCache ChannelCache;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);
     DECLARE_RPC_SERVICE_METHOD(NProto, FinishChunk);

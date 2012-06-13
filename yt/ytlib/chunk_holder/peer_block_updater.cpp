@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "peer_block_updater.h"
-#include "common.h"
+#include "private.h"
 #include "block_store.h"
 #include "chunk_holder_service_proxy.h"
 #include "bootstrap.h"
@@ -17,7 +17,6 @@ using namespace NCellNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkHolderLogger;
-static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 

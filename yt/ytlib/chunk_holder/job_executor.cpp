@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "common.h"
+#include "private.h"
 #include "job_executor.h"
 #include "block_store.h"
 #include "chunk_store.h"
