@@ -158,7 +158,7 @@ protected:
 
         // For Append mode, the first child of the branched chunk list has a special
         // meaning: it captures the state of the table at the moment it was branched.
-        // Suppress rebalancing for this chunk list to prevent
+        // Mark this chunk list to prevent
         // unwanted modifications of the children set.
         branchedChunkList->SetBranchedRoot(true);
 
