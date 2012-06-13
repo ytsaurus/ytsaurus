@@ -56,7 +56,8 @@ fs.readFile(opts.argv.c, function(err, configuration) {
                     timestamp: true
                 })
                 : new winston.transports.Console({
-                    timestamp: true
+                    timestamp: true,
+                    raw: true
                 })
             ]
         });
