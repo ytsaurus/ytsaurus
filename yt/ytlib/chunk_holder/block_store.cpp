@@ -200,17 +200,6 @@ private:
 
         LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
     }
-
-    void UpdatePeer()
-    {
-        auto blocks = GetAll();
-        FOREACH (const auto& block, blocks) {
-            auto source = block->Source();
-            if (!source.empty()) {
-                
-            }
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
