@@ -1,7 +1,15 @@
 import subprocess
 
+import sys
+#TODO:get rid of it
+sys.path.append('../yson')
+
 import yson_parser
 import yson
+
+import os
+
+###########################################################################
 
 YT = "yt"
 
@@ -15,21 +23,24 @@ class YTError(Exception):
 
 ###########################################################################
 
-def command(name, *args, **kw):
-    process = run_command(name, *args, **kw)
-    stdout, stderr = process.communicate()
+def send_data(process, data=None):
+    stdout, stderr = process.communicate(data)
     if process.returncode != 0:
         print 'XXX:', stderr
         raise YTError(stderr)
     print stdout
     return stdout.strip('\n')
 
+def command(name, *args, **kw):
+    process = run_command(name, *args, **kw)
+    return send_data(process)
+
 def convert_to_yt_args(*args, **kw):
     all_args = list(args)
     for k, v in kw.items():
         # workaround to deal with 'in' as keyword
         if k == 'input': k = 'in'
-        
+
         if isinstance(v, list):
             for elem in v:
                 all_args.extend(['--' + k, elem])
@@ -42,7 +53,10 @@ def run_command(name, *args, **kw):
     all_args = [name] + convert_to_yt_args(*args, **kw)
     print ' '.join(all_args)
 
-    process = subprocess.Popen([YT] + all_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen([YT] + all_args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE)
     return process    
 
 
@@ -70,7 +84,12 @@ def commit_transaction(**kw): return command('commit_tx', **kw)
 def renew_transaction(**kw): return command('renew_tx', **kw)
 def abort_transaction(**kw): return command('abort_tx', **kw)
 
-def upload(path, **kw): return command('upload', path, **kw)
+def upload(path, data, **kw): 
+    process =  run_command('upload', path, **kw)
+    return send_data(process, data)
+
+def download(path, **kw):
+    return command('download', path, **kw)
 
 def map(**kw): return command('map', **kw)
 
