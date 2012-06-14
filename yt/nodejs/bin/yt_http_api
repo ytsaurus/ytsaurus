@@ -39,6 +39,9 @@ var opts = require("optimist")
     .alias("h", "help")
     .boolean("h")
     .describe("h", "Show help message")
+
+    .boolean("profiler")
+    .describe("profiler", "Enable V8 profiler")
     ;
 
 if (opts.argv.h) {
@@ -63,6 +66,10 @@ var logger = new winston.Logger({
         })
     ]
 });
+
+if (opts.argv.profiler) {
+    require("v8-profiler");
+}
 
 if (opts.argv.n > 0 && cluster.isMaster) {
     var spawnWorker = function() {
