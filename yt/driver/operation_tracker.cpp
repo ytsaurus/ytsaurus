@@ -195,6 +195,10 @@ void TOperationTracker::DumpResult()
         std::vector<int> abortedJobCount(jobTypeCount);
 
         auto jobs = DeserializeFromYson(rsp->value())->AsMap();
+        if (jobs->GetChildCount() == 0) {
+            return;
+        }
+
         std::list<TJobId> failedJobIds;
         std::list<TJobId> stdErrJobIds;
         FOREACH (const auto& pair, jobs->GetChildren()) {
