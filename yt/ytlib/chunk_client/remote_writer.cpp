@@ -900,7 +900,7 @@ void TRemoteWriter::TImpl::SendPing(TNodePtr node)
     node->PingInvoker->ScheduleNext();
 }
 
-void TRemoteWriter::TImpl::StartPing( TNodePtr node )
+void TRemoteWriter::TImpl::StartPing(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
