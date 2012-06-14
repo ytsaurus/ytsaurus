@@ -246,7 +246,7 @@ void TOperationTracker::DumpResult()
                 auto job = jobs->GetChild(jobId.ToString());
                 // TODO(babenko): refactor
                 auto error = TError::FromYson(job->Attributes().Get<INodePtr>("error"));
-                printf("%s on %s\n%s\n",
+                printf("Job %s on %s\n%s\n",
                     ~jobId.ToString(),
                     ~job->Attributes().Get<Stroka>("address"),
                     ~error.ToString());
