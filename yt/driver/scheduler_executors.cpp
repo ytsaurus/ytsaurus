@@ -276,7 +276,7 @@ private:
 
             if (!stdErrJobIds.empty()) {
                 printf("\n");
-                printf("%" PRISZT "  stderr(s) have been captured, use the following commands to view:",
+                printf("%" PRISZT " stderr(s) have been captured, use the following commands to view:\n",
                     stdErrJobIds.size());
                 FOREACH (const auto& jobId, stdErrJobIds) {
                     printf("yt download %s\n",
