@@ -97,20 +97,27 @@ TJobResult TUserJob::Run()
         ythrow yexception() << Sprintf("Failed to start the job: fork failed (errno: %d)", errno);
     }
 
-    if (ProcessId == 0) {
-        // Child process.
-        StartJob();
-        YUNREACHABLE();
+    TJobResult result;
+    try {
+        if (ProcessId == 0) {
+            // Child process.
+            StartJob();
+            YUNREACHABLE();
+        }
+
+        LOG_DEBUG("Job process started");
+
+        DoJobIO();
+
+        LOG_DEBUG("Job process finished successfully");
+        *result.mutable_error() = JobExitStatus.ToProto();
+    } catch (const std::exception& ex) {
+        LOG_ERROR("Job failed\n%s", ex.what());
+
+        result.mutable_error()->set_code(TError::Fail);
+        result.mutable_error()->set_message(ex.what());
     }
 
-    LOG_DEBUG("Job process started");
-
-    DoJobIO();
-
-    LOG_DEBUG("Job process finished successfully");
-
-    TJobResult result;
-    *result.mutable_error() = JobExitStatus.ToProto();
     auto* resultExt = result.MutableExtension(TUserJobResultExt::user_job_result_ext);
     {
         auto chunkId = ErrorOutput->GetChunkId();
@@ -122,7 +129,6 @@ TJobResult TUserJob::Run()
 
     return result;
 }
-
 
 void TUserJob::InitPipes()
 {
@@ -197,7 +203,6 @@ void TUserJob::InitPipes()
             TableOutput[i] = new TTableOutput(parser, consumer, writer);
             Pipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
         }
-
     }
 
     // Close reserved descriptors.
