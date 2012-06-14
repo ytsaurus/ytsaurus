@@ -32,18 +32,19 @@ private:
     char KeyStopSymbols[2];
     char ValueStopSymbols[3];
 
+    const char* Consume(const char* begin, const char* end);
+    const char* FindEndOfValue(const char* begin, const char* end);
+
+    void StartRecordIfNeeded();
+
+    void ValidatePrefix(const Stroka& prefix);
+
     DECLARE_ENUM(EState,
         (InsidePrefix)
         (InsideKey)
         (InsideValue)
     );
     EState State;
-
-    const char* Consume(const char* begin, const char* end);
-    const char* FindEndOfValue(const char* begin, const char* end);
-
-    void StartRecordIfNeeded();
-
     EState GetStartState();
 
 };

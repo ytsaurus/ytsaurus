@@ -7,6 +7,8 @@
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
+using ::testing::NiceMock;
+
 
 namespace NYT {
 namespace NFormats {
@@ -43,11 +45,55 @@ TEST(TDsvParserTest, Simple)
     ParseDsv(input, &Mock);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TTskvParserTest, Simple)
+TEST(TDsvParserTest, EmptyRecord)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "";
+
+    ParseDsv(input, &Mock);
+}
+
+TEST(TDsvParserTest, EmptyKeysAndValues)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem(""));
+        EXPECT_CALL(Mock, OnStringScalar(""));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "=";
+
+    ParseDsv(input, &Mock);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTskvParserTest: public ::testing::Test
+{
+public:
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    NiceMock<NYTree::TMockYsonConsumer> ErrorMock;
+
+    TDsvFormatConfigPtr Config;
+
+    void SetUp() {
+        Config = New<TDsvFormatConfig>();
+        Config->LinePrefix = "tskv";
+    }
+};
+
+
+TEST_F(TTskvParserTest, Simple)
+{
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -73,17 +119,13 @@ TEST(TTskvParserTest, Simple)
     Stroka input =
         "tskv\n"
         "tskv\tid=1\tguid=100500\n"
-        "tskv\tid=2\tguid=20025\n";
+        "tskv\tid=2\tguid=20025";
 
-    auto config = New<TDsvFormatConfig>();
-    config->LinePrefix = "tskv";
-
-    ParseDsv(input, &Mock, config);
+    ParseDsv(input, &Mock, Config);
 }
 
-TEST(TTskvParserTest, Escaping)
+TEST_F(TTskvParserTest, Escaping)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -107,12 +149,66 @@ TEST(TTskvParserTest, Escaping)
     Stroka input =
         "\\ts\\kv\n"
         "tskv\t" "a\\=b=c\\=d\n"
-        "tskv\t" "key_with_\\\t=value_with_\\\t,\\\\_and_\\\n" "\tan\\other_\\key=anoth\\er_v\\alue\n";
+        "tskv\t" "key_with_\\\t=value_with_\\\t,\\\\_and_\\\n" "\tan\\other_\\key=anoth\\er_v\\alue";
 
-    auto config = New<TDsvFormatConfig>();
-    config->LinePrefix = "tskv";
+    ParseDsv(input, &Mock, Config);
+}
 
-    ParseDsv(input, &Mock, config);
+TEST_F(TTskvParserTest, OnlyLinePrefix)
+{
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "tskv";
+
+    ParseDsv(input, &Mock, Config);
+}
+
+TEST_F(TTskvParserTest, OnlyLinePrefix2)
+{
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "tskv\t";
+
+    ParseDsv(input, &Mock, Config);
+}
+
+
+TEST_F(TTskvParserTest, NotFinishedLinePrefix)
+{
+    Stroka input = "tsk";
+
+    EXPECT_ANY_THROW(
+        ParseDsv(input, &ErrorMock, Config)
+    );
+}
+
+TEST_F(TTskvParserTest, NotFinishedKey)
+{
+    Stroka input = "tskv\tsome_key";
+
+    EXPECT_ANY_THROW(
+        ParseDsv(input, &ErrorMock, Config)
+    );
+}
+
+TEST_F(TTskvParserTest, WrongLinePrefix)
+{
+    Stroka input =
+        "tskv\ta=b\n"
+        "tZkv\tc=d\e=f\n"
+        "tskv\ta=b";
+
+    EXPECT_ANY_THROW(
+        ParseDsv(input, &ErrorMock, Config);
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,9 +37,25 @@ void TDsvParser::Read(const TStringBuf& data)
 
 void TDsvParser::Finish()
 {
-    if (State == EState::InsideValue) {
-        Consumer->OnStringScalar(CurrentToken);
-        Consumer->OnEndMap();
+    switch(State) {
+        case (EState::InsideValue):
+            Consumer->OnStringScalar(CurrentToken);
+            Consumer->OnEndMap();
+            break;
+        case (EState::InsidePrefix):
+            ValidatePrefix(CurrentToken);
+            StartRecordIfNeeded();
+            Consumer->OnEndMap();
+            break;
+        case (EState::InsideKey):
+            if (!CurrentToken.empty()) {
+                ythrow yexception() << Sprintf("Key %s must be followed by value", ~CurrentToken);
+            }
+            StartRecordIfNeeded();
+            Consumer->OnEndMap();
+            break;
+        default:
+            YUNREACHABLE();
     }
 }
 
@@ -54,7 +70,6 @@ void TDsvParser::StartRecordIfNeeded()
 
 const char* TDsvParser::Consume(const char* begin, const char* end)
 {
-
     if (!ExpectingEscapedChar && *begin == Config->EscapingSymbol) {
         ExpectingEscapedChar = true;
         ++begin;
@@ -79,10 +94,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                 ValueStopSymbols, ValueStopSymbols + ARRAY_SIZE(ValueStopSymbols));
             CurrentToken.append(begin, next);
             if (next != end && *next != Config->EscapingSymbol) {
-                if (CurrentToken != Config->LinePrefix.Get()) {
-                    ythrow yexception() <<
-                        Sprintf("Each line must begin with %s", ~Config->LinePrefix.Get());
-                }
+                ValidatePrefix(CurrentToken);
                 CurrentToken.clear();
                 StartRecordIfNeeded();
                 if (*next == Config->RecordSeparator) {
@@ -152,6 +164,16 @@ TDsvParser::EState TDsvParser::GetStartState()
         return EState::InsidePrefix;
     } else {
         return EState::InsideKey;
+    }
+}
+
+void TDsvParser::ValidatePrefix(const Stroka& prefix)
+{
+    if (prefix != Config->LinePrefix.Get()) {
+        ythrow yexception() <<
+            Sprintf("Each line must begin with %s, found: %s",
+                ~Config->LinePrefix.Get(),
+                ~prefix);
     }
 }
 
