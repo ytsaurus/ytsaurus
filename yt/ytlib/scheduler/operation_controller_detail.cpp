@@ -143,7 +143,6 @@ TFuture<void> TOperationControllerBase::Commit()
     VERIFY_THREAD_AFFINITY_ANY();
 
     YCHECK(Active);
-    YCHECK(!Running);
 
     LOG_INFO("Committing operation");
 
