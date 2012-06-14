@@ -5,15 +5,6 @@
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
 
-#include <ytlib/ytree/ypath_proxy.h>
-
-#include <ytlib/scheduler/scheduler_proxy.h>
-#include <ytlib/scheduler/helpers.h>
-
-#include <ytlib/object_server/object_service_proxy.h>
-
-#include <util/stream/format.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
