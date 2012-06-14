@@ -263,7 +263,7 @@ private:
 
             if (!failedJobIds.empty()) {
                 printf("\n");
-                printf("%   " PRISZT " job(s) have failed:", failedJobIds.size());
+                printf("%" PRISZT " job(s) have failed:", failedJobIds.size());
                 printf("%35s %15s\n", "Id", "Address");
                 FOREACH (const auto& jobId, failedJobIds) {
                     auto job = jobs->GetChild(jobId.ToString());
