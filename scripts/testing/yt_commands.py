@@ -27,6 +27,8 @@ def command(name, *args, **kw):
 def convert_to_yt_args(*args, **kw):
     all_args = list(args)
     for k, v in kw.items():
+        # workaround to deal with in as keyword
+        if k == 'input': k = 'in'
         all_args.extend(['--' + k, v])
     return all_args
 
@@ -63,6 +65,8 @@ def renew_transaction(**kw): return command('renew_tx', **kw)
 def abort_transaction(**kw): return command('abort_tx', **kw)
 
 def upload(path, **kw): return command('upload', path, **kw)
+
+def map(**kw): return command('map', **kw)
 
 #########################################
 

@@ -4,21 +4,36 @@
             "localhost:9000";
         ];
     };
-
+    scheduler = {
+        strategy = fifo;
+    };
     logging = {
         rules = [
             {
-                min_level = debug;
+                min_level = Info;
                 writers = [ file ];
+                categories  = [ "*" ];
+            };
+            {
+                min_level = Debug;
+                writers = [ raw ];
                 categories  = [ "*" ];
             };
         ];
         writers = {
+            stderr = {
+                type = StdErr;
+                pattern = "$(datetime) $(level) $(category) $(message)";
+            };
             file = {
                 type = File;
                 file_name = "scheduler-0.log";
-                pattern = "$(datetime)\t$(level)\t$(category)\t$(message)";
+                pattern = "$(datetime) $(level) $(category) $(message)";
             };
-        };
-    };
-}
+            raw = {
+                type = raw;
+                file_name = "scheduler-0.debug.log";
+            };
+        }
+    }
+  }

@@ -1,59 +1,55 @@
 {
     "chunk_holder" = {
         "cache_location" = {
-            "high_watermark" = 104857600;
-            "low_watermark" = 1073741824;
             "path" = ""
         };
-        "cache_remote_reader" = {
-            "fetch_from_peers" = "true";
-            "holder_rpc_timeout" = 30000;
-            "pass_backoff_time" = 1000;
-            "pass_count" = 3;
-            "peer_expiration_timeout" = 300000;
-            "publish_peer" = "false";
-            "retry_backoff_time" = 3000;
-            "retry_count" = 100
-        };
-        "cache_sequential_reader" = {
-            "group_size" = 10;
-            "prefetch_window_size" = 100
-        };
-        "full_heartbeat_timeout" = 60000;
-        "heartbeat_period" = 5000;
-        "heartbeat_splay" = 5000;
-        "holder_rpc_timeout" = 15000;
-        "max_cached_blocks_size" = 1048576;
-        "max_cached_readers" = 10;
-        "peer_block_table" = {
-            "max_peers_per_block" = 64;
-            "sweep_period" = 600000
-        };
-        "peer_update_expiration_timeout" = 40000;
-        "peer_update_period" = 30000;
-        "replication_remote_writer" = {
-            "group_size" = 1048576;
-            "holder_rpc_timeout" = 30000;
-            "session_ping_interval" = 10000;
-            "window_size" = 4194304
-        };
-        "response_throttling_size" = 524288000;
-        "session_timeout" = 15000;
         "store_locations" = []
     };
     "exec_agent" = {
         "environment_manager" = {
-            "environments" = {}
+            "environments" = {
+                "default" = {
+                    "type" = "unsafe";
+                };                
+            };
         };
         "job_manager" = {
-            "slot_count" = 8;
-            "slot_location" = ""
+            "slot_count" = 1;
+            "slot_location" = "";
         };
-        "scheduler_connector" = {
-            "heartbeat_period" = 5000
+        job_proxy_logging = {
+            rules = [
+                {
+                    min_level = Info;
+                    writers = [ file ];
+                    categories  = [ "*" ];
+                };
+                {
+                    min_level = Debug;
+                    writers = [ raw ];
+                    categories  = [ "*" ];
+                };
+            ];
+            writers = {
+                stderr = {
+                    type = StdErr;
+                    pattern = "$(datetime) $(level) $(category) $(message)";
+                };
+                file = {
+                    type = File;
+                    file_name = "job_proxy-0.log";
+                    pattern = "$(datetime) $(level) $(category) $(message)";
+                };
+                raw = {
+                    type = Raw;
+                    file_name = "job_proxy-0.debug.log";
+                };
+            }
         };
-        "supervisor_timeout" = 5000
+
+
     };
+
     "masters" = {
         "addresses" = [];
         "rpc_timeout" = 5000

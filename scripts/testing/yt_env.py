@@ -36,8 +36,16 @@ def read_config(filename):
 
 def write_config(config, filename):
     f = open(filename, 'wt')
-    f.write(yson.dumps(config, indent = ' '))
+    f.write(yson.dumps(config, indent = '    '))
     f.close()
+
+def init_logging(node, path, name):
+    logging_file_name = os.path.join(path, name + '.log')
+    debugging_file_name = os.path.join(path, name + '.debug.log')
+
+    node['writers']['file']['file_name'] = logging_file_name
+    node['writers']['raw']['file_name'] = debugging_file_name
+
 
 class YTEnv:
     NUM_MASTERS = 3
@@ -276,16 +284,12 @@ class YTEnv:
             chunk_store = os.path.join(current, 'chunk_store')
             slot_location = os.path.join(current, 'slot')
 
-            logging_file_name = os.path.join(current, 'holder-' + str(i) + '.log')
-            debugging_file_name = os.path.join(current, 'holder-' + str(i) + '.debug.log')
-
-
             holder_config['chunk_holder']['cache_location']['path'] = chunk_cache
             holder_config['chunk_holder']['store_locations'].append( {'path': chunk_store})
             holder_config['exec_agent']['job_manager']['slot_location'] = slot_location
 
-            holder_config['logging']['writers']['file']['file_name'] = logging_file_name
-            holder_config['logging']['writers']['raw']['file_name'] = debugging_file_name
+            init_logging(holder_config['logging'], current, 'holder-%d' % i)
+            init_logging(holder_config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
 
             self.modify_holder_config(holder_config)
             deepupdate(holder_config, self.DELTA_HOLDER_CONFIG)
@@ -307,8 +311,11 @@ class YTEnv:
             os.mkdir(current)
 
             logging_file_name = os.path.join(current, 'scheduler-%s.log' % i)
+            debugging_file_name = os.path.join(current, 'scheduler-' + str(i) + '.debug.log')
 
             config['logging']['writers']['file']['file_name'] = logging_file_name
+            config['logging']['writers']['raw']['file_name'] = debugging_file_name
+
             self.scheduler_log = logging_file_name
 
             self.modify_scheduler_config(config)
