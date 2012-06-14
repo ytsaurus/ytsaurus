@@ -31,10 +31,11 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 struct TSnapshotHeader
 {
-    static const ui64 CurrentSignature =  0x3130303053535459ull; // YTSS0001
+    static const ui64 CorrectSignature =  0x3130303053535459ull; // YTSS0002
 
     ui64 Signature;
     i32 SegmentId;
+    TEpoch Epoch;
     i32 PrevRecordCount;
     ui64 DataLength;
     ui64 Checksum;
@@ -48,7 +49,7 @@ struct TSnapshotHeader
     { }
 
     TSnapshotHeader(i32 segmentId, i32 prevRecordCount)
-        : Signature(CurrentSignature)
+        : Signature(CorrectSignature)
         , SegmentId(segmentId)
         , PrevRecordCount(prevRecordCount)
         , DataLength(0)
@@ -57,13 +58,15 @@ struct TSnapshotHeader
 
     void Validate() const
     {
-        if (Signature != CurrentSignature) {
+        if (Signature != CorrectSignature) {
             LOG_FATAL("Invalid signature: expected %" PRIx64 ", found %" PRIx64,
-                CurrentSignature,
+                CorrectSignature,
                 Signature);
         }
     }
 };
+
+static_assert(sizeof(TSnapshotHeader) == 48, "Binary size of TSnapshotHeader has changed.");
 
 #pragma pack(pop)
 

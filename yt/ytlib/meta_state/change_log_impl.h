@@ -20,10 +20,11 @@ namespace NMetaState {
 struct TLogHeader
 {
     //! Used to check correctness of this header.
-    static const ui64 CorrectSignature = 0x313030304C435459ull; // YTCL0001
+    static const ui64 CorrectSignature = 0x313030304C435459ull; // YTCL0002
 
     ui64 Signature;
     i32 ChangeLogId;
+    TEpoch Epoch;
     i32 PrevRecordCount;
     bool Finalized;
 
@@ -41,7 +42,7 @@ struct TLogHeader
     { }
 };
 
-static_assert(sizeof(TLogHeader) == 20, "Binary size of TLogHeader has changed.");
+static_assert(sizeof(TLogHeader) == 36, "Binary size of TLogHeader has changed.");
 
 struct TRecordHeader
 {

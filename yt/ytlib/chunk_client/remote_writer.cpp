@@ -847,7 +847,7 @@ void TRemoteWriter::TImpl::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChun
         if (ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
             ChunkInfo.size() != chunkInfo.size()) 
         {
-            LOG_FATAL("Mismatched chunk info reported by %s (KnownInfo: {%s}, NewInfo: {%s})",
+            LOG_FATAL("Mismatched chunk info reported by node (Address: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
                 ~node->Address,
                 ~ChunkInfo.DebugString(),
                 ~chunkInfo.DebugString());
