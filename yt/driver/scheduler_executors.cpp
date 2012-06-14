@@ -190,7 +190,7 @@ private:
 
         {
             auto req = TYPathProxy::Get(jobsPath);
-            req->Attributes().Set("with_attributes", "true");
+            req->Attributes().Set<Stroka>("with_attributes", "true");
             batchReq->AddRequest(req, "get_jobs");
         }
 
