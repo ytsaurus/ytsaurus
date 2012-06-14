@@ -227,10 +227,10 @@ void TOperationTracker::DumpResult()
         }
 
         printf("\n");
-        printf("%-10s %10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed", "Aborted");
+        printf("%-12s %10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed", "Aborted");
         for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
             if (totalJobCount[jobType] > 0) {
-                printf("%-10s %10d %10d %10d %10d\n",
+                printf("%-12s %10d %10d %10d %10d\n",
                     ~EJobType(jobType).ToString(),
                     totalJobCount[jobType],
                     completedJobCount[jobType],
@@ -241,7 +241,7 @@ void TOperationTracker::DumpResult()
 
         if (!failedJobIds.empty()) {
             printf("\n");
-            printf("%" PRISZT " job(s) have failed:", failedJobIds.size());
+            printf("%" PRISZT " job(s) have failed:\n", failedJobIds.size());
             FOREACH (const auto& jobId, failedJobIds) {
                 auto job = jobs->GetChild(jobId.ToString());
                 // TODO(babenko): refactor
