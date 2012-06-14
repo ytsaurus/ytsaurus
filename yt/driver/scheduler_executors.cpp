@@ -279,7 +279,7 @@ private:
                 printf("%" PRISZT " stderr(s) have been captured, use the following commands to view:\n",
                     stdErrJobIds.size());
                 FOREACH (const auto& jobId, stdErrJobIds) {
-                    printf("yt download %s\n",
+                    printf("yt download '%s'\n",
                         ~GetStdErrPath(OperationId, jobId));
                 }
             }
