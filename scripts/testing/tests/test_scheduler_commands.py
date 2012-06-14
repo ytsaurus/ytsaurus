@@ -57,8 +57,9 @@ class TestSchedulerCommands(YTEnvSetup):
 
         mapper = "cat > /dev/null; echo stderr 1>&2; exit(125)"
 
-        map(input='//tmp/t1', out='//tmp/t2', mapper=mapper)
-        assert get_stderr(op_id) == 'stderr'
+        op_id = map(input='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        track_op(op=op_id)
+        #assert get_stderr(op_id) == 'stderr'
 
 
     def test_map_many_output_tables(self):
