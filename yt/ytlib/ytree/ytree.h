@@ -162,7 +162,7 @@ struct ICompositeNode
 
 //! A map node, which keeps a dictionary mapping strings (Stroka) to child nodes.
 struct IMapNode
-    : public ICompositeNode
+    : public virtual ICompositeNode
 {
     using ICompositeNode::RemoveChild;
 
@@ -223,7 +223,7 @@ struct IMapNode
 
 //! A list node, which keeps a list (vector) of children.
 struct IListNode
-    : public ICompositeNode
+    : public virtual ICompositeNode
 {
     using ICompositeNode::RemoveChild;
 

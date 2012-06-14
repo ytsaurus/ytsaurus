@@ -67,13 +67,35 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(roizner): Add TSupports(Get,Set,Remove,Create)
-
-class TMapNodeMixin
-    : public virtual IMapNode
-    , public virtual TSupportsList
+class TCompositeNodeMixin
+    : public virtual ICompositeNode
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
+{
+protected:
+    virtual void RemoveRecursive(
+        const TYPath &path,
+        TReqRemove *request,
+        TRspRemove *response,
+        TCtxRemove *context);
+
+    virtual void SetRecursive(
+        const TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSet* context);
+
+    virtual void SetRecursive(
+        const TYPath& path,
+        INode* value) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapNodeMixin
+    : public virtual TCompositeNodeMixin
+    , public virtual IMapNode
+    , public virtual TSupportsList
 {
 protected:
     virtual IYPathService::TResolveResult ResolveRecursive(
@@ -87,26 +109,14 @@ protected:
 
     virtual void SetRecursive(
         const TYPath& path,
-        TReqSet* request,
-        TRspSet* response,
-        TCtxSet* context);
-    void SetRecursive(
-        const TYPath& path,
         INode* value);
-
-    virtual void RemoveRecursive(
-        const TYPath &path,
-        TReqRemove *request,
-        TRspRemove *response,
-        TCtxRemove *context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeMixin
-    : public virtual IListNode
-    , public virtual TSupportsSet
-    , public virtual TSupportsRemove
+    : public virtual TCompositeNodeMixin
+    , public virtual IListNode
 {
 protected:
     virtual IYPathService::TResolveResult ResolveRecursive(
@@ -115,21 +125,9 @@ protected:
 
     virtual void SetRecursive(
         const TYPath& path,
-        TReqSet* request,
-        TRspSet* response,
-        TCtxSet* context);
-
-    void SetRecursive(
-        const TYPath& path,
         INode* value);
 
     i64 NormalizeAndCheckIndex(i64 index) const;
-
-    virtual void RemoveRecursive(
-        const TYPath &path,
-        TReqRemove *request,
-        TRspRemove *response,
-        TCtxRemove *context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -64,6 +64,42 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCompositeNodeMixin::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSet* context)
+{
+    UNUSED(response);
+
+    auto factory = CreateFactory();
+    auto value = DeserializeFromYson(request->value(), ~factory);
+    SetRecursive(path, ~value);
+    context->Reply();
+}
+
+void TCompositeNodeMixin::RemoveRecursive(
+    const TYPath& path,
+    TSupportsRemove::TReqRemove* request,
+    TSupportsRemove::TRspRemove* response,
+    TSupportsRemove::TCtxRemove* context)
+{
+    TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
+    switch (tokenizer.CurrentToken().GetType()) {
+        case RemoveAllToken:
+            YASSERT(!tokenizer.ParseNext());
+            Clear();
+            break;
+
+        default:
+            ThrowUnexpectedToken(tokenizer.CurrentToken());
+            YUNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
@@ -115,16 +151,6 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* co
     context->Reply();
 }
 
-void TMapNodeMixin::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
-{
-    UNUSED(response);
-
-    auto factory = CreateFactory();
-    auto value = DeserializeFromYson(request->value(), ~factory);
-    SetRecursive(path, ~value);
-    context->Reply();
-}
-
 void TMapNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
@@ -136,26 +162,6 @@ void TMapNodeMixin::SetRecursive(
     YASSERT(!childName.empty());
     YASSERT(!FindChild(childName));
     AddChild(value, childName);
-}
-
-void TMapNodeMixin::RemoveRecursive(
-    const TYPath& path,
-    TSupportsRemove::TReqRemove* request,
-    TSupportsRemove::TRspRemove* response,
-    TSupportsRemove::TCtxRemove* context)
-{
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    switch (tokenizer.CurrentToken().GetType()) {
-        case RemoveAllToken:
-            YASSERT(!tokenizer.ParseNext());
-            Clear();
-            break;
-
-        default:
-            ThrowUnexpectedToken(tokenizer.CurrentToken());
-            YUNREACHABLE();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,16 +207,6 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             YUNREACHABLE();
     }
-}
-
-void TListNodeMixin::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
-{
-    UNUSED(response);
-
-    auto factory = CreateFactory();
-    auto value = DeserializeFromYson(request->value(), ~factory);
-    SetRecursive(path, ~value);
-    context->Reply();
 }
 
 void TListNodeMixin::SetRecursive(
@@ -262,26 +258,6 @@ i64 TListNodeMixin::NormalizeAndCheckIndex(i64 index) const
             count);
     }
     return result;
-}
-
-void TListNodeMixin::RemoveRecursive(
-    const TYPath& path,
-    TSupportsRemove::TReqRemove* request,
-    TSupportsRemove::TRspRemove* response,
-    TSupportsRemove::TCtxRemove* context)
-{
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    switch (tokenizer.CurrentToken().GetType()) {
-        case RemoveAllToken:
-            YASSERT(!tokenizer.ParseNext());
-            Clear();
-            break;
-
-        default:
-            ThrowUnexpectedToken(tokenizer.CurrentToken());
-            YUNREACHABLE();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
