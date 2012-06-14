@@ -99,8 +99,6 @@ private:
             out->append(' ');
         }
 
-        out->append("done ");
-
         // Some simple pretty-printing.
         int totalWidth = ToString(total).length();
         out->append("(");
@@ -254,8 +252,8 @@ private:
             printf("Job statistics:\n");
             printf("%10s %10s %10s\n", "", "Total", "Completed", "Failed");
             for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
-                if (totalJobCount[jobType] > 0) {
-                    printf ("%10s %10d %10d\n",
+                if (totalJobCount[jobType] > 0) {   
+                    printf ("%10s %10d %10d %10d\n",
                         ~EJobType(jobType).ToString(),
                         totalJobCount[jobType],
                         completedJobCount[jobType],
