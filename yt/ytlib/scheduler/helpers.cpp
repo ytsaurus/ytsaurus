@@ -37,7 +37,7 @@ TYPath GetJobsPath(const TOperationId& operationId)
 TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
-        GetJobsPath(operationId) + "/"
+        GetJobsPath(operationId) + "/" +
         EscapeYPathToken(jobId.ToString());
 }
 
