@@ -84,6 +84,9 @@ void TCompositeNodeMixin::RemoveRecursive(
     TSupportsRemove::TRspRemove* response,
     TSupportsRemove::TCtxRemove* context)
 {
+    UNUSED(request);
+    UNUSED(response);
+
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.CurrentToken().GetType()) {
@@ -96,6 +99,8 @@ void TCompositeNodeMixin::RemoveRecursive(
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             YUNREACHABLE();
     }
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

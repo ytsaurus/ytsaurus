@@ -153,6 +153,19 @@ TEST_F(TYPathTest, ListReassignment)
     Check("", "{\"list\"=[1;2;3]}");
 }
 
+TEST_F(TYPathTest, Clear)
+{
+    Set("/my", "{\"list\"=<\"type\"=\"list\">[1;2];\"map\"=<\"type\"=\"map\">{\"a\"=1;\"b\"=2}}");
+
+    Remove("/my/list/*");
+    Check("/my/list", "[]");
+    Check("/my/list/@", "{\"type\"=\"list\"}");
+
+    Remove("/my/map/*");
+    Check("/my/map", "{}");
+    Check("/my/map/@", "{\"type\"=\"map\"}");
+}
+
 TEST_F(TYPathTest, Ls)
 {
     Set("", "{a={x1={y1=1}};b={x2={y2=2}};c={x3={y3=3}};d={x4={y4=4}}}");
