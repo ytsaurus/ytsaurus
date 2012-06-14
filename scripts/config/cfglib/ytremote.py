@@ -108,7 +108,7 @@ class RemoteNode(Node):
         print >>fd, shebang
         print >>fd, ulimit
         print >>fd, cls.export_ld_path
-        print >>fd, 'ulimit -n 4096'
+        print >>fd, 'ulimit -n 16384'
         print >>fd, wrap_cmd(cls.run_tmpl, timeout=0)
 
     def defaultFile(cls, fd, descr):
