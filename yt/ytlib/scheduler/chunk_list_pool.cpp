@@ -87,8 +87,6 @@ void TChunkListPool::OnChunkListsCreated(TObjectServiceProxy::TRspExecuteBatchPt
 
     LOG_INFO("Chunk lists allocated");
 
-    YASSERT(Ids.empty());
-
     FOREACH (auto rsp, batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>()) {
         Ids.push_back(TChunkListId::FromProto(rsp->object_id()));
     }
