@@ -1316,7 +1316,7 @@ private:
 
         // Use the size reported by the holder, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
-            LOG_FATAL("Mismatched chunk size reported by holder (ChunkId: %s, Cached: %s, ExpectedInfo: %s, ReceivedInfo: %s, Address: %s, HolderId: %d)",
+            LOG_FATAL("Mismatched chunk size reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~ToString(cached),
                 ~chunk->ChunkInfo().DebugString(),
@@ -1696,7 +1696,7 @@ private:
 
         // Use the size reported by the client, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(request->chunk_info())) {
-            LOG_FATAL("Mismatched chunk %s info reported by client: expected %s, received %s",
+            LOG_FATAL("Invalid chunk info reported by client (ChunkId: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
                 ~Id.ToString(),
                 ~chunk->ChunkInfo().DebugString(),
                 ~request->chunk_info().DebugString());
