@@ -80,6 +80,7 @@ TJobResult TOrderedMergeJob::Run()
             TNonOwningKey key;
             while (Reader->IsValid()) {
                 Writer->WriteRow(Reader->GetRow(), key);
+                Reader->NextRow();
             }
         }
         PROFILE_TIMING_CHECKPOINT("merge");
