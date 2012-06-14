@@ -249,7 +249,6 @@ private:
             }
 
             printf("\n");
-            printf("Job statistics:\n");
             printf("%-10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed");
             for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
                 if (totalJobCount[jobType] > 0) {   
