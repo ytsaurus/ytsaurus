@@ -195,7 +195,7 @@ private:
             : TError(statusError.GetCode(), "Job proxy failed\n%s", ~statusError.GetMessage());
         SetError(wrappedError);
 
-        LOG_INFO("Job proxy finished with status: %s", ~wrappedError.ToString());
+        LOG_INFO("Job proxy finished\n%s", ~wrappedError.ToString());
 
         {
             // Kill process group for sanity reasons.
