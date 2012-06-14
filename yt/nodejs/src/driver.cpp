@@ -212,7 +212,7 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
 
     target->Set(
         String::New("GetEioStatistics"),
-        FunctionTemplate::New(GetEioStatistics));
+        FunctionTemplate::New(GetEioStatistics)->GetFunction());
 }
 
 bool TNodeJSDriver::HasInstance(Handle<Value> value)
