@@ -137,13 +137,23 @@ private:
         TBase::DoInvoke(context);
     }
 
+    bool ValidateTransactionIsActive(const TTransaction* transaction)
+    {
+        if (!transaction->IsActive()) {
+            ythrow yexception() << "Transaction is not active";
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, Commit)
     {
         UNUSED(request);
         UNUSED(response);
 
+        auto* transaction = GetTypedImpl();
+        ValidateTransactionIsActive(transaction);
+
         context->SetRequestInfo("");
-        Owner->Commit(GetTypedImpl());
+        Owner->Commit(transaction);
         context->Reply();
     }
 
@@ -152,8 +162,11 @@ private:
         UNUSED(request);
         UNUSED(response);
 
+        auto* transaction = GetTypedImpl();
+        ValidateTransactionIsActive(transaction);
+
         context->SetRequestInfo("");
-        Owner->Abort(GetTypedImpl());
+        Owner->Abort(transaction);
         context->Reply();
     }
 
@@ -162,8 +175,11 @@ private:
         UNUSED(request);
         UNUSED(response);
 
+        auto* transaction = GetTypedImpl();
+        ValidateTransactionIsActive(transaction);
+
         context->SetRequestInfo("");
-        Owner->RenewLease(GetTypedImpl());
+        Owner->RenewLease(transaction);
         context->Reply();
     }
 
@@ -176,6 +192,10 @@ private:
             ~type.ToString());
 
         auto* transaction = GetId() == NullTransactionId ? NULL : GetTypedImpl();
+
+        if (transaction) {
+            ValidateTransactionIsActive(transaction);
+        }
 
         auto objectManager = Owner->Bootstrap->GetObjectManager();
         auto handler = objectManager->FindHandler(type);
@@ -228,6 +248,9 @@ private:
         context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
 
         auto* transaction = GetTypedImpl();
+
+        ValidateTransactionIsActive(transaction);
+
         if (transaction->CreatedObjectIds().erase(objectId) != 1) {
             ythrow yexception() << "Transaction does not own the object";
         }
@@ -364,9 +387,7 @@ void TTransactionManager::Commit(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (transaction->GetState() != ETransactionState::Active) {
-        ythrow yexception() << "Cannot commit an inactive transaction";
-    }
+    YCHECK(transaction->IsActive());
 
     auto id = transaction->GetId();
 
@@ -391,9 +412,7 @@ void TTransactionManager::Abort(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (transaction->GetState() != ETransactionState::Active) {
-        ythrow yexception() << "Cannot abort an inactive transaction";
-    }
+    YCHECK(transaction->IsActive());
 
     auto id = transaction->GetId();
 
@@ -435,9 +454,7 @@ void TTransactionManager::RenewLease(const TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (transaction->GetState() != ETransactionState::Active) {
-        ythrow yexception() << "Cannot renew lease for an inactive transaction";
-    }
+    YCHECK(transaction->IsActive());
 
     auto it = LeaseMap.find(transaction->GetId());
     YCHECK(it != LeaseMap.end());

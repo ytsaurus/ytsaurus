@@ -40,6 +40,8 @@ public:
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+
+    bool IsActive() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

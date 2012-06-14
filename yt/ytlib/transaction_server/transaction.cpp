@@ -43,6 +43,11 @@ void TTransaction::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRefs(input, CreatedNodes_, context);
 }
 
+bool TTransaction::IsActive() const
+{
+    return State_ == ETransactionState::Active;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionServer
