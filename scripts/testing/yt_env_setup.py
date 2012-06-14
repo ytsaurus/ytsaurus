@@ -3,6 +3,8 @@ import os
 from yt_env import YTEnv, SANDBOX_ROOTDIR
 from functools import wraps
 
+import yt_commands
+
 def _working_dir(test_name):
     path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
     return os.path.join(path_to_test, "run")
@@ -11,16 +13,29 @@ class YTEnvSetup(YTEnv):
 
     @classmethod
     def setup_class(cls):
-        #print 'setting up', cls
-        path_to_run = _working_dir(test_name=cls.__name__)
+        test_name = cls.__name__
+        path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
+
+        os.system('rm -rf ' + path_to_test)
+        os.makedirs(path_to_test)
+
+        path_to_run = os.path.join(path_to_test, "run")
+
+        cls.path_to_test = path_to_test
         cls.Env = cls()
         cls.Env.setUp(path_to_run)
-        #print '=' * 70
 
     @classmethod
     def teardown_class(cls):
-        #print 'tearingdown', cls
         cls.Env.tearDown()
+
+    def setup_method(self, method):
+        path_to_test_case = os.path.join(self.path_to_test, method.__name__)
+
+        os.makedirs(path_to_test_case)
+        os.chdir(path_to_test_case)
+        if self.Env.NUM_MASTERS > 0:
+            yt_commands.set('//tmp', '{}')
 
 # decorator form
 ATTRS = [

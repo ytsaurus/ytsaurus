@@ -27,9 +27,15 @@ def command(name, *args, **kw):
 def convert_to_yt_args(*args, **kw):
     all_args = list(args)
     for k, v in kw.items():
-        # workaround to deal with in as keyword
+        # workaround to deal with 'in' as keyword
         if k == 'input': k = 'in'
-        all_args.extend(['--' + k, v])
+        
+        if isinstance(v, list):
+            for elem in v:
+                all_args.extend(['--' + k, elem])
+        else:
+            all_args.extend(['--' + k, v])
+
     return all_args
 
 def run_command(name, *args, **kw):
