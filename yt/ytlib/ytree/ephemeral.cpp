@@ -245,15 +245,6 @@ private:
     {
         return TMapNodeMixin::ResolveRecursive(path, verb);
     }
-
-    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
-    {
-        UNUSED(response);
-
-        auto factory = CreateFactory();
-        TMapNodeMixin::SetRecursive(~factory, path, request);
-        context->Reply();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,15 +361,6 @@ private:
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb)
     {
         return TListNodeMixin::ResolveRecursive(path, verb);
-    }
-
-    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
-    {
-        UNUSED(response);
-
-        auto factory = CreateFactory();
-        TListNodeMixin::SetRecursive(~factory, path, request);
-        context->Reply();
     }
 };
 

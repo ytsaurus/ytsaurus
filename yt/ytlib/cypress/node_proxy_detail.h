@@ -649,7 +649,6 @@ protected:
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
     virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
-    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
 
     yhash_map<Stroka, ICypressNodeProxyPtr> DoGetChildren() const;
     NYTree::INodePtr DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const;
@@ -689,11 +688,6 @@ protected:
     virtual IYPathService::TResolveResult ResolveRecursive(
         const NYTree::TYPath& path,
         const Stroka& verb);
-    virtual void SetRecursive(
-        const NYTree::TYPath& path,
-        TReqSet* request,
-        TRspSet* response,
-        TCtxSet* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

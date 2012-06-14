@@ -64,14 +64,6 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
-{
-    UNUSED(request);
-
-    NYT::ToProto(response->mutable_keys(), GetKeys());
-    context->Reply();
-}
-
 IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
@@ -98,13 +90,22 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     ythrow yexception() << Sprintf("Key %s is not found", ~Stroka(name).Quote());
 }
 
-void TMapNodeMixin::SetRecursive(
-    INodeFactory* factory,
-    const TYPath& path,
-    NProto::TReqSet* request)
+void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
 {
-    auto value = DeserializeFromYson(request->value(), factory);
-    TMapNodeMixin::SetRecursive(path, ~value);
+    UNUSED(request);
+
+    NYT::ToProto(response->mutable_keys(), GetKeys());
+    context->Reply();
+}
+
+void TMapNodeMixin::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
+{
+    UNUSED(response);
+
+    auto factory = CreateFactory();
+    auto value = DeserializeFromYson(request->value(), ~factory);
+    SetRecursive(path, ~value);
+    context->Reply();
 }
 
 void TMapNodeMixin::SetRecursive(
@@ -161,13 +162,14 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     }
 }
 
-void TListNodeMixin::SetRecursive(
-    INodeFactory* factory,
-    const TYPath& path,
-    NProto::TReqSet* request)
+void TListNodeMixin::SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
 {
-    auto value = DeserializeFromYson(request->value(), factory);
-    TListNodeMixin::SetRecursive(path, ~value);
+    UNUSED(response);
+
+    auto factory = CreateFactory();
+    auto value = DeserializeFromYson(request->value(), ~factory);
+    SetRecursive(path, ~value);
+    context->Reply();
 }
 
 void TListNodeMixin::SetRecursive(

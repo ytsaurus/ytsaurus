@@ -72,39 +72,45 @@ protected:
 class TMapNodeMixin
     : public virtual IMapNode
     , public virtual TSupportsList
+    , public virtual TSupportsSet
 {
 protected:
-    IYPathService::TResolveResult ResolveRecursive(
+    virtual IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const Stroka& verb);
 
-    void SetRecursive(
-        INodeFactory* factory,
+    virtual void ListSelf(
+        TReqList* request,
+        TRspList* response,
+        TCtxList* context);
+    virtual void SetRecursive(
         const TYPath& path,
-        NProto::TReqSet* request);
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSet* context);
+
     void SetRecursive(
         const TYPath& path,
         INode* value);
-
-private:
-    virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeMixin
     : public virtual IListNode
+    , public virtual TSupportsSet
 {
 protected:
-    IYPathService::TResolveResult ResolveRecursive(
+    virtual IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const Stroka& verb);
 
-    void SetRecursive(
-        INodeFactory* factory,
+    virtual void SetRecursive(
         const TYPath& path,
-        NProto::TReqSet* request);
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSet* context);
+
     void SetRecursive(
         const TYPath& path,
         INode* value);
