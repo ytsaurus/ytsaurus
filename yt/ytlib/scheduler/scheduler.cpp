@@ -407,7 +407,7 @@ private:
     }
 
     void UnregisterNode(TExecNodePtr node)
-        {
+    {
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         FOREACH (auto job, jobs) {
@@ -415,7 +415,7 @@ private:
                 ~job->GetId().ToString(),
                 ~node->GetAddress(),
                 ~job->GetOperation()->GetOperationId().ToString());
-            OnJobFailed(job, TError("Node has gone offline"));
+            OnJobFailed(job, TError("Node %s has gone offline", ~node->GetAddress().Quote()));
         }
         YCHECK(ExecNodes.erase(node->GetAddress()) == 1);
     }
@@ -430,7 +430,7 @@ private:
         LOG_DEBUG("Registered operation %s", ~operation->GetOperationId().ToString());
     }
 
-    void CancelOperationJobs(TOperationPtr operation)
+    void AbortOperationJobs(TOperationPtr operation, bool notifyController)
     {
         // Take a copy, the collection will be modified.
         auto jobs = operation->Jobs();
@@ -503,7 +503,9 @@ private:
 
     void OnJobCompleted(TJobPtr job, const NProto::TJobResult& result)
     {
+        job->SetState(EJobState::Completed);
         job->Result() = result;
+
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobCompleted(job);
@@ -514,6 +516,7 @@ private:
 
     void OnJobFailed(TJobPtr job, const NProto::TJobResult& result)
     {
+        job->SetState(EJobState::Failed);
         job->Result() = result;
 
         auto operation = job->GetOperation();
@@ -665,7 +668,7 @@ private:
             return;
         }
 
-        CancelOperationJobs(operation);
+        AbortOperationJobs(operation);
 
         MasterConnector->FlushOperationNode(operation).Subscribe(
             BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
@@ -721,7 +724,7 @@ private:
         operation->SetState(EOperationState::Failed);
         *operation->Result().mutable_error() = error.ToProto();
 
-        CancelOperationJobs(operation);
+        AbortOperationJobs(operation);
 
         DoOperationFinished(operation);
     }
@@ -990,8 +993,6 @@ private:
             }
             return NULL;
         }
-
-        job->SetState(state);
 
         switch (state) {
             case EJobState::Completed:
