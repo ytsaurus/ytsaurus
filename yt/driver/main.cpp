@@ -68,6 +68,7 @@ public:
         RegisterExecutor("sort", New<TSortExecutor>());
         RegisterExecutor("erase", New<TEraseExecutor>());
         RegisterExecutor("abort_op", New<TAbortOpExecutor>());
+        RegisterExecutor("track_op", New<TTrackOpExecutor>());
     }
 
     int Main(int argc, const char* argv[])

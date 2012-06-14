@@ -70,6 +70,7 @@ set( HDRS
   ${BASE}/mpl.h
   ${BASE}/new.h
   ${BASE}/nullable.h
+  ${BASE}/override.h
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
   ${BASE}/preprocessor-gen.h

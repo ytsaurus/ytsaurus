@@ -4,9 +4,9 @@ set( SRCS
   ${BASE}/async_change_log.cpp
   ${BASE}/change_committer.cpp
   ${BASE}/change_log.cpp
-  ${BASE}/change_log_impl.cpp
   ${BASE}/change_log_cache.cpp
   ${BASE}/change_log_downloader.cpp
+  ${BASE}/change_log_impl.cpp
   ${BASE}/common.cpp
   ${BASE}/composite_meta_state.cpp
   ${BASE}/composite_meta_state_detail.cpp
@@ -26,9 +26,10 @@ set( HDRS
   ${BASE}/async_change_log.h
   ${BASE}/change_committer.h
   ${BASE}/change_log.h
-  ${BASE}/change_log_impl.h
   ${BASE}/change_log_cache.h
   ${BASE}/change_log_downloader.h
+  ${BASE}/change_log_file_utilities.h
+  ${BASE}/change_log_impl.h
   ${BASE}/common.h
   ${BASE}/composite_meta_state-inl.h
   ${BASE}/composite_meta_state.h

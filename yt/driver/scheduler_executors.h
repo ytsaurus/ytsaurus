@@ -13,8 +13,6 @@ public:
     TStartOpExecutor();
 
 private:
-    class TOperationTracker;
-
     TCLAP::SwitchArg DontTrackArg;
 
     virtual void DoExecute(const NDriver::TDriverRequest& request);
@@ -112,6 +110,24 @@ private:
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTrackOpExecutor
+    : public TExecutorBase
+{
+public:
+    TTrackOpExecutor();
+
+    virtual void Execute(const std::vector<std::string>& args);
+
+private:
+    TCLAP::ValueArg<Stroka> OpArg;
+
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+    virtual Stroka GetDriverCommandName() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

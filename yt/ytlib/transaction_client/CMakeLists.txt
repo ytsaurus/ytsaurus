@@ -7,9 +7,9 @@ set( SRCS
   ${BASE}/transaction_manager.cpp
 )
 set( HDRS
-  ${BASE}/public.h
-  ${BASE}/private.h
   ${BASE}/config.h
+  ${BASE}/private.h
+  ${BASE}/public.h
   ${BASE}/transaction.h
   ${BASE}/transaction_listener.h
   ${BASE}/transaction_manager.h
