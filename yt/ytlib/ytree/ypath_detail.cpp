@@ -474,6 +474,8 @@ void TSupportsAttributes::SetAttribute(
 
     if (!tokenizer.ParseNext()) {
         auto newAttributes = DeserializeAttributesFromYson(request->value());
+
+        // Construct deltas.
         auto newKeys = newAttributes->List();
         yhash_set<Stroka> userKeys;
         if (userAttributes) {
@@ -481,7 +483,7 @@ void TSupportsAttributes::SetAttribute(
             userKeys.swap(temp);
         }
 
-        // Checking
+        // Call OnUpdateAttribute to check the changes for feasiblity.
         FOREACH (const auto& key, newKeys) {
             YASSERT(!key.empty());
             OnUpdateAttribute(
@@ -498,12 +500,12 @@ void TSupportsAttributes::SetAttribute(
             }
         }
 
-        // Removing
+        // Remove deleted keys.
         FOREACH (const auto& key, userKeys) {
             userAttributes->Remove(key);
         }
 
-        // Adding
+        // Add new keys.
         FOREACH (const auto& key, newKeys) {
             DoSetAttribute(
                 userAttributes,
@@ -517,15 +519,18 @@ void TSupportsAttributes::SetAttribute(
             if (key.Empty()) {
                 ythrow yexception() << "Attribute key cannot be empty";
             }
+            auto oldValue = DoFindAttribute(userAttributes, systemAttributeProvider, key);
+            auto newValue = request->value();
+            ValidateYson(newValue);
             OnUpdateAttribute(
                 key,
-                DoFindAttribute(userAttributes, systemAttributeProvider, key),
-                request->value());
+                oldValue,
+                newValue);
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,
                 key,
-                request->value());
+                newValue);
         } else {
             bool isSystem;
             auto yson =
