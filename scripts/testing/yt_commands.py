@@ -45,7 +45,10 @@ def convert_to_yt_args(*args, **kw):
             for elem in v:
                 all_args.extend(['--' + k, elem])
         else:
-            all_args.extend(['--' + k, v])
+            if v != None:
+                all_args.extend(['--' + k, v])
+            else:
+                all_args.extend(['--' + k])
 
     return all_args
 
@@ -91,7 +94,8 @@ def upload(path, data, **kw):
 def download(path, **kw):
     return command('download', path, **kw)
 
-def map(**kw): return command('map', **kw)
+def map(*args, **kw): return command('map', *args, **kw)
+def track_op(**kw): return command('track_op', **kw)
 
 #########################################
 

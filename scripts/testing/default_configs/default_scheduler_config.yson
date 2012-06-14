@@ -6,6 +6,7 @@
     };
     scheduler = {
         strategy = fifo;
+        failed_jobs_limit = 10;
     };
     logging = {
         rules = [
