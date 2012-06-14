@@ -64,6 +64,11 @@ char TokenTypeToChar(ETokenType type)
     }
 }
 
+Stroka TokenTypeToString(ETokenType type)
+{
+    return Stroka(TokenTypeToChar(type));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TToken TToken::EndOfStream;
@@ -141,7 +146,7 @@ Stroka TToken::ToString() const
             return ::ToString(DoubleValue);
 
         default:
-            return Stroka(TokenTypeToChar(Type_));
+            return TokenTypeToString(Type_);
     }
 }
 

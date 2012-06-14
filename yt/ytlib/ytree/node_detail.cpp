@@ -70,24 +70,41 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    Stroka name(tokenizer.CurrentToken().GetStringValue());
+    switch (tokenizer.GetCurrentType()) {
+        case RemoveAllToken:
+            tokenizer.ParseNext();
+            tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
+            return IYPathService::TResolveResult::Here(
+                TokenTypeToString(PathSeparatorToken) + path);
 
-    if (name.Empty()) {
-        ythrow yexception() << Sprintf("Child name cannot be empty");
-    }
+        case ETokenType::String: {
+            Stroka name(tokenizer.CurrentToken().GetStringValue());
 
-    auto child = FindChild(name);
-    if (child) {
-        return IYPathService::TResolveResult::There(~child, TYPath(tokenizer.GetCurrentSuffix()));
-    }
+            if (name.Empty()) {
+                ythrow yexception() << Sprintf("Child name cannot be empty");
+            }
 
-    if (verb == "Set" || verb == "Create") {
-        if (!tokenizer.ParseNext()) {
-            return IYPathService::TResolveResult::Here("/" + path);
+            auto child = FindChild(name);
+            if (child) {
+                return IYPathService::TResolveResult::There(
+                    ~child, TYPath(tokenizer.GetCurrentSuffix()));
+            }
+
+            if (verb == "Set" || verb == "Create") {
+                if (!tokenizer.ParseNext()) {
+                    return IYPathService::TResolveResult::Here(
+                        TokenTypeToString(PathSeparatorToken) + path);
+                }
+            }
+
+            ythrow yexception() << Sprintf("Key %s is not found",
+                ~Stroka(name).Quote());
         }
-    }
 
-    ythrow yexception() << Sprintf("Key %s is not found", ~Stroka(name).Quote());
+        default:
+            ThrowUnexpectedToken(tokenizer.CurrentToken());
+            YUNREACHABLE();
+    }
 }
 
 void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
@@ -121,6 +138,26 @@ void TMapNodeMixin::SetRecursive(
     AddChild(value, childName);
 }
 
+void TMapNodeMixin::RemoveRecursive(
+    const TYPath& path,
+    TSupportsRemove::TReqRemove* request,
+    TSupportsRemove::TRspRemove* response,
+    TSupportsRemove::TCtxRemove* context)
+{
+    TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
+    switch (tokenizer.CurrentToken().GetType()) {
+        case RemoveAllToken:
+            YASSERT(!tokenizer.ParseNext());
+            Clear();
+            break;
+
+        default:
+            ThrowUnexpectedToken(tokenizer.CurrentToken());
+            YUNREACHABLE();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
@@ -131,9 +168,11 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
         case ListAppendToken:
+        case RemoveAllToken:
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-            return IYPathService::TResolveResult::Here("/" + path);
+            return IYPathService::TResolveResult::Here(
+                TokenTypeToString(PathSeparatorToken) + path);
 
         case ETokenType::Integer: {
             int index = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
@@ -141,7 +180,8 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             if (tokenizer.GetCurrentType() == ListInsertToken) {
                 tokenizer.ParseNext();
                 tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-                return IYPathService::TResolveResult::Here("/" + path);
+                return IYPathService::TResolveResult::Here(
+                    TokenTypeToString(PathSeparatorToken) + path);
             } else {
                 auto child = FindChild(index);
                 YASSERT(child);
@@ -154,7 +194,8 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-            return IYPathService::TResolveResult::Here("/" + path);
+            return IYPathService::TResolveResult::Here(
+                TokenTypeToString(PathSeparatorToken) + path);
 
         default:
             ThrowUnexpectedToken(tokenizer.CurrentToken());
@@ -221,6 +262,26 @@ i64 TListNodeMixin::NormalizeAndCheckIndex(i64 index) const
             count);
     }
     return result;
+}
+
+void TListNodeMixin::RemoveRecursive(
+    const TYPath& path,
+    TSupportsRemove::TReqRemove* request,
+    TSupportsRemove::TRspRemove* response,
+    TSupportsRemove::TCtxRemove* context)
+{
+    TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
+    switch (tokenizer.CurrentToken().GetType()) {
+        case RemoveAllToken:
+            YASSERT(!tokenizer.ParseNext());
+            Clear();
+            break;
+
+        default:
+            ThrowUnexpectedToken(tokenizer.CurrentToken());
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

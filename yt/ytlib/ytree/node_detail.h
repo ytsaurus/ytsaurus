@@ -73,6 +73,7 @@ class TMapNodeMixin
     : public virtual IMapNode
     , public virtual TSupportsList
     , public virtual TSupportsSet
+    , public virtual TSupportsRemove
 {
 protected:
     virtual IYPathService::TResolveResult ResolveRecursive(
@@ -83,15 +84,21 @@ protected:
         TReqList* request,
         TRspList* response,
         TCtxList* context);
+
     virtual void SetRecursive(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
         TCtxSet* context);
-
     void SetRecursive(
         const TYPath& path,
         INode* value);
+
+    virtual void RemoveRecursive(
+        const TYPath &path,
+        TReqRemove *request,
+        TRspRemove *response,
+        TCtxRemove *context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +106,7 @@ protected:
 class TListNodeMixin
     : public virtual IListNode
     , public virtual TSupportsSet
+    , public virtual TSupportsRemove
 {
 protected:
     virtual IYPathService::TResolveResult ResolveRecursive(
@@ -116,6 +124,12 @@ protected:
         INode* value);
 
     i64 NormalizeAndCheckIndex(i64 index) const;
+
+    virtual void RemoveRecursive(
+        const TYPath &path,
+        TReqRemove *request,
+        TRspRemove *response,
+        TCtxRemove *context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
