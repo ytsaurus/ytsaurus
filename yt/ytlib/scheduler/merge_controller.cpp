@@ -385,7 +385,7 @@ protected:
     bool IsLargeCompleteChunk(const TInputChunk& chunk)
     {
         if (!IsCompleteChunk(chunk)) {
-            return true;
+            return false;
         }
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
