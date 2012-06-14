@@ -15,19 +15,37 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////
 
+TYPath GetOperationsPath()
+{
+    return "//sys/operations";
+}
+
 TYPath GetOperationPath(const TOperationId& operationId)
 {
     return
-        "//sys/operations/" +
+        GetOperationsPath() + "/" +
         EscapeYPathToken(operationId.ToString());
+}
+
+TYPath GetJobsPath(const TOperationId& operationId)
+{
+    return
+        GetOperationPath(operationId) +
+        "/jobs";
 }
 
 TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
-        GetOperationPath(operationId) +
-        "/jobs/" +
+        GetJobsPath(operationId) + "/"
         EscapeYPathToken(jobId.ToString());
+}
+
+TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId)
+{
+    return
+        GetJobPath(operationId, jobId)
+        + "/stderr";
 }
 
 void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
@@ -49,6 +67,7 @@ void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("job_type").Scalar(FormatEnum(EJobType(job->Spec().type())))
         .Item("state").Scalar(FormatEnum(state))
+        .Item("address").Scalar(job->GetNode()->GetAddress())
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
             fluent.Item("error").BeginMap()
                 .Item("code").Scalar(error.GetCode())

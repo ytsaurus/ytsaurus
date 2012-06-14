@@ -65,7 +65,7 @@ public:
         LOG_INFO("Requesting operations list");
         std::vector<TOperationId> operationIds;
         {
-            auto req = TYPathProxy::List("//sys/operations");
+            auto req = TYPathProxy::List(GetOperationsPath());
             auto rsp = ObjectProxy.Execute(req).Get();
             if (!rsp->IsOK()) {
                 ythrow yexception() << Sprintf("Failed to get operations list\n%s",
@@ -598,8 +598,8 @@ private:
         FOREACH (const auto& pair, list->PendingStdErrChunkIds) {
             auto job = pair.first;
             auto chunkId = pair.second;
-            auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
-            auto req = TCypressYPathProxy::Create(jobPath + "/stderr");
+            auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
+            auto req = TCypressYPathProxy::Create(stdErrPath);
             req->set_type(EObjectType::File);
             // TODO(babenko): use extensions
             req->Attributes().Set("chunk_id", chunkId.ToString());

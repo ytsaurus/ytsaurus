@@ -105,7 +105,7 @@ private:
         int totalWidth = ToString(total).length();
         out->append("(");
         out->append(ToString(LeftPad(ToString(completed), totalWidth)));
-        out->append(" of ");
+        out->append("/");
         out->append(ToString(total));
         out->append(")");
     }
@@ -180,30 +180,110 @@ private:
     void DumpResult()
     {
         auto operationPath = GetOperationPath(OperationId);
+        auto jobsPath = GetJobsPath(OperationId);
 
         TObjectServiceProxy proxy(Driver->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
         {
             auto req = TYPathProxy::Get(operationPath + "/@result");
-            batchReq->AddRequest(req, "get_result");
+            batchReq->AddRequest(req, "get_op_result");
+        }
+
+        {
+            auto req = TYPathProxy::Get(jobsPath);
+            req->Attributes().Set("with_attributes", "true");
+            batchReq->AddRequest(req, "get_jobs");
         }
 
         auto batchRsp = batchReq->Invoke().Get();
         CheckResponse(batchRsp, "Error getting operation result");
 
         {
-            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_result");
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_result");
             CheckResponse(rsp, "Error getting operation result");
             // TODO(babenko): refactor!
             auto errorNode = DeserializeFromYson<INodePtr>(rsp->value(), "/error");
             auto error = TError::FromYson(errorNode);
-            if (!error.IsOK()) {
-                ythrow yexception() << error.ToString();
+            if (error.IsOK()) {
+                printf("Operation completed successfully\n");
+            } else {
+                printf("Operation failed\n%s\n", ~error.ToString());
             }
         }
 
-        printf("Operation completed successfully\n");
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
+            CheckResponse(rsp, "Error getting operation jobs info");
+
+            size_t jobTypeCount = EJobType::GetDomainSize();
+            std::vector<int> totalJobCount(jobTypeCount);
+            std::vector<int> completedJobCount(jobTypeCount);
+            std::vector<int> failedJobCount(jobTypeCount);
+
+            auto jobs = DeserializeFromYson(rsp->value())->AsMap();
+            std::list<TJobId> failedJobIds;
+            std::list<TJobId> stdErrJobIds;
+            FOREACH (const auto& pair, jobs->GetChildren()) {
+                auto jobId = TJobId::FromString(pair.first);
+                auto job = pair.second->AsMap();
+                
+                auto jobType = job->Attributes().Get<EJobType>("job_type").ToValue();
+                YCHECK(jobType >= 0 && jobType < jobTypeCount);
+                
+                auto jobState = job->Attributes().Get<EJobState>("job_state");
+                ++totalJobCount[jobType];
+                switch (jobState) {
+                    case EJobState::Completed:
+                        ++completedJobCount[jobType];
+                        break;
+                    case EJobState::Failed:
+                        ++failedJobCount[jobType];
+                        failedJobIds.push_back(jobId);
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
+
+                if (job->FindChild("stderr")) {
+                    stdErrJobIds.push_back(jobId);
+                }
+            }
+
+            printf("\n");
+            printf("Job statistics:\n");
+            printf("%10s %10s %10s\n", "", "Total", "Completed", "Failed");
+            for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
+                if (totalJobCount[jobType] > 0) {
+                    printf ("%10s %10d %10d\n",
+                        EJobType(jobType).ToString(),
+                        totalJobCount[jobType],
+                        completedJobCount[jobType],
+                        failedJobCount[jobType]);
+                }
+            }
+
+            if (!failedJobIds.empty()) {
+                printf("\n");
+                printf("%s job(s) have failed:");
+                printf("%35s %15s\n", "Id", "Address");
+                FOREACH (const auto& jobId, failedJobIds) {
+                    auto job = jobs->GetChild(jobId.ToString());
+                    printf("%35s %15s\n",
+                        ~jobId.ToString(),
+                        ~job->Attributes().Get<Stroka>("address"));
+                }
+            }
+
+            if (!stdErrJobIds.empty()) {
+                printf("\n");
+                printf("%s stderr(s) have been captured, use the following commands to view:");
+                FOREACH (const auto& jobId, stdErrJobIds) {
+                    printf("yt download %s\n",
+                        GetStdErrPath(OperationId, jobId));
+                }
+            }
+        }
     }
 };
 
