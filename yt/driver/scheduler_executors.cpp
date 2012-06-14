@@ -250,10 +250,10 @@ private:
 
             printf("\n");
             printf("Job statistics:\n");
-            printf("  %-8s %10s %10s %10s\n", "", "Total", "Completed", "Failed");
+            printf("%-10s %10s %10s %10s\n", "", "Total", "Completed", "Failed");
             for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
                 if (totalJobCount[jobType] > 0) {   
-                    printf("  %-8s %10d %10d %10d\n",
+                    printf("%-10s %10d %10d %10d\n",
                         ~EJobType(jobType).ToString(),
                         totalJobCount[jobType],
                         completedJobCount[jobType],
@@ -264,12 +264,14 @@ private:
             if (!failedJobIds.empty()) {
                 printf("\n");
                 printf("%" PRISZT " job(s) have failed:", failedJobIds.size());
-                printf("  %35s %15s\n", "Id", "Address");
                 FOREACH (const auto& jobId, failedJobIds) {
                     auto job = jobs->GetChild(jobId.ToString());
-                    printf("  %35s %15s\n",
+                    // TODO(babenko): refactor
+                    auto error = TError::FromYson(jobs->Attributes().Get<INodePtr>("error"));
+                    printf("%s on %s\n%s\n",
                         ~jobId.ToString(),
-                        ~job->Attributes().Get<Stroka>("address"));
+                        ~job->Attributes().Get<Stroka>("address"),
+                        ~error.ToString());
                 }
             }
 
@@ -278,7 +280,7 @@ private:
                 printf("%" PRISZT "  stderr(s) have been captured, use the following commands to view:",
                     stdErrJobIds.size());
                 FOREACH (const auto& jobId, stdErrJobIds) {
-                    printf("  yt download %s\n",
+                    printf("yt download %s\n",
                         ~GetStdErrPath(OperationId, jobId));
                 }
             }
