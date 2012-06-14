@@ -174,7 +174,7 @@ protected:
             static_cast<int>(MergeTasks.size()),
             static_cast<int>(table.PartitionTreeIds.size()));
 
-        FOREACH (auto& pair, CurrentTaskStripes) {
+        FOREACH (const auto& pair, CurrentTaskStripes) {
             task->AddStripe(pair.second);
         }
 
@@ -202,17 +202,17 @@ protected:
     // Chunk pools and locality.
 
     //! Add chunk to the current task's pool.
-    void AddPendingChunk(const TInputChunk& chunk, int stripeTag)
+    void AddPendingChunk(const TInputChunk& chunk, int tableIndex)
     {
         // Merge is IO-bound, use data size as weight.
         auto misc = GetProtoExtension<TMiscExt>(chunk.extensions());
         i64 weight = misc->data_weight();
 
         TChunkStripePtr stripe;
-        auto it = CurrentTaskStripes.find(stripeTag);
+        auto it = CurrentTaskStripes.find(tableIndex);
         if (it == CurrentTaskStripes.end()) {
             stripe = New<TChunkStripe>();
-            YASSERT(CurrentTaskStripes.insert(std::make_pair(stripeTag, stripe)).second);
+            YCHECK(CurrentTaskStripes.insert(std::make_pair(tableIndex, stripe)).second);
         } else {
             stripe = it->second;
         }
@@ -224,10 +224,11 @@ protected:
 
         auto& table = OutputTables[0];
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d)",
+        LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d)",
             ~chunkId.ToString(),
             static_cast<int>(table.PartitionTreeIds.size()),
-            static_cast<int>(MergeTasks.size()));
+            static_cast<int>(MergeTasks.size()),
+            tableIndex);
     }
 
     //! Add chunk directly to the output.
@@ -617,7 +618,7 @@ private:
     void BuildTaskIfNeeded(int startIndex, int endIndex)
     {
         // Must be even number of endpoints.
-        YASSERT((endIndex - startIndex) % 2 == 0);
+        YCHECK((endIndex - startIndex) % 2 == 0);
 
         int chunkCount = (endIndex - startIndex) / 2;
         LOG_DEBUG("Found overlap of %d chunks", chunkCount);
