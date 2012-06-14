@@ -18,4 +18,16 @@ class TestSchedulerCommands(YTEnvSetup):
 
     	assert read_table('//tmp/t2') == [{'a' : 'b'}]
 
+    	remove('//tmp/t1')
+    	remove('//tmp/t2')
+
+    def test_map_on_empty_table(self):
+    	create('table', '//tmp/t1')
+    	create('table', '//tmp/t2')
+    	map(input='//tmp/t1', out='//tmp/t2', mapper='cat')
+
+    	assert read_table('//tmp/t2') == []
+
+    	remove('//tmp/t1')
+    	remove('//tmp/t2')
 
