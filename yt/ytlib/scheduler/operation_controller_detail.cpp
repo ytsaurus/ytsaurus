@@ -405,7 +405,7 @@ int TOperationControllerBase::GetPendingJobCount()
 
 void TOperationControllerBase::OnOperationCompleted()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     YCHECK(Active);
     LOG_INFO("Operation completed");
