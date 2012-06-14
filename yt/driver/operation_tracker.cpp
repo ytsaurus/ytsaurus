@@ -192,6 +192,7 @@ void TOperationTracker::DumpResult()
         std::vector<int> totalJobCount(jobTypeCount);
         std::vector<int> completedJobCount(jobTypeCount);
         std::vector<int> failedJobCount(jobTypeCount);
+        std::vector<int> abortedJobCount(jobTypeCount);
 
         auto jobs = DeserializeFromYson(rsp->value())->AsMap();
         std::list<TJobId> failedJobIds;
@@ -213,6 +214,9 @@ void TOperationTracker::DumpResult()
                     ++failedJobCount[jobType];
                     failedJobIds.push_back(jobId);
                     break;
+                case EJobState::Aborted:
+                    ++abortedJobCount[jobType];
+                    break;
                 default:
                     YUNREACHABLE();
             }
@@ -223,14 +227,15 @@ void TOperationTracker::DumpResult()
         }
 
         printf("\n");
-        printf("%-10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed");
+        printf("%-10s %10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed", "Aborted");
         for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
             if (totalJobCount[jobType] > 0) {
-                printf("%-10s %10d %10d %10d\n",
+                printf("%-10s %10d %10d %10d %10d\n",
                     ~EJobType(jobType).ToString(),
                     totalJobCount[jobType],
                     completedJobCount[jobType],
-                    failedJobCount[jobType]);
+                    failedJobCount[jobType],
+                    abortedJobCount[jobType]);
             }
         }
 

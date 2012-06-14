@@ -435,9 +435,11 @@ private:
         // Take a copy, the collection will be modified.
         auto jobs = operation->Jobs();
         FOREACH (auto job, jobs) {
+            job->SetState(EJobState::Aborted);
+            MasterConnector->UpdateJobNode(job);
             UnregisterJob(job);
         }
-        YASSERT(operation->Jobs().empty());
+        YCHECK(operation->Jobs().empty());
     }
 
     void UnregisterOperation(TOperationPtr operation)
@@ -547,7 +549,6 @@ private:
     void InitStrategy()
     {
         Strategy = CreateStrategy(Config->Strategy);
-        LOG_INFO("Strategy is %s", ~FormatEnum(Config->Strategy).Quote());
     }
 
     TAutoPtr<ISchedulerStrategy> CreateStrategy(ESchedulerStrategy strategy)
@@ -664,6 +665,8 @@ private:
             return;
         }
 
+        CancelOperationJobs(operation);
+
         MasterConnector->FlushOperationNode(operation).Subscribe(
             BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
@@ -718,12 +721,14 @@ private:
         operation->SetState(EOperationState::Failed);
         *operation->Result().mutable_error() = error.ToProto();
 
+        CancelOperationJobs(operation);
+
         DoOperationFinished(operation);
     }
 
+
     void DoOperationFinished(TOperationPtr operation)
     {
-        CancelOperationJobs(operation);
         MasterConnector->FinalizeOperationNode(operation).Subscribe(
             BIND(&TThis::OnOperationNodeFinalized, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
@@ -859,107 +864,15 @@ private:
 
         node->Utilization() = utilization;
 
-        auto missingJobs = node->Jobs();
-
         PROFILE_TIMING ("/analysis_time") {
+            auto missingJobs = node->Jobs();
+
             FOREACH (const auto& jobStatus, request->jobs()) {
-                auto jobId = TJobId::FromProto(jobStatus.job_id());
-                auto state = EJobState(jobStatus.state());
-            
-                NLog::TTaggedLogger Logger(SchedulerLogger);
-                Logger.AddTag(Sprintf("Address: %s, JobId: %s",
-                    ~address,
-                    ~jobId.ToString()));
-
-                auto job = FindJob(jobId);
-
-                if (job) {
-                    Logger.AddTag(Sprintf("JobType: %s",
-                        ~EJobType(job->Spec().type()).ToString()));
-                }
-
-                auto operation = job ? job->GetOperation() : NULL;
-                if (operation) {
-                    Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
-                }
-
-                if (job) {
-                    // Check if the job is running on a proper node.
-                    auto expectedAddress = job->GetNode()->GetAddress();
-                    if (address != expectedAddress) {
-                        // Job has moved from one node to another. No idea how this could happen.
-                        if (state == EJobState::Completed || state == EJobState::Failed) {
-                            *response->add_jobs_to_remove() = jobId.ToProto();
-                            LOG_WARNING("Job status report was expected from %s, removal scheduled",
-                                ~expectedAddress);
-                        } else {
-                            *response->add_jobs_to_remove() = jobId.ToProto();
-                            LOG_WARNING("Job status report was expected from %s, abort scheduled",
-                                ~expectedAddress);
-                        }
-                        continue;
-                    }
-
-                    // Mark the job as no longer missing.
-                    YCHECK(missingJobs.erase(job) == 1);
-
-                    job->SetState(state);
-                }
-
-                switch (state) {
-                    case EJobState::Completed:
-                        if (job) {
-                            LOG_INFO("Job completed, removal scheduled");
-                            OnJobCompleted(job, jobStatus.result());
-                        } else {
-                            LOG_WARNING("Unknown job has completed, removal scheduled");
-                        }
-                        *response->add_jobs_to_remove() = jobId.ToProto();
-                        break;
-
-                    case EJobState::Failed:
-                        if (job) {
-                            LOG_INFO("Job failed, removal scheduled\n%s",
-                                ~TError::FromProto(jobStatus.result().error()).ToString());
-                            OnJobFailed(job, jobStatus.result());
-                        } else {
-                            LOG_INFO("Unknown job has failed, removal scheduled");
-                        }
-                        *response->add_jobs_to_remove() = jobId.ToProto();
-                        break;
-
-                    case EJobState::Aborted:
-                        if (job) {
-                            LOG_WARNING("Job has aborted unexpectedly, removal scheduled");
-                            OnJobFailed(job, TError("Job has aborted unexpectedly"));
-                        } else {
-                            LOG_INFO("Job aborted, removal scheduled");
-                        }
-                        *response->add_jobs_to_remove() = jobId.ToProto();
-                        break;
-
-                    case EJobState::Running:
-                        if (job) {
-                            LOG_DEBUG("Job is running");
-                            OnJobRunning(job);
-                        } else {
-                            LOG_WARNING("Unknown job is running, abort scheduled");
-                            *response->add_jobs_to_abort() = jobId.ToProto();
-                        }
-                        break;
-
-                    case EJobState::Aborting:
-                        if (job) {
-                            LOG_WARNING("Job has started aborting unexpectedly");
-                            OnJobFailed(job, TError("Job has aborted unexpectedly"));
-                        } else {
-                            LOG_DEBUG("Job is aborting");
-                        }
-                        break;
-
-                    default:
-                        YUNREACHABLE();
-                }
+                auto job = ProcessJobHeartbeat(
+                    request,
+                    response,
+                    jobStatus);
+                YCHECK(missingJobs.erase(job) == 1);
             }
 
             // Check for missing jobs.
@@ -1006,6 +919,115 @@ private:
         }
 
         context->Reply();
+    }
+
+    TJobPtr ProcessJobHeartbeat(
+        NProto::TReqHeartbeat* request,
+        NProto::TRspHeartbeat* response,
+        const NProto::TJobStatus& jobStatus)
+    {
+        auto address = request->address();
+        auto jobId = TJobId::FromProto(jobStatus.job_id());
+        auto state = EJobState(jobStatus.state());
+            
+        NLog::TTaggedLogger Logger(SchedulerLogger);
+        Logger.AddTag(Sprintf("Address: %s, JobId: %s",
+            ~address,
+            ~jobId.ToString()));
+
+        auto job = FindJob(jobId);
+        if (!job) {
+            switch (state) {
+                case EJobState::Completed:
+                    LOG_WARNING("Unknown job has completed, removal scheduled");
+                    *response->add_jobs_to_remove() = jobId.ToProto();
+                    break;
+
+                case EJobState::Failed:
+                    LOG_INFO("Unknown job has failed, removal scheduled");
+                    *response->add_jobs_to_remove() = jobId.ToProto();
+                    break;
+
+                case EJobState::Aborted:
+                    LOG_INFO("Job aborted, removal scheduled");
+                    *response->add_jobs_to_remove() = jobId.ToProto();
+                    break;
+
+                case EJobState::Running:
+                    LOG_WARNING("Unknown job is running, abort scheduled");
+                    *response->add_jobs_to_abort() = jobId.ToProto();
+                    break;
+
+                case EJobState::Aborting:
+                    LOG_DEBUG("Job is aborting");
+                    break;
+
+                default:
+                    YUNREACHABLE();
+            }
+            return NULL;
+        }
+
+        auto operation = job->GetOperation();
+        
+        Logger.AddTag(Sprintf("JobType: %s, State: %s, OperationId: %s",
+            ~EJobType(job->Spec().type()).ToString(),
+            ~state.ToString(),
+            ~operation->GetOperationId().ToString()));
+
+        // Check if the job is running on a proper node.
+        auto expectedAddress = job->GetNode()->GetAddress();
+        if (address != expectedAddress) {
+            // Job has moved from one node to another. No idea how this could happen.
+            if (state == EJobState::Completed || state == EJobState::Failed) {
+                *response->add_jobs_to_remove() = jobId.ToProto();
+                LOG_WARNING("Job status report was expected from %s, removal scheduled",
+                    ~expectedAddress);
+            } else {
+                *response->add_jobs_to_remove() = jobId.ToProto();
+                LOG_WARNING("Job status report was expected from %s, abort scheduled",
+                    ~expectedAddress);
+            }
+            return NULL;
+        }
+
+        job->SetState(state);
+
+        switch (state) {
+            case EJobState::Completed:
+                LOG_INFO("Job completed, removal scheduled");
+                OnJobCompleted(job, jobStatus.result());
+                *response->add_jobs_to_remove() = jobId.ToProto();
+                break;
+
+            case EJobState::Failed:
+                LOG_INFO("Job failed, removal scheduled\n%s",
+                    ~TError::FromProto(jobStatus.result().error()).ToString());
+                OnJobFailed(job, jobStatus.result());
+                *response->add_jobs_to_remove() = jobId.ToProto();
+                break;
+
+            case EJobState::Aborted:
+                LOG_WARNING("Job has aborted unexpectedly, removal scheduled");
+                OnJobFailed(job, TError("Job has aborted unexpectedly"));
+                *response->add_jobs_to_remove() = jobId.ToProto();
+                break;
+
+            case EJobState::Running:
+                LOG_DEBUG("Job is running");
+                OnJobRunning(job);
+                break;
+
+            case EJobState::Aborting:
+                LOG_WARNING("Job has started aborting unexpectedly");
+                OnJobFailed(job, TError("Job has aborted unexpectedly"));
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+
+        return job;
     }
 
 };
