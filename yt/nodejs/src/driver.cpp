@@ -8,6 +8,23 @@
 
 #include <string>
 
+extern "C" {
+    // XXX(sandello): This is extern declaration of internal eio functions.
+    // -lrt will dynamically bind these symbols to the appropriate implementation
+    // of libeio. Here we would like to alter the minimum and maximum amount of
+    // running threads.
+
+    extern void eio_set_min_parallel (unsigned int nthreads);
+    extern void eio_set_max_parallel (unsigned int nthreads);
+
+    extern unsigned int eio_nreqs    (void); /* number of requests in-flight */
+    extern unsigned int eio_nready   (void); /* number of not-yet handled requests */
+    extern unsigned int eio_npending (void); /* number of finished but unhandled requests */
+    extern unsigned int eio_nthreads (void); /* number of worker threads in use currently */
+}
+
+static const unsigned int NumberOfWorkerThreads = 8;
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,6 +106,22 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         Integer::New(descriptor.OutputType.ToValue()));
     return scope.Close(result);
 }
+
+Handle<Value> GetEioStatistics(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length() == 0);
+
+    Local<Object> result = Object::New();
+    result->Set(String::New("nreqs"), Integer::NewFromUnsigned(eio_nreqs()));
+    result->Set(String::New("nready"), Integer::NewFromUnsigned(eio_nready()));
+    result->Set(String::New("npending"), Integer::NewFromUnsigned(eio_npending()));
+    result->Set(String::New("nthreads"), Integer::NewFromUnsigned(eio_nthreads()));
+    return scope.Close(result);
+}
+
 } // namespace
 
 Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
@@ -99,6 +132,9 @@ TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
     : node::ObjectWrap()
 {
     THREAD_AFFINITY_IS_V8();
+
+    eio_set_min_parallel(NumberOfWorkerThreads);
+    eio_set_max_parallel(NumberOfWorkerThreads);
 
     bool stillOkay = true;
 
@@ -163,7 +199,7 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
 
     Local<Object> dataType = Object::New();
 #define YTNODE_SET_ENUM(object, type, element) \
-    (object)->Set(type::element, String::New(type::GetLiteralByValue(type::element)))
+    (object)->Set(type::element, String::NewSymbol(type::GetLiteralByValue(type::element)))
     YTNODE_SET_ENUM(dataType, EDataType, Null);
     YTNODE_SET_ENUM(dataType, EDataType, Binary);
     YTNODE_SET_ENUM(dataType, EDataType, Structured);
@@ -173,6 +209,10 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
     target->Set(
         String::New("EDataType"),
         dataType);
+
+    target->Set(
+        String::New("GetEioStatistics"),
+        FunctionTemplate::New(GetEioStatistics));
 }
 
 bool TNodeJSDriver::HasInstance(Handle<Value> value)
