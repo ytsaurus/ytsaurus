@@ -79,6 +79,7 @@ public:
     static void Shutdown();
 
 private:
+    //! Caches changes of changelog
     class TChangeLogQueue;
     typedef TIntrusivePtr<TChangeLogQueue> TChangeLogQueuePtr;
 
