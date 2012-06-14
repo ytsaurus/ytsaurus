@@ -229,7 +229,7 @@ private:
                 auto jobType = job->Attributes().Get<EJobType>("job_type").ToValue();
                 YCHECK(jobType >= 0 && jobType < jobTypeCount);
                 
-                auto jobState = job->Attributes().Get<EJobState>("job_state");
+                auto jobState = job->Attributes().Get<EJobState>("state");
                 ++totalJobCount[jobType];
                 switch (jobState) {
                     case EJobState::Completed:
