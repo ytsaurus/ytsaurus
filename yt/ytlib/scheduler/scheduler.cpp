@@ -547,6 +547,7 @@ private:
     void InitStrategy()
     {
         Strategy = CreateStrategy(Config->Strategy);
+        LOG_INFO("Strategy is %s", ~FormatEnum(Config->Strategy).Quote());
     }
 
     TAutoPtr<ISchedulerStrategy> CreateStrategy(ESchedulerStrategy strategy)
