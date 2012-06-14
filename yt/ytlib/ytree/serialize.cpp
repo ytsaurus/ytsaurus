@@ -166,7 +166,11 @@ void Read(TDuration& parameter, INodePtr node)
 // TInstant
 void Read(TInstant& parameter, INodePtr node)
 {
-    parameter = TInstant::MilliSeconds(node->AsInteger()->GetValue());
+    if (node->GetType() == ENodeType::Integer) {
+        parameter = TInstant::MilliSeconds(node->AsInteger()->GetValue());
+    } else {
+        parameter = TInstant::ParseIso8601(node->AsString()->GetValue());
+    }
 }
 
 // TGuid
@@ -240,7 +244,7 @@ void Write(TDuration parameter, IYsonConsumer* consumer)
 // TInstant
 void Write(TInstant parameter, IYsonConsumer* consumer)
 {
-    consumer->OnIntegerScalar(parameter.MilliSeconds());
+    consumer->OnStringScalar(parameter.ToString());
 }
 
 // TGuid
