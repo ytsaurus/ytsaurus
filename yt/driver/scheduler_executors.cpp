@@ -256,7 +256,7 @@ private:
             for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
                 if (totalJobCount[jobType] > 0) {
                     printf ("%10s %10d %10d\n",
-                        EJobType(jobType).ToString(),
+                        ~EJobType(jobType).ToString(),
                         totalJobCount[jobType],
                         completedJobCount[jobType],
                         failedJobCount[jobType]);
