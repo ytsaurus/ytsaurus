@@ -336,7 +336,7 @@ TNullable<TRecordInfo> ReadRecord(TCheckableFileReader<Stream>& input)
     i32 readSize = 0;
     TRecordHeader header;
     readSize += ReadPodPadded(input, header);
-    if (!input.Success()) {
+    if (!input.Success() || header.DataLength <= 0) {
         return Null;
     }
 
@@ -493,7 +493,7 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
     while (CurrentFilePosition < fileLength) {
         // Record size also counts size of record header.
         recordInfo = ReadRecord(checkableFile);
-        if (!recordInfo) {
+        if (!recordInfo || recordInfo->Id != RecordCount) {
             // Broken changelog case.
             LOG_ERROR("Changelog contains incorrect record with id %d at position %"PRIx64,
                 RecordCount, CurrentFilePosition);

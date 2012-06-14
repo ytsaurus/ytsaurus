@@ -39,22 +39,27 @@ protected:
     {
         TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
         changeLog->Create(0);
-        yvector<TSharedRef> records = MakeRecords<RecordType>(0, recordsCount);
+        std::vector<TSharedRef> records = MakeRecords<RecordType>(0, recordsCount);
         changeLog->Append(0, records);
         changeLog->Flush();
         return changeLog;
     }
 
     template <class RecordType>
-    yvector<TSharedRef> MakeRecords(i32 from, i32 to) const
+    std::vector<TSharedRef> MakeRecords(i32 from, i32 to) const
     {
-        yvector<TSharedRef> records(to - from);
+        std::vector<TSharedRef> records(to - from);
         for (i32 recordId = from; recordId < to; ++recordId) {
             TBlob blob(sizeof(RecordType));
             *reinterpret_cast<RecordType*>(blob.begin()) = static_cast<RecordType>(recordId);
             records[recordId - from] = MoveRV(blob);
         }
         return records;
+    }
+
+    i64 GetFileSize() const {
+        TFile changeLogFile(TemporaryFile->Name(), RdWr);
+        return changeLogFile.GetLength();
     }
 
     TChangeLogPtr OpenChangeLog() const
@@ -71,6 +76,7 @@ protected:
         EXPECT_EQ(*(reinterpret_cast<const T*>(record.Begin())), data);
     }
 
+
     template <class T>
     static void CheckRead(
         TChangeLogPtr changeLog,
@@ -78,7 +84,7 @@ protected:
         i32 recordCount,
         i32 logRecordCount)
     {
-        yvector<TSharedRef> records;
+        std::vector<TSharedRef> records;
         changeLog->Read(firstRecordId, recordCount, &records);
 
         i32 expectedRecordCount =
@@ -100,17 +106,45 @@ protected:
             }
         }
     }
+
+    void TestCorrupted(i64 newFileSize, i32 initialRecordCount, i32 correctRecordCount) const
+    {
+        if (newFileSize > GetFileSize())
+        {
+            // Add trash to file
+            TFile changeLogFile(TemporaryFile->Name(), RdWr);
+            changeLogFile.Seek(0, sEnd);
+            TBlob data(newFileSize - changeLogFile.GetLength(), -1);
+            changeLogFile.Write(&(*data.begin()), data.size());
+        }
+        else {
+            // Truncate file.
+            TFile changeLogFile(TemporaryFile->Name(), RdWr);
+            changeLogFile.Resize(newFileSize);
+        }
+
+        TChangeLogPtr changeLog = OpenChangeLog();
+
+        EXPECT_EQ(changeLog->GetRecordCount(), correctRecordCount);
+        CheckRead<ui32>(changeLog, 0, initialRecordCount, correctRecordCount);
+
+        changeLog->Append(correctRecordCount, MakeRecords<ui32>(correctRecordCount, initialRecordCount));
+        changeLog->Flush();
+
+        EXPECT_EQ(changeLog->GetRecordCount(), initialRecordCount);
+        CheckRead<ui32>(changeLog, 0, initialRecordCount, initialRecordCount);
+    }
 };
 
 TEST_F(TChangeLogTest, EmptyChangeLog)
 {
     ASSERT_NO_THROW({
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0);
         changeLog->Create(0);
     });
 
     ASSERT_NO_THROW({
-        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0);
         changeLog->Open();
     });
 }
@@ -153,34 +187,13 @@ TEST_F(TChangeLogTest, TestCorrupted)
     {
         TChangeLogPtr changeLog = CreateChangeLog<ui32>(logRecordCount);
     }
-    {
-        // Truncate file.
-        TFile changeLogFile(TemporaryFile->Name(), RdWr);
-        changeLogFile.Resize(changeLogFile.GetLength() - 1);
-    }
 
-    {
-        TChangeLogPtr changeLog = OpenChangeLog();
-
-        EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount - 1);
-        CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount - 1);
-
-        TBlob blob(sizeof(i32));
-        *reinterpret_cast<i32*>(blob.begin()) = static_cast<i32>(logRecordCount - 1);
-        yvector<TSharedRef> records;
-        records.push_back(MoveRV(blob));
-        changeLog->Append(logRecordCount - 1, records);
-        changeLog->Flush();
-
-        EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
-        CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
-    }
-
-    {
-        TChangeLogPtr changeLog = OpenChangeLog();
-        EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
-        CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
-    }
+    i64 fileSize = GetFileSize();
+    TestCorrupted(fileSize - 1, logRecordCount, logRecordCount - 1);
+    TestCorrupted(30, logRecordCount, 0);
+    TestCorrupted(fileSize + 1, logRecordCount, logRecordCount);
+    TestCorrupted(fileSize + 1000, logRecordCount, logRecordCount);
+    TestCorrupted(fileSize + 50000, logRecordCount, logRecordCount);
 }
 
 TEST_F(TChangeLogTest, Truncate)
@@ -291,7 +304,7 @@ TEST_F(TChangeLogTest, DISABLED_Profiling)
         {
             TChangeLogPtr changeLog = OpenChangeLog();
             NProfiling::TSingleTimer timer;
-            yvector<TSharedRef> records;
+            std::vector<TSharedRef> records;
             changeLog->Read(0, recordsCount, &records);
             std::cerr << "Read full changelog of size " << recordsCount <<
                 ", time " << timer.ElapsedTimeAsString() << std::endl;
