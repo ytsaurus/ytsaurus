@@ -430,7 +430,7 @@ private:
         LOG_DEBUG("Registered operation %s", ~operation->GetOperationId().ToString());
     }
 
-    void AbortOperationJobs(TOperationPtr operation, bool notifyController)
+    void AbortOperationJobs(TOperationPtr operation)
     {
         // Take a copy, the collection will be modified.
         auto jobs = operation->Jobs();
