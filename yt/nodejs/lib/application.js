@@ -63,9 +63,9 @@ YtCommand.prototype.dispatch = function() {
         this._execute,
         this._epilogue
     ], function andThen(error) {
-        var thereWasError = error || self.rsp.ytCode !== 0;
+        var thereWasError = error || self.rsp.yt_code !== 0;
         if (thereWasError) {
-            var errorMessage = error ? error.message : self.rsp.ytMessage;
+            var errorMessage = error ? error.message : self.rsp.yt_message;
             self.logger.error("Done (failure)", { request_id : self.req.uuid, error : errorMessage });
 
             if (!self.rsp._header) {
@@ -233,6 +233,15 @@ YtCommand.prototype._addHeaders = function(cb) {
 
 YtCommand.prototype._execute = function(cb) {
     var self = this;
+
+    if (this.last_eio_time && new Date() - this.last_eio_time > 1000) {
+        var stat;
+        stat = ytnode_wrappers.GetEioStatistics();
+        stat.request_id = this.req.uuid;
+        this.logger.info("Current EIO statistics '" + this.name + "'", stat);
+        this.last_eio_time = new Date();
+    }
+
     this.driver.execute(this.name,
         this.req, this.input_format,
         this.rsp, this.output_format,

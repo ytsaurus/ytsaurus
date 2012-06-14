@@ -48,7 +48,7 @@ if (opts.argv.h) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-process.title = "YtHttpApi";
+process.title = "YtHttpProxy";
 
 var logger = new winston.Logger({
     transports: [ opts.argv.l
@@ -64,7 +64,7 @@ var logger = new winston.Logger({
     ]
 });
 
-if (cluster.isMaster) {
+if (opts.argv.n > 0 && cluster.isMaster) {
     var spawnWorker = function() {
         var worker = cluster.fork();
 

@@ -249,7 +249,7 @@ YtDriver.prototype.execute = function(name,
     var wrapped_input_stream = new YtWritableStream();
     var wrapped_output_stream = new YtReadableStream();
 
-    this.__DBG("execute <<(" + wrapped_input_stream._uuid + ") >>(" + wrapped_output_stream._uuid + ")");
+    this.__DBG("execute <<(" + wrapped_input_stream.__UUID + ") >>(" + wrapped_output_stream.__UUID + ")");
 
     input_stream.pipe(wrapped_input_stream);
     wrapped_output_stream.pipe(output_stream);
@@ -257,7 +257,7 @@ YtDriver.prototype.execute = function(name,
     var self = this;
 
     function on_error(err) {
-        self.__DBG("execute -> on_error");
+        self.__DBG("execute -> (on-error callback)");
         wrapped_input_stream.destroy();
         wrapped_output_stream.destroy();
     }
@@ -270,8 +270,8 @@ YtDriver.prototype.execute = function(name,
         wrapped_output_stream._binding, output_format,
         parameters, function()
     {
-        self.__DBG("execute -> callback");
-        callback.apply(this, arguments);
+        self.__DBG("execute -> (on-execute callback)");
+        cb.apply(this, arguments);
         wrapped_output_stream._endSoon();
     });
 };
@@ -294,3 +294,5 @@ exports.YtWritableStream = YtWritableStream;
 exports.YtDriver = YtDriver;
 
 exports.EDataType = binding.EDataType;
+
+exports.GetEioStatistics = binding.GetEioStatistics;
