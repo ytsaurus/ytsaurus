@@ -62,14 +62,25 @@ YtCommand.prototype.dispatch = function() {
         this._addHeaders,
         this._execute,
         this._epilogue
-    ], function andThen(error) {
-        var thereWasError = error || self.rsp.yt_code !== 0;
+    ], function andThen(err) {
+        var thereWasError = err || self.rsp.yt_code !== 0;
         if (thereWasError) {
-            var errorMessage = error ? error.message : self.rsp.yt_message;
-            self.logger.error("Done (failure)", { request_id : self.req.uuid, error : errorMessage });
+            var error = err ? err.message : self.rsp.yt_message;
+
+            self.logger.error("Done (failure)", {
+                request_id : self.req.uuid,
+                error : error
+            });
 
             if (!self.rsp._header) {
-                var body = JSON.stringify({ error : errorMessage });
+                var body = {};
+
+                if (error)               { body.error      = error; }
+                if (self.rsp.yt_code)    { body.yt_code    = self.rsp.yt_code; }
+                if (self.rsp.yt_message) { body.yt_message = self.rsp.yt_message; }
+
+                body = JSON.stringify(body);
+
                 self.rsp.removeHeader("Transfer-Encoding");
                 self.rsp.setHeader("Content-Type", "application/json");
                 self.rsp.setHeader("Content-Length", body.length);
@@ -85,12 +96,11 @@ YtCommand.prototype.dispatch = function() {
 
 YtCommand.prototype._prologue = function(cb) {
     this.rsp.statusCode = 202;
-
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._epilogue = function(cb) {
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._extractName = function(cb) {
@@ -100,7 +110,7 @@ YtCommand.prototype._extractName = function(cb) {
         throw new Error("Malformed command name '" + name + "'.");
     }
 
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._extractParameters = function(cb) {
@@ -110,7 +120,7 @@ YtCommand.prototype._extractParameters = function(cb) {
         throw new Error("Unable to parse parameters from the query string.");
     }
 
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._getInputFormat = function(cb) {
@@ -139,7 +149,7 @@ YtCommand.prototype._getInputFormat = function(cb) {
     }
 
     this.input_format = result;
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._getOutputFormat = function(cb) {
@@ -171,7 +181,7 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     }
 
     this.output_format = result;
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._logInformation = function(cb) {
@@ -182,7 +192,7 @@ YtCommand.prototype._logInformation = function(cb) {
         input_format  : this.input_format,
         output_format : this.output_format
     });
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._getDescriptor = function(cb) {
@@ -219,7 +229,7 @@ YtCommand.prototype._getDescriptor = function(cb) {
             " input and hence have to be requested with the " + expected_http_method + " HTTP method.");
     }
 
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._addHeaders = function(cb) {
@@ -228,31 +238,34 @@ YtCommand.prototype._addHeaders = function(cb) {
     this.rsp.setHeader("Access-Control-Allow-Origin", "*");
     this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
 
-    cb(null);
+    return cb(null);
 };
 
 YtCommand.prototype._execute = function(cb) {
     var self = this;
 
-    if (this.last_eio_time && new Date() - this.last_eio_time > 1000) {
-        var stat;
-        stat = ytnode_wrappers.GetEioStatistics();
-        stat.request_id = this.req.uuid;
-        this.logger.info("Current EIO statistics '" + this.name + "'", stat);
-        this.last_eio_time = new Date();
-    }
+    __DBG("Current EIO: " + JSON.stringify(ytnode_wrappers.GetEioStatistics()));
 
     this.driver.execute(this.name,
         this.req, this.input_format,
         this.rsp, this.output_format,
         this.parameters,
-        function callback(error, code, message)
+        function callback(err, code, message)
         {
-            if (error) {
-                self.logger.error(
-                    "Command '" + self.name + "' thrown C++ exception",
-                    { request_id : self.req.uuid, error : error });
-                return cb(new Error(error));
+            if (err) {
+                if (typeof(err) === "string") {
+                    self.logger.error(
+                        "Command '" + self.name + "' thrown C++ exception",
+                        { request_id : self.req.uuid, error : error });
+                    return cb(new Error(err));
+                }
+                if (err instanceof Error) {
+                    self.logger.error(
+                        "Command '" + self.name + "' failed to execute",
+                        { request_id : self.req.uuid, error : error.message });
+                    return cb(err);
+                }
+                return cb(new Error("Unknown error: " + err.toString()));
             } else {
                 self.logger.debug(
                     "Command '" + self.name + "' successfully executed",
@@ -277,7 +290,7 @@ YtCommand.prototype._execute = function(cb) {
                 });
             }
 
-            cb(null);
+            return cb(null);
         });
 };
 
@@ -293,10 +306,12 @@ function YtApplication(logger, configuration) {
 function YtLogger(logger) {
     return function(req, rsp, next) {
         req._startTime = new Date();
+
         if (req._logging) {
             return next();
+        } else {
+            req._logging = true;
         }
-        req._logging = true;
 
         logger.info("Handling request", {
             request_id  : req.uuid,
@@ -311,6 +326,7 @@ function YtLogger(logger) {
         rsp.end = function(chunk, encoding) {
             rsp.end = end;
             rsp.end(chunk, encoding);
+
             logger.info("Handled request", {
                 request_id   : req.uuid,
                 request_time : new Date() - req._startTime,
@@ -326,8 +342,10 @@ function YtAssignRequestId() {
     var buffer = new Buffer(16);
     return function(req, rsp, next) {
         uuid.v4(null, buffer);
+
         req.uuid = buffer.toString("base64");
         rsp.setHeader("X-YT-Request-Id", req.uuid);
+
         next();
     };
 }

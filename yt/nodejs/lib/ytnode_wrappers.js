@@ -74,12 +74,9 @@ YtReadableStream.prototype._emitData = function(chunk) {
 
 YtReadableStream.prototype._emitEnd = function() {
     this.__DBG("_emitEnd");
-
     if (!this._ended) { 
         this.emit("end");
     }
-
-    this.readable = false;
     this._ended = true;
 };
 
@@ -98,6 +95,7 @@ YtReadableStream.prototype._emitQueue = function() {
                 } else {
                     assert.ok(self._pending.length === 0);
                     self._emitEnd(chunk);
+                    self.readable = false;
                 }
             }
         });
@@ -120,6 +118,7 @@ YtReadableStream.prototype._endSoon = function() {
             } else {
                 assert.ok(self._pending.length === 0);
                 self._emitEnd();
+                self.readable = false;
             }
         });
     } else {
@@ -135,19 +134,22 @@ YtReadableStream.prototype.pause = function() {
 YtReadableStream.prototype.resume = function() {
     this.__DBG("resume");
     this._paused = false;
+
     this._emitQueue();
 };
 
 YtReadableStream.prototype.destroy = function() {
     this.__DBG("destroy");
+
     this._binding.Destroy();
+
     this.readable = false;
     this._ended = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtWritableStream() {
+function YtWritableStream(low_watermark, high_watermark) {
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG("Writable (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
@@ -164,18 +166,22 @@ function YtWritableStream() {
     this._ended = false;
     this._closed = false;
 
-    this._binding = new binding.TNodeJSInputStream();
+    this._binding = new binding.TNodeJSInputStream(low_watermark, high_watermark);
+    this._binding.on_drain = function() {
+        self.__DBG("Bindings -> on_drain");
+        if (!self._ended) {
+            self.emit("drain");
+        }
+    };
 }
 
 util.inherits(YtWritableStream, stream.Stream);
 
 YtWritableStream.prototype._emitClose = function() {
     this.__DBG("_emitClose");
-
     if (!this._closed) {
         this.emit("close");
     }
-
     this._closed = true;
 };
 
@@ -190,9 +196,13 @@ YtWritableStream.prototype.write = function(chunk, encoding) {
         chunk = new Buffer(chunk, encoding);
     }
 
-    if (!this._ended) {
-        this._binding.Push(chunk, 0, chunk.length);
-        return true;
+    if (!this._ended /* && !this._closed */) {
+        if (this._binding.Push(chunk, 0, chunk.length)) {
+            return true;
+        } else {
+            this.__DBG("write -> (queue is full)");
+            return false;
+        }
     } else {
         return false;
     }
@@ -200,18 +210,10 @@ YtWritableStream.prototype.write = function(chunk, encoding) {
 
 YtWritableStream.prototype.end = function(chunk, encoding) {
     this.__DBG("end");
-
     if (chunk) {
         this.write(chunk, encoding);
     }
-
-    this._binding.End();
-
-    this.writable = false;
-    this._ended = true;
-
-    var self = this;
-    process.nextTick(function() { self._emitClose(); });
+    this.destroySoon();
 };
 
 YtWritableStream.prototype.destroy = function() {
@@ -224,9 +226,21 @@ YtWritableStream.prototype.destroy = function() {
     this._closed = true;
 };
 
+YtWritableStream.prototype.destroySoon = function() {
+    this.__DBG("destroySoon");
+
+    this._binding.End();
+
+    this.writable = false;
+    this._ended = true;
+
+    var self = this;
+    process.nextTick(function() { self._emitClose(); });
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtDriver(configuration) {
+function YtDriver(configuration, low_watermark, high_watermark) {
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG("Driver (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
@@ -236,6 +250,8 @@ function YtDriver(configuration) {
 
     this.__DBG("New");
 
+    this._low_watermark = low_watermark;
+    this._high_watermark = high_watermark;
     this._binding = new binding.TNodeJSDriver(configuration);
 }
 
@@ -246,7 +262,7 @@ YtDriver.prototype.execute = function(name,
 ) {
     this.__DBG("execute");
 
-    var wrapped_input_stream = new YtWritableStream();
+    var wrapped_input_stream = new YtWritableStream(this._low_watermark, this._high_watermark);
     var wrapped_output_stream = new YtReadableStream();
 
     this.__DBG("execute <<(" + wrapped_input_stream.__UUID + ") >>(" + wrapped_output_stream.__UUID + ")");
@@ -255,11 +271,16 @@ YtDriver.prototype.execute = function(name,
     wrapped_output_stream.pipe(output_stream);
 
     var self = this;
+    var selfFinished = false;
 
     function on_error(err) {
         self.__DBG("execute -> (on-error callback)");
         wrapped_input_stream.destroy();
         wrapped_output_stream.destroy();
+        if (!selfFinished) {
+            cb.call(this, new Error("I/O error while executing driver command"));
+            selfFinished = true;
+        }
     }
 
     input_stream.on("error", on_error);
@@ -268,11 +289,14 @@ YtDriver.prototype.execute = function(name,
     var result = this._binding.Execute(name,
         wrapped_input_stream._binding, input_format,
         wrapped_output_stream._binding, output_format,
-        parameters, function()
+        parameters, function(err, code, message)
     {
         self.__DBG("execute -> (on-execute callback)");
-        cb.apply(this, arguments);
-        wrapped_output_stream._endSoon();
+        if (!selfFinished) {
+            cb.call(this, err, code, message);
+            wrapped_output_stream._endSoon();
+            selfFinished = true;
+        }
     });
 };
 
