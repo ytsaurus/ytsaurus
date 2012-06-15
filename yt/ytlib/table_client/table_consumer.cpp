@@ -95,9 +95,8 @@ void TTableConsumer::OnMyEndMap()
     row.reserve(Offsets.size() / 2);
 
     {
-        yhash_set<TStringBuf> usedColumns;
-
         // Process records in backwards order to use last value for duplicate columns.
+        UsedColumns.clear();
         int index = Offsets.size();
         int begin = RowBuffer.GetSize();
         while (index > 0) {
@@ -109,7 +108,7 @@ void TTableConsumer::OnMyEndMap()
             begin = Offsets[--index];
             TStringBuf name(RowBuffer.Begin() + begin, end - begin);
 
-            if (!usedColumns.insert(name).second) {
+            if (!UsedColumns.insert(name).second) {
                 if (Config->Strict) {
                     ythrow yexception() << Sprintf(
                         "Duplicate column name %s (RowIndex: %"PRId64")", 

@@ -57,8 +57,9 @@ private:
     std::vector<size_t> Offsets;
 
     NYTree::TYsonWriter ValueConsumer;
-
     NYTree::TLexer Lexer;
+    yhash_set<TStringBuf> UsedColumns;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
