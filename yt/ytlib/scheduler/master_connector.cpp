@@ -602,6 +602,7 @@ private:
             auto req = TCypressYPathProxy::Create(stdErrPath);
             req->set_type(EObjectType::File);
             auto* reqExt = req->MutableExtension(NFileServer::NProto::TReqCreateFileExt::create_file);
+            *reqExt->mutable_chunk_id() = chunkId.ToProto();
             batchReq->AddRequest(req);
         }
         list->PendingStdErrChunkIds.clear();
