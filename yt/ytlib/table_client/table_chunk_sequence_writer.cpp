@@ -66,7 +66,7 @@ TAsyncError TTableChunkSequenceWriter::AsyncWriteRow(TRow& row, const TNonOwning
     State.StartOperation();
     ++RowCount;
 
-    // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
+    // This is a performance-critical spot. Try to avoid using callbacks for synchronously written rows.
     auto asyncResult = CurrentSession.ChunkWriter->AsyncWriteRow(row, key);
     auto error = asyncResult.TryGet();
     if (error) {
