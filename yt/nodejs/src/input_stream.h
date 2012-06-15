@@ -16,7 +16,7 @@ class TNodeJSInputStream
     , public TInputStream
 {
 protected:
-    TNodeJSInputStream();
+    TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark);
     ~TNodeJSInputStream() throw();
 
 public:
@@ -42,12 +42,25 @@ public:
     void EnqueueSweep();
     void DoSweep();
 
+    static void AsyncDrain(uv_work_t* request);
+    void EnqueueDrain();
+    void DoDrain();
+
 protected:
     // C++ API.
     size_t DoRead(void* data, size_t length);
 
 private:
-    NDetail::TVolatileCounter IsAlive;
+    void DisposeHandles(std::deque<TInputPart*>* queue);
+    void UpdateV8Properties();
+
+private:
+    TAtomic IsPushable;
+    TAtomic IsReadable;
+
+    TAtomic CurrentBufferSize;
+    const ui64 LowWatermark;
+    const ui64 HighWatermark;
 
     TMutex Mutex;
     TCondVar Conditional;
@@ -55,7 +68,7 @@ private:
     std::deque<TInputPart*> InactiveQueue;
 
     uv_work_t SweepRequest;
-    uv_work_t CloseRequest;
+    uv_work_t DrainRequest;
 
 private:
     TNodeJSInputStream(const TNodeJSInputStream&);
@@ -65,10 +78,21 @@ private:
 inline void TNodeJSInputStream::EnqueueSweep()
 {
     AsyncRef(false);
+    SweepRequest->data = this;
     // Post to V8 thread.
     uv_queue_work(
         uv_default_loop(), &SweepRequest,
         DoNothing, TNodeJSInputStream::AsyncSweep);
+}
+
+inline void TNodeJSInputStream::EnqueueDrain()
+{
+    AsyncRef(false);
+    // Post to V8 thread.
+    DrainRequest->data = this;
+    uv_queue_work(
+        uv_default_loop(), &DrainRequest,
+        DoNothing, TNodeJSInputStream::AsyncDrain);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

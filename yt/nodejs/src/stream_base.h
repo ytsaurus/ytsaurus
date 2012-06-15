@@ -44,6 +44,23 @@ public:
         size_t Length;
     };
 
+protected:
+    template <bool acquireSyncRef>
+    class TScopedRef
+    {
+        TNodeJSStreamBase* Stream;
+    public:
+        TScopedRef(TNodeJSStreamBase* stream)
+            : Stream(stream)
+        {
+            Stream->AsyncRef(acquireSyncRef);
+        }
+        ~TScopedRef()
+        {
+            Stream->AsyncUnref();
+        }
+    };
+
 private:
     TNodeJSStreamBase(const TNodeJSStreamBase&);
     TNodeJSStreamBase& operator=(const TNodeJSStreamBase&);

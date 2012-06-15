@@ -56,10 +56,16 @@ protected:
     void DoFinish();
 
 private:
-    NDetail::TVolatileCounter IsAlive;
+    void DisposeBuffers();
 
+private:
+    TAtomic IsWritable;
+
+    TAtomic WriteRequestPending;
     uv_work_t WriteRequest;
+    TAtomic FlushRequestPending;
     uv_work_t FlushRequest;
+    TAtomic FinishRequestPending;
     uv_work_t FinishRequest;
 
     TLockFreeQueue<TOutputPart> Queue;
@@ -71,29 +77,38 @@ private:
 
 inline void TNodeJSOutputStream::EnqueueOnWrite()
 {
-    AsyncRef(false);
-    // Post to V8 thread.
-    uv_queue_work(
-        uv_default_loop(), &WriteRequest,
-        DoNothing, TNodeJSOutputStream::AsyncOnWrite);
+    if (AtomicCas(WriteRequestPending, 0, 1)) {
+        // Post to V8 thread.
+        AsyncRef(false);
+        WriteRequest->data = this;
+        uv_queue_work(
+            uv_default_loop(), &WriteRequest,
+            DoNothing, TNodeJSOutputStream::AsyncOnWrite);
+    }
 }
 
 inline void TNodeJSOutputStream::EnqueueOnFlush()
 {
-    AsyncRef(false);
-    // Post to V8 thread.
-    uv_queue_work(
-        uv_default_loop(), &FlushRequest,
-        DoNothing, TNodeJSOutputStream::AsyncOnFlush);
+    if (AtomicCas(FlushRequestPending, 0, 1)) {
+        // Post to V8 thread.
+        AsyncRef(false);
+        FlushRequest->data = this;
+        uv_queue_work(
+            uv_default_loop(), &FlushRequest,
+            DoNothing, TNodeJSOutputStream::AsyncOnFlush);
+    }
 }
 
 inline void TNodeJSOutputStream::EnqueueOnFinish()
 {
-    AsyncRef(false);
-    // Post to V8 thread.
-    uv_queue_work(
-        uv_default_loop(), &FinishRequest,
-        DoNothing, TNodeJSOutputStream::AsyncOnFinish);
+    if (AtomicCas(FinishRequestPending, 0, 1)) {
+        // Post to V8 thread.
+        AsyncRef(false);
+        FinishRequest->data = this;
+        uv_queue_work(
+            uv_default_loop(), &FinishRequest,
+            DoNothing, TNodeJSOutputStream::AsyncOnFinish);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
