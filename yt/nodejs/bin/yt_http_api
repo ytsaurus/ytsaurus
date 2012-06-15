@@ -53,6 +53,9 @@ if (opts.argv.h) {
 
 process.title = "YtHttpProxy";
 
+var agent = null;
+var profiler = null;
+
 var logger = new winston.Logger({
     transports: [ opts.argv.l
         ? new winston.transports.File({
@@ -68,7 +71,11 @@ var logger = new winston.Logger({
 });
 
 if (opts.argv.profiler) {
-    require("v8-profiler");
+    agent = require("webkit-devtools-agent");
+    profiler = require("v8-profiler");
+    console.error("*** V8 Profiler and WebKit Developer Tools are enabled");
+    console.error("*** Send SIGUSR1 to fire up debugger");
+    console.error("*** Send SIGUSR2 to take a heap snapshot and fire up DT");
 }
 
 if (opts.argv.n > 0 && cluster.isMaster) {
@@ -95,6 +102,16 @@ if (opts.argv.n > 0 && cluster.isMaster) {
         spawnWorker();
     });
 } else {
+    if (opts.argv.profiler) {
+        process.on("SIGUSR1", function() {
+            console.error("*** Debugger should be running");
+        });
+        process.on("SIGUSR2", function() {
+            var snapshot = "snap-" + (new Date()).toISOString();
+            profiler.takeSnapshot(snapshot);
+            console.error("*** Taken heap snapshot '" + snapshot + "'");
+        });
+    }
     fs.readFile(opts.argv.c, function(err, configuration) {
         if (err) {
             throw err;
