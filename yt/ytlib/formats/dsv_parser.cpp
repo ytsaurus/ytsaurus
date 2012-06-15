@@ -17,9 +17,17 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     if (!Config) {
         Config = New<TDsvFormatConfig>();
     }
+
+    RecordSeparator= Config->RecordSeparator;
+    KeyValueSeparator = Config->KeyValueSeparator;
+    FieldSeparator = Config->FieldSeparator;
+    LinePrefixEnabled = Config->LinePrefix.IsInitialized();
+    LinePrefix = Config->LinePrefix.Get("");
+    EscapingSymbol = Config->EscapingSymbol;
+
     State = GetStartState();
 
-    // TODO(panin): unite with next
+    // TODO(panin): think about uniting this
     KeyStopSymbols[0] = Config->EscapingSymbol;
     KeyStopSymbols[1] = Config->KeyValueSeparator;
     KeyStopSymbols[2] = Config->RecordSeparator;
@@ -75,7 +83,7 @@ void TDsvParser::StartRecordIfNeeded()
 
 const char* TDsvParser::Consume(const char* begin, const char* end)
 {
-    if (!ExpectingEscapedChar && *begin == Config->EscapingSymbol) {
+    if (!ExpectingEscapedChar && *begin == EscapingSymbol) {
         ExpectingEscapedChar = true;
         ++begin;
         if (begin == end) {
@@ -98,11 +106,11 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                 begin, end,
                 ValueStopSymbols, ValueStopSymbols + ARRAY_SIZE(ValueStopSymbols));
             CurrentToken.append(begin, next);
-            if (next != end && *next != Config->EscapingSymbol) {
+            if (next != end && *next != EscapingSymbol) {
                 ValidatePrefix(CurrentToken);
                 CurrentToken.clear();
                 StartRecordIfNeeded();
-                if (*next == Config->RecordSeparator) {
+                if (*next == RecordSeparator) {
                     Consumer->OnEndMap();
                     NewRecordStarted = false;
                     State = GetStartState();
@@ -118,9 +126,9 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                 begin, end,
                 KeyStopSymbols, KeyStopSymbols + ARRAY_SIZE(KeyStopSymbols));
             CurrentToken.append(begin, next);
-            if (next != end && *next != Config->EscapingSymbol) {
+            if (next != end && *next != EscapingSymbol) {
                 StartRecordIfNeeded();
-                if (*next == Config->RecordSeparator) {
+                if (*next == RecordSeparator) {
                     if (!CurrentToken.empty()) {
                         ythrow yexception() <<
                             Sprintf("Key %s must be followed by value", ~CurrentToken);
@@ -130,7 +138,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                     NewRecordStarted = false;
                     State = GetStartState();
                 } else {
-                    YCHECK(*next == Config->KeyValueSeparator);
+                    YCHECK(*next == KeyValueSeparator);
                     StartRecordIfNeeded();
                     Consumer->OnKeyedItem(CurrentToken);
                     CurrentToken.clear();
@@ -145,10 +153,10 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                 begin, end,
                 ValueStopSymbols, ValueStopSymbols + ARRAY_SIZE(ValueStopSymbols));
             CurrentToken.append(begin, next);
-            if (next != end && *next != Config->EscapingSymbol) {
+            if (next != end && *next != EscapingSymbol) {
                 Consumer->OnStringScalar(CurrentToken);
                 CurrentToken.clear();
-                if (*next == Config->RecordSeparator) {
+                if (*next == RecordSeparator) {
                     Consumer->OnEndMap();
                     NewRecordStarted = false;
                     State = GetStartState();
@@ -168,7 +176,7 @@ const char* TDsvParser::FindEndOfValue(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == Config->FieldSeparator || *current == Config->RecordSeparator) {
+        if (*current == FieldSeparator || *current == RecordSeparator) {
             return current;
         }
     }
@@ -177,7 +185,7 @@ const char* TDsvParser::FindEndOfValue(const char* begin, const char* end)
 
 TDsvParser::EState TDsvParser::GetStartState()
 {
-    if (Config->LinePrefix) {
+    if (LinePrefixEnabled) {
         return EState::InsidePrefix;
     } else {
         return EState::InsideKey;
@@ -186,7 +194,7 @@ TDsvParser::EState TDsvParser::GetStartState()
 
 void TDsvParser::ValidatePrefix(const Stroka& prefix)
 {
-    if (prefix != Config->LinePrefix.Get()) {
+    if (prefix != LinePrefix) {
         ythrow yexception() <<
             Sprintf("Expected %s at the beginning of line, found %s",
                 ~Config->LinePrefix.Get().Quote(),
