@@ -1,5 +1,7 @@
 #include "input_stream.h"
 
+#include <ytlib/misc/foreach.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +28,7 @@ TNodeJSInputStream::TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark)
     , IsPushable(1)
     , IsReadable(1)
     , CurrentBufferSize(0)
-    , LowWatermark(lowWatermark),
+    , LowWatermark(lowWatermark)
     , HighWatermark(highWatermark)
 {
     THREAD_AFFINITY_IS_V8();
@@ -98,11 +100,11 @@ Handle<Value> TNodeJSInputStream::New(const Arguments& args)
         stream->handle_->Set(
             String::New("low_watermark"),
             Integer::NewFromUnsigned(lowWatermark),
-            v8::ReadOnly | v8::DontDelete);
+            (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
         stream->handle_->Set(
             String::New("high_watermark"),
             Integer::NewFromUnsigned(highWatermark),
-            v8::ReadOnly | v8::DontDelete);
+            (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 
         return scope.Close(args.This());
     } catch (const std::exception& ex) {
@@ -294,7 +296,7 @@ void TNodeJSInputStream::DoSweep()
         bool mutexAcquired = false;
         for (unsigned int outerSpin = 0; outerSpin < NumberOfSpins; ++outerSpin) {
             for (unsigned int innerSpin = 0; innerSpin < outerSpin * outerSpin; ++innerSpin) {
-                DoNothing();
+                DoNothing(NULL);
             }
             if (Mutex.TryAcquire()) {
                 mutexAcquired = true;
@@ -438,17 +440,17 @@ void TNodeJSInputStream::UpdateV8Properties()
     handle_->Set(
         CurrentBufferSizeSymbol,
         Integer::NewFromUnsigned(AtomicGet(CurrentBufferSize)),
-        v8::ReadOnly | v8::DontDelete);
+        (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 
     handle_->Set(
         ActiveQueueSizeSymbol,
         Integer::NewFromUnsigned(ActiveQueue.size()),
-        v8::ReadOnly | v8::DontDelete);
+        (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 
     handle_->Set(
         InactiveQueueSizeSymbol,
         Integer::NewFromUnsigned(InactiveQueue.size()),
-        v8::ReadOnly | v8::DontDelete);
+        (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 }
 
 void TNodeJSInputStream::DisposeHandles(std::deque<TInputPart*>* queue)

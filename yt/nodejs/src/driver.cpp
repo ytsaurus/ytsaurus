@@ -174,10 +174,6 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
     target->Set(
         String::New("EDataType"),
         dataType);
-
-    target->Set(
-        String::New("GetEioStatistics"),
-        FunctionTemplate::New(GetEioStatistics)->GetFunction());
 }
 
 bool TNodeJSDriver::HasInstance(Handle<Value> value)
@@ -310,6 +306,8 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     EXPECT_THAT_IS(args[6], Function); // Callback
 
     // Unwrap arguments.
+    TNodeJSDriver* host = ObjectWrap::Unwrap<TNodeJSDriver>(args.This());
+
     String::AsciiValue commandName(args[0]);
     TNodeJSInputStream* inputStream =
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
@@ -330,7 +328,7 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     YCHECK(parameters->GetType() == ENodeType::Map);
 
     TExecuteRequest* request = new TExecuteRequest(
-        ObjectWrap::Unwrap<TNodeJSDriver>(args.This()),
+        host,
         inputStream,
         outputStream,
         callback);
@@ -342,7 +340,7 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // TODO(sandello): Arguments -> Parameters
     request->DriverRequest.Arguments = parameters->AsMap();
 
-    request->Request->data = this;
+    request->Request.data = host;
     uv_queue_work(
         uv_default_loop(), &request->Request,
         TNodeJSDriver::ExecuteWork, TNodeJSDriver::ExecuteAfter);
@@ -353,8 +351,8 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
-    TExecuteRequest* request = static_cast<TExecuteRequest>(request->data);
-    YCHECK(request == container_of(workRequest, TExecuteRequest, Request);
+    TExecuteRequest* request = static_cast<TExecuteRequest*>(workRequest->data);
+    YASSERT(request == container_of(workRequest, TExecuteRequest, Request));
 
     TInputStream* inputStream = request->DriverRequest.InputStream;
     TOutputStream* outputStream = request->DriverRequest.OutputStream;
@@ -375,8 +373,8 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TExecuteRequest* request = static_cast<TExecuteRequest>(request->data);
-    YCHECK(request == container_of(workRequest, TExecuteRequest, Request);
+    TExecuteRequest* request = static_cast<TExecuteRequest*>(workRequest->data);
+    YASSERT(request == container_of(workRequest, TExecuteRequest, Request));
 
     {
         TryCatch block;

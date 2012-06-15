@@ -77,10 +77,10 @@ private:
 
 inline void TNodeJSOutputStream::EnqueueOnWrite()
 {
-    if (AtomicCas(WriteRequestPending, 0, 1)) {
+    if (AtomicCas(&WriteRequestPending, 0, 1)) {
         // Post to V8 thread.
         AsyncRef(false);
-        WriteRequest->data = this;
+        WriteRequest.data = this;
         uv_queue_work(
             uv_default_loop(), &WriteRequest,
             DoNothing, TNodeJSOutputStream::AsyncOnWrite);
@@ -89,10 +89,10 @@ inline void TNodeJSOutputStream::EnqueueOnWrite()
 
 inline void TNodeJSOutputStream::EnqueueOnFlush()
 {
-    if (AtomicCas(FlushRequestPending, 0, 1)) {
+    if (AtomicCas(&FlushRequestPending, 0, 1)) {
         // Post to V8 thread.
         AsyncRef(false);
-        FlushRequest->data = this;
+        FlushRequest.data = this;
         uv_queue_work(
             uv_default_loop(), &FlushRequest,
             DoNothing, TNodeJSOutputStream::AsyncOnFlush);
@@ -101,10 +101,10 @@ inline void TNodeJSOutputStream::EnqueueOnFlush()
 
 inline void TNodeJSOutputStream::EnqueueOnFinish()
 {
-    if (AtomicCas(FinishRequestPending, 0, 1)) {
+    if (AtomicCas(&FinishRequestPending, 0, 1)) {
         // Post to V8 thread.
         AsyncRef(false);
-        FinishRequest->data = this;
+        FinishRequest.data = this;
         uv_queue_work(
             uv_default_loop(), &FinishRequest,
             DoNothing, TNodeJSOutputStream::AsyncOnFinish);

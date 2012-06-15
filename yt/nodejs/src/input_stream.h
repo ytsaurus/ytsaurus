@@ -42,6 +42,7 @@ public:
     void EnqueueSweep();
     void DoSweep();
 
+    static v8::Handle<v8::Value> Drain(const v8::Arguments& args);
     static void AsyncDrain(uv_work_t* request);
     void EnqueueDrain();
     void DoDrain();
@@ -78,7 +79,7 @@ private:
 inline void TNodeJSInputStream::EnqueueSweep()
 {
     AsyncRef(false);
-    SweepRequest->data = this;
+    SweepRequest.data = this;
     // Post to V8 thread.
     uv_queue_work(
         uv_default_loop(), &SweepRequest,
@@ -89,7 +90,7 @@ inline void TNodeJSInputStream::EnqueueDrain()
 {
     AsyncRef(false);
     // Post to V8 thread.
-    DrainRequest->data = this;
+    DrainRequest.data = this;
     uv_queue_work(
         uv_default_loop(), &DrainRequest,
         DoNothing, TNodeJSInputStream::AsyncDrain);
