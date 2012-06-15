@@ -27,11 +27,6 @@ TDsvWriter::TDsvWriter(
     } else {
         AllowBeginList = false;
     }
-
-    EscapedSymbols[0] = Config->EscapingSymbol;
-    EscapedSymbols[1] = Config->KeyValueSeparator;
-    EscapedSymbols[2] = Config->FieldSeparator;
-    EscapedSymbols[3] = Config->RecordSeparator;
 }
 
 TDsvWriter::~TDsvWriter()
@@ -122,9 +117,7 @@ void TDsvWriter::EscapeAndWrite(const TStringBuf& key)
     auto current = key.begin();
     auto end = key.end();
     while (current != end) {
-        auto next = std::find_first_of(
-            current, end,
-            EscapedSymbols, EscapedSymbols + ARRAY_SIZE(EscapedSymbols));
+        auto next = FindNextEscapedSymbol(current, end);
         Stream->Write(current, next - current);
         if (next != end) {
             Stream->Write(Config->EscapingSymbol);
@@ -133,6 +126,21 @@ void TDsvWriter::EscapeAndWrite(const TStringBuf& key)
         }
         current = next;
     }
+}
+
+const char* TDsvWriter::FindNextEscapedSymbol(const char* begin, const char* end)
+{
+    auto current = begin;
+    for ( ; current != end; ++current) {
+        if (*current == Config->EscapingSymbol ||
+            *current == Config->KeyValueSeparator ||
+            *current == Config->FieldSeparator ||
+            *current == Config->RecordSeparator)
+        {
+            return current;
+        }
+    }
+    return end;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

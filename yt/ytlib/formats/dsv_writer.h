@@ -45,8 +45,8 @@ private:
     bool FirstLine;
     bool FirstItem;
 
-    char EscapedSymbols[4];
     void EscapeAndWrite(const TStringBuf& key);
+    const char* FindNextEscapedSymbol(const char* begin, const char* end);
 
     bool AllowBeginList;
     bool AllowBeginMap;
