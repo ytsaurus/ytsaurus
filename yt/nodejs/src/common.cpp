@@ -139,6 +139,17 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
     }
 }
 
+Handle<Value> GetYsonRepresentation(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length() == 1);
+
+    Stroka yson = SerializeToYson(ConvertV8ValueToYson(args[0]), EYsonFormat::Text);
+    return scope.Close(String::New(~yson));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Stuff related to EIO
 
@@ -187,15 +198,6 @@ INodePtr ConvertV8StringToYson(Handle<String> string)
     return DeserializeFromYson(TStringBuf(*value, value.length()));
 }
 
-Handle<Value> DebugFromV8ToYson(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    Stroka yson = SerializeToYson(ConvertV8ValueToYson(args[0]), EYsonFormat::Text);
-    return scope.Close(String::New(~yson));
-}
-
 void Initialize(Handle<Object> target)
 {
     eio_set_min_parallel(NumberOfWorkerThreads);
@@ -205,8 +207,8 @@ void Initialize(Handle<Object> target)
     SpecialAttributesKey = NODE_PSYMBOL("$attributes");
 
     target->Set(
-        String::NewSymbol("DebugFromV8ToYson"),
-        FunctionTemplate::New(DebugFromV8ToYson)->GetFunction());
+        String::NewSymbol("GetYsonRepresentation"),
+        FunctionTemplate::New(GetYsonRepresentation)->GetFunction());
     target->Set(
         String::NewSymbol("GetEioStatistics"),
         FunctionTemplate::New(GetYsonRepresentation)->GetFunction());
