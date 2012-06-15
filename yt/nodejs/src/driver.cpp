@@ -116,7 +116,7 @@ TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
     TDriverConfigPtr config;
     if (stillOkay) {
         try {
-            // Qualify namespace to avoid collision with v8-New().
+            // Qualify namespace to avoid collision with class method New().
             config = ::NYT::New<NDriver::TDriverConfig>();
             config->Load(~configNode);
         } catch (const std::exception& ex) {
@@ -196,18 +196,27 @@ Handle<Value> TNodeJSDriver::New(const Arguments& args)
     HandleScope scope;
 
     YASSERT(args.Length() == 1);
+
     EXPECT_THAT_IS(args[0], String);
 
     String::AsciiValue configuration(args[0]);
 
-    TNodeJSDriver* host = new TNodeJSDriver(
-        Stroka(*configuration, configuration.length()));
-    host->Wrap(args.This());
+    TNodeJSDriver* host = NULL;
+    try {
+        host = new TNodeJSDriver(Stroka(*configuration, configuration.length()));
+        host->Wrap(args.This());
 
-    if (host->Driver) {
-        return args.This();
-    } else {
-        return ThrowException(Exception::Error(String::New(~host->Message)));
+        if (host->Driver) {
+            return args.This();
+        } else {
+            return ThrowException(Exception::Error(String::New(~host->Message)));
+        }
+    } catch (const std::exception& ex) {
+        if (host) {
+            delete host;
+        }
+
+        return ThrowException(Exception::Error(String::New(ex.what())));
     }
 }
 
@@ -333,6 +342,7 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // TODO(sandello): Arguments -> Parameters
     request->DriverRequest.Arguments = parameters->AsMap();
 
+    request->Request->data = this;
     uv_queue_work(
         uv_default_loop(), &request->Request,
         TNodeJSDriver::ExecuteWork, TNodeJSDriver::ExecuteAfter);
@@ -343,8 +353,8 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
-    TExecuteRequest* request =
-        container_of(workRequest, TExecuteRequest, Request);
+    TExecuteRequest* request = static_cast<TExecuteRequest>(request->data);
+    YCHECK(request == container_of(workRequest, TExecuteRequest, Request);
 
     TInputStream* inputStream = request->DriverRequest.InputStream;
     TOutputStream* outputStream = request->DriverRequest.OutputStream;
@@ -365,8 +375,8 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TExecuteRequest* request =
-        container_of(workRequest, TExecuteRequest, Request);
+    TExecuteRequest* request = static_cast<TExecuteRequest>(request->data);
+    YCHECK(request == container_of(workRequest, TExecuteRequest, Request);
 
     {
         TryCatch block;
