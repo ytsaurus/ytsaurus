@@ -215,7 +215,7 @@ template <class TBuffer>
 class TKey
 {
 public:
-    //! Creates empty key.
+    //! Creates an empty key.
     /* 
      *  \param maxSize maximum string key size.
      */
