@@ -96,6 +96,10 @@ private:
 
     i64 BasicMetaSize;
 
+    TAsyncError StaticOK;
+
+    std::vector<TSharedRef> CompletedBlocks;
+
     NChunkHolder::NProto::TChunkMeta Meta;
     NProto::TChannelsExt ChannelsExt;
     NChunkHolder::NProto::TMiscExt MiscExt;

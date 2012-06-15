@@ -47,6 +47,7 @@ TTableChunkWriter::TTableChunkWriter(
     , IndexSize(0)
     , CompressionRatio(config->EstimatedCompressionRatio)
     , BasicMetaSize(0)
+    , StaticOK(MakePromise(TError()))
 {
     YASSERT(config);
     YASSERT(chunkWriter);
@@ -134,17 +135,6 @@ TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key
     CurrentSize = SentSize;
     MiscExt.set_row_count(MiscExt.row_count() + 1);
 
-    std::vector<TSharedRef> completedBlocks;
-    for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++channelIndex) {
-        auto& channel = ChannelWriters[channelIndex];
-        CurrentSize += channel->GetCurrentSize();
-
-        if (channel->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
-            auto block = PrepareBlock(channelIndex);
-            completedBlocks.push_back(block);
-        } 
-    }
-
     DataWeight += rowDataWeight;
     if (SamplesSize < Config->SampleRate * DataWeight * CompressionRatio) {
         EmitSample(row);
@@ -162,7 +152,21 @@ TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key
         }
     }
 
-    return ChunkWriter->AsyncWriteBlocks(completedBlocks);
+    CompletedBlocks.clear();
+    for (int channelIndex = 0; channelIndex < static_cast<int>(ChannelWriters.size()); ++channelIndex) {
+        auto& channel = ChannelWriters[channelIndex];
+        CurrentSize += channel->GetCurrentSize();
+        if (channel->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
+            auto block = PrepareBlock(channelIndex);
+            CompletedBlocks.push_back(block);
+        } 
+    }
+
+    if (CompletedBlocks.empty()) {
+        return StaticOK;
+    }
+
+    return ChunkWriter->AsyncWriteBlocks(CompletedBlocks);
 }
 
 TSharedRef TTableChunkWriter::PrepareBlock(int channelIndex)
