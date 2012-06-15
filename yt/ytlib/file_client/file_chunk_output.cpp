@@ -59,7 +59,7 @@ void TFileChunkOutput::Open()
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
         req->set_type(EObjectType::Chunk);
 
-        auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
+        auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk);
         reqExt->set_preferred_host_name(Stroka(GetHostName()));
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Config->ReplicationFactor);
@@ -71,7 +71,7 @@ void TFileChunkOutput::Open()
         }
 
         ChunkId = TChunkId::FromProto(rsp->object_id());
-        const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
+        const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk);
         addresses = FromProto<Stroka>(rspExt.node_addresses());
         if (addresses.size() < Config->UploadReplicationFactor) {
             ythrow yexception() << "Not enough data nodes available";

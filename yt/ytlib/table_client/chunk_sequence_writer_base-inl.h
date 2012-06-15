@@ -64,7 +64,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
         NCypress::FromObjectId(TransactionId));
     req->set_type(NObjectServer::EObjectType::Chunk);
 
-    auto* reqExt = req->MutableExtension(NChunkServer::NProto::TReqCreateChunk::create_chunk);
+    auto* reqExt = req->MutableExtension(NChunkServer::NProto::TReqCreateChunkExt::create_chunk);
     reqExt->set_preferred_host_name(Stroka(GetHostName()));
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
@@ -92,7 +92,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
 
     auto chunkId = NChunkServer::TChunkId::FromProto(rsp->object_id());
     const auto& rspExt = rsp->GetExtension(
-        NChunkServer::NProto::TRspCreateChunk::create_chunk);
+        NChunkServer::NProto::TRspCreateChunkExt::create_chunk);
     auto holderAddresses = FromProto<Stroka>(rspExt.node_addresses());
 
     if (holderAddresses.size() < Config->UploadReplicationFactor) {

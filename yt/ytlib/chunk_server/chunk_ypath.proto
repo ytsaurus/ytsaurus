@@ -29,11 +29,11 @@ message TRspConfirm
 
 // CreateObject extension.
 
-message TReqCreateChunk
+message TReqCreateChunkExt
 {
     extend NYT.NTransactionServer.NProto.TReqCreateObject
     {
-        optional TReqCreateChunk create_chunk = 100;
+        optional TReqCreateChunkExt create_chunk = 100;
     }
 
     // Requested number of nodes to write.
@@ -42,17 +42,17 @@ message TReqCreateChunk
     // Desired number of copies (including those created by background replication).
     required int32 replication_factor = 2;
  
-    // FQDN (without port number!) to be preffered to upload.
+    // FQDN (without port number!) to be preffered for upload.
     // The client typically puts the name of the local host here to
     // facilitate local uploads.
     optional string preferred_host_name = 3;
 }
 
-message TRspCreateChunk
+message TRspCreateChunkExt
 {
     extend NYT.NTransactionServer.NProto.TRspCreateObject
     {
-        optional TRspCreateChunk create_chunk = 100;
+        optional TRspCreateChunkExt create_chunk = 100;
     }
 
     repeated string node_addresses = 1;

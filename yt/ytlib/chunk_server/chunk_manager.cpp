@@ -1759,8 +1759,8 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 {
     UNUSED(transaction);
 
-    const auto* requestExt = &request->GetExtension(TReqCreateChunk::create_chunk);
-    auto* responseExt = response->MutableExtension(TRspCreateChunk::create_chunk);
+    const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
+    auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk);
 
     auto* chunk = Owner->CreateChunk();
     chunk->SetReplicationFactor(requestExt->replication_factor());

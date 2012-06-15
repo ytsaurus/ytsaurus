@@ -1,6 +1,21 @@
 package NYT.NFileServer.NProto;
 
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/cypress/cypress_ypath.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Create extension.
+
+message TReqCreateFileExt
+{
+    extend NYT.NCypress.NProto.TReqCreate
+    {
+        optional TReqCreateFileExt create_file = 100;
+    }
+
+    required NYT.NProto.TGuid chunk_id = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

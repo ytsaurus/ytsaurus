@@ -82,9 +82,12 @@ public:
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
-        // TODO(babenko): use extensions
-        auto chunkId = TNodeId::FromString(request->Attributes().Get<Stroka>("chunk_id"));
-        request->Attributes().Remove("chunk_id");
+        if (!request->HasExtension(NProto::TReqCreateFileExt::create_file)) {
+            ythrow yexception() << "Missing request extension";
+        }
+
+        const auto& requestExt = request->GetExtension(NProto::TReqCreateFileExt::create_file);
+        auto chunkId = TChunkId::FromProto(requestExt.chunk_id());
 
         auto* chunk = chunkManager->FindChunk(chunkId);
         if (!chunk) {

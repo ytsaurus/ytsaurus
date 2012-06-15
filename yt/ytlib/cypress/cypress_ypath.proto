@@ -19,6 +19,8 @@ message TRspLock
 message TReqCreate
 {
     required int32 type = 1;
+
+    extensions 100 to max;
 }
 
 message TRspCreate

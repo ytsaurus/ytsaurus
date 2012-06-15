@@ -601,8 +601,7 @@ private:
             auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
             auto req = TCypressYPathProxy::Create(stdErrPath);
             req->set_type(EObjectType::File);
-            // TODO(babenko): use extensions
-            req->Attributes().Set("chunk_id", chunkId.ToString());
+            auto* reqExt = req->MutableExtension(NFileServer::NProto::TReqCreateFileExt::create_file);
             batchReq->AddRequest(req);
         }
         list->PendingStdErrChunkIds.clear();

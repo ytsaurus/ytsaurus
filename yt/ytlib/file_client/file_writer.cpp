@@ -92,8 +92,8 @@ void TFileWriter::Close()
             Path,
             Transaction ? Transaction->GetId() : NullTransactionId));
         req->set_type(EObjectType::File);
-        // TODO(babenko): use extensions
-        req->Attributes().Set("chunk_id", Writer->GetChunkId().ToString());
+        auto* reqExt = req->MutableExtension(NFileServer::NProto::TReqCreateFileExt::create_file);
+        *reqExt->mutable_chunk_id() = Writer->GetChunkId().ToProto();
         auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
