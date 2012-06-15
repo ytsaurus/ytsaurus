@@ -137,7 +137,7 @@ private:
         TBase::DoInvoke(context);
     }
 
-    bool ValidateTransactionIsActive(const TTransaction* transaction)
+    void ValidateTransactionIsActive(const TTransaction* transaction)
     {
         if (!transaction->IsActive()) {
             ythrow yexception() << "Transaction is not active";
