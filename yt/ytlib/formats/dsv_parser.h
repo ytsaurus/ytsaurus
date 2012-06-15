@@ -43,6 +43,7 @@ private:
 
     const char* Consume(const char* begin, const char* end);
     const char* FindEndOfValue(const char* begin, const char* end);
+    const char* FindEndOfKey(const char* begin, const char* end);
 
     void StartRecordIfNeeded();
 

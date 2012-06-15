@@ -102,9 +102,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
 
     switch (State) {
         case EState::InsidePrefix: {
-            auto next = std::find_first_of(
-                begin, end,
-                ValueStopSymbols, ValueStopSymbols + ARRAY_SIZE(ValueStopSymbols));
+            auto next = FindEndOfValue(begin, end);
             CurrentToken.append(begin, next);
             if (next != end && *next != EscapingSymbol) {
                 ValidatePrefix(CurrentToken);
@@ -122,9 +120,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
             return next;
         }
         case EState::InsideKey: {
-            auto next = std::find_first_of(
-                begin, end,
-                KeyStopSymbols, KeyStopSymbols + ARRAY_SIZE(KeyStopSymbols));
+            auto next = FindEndOfKey(begin, end);
             CurrentToken.append(begin, next);
             if (next != end && *next != EscapingSymbol) {
                 StartRecordIfNeeded();
@@ -149,9 +145,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
             return next;
         }
         case EState::InsideValue: {
-            auto next = std::find_first_of(
-                begin, end,
-                ValueStopSymbols, ValueStopSymbols + ARRAY_SIZE(ValueStopSymbols));
+            auto next = FindEndOfValue(begin, end);
             CurrentToken.append(begin, next);
             if (next != end && *next != EscapingSymbol) {
                 Consumer->OnStringScalar(CurrentToken);
@@ -176,7 +170,24 @@ const char* TDsvParser::FindEndOfValue(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == FieldSeparator || *current == RecordSeparator) {
+        if (*current == FieldSeparator ||
+            *current == RecordSeparator ||
+            *current == EscapingSymbol)
+        {
+            return current;
+        }
+    }
+    return end;
+}
+
+const char* TDsvParser::FindEndOfKey(const char* begin, const char* end)
+{
+    auto current = begin;
+    for ( ; current != end; ++current) {
+        if (*current == KeyValueSeparator ||
+            *current == RecordSeparator ||
+            *current == EscapingSymbol)
+        {
             return current;
         }
     }
