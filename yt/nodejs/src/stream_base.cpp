@@ -38,7 +38,7 @@ void TNodeJSStreamBase::UnrefCallback(uv_work_t* request)
 {
     THREAD_AFFINITY_IS_V8();
 
-    TNodeJSStreamBase* stream = reinterpret_cast<TNodeJSStreamBase*>(request->data);
+    TNodeJSStreamBase* stream = static_cast<TNodeJSStreamBase*>(request->data);
     TNodeJSStreamBase* streamAlternative = container_of(request, TNodeJSStreamBase, UnrefRequest);
 
     YASSERT(stream == streamAlternative);

@@ -211,7 +211,7 @@ void Initialize(Handle<Object> target)
         FunctionTemplate::New(GetYsonRepresentation)->GetFunction());
     target->Set(
         String::NewSymbol("GetEioStatistics"),
-        FunctionTemplate::New(GetYsonRepresentation)->GetFunction());
+        FunctionTemplate::New(GetEioStatistics)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

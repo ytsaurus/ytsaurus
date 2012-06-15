@@ -77,7 +77,7 @@ private:
 
 inline void TNodeJSOutputStream::EnqueueOnWrite()
 {
-    if (AtomicCas(&WriteRequestPending, 0, 1)) {
+    if (AtomicCas(&WriteRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
         WriteRequest.data = this;
@@ -89,7 +89,7 @@ inline void TNodeJSOutputStream::EnqueueOnWrite()
 
 inline void TNodeJSOutputStream::EnqueueOnFlush()
 {
-    if (AtomicCas(&FlushRequestPending, 0, 1)) {
+    if (AtomicCas(&FlushRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
         FlushRequest.data = this;
@@ -101,7 +101,7 @@ inline void TNodeJSOutputStream::EnqueueOnFlush()
 
 inline void TNodeJSOutputStream::EnqueueOnFinish()
 {
-    if (AtomicCas(&FinishRequestPending, 0, 1)) {
+    if (AtomicCas(&FinishRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
         FinishRequest.data = this;

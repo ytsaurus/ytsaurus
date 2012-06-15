@@ -3,6 +3,8 @@
 #include <ytlib/misc/common.h>
 #include <ytlib/ytree/public.h>
 
+#define BUILDING_NODE_EXTENSION
+
 #include <uv.h>
 #include <v8.h>
 
@@ -14,7 +16,24 @@
 #undef STATIC_ASSERT
 #endif
 
-// #include <pthread.h>
+#ifndef offset_of
+#define offset_of(type, member) \
+    ((intptr_t) ((char *) &(((type *) 8)->member) - 8))
+#endif
+
+#ifndef container_of
+#define container_of(ptr, type, member) \
+    ((type *) ((char *) (ptr) - offset_of(type, member)))
+#endif
+
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof((a)) / sizeof((a)[0]))
+#endif
+
+#ifndef ROUND_UP
+#define ROUND_UP(a, b) ((a) % (b) ? ((a) + (b)) - ((a) % (b)) : (a))
+#endif
+
 #include <string.h>
 #include <stdlib.h>
 

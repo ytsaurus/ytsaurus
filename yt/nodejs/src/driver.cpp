@@ -340,7 +340,7 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     // TODO(sandello): Arguments -> Parameters
     request->DriverRequest.Arguments = parameters->AsMap();
 
-    request->Request.data = host;
+    request->Request.data = request;
     uv_queue_work(
         uv_default_loop(), &request->Request,
         TNodeJSDriver::ExecuteWork, TNodeJSDriver::ExecuteAfter);
