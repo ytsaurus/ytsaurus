@@ -159,13 +159,13 @@ void TExecutorBase::Execute(const std::vector<std::string>& args)
     }
 
     // Set bufferization of streams
-    TAutoPtr<TOutputStream> outputStream = new TBufferedOutput(&StdOutStream(), 1 << 16);
+    TBufferedOutput outputStream(&StdOutStream(), 1 << 16);
 
     TDriverRequest request;
     request.CommandName = GetDriverCommandName();
     request.InputStream = &StdInStream();
     request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
-    request.OutputStream = ~outputStream;
+    request.OutputStream = &outputStream;
     request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);;
     request.Arguments = GetArgs();
 
