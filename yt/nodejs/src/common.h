@@ -82,6 +82,14 @@
         } \
     } while (0)
 
+#if 0
+#define EIO_NOP(callback, data) \
+    eio_nop(EIO_PRI_DEFAULT, (callback), (data), &uv_default_loop()->uv_eio_channel);
+#else
+#define EIO_NOP(callback, data) \
+    eio_nop(EIO_PRI_DEFAULT, (callback), (data));
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

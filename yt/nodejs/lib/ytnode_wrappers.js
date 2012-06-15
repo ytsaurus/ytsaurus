@@ -166,6 +166,7 @@ function YtWritableStream(low_watermark, high_watermark) {
     this._ended = false;
     this._closed = false;
 
+    var self = this;
     this._binding = new binding.TNodeJSInputStream(low_watermark, high_watermark);
     this._binding.on_drain = function() {
         self.__DBG("Bindings -> on_drain");

@@ -37,15 +37,15 @@ public:
     v8::Handle<v8::Value> DoIsEmpty();
 
     // Asynchronous JS API.
-    static void AsyncOnWrite(uv_work_t* request);
+    static int AsyncOnWrite(eio_req* request);
     void EnqueueOnWrite();
     void DoOnWrite();
 
-    static void AsyncOnFlush(uv_work_t* request);
+    static int AsyncOnFlush(eio_req* request);
     void EnqueueOnFlush();
     void DoOnFlush();
 
-    static void AsyncOnFinish(uv_work_t* request);
+    static int AsyncOnFinish(eio_req* request);
     void EnqueueOnFinish();
     void DoOnFinish();
 
@@ -62,11 +62,8 @@ private:
     TAtomic IsWritable;
 
     TAtomic WriteRequestPending;
-    uv_work_t WriteRequest;
     TAtomic FlushRequestPending;
-    uv_work_t FlushRequest;
     TAtomic FinishRequestPending;
-    uv_work_t FinishRequest;
 
     TLockFreeQueue<TOutputPart> Queue;
 
@@ -80,10 +77,7 @@ inline void TNodeJSOutputStream::EnqueueOnWrite()
     if (AtomicCas(&WriteRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        WriteRequest.data = this;
-        uv_queue_work(
-            uv_default_loop(), &WriteRequest,
-            DoNothing, TNodeJSOutputStream::AsyncOnWrite);
+        EIO_NOP(TNodeJSOutputStream::AsyncOnWrite, this);
     }
 }
 
@@ -92,10 +86,7 @@ inline void TNodeJSOutputStream::EnqueueOnFlush()
     if (AtomicCas(&FlushRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        FlushRequest.data = this;
-        uv_queue_work(
-            uv_default_loop(), &FlushRequest,
-            DoNothing, TNodeJSOutputStream::AsyncOnFlush);
+        EIO_NOP(TNodeJSOutputStream::AsyncOnFlush, this);
     }
 }
 
@@ -104,10 +95,7 @@ inline void TNodeJSOutputStream::EnqueueOnFinish()
     if (AtomicCas(&FinishRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        FinishRequest.data = this;
-        uv_queue_work(
-            uv_default_loop(), &FinishRequest,
-            DoNothing, TNodeJSOutputStream::AsyncOnFinish);
+        EIO_NOP(TNodeJSOutputStream::AsyncOnFinish, this);
     }
 }
 

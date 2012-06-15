@@ -16,6 +16,9 @@ extern "C" {
     extern unsigned int eio_nready   (void); /* number of not-yet handled requests */
     extern unsigned int eio_npending (void); /* number of finished but unhandled requests */
     extern unsigned int eio_nthreads (void); /* number of worker threads in use currently */
+
+    // XXX(sandello): Here we p
+    extern void uv_eio_init(uv_loop_t*);
 }
 
 namespace NYT {

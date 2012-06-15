@@ -160,14 +160,14 @@ Handle<Value> TNodeJSOutputStream::DoIsEmpty()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSOutputStream::AsyncOnWrite(uv_work_t* request)
+int TNodeJSOutputStream::AsyncOnWrite(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSOutputStream* stream = static_cast<TNodeJSOutputStream*>(request->data);
-    YCHECK(stream == container_of(request, TNodeJSOutputStream, WriteRequest));
     AtomicSet(stream->WriteRequestPending, 0);
     stream->DoOnWrite();
     stream->AsyncUnref();
+    return 0;
 }
 
 void TNodeJSOutputStream::DoOnWrite()
@@ -194,14 +194,14 @@ void TNodeJSOutputStream::DoOnWrite()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSOutputStream::AsyncOnFlush(uv_work_t* request)
+int TNodeJSOutputStream::AsyncOnFlush(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSOutputStream* stream = static_cast<TNodeJSOutputStream*>(request->data);
-    YCHECK(stream == container_of(request, TNodeJSOutputStream, FlushRequest));
     AtomicSet(stream->FlushRequestPending, 0);
     stream->DoOnFlush();
     stream->AsyncUnref();
+    return 0;
 }
 
 void TNodeJSOutputStream::DoOnFlush()
@@ -215,14 +215,14 @@ void TNodeJSOutputStream::DoOnFlush()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSOutputStream::AsyncOnFinish(uv_work_t* request)
+int TNodeJSOutputStream::AsyncOnFinish(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSOutputStream* stream = static_cast<TNodeJSOutputStream*>(request->data);
-    YCHECK(stream == container_of(request, TNodeJSOutputStream, FinishRequest));
     AtomicSet(stream->FinishRequestPending, 0);
     stream->DoOnFinish();
     stream->AsyncUnref();
+    return 0;
 }
 
 void TNodeJSOutputStream::DoOnFinish()

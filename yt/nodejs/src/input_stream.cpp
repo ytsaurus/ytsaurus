@@ -275,13 +275,13 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
     return Undefined();
 }
 
-void TNodeJSInputStream::AsyncSweep(uv_work_t* request)
+int TNodeJSInputStream::AsyncSweep(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSInputStream* stream = static_cast<TNodeJSInputStream*>(request->data);
-    YCHECK(stream == container_of(request, TNodeJSInputStream, SweepRequest));
     stream->DoSweep();
     stream->AsyncUnref();
+    return 0;
 }
 
 void TNodeJSInputStream::DoSweep()
@@ -336,13 +336,13 @@ Handle<Value> TNodeJSInputStream::Drain(const Arguments& args)
     return Undefined();
 }
 
-void TNodeJSInputStream::AsyncDrain(uv_work_t* request)
+int TNodeJSInputStream::AsyncDrain(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSInputStream* stream = static_cast<TNodeJSInputStream*>(request->data);
-    YCHECK(stream == container_of(request, TNodeJSInputStream, SweepRequest));
     stream->DoDrain();
     stream->AsyncUnref();
+    return 0;
 }
 
 void TNodeJSInputStream::DoDrain()

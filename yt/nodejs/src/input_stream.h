@@ -38,12 +38,12 @@ public:
 
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Sweep(const v8::Arguments& args);
-    static void AsyncSweep(uv_work_t* request);
+    static int AsyncSweep(eio_req* request);
     void EnqueueSweep();
     void DoSweep();
 
     static v8::Handle<v8::Value> Drain(const v8::Arguments& args);
-    static void AsyncDrain(uv_work_t* request);
+    static int AsyncDrain(eio_req* request);
     void EnqueueDrain();
     void DoDrain();
 
@@ -68,9 +68,6 @@ private:
     std::deque<TInputPart*> ActiveQueue;
     std::deque<TInputPart*> InactiveQueue;
 
-    uv_work_t SweepRequest;
-    uv_work_t DrainRequest;
-
 private:
     TNodeJSInputStream(const TNodeJSInputStream&);
     TNodeJSInputStream& operator=(const TNodeJSInputStream&);
@@ -79,21 +76,15 @@ private:
 inline void TNodeJSInputStream::EnqueueSweep()
 {
     AsyncRef(false);
-    SweepRequest.data = this;
     // Post to V8 thread.
-    uv_queue_work(
-        uv_default_loop(), &SweepRequest,
-        DoNothing, TNodeJSInputStream::AsyncSweep);
+    EIO_NOP(TNodeJSInputStream::AsyncSweep, this);
 }
 
 inline void TNodeJSInputStream::EnqueueDrain()
 {
     AsyncRef(false);
     // Post to V8 thread.
-    DrainRequest.data = this;
-    uv_queue_work(
-        uv_default_loop(), &DrainRequest,
-        DoNothing, TNodeJSInputStream::AsyncDrain);
+    EIO_NOP(TNodeJSInputStream::AsyncDrain, this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

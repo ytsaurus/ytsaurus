@@ -351,8 +351,7 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
-    TExecuteRequest* request = static_cast<TExecuteRequest*>(workRequest->data);
-    YASSERT(request == container_of(workRequest, TExecuteRequest, Request));
+    TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
     TInputStream* inputStream = request->DriverRequest.InputStream;
     TOutputStream* outputStream = request->DriverRequest.OutputStream;
@@ -373,8 +372,7 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TExecuteRequest* request = static_cast<TExecuteRequest*>(workRequest->data);
-    YASSERT(request == container_of(workRequest, TExecuteRequest, Request));
+    TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
     {
         TryCatch block;
