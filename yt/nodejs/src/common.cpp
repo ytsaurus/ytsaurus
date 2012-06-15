@@ -4,6 +4,20 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/yson_consumer.h>
 
+extern "C" {
+    // XXX(sandello): This is extern declaration of eio's internal functions.
+    // -lrt will dynamically bind these symbols. We do this dirty-dirty stuff
+    // because we would like to alter the thread pool size.
+
+    extern void eio_set_min_parallel (unsigned int nthreads);
+    extern void eio_set_max_parallel (unsigned int nthreads);
+
+    extern unsigned int eio_nreqs    (void); /* number of requests in-flight */
+    extern unsigned int eio_nready   (void); /* number of not-yet handled requests */
+    extern unsigned int eio_npending (void); /* number of finished but unhandled requests */
+    extern unsigned int eio_nthreads (void); /* number of worker threads in use currently */
+}
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +34,9 @@ void DoNothing(uv_work_t* request)
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+// Stuff related to V8 <> YSON conversions.
 
 static Persistent<String> SpecialValueKey;
 static Persistent<String> SpecialAttributesKey;
@@ -122,7 +139,29 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Stuff related to EIO
+
+static const unsigned int NumberOfWorkerThreads = 8;
+
+Handle<Value> GetEioStatistics(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length() == 0);
+
+    Local<Object> result = Object::New();
+    result->Set(String::New("nreqs"),    Integer::NewFromUnsigned(eio_nreqs()));
+    result->Set(String::New("nready"),   Integer::NewFromUnsigned(eio_nready()));
+    result->Set(String::New("npending"), Integer::NewFromUnsigned(eio_npending()));
+    result->Set(String::New("nthreads"), Integer::NewFromUnsigned(eio_nthreads()));
+    return scope.Close(result);   
+}
+
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 INodePtr ConvertV8ValueToYson(Handle<Value> value)
 {
@@ -159,12 +198,18 @@ Handle<Value> DebugFromV8ToYson(const Arguments& args)
 
 void Initialize(Handle<Object> target)
 {
+    eio_set_min_parallel(NumberOfWorkerThreads);
+    eio_set_max_parallel(NumberOfWorkerThreads);
+
     SpecialValueKey = NODE_PSYMBOL("$value");
     SpecialAttributesKey = NODE_PSYMBOL("$attributes");
 
     target->Set(
         String::NewSymbol("DebugFromV8ToYson"),
         FunctionTemplate::New(DebugFromV8ToYson)->GetFunction());
+    target->Set(
+        String::NewSymbol("GetEioStatistics"),
+        FunctionTemplate::New(GetYsonRepresentation)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
