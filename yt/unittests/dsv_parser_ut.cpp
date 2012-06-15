@@ -45,6 +45,16 @@ TEST(TDsvParserTest, Simple)
     ParseDsv(input, &Mock);
 }
 
+TEST(TDsvParserTest, EmptyInput)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    Stroka input = "";
+
+    ParseDsv(input, &Mock);
+}
+
 TEST(TDsvParserTest, EmptyRecord)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
@@ -54,7 +64,27 @@ TEST(TDsvParserTest, EmptyRecord)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "";
+    Stroka input = "\n";
+
+    ParseDsv(input, &Mock);
+}
+
+TEST(TDsvParserTest, EmptyRecords)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input =
+        "\n"
+        "\n";
 
     ParseDsv(input, &Mock);
 }
@@ -124,6 +154,20 @@ TEST_F(TTskvParserTest, Simple)
     ParseDsv(input, &Mock, Config);
 }
 
+TEST_F(TTskvParserTest, SimpleWithNewLine)
+{
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("foo"));
+        EXPECT_CALL(Mock, OnStringScalar("bar"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "tskv\tfoo=bar\n";
+
+    ParseDsv(input, &Mock, Config);
+}
+
 TEST_F(TTskvParserTest, Escaping)
 {
     InSequence dummy;
@@ -167,7 +211,20 @@ TEST_F(TTskvParserTest, OnlyLinePrefix)
     ParseDsv(input, &Mock, Config);
 }
 
-TEST_F(TTskvParserTest, OnlyLinePrefix2)
+TEST_F(TTskvParserTest, LinePrefixWithNewLine)
+{
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "tskv\n";
+
+    ParseDsv(input, &Mock, Config);
+}
+
+TEST_F(TTskvParserTest, LinePrefixWithTab)
 {
     InSequence dummy;
 

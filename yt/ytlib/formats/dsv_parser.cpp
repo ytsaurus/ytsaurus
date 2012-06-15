@@ -19,8 +19,10 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     }
     State = GetStartState();
 
+    // TODO(panin): unite with next
     KeyStopSymbols[0] = Config->EscapingSymbol;
     KeyStopSymbols[1] = Config->KeyValueSeparator;
+    KeyStopSymbols[2] = Config->RecordSeparator;
 
     ValueStopSymbols[0] = Config->EscapingSymbol;
     ValueStopSymbols[1] = Config->FieldSeparator;
@@ -43,16 +45,19 @@ void TDsvParser::Finish()
             Consumer->OnEndMap();
             break;
         case (EState::InsidePrefix):
-            ValidatePrefix(CurrentToken);
-            StartRecordIfNeeded();
-            Consumer->OnEndMap();
+            if (!CurrentToken.empty()) {
+                ValidatePrefix(CurrentToken);
+                StartRecordIfNeeded();
+                Consumer->OnEndMap();
+            }
             break;
         case (EState::InsideKey):
             if (!CurrentToken.empty()) {
                 ythrow yexception() << Sprintf("Key %s must be followed by value", ~CurrentToken);
             }
-            StartRecordIfNeeded();
-            Consumer->OnEndMap();
+            if (NewRecordStarted) {
+                Consumer->OnEndMap();
+            }
             break;
         default:
             YUNREACHABLE();
@@ -114,11 +119,23 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                 KeyStopSymbols, KeyStopSymbols + ARRAY_SIZE(KeyStopSymbols));
             CurrentToken.append(begin, next);
             if (next != end && *next != Config->EscapingSymbol) {
-                YCHECK(*next == Config->KeyValueSeparator);
                 StartRecordIfNeeded();
-                Consumer->OnKeyedItem(CurrentToken);
-                CurrentToken.clear();
-                State = EState::InsideValue;
+                if (*next == Config->RecordSeparator) {
+                    if (!CurrentToken.empty()) {
+                        ythrow yexception() <<
+                            Sprintf("Key %s must be followed by value", ~CurrentToken);
+                    }
+                    // TODO(panin): extract method
+                    Consumer->OnEndMap();
+                    NewRecordStarted = false;
+                    State = GetStartState();
+                } else {
+                    YCHECK(*next == Config->KeyValueSeparator);
+                    StartRecordIfNeeded();
+                    Consumer->OnKeyedItem(CurrentToken);
+                    CurrentToken.clear();
+                    State = EState::InsideValue;
+                }
                 ++next;
             }
             return next;

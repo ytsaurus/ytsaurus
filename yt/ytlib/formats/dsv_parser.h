@@ -29,7 +29,7 @@ private:
 
     Stroka CurrentToken;
 
-    char KeyStopSymbols[2];
+    char KeyStopSymbols[3];
     char ValueStopSymbols[3];
 
     const char* Consume(const char* begin, const char* end);
