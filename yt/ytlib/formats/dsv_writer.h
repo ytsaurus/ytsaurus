@@ -20,6 +20,7 @@ public:
     explicit TDsvWriter(TOutputStream* stream,
         NYTree::EYsonType type = NYTree::EYsonType::ListFragment,
         TDsvFormatConfigPtr config = NULL);
+    ~TDsvWriter();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);

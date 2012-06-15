@@ -34,6 +34,9 @@ TDsvWriter::TDsvWriter(
     EscapedSymbols[3] = Config->RecordSeparator;
 }
 
+TDsvWriter::~TDsvWriter()
+{ }
+
 void TDsvWriter::OnStringScalar(const TStringBuf& value)
 {
     EscapeAndWrite(value);
