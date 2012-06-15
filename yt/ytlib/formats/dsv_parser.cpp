@@ -171,9 +171,9 @@ void TDsvParser::ValidatePrefix(const Stroka& prefix)
 {
     if (prefix != Config->LinePrefix.Get()) {
         ythrow yexception() <<
-            Sprintf("Each line must begin with %s, found: %s",
-                ~Config->LinePrefix.Get(),
-                ~prefix);
+            Sprintf("Expected %s at the beginning of line, found %s",
+                ~Config->LinePrefix.Get().Quote(),
+                ~prefix.Quote());
     }
 }
 
