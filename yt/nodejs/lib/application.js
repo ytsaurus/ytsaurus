@@ -296,8 +296,10 @@ YtCommand.prototype._execute = function(cb) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplication(logger, configuration) {
-    var driver = new ytnode_wrappers.YtDriver(configuration);
+function YtApplication(logger, memory_limit, configuration) {
+    var low_watermark = Math.floor(0.25 * memory_limit * 1024 * 1024);
+    var high_watermark = Math.ceil(0.90 * memory_limit * 1024 * 1024);
+    var driver = new ytnode_wrappers.YtDriver(configuration, low_watermark, high_watermark);
     return function(req, rsp) {
         return (new YtCommand(logger, driver, req, rsp)).dispatch();
     };

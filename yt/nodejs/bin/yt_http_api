@@ -27,6 +27,10 @@ var opts = require("optimist")
     .default("n", 8)
     .describe("n", "Specify number of worker processes")
 
+    .alias("m", "memory-limit")
+    .default("m", 16)
+    .describe("m", "Specify memory limit (in MB) for data buffer size for each request")
+
     .alias("l", "log")
     .describe("l", "Specify log file")
 
@@ -117,11 +121,13 @@ if (opts.argv.n > 0 && cluster.isMaster) {
             throw err;
         }
         try {
+            var my_memory_limit = parseInt(opts.argv.m);
+            var my_configuration = configuration.toString();
             connect()
                 .use(connect.favicon())
                 .use(yt.YtAssignRequestID())
                 .use(yt.YtLogger(logger))
-                .use("/api", yt.YtApplication(logger, configuration.toString()))
+                .use("/api", yt.YtApplication(logger, my_memory_limit, my_configuration))
                 .listen(opts.argv.p, opts.argv.i, function() {
                     if (opts.argv.g) {
                         process.setgid(opts.argv.g);
