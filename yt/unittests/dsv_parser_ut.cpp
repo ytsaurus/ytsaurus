@@ -198,6 +198,22 @@ TEST_F(TTskvParserTest, Escaping)
     ParseDsv(input, &Mock, Config);
 }
 
+TEST_F(TTskvParserTest, AllowedUnescapedSymbols)
+{
+    Config->LinePrefix = "prefix_with_=";
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key_with_\t"));
+        EXPECT_CALL(Mock, OnStringScalar("value_with_="));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input =
+        "prefix_with_=" "\t" "key_with_\t" "=" "value_with_=";
+
+    ParseDsv(input, &Mock, Config);
+}
+
 TEST_F(TTskvParserTest, OnlyLinePrefix)
 {
     InSequence dummy;
