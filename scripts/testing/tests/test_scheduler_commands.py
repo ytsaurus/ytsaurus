@@ -39,6 +39,7 @@ class TestSchedulerCommands(YTEnvSetup):
 
         assert read_table('//tmp/t1') == [{'foo': 'bar'}, {'foo': 'bar'}]
 
+    # check that stderr is captured for successfull job
     def test_map_stderr_ok(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
@@ -46,10 +47,11 @@ class TestSchedulerCommands(YTEnvSetup):
 
         mapper = "cat > /dev/null; echo stderr 1>&2"
 
-        op_id = map(dont_track=None, input='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
         track_op(op=op_id)
         assert get_stderr(op_id) == 'stderr'
 
+    # check that stderr is captured for failed jobs
     def test_map_stderr_failed(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
@@ -57,10 +59,9 @@ class TestSchedulerCommands(YTEnvSetup):
 
         mapper = "cat > /dev/null; echo stderr 1>&2; exit(125)"
 
-        op_id = map(input='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
         track_op(op=op_id)
-        #assert get_stderr(op_id) == 'stderr'
-
+        assert get_stderr(op_id) == 'stderr'
 
     def test_map_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
@@ -73,15 +74,19 @@ class TestSchedulerCommands(YTEnvSetup):
 
         mapper = \
 """
-echo {v = 1} >&1
-echo {v = 2} >&4
-echo {v = 3} >&7
-cat  /dev/stdin > /dev/null
+cat  > /dev/null
+echo {v = 0} >&1
+echo {v = 1} >&4
+echo {v = 2} >&7
 
 """
         upload('//tmp/mapper.sh', mapper)
 
         map(input='//tmp/t_in', 
             out=output_tables,
-            mapper='"bash mapper.sh"',
+            mapper='bash mapper.sh',
             file='//tmp/mapper.sh')
+
+        assert read_table(output_tables[0]) == [{'v': 0}]
+        assert read_table(output_tables[1]) == [{'v': 1}]
+        assert read_table(output_tables[2]) == [{'v': 2}]

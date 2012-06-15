@@ -45,10 +45,7 @@ def convert_to_yt_args(*args, **kw):
             for elem in v:
                 all_args.extend(['--' + k, elem])
         else:
-            if v != None:
-                all_args.extend(['--' + k, v])
-            else:
-                all_args.extend(['--' + k])
+            all_args.extend(['--' + k, v])
 
     return all_args
 
