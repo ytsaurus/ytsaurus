@@ -19,21 +19,21 @@ if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
 
 // This mapping defines how MIME types map onto YT format specifications.
 var _MAPPING_MIME_TYPE_TO_FORMAT = {
-    "application/json" : "json",
+    "application/json"             : "json",
     "application/x-yt-yson-binary" : "<format=binary>yson",
-    "application/x-yt-yson-text" : "<format=text>yson",
-    "application/x-yt-yson-pretty": "<format=pretty>yson",
-    "text/csv" : "csv",
-    "text/tab-separated-values" : "dsv",
-    "text/x-tskv" : "<line_prefix=tskv>dsv"
+    "application/x-yt-yson-text"   : "<format=text>yson",
+    "application/x-yt-yson-pretty" : "<format=pretty>yson",
+    "text/csv"                     : "csv",
+    "text/tab-separated-values"    : "dsv",
+    "text/x-tskv"                  : "<line_prefix=tskv>dsv"
 };
 
 // This mapping defines which HTTP methods various YT data types require.
 var _MAPPING_DATA_TYPE_TO_METHOD = {
-    "Null" : "GET",
-    "Binary" : "PUT",
+    "Null"       : "GET",
+    "Binary"     : "PUT",
     "Structured" : "POST",
-    "Tabular" : "PUT"
+    "Tabular"    : "PUT"
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,10 +176,10 @@ YtCommand.prototype._getOutputFormat = function(cb) {
 
 YtCommand.prototype._logInformation = function(cb) {
     this.logger.debug("Gathered request parameters", {
-        request_id : this.req.uuid,
-        name : this.name,
-        parameters : this.parameters,
-        input_format : this.input_format,
+        request_id    : this.req.uuid,
+        name          : this.name,
+        parameters    : this.parameters,
+        input_format  : this.input_format,
         output_format : this.output_format
     });
     cb(null);
@@ -203,12 +203,12 @@ YtCommand.prototype._getDescriptor = function(cb) {
     var actual_http_method = this.req.method;
 
     this.logger.debug("Successfully found command descriptor", {
-        request_id : this.req.uuid,
-        descriptor : this.descriptor,
-        input_type_as_string : input_type_as_string,
+        request_id            : this.req.uuid,
+        descriptor            : this.descriptor,
+        input_type_as_string  : input_type_as_string,
         output_type_as_string : output_type_as_string,
-        expected_http_method : expected_http_method,
-        actual_http_method : actual_http_method
+        expected_http_method  : expected_http_method,
+        actual_http_method    : actual_http_method
     });
 
     if (expected_http_method != actual_http_method) {
@@ -299,12 +299,12 @@ function YtLogger(logger) {
         req._logging = true;
 
         logger.info("Handling request", {
-            request_id : req.uuid,
-            method : req.method,
-            url : req.originalUrl,
-            referrer : req.headers["referer"] || req.headers["referrer"],
+            request_id  : req.uuid,
+            method      : req.method,
+            url         : req.originalUrl,
+            referrer    : req.headers["referer"] || req.headers["referrer"],
             remote_addr : req.socket && (req.socket.remoteAddress || (req.socket.socket && req.socket.socket.remoteAddress)),
-            user_agent : req.headers["user-agent"]
+            user_agent  : req.headers["user-agent"]
         });
 
         var end = rsp.end;
@@ -312,9 +312,9 @@ function YtLogger(logger) {
             rsp.end = end;
             rsp.end(chunk, encoding);
             logger.info("Handled request", {
-                request_id : req.uuid,
+                request_id   : req.uuid,
                 request_time : new Date() - req._startTime,
-                status : rsp.statusCode
+                status       : rsp.statusCode
             });
         };
 
