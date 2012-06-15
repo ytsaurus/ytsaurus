@@ -35,8 +35,8 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 namespace {
 
 inline bool CompareReaders(
-    const TChunkSequenceReaderPtr& lhs,
-    const TChunkSequenceReaderPtr& rhs)
+    const TChunkSequenceReader* lhs,
+    const TChunkSequenceReader* rhs)
 {
     return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
 }
@@ -92,17 +92,16 @@ TJobResult TSortedMergeJob::Run()
     PROFILE_TIMING ("/sorted_merge_time") {
         // Open readers, remove invalid ones, and create the initial heap.
         LOG_INFO("Initializing");
+        std::vector<TChunkSequenceReader*> readerHeap;
         {
-            std::vector<TChunkSequenceReaderPtr> validChunkReaders;
             FOREACH (auto reader, Readers) {
                 Sync(~reader, &TChunkSequenceReader::AsyncOpen);
                 if (reader->IsValid()) {
-                    validChunkReaders.push_back(reader);
+                    readerHeap.push_back(~reader);
                 }
             }
 
-            std::make_heap(validChunkReaders.begin(), validChunkReaders.end(), CompareReaders);
-            Readers = MoveRV(validChunkReaders);
+            std::make_heap(readerHeap.begin(), readerHeap.end(), CompareReaders);
 
             Writer->Open();
         }
@@ -110,15 +109,15 @@ TJobResult TSortedMergeJob::Run()
 
         // Run the actual merge.
         LOG_INFO("Merging");
-        while (!Readers.empty()) {
-            std::pop_heap(Readers.begin(), Readers.end(), CompareReaders);
-            Writer->WriteRow(Readers.back()->GetRow(), Readers.back()->GetKey());
+        while (!readerHeap.empty()) {
+            std::pop_heap(readerHeap.begin(), readerHeap.end(), CompareReaders);
+            Writer->WriteRow(readerHeap.back()->GetRow(), readerHeap.back()->GetKey());
 
-            Sync(~Readers.back(), &TChunkSequenceReader::AsyncNextRow);
-            if (Readers.back()->IsValid()) {
-                std::push_heap(Readers.begin(), Readers.end(), CompareReaders);
+            Sync(readerHeap.back(), &TChunkSequenceReader::AsyncNextRow);
+            if (readerHeap.back()->IsValid()) {
+                std::push_heap(readerHeap.begin(), readerHeap.end(), CompareReaders);
             } else {
-                Readers.pop_back();
+                readerHeap.pop_back();
             }
         }
         PROFILE_TIMING_CHECKPOINT("merge");

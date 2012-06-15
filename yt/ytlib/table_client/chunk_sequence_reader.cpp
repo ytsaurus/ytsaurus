@@ -35,14 +35,14 @@ TChunkSequenceReader::TChunkSequenceReader(
     , BlockCache(blockCache)
     , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
-    , CurrentReader(-1)
-    , LastInitializedReader(-1)
-    , LastPreparedReader(-1)
+    , CurrentReaderIndex(-1)
     , PartitionTag(partitionTag)
     , Options(options)
     , TotalValueCount(0)
     , TotalRowCount(0)
     , CurrentRowIndex(0)
+    , LastInitializedReader(-1)
+    , LastPreparedReader(-1)
 {
     // ToDo(psushin): implement TotalRowCount update.
 
@@ -125,14 +125,14 @@ void TChunkSequenceReader::OnReaderOpened(
 
 TAsyncError TChunkSequenceReader::AsyncOpen()
 {
-    YASSERT(CurrentReader == -1);
+    YASSERT(CurrentReaderIndex == -1);
     YASSERT(!State.HasRunningOperation());
 
-    ++CurrentReader;
+    ++CurrentReaderIndex;
 
-    if (CurrentReader < InputChunks.size()) {
+    if (CurrentReaderIndex < InputChunks.size()) {
         State.StartOperation();
-        Readers[CurrentReader].Subscribe(BIND(
+        Readers[CurrentReaderIndex].Subscribe(BIND(
             &TChunkSequenceReader::SwitchCurrentChunk,
             MakeWeak(this)));
     }
@@ -142,11 +142,12 @@ TAsyncError TChunkSequenceReader::AsyncOpen()
 
 void TChunkSequenceReader::SwitchCurrentChunk(TChunkReaderPtr nextReader)
 {
-    if (!Options.KeepBlocks && CurrentReader > 0) {
-        Readers[CurrentReader - 1].Reset();
+    if (!Options.KeepBlocks && CurrentReaderIndex > 0) {
+        Readers[CurrentReaderIndex - 1].Reset();
     }
 
-    LOG_DEBUG("Switching to reader %d", CurrentReader);
+    LOG_DEBUG("Switching to reader %d", CurrentReaderIndex);
+    CurrentReader.Reset();
 
     if (nextReader) {
         {
@@ -154,18 +155,19 @@ void TChunkSequenceReader::SwitchCurrentChunk(TChunkReaderPtr nextReader)
             // Take actual number of rows from used readers, estimated from just opened and
             // misc estimation for pending ones.
             TotalRowCount = CurrentRowIndex + nextReader->GetRowCount();
-            for (int i = CurrentReader + 1; i < InputChunks.size(); ++i) {
+            for (int i = CurrentReaderIndex + 1; i < InputChunks.size(); ++i) {
                 auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
                 TotalRowCount += miscExt->row_count();
             }
         }
 
+        CurrentReader = nextReader;
         PrepareNextChunk();
 
         if (!nextReader->IsValid()) {
-            ++CurrentReader;
-            if (CurrentReader < InputChunks.size()) {
-                Readers[CurrentReader].Subscribe(BIND(
+            ++CurrentReaderIndex;
+            if (CurrentReaderIndex < InputChunks.size()) {
+                Readers[CurrentReaderIndex].Subscribe(BIND(
                     &TChunkSequenceReader::SwitchCurrentChunk,
                     MakeWeak(this)));
                 return;
@@ -184,10 +186,10 @@ void TChunkSequenceReader::OnRowFetched(TError error)
         return;
     }
 
-    if (!Readers[CurrentReader].Get()->IsValid()) {
-        ++CurrentReader;
-        if (CurrentReader < InputChunks.size()) {
-            Readers[CurrentReader].Subscribe(BIND(
+    if (!CurrentReader->IsValid()) {
+        ++CurrentReaderIndex;
+        if (CurrentReaderIndex < InputChunks.size()) {
+            Readers[CurrentReaderIndex].Subscribe(BIND(
                 &TChunkSequenceReader::SwitchCurrentChunk,
                 MakeWeak(this)));
             return;
@@ -201,10 +203,10 @@ void TChunkSequenceReader::OnRowFetched(TError error)
 bool TChunkSequenceReader::IsValid() const
 {
     YASSERT(!State.HasRunningOperation());
-    if (CurrentReader >= InputChunks.size())
+    if (CurrentReaderIndex >= InputChunks.size())
         return false;
 
-    return Readers[CurrentReader].Get()->IsValid();
+    return CurrentReader->IsValid();
 }
 
 TRow& TChunkSequenceReader::GetRow()
@@ -212,7 +214,7 @@ TRow& TChunkSequenceReader::GetRow()
     YASSERT(!State.HasRunningOperation());
     YASSERT(IsValid());
 
-    return Readers[CurrentReader].Get()->GetRow();
+    return CurrentReader->GetRow();
 }
 
 const NYTree::TYson& TChunkSequenceReader::GetRowAttributes() const
@@ -220,7 +222,7 @@ const NYTree::TYson& TChunkSequenceReader::GetRowAttributes() const
     YASSERT(!State.HasRunningOperation());
     YASSERT(IsValid());
 
-    return Readers[CurrentReader].Get()->GetRowAttributes();
+    return CurrentReader->GetRowAttributes();
 }
 
 TAsyncError TChunkSequenceReader::AsyncNextRow()
@@ -231,7 +233,7 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
     State.StartOperation();
     
     // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
-    auto asyncResult = Readers[CurrentReader].Get()->AsyncNextRow();
+    auto asyncResult = CurrentReader->AsyncNextRow();
     auto error = asyncResult.TryGet();
     if (error) {
         OnRowFetched(error.Get());
@@ -247,7 +249,7 @@ const TNonOwningKey& TChunkSequenceReader::GetKey() const
     YASSERT(!State.HasRunningOperation());
     YASSERT(IsValid());
 
-    return Readers[CurrentReader].Get()->GetKey();
+    return CurrentReader->GetKey();
 }
 
 double TChunkSequenceReader::GetProgress() const

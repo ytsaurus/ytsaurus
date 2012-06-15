@@ -73,8 +73,10 @@ private:
     NRpc::IChannelPtr MasterChannel;
     TAsyncStreamState State;
 
-    int CurrentReader;
+    int CurrentReaderIndex;
     int PartitionTag;
+
+    TChunkReaderPtr CurrentReader;
 
     /*!
      *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
