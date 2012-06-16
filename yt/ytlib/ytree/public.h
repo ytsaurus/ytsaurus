@@ -11,8 +11,6 @@ namespace NYTree {
 typedef Stroka TYPath;
 typedef Stroka TYson;
 
-// TODO(roizner): make enums forward declared
-
 //! A static node type.
 DECLARE_ENUM(ENodeType,
     // Node contains a string (Stroka).
@@ -28,7 +26,6 @@ DECLARE_ENUM(ENodeType,
     // Node is atomic, i.e. has no visible properties (aside from attributes).
     (Entity)
 );
-
 
 DECLARE_ENUM(EYsonType,
     (Node)
