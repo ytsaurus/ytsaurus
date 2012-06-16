@@ -55,6 +55,10 @@ public:
         , Fragment(0)
     {
         switch (type) {
+            case EYsonType::Node:
+                StateStack.push(EState::Start);
+                break;
+
             case EYsonType::ListFragment:
                 StateStack.push(EState::ListBeforeItem);
                 break;
@@ -64,7 +68,7 @@ public:
                 break;
 
             default:
-                break;
+                YUNREACHABLE();
         }
     }
 
@@ -102,9 +106,9 @@ public:
 
         ConsumeToken(TToken::EndOfStream);
 
-        if (CurrentState() != EState::Parsed) {
+        if (StateStack.top() != EState::Parsed) {
             ythrow yexception() << Sprintf("Premature end of stream (State: %s, %s)",
-                ~CurrentState().ToString(),
+                ~StateStack.top().ToString(),
                 ~GetPositionInfo());
         }
     }
@@ -138,7 +142,7 @@ private:
 
     void ConsumeToken(const TToken& token)
     {
-        switch (CurrentState()) {
+        switch (StateStack.top()) {
             case EState::Start:
                 ConsumeAny(token, true);
                 break;
@@ -234,6 +238,8 @@ private:
     {
         bool inFragment = Type == EYsonType::ListFragment && StateStack.size() == 1;
         auto tokenType = token.GetType();
+        auto& topState = StateStack.top();
+
         switch (tokenType) {
             case ETokenType::EndOfStream:
                 if (inFragment) {
@@ -252,7 +258,7 @@ private:
                 break;
 
             default:
-                switch (CurrentState()) {
+                switch (topState) {
                     case EState::ListBeforeItem:
                         Consumer->OnListItem();
                         ConsumeAny(token, true);
@@ -260,7 +266,7 @@ private:
 
                     case EState::ListAfterItem:
                         if (tokenType == ListItemSeparatorToken) {
-                            StateStack.top() = EState::ListBeforeItem;
+                            topState = EState::ListBeforeItem;
                         } else {
                             ythrow yexception() << Sprintf("Expected ';' or ']', but token %s of type %s found (%s)",
                                 ~token.ToString().Quote(),
@@ -277,14 +283,14 @@ private:
 
     void ConsumeMap(const TToken& token)
     {
+        bool inFragment = Type == EYsonType::KeyedFragment && StateStack.size() == 1;
         auto tokenType = token.GetType();
-        auto currentState = CurrentState();
-
-        if (Type == EYsonType::KeyedFragment && StateStack.size() == 1 &&
-            (currentState == EState::MapBeforeKey || currentState == EState::MapAfterValue))
-        {
+        auto& topState = StateStack.top();
+        
+        if (inFragment && (topState == EState::MapBeforeKey || topState == EState::MapAfterValue)) {
             if (tokenType == ETokenType::EndOfStream) {
-                StateStack.top() = EState::Parsed;
+                topState = EState::Parsed;
+                return;
             } else if (tokenType == EndMapToken) {
                 ythrow yexception() << Sprintf("Unexpected end of map in map fragment (%s)",
                     ~GetPositionInfo());
@@ -295,7 +301,7 @@ private:
             return;
         }
 
-        switch (currentState) {
+        switch (topState) {
             case EState::MapBeforeKey:
                 if (tokenType == EndMapToken) {
                     Consumer->OnEndMap();
@@ -303,7 +309,7 @@ private:
                     OnItemConsumed();
                 } else if (tokenType == ETokenType::String) {
                     Consumer->OnKeyedItem(token.GetStringValue());
-                    StateStack.top() = EState::MapAfterKey;  
+                    topState = EState::MapAfterKey;  
                 } else {
                     ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
@@ -314,7 +320,7 @@ private:
 
             case EState::MapAfterKey:
                 if (tokenType == KeyValueSeparatorToken) {
-                    StateStack.top() = EState::MapBeforeValue;
+                    topState = EState::MapBeforeValue;
                 } else {
                     ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
@@ -333,7 +339,7 @@ private:
                     StateStack.pop();
                     OnItemConsumed();
                 } else if (tokenType == KeyedItemSeparatorToken) {
-                    StateStack.top() = EState::MapBeforeKey;
+                    topState = EState::MapBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Expected ';' or '}', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
@@ -350,25 +356,25 @@ private:
     void ConsumeAttributes(const TToken& token)
     {
         auto tokenType = token.GetType();
-        auto currentState = CurrentState();
+        auto& topState = StateStack.top();
 
         if (tokenType == ETokenType::EndOfStream) {
             return;
         }
 
         if (tokenType == EndAttributesToken &&
-            (currentState == EState::AttributesBeforeKey || currentState == EState::AttributesAfterValue))
+            (topState== EState::AttributesBeforeKey || topState == EState::AttributesAfterValue))
         {
             Consumer->OnEndAttributes();
-            StateStack.top() = EState::AfterAttributes;
+            topState = EState::AfterAttributes;
             return;
         }
 
-        switch (currentState) {
+        switch (topState) {
             case EState::AttributesBeforeKey:
                 if (tokenType == ETokenType::String) {
                     Consumer->OnKeyedItem(token.GetStringValue());
-                    StateStack.top() = EState::AttributesAfterKey;  
+                    topState = EState::AttributesAfterKey;  
                 } else {
                     ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
@@ -379,7 +385,7 @@ private:
 
             case EState::AttributesAfterKey:
                 if (tokenType == KeyValueSeparatorToken) {
-                    StateStack.top() = EState::AttributesBeforeValue;
+                    topState = EState::AttributesBeforeValue;
                 } else {
                     ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
@@ -394,7 +400,7 @@ private:
 
             case EState::AttributesAfterValue:
                 if (tokenType == KeyedItemSeparatorToken) {
-                    StateStack.top() = EState::AttributesBeforeKey;
+                    topState = EState::AttributesBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Expected ';' or '>', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
@@ -423,33 +429,27 @@ private:
 
     void OnItemConsumed()
     {
-        switch (CurrentState()) {
+        auto& topState = StateStack.top();
+        switch (topState) {
             case EState::Start:
                 StateStack.push(EState::Parsed);
                 break;
 
             case EState::ListBeforeItem:
-                StateStack.top() = EState::ListAfterItem;
+                topState = EState::ListAfterItem;
                 break;
 
             case EState::MapBeforeValue:
-                StateStack.top() = EState::MapAfterValue;
+                topState = EState::MapAfterValue;
                 break;
 
             case EState::AttributesBeforeValue:
-                StateStack.top() = EState::AttributesAfterValue;
+                topState = EState::AttributesAfterValue;
                 break;
             
             default:
                 YUNREACHABLE();
         }
-    }
-
-    EState CurrentState() const
-    {
-        if (StateStack.empty())
-            return EState::Start;
-        return StateStack.top();
     }
 
     Stroka GetPositionInfo() const
