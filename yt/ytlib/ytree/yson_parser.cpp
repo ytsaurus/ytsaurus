@@ -18,7 +18,7 @@ class TYsonParser::TImpl
 {
     DECLARE_ENUM(EState,
         // ^ stands for current position
-        (Start)                 // ^ (special value for empty stack)
+        (Start)                 // ^ (initial state for parsing)
         (ListBeforeItem)        // [...; ^
         (ListAfterItem)         // [... ^
         (MapBeforeKey)          // {...; ^
@@ -243,7 +243,7 @@ private:
         switch (tokenType) {
             case ETokenType::EndOfStream:
                 if (inFragment) {
-                    StateStack.top() = EState::Parsed;
+                    topState = EState::Parsed;
                 }
                 break;
 
@@ -363,7 +363,7 @@ private:
         }
 
         if (tokenType == EndAttributesToken &&
-            (topState== EState::AttributesBeforeKey || topState == EState::AttributesAfterValue))
+            (topState == EState::AttributesBeforeKey || topState == EState::AttributesAfterValue))
         {
             Consumer->OnEndAttributes();
             topState = EState::AfterAttributes;
