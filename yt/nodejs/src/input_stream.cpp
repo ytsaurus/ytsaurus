@@ -10,6 +10,9 @@ COMMON_V8_USES
 
 namespace {
 
+void DoNothing()
+{ }
+
 static Persistent<String> OnDrainSymbol;
 static Persistent<String> CurrentBufferSizeSymbol;
 static Persistent<String> ActiveQueueSizeSymbol;
@@ -27,6 +30,8 @@ TNodeJSInputStream::TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()
     , IsPushable(1)
     , IsReadable(1)
+    , SweepRequestPending(0)
+    , DrainRequestPending(0)
     , CurrentBufferSize(0)
     , LowWatermark(lowWatermark)
     , HighWatermark(highWatermark)
@@ -279,6 +284,7 @@ int TNodeJSInputStream::AsyncSweep(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSInputStream* stream = static_cast<TNodeJSInputStream*>(request->data);
+    AtomicSet(stream->SweepRequestPending, 0);
     stream->DoSweep();
     stream->AsyncUnref();
     return 0;
@@ -295,12 +301,12 @@ void TNodeJSInputStream::DoSweep()
     {
         bool mutexAcquired = false;
         for (unsigned int outerSpin = 0; outerSpin < NumberOfSpins; ++outerSpin) {
-            for (unsigned int innerSpin = 0; innerSpin < outerSpin * outerSpin; ++innerSpin) {
-                DoNothing(NULL);
-            }
             if (Mutex.TryAcquire()) {
                 mutexAcquired = true;
                 break;
+            }
+            for (unsigned int innerSpin = 0; innerSpin < outerSpin * outerSpin; ++innerSpin) {
+                DoNothing();
             }
         }
 
@@ -340,6 +346,7 @@ int TNodeJSInputStream::AsyncDrain(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
     TNodeJSInputStream* stream = static_cast<TNodeJSInputStream*>(request->data);
+    AtomicSet(stream->DrainRequestPending, 0);
     stream->DoDrain();
     stream->AsyncUnref();
     return 0;

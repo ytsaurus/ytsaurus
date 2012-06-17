@@ -31,11 +31,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DoNothing(uv_work_t* request)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,9 +151,7 @@ Handle<Value> GetYsonRepresentation(const Arguments& args)
 ////////////////////////////////////////////////////////////////////////////////
 // Stuff related to EIO
 
-static const unsigned int NumberOfWorkerThreads = 8;
-
-Handle<Value> GetEioStatistics(const Arguments& args)
+Handle<Value> GetEioInformation(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -171,6 +164,25 @@ Handle<Value> GetEioStatistics(const Arguments& args)
     result->Set(String::New("npending"), Integer::NewFromUnsigned(eio_npending()));
     result->Set(String::New("nthreads"), Integer::NewFromUnsigned(eio_nthreads()));
     return scope.Close(result);   
+}
+
+Handle<Value> SetEioConcurrency(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length() == 1);
+
+    EXPECT_THAT_IS(args[0], Uint32);
+
+    unsigned int numberOfThreads = args[0]->Uint32Value();
+
+    YCHECK(numberOfThreads > 0);
+
+    eio_set_min_parallel(numberOfThreads);
+    eio_set_max_parallel(numberOfThreads);
+
+    return Undefined();
 }
 
 } // namespace
@@ -203,9 +215,6 @@ INodePtr ConvertV8StringToYson(Handle<String> string)
 
 void Initialize(Handle<Object> target)
 {
-    eio_set_min_parallel(NumberOfWorkerThreads);
-    eio_set_max_parallel(NumberOfWorkerThreads);
-
     SpecialValueKey = NODE_PSYMBOL("$value");
     SpecialAttributesKey = NODE_PSYMBOL("$attributes");
 
@@ -213,8 +222,11 @@ void Initialize(Handle<Object> target)
         String::NewSymbol("GetYsonRepresentation"),
         FunctionTemplate::New(GetYsonRepresentation)->GetFunction());
     target->Set(
-        String::NewSymbol("GetEioStatistics"),
-        FunctionTemplate::New(GetEioStatistics)->GetFunction());
+        String::NewSymbol("GetEioInformation"),
+        FunctionTemplate::New(GetEioInformation)->GetFunction());
+    target->Set(
+        String::NewSymbol("SetEioConcurrency"),
+        FunctionTemplate::New(SetEioConcurrency)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

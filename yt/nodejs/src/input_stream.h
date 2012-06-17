@@ -59,6 +59,9 @@ private:
     TAtomic IsPushable;
     TAtomic IsReadable;
 
+    TAtomic SweepRequestPending;
+    TAtomic DrainRequestPending;
+
     TAtomic CurrentBufferSize;
     const ui64 LowWatermark;
     const ui64 HighWatermark;
@@ -75,16 +78,20 @@ private:
 
 inline void TNodeJSInputStream::EnqueueSweep()
 {
-    AsyncRef(false);
-    // Post to V8 thread.
-    EIO_NOP(TNodeJSInputStream::AsyncSweep, this);
+    if (AtomicCas(&SweepRequestPending, 1, 0)) {
+        // Post to V8 thread.
+        AsyncRef(false);
+        EIO_NOP(TNodeJSInputStream::AsyncSweep, this);
+    }
 }
 
 inline void TNodeJSInputStream::EnqueueDrain()
 {
-    AsyncRef(false);
-    // Post to V8 thread.
-    EIO_NOP(TNodeJSInputStream::AsyncDrain, this);
+    if (AtomicCas(&DrainRequestPending, 1, 0)) {
+        // Post to V8 thread.
+        AsyncRef(false);
+        EIO_NOP(TNodeJSInputStream::AsyncDrain, this);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

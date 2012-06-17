@@ -24,26 +24,22 @@ void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 
 void TNodeJSStreamBase::AsyncUnref()
 {
-    YASSERT(NDetail::AtomicallyFetch(&AsyncRefCounter) > 0);
+    YASSERT(NDetail::AtomicallyFetch(&AsyncRefCounter) >  0);
     if (NDetail::AtomicallyDecrement(&AsyncRefCounter) == 1) {
-        UnrefRequest.data = this;
-
-        uv_queue_work(
-            uv_default_loop(), &UnrefRequest,
-            DoNothing, UnrefCallback);
+        EIO_NOP(TNodeJSStreamBase::UnrefCallback, this);
     }
 }
 
-void TNodeJSStreamBase::UnrefCallback(uv_work_t* request)
+int TNodeJSStreamBase::UnrefCallback(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
 
     TNodeJSStreamBase* stream = static_cast<TNodeJSStreamBase*>(request->data);
-    TNodeJSStreamBase* streamAlternative = container_of(request, TNodeJSStreamBase, UnrefRequest);
-
-    YASSERT(stream == streamAlternative);
 
     stream->Unref();
+
+    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

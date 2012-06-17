@@ -65,8 +65,7 @@ private:
     TNodeJSStreamBase(const TNodeJSStreamBase&);
     TNodeJSStreamBase& operator=(const TNodeJSStreamBase&);
 
-    static void UnrefCallback(uv_work_t*);
-    uv_work_t UnrefRequest;
+    static int UnrefCallback(eio_req*);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -84,17 +84,15 @@
 
 #if 0
 #define EIO_NOP(callback, data) \
-    eio_nop(EIO_PRI_DEFAULT, (callback), (data), &uv_default_loop()->uv_eio_channel);
+    eio_nop(EIO_PRI_MAX, (callback), (data), &uv_default_loop()->uv_eio_channel);
 #else
 #define EIO_NOP(callback, data) \
-    eio_nop(EIO_PRI_DEFAULT, (callback), (data));
+    eio_nop(EIO_PRI_MAX, (callback), (data));
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void DoNothing(uv_work_t* request);
 
 NYTree::INodePtr ConvertV8ValueToYson(v8::Handle<v8::Value> value);
 NYTree::INodePtr ConvertV8StringToYson(v8::Handle<v8::String> string);
