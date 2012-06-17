@@ -180,9 +180,9 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer,
     }
 
     if (AtomicAdd(CurrentBufferSize, length) > HighWatermark) {
-        return v8::True();
-    } else {
         return v8::False();
+    } else {
+        return v8::True();
     }
 }
 

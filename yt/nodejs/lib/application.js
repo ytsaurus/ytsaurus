@@ -319,7 +319,7 @@ YtEioWatcher.prototype.tackle = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplication(logger, memory_limit, thread_limit, configuration) {
-    var low_watermark = Math.floor(0.25 * memory_limit * 1024 * 1024);
+    var low_watermark = Math.floor(0.80 * memory_limit * 1024 * 1024);
     var high_watermark = Math.ceil(0.95 * memory_limit * 1024 * 1024);
 
     __DBG("New Application: memory_limit = " + memory_limit);
