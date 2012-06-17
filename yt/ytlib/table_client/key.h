@@ -91,7 +91,7 @@ public:
         return StrValue.begin();
     }
 
-    size_t GetSize() const 
+    size_t GetStringSize() const 
     {
         YASSERT(Type_ == EKeyType::String);
         return StrValue.size();
@@ -188,9 +188,9 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
 
     switch (rhs.GetType()) {
     case EKeyType::String: {
-        size_t minLen = std::min(lhs.GetSize(), rhs.GetSize());
+        size_t minLen = std::min(lhs.GetStringSize(), rhs.GetStringSize());
         auto res = strncmp(lhs.Begin(), rhs.Begin(), minLen);
-        return res ? res : static_cast<int>(lhs.GetSize()) - static_cast<int>(rhs.GetSize());
+        return res ? res : static_cast<int>(lhs.GetStringSize()) - static_cast<int>(rhs.GetStringSize());
         // Too slow because of allocations.
         // return lhs.GetString().compare(rhs.GetString());
     }
