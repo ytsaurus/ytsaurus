@@ -244,8 +244,6 @@ YtCommand.prototype._addHeaders = function(cb) {
 YtCommand.prototype._execute = function(cb) {
     var self = this;
 
-    __DBG("EIO Information: " + JSON.stringify(ytnode_wrappers.GetEioInformation()));
-
     this.driver.execute(this.name,
         this.req, this.input_format,
         this.rsp, this.output_format,
@@ -305,14 +303,14 @@ function YtEioWatcher(logger, thread_limit) {
     ytnode_wrappers.SetEioConcurrency(thread_limit);
 }
 
-YtEioWatcher.tackle = function() {
+YtEioWatcher.prototype.tackle = function() {
     var info = ytnode_wrappers.GetEioInformation();
 
     __DBG("Eio information: " + JSON.stringify(info));
 
-    if (
-        (info.nthreads + info.npending < info.nreqs) ||
+    if ((info.nthreads + info.npending < info.nreqs) ||
         (info.nthreads == this.thread_limit && info.nreqs > 0)
+        )
     {
         this.logger.info("Eio is saturated; consider increasing thread limit", info);
     }
