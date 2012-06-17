@@ -81,7 +81,7 @@ inline void TNodeJSInputStream::EnqueueSweep()
     if (AtomicCas(&SweepRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        EIO_NOP(TNodeJSInputStream::AsyncSweep, this);
+        EIO_PUSH(TNodeJSInputStream::AsyncSweep, this);
     }
 }
 
@@ -90,7 +90,7 @@ inline void TNodeJSInputStream::EnqueueDrain()
     if (AtomicCas(&DrainRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        EIO_NOP(TNodeJSInputStream::AsyncDrain, this);
+        EIO_PUSH(TNodeJSInputStream::AsyncDrain, this);
     }
 }
 

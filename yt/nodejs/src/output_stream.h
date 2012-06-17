@@ -77,7 +77,7 @@ inline void TNodeJSOutputStream::EnqueueOnWrite()
     if (AtomicCas(&WriteRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        EIO_NOP(TNodeJSOutputStream::AsyncOnWrite, this);
+        EIO_PUSH(TNodeJSOutputStream::AsyncOnWrite, this);
     }
 }
 
@@ -86,7 +86,7 @@ inline void TNodeJSOutputStream::EnqueueOnFlush()
     if (AtomicCas(&FlushRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        EIO_NOP(TNodeJSOutputStream::AsyncOnFlush, this);
+        EIO_PUSH(TNodeJSOutputStream::AsyncOnFlush, this);
     }
 }
 
@@ -95,7 +95,7 @@ inline void TNodeJSOutputStream::EnqueueOnFinish()
     if (AtomicCas(&FinishRequestPending, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        EIO_NOP(TNodeJSOutputStream::AsyncOnFinish, this);
+        EIO_PUSH(TNodeJSOutputStream::AsyncOnFinish, this);
     }
 }
 
