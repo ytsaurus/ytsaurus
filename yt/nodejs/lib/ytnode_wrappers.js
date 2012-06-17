@@ -21,6 +21,7 @@ if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
 function YtReadableStream() {
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG("Readable (" + this.__UUID + ") -> " + x); };
+        this.__UUID = __DBG.UUID.v4();
     } else {
         this.__DBG  = function( ) { };
     }
@@ -37,7 +38,6 @@ function YtReadableStream() {
     var self = this;
 
     this._binding = new binding.TNodeJSOutputStream();
-    this.__UUID = this._binding.uuid;
 
     this._binding.on_write = function(chunk) {
         self.__DBG("Bindings -> on_write");
@@ -154,6 +154,7 @@ YtReadableStream.prototype.destroy = function() {
 function YtWritableStream(low_watermark, high_watermark) {
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG("Writable (" + this.__UUID + ") -> " + x); };
+        this.__UUID = __DBG.UUID.v4();
     } else {
         this.__DBG  = function( ) { };
     }
@@ -169,7 +170,6 @@ function YtWritableStream(low_watermark, high_watermark) {
     var self = this;
 
     this._binding = new binding.TNodeJSInputStream(low_watermark, high_watermark);
-    this.__UUID = this._binding.uuid;
 
     this._binding.on_drain = function() {
         self.__DBG("Bindings -> on_drain");
