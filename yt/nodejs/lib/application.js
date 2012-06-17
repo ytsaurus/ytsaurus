@@ -329,8 +329,7 @@ YtEioWatcher.prototype.tackle = function() {
 YtEioWatcher.prototype.is_choking = function() {
     var info = ytnode_wrappers.GetEioInformation();
 
-    if (info.nthreads == this.thread_limit &&
-        info.nthreads <= this.spare_limit + info.nreqs - info.npending) {
+    if (this.thread_limit - this.spare_limit <= info.nreqs - info.npending) {
         return true;
     } else {
         return false;
