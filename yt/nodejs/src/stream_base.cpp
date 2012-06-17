@@ -9,7 +9,9 @@ COMMON_V8_USES
 TNodeJSStreamBase::TNodeJSStreamBase()
     : node::ObjectWrap()
     , AsyncRefCounter(0)
-{ }
+{
+    uuid_generate_random(Uuid);
+}
 
 TNodeJSStreamBase::~TNodeJSStreamBase()
 { }
@@ -30,6 +32,11 @@ void TNodeJSStreamBase::AsyncUnref()
     if (NDetail::AtomicallyDecrement(&AsyncRefCounter) == 1) {
         EIO_NOP(TNodeJSStreamBase::UnrefCallback, this);
     }
+}
+
+void TNodeJSStreamBase::PrintUuid(char* buffer)
+{
+    uuid_unparse(Uuid, buffer);
 }
 
 int TNodeJSStreamBase::UnrefCallback(eio_req* request)

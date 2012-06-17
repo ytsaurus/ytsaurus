@@ -43,6 +43,7 @@ set( SRCS
 NODE( ytnode SHARED ${SRCS} src/ytnode.cpp )
 NODE( ytnode_stubs MODULE src/ytnode_stubs.cpp )
 
+target_link_libraries( ytnode -luuid )
 target_link_libraries( ytnode_stubs ytnode )
 
 configure_file(

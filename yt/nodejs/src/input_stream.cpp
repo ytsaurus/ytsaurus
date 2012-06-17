@@ -99,9 +99,17 @@ Handle<Value> TNodeJSInputStream::New(const Arguments& args)
 
     TNodeJSInputStream* stream = NULL;
     try {
+        char uuidBuffer[64];
+        ::memset(uuidBuffer, 0, sizeof(uuidBuffer));
+
         stream = new TNodeJSInputStream(lowWatermark, highWatermark);
         stream->Wrap(args.This());
+        stream->PrintUuid(uuidBuffer);
 
+        stream->handle_->Set(
+            String::New("uuid"),
+            String::New(uuidBuffer),
+            (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
         stream->handle_->Set(
             String::New("low_watermark"),
             Integer::NewFromUnsigned(lowWatermark),

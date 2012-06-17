@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <uuid/uuid.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,6 +23,8 @@ public:
 
     void AsyncRef(bool acquireSyncRef);
     void AsyncUnref();
+
+    void PrintUuid(char* buffer);
 
     struct TOutputPart
     {
@@ -60,6 +64,8 @@ protected:
             Stream->AsyncUnref();
         }
     };
+
+    uuid_t Uuid;
 
 private:
     TNodeJSStreamBase(const TNodeJSStreamBase&);

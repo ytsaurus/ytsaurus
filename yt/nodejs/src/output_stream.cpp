@@ -90,8 +90,18 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
 
     TNodeJSOutputStream* stream = NULL;
     try {
+        char uuidBuffer[64];
+        ::memset(uuidBuffer, 0, sizeof(uuidBuffer));
+
         stream = new TNodeJSOutputStream();
         stream->Wrap(args.This());
+        stream->PrintUuid(uuidBuffer);
+
+        stream->handle_->Set(
+            String::New("uuid"),
+            String::New(uuidBuffer),
+            (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
+
         return scope.Close(args.This());
     } catch (const std::exception& ex) {
         if (stream) {
