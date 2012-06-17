@@ -39,8 +39,8 @@ var _MAPPING_DATA_TYPE_TO_METHOD = {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtCommand(logger, driver, watcher, req, rsp) {
-    this.logger  = logger;
-    this.driver  = driver;
+    this.logger = logger;
+    this.driver = driver;
     this.watcher = watcher;
 
     this.req = req;
@@ -96,13 +96,13 @@ YtCommand.prototype.dispatch = function() {
 };
 
 YtCommand.prototype._prologue = function(cb) {
-    watcher.tackle();
+    this.watcher.tackle();
     this.rsp.statusCode = 202;
     return cb(null);
 };
 
 YtCommand.prototype._epilogue = function(cb) {
-    watcher.tackle();
+    this.watcher.tackle();
     return cb(null);
 };
 
@@ -224,6 +224,13 @@ YtCommand.prototype._getDescriptor = function(cb) {
         actual_http_method    : actual_http_method
     });
 
+    if (this.descriptor.is_io_intensive && this.watcher.is_choking()) {
+        this.rsp.statusCode = 503;
+        this.rsp.setHeader("Retry-After", "60");
+        throw new Error(
+            "Command '" + this.name + "' is I/O-intensive and the server is currently under heavy load.");
+    }
+
     if (expected_http_method != actual_http_method) {
         this.rsp.statusCode = 405;
         this.rsp.setHeader("Allow", expected_http_method);
@@ -297,11 +304,12 @@ YtCommand.prototype._execute = function(cb) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtEioWatcher(logger, thread_limit) {
+function YtEioWatcher(logger, thread_limit, spare_limit) {
     this.logger = logger;
     this.thread_limit = thread_limit;
+    this.spare_limit = spare_limit;
 
-    __DBG("Eio concurrency: " + thread_limit);
+    __DBG("Eio concurrency: " + thread_limit + " (w/ " + spare_limit + " spares)");
 
     ytnode_wrappers.SetEioConcurrency(thread_limit);
 }
@@ -315,15 +323,23 @@ YtEioWatcher.prototype.tackle = function() {
         info.nthreads == info.nreqs && info.nready > 0)
     {
         this.logger.info("Eio is saturated; consider increasing thread limit", info);
-        return false;
-    } else {
+    }
+};
+
+YtEioWatcher.prototype.is_choking = function() {
+    var info = ytnode_wrappers.GetEioInformation();
+
+    if (info.nthreads == this.thread_limit &&
+        info.nthreads <= this.spare_limit + info.nreqs - info.npending) {
         return true;
+    } else {
+        return false;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplication(logger, memory_limit, thread_limit, configuration) {
+function YtApplication(logger, memory_limit, thread_limit, spare_limit, configuration) {
     var low_watermark = Math.floor(0.80 * memory_limit * 1024 * 1024);
     var high_watermark = Math.ceil(0.95 * memory_limit * 1024 * 1024);
 
@@ -333,7 +349,7 @@ function YtApplication(logger, memory_limit, thread_limit, configuration) {
     __DBG("New Application: high_watermark = " + high_watermark);
 
     var driver = new ytnode_wrappers.YtDriver(configuration, low_watermark, high_watermark);
-    var watcher = new YtEioWatcher(logger, thread_limit);
+    var watcher = new YtEioWatcher(logger, thread_limit, spare_limit);
 
     return function(req, rsp) {
         return (new YtCommand(
