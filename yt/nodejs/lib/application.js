@@ -38,9 +38,10 @@ var _MAPPING_DATA_TYPE_TO_METHOD = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(logger, driver, req, rsp) {
-    this.logger = logger;
-    this.driver = driver;
+function YtCommand(logger, driver, watcher, req, rsp) {
+    this.logger  = logger;
+    this.driver  = driver;
+    this.watcher = watcher;
 
     this.req = req;
     this.rsp = rsp;
@@ -95,11 +96,13 @@ YtCommand.prototype.dispatch = function() {
 };
 
 YtCommand.prototype._prologue = function(cb) {
+    watcher.tackle();
     this.rsp.statusCode = 202;
     return cb(null);
 };
 
 YtCommand.prototype._epilogue = function(cb) {
+    watcher.tackle();
     return cb(null);
 };
 
@@ -308,11 +311,13 @@ YtEioWatcher.prototype.tackle = function() {
 
     __DBG("Eio information: " + JSON.stringify(info));
 
-    if ((info.nthreads + info.npending < info.nreqs) ||
-        (info.nthreads == this.thread_limit && info.nreqs > 0)
-        )
+    if (info.nthreads == this.thread_limit &&
+        info.nthreads == info.nreqs && info.nready > 0)
     {
         this.logger.info("Eio is saturated; consider increasing thread limit", info);
+        return false;
+    } else {
+        return true;
     }
 };
 
@@ -331,8 +336,9 @@ function YtApplication(logger, memory_limit, thread_limit, configuration) {
     var watcher = new YtEioWatcher(logger, thread_limit);
 
     return function(req, rsp) {
-        watcher.tackle();
-        return (new YtCommand(logger, driver, req, rsp)).dispatch();
+        return (new YtCommand(
+            logger, driver, watcher, req, rsp
+        )).dispatch();
     };
 }
 
