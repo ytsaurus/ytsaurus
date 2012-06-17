@@ -320,4 +320,5 @@ exports.YtDriver = YtDriver;
 
 exports.EDataType = binding.EDataType;
 
-exports.GetEioStatistics = binding.GetEioStatistics;
+exports.GetEioInformation = binding.GetEioInformation;
+exports.SetEioConcurrency = binding.SetEioConcurrency;

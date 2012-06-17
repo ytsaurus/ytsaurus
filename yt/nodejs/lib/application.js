@@ -244,7 +244,7 @@ YtCommand.prototype._addHeaders = function(cb) {
 YtCommand.prototype._execute = function(cb) {
     var self = this;
 
-    __DBG("Current EIO: " + JSON.stringify(ytnode_wrappers.GetEioStatistics()));
+    __DBG("EIO Information: " + JSON.stringify(ytnode_wrappers.GetEioInformation()));
 
     this.driver.execute(this.name,
         this.req, this.input_format,
@@ -296,11 +296,44 @@ YtCommand.prototype._execute = function(cb) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplication(logger, memory_limit, configuration) {
+function YtEioWatcher(logger, thread_limit) {
+    this.logger = logger;
+    this.thread_limit = thread_limit;
+
+    __DBG("Eio concurrency: " + thread_limit);
+
+    ytnode_wrappers.SetEioConcurrency(thread_limit);
+}
+
+YtEioWatcher.tackle = function() {
+    var info = ytnode_wrappers.GetEioInformation();
+
+    __DBG("Eio information: " + JSON.stringify(info));
+
+    if (
+        (info.nthreads + info.npending < info.nreqs) ||
+        (info.nthreads == this.thread_limit && info.nreqs > 0)
+    {
+        this.logger.info("Eio is saturated; consider increasing thread limit", info);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+function YtApplication(logger, memory_limit, thread_limit, configuration) {
     var low_watermark = Math.floor(0.25 * memory_limit * 1024 * 1024);
-    var high_watermark = Math.ceil(0.90 * memory_limit * 1024 * 1024);
+    var high_watermark = Math.ceil(0.95 * memory_limit * 1024 * 1024);
+
+    __DBG("New Application: memory_limit = " + memory_limit);
+    __DBG("New Application: thread_limit = " + thread_limit);
+    __DBG("New Application: low_watermark = " + low_watermark);
+    __DBG("New Application: high_watermark = " + high_watermark);
+
     var driver = new ytnode_wrappers.YtDriver(configuration, low_watermark, high_watermark);
+    var watcher = new YtEioWatcher(logger, thread_limit);
+
     return function(req, rsp) {
+        watcher.tackle();
         return (new YtCommand(logger, driver, req, rsp)).dispatch();
     };
 }
