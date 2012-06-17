@@ -85,6 +85,18 @@ public:
         return DoubleValue;
     }
 
+    const char* Begin() const 
+    {
+        YASSERT(Type_ == EKeyType::String);
+        return StrValue.begin();
+    }
+
+    size_t GetSize() const 
+    {
+        YASSERT(Type_ == EKeyType::String);
+        return StrValue.size();
+    }
+
     TStringBuf GetString() const
     {
         YASSERT(Type_ == EKeyType::String);
@@ -175,8 +187,13 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
     }
 
     switch (rhs.GetType()) {
-    case EKeyType::String:
-        return lhs.GetString().compare(rhs.GetString());
+    case EKeyType::String: {
+        size_t minLen = std::min(lhs.GetSize(), rhs.GetSize());
+        auto res = strncmp(lhs.Begin(), rhs.Begin(), minLen);
+        return res ? res : static_cast<int>(lhs.GetSize()) - static_cast<int>(rhs.GetSize());
+        // Too slow because of allocations.
+        // return lhs.GetString().compare(rhs.GetString());
+    }
 
     case EKeyType::Integer:
         if (lhs.GetInteger() > rhs.GetInteger())
