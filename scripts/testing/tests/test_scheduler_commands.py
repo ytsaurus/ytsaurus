@@ -63,6 +63,31 @@ class TestSchedulerCommands(YTEnvSetup):
         track_op(op=op_id)
         assert get_stderr(op_id) == 'stderr'
 
+    def test_map_job_count(self):
+        create('table', '//tmp/t1')
+        for i in xrange(5):
+            write('//tmp/t1', '{foo=bar}')
+
+        mapper = "cat > /dev/null; echo {hello=world}"
+
+        def check(table_name, job_count, expected_num_records):
+            create('table', table_name)
+            map(input='//tmp/t1',
+                out=table_name,
+                mapper=mapper,
+                opts='job_count=%d' % job_count)
+            assert read_table(table_name) == [{'hello': 'world'} for i in xrange(expected_num_records)]
+
+        check('//tmp/t2', 3, 3)
+        check('//tmp/t3', 10, 5) # number of jobs can't be more that number of chunks
+
+
+    def test_map_with_user_files(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', '{foo=bar}')
+
+
     def test_map_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
@@ -90,3 +115,4 @@ echo {v = 2} >&7
         assert read_table(output_tables[0]) == [{'v': 0}]
         assert read_table(output_tables[1]) == [{'v': 1}]
         assert read_table(output_tables[2]) == [{'v': 2}]
+
