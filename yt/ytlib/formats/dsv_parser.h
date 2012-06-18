@@ -24,15 +24,6 @@ private:
     NYTree::IYsonConsumer* Consumer;
     TDsvFormatConfigPtr Config;
 
-    // Inlining fields from Config
-    char RecordSeparator;
-    char KeyValueSeparator;
-    char FieldSeparator;
-    Stroka LinePrefix;
-    bool LinePrefixEnabled;
-    char EscapingSymbol;
-
-
     bool NewRecordStarted;
     bool ExpectingEscapedChar;
 
