@@ -41,6 +41,7 @@ TAsyncError IAsyncWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks
             if (CurrentIndex == Blocks.size()) {
                 Promise.Set(TError());
             } else {
+                // ToDo: via writer thread.
                 Writer->AsyncWriteBlock(Blocks[CurrentIndex]).Subscribe(BIND(
                     &TWriteSession::OnBlockWritten,
                     MakeStrong(this)));
