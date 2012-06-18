@@ -44,12 +44,11 @@ struct TSetRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Value;
+    // Note: Value is passed via StdIn
 
     TSetRequest()
     {
         Register("path", Path);
-        Register("value", Value); //TODO(panin): Think about defaulting this value
     }
 };
 

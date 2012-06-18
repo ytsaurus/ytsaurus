@@ -58,6 +58,7 @@ protected:
     virtual Stroka GetDriverCommandName() const = 0;
 
     virtual void DoExecute(const NDriver::TDriverRequest& request);
+    virtual TInputStream* GetInputStream();
 };
 
 typedef TIntrusivePtr<TExecutorBase> TArgsBasePtr;

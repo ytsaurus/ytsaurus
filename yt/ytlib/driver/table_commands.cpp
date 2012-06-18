@@ -55,32 +55,12 @@ void TWriteCommand::DoExecute()
 
     TTableConsumer consumer(Context->GetConfig()->TableConsumer, writer);
 
-    if (Request->Value) {
-        auto value = Request->Value;
-        switch (value->GetType()) {
-            case ENodeType::List: {
-                FOREACH (const auto& child, value->AsList()->GetChildren()) {
-                    VisitTree(child, &consumer);
-                }
-                break;
-            }
-
-            case ENodeType::Map: {
-                VisitTree(value, &consumer);
-                break;
-            }
-
-            default:
-                YUNREACHABLE();
-        }
-    } else {
-        auto driverRequest = Context->GetRequest();
-        auto producer = CreateProducerForFormat(
-            driverRequest->InputFormat, 
-            EDataType::Tabular, 
-            driverRequest->InputStream);
-        producer.Run(&consumer);
-    }
+    auto driverRequest = Context->GetRequest();
+    auto producer = CreateProducerForFormat(
+        driverRequest->InputFormat,
+        EDataType::Tabular,
+        driverRequest->InputStream);
+    producer.Run(&consumer);
 
     writer->Close();
 }

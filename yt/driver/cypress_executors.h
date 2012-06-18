@@ -31,8 +31,12 @@ private:
     TUnlabeledStringArg PathArg;
     TUnlabeledStringArg ValueArg;
 
+    bool UseStdIn;
+    TStringStream Stream;
+
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
+    virtual TInputStream* GetInputStream();
 };
 
 //////////////////////////////////////////////////////////////////////////////////

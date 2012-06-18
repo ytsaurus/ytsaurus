@@ -33,7 +33,7 @@ class TestTableCommands(YTEnvSetup):
         assert read_table('//table') == [{"b":"hello"}]
         assert get('//table/@row_count') == '1'
 
-        write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]')
+        write('//table', '{b="2";a="1"};{x="10";y="20";a="30"}')
         assert read_table('//table') == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get('//table/@row_count') == '3'
 
@@ -53,7 +53,7 @@ class TestTableCommands(YTEnvSetup):
     def test_row_index_selector(self):
         create('table', '//table')
 
-        write('//table', '[{a = 0}; {b = 1}; {c = 2}; {d = 3}]')
+        write('//table', '{a = 0}; {b = 1}; {c = 2}; {d = 3}')
 
         # closed ranges
         assert read_table('//table[#0:#2]') == [{'a': 0}, {'b' : 1}] # simple
@@ -100,7 +100,7 @@ class TestTableCommands(YTEnvSetup):
     def test_column_selector(self):
         create('table', '//table')
 
-        write('//table', '[{a = 1; aa = 2; b = 3; bb = 4; c = 5}]')
+        write('//table', '{a = 1; aa = 2; b = 3; bb = 4; c = 5}')
 
         # empty columns
         assert read_table('//table{}') == [{}]
