@@ -40,15 +40,17 @@ class TYsonParser::TImpl
     std::stack<EState> StateStack;
 
     // Diagnostic info
+    bool EnableLinePositionInfo;
     int Offset;
     int Line;
     int Position;
     int Fragment;
 
 public:
-    TImpl(IYsonConsumer* consumer, EYsonType type)
+    TImpl(IYsonConsumer* consumer, EYsonType type, bool enableLinePositionInfo)
         : Consumer(consumer)
         , Type(type)
+        , EnableLinePositionInfo(enableLinePositionInfo)
         , Offset(0)
         , Line(1)
         , Position(1)
@@ -114,30 +116,18 @@ public:
     }
 
 private:
-    void OnCharConsumed(char ch)
-    {
-        ++Offset;
-        ++Position;
-        if (ch == '\n') {
-            ++Line;
-            Position = 1;
-        }
-    }
-
     void OnRangeConsumed(const char* begin, const char* end)
     {
-        int position = Position;
-        int line = Line;
-        for (auto current = begin; current != end; ++current) {
-            ++position;
-            if (*current == '\n') {
-                ++line;
-                position = 1;
+        Offset += end - begin;
+        if (EXPECT_FALSE(EnableLinePositionInfo)) { // Performance critical check
+            for (auto current = begin; current != end; ++current) {
+                ++Position;
+                if (*current == '\n') {
+                    ++Line;
+                    Position = 1;
+                }
             }
         }
-        Position = position;
-        Line = line;
-        Offset += end - begin;
     }
 
     void ConsumeToken(const TToken& token)
@@ -454,25 +444,26 @@ private:
 
     Stroka GetPositionInfo() const
     {
-        if (Type == EYsonType::Node) {
-            return Sprintf("Offset: %d, Line: %d, Position: %d",
-                Offset,
-                Line,
-                Position);
-        } else {
-            return Sprintf("Offset: %d, Line: %d, Position: %d, Fragment: %d",
-                Offset,
-                Line,
-                Position,
-                Fragment);
+        TStringStream stream;
+        stream << "Offset: " << Offset;
+        if (EnableLinePositionInfo) {
+            stream << ", Line: " << Line;
+            stream << ", Position: " << Position;
         }
+        if (Type != EYsonType::Node) {
+            stream << ", Fragment: " << Fragment;
+        }
+        return stream.Str();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonParser::TYsonParser(IYsonConsumer *consumer, EYsonType type)
-    : Impl(new TImpl(consumer, type))
+TYsonParser::TYsonParser(
+    IYsonConsumer *consumer,
+    EYsonType type,
+    bool enableLinePositionInfo)
+    : Impl(new TImpl(consumer, type, enableLinePositionInfo))
 { }
 
 TYsonParser::~TYsonParser()
@@ -492,9 +483,13 @@ void TYsonParser::Finish()
 
 const size_t ParseChunkSize = 1 << 16;
 
-void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
+void ParseYson(
+    TInputStream* input,
+    IYsonConsumer* consumer,
+    EYsonType type,
+    bool enableLinePositionInfo)
 {
-    TYsonParser parser(consumer, type);
+    TYsonParser parser(consumer, type, enableLinePositionInfo);
     char chunk[ParseChunkSize];
     while (true) {
         // Read a chunk.
@@ -508,9 +503,13 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
     parser.Finish();
 }
 
-void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
+void ParseYson(
+    const TStringBuf& yson,
+    IYsonConsumer* consumer,
+    EYsonType type,
+    bool enableLinePositionInfo)
 {
-    TYsonParser parser(consumer, type);
+    TYsonParser parser(consumer, type, enableLinePositionInfo);
     parser.Read(yson);
     parser.Finish();
 }
