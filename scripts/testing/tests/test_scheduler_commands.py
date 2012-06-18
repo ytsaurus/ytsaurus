@@ -81,11 +81,27 @@ class TestSchedulerCommands(YTEnvSetup):
         check('//tmp/t2', 3, 3)
         check('//tmp/t3', 10, 5) # number of jobs can't be more that number of chunks
 
-
     def test_map_with_user_files(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', '{foo=bar}')
+
+        file1 = '//tmp/some_file.txt' 
+        file2 = '//tmp/renamed_file.txt' 
+
+        upload(file1, '{value=42};\n')
+        upload(file2, '{a=b};\n')
+
+        # check attributes @file_name
+        set(file2 + '/@file_name', 'my_file.txt')
+        mapper = "cat > /dev/null; cat some_file.txt; cat my_file.txt"
+
+        map(input='//tmp/t1',
+            out='//tmp/t2',
+            mapper=mapper,
+            file=[file1, file2])
+
+        assert read_table('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
 
 
     def test_map_many_output_tables(self):
@@ -107,7 +123,7 @@ echo {v = 2} >&7
 """
         upload('//tmp/mapper.sh', mapper)
 
-        map(input='//tmp/t_in', 
+        map(input='//tmp/t_in',
             out=output_tables,
             mapper='bash mapper.sh',
             file='//tmp/mapper.sh')
