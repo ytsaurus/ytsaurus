@@ -57,7 +57,7 @@ class TestSchedulerCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write('//tmp/t1', '{foo=bar}')
 
-        mapper = "cat > /dev/null; echo stderr 1>&2; exit(125)"
+        mapper = "cat > /dev/null; echo stderr 1>&2; exit 125"
 
         op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
         track_op(op=op_id)

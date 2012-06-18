@@ -70,7 +70,7 @@ class TestCanceledUpload(YTEnvSetup):
         tx_id = start_transaction(opts = 'timeout=2000')
 
         # uploading from empty stream will fail
-        process = run_command('upload', '//file', tx = tx_id)
+        process = run_command('upload', '//tmp/file', tx = tx_id)
         time.sleep(1)
         process.kill()
         time.sleep(1)
