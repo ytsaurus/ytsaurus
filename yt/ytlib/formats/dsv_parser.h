@@ -29,8 +29,8 @@ private:
 
     Stroka CurrentToken;
 
-    char KeyStopSymbols[3];
-    char ValueStopSymbols[3];
+    bool IsKeyStopSymbol[256];
+    bool IsValueStopSymbol[256];
 
     const char* Consume(const char* begin, const char* end);
     const char* FindEndOfValue(const char* begin, const char* end);

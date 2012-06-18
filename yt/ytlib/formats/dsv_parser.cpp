@@ -20,13 +20,15 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     State = GetStartState();
 
     // TODO(panin): unite with next
-    KeyStopSymbols[0] = Config->EscapingSymbol;
-    KeyStopSymbols[1] = Config->KeyValueSeparator;
-    KeyStopSymbols[2] = Config->RecordSeparator;
+    memset(IsKeyStopSymbol, 0, sizeof(IsKeyStopSymbol));
+    IsKeyStopSymbol[Config->EscapingSymbol] = true;
+    IsKeyStopSymbol[Config->KeyValueSeparator] = true;
+    IsKeyStopSymbol[Config->RecordSeparator] = true;
 
-    ValueStopSymbols[0] = Config->EscapingSymbol;
-    ValueStopSymbols[1] = Config->FieldSeparator;
-    ValueStopSymbols[2] = Config->RecordSeparator;
+    memset(IsValueStopSymbol, 0, sizeof(IsValueStopSymbol));
+    IsValueStopSymbol[Config->EscapingSymbol] = true;
+    IsValueStopSymbol[Config->FieldSeparator] = true;
+    IsValueStopSymbol[Config->RecordSeparator] = true;
 }
 
 void TDsvParser::Read(const TStringBuf& data)
@@ -162,10 +164,7 @@ const char* TDsvParser::FindEndOfValue(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == Config->FieldSeparator ||
-            *current == Config->RecordSeparator ||
-            *current == Config->EscapingSymbol)
-        {
+        if (IsValueStopSymbol[*current]) {
             return current;
         }
     }
@@ -176,10 +175,7 @@ const char* TDsvParser::FindEndOfKey(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == Config->KeyValueSeparator ||
-            *current == Config->RecordSeparator ||
-            *current == Config->EscapingSymbol)
-        {
+        if (IsKeyStopSymbol[*current]) {
             return current;
         }
     }
