@@ -28,6 +28,7 @@ TDsvWriter::TDsvWriter(
         AllowBeginList = false;
     }
 
+    memset(IsStopSymbol, 0, sizeof(IsStopSymbol));
     IsStopSymbol[Config->EscapingSymbol] = true;
     IsStopSymbol[Config->KeyValueSeparator] = true;
     IsStopSymbol[Config->FieldSeparator] = true;
