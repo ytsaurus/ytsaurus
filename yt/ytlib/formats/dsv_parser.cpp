@@ -162,9 +162,9 @@ const char* TDsvParser::FindEndOfValue(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == FieldSeparator ||
-            *current == RecordSeparator ||
-            *current == EscapingSymbol)
+        if (*current == Config->FieldSeparator ||
+            *current == Config->RecordSeparator ||
+            *current == Config->EscapingSymbol)
         {
             return current;
         }
@@ -176,9 +176,9 @@ const char* TDsvParser::FindEndOfKey(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == KeyValueSeparator ||
-            *current == RecordSeparator ||
-            *current == EscapingSymbol)
+        if (*current == Config->KeyValueSeparator ||
+            *current == Config->RecordSeparator ||
+            *current == Config->EscapingSymbol)
         {
             return current;
         }
