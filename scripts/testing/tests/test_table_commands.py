@@ -80,6 +80,7 @@ class TestTableCommands(YTEnvSetup):
         v5 = {'s' : 'c', 'i': -100, 'd' : 10.}
 
         values = yson.dumps([v1, v2, v3, v4, v5])
+        values = values[1:-1] # remove surrounding [ ]
 
         write('//tmp/table', values, sorted_by='s;i;d')
 
