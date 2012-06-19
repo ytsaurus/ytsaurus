@@ -1,13 +1,16 @@
 #pragma once
 
 #include "public.h"
+#include "file_helpers.h"
 
 #include <ytlib/misc/checksum.h>
 
-#include <util/stream/file.h>
-
 namespace NYT {
 namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSnapshotHeader;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,23 +24,24 @@ public:
         bool enableCompression);
 
     void Open();
+
     TInputStream* GetStream() const;
     i64 GetLength() const;
     TChecksum GetChecksum() const;
+    const TEpoch& GetEpoch() const;
     i32 GetPrevRecordCount() const;
 
 private:
     Stroka FileName;
     i32 SnapshotId;
     bool EnableCompression;
-    TChecksum Checksum;
-    i32 PrevRecordCount;
+
+    THolder<TSnapshotHeader> Header;
 
     THolder<TFile> File;
     THolder<TBufferedFileInput> FileInput;
     THolder<TInputStream> DecompressedInput;
     THolder<TChecksummableInput> ChecksummableInput;
-    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,22 +55,27 @@ public:
         i32 snapshotId,
         bool enableCompression);
 
-    void Open(i32 prevRecordCount);
-    
+    void Open(i32 prevRecordCount, const TEpoch& epoch);
+
     TOutputStream* GetStream() const;
     void Close();
     TChecksum GetChecksum() const;
 
 private:
+    DECLARE_ENUM(EState,
+        (Uninitialized)
+        (Opened)
+        (Closed)
+    );
+    EState State;
+
     Stroka FileName;
     Stroka TempFileName;
-    i32 SnapshotId;
     bool EnableCompression;
-    i32 PrevRecordCount;
-    TChecksum Checksum;
 
-    THolder<TFile> File;
-    THolder<TBufferedFileOutput> FileOutput;
+    THolder<TSnapshotHeader> Header;
+
+    THolder<TBufferedFile> File;
     THolder<TOutputStream> CompressedOutput;
     THolder<TChecksummableOutput> ChecksummableOutput;
 };

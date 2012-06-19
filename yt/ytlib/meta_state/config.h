@@ -139,12 +139,18 @@ struct TChangeLogCacheConfig
     //! Maximum number of cached changelogs.
     int MaxSize;
 
+    //! Minimum size of records between consecutive index records in changelog.
+    i64 IndexBlockSize;
+
     TChangeLogCacheConfig()
     {
         Register("path", Path);
         Register("max_size", MaxSize)
             .GreaterThan(0)
             .Default(4);
+        Register("index_block_size", IndexBlockSize)
+            .GreaterThan(0)
+            .Default(1 * 1024 * 1024);
     }
 };
 

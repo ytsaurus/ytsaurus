@@ -2,11 +2,10 @@
 #include "snapshot.h"
 #include "common.h"
 
-#include <ytlib/misc/common.h>
 #include <ytlib/misc/fs.h>
+#include <ytlib/misc/common.h>
 #include <ytlib/misc/serialize.h>
 
-#include <util/folder/dirut.h>
 #include <util/stream/lz.h>
 
 namespace NYT {
@@ -19,7 +18,14 @@ namespace {
 typedef TSnappyCompress TCompressedOutput;
 typedef TSnappyDecompress TDecompressedInput;
 
-} // namespace
+template<class TOutput>
+void AppendZeroes(TOutput& output, size_t count)
+{
+    std::vector<char> zeroes(count, 0);
+    output.Append(&(*zeroes.begin()), count);
+}
+
+} // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,17 +47,10 @@ struct TSnapshotHeader
     ui64 Checksum;
 
     TSnapshotHeader()
-        : Signature(0)
-        , SegmentId(0)
-        , PrevRecordCount(0)
-        , DataLength(0)
-        , Checksum(0)
-    { }
-
-    TSnapshotHeader(i32 segmentId, i32 prevRecordCount)
         : Signature(CorrectSignature)
-        , SegmentId(segmentId)
-        , PrevRecordCount(prevRecordCount)
+        , SegmentId(0)
+        , Epoch()
+        , PrevRecordCount(0)
         , DataLength(0)
         , Checksum(0)
     { }
@@ -84,27 +83,24 @@ TSnapshotReader::TSnapshotReader(
 void TSnapshotReader::Open()
 {
     LOG_DEBUG("Opening snapshot reader %s", ~FileName);
+
     File.Reset(new TFile(FileName, OpenExisting));
-    
-    TSnapshotHeader header;
-    ReadPod(*File, header);
-    header.Validate();
-    LOG_FATAL_UNLESS(header.SegmentId == SnapshotId,
-        "Invalid snapshot id in header: expected %d, got %d",
-        SnapshotId,
-        header.SegmentId);
-    PrevRecordCount = header.PrevRecordCount;
-    Checksum = header.Checksum;
-    YASSERT(header.DataLength + sizeof(header) == static_cast<ui64>(File->GetLength()));
+
+    Header.Reset(new TSnapshotHeader());
+    ReadPod(*File, *Header);
+
+    Header->Validate();
+    LOG_FATAL_UNLESS(Header->SegmentId == SnapshotId,
+        "Invalid snapshot id in header: expected %d, got %d", SnapshotId, Header->SegmentId);
+    YASSERT(Header->DataLength + sizeof(*Header) == static_cast<ui64>(File->GetLength()));
 
     FileInput.Reset(new TBufferedFileInput(*File));
-
+    TInputStream* inputStream = ~FileInput;
     if (EnableCompression) {
-        DecompressedInput.Reset(new TDecompressedInput(~FileInput));
-        ChecksummableInput.Reset(new TChecksummableInput(~DecompressedInput));
-    } else {
-        ChecksummableInput.Reset(new TChecksummableInput(~FileInput));
+        DecompressedInput.Reset(new TDecompressedInput(inputStream));
+        inputStream = ~DecompressedInput;
     }
+    ChecksummableInput.Reset(new TChecksummableInput(inputStream));
 }
 
 TInputStream* TSnapshotReader::GetStream() const
@@ -115,18 +111,26 @@ TInputStream* TSnapshotReader::GetStream() const
 
 i64 TSnapshotReader::GetLength() const
 {
+    YASSERT(~File);
     return File->GetLength();
 }
 
 TChecksum TSnapshotReader::GetChecksum() const
 {
-    // TODO: check that checksum is available
-    return Checksum;
+    YASSERT(~Header);
+    return Header->Checksum;
 }
 
 i32 TSnapshotReader::GetPrevRecordCount() const
 {
-    return PrevRecordCount;
+    YASSERT(~Header);
+    return Header->PrevRecordCount;
+}
+
+const TEpoch& TSnapshotReader::GetEpoch() const
+{
+    YASSERT(~Header);
+    return Header->Epoch;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,84 +139,61 @@ TSnapshotWriter::TSnapshotWriter(
     const Stroka& fileName,
     i32 segmentId,
     bool enableCompression)
-    : FileName(fileName)
+    : State(EState::Uninitialized)
+    , FileName(fileName)
     , TempFileName(fileName + NFS::TempFileSuffix)
-    , SnapshotId(segmentId)
     , EnableCompression(enableCompression)
-    , PrevRecordCount(0)
-    , Checksum(0)
-{ }
-
-void TSnapshotWriter::Open(i32 prevRecordCount)
+    , Header(new TSnapshotHeader())
 {
-    PrevRecordCount = prevRecordCount;
-    Close();
+    Header->SegmentId = segmentId;
+}
 
-    File.Reset(new TFile(TempFileName, RdWr | CreateAlways));
-    FileOutput.Reset(new TBufferedFileOutput(*File));
+void TSnapshotWriter::Open(i32 prevRecordCount, const TEpoch& epoch)
+{
+    YASSERT(State == EState::Uninitialized);
 
-    TSnapshotHeader header(SnapshotId, PrevRecordCount);
-    WritePod(*FileOutput, header);
+    Header->PrevRecordCount = prevRecordCount;
+    Header->Epoch = epoch;
 
+    File.Reset(new TBufferedFile(TempFileName, RdWr | CreateAlways));
+    AppendZeroes(*File, sizeof(TSnapshotHeader));
+
+    TOutputStream* outputStream = File->GetOutputStream();
     if (EnableCompression) {
-        CompressedOutput.Reset(new TCompressedOutput(~FileOutput));
-        ChecksummableOutput.Reset(new TChecksummableOutput(~CompressedOutput));
-    } else {
-        ChecksummableOutput.Reset(new TChecksummableOutput(~FileOutput));
+        CompressedOutput.Reset(new TCompressedOutput(outputStream));
+        outputStream = ~CompressedOutput;
     }
-    
-    Checksum = 0;
+    ChecksummableOutput.Reset(new TChecksummableOutput(outputStream));
+
+    State = EState::Opened;
 }
 
 TOutputStream* TSnapshotWriter::GetStream() const
 {
-    YASSERT(~ChecksummableOutput);
+    YASSERT(State == EState::Opened);
     return ~ChecksummableOutput;
 }
 
 void TSnapshotWriter::Close()
 {
-    if (!FileOutput)
+    if (State != EState::Opened) {
         return;
-
-    if (~ChecksummableOutput) {
-        Checksum = ChecksummableOutput->GetChecksum();
-        ChecksummableOutput->Flush();
-        ChecksummableOutput.Reset(NULL);
-        CompressedOutput.Reset(NULL);
     }
 
-    FileOutput->Flush();
-    FileOutput.Reset(NULL);
-
-    TSnapshotHeader header(SnapshotId, PrevRecordCount);
-    header.DataLength = File->GetLength() - sizeof(TSnapshotHeader);
-    header.Checksum = Checksum;
+    Header->Checksum = ChecksummableOutput->GetChecksum();
+    Header->DataLength = File->GetLength() - sizeof(TSnapshotHeader);
 
     File->Seek(0, sSet);
-    File->Write(&header, sizeof(header));
-    File->Flush();
+    WritePod(*File, *Header);
     File->Close();
-    File.Reset(NULL);
 
-    // TODO(ignat): change exception to YCHECK
-    if (isexist(~FileName)) {
-        if (!NFS::Remove(~FileName)) {
-            ythrow yexception() << Sprintf("Error removing %s", ~FileName.Quote());
-        }
-    }
-
-    if (!NFS::Rename(~TempFileName, ~FileName)) {
-        ythrow yexception() << Sprintf("Error renaming %s to %s",
-            ~TempFileName.Quote(),
-            ~FileName.Quote());
-    }
+    Move(TempFileName, FileName);
 }
 
 TChecksum TSnapshotWriter::GetChecksum() const
 {
-    // TODO: check that checksum is available.
-    return Checksum;
+    YASSERT(State == EState::Closed);
+    return Header->Checksum;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

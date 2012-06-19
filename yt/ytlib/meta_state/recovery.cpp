@@ -171,7 +171,7 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
 
             LOG_INFO("Changelog %d is missing and will be created", segmentId);
             YASSERT(expectedPrevRecordCount != UnknownPrevRecordCount);
-            changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount);
+            changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount, Epoch);
         } else {
             changeLog = changeLogResult.Value();
         }

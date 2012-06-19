@@ -46,9 +46,8 @@ public:
         TSnapshotBuilderConfig* config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
-        TChangeLogCachePtr changeLogCache,
         TSnapshotStorePtr snapshotStore,
-        TEpoch epoch,
+        const TEpoch& epoch,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
 
@@ -96,7 +95,6 @@ private:
     NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TSnapshotStorePtr SnapshotStore;
-    TChangeLogCachePtr ChangeLogCache;
     TEpoch Epoch;
     IInvokerPtr EpochControlInvoker;
     IInvokerPtr EpochStateInvoker;

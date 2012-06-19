@@ -23,7 +23,7 @@ public:
     TChangeLog(
         const Stroka& fileName,
         i32 id,
-        i64 indexBlockSize = 1 * 1024 * 1024);
+        i64 indexBlockSize);
 
     ~TChangeLog();
 
@@ -32,7 +32,7 @@ public:
     void Open();
     //! Creates new changelog.
     //! Throws exception on failure.
-    void Create(i32 prevRecordCount);
+    void Create(i32 prevRecordCount, const TEpoch& epoch);
     //! Finalizes current changelog.
     void Finalize();
 
@@ -48,6 +48,7 @@ public:
     i32 GetId() const;
     i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
+    const TEpoch& GetEpoch() const;
     bool IsFinalized() const;
 
 private:

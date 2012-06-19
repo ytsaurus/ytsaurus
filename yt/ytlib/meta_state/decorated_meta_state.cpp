@@ -46,6 +46,19 @@ void TDecoratedMetaState::Start()
     Started = true;
 }
 
+void TDecoratedMetaState::SetEpoch(const TEpoch& epoch)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    YASSERT(Started);
+    Epoch = epoch;
+}
+
+const TEpoch& TDecoratedMetaState::GetEpoch() const
+{
+    YASSERT(Started);
+    return Epoch;
+}
+
 void TDecoratedMetaState::ComputeReachableVersion()
 {
     i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
@@ -54,7 +67,6 @@ void TDecoratedMetaState::ComputeReachableVersion()
         // Let's pretend we have snapshot 0.
         maxSnapshotId = 0;
     } else {
-        auto snapshotReader = SnapshotStore->GetReader(maxSnapshotId);
         LOG_INFO("Latest snapshot is %d", maxSnapshotId);
     }
 
@@ -80,7 +92,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
     }
 
     LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
-}         
+}
 
 IInvokerPtr TDecoratedMetaState::GetStateInvoker() const
 {
@@ -208,7 +220,7 @@ void TDecoratedMetaState::AdvanceSegment()
 
     CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(Version.SegmentId + 1, 0));
-   
+
     LOG_INFO("Switched to a new segment %d", Version.SegmentId);
 }
 
@@ -222,7 +234,7 @@ void TDecoratedMetaState::RotateChangeLog()
 
     AdvanceSegment();
 
-    ChangeLogCache->Create(Version.SegmentId, changeLog->GetRecordCount());
+    ChangeLogCache->Create(Version.SegmentId, changeLog->GetRecordCount(), Epoch);
 }
 
 TMetaVersion TDecoratedMetaState::GetVersion() const

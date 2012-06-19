@@ -44,6 +44,7 @@ public:
     TSession(
         TSnapshotBuilderPtr owner,
         const TMetaVersion& version,
+        const TEpoch& epoch,
         bool createSnapshot)
         : Owner(owner)
         , Version(version)
@@ -194,6 +195,7 @@ private:
 
     TSnapshotBuilderPtr Owner;
     TMetaVersion Version;
+    TEpoch Epoch;
     bool CreateSnapshot;
 
     TParallelAwaiterPtr Awaiter;
@@ -206,16 +208,14 @@ TSnapshotBuilder::TSnapshotBuilder(
     TSnapshotBuilderConfig *config,
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
-    TChangeLogCachePtr changeLogCache,
     TSnapshotStorePtr snapshotStore,
-    TEpoch epoch,
+    const TEpoch& epoch,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)
     , SnapshotStore(snapshotStore)
-    , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
@@ -226,7 +226,6 @@ TSnapshotBuilder::TSnapshotBuilder(
 {
     YASSERT(cellManager);
     YASSERT(decoratedState);
-    YASSERT(changeLogCache);
     YASSERT(snapshotStore);
     YASSERT(epochControlInvoker);
     YASSERT(epochStateInvoker);
@@ -240,7 +239,7 @@ void TSnapshotBuilder::CreateDistributedSnapshot()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto version = DecoratedState->GetVersion();
-    New<TSession>(MakeStrong(this), version, true)->Run();
+    New<TSession>(MakeStrong(this), version, Epoch, true)->Run();
 }
 
 void TSnapshotBuilder::RotateChangeLog()
@@ -248,7 +247,7 @@ void TSnapshotBuilder::RotateChangeLog()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto version = DecoratedState->GetVersion();
-    New<TSession>(MakeStrong(this), version, false)->Run();
+    New<TSession>(MakeStrong(this), version, Epoch, false)->Run();
 }
 
 TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const TMetaVersion& version)
@@ -305,7 +304,7 @@ TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const 
 TChecksum TSnapshotBuilder::DoCreateLocalSnapshot(TMetaVersion version)
 {
     auto writer = SnapshotStore->GetWriter(version.SegmentId + 1);
-    writer->Open(version.RecordCount);
+    writer->Open(version.RecordCount, Epoch);
     DecoratedState->Save(writer->GetStream());
     writer->Close();
     return writer->GetChecksum();

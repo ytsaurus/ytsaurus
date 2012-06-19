@@ -1,8 +1,8 @@
 #pragma once
 
 #include "common.h"
+#include "file_helpers.h"
 #include "change_log.h"
-#include "change_log_file_utilities.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/checksum.h>
@@ -31,12 +31,14 @@ struct TLogHeader
     TLogHeader()
         : Signature(0)
         , ChangeLogId(0)
+        , Epoch()
         , Finalized(false)
     { }
 
-    TLogHeader(i32 changeLogId, i32 prevRecordCount, bool finalized)
+    TLogHeader(i32 changeLogId, const TEpoch& epoch, i32 prevRecordCount, bool finalized)
         : Signature(CorrectSignature)
         , ChangeLogId(changeLogId)
+        , Epoch(epoch)
         , PrevRecordCount(prevRecordCount)
         , Finalized(finalized)
     { }
@@ -130,7 +132,7 @@ public:
         i64 indexBlockSize);
 
     void Open();
-    void Create(i32 previousRecordCount);
+    void Create(i32 previousRecordCount, const TEpoch& epoch);
 
     void Append(const std::vector<TSharedRef>&);
     void Append(i32 firstRecordId, const std::vector<TSharedRef>&);
@@ -145,6 +147,7 @@ public:
     i32 GetId() const;
     i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
+    const TEpoch& GetEpoch() const;
     bool IsFinalized() const;
 
 private:
@@ -215,6 +218,7 @@ private:
     //! This is a foreign constraint and it is used to verify integrity of a sequence of changelogs.
     //! \see IMetaState
     i32 PrevRecordCount;
+    TEpoch Epoch;
 
     std::vector<TLogIndexRecord> Index;
 

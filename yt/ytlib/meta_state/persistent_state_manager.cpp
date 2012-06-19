@@ -116,7 +116,6 @@ public:
         ChangeLogCache = New<TChangeLogCache>(Config->ChangeLogs);
 
         SnapshotStore = New<TSnapshotStore>(Config->Snapshots);
-
         DecoratedState = New<TDecoratedMetaState>(
             metaState,
             stateInvoker,
@@ -317,7 +316,6 @@ public:
 
     TActionQueue::TPtr IOQueue;
 
-    TEpoch Epoch;
     TCancelableContextPtr EpochContext;
 
     IInvokerPtr EpochControlInvoker;
@@ -350,7 +348,7 @@ public:
 
         auto reader = result.Value();
         reader->Open();
-        
+
         i64 length = reader->GetLength();
         auto checksum = reader->GetChecksum();
         int prevRecordCount = reader->GetPrevRecordCount();
@@ -441,9 +439,9 @@ public:
 
         auto changeLog = result.Value();
         i32 recordCount = changeLog->GetRecordCount();
-        
+
         response->set_record_count(recordCount);
-        
+
         context->SetResponseInfo("RecordCount: %d", recordCount);
         context->Reply();
     }
@@ -457,7 +455,7 @@ public:
         i32 changeLogId = request->change_log_id();
         i32 startRecordId = request->start_record_id();
         i32 recordCount = request->record_count();
-    
+
         context->SetRequestInfo("ChangeLogId: %d, StartRecordId: %d, RecordCount: %d",
             changeLogId,
             startRecordId,
@@ -465,7 +463,7 @@ public:
 
         YASSERT(startRecordId >= 0);
         YASSERT(recordCount >= 0);
-    
+
         auto result = ChangeLogCache->Get(changeLogId);
         if (!result.IsOK()) {
             // TODO: cannot use ythrow here
@@ -522,12 +520,7 @@ public:
                 Sprintf("Cannot apply changes while in %s", ~GetControlStatus().ToString());
         }
 
-        if (epoch != Epoch) {
-            ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-                Sprintf("Invalid epoch: expected %s, received %s",
-                    ~Epoch.ToString(),
-                    ~epoch.ToString());
-        }
+        CheckEpoch(epoch);
 
         int changeCount = request->Attachments().size();
         switch (GetControlStatus()) {
@@ -623,12 +616,7 @@ public:
                 Sprintf("Cannot process follower ping while in %s", ~GetControlStatus().ToString());
         }
 
-        if (epoch != Epoch) {
-            ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-                Sprintf("Invalid epoch: expected %s, received %s",
-                    ~Epoch.ToString(),
-                    ~epoch.ToString());
-        }
+        CheckEpoch(epoch);
 
         switch (status) {
             case EPeerStatus::Following:
@@ -648,7 +636,7 @@ public:
                         ~DecoratedState,
                         ~ChangeLogCache,
                         ~SnapshotStore,
-                        Epoch,
+                        epoch,
                         LeaderId,
                         ~EpochControlInvoker,
                         ~EpochStateInvoker,
@@ -691,12 +679,7 @@ public:
                 Sprintf("Cannot advance segment while in %s", ~GetControlStatus().ToString());
         }
 
-        if (epoch != Epoch) {
-            ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-                Sprintf("Invalid epoch: expected: %s, received %s",
-                    ~Epoch.ToString(),
-                    ~epoch.ToString());
-        }
+        CheckEpoch(epoch);
 
         switch (GetControlStatus()) {
             case EPeerStatus::Following:
@@ -870,7 +853,7 @@ public:
             ~DecoratedState,
             ~ChangeLogCache,
             ~FollowerTracker,
-            Epoch,
+            epoch,
             ~EpochControlInvoker,
             ~EpochStateInvoker);
         LeaderCommitter->SubscribeChangeApplied(BIND(&TThis::OnChangeApplied, MakeWeak(this)));
@@ -885,7 +868,7 @@ public:
             CellManager,
             DecoratedState,
             FollowerTracker,
-            Epoch,
+            epoch,
             EpochControlInvoker);
         FollowerPinger->Start();
 
@@ -910,7 +893,7 @@ public:
             ~DecoratedState,
             ~ChangeLogCache,
             ~SnapshotStore,
-            Epoch,
+            DecoratedState->GetEpoch(),
             ~EpochControlInvoker,
             ~EpochStateInvoker);
 
@@ -940,9 +923,8 @@ public:
             ~Config->SnapshotBuilder,
             CellManager,
             DecoratedState,
-            ChangeLogCache,
             SnapshotStore,
-            Epoch,
+            DecoratedState->GetEpoch(),
             EpochControlInvoker,
             EpochStateInvoker);
 
@@ -952,7 +934,7 @@ public:
         if (version.RecordCount > 0) {
             LOG_INFO("Switching to a new changelog %d for the new epoch", version.SegmentId + 1);
             SnapshotBuilder->RotateChangeLog();
-        }   
+        }
 
         LeaderRecoveryComplete_.Fire();
 
@@ -1084,9 +1066,8 @@ public:
             ~Config->SnapshotBuilder,
             CellManager,
             DecoratedState,
-            ChangeLogCache,
             SnapshotStore,
-            Epoch,
+            DecoratedState->GetEpoch(),
             EpochControlInvoker,
             EpochStateInvoker);
 
@@ -1157,7 +1138,7 @@ public:
         EpochControlInvoker = EpochContext->CreateInvoker(ControlInvoker);
         EpochStateInvoker = EpochContext->CreateInvoker(GetStateInvoker());
 
-        Epoch = epoch;
+        DecoratedState->SetEpoch(epoch);
     }
 
     void StopEpoch()
@@ -1165,7 +1146,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LeaderId = NElection::InvalidPeerId;
-        Epoch = TEpoch();
+        DecoratedState->SetEpoch(TEpoch());
 
         YASSERT(EpochContext);
         EpochContext->Cancel();
@@ -1173,6 +1154,18 @@ public:
         EpochControlInvoker.Reset();
         EpochStateInvoker.Reset();
     }
+
+    void CheckEpoch(const TEpoch& epoch) const
+    {
+        auto currentEpoch = DecoratedState->GetEpoch();
+        if (epoch != currentEpoch) {
+            ythrow TServiceException(EErrorCode::InvalidEpoch) <<
+                Sprintf("Invalid epoch: expected %s, received %s",
+                    ~currentEpoch.ToString(),
+                    ~epoch.ToString());
+        }
+    }
+
 
 
     void OnChangeApplied()

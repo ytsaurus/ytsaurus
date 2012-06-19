@@ -48,9 +48,7 @@ Stroka TChangeLogCache::GetChangeLogFileName(i32 id)
 
 TChangeLogPtr TChangeLogCache::CreateChangeLog(i32 id)
 {
-    return New<TChangeLog>(
-        GetChangeLogFileName(id),
-        id);
+    return New<TChangeLog>(GetChangeLogFileName(id), id, Config->IndexBlockSize);
 }
 
 TChangeLogCache::TGetResult TChangeLogCache::Get(i32 id)
@@ -79,7 +77,8 @@ TChangeLogCache::TGetResult TChangeLogCache::Get(i32 id)
 
 TCachedAsyncChangeLogPtr TChangeLogCache::Create(
     i32 id,
-    i32 prevRecordCount)
+    i32 prevRecordCount,
+    const TEpoch& epoch)
 {
     TInsertCookie cookie(id);
     if (!BeginInsert(&cookie)) {
@@ -90,8 +89,8 @@ TCachedAsyncChangeLogPtr TChangeLogCache::Create(
     auto fileName = GetChangeLogFileName(id);
 
     try {
-        auto changeLog = New<TChangeLog>(fileName, id);
-        changeLog->Create(prevRecordCount);
+        auto changeLog = New<TChangeLog>(fileName, id, Config->IndexBlockSize);
+        changeLog->Create(prevRecordCount, epoch);
         cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
     } catch (const std::exception& ex) {
         LOG_FATAL("Error creating changelog (ChangeLogId: %d)\n%s",

@@ -35,6 +35,11 @@ i32 TChangeLog::GetRecordCount() const
     return Impl->GetRecordCount();
 }
 
+const TEpoch& TChangeLog::GetEpoch() const
+{
+    return Impl->GetEpoch();
+}
+
 bool TChangeLog::IsFinalized() const
 {
     return Impl->IsFinalized();
@@ -45,9 +50,9 @@ void TChangeLog::Open()
     Impl->Open();
 }
 
-void TChangeLog::Create(i32 prevRecordCount)
+void TChangeLog::Create(i32 prevRecordCount, const TEpoch& epoch)
 {
-    Impl->Create(prevRecordCount);
+    Impl->Create(prevRecordCount, epoch);
 }
 
 void TChangeLog::Finalize()

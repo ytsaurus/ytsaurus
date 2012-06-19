@@ -38,7 +38,7 @@ TEST_F(TSnapshotTest, EmptySnapshot)
             TemporaryFile->Name(),
             0,
             true);
-        writer->Open(NonexistingPrevRecordCount);
+        writer->Open(NonexistingPrevRecordCount, TEpoch());
         writer->Close();
     });
 
@@ -55,12 +55,13 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
 {
     // TODO: Add checksums.
     const i32 recordCount = 1024;
+    const TEpoch epoch(1, 2);
 
     TSnapshotWriterPtr writer = New<TSnapshotWriter>(
         TemporaryFile->Name(),
         0,
         true);
-    writer->Open(NonexistingPrevRecordCount);
+    writer->Open(NonexistingPrevRecordCount, epoch);
     auto* outputStream = writer->GetStream();
 
     for (i32 i = 0; i < recordCount; ++i) {
@@ -75,6 +76,10 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
         0,
         true);
     reader->Open();
+
+    EXPECT_EQ(reader->GetPrevRecordCount(), NonexistingPrevRecordCount);
+    EXPECT_EQ(reader->GetEpoch(), epoch);
+
     auto* inputStream = reader->GetStream();
 
     for (i32 i = 0; i < recordCount; ++i) {

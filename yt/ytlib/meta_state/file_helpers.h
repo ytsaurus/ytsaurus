@@ -84,6 +84,11 @@ public:
         File_.Close();
     }
 
+    TBufferedFileOutput* GetOutputStream()
+    {
+        return &FileOutput_;
+    }
+
 private:
     TFile File_;
     TBufferedFileOutput FileOutput_;
@@ -148,6 +153,8 @@ TCheckableFileReader<FileObject> CreateCheckableReader(FileObject& file)
 {
     return TCheckableFileReader<FileObject>(file);
 }
+
+void Move(Stroka source, Stroka destination);
 
 } // namespace NMetaState
 } // namespace NYT

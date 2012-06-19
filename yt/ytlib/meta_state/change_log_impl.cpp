@@ -4,8 +4,6 @@
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/serialize.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NMetaState {
 
@@ -113,14 +111,6 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, std::vector<TSh
 
 namespace {
 
-void Move(Stroka source, Stroka destination)
-{
-    if (isexist(~destination)) {
-        YVERIFY(NFS::Remove(~destination));
-    }
-    YVERIFY(NFS::Rename(~source, ~destination));
-}
-
 template <class FileType, class HeaderType>
 void AtomicWriteHeader(
     const Stroka& fileName,
@@ -141,20 +131,21 @@ void AtomicWriteHeader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChangeLog::TImpl::Create(i32 prevRecordCount)
+void TChangeLog::TImpl::Create(i32 prevRecordCount, const TEpoch& epoch)
 {
     YCHECK(State == EState::Uninitialized);
 
     LOG_DEBUG("Creating changelog");
 
     PrevRecordCount = prevRecordCount;
+    Epoch = epoch;
     RecordCount = 0;
     State = EState::Open;
 
     {
         TGuard<TMutex> guard(Mutex);
 
-        AtomicWriteHeader(FileName, TLogHeader(Id, prevRecordCount, /*finalized*/ false), &File);
+        AtomicWriteHeader(FileName, TLogHeader(Id, epoch, prevRecordCount, /*finalized*/ false), &File);
         AtomicWriteHeader(IndexFileName, TLogIndexHeader(Id, 0), &IndexFile);
 
         CurrentFilePosition = sizeof(TLogHeader);
@@ -197,6 +188,7 @@ void TChangeLog::TImpl::Open()
     YCHECK(header.ChangeLogId == Id);
 
     PrevRecordCount = header.PrevRecordCount;
+    Epoch = header.Epoch;
     State = header.Finalized ? EState::Finalized : EState::Open;
 
     ReadIndex();
@@ -280,7 +272,7 @@ void TChangeLog::TImpl::Finalize()
 
     // Write to the header that changelog is finalized.
     File->Seek(0, sSet);
-    WritePod(*File, TLogHeader(Id, PrevRecordCount, /*Finalized*/ true));
+    WritePod(*File, TLogHeader(Id, Epoch, PrevRecordCount, /*Finalized*/ true));
     File->Flush();
 
     State = EState::Finalized;
@@ -303,6 +295,12 @@ i32 TChangeLog::TImpl::GetPrevRecordCount() const
 i32 TChangeLog::TImpl::GetRecordCount() const
 {
     return RecordCount;
+}
+
+const TEpoch& TChangeLog::TImpl::GetEpoch() const
+{
+    YCHECK(State != EState::Uninitialized);
+    return Epoch;
 }
 
 bool TChangeLog::TImpl::IsFinalized() const

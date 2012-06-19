@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/composite_meta_state.cpp
   ${BASE}/composite_meta_state_detail.cpp
   ${BASE}/decorated_meta_state.cpp
+  ${BASE}/file_helpers.cpp
   ${BASE}/follower_pinger.cpp
   ${BASE}/follower_tracker.cpp
   ${BASE}/meta_state_manager.cpp
@@ -28,7 +29,6 @@ set( HDRS
   ${BASE}/change_log.h
   ${BASE}/change_log_cache.h
   ${BASE}/change_log_downloader.h
-  ${BASE}/change_log_file_utilities.h
   ${BASE}/change_log_impl.h
   ${BASE}/common.h
   ${BASE}/composite_meta_state-inl.h
@@ -37,6 +37,7 @@ set( HDRS
   ${BASE}/composite_meta_state_detail.h
   ${BASE}/config.h
   ${BASE}/decorated_meta_state.h
+  ${BASE}/file_helpers.h
   ${BASE}/follower_pinger.h
   ${BASE}/follower_tracker.h
   ${BASE}/map-inl.h

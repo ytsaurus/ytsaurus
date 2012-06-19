@@ -35,7 +35,7 @@ public:
     typedef TValueOrError<TCachedAsyncChangeLogPtr> TGetResult;
     TGetResult Get(i32 id);
 
-    TCachedAsyncChangeLogPtr Create(i32 id, i32 prevRecordCount);
+    TCachedAsyncChangeLogPtr Create(i32 id, i32 prevRecordCount, const TEpoch& epoch);
 
 private:
     TChangeLogCacheConfigPtr Config;
