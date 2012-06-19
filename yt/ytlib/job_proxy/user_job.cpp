@@ -39,6 +39,7 @@ namespace NJobProxy {
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NFormats;
+using namespace NScheduler;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
