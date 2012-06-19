@@ -44,27 +44,27 @@ class TestTxCommands(YTEnvSetup):
         abort_transaction(tx = tx_id)
 
     def test_changes_inside_tx(self):
-        set('//value', '42')
+        set('//tmp/value', '42')
 
         tx_id = start_transaction()
-        set('//value', '100', tx = tx_id)
+        set('//tmp/value', '100', tx = tx_id)
 
         # check that changes are not seen outside of transaction
-        assert get('//value', tx = tx_id) == '100'
-        assert get('//value') == '42'
+        assert get('//tmp/value', tx = tx_id) == '100'
+        assert get('//tmp/value') == '42'
 
         commit_transaction(tx = tx_id)
         # changes after commit are applied
-        assert get('//value') == '100'
+        assert get('//tmp/value') == '100'
 
         tx_id = start_transaction()
-        set('//value', '100500', tx = tx_id)
+        set('//tmp/value', '100500', tx = tx_id)
         abort_transaction(tx = tx_id)
 
         #changes after abort are not applied
-        assert get('//value') == '100'
+        assert get('//tmp/value') == '100'
 
-        remove('//value')
+        remove('//tmp/value')
 
     def test_timeout(self):
         tx_id = start_transaction(opts = 'timeout=4000')

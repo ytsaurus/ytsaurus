@@ -162,12 +162,13 @@ void TExecutorBase::Execute(const std::vector<std::string>& args)
     TBufferedOutput outputStream(&StdOutStream(), 1 << 16);
 
     TDriverRequest request;
+    // GetArgs() must be called before GetInputStream()
+    request.Arguments = GetArgs();
     request.CommandName = GetDriverCommandName();
-    request.InputStream = &StdInStream();
+    request.InputStream = GetInputStream();
     request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
     request.OutputStream = &outputStream;
     request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);;
-    request.Arguments = GetArgs();
 
     DoExecute(request);
 }
@@ -239,6 +240,11 @@ void TExecutorBase::DoExecute(const TDriverRequest& request)
     if (!response.Error.IsOK()) {
         ythrow yexception() << response.Error.ToString();
     }
+}
+
+TInputStream* TExecutorBase::GetInputStream()
+{
+    return &StdInStream();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,6 +55,13 @@ void TTableConsumer::OnMyBeginList()
     ThrowMapExpected();
 }
 
+void TTableConsumer::OnMyBeginAttributes()
+{
+    ythrow yexception() <<
+        Sprintf("Invalid row format, attributes are not supported (RowIndex: %"PRId64")", Writer->GetRowCount());
+}
+
+
 void TTableConsumer::ThrowMapExpected()
 {
     ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());

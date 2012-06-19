@@ -33,7 +33,7 @@ private:
     void OnMyEndMap();
 
     // XXX(psushin): We currently ignore user attributes.
-    // void OnMyBeginAttributes();
+     void OnMyBeginAttributes();
 
     void OnValueFinished();
 

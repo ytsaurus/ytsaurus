@@ -29,11 +29,17 @@ public:
 
 private:
     TUnlabeledStringArg PathArg;
+    // TODO(panin) : think of extracting common part of this and TSetExecutor
     TUnlabeledStringArg ValueArg;
+
     TCLAP::ValueArg<NYTree::TYson> SortedBy;
+
+    bool UseStdIn;
+    TStringStream Stream;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetDriverCommandName() const;
+    virtual TInputStream* GetInputStream();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

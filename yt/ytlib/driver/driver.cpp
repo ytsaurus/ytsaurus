@@ -63,32 +63,32 @@ public:
             MasterChannel);
 
         // Register all commands.
-#define REGISTER(command, name, inDataType, outDataType) \
-        RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType));
+#define REGISTER(command, name, inDataType, outDataType, isVolatile, isIOIntensive) \
+        RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isIOIntensive));
 
-        REGISTER(TStartTransactionCommand, "start_tx",  Null, Structured);
-        REGISTER(TRenewTransactionCommand, "renew_tx",  Null, Null);
-        REGISTER(TCommitTransactionCommand, "commit_tx", Null, Null);
-        REGISTER(TAbortTransactionCommand, "abort_tx",  Null, Null);
+        REGISTER(TStartTransactionCommand,  "start_tx",  Null,       Structured, true,  false);
+        REGISTER(TRenewTransactionCommand,  "renew_tx",  Null,       Null,       true,  false);
+        REGISTER(TCommitTransactionCommand, "commit_tx", Null,       Null,       true,  false);
+        REGISTER(TAbortTransactionCommand,  "abort_tx",  Null,       Null,       true,  false);
 
-        REGISTER(TGetCommand, "get", Null, Structured);
-        REGISTER(TSetCommand, "set", Structured, Null);
-        REGISTER(TRemoveCommand, "remove", Null, Null);
-        REGISTER(TListCommand, "list", Null, Structured);
-        REGISTER(TCreateCommand, "create", Null, Structured);
-        REGISTER(TLockCommand, "lock", Null, Structured);
+        REGISTER(TCreateCommand,            "create",    Null,       Structured, true,  false);
+        REGISTER(TRemoveCommand,            "remove",    Null,       Null,       true,  false);
+        REGISTER(TSetCommand,               "set",       Structured, Null,       true,  false);
+        REGISTER(TGetCommand,               "get",       Null,       Structured, false, false);
+        REGISTER(TListCommand,              "list",      Null,       Structured, false, false);
+        REGISTER(TLockCommand,              "lock",      Null,       Structured, true,  false);
 
-        REGISTER(TDownloadCommand, "download", Null, Binary);
-        REGISTER(TUploadCommand, "upload", Binary, Structured);
+        REGISTER(TUploadCommand,            "upload",    Binary,     Structured, true,  true );
+        REGISTER(TDownloadCommand,          "download",  Null,       Binary,     false, true );
 
-        REGISTER(TWriteCommand, "write", Tabular, Null);
-        REGISTER(TReadCommand, "read", Null, Tabular);
+        REGISTER(TWriteCommand,             "write",     Tabular,    Null,       true,  true );
+        REGISTER(TReadCommand,              "read",      Null,       Tabular,    false, true );
 
-        REGISTER(TMapCommand, "map", Null, Structured);
-        REGISTER(TMergeCommand, "merge", Null, Structured);
-        REGISTER(TSortCommand, "sort", Null, Structured);
-        REGISTER(TEraseCommand, "erase", Null, Structured);
-        REGISTER(TAbortOperationCommand, "abort_op", Null, Null);
+        REGISTER(TMergeCommand,             "merge",     Null,       Structured, true,  false);
+        REGISTER(TEraseCommand,             "erase",     Null,       Structured, true,  false);
+        REGISTER(TMapCommand,               "map",       Null,       Structured, true,  false);
+        REGISTER(TSortCommand,              "sort",      Null,       Structured, true,  false);
+        REGISTER(TAbortOperationCommand,    "abort_op",  Null,       Null,       true,  false);
 #undef REGISTER
     }
 

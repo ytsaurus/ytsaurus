@@ -184,21 +184,21 @@ void ParseKeyPart(
         case ETokenType::String: {
             auto value = tokenizer.CurrentToken().GetStringValue();
             keyPart->set_str_value(value.begin(), value.size());
-            keyPart->set_type(EKeyType::String);
+            keyPart->set_type(EKeyPartType::String);
             break;
         }
 
         case ETokenType::Integer: {
             auto value = tokenizer.CurrentToken().GetIntegerValue();
             keyPart->set_int_value(value);
-            keyPart->set_type(EKeyType::Integer);
+            keyPart->set_type(EKeyPartType::Integer);
             break;
         }
 
         case ETokenType::Double: {
             auto value = tokenizer.CurrentToken().GetDoubleValue();
             keyPart->set_double_value(value);
-            keyPart->set_type(EKeyType::Double);
+            keyPart->set_type(EKeyPartType::Double);
             break;
         }
 

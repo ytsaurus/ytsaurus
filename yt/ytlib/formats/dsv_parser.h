@@ -24,22 +24,13 @@ private:
     NYTree::IYsonConsumer* Consumer;
     TDsvFormatConfigPtr Config;
 
-    // Inlining fields from Config
-    char RecordSeparator;
-    char KeyValueSeparator;
-    char FieldSeparator;
-    Stroka LinePrefix;
-    bool LinePrefixEnabled;
-    char EscapingSymbol;
-
-
     bool NewRecordStarted;
     bool ExpectingEscapedChar;
 
     Stroka CurrentToken;
 
-    char KeyStopSymbols[3];
-    char ValueStopSymbols[3];
+    bool IsKeyStopSymbol[256];
+    bool IsValueStopSymbol[256];
 
     const char* Consume(const char* begin, const char* end);
     const char* FindEndOfValue(const char* begin, const char* end);

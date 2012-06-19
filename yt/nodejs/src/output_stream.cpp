@@ -92,6 +92,7 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
     try {
         stream = new TNodeJSOutputStream();
         stream->Wrap(args.This());
+
         return scope.Close(args.This());
     } catch (const std::exception& ex) {
         if (stream) {

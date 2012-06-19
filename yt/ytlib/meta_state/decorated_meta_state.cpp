@@ -253,7 +253,6 @@ TMetaVersion TDecoratedMetaState::GetReachableVersionAsync() const
     return ReachableVersion;
 }
 
-
 TMetaVersion TDecoratedMetaState::GetPingVersion() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

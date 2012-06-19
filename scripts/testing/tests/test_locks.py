@@ -16,7 +16,7 @@ class TestLocks(YTEnvSetup):
 
         # at non-existsing node
         tx_id = start_transaction()
-        with pytest.raises(YTError): lock('//non_existent', tx = tx_id)
+        with pytest.raises(YTError): lock('//tmp/non_existent', tx = tx_id)
 
         # error while parsing mode
         with pytest.raises(YTError): lock('/', mode = 'invalid', tx = tx_id)
@@ -25,20 +25,20 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YTError): lock('/', mode = 'None', tx = tx_id)
 
         # attributes do not have @lock_mode
-        set('//value', '<attr=some> 42', tx = tx_id)
-        with pytest.raises(YTError): lock('//value/@attr/@lock_mode', tx = tx_id)
+        set('//tmp/value', '<attr=some> 42', tx = tx_id)
+        with pytest.raises(YTError): lock('//tmp/value/@attr/@lock_mode', tx = tx_id)
        
         abort_transaction(tx = tx_id)
 
     def test_display_locks(self):
         tx_id = start_transaction()
         
-        set('//map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id)
+        set('//tmp/map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id)
 
         # check that lock is set on nested nodes
-        assert get('//map/@lock_mode', tx = tx_id) == '"exclusive"'
-        assert get('//map/list/@lock_mode', tx = tx_id) == '"exclusive"'
-        assert get('//map/list/0/@lock_mode', tx = tx_id) == '"exclusive"'
+        assert get('//tmp/map/@lock_mode', tx = tx_id) == '"exclusive"'
+        assert get('//tmp/map/list/@lock_mode', tx = tx_id) == '"exclusive"'
+        assert get('//tmp/map/list/0/@lock_mode', tx = tx_id) == '"exclusive"'
 
         abort_transaction(tx = tx_id)
 
@@ -71,54 +71,54 @@ class TestLocks(YTEnvSetup):
         for object_type in types_to_check:
             tx_id = start_transaction()
             if object_type != "file":
-                create(object_type, '//some', tx = tx_id)
+                create(object_type, '//tmp/some', tx = tx_id)
             else:
                 #file can't be created via create
-                with pytest.raises(YTError): create(object_type, '//some', tx = tx_id)
+                with pytest.raises(YTError): create(object_type, '//tmp/some', tx = tx_id)
             
             if object_type != "table":
-                with pytest.raises(YTError): lock('//some', mode = 'shared', tx = tx_id)
+                with pytest.raises(YTError): lock('//tmp/some', mode = 'shared', tx = tx_id)
             else:
                 # shared locks are available only on tables 
-                lock('//some', mode = 'shared', tx = tx_id)
+                lock('//tmp/some', mode = 'shared', tx = tx_id)
 
             abort_transaction(tx = tx_id)
     
     @pytest.mark.xfail(run = False, reason = 'Issue #196')
     def test_snapshot_lock(self):
-        set('//node', '42')
+        set('//tmp/node', '42')
         
         tx_id = start_transaction()
-        lock('//node', mode = 'snapshot', tx = tx_id)
+        lock('//tmp/node', mode = 'snapshot', tx = tx_id)
         
-        set('//node', '100')
+        set('//tmp/node', '100')
         # check that node under snapshot lock wasn't changed
-        assert get('//node', tx = tx_id) == '42'
+        assert get('//tmp/node', tx = tx_id) == '42'
 
-        remove('//node')
+        remove('//tmp/node')
         # check that node under snapshot lock still exist
-        assert get('//node', tx = tx_id) == '42'
+        assert get('//tmp/node', tx = tx_id) == '42'
         
         abort_transaction(tx = tx_id)
 
     @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
 
-        set('//a', '{}')
-        set('//a/b', '{}')
-        set('//a/b/c', '42')
+        set('//tmp/a', '{}')
+        set('//tmp/a/b', '{}')
+        set('//tmp/a/b/c', '42')
 
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        lock('//a/b', tx = tx1)
+        lock('//tmp/a/b', tx = tx1)
 
-        # now taking lock for any element in //a/b/c cause en error
-        with pytest.raises(YTError): lock('//a', tx = tx2)
-        with pytest.raises(YTError): lock('//a/b', tx = tx2)
-        with pytest.raises(YTError): lock('//a/b/c', tx = tx2)
+        # now taking lock for any element in //tmp/a/b/c cause en error
+        with pytest.raises(YTError): lock('//tmp/a', tx = tx2)
+        with pytest.raises(YTError): lock('//tmp/a/b', tx = tx2)
+        with pytest.raises(YTError): lock('//tmp/a/b/c', tx = tx2)
 
         abort_transaction(tx = tx1)
         abort_transaction(tx = tx2)
 
-        remove('//a')
+        remove('//tmp/a')

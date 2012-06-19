@@ -26,7 +26,6 @@ function YtReadableStream() {
         this.__DBG  = function( ) { };
     }
 
-    this.__DBG("New");
     stream.Stream.call(this);
 
     this.readable = true;
@@ -39,6 +38,7 @@ function YtReadableStream() {
     var self = this;
 
     this._binding = new binding.TNodeJSOutputStream();
+
     this._binding.on_write = function(chunk) {
         self.__DBG("Bindings -> on_write");
         if (!self.readable || self._ended) {
@@ -63,6 +63,8 @@ function YtReadableStream() {
         self.__DBG("Bindings -> on_finish");
         self._endSoon();
     };
+
+    this.__DBG("New");
 }
 
 util.inherits(YtReadableStream, stream.Stream);
@@ -157,7 +159,6 @@ function YtWritableStream(low_watermark, high_watermark) {
         this.__DBG  = function( ) { };
     }
 
-    this.__DBG("New");
     stream.Stream.call(this);
 
     this.readable = false;
@@ -167,13 +168,17 @@ function YtWritableStream(low_watermark, high_watermark) {
     this._closed = false;
 
     var self = this;
+
     this._binding = new binding.TNodeJSInputStream(low_watermark, high_watermark);
+
     this._binding.on_drain = function() {
         self.__DBG("Bindings -> on_drain");
         if (!self._ended) {
             self.emit("drain");
         }
     };
+
+    this.__DBG("New");
 }
 
 util.inherits(YtWritableStream, stream.Stream);

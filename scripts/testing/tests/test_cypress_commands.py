@@ -20,7 +20,7 @@ class TestCypressCommands(YTEnvSetup):
         with pytest.raises(YTError): set('', '20')
 
         # empty token in path
-        with pytest.raises(YTError): set('//a//b', '30')
+        with pytest.raises(YTError): set('//tmp/a//tmp/b', '30')
 
         # change the type of root
         with pytest.raises(YTError): set('/', '[]')
@@ -31,108 +31,108 @@ class TestCypressCommands(YTEnvSetup):
         # remove the root
         with pytest.raises(YTError): remove('/')
         # get non existent child
-        with pytest.raises(YTError): get('//b')
+        with pytest.raises(YTError): get('//tmp/b')
 
         # remove non existent child
-        with pytest.raises(YTError): remove('//b')
+        with pytest.raises(YTError): remove('//tmp/b')
 
     def test_list(self):
-        set('//list', '[1;2;"some string"]')
-        assert get('//list') == '[1;2;"some string"]'
+        set('//tmp/list', '[1;2;"some string"]')
+        assert get('//tmp/list') == '[1;2;"some string"]'
 
-        set('//list/+', '100')
-        assert get('//list') == '[1;2;"some string";100]'
+        set('//tmp/list/+', '100')
+        assert get('//tmp/list') == '[1;2;"some string";100]'
 
-        set('//list/^0', '200')
-        assert get('//list') == '[200;1;2;"some string";100]'
+        set('//tmp/list/^0', '200')
+        assert get('//tmp/list') == '[200;1;2;"some string";100]'
 
-        set('//list/^0', '500')
-        assert get('//list') == '[500;200;1;2;"some string";100]'
+        set('//tmp/list/^0', '500')
+        assert get('//tmp/list') == '[500;200;1;2;"some string";100]'
 
-        set('//list/2^', '1000')
-        assert get('//list') == '[500;200;1;1000;2;"some string";100]'
+        set('//tmp/list/2^', '1000')
+        assert get('//tmp/list') == '[500;200;1;1000;2;"some string";100]'
 
-        set('//list/3', '777')
-        assert get('//list') == '[500;200;1;777;2;"some string";100]'
+        set('//tmp/list/3', '777')
+        assert get('//tmp/list') == '[500;200;1;777;2;"some string";100]'
 
-        remove('//list/4')
-        assert get('//list') == '[500;200;1;777;"some string";100]'
+        remove('//tmp/list/4')
+        assert get('//tmp/list') == '[500;200;1;777;"some string";100]'
 
-        remove('//list/4')
-        assert get('//list') == '[500;200;1;777;100]'
+        remove('//tmp/list/4')
+        assert get('//tmp/list') == '[500;200;1;777;100]'
 
-        remove('//list/0')
-        assert get('//list') == '[200;1;777;100]'
+        remove('//tmp/list/0')
+        assert get('//tmp/list') == '[200;1;777;100]'
 
-        set('//list/+', 'last')
-        assert get('//list') == '[200;1;777;100;"last"]'
+        set('//tmp/list/+', 'last')
+        assert get('//tmp/list') == '[200;1;777;100;"last"]'
 
-        set('//list/^0', 'first')
-        assert get('//list') == '["first";200;1;777;100;"last"]'
+        set('//tmp/list/^0', 'first')
+        assert get('//tmp/list') == '["first";200;1;777;100;"last"]'
 
-        remove('//list')
+        remove('//tmp/list')
 
     def test_map(self):
-        set('//map', '{hello=world; list=[0;a;{}]; n=1}')
-        assert get_py('//map') == {"hello":"world","list":[0,"a",{}],"n":1}
+        set('//tmp/map', '{hello=world; list=[0;a;{}]; n=1}')
+        assert get_py('//tmp/map') == {"hello":"world","list":[0,"a",{}],"n":1}
 
-        set('//map/hello', 'not_world')
-        assert get_py('//map') == {"hello":"not_world","list":[0,"a",{}],"n":1}
+        set('//tmp/map/hello', 'not_world')
+        assert get_py('//tmp/map') == {"hello":"not_world","list":[0,"a",{}],"n":1}
 
-        set('//map/list/2/some', 'value')
-        assert get_py('//map') == {"hello":"not_world","list":[0,"a",{"some":"value"}],"n":1}
+        set('//tmp/map/list/2/some', 'value')
+        assert get_py('//tmp/map') == {"hello":"not_world","list":[0,"a",{"some":"value"}],"n":1}
 
-        remove('//map/n')
-        assert get_py('//map') ==  {"hello":"not_world","list":[0,"a",{"some":"value"}]}
+        remove('//tmp/map/n')
+        assert get_py('//tmp/map') ==  {"hello":"not_world","list":[0,"a",{"some":"value"}]}
 
-        set('//map/list', '[]')
-        assert get_py('//map') == {"hello":"not_world","list":[]}
+        set('//tmp/map/list', '[]')
+        assert get_py('//tmp/map') == {"hello":"not_world","list":[]}
 
-        set('//map/list/+', '{}')
-        set('//map/list/0/a', '1')
-        assert get_py('//map') == {"hello":"not_world","list":[{"a":1}]}
+        set('//tmp/map/list/+', '{}')
+        set('//tmp/map/list/0/a', '1')
+        assert get_py('//tmp/map') == {"hello":"not_world","list":[{"a":1}]}
 
-        set('//map/list/^0', '{}')
-        set('//map/list/0/b', '2')
-        assert get_py('//map') == {"hello":"not_world","list":[{"b":2},{"a":1}]}
+        set('//tmp/map/list/^0', '{}')
+        set('//tmp/map/list/0/b', '2')
+        assert get_py('//tmp/map') == {"hello":"not_world","list":[{"b":2},{"a":1}]}
 
-        remove('//map/hello')
-        assert get_py('//map') == {"list":[{"b":2},{"a":1}]}
+        remove('//tmp/map/hello')
+        assert get_py('//tmp/map') == {"list":[{"b":2},{"a":1}]}
 
-        remove('//map/list')
-        assert get_py('//map') == {}
+        remove('//tmp/map/list')
+        assert get_py('//tmp/map') == {}
 
-        remove('//map')
+        remove('//tmp/map')
 
 
     def test_attributes(self):
-        set('//t', '<attr=100;mode=rw> {nodes=[1; 2]}')
-        assert get('//t/@attr') == '100'
-        assert get('//t/@mode') == '"rw"'
+        set('//tmp/t', '<attr=100;mode=rw> {nodes=[1; 2]}')
+        assert get('//tmp/t/@attr') == '100'
+        assert get('//tmp/t/@mode') == '"rw"'
 
-        remove('//t/@')
-        with pytest.raises(YTError): get('//t/@attr')
-        with pytest.raises(YTError): get('//t/@mode')
+        remove('//tmp/t/@')
+        with pytest.raises(YTError): get('//tmp/t/@attr')
+        with pytest.raises(YTError): get('//tmp/t/@mode')
 
         # changing attributes
-        set('//t/a', '< author=ignat > []')
-        assert get('//t/a') == '[]'
-        assert get('//t/a/@author') == '"ignat"'
+        set('//tmp/t/a', '< author=ignat > []')
+        assert get('//tmp/t/a') == '[]'
+        assert get('//tmp/t/a/@author') == '"ignat"'
 
-        set('//t/a/@author', '"not_ignat"')
-        assert get('//t/a/@author') == '"not_ignat"'
+        set('//tmp/t/a/@author', '"not_ignat"')
+        assert get('//tmp/t/a/@author') == '"not_ignat"'
 
         # nested attributes (actually shows <>)
-        set('//t/b', '<dir = <file = <>-100> #> []')
-        assert get('//t/b/@dir/@') == '{"file"=<>-100}'
-        assert get('//t/b/@dir/@file') == '<>-100'
-        assert get('//t/b/@dir/@file/@') == '{}'
+        set('//tmp/t/b', '<dir = <file = <>-100> #> []')
+        assert get('//tmp/t/b/@dir/@') == '{"file"=<>-100}'
+        assert get('//tmp/t/b/@dir/@file') == '<>-100'
+        assert get('//tmp/t/b/@dir/@file/@') == '{}'
 
         # a couple of attributes
-        set('//t', '<key1=value1;key2=value2>{}')
-        assert get('//t/@key1') == '"value1"'
-        assert get('//t/@key2') == '"value2"'
+        set('//tmp/t', '<key1=value1;key2=value2>{}')
+        assert get('//tmp/t/@key1') == '"value1"'
+        assert get('//tmp/t/@key2') == '"value2"'
 
-        remove('//t')
+        remove('//tmp/t')
 
 

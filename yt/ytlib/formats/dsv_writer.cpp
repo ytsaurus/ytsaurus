@@ -27,6 +27,12 @@ TDsvWriter::TDsvWriter(
     } else {
         AllowBeginList = false;
     }
+
+    memset(IsStopSymbol, 0, sizeof(IsStopSymbol));
+    IsStopSymbol[Config->EscapingSymbol] = true;
+    IsStopSymbol[Config->KeyValueSeparator] = true;
+    IsStopSymbol[Config->FieldSeparator] = true;
+    IsStopSymbol[Config->RecordSeparator] = true;
 }
 
 TDsvWriter::~TDsvWriter()
@@ -132,11 +138,7 @@ const char* TDsvWriter::FindNextEscapedSymbol(const char* begin, const char* end
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == Config->EscapingSymbol ||
-            *current == Config->KeyValueSeparator ||
-            *current == Config->FieldSeparator ||
-            *current == Config->RecordSeparator)
-        {
+        if (IsStopSymbol[*current]) {
             return current;
         }
     }

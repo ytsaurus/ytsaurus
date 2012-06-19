@@ -28,7 +28,7 @@ void TNodeJSStreamBase::AsyncUnref()
 {
     YASSERT(NDetail::AtomicallyFetch(&AsyncRefCounter) >  0);
     if (NDetail::AtomicallyDecrement(&AsyncRefCounter) == 1) {
-        EIO_NOP(TNodeJSStreamBase::UnrefCallback, this);
+        EIO_PUSH(TNodeJSStreamBase::UnrefCallback, this);
     }
 }
 

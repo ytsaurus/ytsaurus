@@ -87,6 +87,12 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
     result->Set(
         String::New("output_type"),
         Integer::New(descriptor.OutputType.ToValue()));
+    result->Set(
+        String::New("is_volatile"),
+        Boolean::New(descriptor.IsVolatile));
+    result->Set(
+        String::New("is_io_intensive"),
+        Boolean::New(descriptor.IsIOIntensive));
     return scope.Close(result);
 }
 

@@ -36,7 +36,8 @@ Stroka TGetExecutor::GetDriverCommandName() const
 
 TSetExecutor::TSetExecutor()
     : PathArg("path", "path to an object in Cypress that must be set", true, "", "ypath")
-    , ValueArg("value", "value to set", true, "", "yson")
+    , ValueArg("value", "value to set", false, "", "yson")
+    , UseStdIn(true)
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);
@@ -46,18 +47,33 @@ void TSetExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
+    const auto& value = ValueArg.getValue();
+    if (!value.empty()) {
+        Stream.Write(value);
+        UseStdIn = false;
+    }
+
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path)
-        .Item("value").Node(ValueArg.getValue());
+        .Item("path").Scalar(path);
 
     TTransactedExecutor::BuildArgs(consumer);
     BuildOptions(consumer);
+}
+
+TInputStream* TSetExecutor::GetInputStream()
+{
+    if (UseStdIn) {
+        return &StdInStream();
+    } else {
+        return &Stream;
+    }
 }
 
 Stroka TSetExecutor::GetDriverCommandName() const
 {
     return "set";
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

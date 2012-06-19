@@ -64,16 +64,26 @@ struct TCommandDescriptor
     //! Type of data written by the command to #TDriverRequest::OutputStream.
     NFormats::EDataType OutputType;
 
+    //! Whether the command changes the state of the cell.
+    bool IsVolatile;
+
+    //! Whether the command is I/O-intensive.
+    bool IsIOIntensive;
+
     TCommandDescriptor()
     { }
 
     TCommandDescriptor(
         const Stroka& commandName, 
         NFormats::EDataType inputType, 
-        NFormats::EDataType outputType)
+        NFormats::EDataType outputType,
+        bool isVolatile,
+        bool isIOIntensive)
         : CommandName(commandName)
         , InputType(inputType)
         , OutputType(outputType)
+        , IsVolatile(isVolatile)
+        , IsIOIntensive(isIOIntensive)
     { }
 };
 

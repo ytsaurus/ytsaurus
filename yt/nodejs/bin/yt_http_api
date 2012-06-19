@@ -28,12 +28,16 @@ var opts = require("optimist")
     .describe("n", "Specify number of worker processes")
 
     .alias("m", "memory-limit")
-    .default("m", 16)
+    .default("m", 32)
     .describe("m", "Specify memory limit (in MB) for data buffer size for each request")
 
     .alias("t", "thread-limit")
-    .default("t", 8)
+    .default("t", 16)
     .describe("t", "Specify thread limit for concurrent off-loop processing")
+
+    .alias("s", "spare-threads")
+    .default("s", 2)
+    .describe("s", "Specify a number of threads reserved for non-I/O-intensive tasks")
 
     .alias("l", "log")
     .describe("l", "Specify log file")
@@ -127,12 +131,13 @@ if (opts.argv.n > 0 && cluster.isMaster) {
         try {
             var my_memory_limit = parseInt(opts.argv.m);
             var my_thread_limit = parseInt(opts.argv.t);
+            var my_spare_limit = parseInt(opts.argv.s);
             var my_configuration = configuration.toString();
             connect()
                 .use(connect.favicon())
                 .use(yt.YtAssignRequestID())
                 .use(yt.YtLogger(logger))
-                .use("/api", yt.YtApplication(logger, my_memory_limit, my_thread_limit, my_configuration))
+                .use("/api", yt.YtApplication(logger, my_memory_limit, my_thread_limit, my_spare_limit, my_configuration))
                 .listen(opts.argv.p, opts.argv.i, function() {
                     if (opts.argv.g) {
                         process.setgid(opts.argv.g);

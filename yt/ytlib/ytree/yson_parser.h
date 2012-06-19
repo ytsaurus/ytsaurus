@@ -14,7 +14,10 @@ class TYsonParser
     : public IParser
 {
 public:
-    TYsonParser(IYsonConsumer* consumer, EYsonType type = EYsonType::Node);
+    TYsonParser(
+        IYsonConsumer* consumer,
+        EYsonType type = EYsonType::Node,
+        bool enableLinePositionInfo = false);
     ~TYsonParser();
 
     void Read(const TStringBuf& data);
@@ -30,12 +33,14 @@ private:
 void ParseYson(
     TInputStream* input,
     IYsonConsumer* consumer,
-    EYsonType type = EYsonType::Node);
+    EYsonType type = EYsonType::Node,
+    bool enableLinePositionInfo = false);
 
 void ParseYson(
     const TStringBuf& yson,
     IYsonConsumer* consumer,
-    EYsonType type = EYsonType::Node);
+    EYsonType type = EYsonType::Node,
+    bool enableLinePositionInfo = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

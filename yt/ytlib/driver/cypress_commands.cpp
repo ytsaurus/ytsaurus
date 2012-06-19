@@ -42,13 +42,8 @@ void TSetCommand::DoExecute()
         Request->Path,
         GetTransactionId(false)));
 
-    TYson value;
-    if (Request->Value) {
-        value = SerializeToYson(Request->Value);
-    } else {
-        auto producer = Context->CreateInputProducer();
-        value = SerializeToYson(producer);
-    }
+    auto producer = Context->CreateInputProducer();
+    auto value = SerializeToYson(producer);
     req->set_value(value);
 
     req->Attributes().MergeFrom(Request->GetOptions());

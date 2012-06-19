@@ -56,8 +56,12 @@ protected:
     TProgressCounter WeightCounter;
     TProgressCounter ChunkCounter;
 
-    // TODO(babenko): consider using std::vector
-    yhash_map<int, TChunkStripePtr> CurrentTaskStripes;
+    //! For each input table, the corresponding entry holds the stripe
+    //! containing the chunks collected so far. Empty stripes are never stored explicitly
+    //! and are denoted by |NULL|.
+    std::vector<TChunkStripePtr> CurrentTaskStripes;
+
+    //! The total weight accumulated in #CurrentTaskStripes.
     i64 CurrentTaskWeight;
 
     // The template for starting new jobs.
@@ -163,6 +167,13 @@ protected:
 
     std::vector<TMergeTaskPtr> MergeTasks;
 
+    //! Sets all entries in #CurrentTaskStripes to |NULL|.
+    void ClearCurrentTaskStripes()
+    {
+        CurrentTaskStripes.clear();
+        CurrentTaskStripes.resize(OutputTables.size());
+    }
+    
     //! Finish the current task.
     void EndTask()
     {
@@ -174,8 +185,10 @@ protected:
             static_cast<int>(MergeTasks.size()),
             static_cast<int>(table.PartitionTreeIds.size()));
 
-        FOREACH (const auto& pair, CurrentTaskStripes) {
-            task->AddStripe(pair.second);
+        FOREACH (auto stripe, CurrentTaskStripes) {
+            if (stripe) {
+                task->AddStripe(stripe);
+            }
         }
 
         // Reserve a place for this task among partitions.
@@ -188,15 +201,21 @@ protected:
             CurrentTaskWeight);
 
         CurrentTaskWeight = 0;
-        CurrentTaskStripes.clear();
+        ClearCurrentTaskStripes();
     }
 
     //! Finish the current task if the size is large enough.
     void EndTaskIfLarge()
     {
-        if (CurrentTaskWeight >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (CurrentTaskWeight >= Spec->MaxMergeJobWeight) {
             EndTask();
         }
+    }
+
+    //! Returns True if some task is currently in progress.
+    bool HasActiveTask()
+    {
+        return CurrentTaskWeight > 0;
     }
 
     // Chunk pools and locality.
@@ -208,13 +227,9 @@ protected:
         auto misc = GetProtoExtension<TMiscExt>(chunk.extensions());
         i64 weight = misc->data_weight();
 
-        TChunkStripePtr stripe;
-        auto it = CurrentTaskStripes.find(tableIndex);
-        if (it == CurrentTaskStripes.end()) {
-            stripe = New<TChunkStripe>();
-            YCHECK(CurrentTaskStripes.insert(std::make_pair(tableIndex, stripe)).second);
-        } else {
-            stripe = it->second;
+        auto stripe = CurrentTaskStripes[tableIndex];
+        if (!stripe) {
+            stripe = CurrentTaskStripes[tableIndex] = New<TChunkStripe>();
         }
 
         WeightCounter.Increment(weight);
@@ -279,6 +294,7 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
+            ClearCurrentTaskStripes();
             BeginInputChunks();
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
@@ -288,7 +304,7 @@ protected:
                     auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                     i64 weight = miscExt->data_weight();
                     i64 rowCount = miscExt->row_count();
-                    LOG_DEBUG("Processing chunk %s (DataWeight: %" PRId64 ", RowCount: %" PRId64 ")",
+                    LOG_DEBUG("Processing chunk (ChunkId: %s, DataWeight: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
                         weight,
                         rowCount);
@@ -604,7 +620,7 @@ private:
             } else {
                 --depth;
                 if (depth == 0) {
-                    BuildTaskIfNeeded(startIndex, currentIndex + 1);
+                    ProcessConnectedComponent(startIndex, currentIndex + 1);
                     startIndex = currentIndex + 1;
                 }
             }
@@ -615,17 +631,18 @@ private:
         SetOutputTablesSorted(keyColumns);
     }
 
-    void BuildTaskIfNeeded(int startIndex, int endIndex)
+    void ProcessConnectedComponent(int startIndex, int endIndex)
     {
-        // Must be even number of endpoints.
+        // Must be an even number of endpoints.
         YCHECK((endIndex - startIndex) % 2 == 0);
 
         int chunkCount = (endIndex - startIndex) / 2;
         LOG_DEBUG("Found overlap of %d chunks", chunkCount);
 
+        // Check for trivial components.
         {
             const auto& chunk = *Endpoints[startIndex].InputChunk;
-            if (chunkCount == 1 && IsLargeCompleteChunk(chunk) && CurrentTaskWeight == 0) {
+            if (chunkCount == 1 && IsLargeCompleteChunk(chunk) && !HasActiveTask()) {
                 auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                 // Merge is not required and no current task is active.
                 // Copy the chunk directly to the output.
@@ -634,11 +651,41 @@ private:
             }
         }
 
-        for (; startIndex < endIndex; ++startIndex) {
-            auto& endpoint = Endpoints[startIndex];
+        TNullable<NTableClient::NProto::TKey> lastBreakpoint;
+        yhash_map<const TInputChunk*, TKeyEndpoint*> openedChunks;
+
+        for (int index = startIndex; index < endIndex; ++index) {
+            auto& endpoint = Endpoints[index];
+            auto chunkId = TChunkId::FromProto(endpoint.InputChunk->slice().chunk_id());
             if (endpoint.Left) {
-                AddPendingChunk(*endpoint.InputChunk, endpoint.TableIndex);
+                YCHECK(openedChunks.insert(std::make_pair(endpoint.InputChunk, &endpoint)).second);
+                LOG_DEBUG("Chunk interval opened (ChunkId: %s)", ~chunkId.ToString());
+            } else {
+                AddPendingChunk(
+                    SliceChunk(*endpoint.InputChunk, lastBreakpoint, Null),
+                    endpoint.TableIndex);
+                YCHECK(openedChunks.erase(endpoint.InputChunk) == 1);
+                LOG_DEBUG("Chunk interval closed (ChunkId: %s)", ~chunkId.ToString());
+                if (CurrentTaskWeight >= Spec->MaxMergeJobWeight) {
+                    auto nextBreakpoint = GetKeySuccessor(endpoint.Key);
+                    LOG_DEBUG("Merge job is too large, flushing %" PRISZT " chunks at key {%s}",
+                        openedChunks.size(),
+                        ~nextBreakpoint.DebugString());
+                    FOREACH (const auto& pair, openedChunks) {
+                        AddPendingChunk(
+                            SliceChunk(*pair.second->InputChunk, lastBreakpoint, nextBreakpoint),
+                            pair.second->TableIndex);
+                    }
+                    LOG_DEBUG("Finished flushing opened chunks");
+                    lastBreakpoint = nextBreakpoint;
+                }
             }
+        }
+
+        FOREACH (const auto& pair, openedChunks) {
+            AddPendingChunk(
+                SliceChunk(*pair.second->InputChunk, lastBreakpoint),
+                pair.second->TableIndex);
         }
 
         EndTaskIfLarge();
