@@ -23,7 +23,7 @@ class TChunkWriterBase
     : public virtual TRefCounted
 {
 public:
-    TAsyncError TChunkWriterBase::GetReadyEvent();
+    TAsyncError GetReadyEvent();
 
 
 protected:
