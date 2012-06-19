@@ -4,7 +4,7 @@
 #include "chunk_meta_extensions.h"
 
 #include <ytlib/chunk_client/private.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/misc/protobuf_helpers.h>
