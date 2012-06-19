@@ -20,10 +20,7 @@ TAutoPtr<IUserJobIO> CreateUserJobIO(
     NElection::TLeaderLookup::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
 {
-    YCHECK(jobSpec.HasExtension(TUserJobSpecExt::user_job_spec_ext));
-
     auto masterChannel = CreateLeaderChannel(mastersConfig);
-
     return new TMapJobIO(
         config, 
         masterChannel, 

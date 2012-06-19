@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/scheduler/job.pb.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/chunk_holder/public.h>
@@ -11,8 +11,9 @@
 #include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/rpc/public.h>
 #include <ytlib/ytree/public.h>
-#include <ytlib/file_server/file_ypath.pb.h>
 #include <ytlib/job_proxy/public.h>
+#include <ytlib/file_server/file_ypath.pb.h>
+#include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -50,6 +51,9 @@ public:
 
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
+    void PrepareUserJob(
+        const NScheduler::NProto::TUserJobSpec& userJobSpec,
+        TParallelAwaiter::TPtr awaiter);
     void OnChunkDownloaded(
         const NFileServer::NProto::TRspFetch& fetchRsp,
         NChunkHolder::TChunkCache::TDownloadResult result);

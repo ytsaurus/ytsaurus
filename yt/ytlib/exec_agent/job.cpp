@@ -5,15 +5,14 @@
 #include "environment.h"
 #include "private.h"
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/misc/fs.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/chunk_holder/chunk.h>
 #include <ytlib/chunk_holder/location.h>
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/job_proxy/config.h>
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -134,21 +133,33 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
 
-    if (JobSpec.HasExtension(NScheduler::NProto::TUserJobSpecExt::user_job_spec_ext)) {
-        const auto& userSpecExt = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpecExt::user_job_spec_ext);
-        FOREACH (const auto& fetchRsp, userSpecExt.files()) {
-            auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
-            LOG_INFO("Downloading user file %s (JobId: %s, ChunkId: %s)", 
-                ~fetchRsp.file_name().Quote(),
-                ~JobId.ToString(),
-                ~chunkId.ToString());
-            awaiter->Await(
-                ChunkCache->DownloadChunk(chunkId), 
-                BIND(&TJob::OnChunkDownloaded, MakeWeak(this), fetchRsp));
-        }
+    if (JobSpec.HasExtension(NScheduler::NProto::TMapJobSpecExt::map_job_spec_ext)) {
+        const auto& jobSpecExt = JobSpec.GetExtension(NScheduler::NProto::TMapJobSpecExt::map_job_spec_ext);
+        PrepareUserJob(jobSpecExt.mapper_spec(), awaiter);
+    }
+
+    if (JobSpec.HasExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext)) {
+        const auto& jobSpecExt = JobSpec.GetExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
+        PrepareUserJob(jobSpecExt.reducer_spec(), awaiter);
     }
 
     awaiter->Complete(BIND(&TJob::RunJobProxy, MakeWeak(this)));
+}
+
+void TJob::PrepareUserJob(
+    const NScheduler::NProto::TUserJobSpec& userJobSpec,
+    TParallelAwaiter::TPtr awaiter)
+{
+    FOREACH (const auto& fetchRsp, userJobSpec.files()) {
+        auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
+        LOG_INFO("Downloading user file %s (JobId: %s, ChunkId: %s)", 
+            ~fetchRsp.file_name().Quote(),
+            ~JobId.ToString(),
+            ~chunkId.ToString());
+        awaiter->Await(
+            ChunkCache->DownloadChunk(chunkId), 
+            BIND(&TJob::OnChunkDownloaded, MakeWeak(this), fetchRsp));
+    }
 }
 
 void TJob::OnChunkDownloaded(

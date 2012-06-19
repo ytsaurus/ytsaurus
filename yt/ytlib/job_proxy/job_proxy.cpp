@@ -96,9 +96,11 @@ void TJobProxy::Run()
         auto jobSpec = GetJobSpec();
 
         switch (jobSpec.type()) {
-            case EJobType::Map:
-                Job = new TUserJob(Config, jobSpec);
+            case EJobType::Map: {
+                const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
+                Job = new TUserJob(Config, jobSpec, jobSpecExt.mapper_spec());
                 break;
+            }
 
             case EJobType::OrderedMerge:
                 Job = new TOrderedMergeJob(Config, jobSpec);

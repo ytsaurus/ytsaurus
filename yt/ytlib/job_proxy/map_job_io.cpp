@@ -1,11 +1,9 @@
 #include "stdafx.h"
-
 #include "map_job_io.h"
 #include "table_output.h"
 #include "config.h"
 #include "stderr_output.h"
 
-// ToDo(psushin): use public.h everywhere.
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>

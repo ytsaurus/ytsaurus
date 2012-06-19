@@ -537,15 +537,26 @@ private:
     void UpdateJobNodeOnFinish(TJobPtr job)
     {
         const auto& result = job->Result();
-        if (result.HasExtension(TUserJobResultExt::user_job_result_ext)) {
-            const auto& resultExt = result.GetExtension(TUserJobResultExt::user_job_result_ext);
-            if (resultExt.has_stderr_chunk_id()) {
-                auto chunkId = TChunkId::FromProto(resultExt.stderr_chunk_id());
-                MasterConnector->SetJobStdErr(job, chunkId);
-            }
+        
+        if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
+            const auto& resultExt = result.GetExtension(TMapJobResultExt::map_job_result_ext);
+            SetJobStdErr(job, resultExt.mapper_result());
+        }
+
+        if (result.HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
+            const auto& resultExt = result.GetExtension(TReduceJobResultExt::reduce_job_result_ext);
+            SetJobStdErr(job, resultExt.reducer_result());
         }
 
         MasterConnector->UpdateJobNode(job);
+    }
+
+    void SetJobStdErr(TJobPtr job, const TUserJobResult& result)
+    {
+        if (result.has_stderr_chunk_id()) {
+            auto chunkId = TChunkId::FromProto(result.stderr_chunk_id());
+            MasterConnector->SetJobStdErr(job, chunkId);
+        }
     }
 
 

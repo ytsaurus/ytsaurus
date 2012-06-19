@@ -65,13 +65,9 @@ message TJobResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TUserJobSpecExt
+// Specification for starting user code during a job.
+message TUserJobSpec
 {
-    extend TJobSpec
-    {
-        optional TUserJobSpecExt user_job_spec_ext = 100;
-    }
-
     // Additional files to be placed into the sandbox.
     repeated NYT.NFileServer.NProto.TRspFetch files = 1;
 
@@ -85,13 +81,9 @@ message TUserJobSpecExt
     required string output_format = 4;
 }
 
-message TUserJobResultExt
+// User code result.
+message TUserJobResult
 {
-    extend TJobResult
-    {
-        optional TUserJobResultExt user_job_result_ext = 100;
-    }
-
     optional NYT.NProto.TGuid stderr_chunk_id = 1;
 }
 
@@ -107,12 +99,30 @@ message TUserJobResultExt
  * The outputs of jobs are collected thus forming a number
  * of output tables.
  *
- * No custom types are needed here.
+ * The input spec should contain TMapJobSpecExt.
+ * The result must contain TMapJobResultExt.
  *
- * The input spec should contain TUserJobSpecExt.
- *
- * The result must contain TUserJobResultExt.
  */
+
+message TMapJobSpecExt
+{
+    extend TJobSpec
+    {
+        optional TMapJobSpecExt map_job_spec_ext = 100;
+    }
+
+    required TUserJobSpec mapper_spec = 1;
+}
+
+message TMapJobResultExt
+{
+    extend TJobResult
+    {
+        optional TMapJobResultExt map_job_result_ext = 100;
+    }
+
+    optional TUserJobResult mapper_result = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,16 +130,19 @@ message TUserJobResultExt
 /*
  * A merge job takes a number of chunks sequences (each containing sorted data)
  * and merges them. The result is split into chunks again.
+ *
+ * The input spec should contain TMergeJobSpecExt.
+ *
  */
 
-message TMergeJobResultExt
+message TMergeJobSpecExt
 {
-    extend TJobResult
+    extend TJobSpec
     {
-        optional TMergeJobResultExt merge_job_result_ext = 101;
+        optional TMergeJobSpecExt merge_job_spec_ext = 101;
     }
 
-    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+    repeated string key_columns = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +153,12 @@ message TMergeJobResultExt
  * on their keys. When a bucket becomes full, it is written as a block.
  * Output blocks are marked with |partition_tag| to enable subsequently
  * started sort jobs to fetch appropriate portions of data.
+ *
+ * The input spec should contain TPartitionJobSpecExt.
+ * The result must contain TPartitionJobResultExt.
+ *
  */
+
 message TPartitionJobSpecExt
 {
     extend TJobSpec
@@ -168,6 +186,10 @@ message TPartitionJobResultExt
 /*
  * A sort job reads the input chunks, sorts the rows, and then flushes
  * the rows into a sequence of output chunks.
+ *
+ * The input spec should contain TSortJobSpecExt.
+ * The result must contain TSortJobResultExt.
+ *
  */
 message TSortJobSpecExt
 {
@@ -196,11 +218,21 @@ message TSortJobResultExt
 /*
  * "Everthing is either a sort or a merge. Reduce is the latter." (c) Pavel Sushin
  *
- * The input spec should contain TUserJobSpecExt.
- *
- * The result must contain TUserJobResultExt and TReduceJobResultExt.
+ * The input spec should contain TReduceJobSpecExt.
+ * The result must contain TReduceJobResultExt.
  *
  */
+
+message TReduceJobSpecExt
+{
+    extend TJobSpec
+    {
+        optional TReduceJobSpecExt reduce_job_spec_ext = 105;
+    }
+
+    repeated string key_columns = 1;
+    required TUserJobSpec reducer_spec = 2;
+}
 
 message TReduceJobResultExt
 {
@@ -220,6 +252,7 @@ message TReduceJobResultExt
     }
 
     repeated TOutputBoundaryKeys boundary_keys = 1;
+    required TUserJobResult reducer_result = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
