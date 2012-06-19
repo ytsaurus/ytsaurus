@@ -142,6 +142,12 @@ struct TMergeOperationSpec
     EMergeMode Mode;
     bool CombineChunks;
 
+    //! During sorted merge the scheduler tries to ensure that large connected
+    //! groups of chunks are partitioned into tasks of this or smaller size.
+    //! This number, however, is merely an estimate, i.e. some tasks may still
+    //! be larger.
+    i64 MaxMergeJobWeight;
+
     TMergeOperationSpec()
     {
         Register("input_table_paths", InputTablePaths);
@@ -150,6 +156,9 @@ struct TMergeOperationSpec
             .Default(EMergeMode::Unordered);
         Register("combine_chunks", CombineChunks)
             .Default(false);
+        Register("max_merge_job_weight", MaxMergeJobWeight)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
     }
 };
 
@@ -192,7 +201,7 @@ struct TSortOperationSpec
     //! By default, the controller computes the number of partitions by dividing
     //! the total input size by this number. The user, however, may specify a custom
     //! number of partitions.
-    i64 MaxSortJobDataSize;
+    i64 MaxSortJobWeight;
 
     TSortOperationSpec()
     {
@@ -210,7 +219,7 @@ struct TSortOperationSpec
             .Default()
             .GreaterThan(0);
         // TODO(babenko): update when the sort gets optimized
-        Register("max_sort_job_data_size", MaxSortJobDataSize)
+        Register("max_sort_job_weight", MaxSortJobWeight)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }

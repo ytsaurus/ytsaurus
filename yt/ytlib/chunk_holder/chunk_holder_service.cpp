@@ -463,7 +463,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
         if (!chunk) {
             LOG_WARNING("GetTableSamples: No such chunk %s\n", 
                 ~chunkId.ToString());
-            *chunkSamples->mutable_error() = TError("No such chunk.").ToProto();
+            *chunkSamples->mutable_error() = TError("No such chunk").ToProto();
         } else {
             awaiter->Await(
                 chunk->GetMeta(),
@@ -498,17 +498,17 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                             if (it != sample.parts().end() && it->column() == column) {
                                 keyPart->set_type(it->key_part().type());
                                 switch (it->key_part().type()) {
-                                    case EKeyType::Composite:
+                                    case EKeyPartType::Composite:
                                         break;
-                                    case EKeyType::Integer:
+                                    case EKeyPartType::Integer:
                                         keyPart->set_int_value(it->key_part().int_value());
                                         size += sizeof(keyPart->int_value());
                                         break;
-                                    case EKeyType::Double:
+                                    case EKeyPartType::Double:
                                         keyPart->set_double_value(it->key_part().double_value());
                                         size += sizeof(keyPart->double_value());
                                         break;
-                                    case EKeyType::String: {
+                                    case EKeyPartType::String: {
                                         auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
                                         keyPart->set_str_value(it->key_part().str_value().begin(), partSize);
                                         size += partSize;
@@ -518,7 +518,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                                         YUNREACHABLE();
                                 }
                             } else {
-                                keyPart->set_type(EKeyType::Null);
+                                keyPart->set_type(EKeyPartType::Null);
                             }
                         }
                     }

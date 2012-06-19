@@ -264,7 +264,7 @@ private:
         virtual int GetPendingJobCount() const
         {
             i64 weight = ChunkPool->WeightCounter().GetPending();
-            i64 weightPerChunk = Controller->Spec->MaxSortJobDataSize;
+            i64 weightPerChunk = Controller->Spec->MaxSortJobWeight;
             double fractionalJobCount = (double) weight / weightPerChunk;
             return
                 Controller->PartitionTask->IsCompleted()
@@ -287,7 +287,7 @@ private:
             if (AddressToOutputLocality.empty()) {
                 // No primary node is chosen yet, an arbitrary one will do.
                 // Return some magic number.
-                return Controller->Spec->MaxSortJobDataSize;
+                return Controller->Spec->MaxSortJobWeight;
             } else {
                 auto it = AddressToOutputLocality.find(address);
                 return it == AddressToOutputLocality.end() ? 0 : it->second;
@@ -330,7 +330,7 @@ private:
 
         virtual TNullable<i64> GetJobWeightThreshold() const
         {
-            return Controller->Spec->MaxSortJobDataSize;
+            return Controller->Spec->MaxSortJobWeight;
         }
 
         virtual TJobSpec GetJobSpec(TJobInProgress* jip)
@@ -638,7 +638,7 @@ private:
         // Otherwise use size estimates.
         int partitionCount = Spec->PartitionCount
             ? Spec->PartitionCount.Get()
-            : static_cast<int>(ceil((double) SortWeightCounter.GetTotal() / Spec->MaxSortJobDataSize));
+            : static_cast<int>(ceil((double) SortWeightCounter.GetTotal() / Spec->MaxSortJobWeight));
 
         // Don't create more partitions than we have samples.
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
@@ -685,7 +685,7 @@ private:
         // Init counters.
         MaxSortJobCount = GetJobCount(
             SortWeightCounter.GetTotal(),
-            Spec->MaxSortJobDataSize,
+            Spec->MaxSortJobWeight,
             Spec->SortJobCount,
             chunkCount);
         MaxMergeJobCount = 1;
@@ -737,7 +737,7 @@ private:
         // Very rough estimates.
         MaxSortJobCount = GetJobCount(
             PartitionTask->WeightCounter().GetTotal(),
-            Spec->MaxSortJobDataSize,
+            Spec->MaxSortJobWeight,
             Null,
             std::numeric_limits<int>::max()) + partitionCount;
         MaxMergeJobCount = partitionCount;

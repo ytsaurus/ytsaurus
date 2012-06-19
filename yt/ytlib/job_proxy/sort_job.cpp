@@ -32,7 +32,7 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 struct TSmallKeyPart
 {
-    EKeyType Type;
+    EKeyPartType Type;
     ui32 Length;
 
     union {
@@ -47,7 +47,7 @@ struct TSmallKeyPart
     }
 
     TSmallKeyPart() 
-        : Type(EKeyType::Null)
+        : Type(EKeyPartType::Null)
     { }
 };
 
@@ -60,17 +60,17 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, TLexer& lex
     const auto& token = lexer.GetToken();
     switch (token.GetType()) {
         case ETokenType::Integer:
-            keyPart.Type = EKeyType::Integer;
+            keyPart.Type = EKeyPartType::Integer;
             keyPart.Value.Int = token.GetIntegerValue();
             break;
 
         case NYTree::ETokenType::Double:
-            keyPart.Type = EKeyType::Double;
+            keyPart.Type = EKeyPartType::Double;
             keyPart.Value.Double = token.GetDoubleValue();
             break;
 
         case ETokenType::String: {
-            keyPart.Type = EKeyType::String;
+            keyPart.Type = EKeyPartType::String;
             auto& value = token.GetStringValue();
             keyPart.Value.Str = ~value;
             keyPart.Length = static_cast<ui32>(value.size());
@@ -78,7 +78,7 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, TLexer& lex
         }
 
         default:
-            keyPart.Type = EKeyType::Composite;
+            keyPart.Type = EKeyPartType::Composite;
             break;
     }
 }
@@ -90,25 +90,25 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
     }
 
     switch (lhs.Type) {
-        case EKeyType::Integer:
+        case EKeyPartType::Integer:
             if (lhs.Value.Int > rhs.Value.Int)
                 return 1;
             if (lhs.Value.Int < rhs.Value.Int)
                 return -1;
             return 0;
 
-        case EKeyType::Double:
+        case EKeyPartType::Double:
             if (lhs.Value.Double > rhs.Value.Double)
                 return 1;
             if (lhs.Value.Double < rhs.Value.Double)
                 return -1;
             return 0;
 
-        case EKeyType::String:
+        case EKeyPartType::String:
             return lhs.GetString().compare(rhs.GetString());
 
-        case EKeyType::Composite:
-        case EKeyType::Null:
+        case EKeyPartType::Composite:
+        case EKeyPartType::Null:
             return 0;
     }
 
@@ -268,19 +268,19 @@ TJobResult TSortJob::Run()
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
                     auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
                     switch (keyPart.Type) {
-                        case EKeyType::Integer:
+                        case EKeyPartType::Integer:
                             key.SetValue(keyIndex, keyPart.Value.Int);
                             break;
 
-                        case EKeyType::Double:
+                        case EKeyPartType::Double:
                             key.SetValue(keyIndex, keyPart.Value.Double);
                             break;
 
-                        case EKeyType::String:
+                        case EKeyPartType::String:
                             key.SetValue(keyIndex, keyPart.GetString());
                             break;
 
-                        case EKeyType::Composite:
+                        case EKeyPartType::Composite:
                             key.SetComposite(keyIndex);
                             break;
 

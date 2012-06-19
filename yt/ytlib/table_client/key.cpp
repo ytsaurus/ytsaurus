@@ -79,6 +79,36 @@ bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs)
     return CompareKeys(lhs, rhs) == 0;
 }
 
+NProto::TKey GetKeySuccessor(const NProto::TKey& key)
+{
+    NProto::TKey result;
+    result.CopyFrom(key);
+    auto* sentinelPart = result.add_parts();
+    sentinelPart->set_type(EKeyPartType::MinSentinel);
+    return result;
+}
+
+NProto::TInputChunk SliceChunk(
+    const NProto::TInputChunk& chunk,
+    const TNullable<NProto::TKey>& startKey /*= Null*/,
+    const TNullable<NProto::TKey>& endKey /*= Null*/)
+{
+    NProto::TInputChunk result;
+    result.CopyFrom(chunk);
+
+    const auto& slice = chunk.slice();
+
+    if (startKey && (!slice.start_limit().has_key() || slice.start_limit().key() < startKey.Get())) {
+        *result.mutable_slice()->mutable_start_limit()->mutable_key() = startKey.Get();
+    }
+
+    if (endKey && (!slice.end_limit().has_key() || slice.end_limit().key() > endKey.Get())) {
+        *result.mutable_slice()->mutable_end_limit()->mutable_key() = endKey.Get();
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

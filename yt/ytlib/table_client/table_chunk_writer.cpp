@@ -315,7 +315,7 @@ void TTableChunkWriter::EmitSample(TRow& row)
 
             case ETokenType::String: {
                 auto* keyPart = part->mutable_key_part();
-                keyPart->set_type(EKeyType::String);
+                keyPart->set_type(EKeyPartType::String);
                 auto partSize = std::min(token.GetStringValue().size(), MaxKeySize);
                 keyPart->set_str_value(token.GetStringValue().begin(), partSize);
                 SamplesSize += partSize;

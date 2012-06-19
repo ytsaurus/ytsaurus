@@ -7,19 +7,28 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/misc/nullable.h>
 #include <ytlib/ytree/lexer.h>
+#include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/table_client/table_reader.pb.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EKeyType,
+DECLARE_ENUM(EKeyPartType,
+    // A special sentinel used by #GetKeySuccessor.
+    ((MinSentinel)(-1))
+    // Denotes a missing (null) component in a composite key.
     ((Null)(0))
+    // Integer value.
     ((Integer)(1))
+    // Floating-point value.
     ((Double)(2))
+    // String value.
     ((String)(3))
+    // Any structured value.
     ((Composite)(4))
 );
 
@@ -28,31 +37,31 @@ DECLARE_ENUM(EKeyType,
 template <class TStrType>
 class TKeyPart
 {
-    DEFINE_BYVAL_RO_PROPERTY(EKeyType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(EKeyPartType, Type);
 
 public:
     TKeyPart()
-        : Type_(EKeyType::Null)
+        : Type_(EKeyPartType::Null)
     { }
 
     static TKeyPart CreateNull()
     {
         TKeyPart result;
-        result.Type_ = EKeyType::Null;
+        result.Type_ = EKeyPartType::Null;
         return result;
     }
 
     static TKeyPart CreateComposite()
     {
         TKeyPart result;
-        result.Type_ = EKeyType::Composite;
+        result.Type_ = EKeyPartType::Composite;
         return result;
     }
 
     static TKeyPart CreateValue(const TStrType& value)
     {
         TKeyPart result;
-        result.Type_ = EKeyType::String;
+        result.Type_ = EKeyPartType::String;
         result.StrValue = value;
         return result;
     }
@@ -60,7 +69,7 @@ public:
     static TKeyPart CreateValue(i64 value)
     {
         TKeyPart result;
-        result.Type_ = EKeyType::Integer;
+        result.Type_ = EKeyPartType::Integer;
         result.IntValue = value;
         return result;
     }
@@ -68,38 +77,38 @@ public:
     static TKeyPart CreateValue(double value)
     {
         TKeyPart result;
-        result.Type_ = EKeyType::Double;
+        result.Type_ = EKeyPartType::Double;
         result.DoubleValue = value;
         return result;
     }
 
     i64 GetInteger() const
     {
-        YASSERT(Type_ == EKeyType::Integer);
+        YASSERT(Type_ == EKeyPartType::Integer);
         return IntValue;
     }
 
     double GetDouble() const
     {
-        YASSERT(Type_ == EKeyType::Double);
+        YASSERT(Type_ == EKeyPartType::Double);
         return DoubleValue;
     }
 
     const char* Begin() const 
     {
-        YASSERT(Type_ == EKeyType::String);
+        YASSERT(Type_ == EKeyPartType::String);
         return StrValue.begin();
     }
 
     size_t GetStringSize() const 
     {
-        YASSERT(Type_ == EKeyType::String);
+        YASSERT(Type_ == EKeyPartType::String);
         return StrValue.size();
     }
 
     TStringBuf GetString() const
     {
-        YASSERT(Type_ == EKeyType::String);
+        YASSERT(Type_ == EKeyPartType::String);
         return TStringBuf(StrValue.begin(), StrValue.size());
     }
 
@@ -108,11 +117,11 @@ public:
         auto typeSize = sizeof(Type_);
 
         switch (Type_) {
-        case EKeyType::String:
+        case EKeyPartType::String:
             return typeSize + StrValue.size();
-        case EKeyType::Integer:
+        case EKeyPartType::Integer:
             return typeSize + sizeof(i64);
-        case EKeyType::Double:
+        case EKeyPartType::Double:
             return typeSize + sizeof(double);
         default:
             return typeSize;
@@ -127,20 +136,20 @@ public:
         keyPart.set_type(Type_);
 
         switch (Type_) {
-        case EKeyType::String:
+        case EKeyPartType::String:
             keyPart.set_str_value(StrValue.begin(), StrValue.size());
             break;
 
-        case EKeyType::Integer:
+        case EKeyPartType::Integer:
             keyPart.set_int_value(IntValue);
             break;
 
-        case EKeyType::Double:
+        case EKeyPartType::Double:
             keyPart.set_double_value(DoubleValue);
             break;
 
-        case EKeyType::Null:
-        case EKeyType::Composite:
+        case EKeyPartType::Null:
+        case EKeyPartType::Composite:
             break;
 
         default:
@@ -164,15 +173,15 @@ template <class TStrType>
 Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
 {
     switch (keyPart.GetType()) {
-        case NYT::NTableClient::EKeyType::Null:
+        case NYT::NTableClient::EKeyPartType::Null:
             return "<null>";
-        case NYT::NTableClient::EKeyType::Composite:
+        case NYT::NTableClient::EKeyPartType::Composite:
             return "<composite>";
-        case NYT::NTableClient::EKeyType::String:
+        case NYT::NTableClient::EKeyPartType::String:
             return keyPart.GetString().ToString();
-        case NYT::NTableClient::EKeyType::Integer:
+        case NYT::NTableClient::EKeyPartType::Integer:
             return ::ToString(keyPart.GetInteger());
-        case NYT::NTableClient::EKeyType::Double:
+        case NYT::NTableClient::EKeyPartType::Double:
             return ::ToString(keyPart.GetDouble());
         default:
             YUNREACHABLE();
@@ -187,7 +196,7 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
     }
 
     switch (rhs.GetType()) {
-    case EKeyType::String: {
+    case EKeyPartType::String: {
         size_t minLen = std::min(lhs.GetStringSize(), rhs.GetStringSize());
         auto res = strncmp(lhs.Begin(), rhs.Begin(), minLen);
         return res ? res : static_cast<int>(lhs.GetStringSize()) - static_cast<int>(rhs.GetStringSize());
@@ -195,22 +204,22 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
         // return lhs.GetString().compare(rhs.GetString());
     }
 
-    case EKeyType::Integer:
+    case EKeyPartType::Integer:
         if (lhs.GetInteger() > rhs.GetInteger())
             return 1;
         if (lhs.GetInteger() < rhs.GetInteger())
             return -1;
         return 0;
 
-    case EKeyType::Double:
+    case EKeyPartType::Double:
         if (lhs.GetDouble() > rhs.GetDouble())
             return 1;
         if (lhs.GetDouble() < rhs.GetDouble())
             return -1;
         return 0;
 
-    case EKeyType::Null:
-    case EKeyType::Composite:
+    case EKeyPartType::Null:
+    case EKeyPartType::Composite:
         return 0; // All composites are equal to each other.
 
     default:
@@ -283,7 +292,7 @@ public:
         YASSERT(index < ColumnCount);
 
         // Strip long values.
-        int length = std::min(MaxKeySize - sizeof(EKeyType), value.size());
+        int length = std::min(MaxKeySize - sizeof(EKeyPartType), value.size());
 
         auto part = Buffer.PutData(TStringBuf(value.begin(), length));
 
@@ -335,23 +344,23 @@ public:
         Reset(protoKey.parts_size());
         for (int i = 0; i < protoKey.parts_size(); ++i) {
             switch (protoKey.parts(i).type()) {
-            case EKeyType::Composite:
+            case EKeyPartType::Composite:
                 SetComposite(i);
                 break;
 
-            case EKeyType::Double:
+            case EKeyPartType::Double:
                 SetValue(i, protoKey.parts(i).double_value());
                 break;
 
-            case EKeyType::Integer:
+            case EKeyPartType::Integer:
                 SetValue(i, protoKey.parts(i).int_value());
                 break;
 
-            case EKeyType::String:
+            case EKeyPartType::String:
                 SetValue(i, protoKey.parts(i).str_value());
                 break;
 
-            case EKeyType::Null:
+            case EKeyPartType::Null:
                 break;
 
             default:
@@ -407,23 +416,23 @@ private:
         Reset(other.Parts.size());
         for (int i = 0; i < other.Parts.size(); ++i) {
             switch (other.Parts[i].GetType()) {
-            case EKeyType::Composite:
+            case EKeyPartType::Composite:
                 SetComposite(i);
                 break;
 
-            case EKeyType::Integer:
+            case EKeyPartType::Integer:
                 SetValue(i, other.Parts[i].GetInteger());
                 break;
 
-            case EKeyType::Double:
+            case EKeyPartType::Double:
                 SetValue(i, other.Parts[i].GetDouble());
                 break;
 
-            case EKeyType::String:
+            case EKeyPartType::String:
                 SetValue(i, other.Parts[i].GetString());
                 break;
 
-            case EKeyType::Null:
+            case EKeyPartType::Null:
                 // Do nothing.
                 break;
 
@@ -437,7 +446,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBuffer>
-Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key)
+Stroka ToString(const TKey<TBuffer>& key)
 {
     return "[" + JoinToString(key.Parts) + "]";
 }
@@ -455,6 +464,8 @@ int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs)
     return static_cast<int>(lhs.Parts.size()) - static_cast<int>(rhs.Parts.size());
 }
 
+//! Compares given keys. Returns zero if |lhs == rhs|, a negative value
+//! if |lhs < rhs| and a positive value otherwise.
 int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs);
@@ -462,6 +473,17 @@ bool operator >= (const NProto::TKey& lhs, const NProto::TKey& rhs);
 bool operator <  (const NProto::TKey& lhs, const NProto::TKey& rhs);
 bool operator <= (const NProto::TKey& lhs, const NProto::TKey& rhs);
 bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
+
+//! Returns the successor of |key|, i.e. the key
+//! obtained from |key| by appending a sentinel part.
+NProto::TKey GetKeySuccessor(const NProto::TKey& key);
+
+//! Constructs a new chunk by slicing the original one and restricting
+//! it to a given range. The original chunk may already contain non-trivial limits.
+NProto::TInputChunk SliceChunk(
+    const NProto::TInputChunk& chunk,
+    const TNullable<NProto::TKey>& startKey = Null,
+    const TNullable<NProto::TKey>& endKey = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 
