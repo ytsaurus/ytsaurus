@@ -11,6 +11,7 @@
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 
 
@@ -151,7 +152,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::InitCurrentSession(TSession nextSes
 }
 
 template <class TChunkWriter>
-void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten(TError error)
+void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -182,13 +183,12 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten(TError error)
             return;
         }
     }
-
-    State.FinishOperation(error);
 }
 
 template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::SwitchSession()
 {
+    State.StartOperation();
     YASSERT(!NextSession.IsNull());
     // We're not waiting for chunk to be closed.
     FinishCurrentSession();
@@ -367,6 +367,17 @@ template <class TChunkWriter>
 const std::vector<NProto::TInputChunk>& TChunkSequenceWriterBase<TChunkWriter>::GetWrittenChunks() const
 {
     return WrittenChunks;
+}
+
+template <class TChunkWriter> 
+TAsyncError TChunkSequenceWriterBase<TChunkWriter>::GetReadyEvent()
+{
+    if (State.HasRunningOperation()) {
+        return State.GetOperationError();
+    }
+
+    YCHECK(CurrentSession.ChunkWriter);
+    return CurrentSession.ChunkWriter->GetReadyEvent();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

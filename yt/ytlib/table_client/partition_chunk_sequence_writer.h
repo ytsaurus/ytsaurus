@@ -24,7 +24,7 @@ public:
 
     ~TPartitionChunkSequenceWriter();
 
-    TAsyncError AsyncWriteRow(const TRow& row);
+    bool TryWriteRow(const TRow& row);
 
 private:
     void PrepareChunkWriter(TSession& newSession);

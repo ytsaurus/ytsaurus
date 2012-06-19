@@ -65,7 +65,8 @@ void TAsyncStreamState::Close()
 
 bool TAsyncStreamState::IsActive() const
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    //TGuard<TSpinLock> guard(SpinLock);
+    // No guard for performace purpose - result can possibly be false positive.
     return IsActive_;
 }
 
@@ -121,8 +122,9 @@ void TAsyncStreamState::FinishOperation(const TError& error)
     IsOperationFinished = true;
     if (error.IsOK()) {
         if (IsActive_ && !CurrentError.IsNull()) {
-            auto currentError = CurrentError;
-            CurrentError.Reset();
+            // Move constructor should eliminate redundant ref/unref.
+            auto currentError(MoveRV(CurrentError));
+            YASSERT(CurrentError.IsNull());
             // Always release guard before setting future with 
             // unknown subscribers.
             guard.Release();

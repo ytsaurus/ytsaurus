@@ -13,6 +13,8 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ToDo(psushin): unused file?
+
 struct IAsyncWriter
     : public virtual TRefCounted
 {

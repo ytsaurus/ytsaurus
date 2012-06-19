@@ -253,9 +253,8 @@ private:
             LOG_INFO("Writing block (BlockIndex: %d)", BlockIndex);
             // NB: This is always done synchronously.
             auto block = SequentialReader->GetBlock();
-            auto writeResult = FileWriter->AsyncWriteBlock(block).Get();
-            if (!writeResult.IsOK()) {
-                OnError(writeResult);
+            if (!FileWriter->TryWriteBlock(block)) {
+                OnError(FileWriter->GetReadyEvent().Get());
                 return;
             }
             LOG_INFO("Block written");

@@ -41,7 +41,9 @@ public:
 
     void Open();
 
-    TAsyncError AsyncWriteBlock(const TSharedRef& block);
+    bool TryWriteBlock(const TSharedRef& block);
+    TAsyncError GetReadyEvent();
+
     TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
@@ -923,19 +925,38 @@ void TRemoteWriter::TImpl::CancelAllPings()
     }
 }
 
-TAsyncError TRemoteWriter::TImpl::AsyncWriteBlock(const TSharedRef& block)
+bool TRemoteWriter::TImpl::TryWriteBlock(const TSharedRef& block)
+{
+    YASSERT(IsOpen);
+    YASSERT(!IsClosing);
+    YASSERT(!State.IsClosed());
+
+    if (!WindowSlots.IsReady())
+        return false;
+
+    WindowSlots.Acquire(block.Size());
+    BIND(&TImpl::DoWriteBlock, MakeWeak(this), block)
+        .Via(WriterThread->GetInvoker())
+        .Run();
+
+    return true;
+}
+
+TAsyncError TRemoteWriter::TImpl::GetReadyEvent()
 {
     YASSERT(IsOpen);
     YASSERT(!IsClosing);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
-    State.StartOperation();
+    if (!WindowSlots.IsReady()) {
+        State.StartOperation();
 
-    WindowSlots.AsyncAcquire(block.Size()).Subscribe(BIND(
-        &TImpl::DoWriteBlock,
-        MakeWeak(this),
-        block));
+        auto this_ = MakeStrong(this);
+        WindowSlots.GetReadyEvent().Subscribe(BIND([=] () {
+            this_->State.FinishOperation(TError());
+        }));
+    }
 
     return State.GetOperationError();
 }
@@ -1068,9 +1089,14 @@ void TRemoteWriter::Open()
     Impl->Open();
 }
 
-TAsyncError TRemoteWriter::AsyncWriteBlock(const TSharedRef& block)
+bool TRemoteWriter::TryWriteBlock(const TSharedRef& block)
 {
-    return Impl->AsyncWriteBlock(block);
+    return Impl->TryWriteBlock(block);
+}
+
+TAsyncError TRemoteWriter::GetReadyEvent()
+{
+    return Impl->GetReadyEvent();
 }
 
 TAsyncError TRemoteWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)

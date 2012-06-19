@@ -23,7 +23,8 @@ public:
 
     virtual void Open();
 
-    virtual TAsyncError AsyncWriteBlock(const TSharedRef& block);
+    virtual bool TryWriteBlock(const TSharedRef& block);
+    virtual TAsyncError GetReadyEvent();
 
     virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
@@ -44,6 +45,8 @@ private:
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
     NChunkHolder::NProto::TBlocksExt BlocksExt;
     NChunkHolder::NProto::TChunkMeta ChunkMeta;
+
+    TAsyncError Result;
 
     bool EnsureOpen();
 

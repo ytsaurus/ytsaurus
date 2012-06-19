@@ -78,7 +78,9 @@ TJobResult TPartitionJob::Run()
         LOG_INFO("Partitioning");
         {
             while (Reader->IsValid()) {
-                Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncWriteRow, Reader->GetRow());
+                while (!Writer->TryWriteRow(Reader->GetRow())) {
+                    Sync(~Writer, &TPartitionChunkSequenceWriter::GetReadyEvent);
+                }
                 Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
             }
 

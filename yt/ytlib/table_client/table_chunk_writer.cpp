@@ -32,27 +32,18 @@ TTableChunkWriter::TTableChunkWriter(
     NChunkClient::IAsyncWriterPtr chunkWriter,
     const std::vector<TChannel>& channels,
     const TNullable<TKeyColumns>& keyColumns)
-    : Config(config)
+    : TChunkWriterBase(chunkWriter, config)
     , Channels(channels)
-    , ChunkWriter(chunkWriter)
     , KeyColumns(keyColumns)
     , IsOpen(false)
-    , IsClosed(false)
-    , CurrentBlockIndex(0)
     , CurrentSize(0)
-    , SentSize(0)
-    , UncompressedSize(0)
-    , DataWeight(0)
     , SamplesSize(0)
     , IndexSize(0)
-    , CompressionRatio(config->EstimatedCompressionRatio)
     , BasicMetaSize(0)
-    , StaticOK(MakePromise(TError()))
 {
     YASSERT(config);
     YASSERT(chunkWriter);
 
-    Codec = GetCodec(ECodecId(Config->CodecId));
     MiscExt.set_row_count(0);
     MiscExt.set_value_count(0);
     MiscExt.set_codec_id(Config->CodecId);
@@ -99,17 +90,23 @@ TAsyncError TTableChunkWriter::AsyncOpen()
     // No thread affinity check here:
     // TChunkSequenceWriter may call it from different threads.
     YASSERT(!IsOpen);
-    YASSERT(!IsClosed);
+    YASSERT(!State.IsClosed());
 
     IsOpen = true;
-    return MakeFuture(TError());
+    return State.GetOperationError();
 }
 
-TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key)
+bool TTableChunkWriter::TryWriteRow(TRow& row, const TNonOwningKey& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
-    YASSERT(!IsClosed);
+    YASSERT(!State.IsClosed());
+
+    if (!PendingSemaphore.IsReady())
+        return false;
+
+    if (!State.IsActive())
+        return false;
 
     i64 rowDataWeight = 1;
     FOREACH (const auto& pair, row) {
@@ -152,45 +149,33 @@ TAsyncError TTableChunkWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key
         }
     }
 
-    CompletedBlocks.clear();
     for (int channelIndex = 0; channelIndex < static_cast<int>(ChannelWriters.size()); ++channelIndex) {
         auto& channel = ChannelWriters[channelIndex];
         CurrentSize += channel->GetCurrentSize();
         if (channel->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
-            auto block = PrepareBlock(channelIndex);
-            CompletedBlocks.push_back(block);
-        } 
+            PrepareBlock(channelIndex);
+        }
     }
 
-    if (CompletedBlocks.empty()) {
-        return StaticOK;
-    }
-
-    return ChunkWriter->AsyncWriteBlocks(CompletedBlocks);
+    return true;
 }
 
-TSharedRef TTableChunkWriter::PrepareBlock(int channelIndex)
+void TTableChunkWriter::PrepareBlock(int channelIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    PendingSemaphore.Acquire();
     auto channel = ChannelWriters[channelIndex];
 
     auto* blockInfo = ChannelsExt.mutable_items(channelIndex)->add_blocks();
-    blockInfo->set_block_index(CurrentBlockIndex);
     blockInfo->set_row_count(channel->GetCurrentRowCount());
 
     auto block = channel->FlushBlock();
-    UncompressedSize += block.Size();
-
-    auto data = Codec->Compress(block);
-
-    SentSize += data.Size();
-
-    CompressionRatio = SentSize / double(DataWeight + 1);
-
-    ++CurrentBlockIndex;
-
-    return data;
+    WriterThread->GetInvoker()->Invoke(BIND(
+        &TTableChunkWriter::CompressAndWriteBlock, 
+        MakeWeak(this),
+        block, 
+        blockInfo));
 }
 
 TTableChunkWriter::~TTableChunkWriter()
@@ -220,24 +205,31 @@ TAsyncError TTableChunkWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
-    YASSERT(!IsClosed);
+    YASSERT(!State.IsClosed());
 
-    IsClosed = true;
+    State.Close();
+    State.StartOperation();
 
-    std::vector<TSharedRef> finalBlocks;
     for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++channelIndex) {
         auto& channel = ChannelWriters[channelIndex];
 
         if (channel->GetCurrentRowCount()) {
-            auto block = PrepareBlock(channelIndex);
-            finalBlocks.push_back(block);
+            PrepareBlock(channelIndex);
         }
     }
 
+    PendingSemaphore.GetFreeEvent().Subscribe(BIND(
+        &TTableChunkWriter::OnFinalBlocksWritten,
+        MakeWeak(this)).Via(WriterThread->GetInvoker()));
+
+    return State.GetOperationError();
+}
+
+void TTableChunkWriter::OnFinalBlocksWritten()
+{
     CurrentSize = SentSize;
 
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
-    SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
 
     if (KeyColumns) {
         *BoundaryKeysExt.mutable_right() = LastKey.ToProto();
@@ -258,27 +250,7 @@ TAsyncError TTableChunkWriter::AsyncClose()
         }
     }
 
-    Meta.set_type(EChunkType::Table);
-    {
-        MiscExt.set_uncompressed_data_size(UncompressedSize);
-        MiscExt.set_compressed_data_size(SentSize);
-        MiscExt.set_data_weight(DataWeight);
-        MiscExt.set_meta_size(Meta.ByteSize());
-        SetProtoExtension(Meta.mutable_extensions(), MiscExt);
-    }
-
-    return ChunkWriter
-        ->AsyncWriteBlocks(finalBlocks)
-        .Apply(BIND(&TTableChunkWriter::OnFinalBlocksWritten, MakeStrong(this)));
-}
-
-TAsyncError TTableChunkWriter::OnFinalBlocksWritten(TError error)
-{
-    if (!error.IsOK()) {
-        return MakeFuture(error);
-    }
-
-    return ChunkWriter->AsyncClose(Meta);
+    FinaliseWriter();
 }
 
 void TTableChunkWriter::EmitIndexEntry()
@@ -337,7 +309,7 @@ void TTableChunkWriter::EmitSample(TRow& row)
 
 NChunkHolder::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 {
-    YASSERT(IsClosed);
+    YASSERT(State.IsClosed());
 
     NChunkHolder::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);

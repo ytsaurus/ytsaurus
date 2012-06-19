@@ -24,6 +24,7 @@ TFileWriter::TFileWriter(const Stroka& fileName)
     , IsOpen(false)
     , IsClosed(false)
     , DataSize(0)
+    , Result(MakeFuture(TError()))
 { }
 
 void TFileWriter::Open()
@@ -38,7 +39,7 @@ void TFileWriter::Open()
     IsOpen = true;
 }
 
-TAsyncError TFileWriter::AsyncWriteBlock(const TSharedRef& block)
+bool TFileWriter::TryWriteBlock(const TSharedRef& block)
 {
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
@@ -52,19 +53,24 @@ TAsyncError TFileWriter::AsyncWriteBlock(const TSharedRef& block)
         DataFile->Write(block.Begin(), block.Size());
 
         DataSize += block.Size();
+        return true;
     } catch (yexception& e) {
-        return MakeFuture(TError(
+        Result = MakeFuture(TError(
             "Failed to write block to file: %s",
             e.what()));
+        return false;
     }
+}
 
-    return MakeFuture(TError());
+TAsyncError TFileWriter::GetReadyEvent()
+{
+    return Result;
 }
 
 TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
-    if (!IsOpen) {
-        return MakeFuture(TError());
+    if (!IsOpen || !Result.Get().IsOK()) {
+        return Result;
     }
 
     IsOpen = false;

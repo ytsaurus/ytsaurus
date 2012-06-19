@@ -8,6 +8,7 @@
 
 #include <ytlib/ytree/lexer.h>
 #include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 namespace NYT {
@@ -34,18 +35,10 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     const std::vector<TChannel>& channels,
     const TKeyColumns& keyColumns,
     const std::vector<NProto::TKey>& partitionKeys)
-    : Config(config)
+    : TChunkWriterBase(chunkWriter, config)
     , Channel(TChannel::CreateUniversal())
-    , ChunkWriter(chunkWriter)
-    , IsClosed(false)
     , KeyColumnCount(keyColumns.size())
-    , CurrentBlockIndex(0)
-    , SentSize(0)
     , CurrentSize(0)
-    , UncompressedSize(0)
-    , DataSize(0)
-    , CompressionRatio(config->EstimatedCompressionRatio)
-    , Codec(GetCodec(Config->CodecId))
     , BasicMetaSize(0)
 {
     {
@@ -102,9 +95,15 @@ TPartitionChunkWriter::TPartitionChunkWriter(
 TPartitionChunkWriter::~TPartitionChunkWriter()
 { }
 
-TAsyncError TPartitionChunkWriter::AsyncWriteRow(const TRow& row)
+bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
 {
-    YASSERT(!IsClosed);
+    YASSERT(!State.IsClosed());
+
+    if (!PendingSemaphore.IsReady())
+        return false;
+
+    if (!State.IsActive())
+        return false;
 
     TNonOwningKey key(KeyColumnCount);
     {
@@ -139,34 +138,31 @@ TAsyncError TPartitionChunkWriter::AsyncWriteRow(const TRow& row)
     PartitionsExt.set_sizes(partitionTag, PartitionsExt.sizes(partitionTag) + rowDataSize);
     MiscExt.set_row_count(MiscExt.row_count() + 1);
 
-    DataSize += rowDataSize;
+    DataWeight += rowDataSize;
 
-    std::vector<TSharedRef> blocks;
     if (channelWriter->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
-        blocks.push_back(PrepareBlock(partitionTag));
+        PrepareBlock(partitionTag);
     }
 
     CurrentSize = SentSize + channelWriter->GetCurrentSize();
-    return ChunkWriter->AsyncWriteBlocks(blocks);
+    return true;
 }
 
-TSharedRef TPartitionChunkWriter::PrepareBlock(int partitionTag)
+void TPartitionChunkWriter::PrepareBlock(int partitionTag)
 {
+    PendingSemaphore.Acquire();
+
     auto& channelWriter = ChannelWriters[partitionTag];
     auto* blockInfo = ChannelsExt.mutable_items(0)->add_blocks();
-    blockInfo->set_block_index(CurrentBlockIndex);
     blockInfo->set_row_count(channelWriter->GetCurrentRowCount());
     blockInfo->set_partition_tag(partitionTag);
 
     auto block = channelWriter->FlushBlock();
-    UncompressedSize += block.Size();
-
-    auto data = Codec->Compress(block);
-
-    SentSize += data.Size();
-    CompressionRatio = SentSize / double(DataSize);
-    ++CurrentBlockIndex;
-    return data;
+    WriterThread->GetInvoker()->Invoke(BIND(
+        &TPartitionChunkWriter::CompressAndWriteBlock, 
+        MakeWeak(this),
+        block, 
+        blockInfo));
 }
 
 i64 TPartitionChunkWriter::GetMetaSize() const
@@ -191,40 +187,29 @@ NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
 
 TAsyncError TPartitionChunkWriter::AsyncClose()
 {
-    std::vector<TSharedRef> finalBlocks;
+    YASSERT(!State.IsClosed());
+    State.Close();
+    State.StartOperation();
+
     for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
         auto& channelWriter = ChannelWriters[partitionTag];
         if (channelWriter->GetCurrentRowCount() > 0) {
-            auto block = PrepareBlock(partitionTag);
-            finalBlocks.push_back(block);
+            PrepareBlock(partitionTag);
         }
     }
 
-    SetProtoExtension(Meta.mutable_extensions(), PartitionsExt);
-    SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
-    Meta.set_type(EChunkType::Table);
-    {
-        MiscExt.set_uncompressed_data_size(UncompressedSize);
-        MiscExt.set_compressed_data_size(SentSize);
-        MiscExt.set_meta_size(Meta.ByteSize());
-        MiscExt.set_codec_id(Config->CodecId);
-        SetProtoExtension(Meta.mutable_extensions(), MiscExt);
-    }
+    PendingSemaphore.GetFreeEvent().Subscribe(BIND(
+        &TPartitionChunkWriter::OnFinalBlocksWritten,
+        MakeWeak(this)).Via(WriterThread->GetInvoker()));
 
-    return ChunkWriter
-        ->AsyncWriteBlocks(finalBlocks)
-        .Apply(BIND(&TPartitionChunkWriter::OnFinalBlocksWritten, MakeStrong(this)));
+    return State.GetOperationError();
 }
 
-TAsyncError TPartitionChunkWriter::OnFinalBlocksWritten(TError error)
+void TPartitionChunkWriter::OnFinalBlocksWritten()
 {
-    if (!error.IsOK()) {
-        return MakeFuture(error);
-    }
-
-    return ChunkWriter->AsyncClose(Meta);
+    SetProtoExtension(Meta.mutable_extensions(), PartitionsExt);
+    FinaliseWriter();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -182,7 +182,9 @@ void TTableWriter::WriteRow(TRow& row, const TNonOwningKey& key)
     YVERIFY(IsOpen);
 
     CheckAborted();
-    Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, row, key);
+    while (!Writer->TryWriteRow(row, key)) {
+        Sync(~Writer, &TTableChunkSequenceWriter::GetReadyEvent);
+    }
 }
 
 void TTableWriter::Close()

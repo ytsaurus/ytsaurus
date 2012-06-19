@@ -197,7 +197,10 @@ void TFileChunkOutput::FlushBlock()
     LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
     try {
         auto compressedBuffer = Codec->Compress(MoveRV(Buffer));
-        Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, compressedBuffer);
+
+        while (!Writer->TryWriteBlock(compressedBuffer)) {
+            Sync(~Writer, &TRemoteWriter::GetReadyEvent);
+        }
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error writing file block\n%s",
             ex.what());

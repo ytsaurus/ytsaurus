@@ -36,6 +36,8 @@ public:
     TAsyncError AsyncOpen();
     TAsyncError AsyncClose();
 
+    TAsyncError GetReadyEvent();
+
     void SetProgress(double progress);
 
     /*! 
@@ -88,7 +90,7 @@ protected:
         NChunkServer::TChunkId chunkId,
         TError error);
 
-    void OnRowWritten(TError error);
+    void OnRowWritten();
 
     void OnClose();
 

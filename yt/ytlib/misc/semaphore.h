@@ -25,21 +25,25 @@ public:
      */
     void Release(i64 slots = 1);
 
-    /*!
-     *  The client must not call AsyncAquire again, until returned
-     *  future is set.
+    void Acquire(i64 slots = 1);
+
+    /*!  
+     *  Quick check without guard.
      */
-    TFuture<void> AsyncAcquire(i64 slots = 1);
+    bool IsReady() const;
+
+    TFuture<void> GetReadyEvent();
+    TFuture<void> GetFreeEvent();
 
 private:
     TSpinLock SpinLock;
 
     const i64 MaxFreeSlots;
     i64 FreeSlotCount;
-    i64 RequestedSlots;
 
-    TPromise<void> AcquireEvent;
-    TPromise<void> StaticResult;
+    TPromise<void> ReadyEvent;
+    TPromise<void> FreeEvent;
+    const TPromise<void> StaticResult;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

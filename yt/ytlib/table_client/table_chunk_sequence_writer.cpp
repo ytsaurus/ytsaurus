@@ -58,24 +58,22 @@ void TTableChunkSequenceWriter::InitCurrentSession(TSession nextSession)
     TChunkSequenceWriterBase<TTableChunkWriter>::InitCurrentSession(nextSession);
 }
 
-TAsyncError TTableChunkSequenceWriter::AsyncWriteRow(TRow& row, const TNonOwningKey& key)
+bool TTableChunkSequenceWriter::TryWriteRow(TRow& row, const TNonOwningKey& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(!State.HasRunningOperation());
 
-    State.StartOperation();
-    ++RowCount;
-
-    // This is a performance-critical spot. Try to avoid using callbacks for synchronously written rows.
-    auto asyncResult = CurrentSession.ChunkWriter->AsyncWriteRow(row, key);
-    auto error = asyncResult.TryGet();
-    if (error) {
-        OnRowWritten(error.Get());
-    } else {
-        asyncResult.Subscribe(BIND(&TTableChunkSequenceWriter::OnRowWritten, MakeWeak(this)));
+    if (!CurrentSession.ChunkWriter) {
+        return false;
     }
 
-    return State.GetOperationError();
+    if (!CurrentSession.ChunkWriter->TryWriteRow(row, key)) {
+        return false;
+    }
+
+    ++RowCount;
+    OnRowWritten();
+
+    return true;
 }
 
 const TOwningKey& TTableChunkSequenceWriter::GetLastKey() const

@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "key.h"
-#include "async_writer.h"
 
 #include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/nullable.h>
@@ -54,7 +53,9 @@ public:
 
     void WriteRow(TRow& row, const TNonOwningKey& key)
     {
-        Sync(~Writer, &TAsyncWriter::AsyncWriteRow, row, key);
+        while (!Writer->TryWriteRow(row, key)) {
+            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
+        }
     }
 
     void Close()

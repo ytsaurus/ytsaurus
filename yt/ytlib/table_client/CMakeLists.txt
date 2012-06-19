@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_reader.cpp
+  ${BASE}/chunk_writer_base.cpp
   ${BASE}/chunk_sequence_reader.cpp
   ${BASE}/key.cpp
   ${BASE}/partition_chunk_sequence_writer.cpp
@@ -26,6 +27,7 @@ set( HDRS
   ${BASE}/async_writer.h
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
+  ${BASE}/chunk_writer_base.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_reader.h
   ${BASE}/chunk_sequence_reader.h

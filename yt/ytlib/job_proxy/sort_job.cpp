@@ -290,7 +290,9 @@ TJobResult TSortJob::Run()
                     }
                 }
 
-                Sync(~Writer, &TTableChunkSequenceWriter::AsyncWriteRow, row, key);
+                while (!Writer->TryWriteRow(row, key)) {
+                    Sync(~Writer, &TTableChunkSequenceWriter::GetReadyEvent);
+                }
 
                 if (progressIndex % 1000 == 0) {
                     Writer->SetProgress(double(progressIndex) / rowIndexBuffer.size());

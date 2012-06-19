@@ -49,25 +49,21 @@ void TPartitionChunkSequenceWriter::PrepareChunkWriter(TSession& newSession)
         PartitionKeys);
 }
 
-TAsyncError TPartitionChunkSequenceWriter::AsyncWriteRow(const TRow& row)
+bool TPartitionChunkSequenceWriter::TryWriteRow(const TRow& row)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(!State.HasRunningOperation());
 
-    State.StartOperation();
-
-    // This is a performance-critical spot. Try to avoid using callbacks for synchronously fetched rows.
-    auto asyncResult = CurrentSession.ChunkWriter->AsyncWriteRow(row);
-    auto error = asyncResult.TryGet();
-    if (error) {
-        OnRowWritten(error.Get());
-    } else {
-        asyncResult.Subscribe(BIND(
-            &TPartitionChunkSequenceWriter::OnRowWritten, 
-            MakeWeak(this)));
+    if (!CurrentSession.ChunkWriter) {
+        return false;
     }
 
-    return State.GetOperationError();
+    if (!CurrentSession.ChunkWriter->TryWriteRow(row)) {
+        return false;
+    }
+
+    OnRowWritten();
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

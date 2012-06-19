@@ -34,10 +34,13 @@ struct IAsyncWriter
      *  (e.g. all chunk-holders are down).
      *  The client must not retry and send the same block again.
      */
-    virtual TAsyncError AsyncWriteBlock(const TSharedRef& block) = 0;
-    
+    //virtual TAsyncError AsyncWriteBlock(const TSharedRef& block) = 0;
+
+    virtual bool TryWriteBlock(const TSharedRef& block) = 0;
+    virtual TAsyncError GetReadyEvent() = 0;
+
     //! A batched version of #AsyncWriteBlock.
-    TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
+    //TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
     //! Called when the client has added all blocks and is 
     //! willing to finalize the upload.

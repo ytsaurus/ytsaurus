@@ -23,7 +23,7 @@ public:
 
     ~TTableChunkSequenceWriter();
 
-    TAsyncError AsyncWriteRow(TRow& row, const TNonOwningKey& key);
+    bool TryWriteRow(TRow& row, const TNonOwningKey& key);
 
     const TOwningKey& GetLastKey() const;
     const TNullable<TKeyColumns>& GetKeyColumns() const;
