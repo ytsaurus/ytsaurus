@@ -115,8 +115,7 @@ void TChunkWriterBase::FinaliseWriter()
     auto this_ = MakeStrong(this);
     ChunkWriter->AsyncClose(Meta).Subscribe(BIND([=] (TError error) {
         // ToDo(psushin): more verbose diagnostic.
-        this_->State.FinishOperation(error);
-        State.Close();
+        this_->State.Finish(error);
     }));
 }
 
