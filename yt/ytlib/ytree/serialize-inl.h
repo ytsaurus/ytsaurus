@@ -69,7 +69,7 @@ T CheckedStaticCast(i64 value)
     return static_cast<T>(value);
 }
 
-// TConfigurable::TPtr
+// TIntrusivePtr<TConfigurable>
 template <class T>
 void Read(
     TIntrusivePtr<T>& parameter,
@@ -158,7 +158,7 @@ void Write(const TIntrusivePtr<T>& parameter, IYsonConsumer* consumer)
     Write(*parameter, consumer);
 }
 
-// TConfigurable::TPtr
+// TIntrusivePtr<TConfigurable>
 template <class T>
 void Write(
     const T& parameter,

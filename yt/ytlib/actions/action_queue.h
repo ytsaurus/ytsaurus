@@ -110,7 +110,7 @@ public:
 
     void Shutdown();
 
-    IInvoker::TPtr GetInvoker();
+    IInvokerPtr GetInvoker();
 
     static TCallback<TPtr()> CreateFactory(const Stroka& threadName);
     
@@ -133,7 +133,7 @@ public:
 
     void Shutdown();
 
-    IInvoker::TPtr GetInvoker(int queueIndex);
+    IInvokerPtr GetInvoker(int queueIndex);
 
 private:
     class TImpl;

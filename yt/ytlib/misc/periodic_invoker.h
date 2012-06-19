@@ -24,7 +24,7 @@ public:
      *  \param splay First invocation splay time.
      */
     TPeriodicInvoker(
-        IInvoker::TPtr invoker,
+        IInvokerPtr invoker,
         TClosure callback,
         TDuration period,
         TDuration splay = TDuration::Zero());
@@ -43,7 +43,7 @@ public:
     void ScheduleNext();
 
 private:
-    IInvoker::TPtr Invoker;
+    IInvokerPtr Invoker;
     TClosure Callback;
     TDuration Period;
     TDuration Splay;

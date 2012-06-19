@@ -49,8 +49,8 @@ public:
         TChangeLogCachePtr changeLogCache,
         TSnapshotStorePtr snapshotStore,
         TEpoch epoch,
-        IInvoker::TPtr epochControlInvoker,
-        IInvoker::TPtr epochStateInvoker);
+        IInvokerPtr epochControlInvoker,
+        IInvokerPtr epochStateInvoker);
 
     /*!
      *  \returns OK if distributed session is started,
@@ -98,8 +98,8 @@ private:
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;
     TEpoch Epoch;
-    IInvoker::TPtr EpochControlInvoker;
-    IInvoker::TPtr EpochStateInvoker;
+    IInvokerPtr EpochControlInvoker;
+    IInvokerPtr EpochStateInvoker;
 
     TAsyncLocalPromise LocalPromise;
 

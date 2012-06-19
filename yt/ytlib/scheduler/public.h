@@ -26,7 +26,9 @@ DECLARE_ENUM(EJobType,
     ((SortedMerge)(1))
     ((OrderedMerge)(2))
     ((Partition)(3))
-    ((Sort)(4))
+    ((PartitionSort)(4))
+    ((SimpleSort)(5))
+    ((Reduce)(6))
 );
 
 DECLARE_ENUM(EOperationState,
@@ -107,6 +109,9 @@ typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
 
 struct TSortOperationSpec;
 typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
+
+struct TReduceOperationSpec;
+typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

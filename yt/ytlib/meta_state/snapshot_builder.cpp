@@ -196,7 +196,7 @@ private:
     TMetaVersion Version;
     bool CreateSnapshot;
 
-    TParallelAwaiter::TPtr Awaiter;
+    TParallelAwaiterPtr Awaiter;
     std::vector< TNullable<TChecksum> > Checksums;
 };
 
@@ -209,8 +209,8 @@ TSnapshotBuilder::TSnapshotBuilder(
     TChangeLogCachePtr changeLogCache,
     TSnapshotStorePtr snapshotStore,
     TEpoch epoch,
-    IInvoker::TPtr epochControlInvoker,
-    IInvoker::TPtr epochStateInvoker)
+    IInvokerPtr epochControlInvoker,
+    IInvokerPtr epochStateInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)

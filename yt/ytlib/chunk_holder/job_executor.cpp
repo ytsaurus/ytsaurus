@@ -28,7 +28,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TJob::TJob(
     TJobExecutorPtr owner,
-    IInvoker::TPtr serviceInvoker,
+    IInvokerPtr serviceInvoker,
     EJobType jobType,
     const TJobId& jobId,
     TStoredChunkPtr chunk,
@@ -206,7 +206,7 @@ TJobExecutor::TJobExecutor(
     TChunkHolderConfigPtr config,
     TChunkStorePtr chunkStore,
     TBlockStorePtr blockStore,
-    IInvoker::TPtr serviceInvoker)
+    IInvokerPtr serviceInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
     , BlockStore(blockStore)

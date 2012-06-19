@@ -127,12 +127,12 @@ IHolderAuthorityPtr TBootstrap::GetHolderAuthority() const
     return HolderAuthority;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker()
+IInvokerPtr TBootstrap::GetControlInvoker()
 {
     return ControlQueue->GetInvoker();
 }
 
-IInvoker::TPtr TBootstrap::GetStateInvoker(EStateThreadQueue queueIndex)
+IInvokerPtr TBootstrap::GetStateInvoker(EStateThreadQueue queueIndex)
 {
     return StateQueue->GetInvoker(queueIndex.ToValue());
 }

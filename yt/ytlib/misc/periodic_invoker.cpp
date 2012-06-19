@@ -11,7 +11,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TPeriodicInvoker::TPeriodicInvoker(
-    IInvoker::TPtr invoker,
+    IInvokerPtr invoker,
     TClosure callback,
     TDuration period,
     TDuration splay)

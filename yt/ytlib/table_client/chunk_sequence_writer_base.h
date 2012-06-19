@@ -112,7 +112,7 @@ protected:
     TSession CurrentSession;
     TPromise<TSession> NextSession;
 
-    TParallelAwaiter::TPtr CloseChunksAwaiter;
+    TParallelAwaiterPtr CloseChunksAwaiter;
 
     TSpinLock WrittenChunksGuard;
     std::vector<NProto::TInputChunk> WrittenChunks;

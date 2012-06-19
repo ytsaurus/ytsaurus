@@ -24,7 +24,7 @@ protected:
     THolder<TAsyncChangeLog> AsyncChangeLog;
 
     TActionQueue::TPtr ActionQueue;
-    IInvoker::TPtr Invoker;
+    IInvokerPtr Invoker;
 
     virtual void SetUp()
     {

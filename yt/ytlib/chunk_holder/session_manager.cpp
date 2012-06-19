@@ -84,7 +84,7 @@ void TSession::CloseLease()
     TLeaseManager::CloseLease(Lease);
 }
 
-IInvoker::TPtr TSession::GetIOInvoker()
+IInvokerPtr TSession::GetIOInvoker()
 {
     return Location->GetInvoker();
 }
@@ -400,7 +400,7 @@ TSessionManager::TSessionManager(
     TChunkHolderConfigPtr config,
     TBlockStorePtr blockStore,
     TChunkStorePtr chunkStore,
-    IInvoker::TPtr serviceInvoker)
+    IInvokerPtr serviceInvoker)
     : Config(config)
     , BlockStore(blockStore)
     , ChunkStore(chunkStore)

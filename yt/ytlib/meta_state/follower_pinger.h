@@ -22,7 +22,7 @@ public:
         TDecoratedMetaStatePtr decoratedState,
         TFollowerTrackerPtr followerTracker,
         const TEpoch& epoch,
-        IInvoker::TPtr epochControlInvoker);
+        IInvokerPtr epochControlInvoker);
 
     void Start();
     void Stop();
@@ -40,7 +40,7 @@ private:
     TFollowerTrackerPtr FollowerTracker;
     TSnapshotStorePtr SnapshotStore;
     TEpoch Epoch;
-    IInvoker::TPtr EpochControlInvoker;
+    IInvokerPtr EpochControlInvoker;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

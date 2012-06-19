@@ -70,7 +70,7 @@ i64 TLocation::GetAvailableSpace() const
     return AvailableSpace;
 }
 
-IInvoker::TPtr TLocation::GetInvoker() const
+IInvokerPtr TLocation::GetInvoker() const
 {
     return ActionQueue->GetInvoker();
 }

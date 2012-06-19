@@ -22,7 +22,7 @@ const TDuration TResourceTracker::UpdateInterval = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceTracker::TResourceTracker(IInvoker::TPtr invoker)
+TResourceTracker::TResourceTracker(IInvokerPtr invoker)
     : PreviousProcTicks(0)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(

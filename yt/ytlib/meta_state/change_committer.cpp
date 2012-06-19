@@ -27,8 +27,8 @@ static NProfiling::TProfiler Profiler("/meta_state");
 
 TCommitter::TCommitter(
     TDecoratedMetaState* metaState,
-    IInvoker::TPtr epochControlInvoker,
-    IInvoker::TPtr epochStateInvoker)
+    IInvokerPtr epochControlInvoker,
+    IInvokerPtr epochStateInvoker)
     : MetaState(metaState)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
@@ -224,7 +224,7 @@ private:
     volatile bool IsSent;
     NLog::TTaggedLogger Logger;
 
-    TParallelAwaiter::TPtr Awaiter;
+    TParallelAwaiterPtr Awaiter;
     TFuture<void> LogResult;
     std::vector<TSharedRef> BatchedChanges;
 
@@ -239,8 +239,8 @@ TLeaderCommitter::TLeaderCommitter(
     TChangeLogCache* changeLogCache,
     TFollowerTracker* followerTracker,
     const TEpoch& epoch,
-    IInvoker::TPtr epochControlInvoker,
-    IInvoker::TPtr epochStateInvoker)
+    IInvokerPtr epochControlInvoker,
+    IInvokerPtr epochStateInvoker)
     : TCommitter(decoratedState, epochControlInvoker, epochStateInvoker)
     , Config(config)
     , CellManager(cellManager)
@@ -379,8 +379,8 @@ void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
 
 TFollowerCommitter::TFollowerCommitter(
     TDecoratedMetaState* metaState,
-    IInvoker::TPtr epochControlInvoker,
-    IInvoker::TPtr epochStateInvoker)
+    IInvokerPtr epochControlInvoker,
+    IInvokerPtr epochStateInvoker)
     : TCommitter(metaState, epochControlInvoker, epochStateInvoker)
 { }
 

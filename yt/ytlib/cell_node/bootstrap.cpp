@@ -145,7 +145,7 @@ TIncarnationId TBootstrap::GetIncarnationId() const
     return IncarnationId;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker() const
+IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return ControlQueue->GetInvoker();
 }

@@ -22,7 +22,7 @@ public:
     void Clean();
     void Release();
 
-    IInvoker::TPtr GetInvoker();
+    IInvokerPtr GetInvoker();
 
     //! Makes symbolic link on target inside slot sandbox.
     /*!

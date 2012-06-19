@@ -110,7 +110,7 @@ private:
     TSlot& GetSlot(i32 blockIndex);
     void ReleaseBlocks(i32 flushedBlockIndex);
 
-    IInvoker::TPtr GetIOInvoker();
+    IInvokerPtr GetIOInvoker();
 
     void OpenFile();
     void DoOpenFile();
@@ -146,7 +146,7 @@ public:
         TChunkHolderConfigPtr config,
         TBlockStorePtr blockStore,
         TChunkStorePtr chunkStore,
-        IInvoker::TPtr serviceInvoker);
+        IInvokerPtr serviceInvoker);
 
     //! Starts a new chunk upload session.
     TSessionPtr StartSession(const TChunkId& chunkId);
@@ -183,7 +183,7 @@ private:
     TChunkHolderConfigPtr Config;
     TBlockStorePtr BlockStore;
     TChunkStorePtr ChunkStore;
-    IInvoker::TPtr ServiceInvoker;
+    IInvokerPtr ServiceInvoker;
 
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;

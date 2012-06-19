@@ -141,7 +141,7 @@ bool TTableChunkWriter::TryWriteRow(TRow& row, const TNonOwningKey& key)
         LastKey = key;
 
         if (MiscExt.row_count() == 1) {
-            *BoundaryKeysExt.mutable_left() = key.ToProto();
+            *BoundaryKeysExt.mutable_start() = key.ToProto();
         }
 
         if (IndexSize < Config->IndexRate * DataWeight * CompressionRatio) {
@@ -231,7 +231,7 @@ void TTableChunkWriter::OnFinalBlocksWritten()
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
 
     if (KeyColumns) {
-        *BoundaryKeysExt.mutable_right() = LastKey.ToProto();
+        *BoundaryKeysExt.mutable_end() = LastKey.ToProto();
 
         const auto lastIndexRow = --IndexExt.items().end();
         if (MiscExt.row_count() > lastIndexRow->row_index() + 1) {

@@ -39,6 +39,7 @@ namespace NJobProxy {
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NFormats;
+using namespace NScheduler;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,16 +73,15 @@ TError StatusToError(int status)
 
 TUserJob::TUserJob(
     TJobProxyConfigPtr proxyConfig,
-    const TJobSpec& jobSpec)
+    const TJobSpec& jobSpec,
+    const TUserJobSpec& userJobSpec)
     : Config(proxyConfig)
+    , JobSpec(jobSpec)
+    , UserJobSpec(userJobSpec)
+    , JobIO(CreateUserJobIO(proxyConfig->JobIO, proxyConfig->Masters, jobSpec))
     , ActivePipeCount(0)
     , ProcessId(-1)
-{
-    YCHECK(jobSpec.HasExtension(TUserJobSpecExt::user_job_spec_ext));
-
-    UserJobSpecExt = jobSpec.GetExtension(TUserJobSpecExt::user_job_spec_ext);
-    JobIO = CreateUserJobIO(proxyConfig->JobIO, proxyConfig->Masters, jobSpec);
-}
+{ }
 
 #ifdef _linux_
 
@@ -118,12 +118,25 @@ TJobResult TUserJob::Run()
         result.mutable_error()->set_message(ex.what());
     }
 
-    auto* resultExt = result.MutableExtension(TUserJobResultExt::user_job_result_ext);
     {
+        TUserJobResult* userJobResult;
+        switch (JobSpec.type()) {
+            case EJobType::Map:
+                userJobResult = result.MutableExtension(TMapJobResultExt::map_job_result_ext)->mutable_mapper_result();
+                break;
+
+            case EJobType::Reduce:
+                userJobResult = result.MutableExtension(TReduceJobResultExt::reduce_job_result_ext)->mutable_reducer_result();
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+
         auto chunkId = ErrorOutput->GetChunkId();
         if (chunkId != NChunkServer::NullChunkId) {
             LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~chunkId.ToString());
-            *resultExt->mutable_stderr_chunk_id() = chunkId.ToProto();
+            *userJobResult->mutable_stderr_chunk_id() = chunkId.ToProto();
         }
     }
 
@@ -171,7 +184,7 @@ void TUserJob::InitPipes()
 
     // Make pipe for each input and each output table.
     {
-        auto format = TFormat::FromYson(UserJobSpecExt.input_format());
+        auto format = TFormat::FromYson(UserJobSpec.input_format());
 
         for (int i = 0; i < JobIO->GetInputCount(); ++i) {
             TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
@@ -189,7 +202,7 @@ void TUserJob::InitPipes()
     }
 
     {
-        auto format = TFormat::FromYson(UserJobSpecExt.output_format());
+        auto format = TFormat::FromYson(UserJobSpec.output_format());
         auto outputCount = JobIO->GetOutputCount();
         TableOutput.resize(outputCount);
 
@@ -223,8 +236,7 @@ void TUserJob::StartJob()
         // ToDo(psushin): handle errors.
         ChDir(Config->SandboxName);
 
-
-        Stroka cmd = UserJobSpecExt.shell_command();
+        Stroka cmd = UserJobSpec.shell_command();
         // do not search the PATH, inherit environment
         execl("/bin/sh",
             "/bin/sh", 

@@ -22,7 +22,7 @@ public:
     TSamplesFetcher(
         TSchedulerConfigPtr config,
         TSortOperationSpecPtr spec,
-        IInvoker::TPtr invoker,
+        IInvokerPtr invoker,
         const TOperationId& operationId);
 
     void AddChunk(const NTableClient::NProto::TInputChunk& chunk);
@@ -34,7 +34,7 @@ public:
 private:
     TSchedulerConfigPtr Config;
     TSortOperationSpecPtr Spec;
-    IInvoker::TPtr Invoker;
+    IInvokerPtr Invoker;
 
     NLog::TTaggedLogger Logger;
     TPromise< TValueOrError<void> > Promise;

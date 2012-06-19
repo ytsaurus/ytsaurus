@@ -29,8 +29,8 @@ public:
     TChunkCachePtr GetChunkCache() const;
     TSessionManagerPtr GetSessionManager() const;
     TJobExecutorPtr GetJobExecutor() const;
-    IInvoker::TPtr GetControlInvoker() const;
-    IInvoker::TPtr GetWorkInvoker() const;
+    IInvokerPtr GetControlInvoker() const;
+    IInvokerPtr GetWorkInvoker() const;
     TBlockStorePtr GetBlockStore();
     TPeerBlockTablePtr GetPeerBlockTable() const;
     TReaderCachePtr GetReaderCache() const;

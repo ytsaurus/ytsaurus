@@ -17,14 +17,14 @@ namespace NConfig {
 struct IParameter
     : public TRefCounted
 {
-    typedef TIntrusivePtr<IParameter> TPtr;
-
     // node can be NULL
     virtual void Load(NYTree::INodePtr node, const NYTree::TYPath& path) = 0;
     virtual void Validate(const NYTree::TYPath& path) const = 0;
     virtual void Save(NYTree::IYsonConsumer* consumer) const = 0;
     virtual bool IsPresent() const = 0;
 };
+
+typedef TIntrusivePtr<IParameter> IParameterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +96,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
+    typedef yhash_map<Stroka, NConfig::IParameterPtr> TParameterMap;
     
     TParameterMap Parameters;
     NYTree::IMapNodePtr Options;

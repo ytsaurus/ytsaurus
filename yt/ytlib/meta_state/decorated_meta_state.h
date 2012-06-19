@@ -22,8 +22,8 @@ class TDecoratedMetaState
 public:
     TDecoratedMetaState(
         IMetaStatePtr state,
-        IInvoker::TPtr stateInvoker,
-        IInvoker::TPtr controlInvoker,
+        IInvokerPtr stateInvoker,
+        IInvokerPtr controlInvoker,
         TSnapshotStorePtr snapshotStore,
         TChangeLogCachePtr changeLogCache);
 
@@ -34,7 +34,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    IInvoker::TPtr GetStateInvoker() const;
+    IInvokerPtr GetStateInvoker() const;
 
     //! Returns the current version of the state.
     /*!
@@ -131,7 +131,7 @@ public:
 
 private:
     IMetaStatePtr State;
-    IInvoker::TPtr StateInvoker;
+    IInvokerPtr StateInvoker;
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;
     bool Started;

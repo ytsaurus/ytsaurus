@@ -246,8 +246,10 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::Map);
 
-        auto* userJobSpecExt = JobSpecTemplate.MutableExtension(TUserJobSpecExt::user_job_spec_ext);
-        userJobSpecExt->set_shell_command(Spec->Mapper);
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMapJobSpecExt::map_job_spec_ext);
+        
+        auto* mapperSpecExt = jobSpecExt->mutable_mapper_spec();
+        mapperSpecExt->set_shell_command(Spec->Mapper);
 
         {
             // Set input and output format.
@@ -266,12 +268,12 @@ private:
                 outputFormat = TFormat::FromYson(Spec->OutputFormat);
             }
 
-            userJobSpecExt->set_input_format(inputFormat.ToYson());
-            userJobSpecExt->set_output_format(outputFormat.ToYson());
+            mapperSpecExt->set_input_format(inputFormat.ToYson());
+            mapperSpecExt->set_output_format(outputFormat.ToYson());
         }
 
         FOREACH (const auto& file, Files) {
-            *userJobSpecExt->add_files() = *file.FetchResponse;
+            *mapperSpecExt->add_files() = *file.FetchResponse;
         }
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();

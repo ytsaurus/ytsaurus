@@ -20,7 +20,7 @@ public:
     //! Creates an instance.
     TOrchidService(
         NYTree::INodePtr root,
-        IInvoker::TPtr invoker);
+        IInvokerPtr invoker);
 
 private:
     typedef TOrchidService TThis;

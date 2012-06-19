@@ -37,7 +37,7 @@ private:
 
     TChunkHolderConfigPtr Config;
     TBootstrap* Bootstrap;
-    IInvoker::TPtr ControlInvoker;
+    IInvokerPtr ControlInvoker;
 
     DECLARE_ENUM(EState,
         // Not registered.

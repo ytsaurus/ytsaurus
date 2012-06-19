@@ -88,7 +88,7 @@ private:
     TSpinLock SpinLock;
     
     void OnResponse(
-        TParallelAwaiter::TPtr awaiter,
+        TParallelAwaiterPtr awaiter,
         TPromise<TResult> promise,
         const Stroka& address,
         TProxy::TRspGetStatusPtr response);

@@ -354,7 +354,7 @@ NConfig::TParameter<T>& TConfigurable::Register(const Stroka& parameterName, T& 
 {
     auto parameter = New< NConfig::TParameter<T> >(value);
     YVERIFY(Parameters.insert(
-        TPair<Stroka, NConfig::IParameter::TPtr>(parameterName, parameter)).second);
+        TPair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
     return *parameter;
 }
 

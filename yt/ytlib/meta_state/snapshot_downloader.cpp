@@ -84,7 +84,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
 }
 
 void TSnapshotDownloader::OnSnapshotInfoResponse(
-    TParallelAwaiter::TPtr awaiter,
+    TParallelAwaiterPtr awaiter,
     TPromise<TSnapshotInfo> promise,
     TPeerId peerId,
     TProxy::TRspGetSnapshotInfoPtr response)

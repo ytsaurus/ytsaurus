@@ -66,8 +66,8 @@ message TKeyColumnsExt
 // Chunk meta extension.
 message TBoundaryKeysExt
 {
-    required TKey left = 1;
-    required TKey right = 2;
+    required TKey start = 1;
+    required TKey end = 2;
 }
 
 message TBlockInfo

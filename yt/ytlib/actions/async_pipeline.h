@@ -18,7 +18,7 @@ public:
     typedef TIntrusivePtr<TAsyncPipeline> TPtr;
 
     TAsyncPipeline(
-        IInvoker::TPtr invoker,
+        IInvokerPtr invoker,
         TCallback< TFuture< TValueOrError<T> >() > head);
 
     TFuture< TValueOrError<T> > Run();
@@ -36,12 +36,12 @@ public:
     Add(TCallback<Signature> func);
 
 private:
-    IInvoker::TPtr Invoker;
+    IInvokerPtr Invoker;
     TCallback< TFuture< TValueOrError<T> >() > Lazy;
 
 };
 
-TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker);
+TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

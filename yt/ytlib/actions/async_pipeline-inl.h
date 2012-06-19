@@ -163,7 +163,7 @@ struct TAsyncPipelineHelpers< void, TFuture<ReturnType> >
 
 template <class T>
 TAsyncPipeline<T>::TAsyncPipeline(
-    IInvoker::TPtr invoker,
+    IInvokerPtr invoker,
     TCallback< TFuture< TValueOrError<T> >() > head)
     : Invoker(invoker)
     , Lazy(head)
@@ -206,7 +206,7 @@ TAsyncPipeline<T>::Add(TCallback<Signature> func)
     return New<typename ResultType::TElementType>(Invoker, newLazy);
 }
 
-inline TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker)
+inline TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvokerPtr invoker)
 {
     return New< TAsyncPipeline<void> >(
         invoker,

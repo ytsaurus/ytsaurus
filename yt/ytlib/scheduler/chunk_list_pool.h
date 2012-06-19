@@ -17,7 +17,7 @@ class TChunkListPool
 public:
     TChunkListPool(
         NRpc::IChannelPtr masterChannel,
-        IInvoker::TPtr controlInvoker,
+        IInvokerPtr controlInvoker,
         TOperationPtr operation,
         const TTransactionId& transactionId);
 
@@ -29,7 +29,7 @@ public:
 
 private:
     NRpc::IChannelPtr MasterChannel;
-    IInvoker::TPtr ControlInvoker;
+    IInvokerPtr ControlInvoker;
     TOperationPtr Operation;
     TTransactionId TransactionId;
 

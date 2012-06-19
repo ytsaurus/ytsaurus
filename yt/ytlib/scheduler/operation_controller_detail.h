@@ -471,8 +471,8 @@ protected:
     void AbortTransactions();
 
 
-    void OnOperationCompleted();
-    void OnOperationFailed(const TError& error);
+    virtual void OnOperationCompleted();
+    virtual void OnOperationFailed(const TError& error);
 
 
     // Unsorted helpers.

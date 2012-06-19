@@ -186,7 +186,7 @@ private:
         TChunkId ChunkId;
         yvector<Stroka> SeedAddresses;
         TSharedPtr<TInsertCookie> Cookie;
-        IInvoker::TPtr Invoker;
+        IInvokerPtr Invoker;
 
         TFileWriter::TPtr FileWriter;
         IAsyncReaderPtr RemoteReader;

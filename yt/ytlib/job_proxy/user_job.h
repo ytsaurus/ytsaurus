@@ -18,7 +18,8 @@ class TUserJob
 public:
     TUserJob(
         TJobProxyConfigPtr proxyConfig,
-        const NScheduler::NProto::TJobSpec& jobSpec);
+        const NScheduler::NProto::TJobSpec& jobSpec,
+        const NScheduler::NProto::TUserJobSpec& userJobSpec);
 
     NScheduler::NProto::TJobResult Run();
 
@@ -33,7 +34,8 @@ private:
     TJobProxyConfigPtr Config;
 
     TAutoPtr<IUserJobIO> JobIO;
-    NScheduler::NProto::TUserJobSpecExt UserJobSpecExt;
+    NScheduler::NProto::TJobSpec JobSpec;
+    NScheduler::NProto::TUserJobSpec UserJobSpec;
 
     std::vector<TDataPipePtr> Pipes;
     int ActivePipeCount;

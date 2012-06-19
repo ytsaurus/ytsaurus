@@ -15,10 +15,8 @@ class TParallelAwaiter
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TParallelAwaiter> TPtr;
-
     explicit TParallelAwaiter(
-        IInvoker::TPtr invoker,
+        IInvokerPtr invoker,
         NProfiling::TProfiler* profiler = NULL,
         const NYTree::TYPath& timerPath = "");
     explicit TParallelAwaiter(
@@ -58,7 +56,7 @@ private:
     int ResponseCount;
     TClosure OnComplete;
     TCancelableContextPtr CancelableContext;
-    IInvoker::TPtr CancelableInvoker;
+    IInvokerPtr CancelableInvoker;
     NProfiling::TProfiler* Profiler;
     NProfiling::TTimer Timer;
 
@@ -68,7 +66,7 @@ private:
     void MaybeInvokeOnComplete(const NYTree::TYPath& timerPathSuffix);
 
     void Init(
-        IInvoker::TPtr invoker,
+        IInvokerPtr invoker,
         NProfiling::TProfiler* profiler,
         const NYTree::TYPath& timerPath);
     void Terminate();
@@ -84,6 +82,8 @@ private:
         TCallback<void()> onResult);
 
 };
+
+typedef TIntrusivePtr<TParallelAwaiter> TParallelAwaiterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

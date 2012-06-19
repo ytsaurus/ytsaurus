@@ -39,8 +39,8 @@ public:
     NChunkServer::TChunkManagerPtr GetChunkManager() const;
     NChunkServer::IHolderAuthorityPtr GetHolderAuthority() const;
 
-    IInvoker::TPtr GetControlInvoker();
-    IInvoker::TPtr GetStateInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default);
+    IInvokerPtr GetControlInvoker();
+    IInvokerPtr GetStateInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default);
 
     void Run();
 

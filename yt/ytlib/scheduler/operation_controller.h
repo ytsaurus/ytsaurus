@@ -31,7 +31,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvoker::TPtr GetControlInvoker() = 0;
+    virtual IInvokerPtr GetControlInvoker() = 0;
     
     //! Returns the invoker for heavy background activities.
     /*!
@@ -42,7 +42,7 @@ struct IOperationHost
      *  
      *  \note Thread affinity: any
      */
-    virtual IInvoker::TPtr GetBackgroundInvoker() = 0;
+    virtual IInvokerPtr GetBackgroundInvoker() = 0;
 
     //! Returns the number of currently active exec nodes.
     /*!

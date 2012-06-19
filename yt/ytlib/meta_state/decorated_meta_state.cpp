@@ -21,8 +21,8 @@ static NProfiling::TProfiler Profiler("/meta_state");
 
 TDecoratedMetaState::TDecoratedMetaState(
     IMetaStatePtr state,
-    IInvoker::TPtr stateInvoker,
-    IInvoker::TPtr controlInvoker,
+    IInvokerPtr stateInvoker,
+    IInvokerPtr controlInvoker,
     TSnapshotStorePtr snapshotStore,
     TChangeLogCachePtr changeLogCache)
     : State(state)
@@ -82,7 +82,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
     LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
 }         
 
-IInvoker::TPtr TDecoratedMetaState::GetStateInvoker() const
+IInvokerPtr TDecoratedMetaState::GetStateInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Started);
