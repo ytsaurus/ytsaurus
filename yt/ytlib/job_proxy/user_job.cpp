@@ -126,7 +126,7 @@ TJobResult TUserJob::Run()
                 break;
 
             case EJobType::Reduce:
-                userJobResult = result.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext)->mutable_reducer_result();
+                userJobResult = result.MutableExtension(TReduceJobResultExt::reduce_job_result_ext)->mutable_reducer_result();
                 break;
 
             default:
