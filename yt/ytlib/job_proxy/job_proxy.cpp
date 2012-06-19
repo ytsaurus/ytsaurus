@@ -108,7 +108,8 @@ void TJobProxy::Run()
                 Job = new TSortedMergeJob(Config, jobSpec);
                 break;
 
-            case EJobType::Sort:
+            case EJobType::PartitionSort:
+            case EJobType::SimpleSort:
                 Job = new TSortJob(Config, jobSpec);
                 break;
 

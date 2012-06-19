@@ -859,7 +859,7 @@ private:
                 PrepareJobIOConfig(Config->PartitionJobIO, false)));
         }
         {
-            SortJobSpecTemplate.set_type(EJobType::Sort);
+            SortJobSpecTemplate.set_type(Partitions.size() == 1 ? EJobType::SimpleSort : EJobType::PartitionSort);
             *SortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = SortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
