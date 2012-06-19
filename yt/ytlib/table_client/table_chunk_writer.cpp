@@ -207,7 +207,6 @@ TAsyncError TTableChunkWriter::AsyncClose()
     YASSERT(IsOpen);
     YASSERT(!State.IsClosed());
 
-    State.Close();
     State.StartOperation();
 
     for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++channelIndex) {

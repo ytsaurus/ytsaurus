@@ -188,7 +188,7 @@ NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
 TAsyncError TPartitionChunkWriter::AsyncClose()
 {
     YASSERT(!State.IsClosed());
-    State.Close();
+
     State.StartOperation();
 
     for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
