@@ -15,7 +15,7 @@ void TStartTxExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildOptions(consumer);
 }
 
-Stroka TStartTxExecutor::GetDriverCommandName() const
+Stroka TStartTxExecutor::GetCommandName() const
 {
     return "start_tx";
 }
@@ -26,7 +26,7 @@ TRenewTxExecutor::TRenewTxExecutor()
     : TTransactedExecutor(true)
 { }
 
-Stroka TRenewTxExecutor::GetDriverCommandName() const
+Stroka TRenewTxExecutor::GetCommandName() const
 {
     return "renew_tx";
 }
@@ -37,7 +37,7 @@ TCommitTxExecutor::TCommitTxExecutor()
     : TTransactedExecutor(true)
 { }
 
-Stroka TCommitTxExecutor::GetDriverCommandName() const
+Stroka TCommitTxExecutor::GetCommandName() const
 {
     return "commit_tx";
 }
@@ -48,7 +48,7 @@ TAbortTxExecutor::TAbortTxExecutor()
     : TTransactedExecutor(true)
 { }
 
-Stroka TAbortTxExecutor::GetDriverCommandName() const
+Stroka TAbortTxExecutor::GetCommandName() const
 {
     return "abort_tx";
 }

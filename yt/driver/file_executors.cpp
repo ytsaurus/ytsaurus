@@ -26,7 +26,7 @@ void TUploadExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TUploadExecutor::GetDriverCommandName() const
+Stroka TUploadExecutor::GetCommandName() const
 {
     return "upload";
 }
@@ -49,7 +49,7 @@ void TDownloadExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TDownloadExecutor::GetDriverCommandName() const
+Stroka TDownloadExecutor::GetCommandName() const
 {
     return "download";
 }

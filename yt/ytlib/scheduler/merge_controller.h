@@ -17,6 +17,11 @@ IOperationControllerPtr CreateEraseController(
     IOperationHost* host,
     TOperation* operation);
 
+IOperationControllerPtr CreateReduceController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

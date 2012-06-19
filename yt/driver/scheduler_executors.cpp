@@ -37,11 +37,11 @@ TStartOpExecutor::TStartOpExecutor()
 void TStartOpExecutor::DoExecute(const TDriverRequest& request)
 {
     if (DontTrackArg.getValue()) {
-        TExecutorBase::DoExecute(request);
+        TExecutor::DoExecute(request);
         return;
     }
 
-    printf("Starting %s operation... ", ~GetDriverCommandName().Quote());
+    printf("Starting %s operation... ", ~GetCommandName().Quote());
 
     auto requestCopy = request;
 
@@ -93,7 +93,7 @@ void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TMapExecutor::GetDriverCommandName() const
+Stroka TMapExecutor::GetCommandName() const
 {
     return "map";
 }
@@ -110,11 +110,15 @@ TMergeExecutor::TMergeExecutor()
     , OutArg("", "out", "output table path", false, "", "ypath")
     , ModeArg("", "mode", "merge mode", false, TMode(EMergeMode::Unordered), "unordered, ordered, sorted")
     , CombineArg("", "combine", "combine small output chunks into larger ones")
+    , KeyColumnsArg("", "key_columns", "key columns names (only used for sorted merge; "
+        "if omitted then all input tables are assumed to have same key columns)",
+        true, "", "yson_list_fragment")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
     CmdLine.add(ModeArg);
     CmdLine.add(CombineArg);
+    CmdLine.add(KeyColumnsArg);
 }
 
 void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -128,13 +132,14 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("output_table_path").Scalar(output)
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
+            .Item("key_columns").List(KeyColumnsArg.getValue())
             .Do(BIND(&TMergeExecutor::BuildOptions, Unretained(this)))
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TMergeExecutor::GetDriverCommandName() const
+Stroka TMergeExecutor::GetCommandName() const
 {
     return "merge";
 }
@@ -172,7 +177,7 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
         .EndMap();
 }
 
-Stroka TSortExecutor::GetDriverCommandName() const
+Stroka TSortExecutor::GetCommandName() const
 {
     return "sort";
 }
@@ -206,7 +211,7 @@ void TEraseExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TEraseExecutor::GetDriverCommandName() const
+Stroka TEraseExecutor::GetCommandName() const
 {
     return "erase";
 }
@@ -214,6 +219,53 @@ Stroka TEraseExecutor::GetDriverCommandName() const
 EOperationType TEraseExecutor::GetOperationType() const
 {
     return EOperationType::Erase;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TReduceExecutor::TReduceExecutor()
+    : InArg("", "in", "input table path", false, "ypath")
+    , OutArg("", "out", "output table path", false, "", "ypath")
+    , FilesArg("", "file", "additional file path", false, "ypath")
+    , ReducerArg("", "reducer", "reducer shell command", true, "", "command")
+    , KeyColumnsArg("", "key_columns", "key columns names "
+    "(if omitted then all input tables are assumed to have same key columns)",
+    true, "", "yson_list_fragment")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(FilesArg);
+    CmdLine.add(ReducerArg);
+    CmdLine.add(KeyColumnsArg);
+}
+
+void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto input = PreprocessYPaths(InArg.getValue());
+    auto output = PreprocessYPath(OutArg.getValue());
+    auto files = PreprocessYPaths(FilesArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("spec").BeginMap()
+            .Item("reducer").Scalar(ReducerArg.getValue())
+            .Item("input_table_paths").List(input)
+            .Item("output_table_path").Scalar(output)
+            .Item("file_paths").List(files)
+            .Item("key_columns").List(KeyColumnsArg.getValue())
+            .Do(BIND(&TReduceExecutor::BuildOptions, Unretained(this)))
+        .EndMap();
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TReduceExecutor::GetCommandName() const
+{
+    return "reduce";
+}
+
+EOperationType TReduceExecutor::GetOperationType() const
+{
+    return EOperationType::Reduce;
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -229,10 +281,10 @@ void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("operation_id").Scalar(OpArg.getValue());
 
-    TExecutorBase::BuildArgs(consumer);
+    TExecutor::BuildArgs(consumer);
 }
 
-Stroka TAbortOpExecutor::GetDriverCommandName() const
+Stroka TAbortOpExecutor::GetCommandName() const
 {
     return "abort_op";
 }
@@ -266,7 +318,7 @@ void TTrackOpExecutor::Execute(const std::vector<std::string>& args)
 void TTrackOpExecutor::BuildArgs(IYsonConsumer* consumer)
 { }
 
-Stroka TTrackOpExecutor::GetDriverCommandName() const
+Stroka TTrackOpExecutor::GetCommandName() const
 {
     return "track_op";
 }

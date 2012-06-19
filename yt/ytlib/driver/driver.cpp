@@ -63,8 +63,8 @@ public:
             MasterChannel);
 
         // Register all commands.
-#define REGISTER(command, name, inDataType, outDataType, isVolatile, isIOIntensive) \
-        RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isIOIntensive));
+#define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
+        RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
 
         REGISTER(TStartTransactionCommand,  "start_tx",  Null,       Structured, true,  false);
         REGISTER(TRenewTransactionCommand,  "renew_tx",  Null,       Null,       true,  false);
@@ -88,6 +88,7 @@ public:
         REGISTER(TEraseCommand,             "erase",     Null,       Structured, true,  false);
         REGISTER(TMapCommand,               "map",       Null,       Structured, true,  false);
         REGISTER(TSortCommand,              "sort",      Null,       Structured, true,  false);
+        REGISTER(TReduceCommand,            "reduce",    Null,       Structured, true,  false);
         REGISTER(TAbortOperationCommand,    "abort_op",  Null,       Null,       true,  false);
 #undef REGISTER
     }

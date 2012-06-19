@@ -199,7 +199,7 @@ protected:
         LOG_DEBUG("Finished task (Task: %d, DataSize: %" PRId64 ")",
             static_cast<int>(MergeTasks.size()) - 1,
             CurrentTaskWeight);
-
+-
         CurrentTaskWeight = 0;
         ClearCurrentTaskStripes();
     }
@@ -676,18 +676,14 @@ private:
                             SliceChunk(*pair.second->InputChunk, lastBreakpoint, nextBreakpoint),
                             pair.second->TableIndex);
                     }
+                    EndTask();
                     LOG_DEBUG("Finished flushing opened chunks");
                     lastBreakpoint = nextBreakpoint;
                 }
             }
         }
 
-        FOREACH (const auto& pair, openedChunks) {
-            AddPendingChunk(
-                SliceChunk(*pair.second->InputChunk, lastBreakpoint),
-                pair.second->TableIndex);
-        }
-
+        YCHECK(openedChunks.empty());
         EndTaskIfLarge();
     }
 
@@ -746,6 +742,22 @@ IOperationControllerPtr CreateEraseController(
     mergeSpec->Mode = EMergeMode::Ordered;
     mergeSpec->CombineChunks = eraseSpec->CombineChunks;
     return New<TOrderedMergeController>(config, EOperationType::Erase, mergeSpec, host, operation);
+}
+
+IOperationControllerPtr CreateReduceController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto reduceSpec = New<TReduceOperationSpec>();
+    try {
+        reduceSpec->Load(~operation->GetSpec());
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+    }
+
+    // TODO(babenko): fixme
+    return NULL;
 }
 
 ////////////////////////////////////////////////////////////////////

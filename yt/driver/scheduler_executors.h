@@ -35,7 +35,7 @@ private:
     TCLAP::ValueArg<Stroka> MapperArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
     virtual NScheduler::EOperationType GetOperationType() const;
 };
 
@@ -56,9 +56,10 @@ private:
     TModeArg ModeArg;
 
     TCLAP::SwitchArg CombineArg;
+    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
     virtual NScheduler::EOperationType GetOperationType() const;
 };
 
@@ -76,7 +77,7 @@ private:
     TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
     virtual NScheduler::EOperationType GetOperationType() const;
 };
 
@@ -93,14 +94,34 @@ private:
     TCLAP::SwitchArg CombineArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
+    virtual NScheduler::EOperationType GetOperationType() const;
+};
+
+//////////////////////////////////////////////////////////////////////////////////
+
+class TReduceExecutor
+    : public TStartOpExecutor
+{
+public:
+    TReduceExecutor();
+
+private:
+    TCLAP::MultiArg<Stroka> InArg;
+    TCLAP::ValueArg<Stroka> OutArg;
+    TCLAP::MultiArg<Stroka> FilesArg;
+    TCLAP::ValueArg<Stroka> ReducerArg;
+    TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;
+
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+    virtual Stroka GetCommandName() const;
     virtual NScheduler::EOperationType GetOperationType() const;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
 
 class TAbortOpExecutor
-    : public TExecutorBase
+    : public TExecutor
 {
 public:
     TAbortOpExecutor();
@@ -109,13 +130,13 @@ private:
     TCLAP::ValueArg<Stroka> OpArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTrackOpExecutor
-    : public TExecutorBase
+    : public TExecutor
 {
 public:
     TTrackOpExecutor();
@@ -126,7 +147,7 @@ private:
     TCLAP::ValueArg<Stroka> OpArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 
 };
 

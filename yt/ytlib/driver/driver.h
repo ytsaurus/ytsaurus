@@ -67,8 +67,8 @@ struct TCommandDescriptor
     //! Whether the command changes the state of the cell.
     bool IsVolatile;
 
-    //! Whether the command is I/O-intensive.
-    bool IsIOIntensive;
+    //! Whether the execution of a command is lengthly and/or causes a heavy load.
+    bool IsHeavy;
 
     TCommandDescriptor()
     { }
@@ -78,12 +78,12 @@ struct TCommandDescriptor
         NFormats::EDataType inputType, 
         NFormats::EDataType outputType,
         bool isVolatile,
-        bool isIOIntensive)
+        bool isHeavy)
         : CommandName(commandName)
         , InputType(inputType)
         , OutputType(outputType)
         , IsVolatile(isVolatile)
-        , IsIOIntensive(isIOIntensive)
+        , IsHeavy(isHeavy)
     { }
 };
 
@@ -99,7 +99,7 @@ struct TCommandDescriptor
  *  IDriver instances are thread-safe and reentrant.
  */
 struct IDriver
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     //! Synchronously executes a given request.
     virtual TDriverResponse Execute(const TDriverRequest& request) = 0;

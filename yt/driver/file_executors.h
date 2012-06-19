@@ -16,7 +16,7 @@ private:
     TUnlabeledStringArg PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +31,7 @@ private:
     TUnlabeledStringArg PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
