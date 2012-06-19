@@ -186,14 +186,15 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
                 } 
 
                 auto block = result.Value()->GetData();
+                auto nextBlockIndex = blockIndex;
                 if (Writer->TryWriteBlock(block)) {
-                    ++blockIndex;
+                    ++nextBlockIndex;
                 }
 
                 Writer->GetReadyEvent().Subscribe(BIND(
                     &TJob::ReplicateBlock,
                     this_,
-                    blockIndex)
+                    nextBlockIndex)
                 .Via(CancelableInvoker));
             })
             .Via(CancelableInvoker));

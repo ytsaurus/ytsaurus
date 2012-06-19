@@ -145,17 +145,20 @@ void TSequentialReader::FetchNextGroup()
         static_cast<int>(blockIndexes.size()),
         groupSize);
 
-    AsyncSemaphore.AsyncAcquire(groupSize).Subscribe(BIND(
+    AsyncSemaphore.GetReadyEvent().Subscribe(BIND(
         &TSequentialReader::RequestBlocks,
         MakeWeak(this),
         firstUnfetched,
-        blockIndexes));
+        blockIndexes,
+        groupSize));
 }
 
 void TSequentialReader::RequestBlocks(
     int firstIndex, 
-    const std::vector<int>& blockIndexes)
+    const std::vector<int>& blockIndexes,
+    int groupSize)
 {
+    AsyncSemaphore.Acquire(groupSize);
     ChunkReader->AsyncReadBlocks(blockIndexes).Subscribe(BIND(
         &TSequentialReader::OnGotBlocks, 
         MakeWeak(this),
