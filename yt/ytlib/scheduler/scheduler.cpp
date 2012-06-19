@@ -100,9 +100,9 @@ public:
 
     void Start()
     {
+        InitStrategy();
         MasterConnector->Start();
         LoadOperations();
-        InitStrategy();
     }
 
     NYTree::TYPathServiceProducer CreateOrchidProducer()

@@ -171,7 +171,7 @@ protected:
     void ClearCurrentTaskStripes()
     {
         CurrentTaskStripes.clear();
-        CurrentTaskStripes.resize(OutputTables.size());
+        CurrentTaskStripes.resize(InputTables.size());
     }
     
     //! Finish the current task.
