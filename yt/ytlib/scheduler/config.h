@@ -141,6 +141,7 @@ struct TMergeOperationSpec
     NYTree::TYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
+    TNullable< yvector<Stroka> > KeyColumns;
 
     //! During sorted merge the scheduler tries to ensure that large connected
     //! groups of chunks are partitioned into tasks of this or smaller size.
@@ -154,6 +155,8 @@ struct TMergeOperationSpec
         Register("output_table_path", OutputTablePath);
         Register("mode", Mode)
             .Default(EMergeMode::Unordered);
+        Register("key_columns", KeyColumns)
+            .Default();
         Register("combine_chunks", CombineChunks)
             .Default(false);
         Register("max_merge_job_weight", MaxMergeJobWeight)
@@ -220,6 +223,28 @@ struct TSortOperationSpec
             .GreaterThan(0);
         // TODO(babenko): update when the sort gets optimized
         Register("max_sort_job_weight", MaxSortJobWeight)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReduceOperationSpec
+    : public TOperationSpecBase
+{
+    yvector<NYTree::TYPath> InputTablePaths;
+    NYTree::TYPath OutputTablePath;
+    TNullable< yvector<Stroka> > KeyColumns;
+    i64 MaxReduceJobWeight;
+
+    TReduceOperationSpec()
+    {
+        Register("input_table_paths", InputTablePaths);
+        Register("output_table_path", OutputTablePath);
+        Register("key_columns", KeyColumns)
+            .Default();
+        Register("max_reduce_job_weight", MaxReduceJobWeight)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }

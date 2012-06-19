@@ -110,6 +110,9 @@ typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
 struct TSortOperationSpec;
 typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
 
+struct TReduceOperationSpec;
+typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
