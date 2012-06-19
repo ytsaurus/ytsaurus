@@ -224,7 +224,7 @@ private:
     volatile bool IsSent;
     NLog::TTaggedLogger Logger;
 
-    TParallelAwaiter::TPtr Awaiter;
+    TParallelAwaiterPtr Awaiter;
     TFuture<void> LogResult;
     std::vector<TSharedRef> BatchedChanges;
 

@@ -54,7 +54,7 @@ public:
 private:
     TElectionManager::TPtr ElectionManager;
     IInvoker::TPtr EpochInvoker;
-    TParallelAwaiter::TPtr Awaiter;
+    TParallelAwaiterPtr Awaiter;
 
     void SendPing(TPeerId id)
     {
@@ -242,7 +242,7 @@ private:
 
     TElectionManager::TPtr ElectionManager;
     IInvoker::TPtr EpochInvoker;
-    TParallelAwaiter::TPtr Awaiter;
+    TParallelAwaiterPtr Awaiter;
     TStatusTable StatusTable;
 
     bool ProcessVote(TPeerId id, const TStatus& status)

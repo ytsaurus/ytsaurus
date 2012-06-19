@@ -15,8 +15,6 @@ class TParallelAwaiter
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TParallelAwaiter> TPtr;
-
     explicit TParallelAwaiter(
         IInvoker::TPtr invoker,
         NProfiling::TProfiler* profiler = NULL,
@@ -84,6 +82,8 @@ private:
         TCallback<void()> onResult);
 
 };
+
+typedef TIntrusivePtr<TParallelAwaiter> TParallelAwaiterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

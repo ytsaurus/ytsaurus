@@ -53,7 +53,7 @@ private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
     void PrepareUserJob(
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
-        TParallelAwaiter::TPtr awaiter);
+        TParallelAwaiterPtr awaiter);
     void OnChunkDownloaded(
         const NFileServer::NProto::TRspFetch& fetchRsp,
         NChunkHolder::TChunkCache::TDownloadResult result);

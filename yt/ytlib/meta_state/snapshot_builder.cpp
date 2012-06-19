@@ -196,7 +196,7 @@ private:
     TMetaVersion Version;
     bool CreateSnapshot;
 
-    TParallelAwaiter::TPtr Awaiter;
+    TParallelAwaiterPtr Awaiter;
     std::vector< TNullable<TChecksum> > Checksums;
 };
 

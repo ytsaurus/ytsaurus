@@ -59,7 +59,7 @@ TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
 }
 
 void TLeaderLookup::OnResponse(
-    TParallelAwaiter::TPtr awaiter,
+    TParallelAwaiterPtr awaiter,
     TPromise<TResult> promise,
     const Stroka& address,
     TProxy::TRspGetStatusPtr response)

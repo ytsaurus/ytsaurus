@@ -148,7 +148,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
 void TJob::PrepareUserJob(
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    TParallelAwaiter::TPtr awaiter)
+    TParallelAwaiterPtr awaiter)
 {
     FOREACH (const auto& fetchRsp, userJobSpec.files()) {
         auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());

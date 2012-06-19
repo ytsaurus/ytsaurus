@@ -174,7 +174,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 }
 
 void TChangeLogDownloader::OnResponse(
-    TParallelAwaiter::TPtr awaiter,
+    TParallelAwaiterPtr awaiter,
     TPromise<TPeerId> promise,
     TPeerId peerId,
     TMetaVersion version,
