@@ -24,6 +24,8 @@ struct IParameter
     virtual bool IsPresent() const = 0;
 };
 
+typedef TIntrusivePtr<IParameter> IParameterPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -94,7 +96,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
+    typedef yhash_map<Stroka, NConfig::IParameterPtr> TParameterMap;
     
     TParameterMap Parameters;
     NYTree::IMapNodePtr Options;
