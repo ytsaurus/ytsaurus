@@ -574,7 +574,7 @@ private:
             TKeyEndpoint endpoint;
             endpoint.Left = true;
             endpoint.TableIndex = tableIndex;
-            endpoint.Key = boundaryKeysExt->left();
+            endpoint.Key = boundaryKeysExt->start();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }
@@ -582,7 +582,7 @@ private:
             TKeyEndpoint endpoint;
             endpoint.Left = false;
             endpoint.TableIndex = tableIndex;
-            endpoint.Key = boundaryKeysExt->right();
+            endpoint.Key = boundaryKeysExt->end();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }

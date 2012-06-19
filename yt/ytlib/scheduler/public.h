@@ -28,6 +28,7 @@ DECLARE_ENUM(EJobType,
     ((Partition)(3))
     ((PartitionSort)(4))
     ((SimpleSort)(5))
+    ((Reduce)(6))
 );
 
 DECLARE_ENUM(EOperationState,

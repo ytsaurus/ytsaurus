@@ -24,6 +24,9 @@ message TTableOutputSpec
 
     // The chunk list where output chunks must be placed.
     required NYT.NProto.TGuid chunk_list_id = 2;
+
+    // If non-empty then the output is expected to be sorted accordingly.
+    repeated string key_columns = 3;
 }
 
 // Sent from the scheduler to an exec node.
@@ -106,11 +109,9 @@ message TUserJobResultExt
  *
  * No custom types are needed here.
  *
- * The input spec should contain TUserJobSpecExt and may optionally have
- * TStdErrSpecExt.
+ * The input spec should contain TUserJobSpecExt.
  *
  * The result must contain TUserJobResultExt.
- *
  */
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,6 +188,38 @@ message TSortJobResultExt
     }
 
     repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Reduce jobs.
+/*
+ * "Everthing is either a sort or a merge. Reduce is the latter." (c) Pavel Sushin
+ *
+ * The input spec should contain TUserJobSpecExt.
+ *
+ * The result must contain TUserJobResultExt and TReduceJobResultExt.
+ *
+ */
+
+message TReduceJobResultExt
+{
+    extend TJobResult
+    {
+        optional TReduceJobResultExt reduce_job_result_ext = 104;
+    }
+
+    // Boundary keys for each sorted output table.
+    // Used by the scheduler to reorder the chunks.
+
+    message TOutputBoundaryKeys
+    {
+        required int32 table_index = 1;
+        required NYT.NTableClient.NProto.TKey start = 2;
+        required NYT.NTableClient.NProto.TKey end = 3;
+    }
+
+    repeated TOutputBoundaryKeys boundary_keys = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

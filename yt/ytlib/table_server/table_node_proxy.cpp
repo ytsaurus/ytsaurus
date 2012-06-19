@@ -43,10 +43,10 @@ void GetBoundaryKeys(TChunkTreeRef ref, TKey* minKey, TKey* maxKey)
             auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
                 ref.AsChunk()->ChunkMeta().extensions());
             if (minKey) {
-                *minKey = boundaryKeysExt->left();
+                *minKey = boundaryKeysExt->start();
             }
             if (maxKey) {
-                *maxKey = boundaryKeysExt->right();
+                *maxKey = boundaryKeysExt->end();
             }
             break;
         }
