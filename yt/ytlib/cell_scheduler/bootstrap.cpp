@@ -149,7 +149,7 @@ Stroka TBootstrap::GetPeerAddress() const
     return PeerAddress;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker() const
+IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return ControlInvoker;
 }

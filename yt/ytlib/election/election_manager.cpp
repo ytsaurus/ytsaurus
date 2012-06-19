@@ -53,7 +53,7 @@ public:
 
 private:
     TElectionManager::TPtr ElectionManager;
-    IInvoker::TPtr EpochInvoker;
+    IInvokerPtr EpochInvoker;
     TParallelAwaiterPtr Awaiter;
 
     void SendPing(TPeerId id)
@@ -241,7 +241,7 @@ private:
     typedef yhash_map<TPeerId, TStatus> TStatusTable;
 
     TElectionManager::TPtr ElectionManager;
-    IInvoker::TPtr EpochInvoker;
+    IInvokerPtr EpochInvoker;
     TParallelAwaiterPtr Awaiter;
     TStatusTable StatusTable;
 
@@ -432,7 +432,7 @@ private:
 TElectionManager::TElectionManager(
     TElectionManagerConfig *config,
     TCellManager* cellManager,
-    IInvoker::TPtr controlInvoker,
+    IInvokerPtr controlInvoker,
     IElectionCallbacks* electionCallbacks)
     : TServiceBase(
     controlInvoker,

@@ -19,7 +19,7 @@ public:
     TFollowerTracker(
         TFollowerTrackerConfig* config,
         NElection::TCellManager* cellManager,
-        IInvoker::TPtr epochControlInvoker);
+        IInvokerPtr epochControlInvoker);
 
     void Start();
     void Stop();
@@ -40,7 +40,7 @@ private:
 
     TFollowerTrackerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
-    IInvoker::TPtr EpochControlInvoker;
+    IInvokerPtr EpochControlInvoker;
     std::vector<TFollowerState> FollowerStates;
     int ActiveFollowerCount;
 

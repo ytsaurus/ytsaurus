@@ -60,7 +60,7 @@ public:
     void Enqueue(const TQueuedSample& sample, bool selfProfiling);
 
     //! Returns the invoker associated with the profiler thread.
-    IInvoker::TPtr GetInvoker() const;
+    IInvokerPtr GetInvoker() const;
 
     //! Returns the root of the YTree with the buckets.
     /*!

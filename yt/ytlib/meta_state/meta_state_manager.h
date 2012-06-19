@@ -49,7 +49,7 @@ struct IMetaStateManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvoker::TPtr GetStateInvoker() const = 0;
+    virtual IInvokerPtr GetStateInvoker() const = 0;
 
     //! Returns True is the peer has a active quorum.
     /*!

@@ -91,8 +91,8 @@ public:
 
     TPersistentStateManager(
         TConfig* config,
-        IInvoker::TPtr controlInvoker,
-        IInvoker::TPtr stateInvoker,
+        IInvokerPtr controlInvoker,
+        IInvokerPtr stateInvoker,
         IMetaState* metaState,
         NRpc::IServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
@@ -191,7 +191,7 @@ public:
         return StateStatus;
     }
 
-    virtual IInvoker::TPtr GetStateInvoker() const
+    virtual IInvokerPtr GetStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -306,7 +306,7 @@ public:
     TPersistentStateManagerConfigPtr Config;
     TPeerId LeaderId;
     TCellManagerPtr CellManager;
-    IInvoker::TPtr ControlInvoker;
+    IInvokerPtr ControlInvoker;
     bool ReadOnly;
     bool InCommit;
 
@@ -320,8 +320,8 @@ public:
     TEpoch Epoch;
     TCancelableContextPtr EpochContext;
 
-    IInvoker::TPtr EpochControlInvoker;
-    IInvoker::TPtr EpochStateInvoker;
+    IInvokerPtr EpochControlInvoker;
+    IInvokerPtr EpochStateInvoker;
 
     TSnapshotBuilderPtr SnapshotBuilder;
     TLeaderRecoveryPtr LeaderRecovery;
@@ -1218,8 +1218,8 @@ public:
 
 IMetaStateManagerPtr CreatePersistentStateManager(
     TPersistentStateManagerConfig* config,
-    IInvoker::TPtr controlInvoker,
-    IInvoker::TPtr stateInvoker,
+    IInvokerPtr controlInvoker,
+    IInvokerPtr stateInvoker,
     IMetaState* metaState,
     NRpc::IServer* server)
 {

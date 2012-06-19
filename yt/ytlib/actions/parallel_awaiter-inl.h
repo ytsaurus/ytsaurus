@@ -10,7 +10,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TParallelAwaiter::TParallelAwaiter(
-    IInvoker::TPtr invoker,
+    IInvokerPtr invoker,
     NProfiling::TProfiler* profiler,
     const NYTree::TYPath& timerPath)
 {
@@ -25,7 +25,7 @@ inline TParallelAwaiter::TParallelAwaiter(
 }
 
 inline void TParallelAwaiter::Init(
-    IInvoker::TPtr invoker,
+    IInvokerPtr invoker,
     NProfiling::TProfiler* profiler,
     const NYTree::TYPath& timerPath)
 {

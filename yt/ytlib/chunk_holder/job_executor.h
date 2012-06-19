@@ -25,7 +25,7 @@ class TJob
 public:
     TJob(
         TJobExecutorPtr owner,
-        IInvoker::TPtr serviceInvoker,
+        IInvokerPtr serviceInvoker,
         EJobType jobType,
         const TJobId& jobId,
         TStoredChunkPtr chunk,
@@ -58,7 +58,7 @@ private:
     yvector<Stroka> TargetAddresses;
     NChunkClient::IAsyncWriterPtr Writer;
     TCancelableContextPtr CancelableContext;
-    IInvoker::TPtr CancelableInvoker;
+    IInvokerPtr CancelableInvoker;
     
     NLog::TTaggedLogger Logger;
 
@@ -99,7 +99,7 @@ public:
         TChunkHolderConfigPtr config,
         TChunkStorePtr chunkStore,
         TBlockStorePtr blockStore,
-        IInvoker::TPtr serviceInvoker);
+        IInvokerPtr serviceInvoker);
     
     //! Starts a new job with the given parameters.
     TJobPtr StartJob(
@@ -129,7 +129,7 @@ private:
 
     TChunkStorePtr ChunkStore;
     TBlockStorePtr BlockStore;
-    IInvoker::TPtr ServiceInvoker;
+    IInvokerPtr ServiceInvoker;
 
     TJobMap Jobs;
 

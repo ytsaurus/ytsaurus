@@ -45,7 +45,7 @@ public:
     i64 GetAvailableSpace() const;
 
     //! Returns the invoker that handles all IO requests to this location.
-    IInvoker::TPtr GetInvoker() const;
+    IInvokerPtr GetInvoker() const;
 
     //! Returns the reader cache.
     TIntrusivePtr<TReaderCache> GetReaderCache() const;

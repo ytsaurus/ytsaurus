@@ -99,7 +99,7 @@ class TMyService
 public:
     typedef TIntrusivePtr<TMyService> TPtr;
     typedef TMyService TThis;
-    TMyService(IInvoker::TPtr invoker, Event* event)
+    TMyService(IInvokerPtr invoker, Event* event)
         : TServiceBase(invoker, TMyProxy::ServiceName, "Main")
         , Event_(event)
     {

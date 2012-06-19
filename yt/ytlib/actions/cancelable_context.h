@@ -32,7 +32,7 @@ public:
      *  at the moment an action is enqueued and the second one -- when
      *  the action gets executed.
      */
-    IInvoker::TPtr CreateInvoker(IInvoker::TPtr underlyingInvoker);
+    IInvokerPtr CreateInvoker(IInvokerPtr underlyingInvoker);
 
 private:
     class TCancelableInvoker;

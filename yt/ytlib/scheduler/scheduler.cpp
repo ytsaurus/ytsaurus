@@ -624,12 +624,12 @@ private:
         return Bootstrap->GetTransactionManager();
     }
 
-    virtual IInvoker::TPtr GetControlInvoker()
+    virtual IInvokerPtr GetControlInvoker()
     {
         return Bootstrap->GetControlInvoker();
     }
 
-    virtual IInvoker::TPtr GetBackgroundInvoker()
+    virtual IInvokerPtr GetBackgroundInvoker()
     {
         return BackgroundQueue->GetInvoker();
     }

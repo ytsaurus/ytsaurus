@@ -412,12 +412,12 @@ protected:
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            IInvoker::TPtr invoker,
+            IInvokerPtr invoker,
             const NYTree::TYPath& profilingPath);
 
         TMethodDescriptor Descriptor;
         //! Invoker that is used to handle all requests for this method.
-        IInvoker::TPtr Invoker;
+        IInvokerPtr Invoker;
         //! Path prefix for all profiling information regarding this method.
         NYTree::TYPath ProfilingPath;
         //! Increments with each method call.
@@ -471,7 +471,7 @@ protected:
      *  regarding service activity.
      */
     TServiceBase(
-        IInvoker::TPtr defaultInvoker,
+        IInvokerPtr defaultInvoker,
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
@@ -481,10 +481,10 @@ protected:
     void RegisterMethod(const TMethodDescriptor& descriptor);
 
     //! Registers a method with a supplied custom invoker.
-    void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker::TPtr invoker);
+    void RegisterMethod(const TMethodDescriptor& descriptor, IInvokerPtr invoker);
 
 private:
-    IInvoker::TPtr DefaultInvoker;
+    IInvokerPtr DefaultInvoker;
     Stroka ServiceName;
     Stroka LoggingCategory;
     NProfiling::TRateCounter RequestCounter;

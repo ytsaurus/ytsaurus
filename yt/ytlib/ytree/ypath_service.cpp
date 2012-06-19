@@ -26,7 +26,7 @@ class TViaYPathService
     : public TYPathServiceBase
 {
 public:
-    TViaYPathService(IYPathServicePtr underlyingService, IInvoker::TPtr invoker)
+    TViaYPathService(IYPathServicePtr underlyingService, IInvokerPtr invoker)
         : UnderlyingService(underlyingService)
         , Invoker(invoker)
     { }
@@ -38,7 +38,7 @@ public:
 
 private:
     IYPathServicePtr UnderlyingService;
-    IInvoker::TPtr Invoker;
+    IInvokerPtr Invoker;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
@@ -60,7 +60,7 @@ private:
 
 } // namespace
 
-IYPathServicePtr IYPathService::Via(IInvoker::TPtr invoker)
+IYPathServicePtr IYPathService::Via(IInvokerPtr invoker)
 {
     return New<TViaYPathService>(this, invoker);
 }

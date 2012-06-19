@@ -130,12 +130,12 @@ TJobExecutorPtr TBootstrap::GetJobExecutor() const
     return JobExecutor;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker() const
+IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return NodeBootstrap->GetControlInvoker();
 }
 
-IInvoker::TPtr TBootstrap::GetWorkInvoker() const
+IInvokerPtr TBootstrap::GetWorkInvoker() const
 {
     return WorkQueue->GetInvoker();
 }

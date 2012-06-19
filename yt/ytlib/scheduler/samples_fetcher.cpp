@@ -19,7 +19,7 @@ static NRpc::TChannelCache ChannelCache;
 TSamplesFetcher::TSamplesFetcher(
     TSchedulerConfigPtr config,
     TSortOperationSpecPtr spec,
-    IInvoker::TPtr invoker,
+    IInvokerPtr invoker,
     const TOperationId& operationId)
     : Config(config)
     , Spec(spec)

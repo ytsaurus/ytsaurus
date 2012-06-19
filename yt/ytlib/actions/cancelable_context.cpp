@@ -15,7 +15,7 @@ public:
 
     TCancelableInvoker(
         TCancelableContextPtr context,
-        IInvoker::TPtr underlyingInvoker)
+        IInvokerPtr underlyingInvoker)
         : Context(context)
         , UnderlyingInvoker(underlyingInvoker)
     {
@@ -42,7 +42,7 @@ public:
 
 private:
     TCancelableContextPtr Context;
-    IInvoker::TPtr UnderlyingInvoker;
+    IInvokerPtr UnderlyingInvoker;
 
 };
 
@@ -60,7 +60,7 @@ void TCancelableContext::Cancel()
     Canceled = true;
 }
 
-IInvoker::TPtr TCancelableContext::CreateInvoker(IInvoker::TPtr underlyingInvoker)
+IInvokerPtr TCancelableContext::CreateInvoker(IInvokerPtr underlyingInvoker)
 {
     return New<TCancelableInvoker>(this, underlyingInvoker);
 }

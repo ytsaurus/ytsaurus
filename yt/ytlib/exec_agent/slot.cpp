@@ -83,7 +83,7 @@ const Stroka& TSlot::GetWorkingDirectory() const
     return Path;
 }
 
-IInvoker::TPtr TSlot::GetInvoker()
+IInvokerPtr TSlot::GetInvoker()
 {
     return SlotThread->GetInvoker();
 }

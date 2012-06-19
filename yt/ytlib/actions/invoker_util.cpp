@@ -14,7 +14,7 @@ void TSyncInvoker::Invoke(const TClosure& action)
     action.Run();
 }
 
-IInvoker::TPtr TSyncInvoker::Get()
+IInvokerPtr TSyncInvoker::Get()
 {
     return ~RefCountedSingleton<TSyncInvoker>();
 }

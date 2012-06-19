@@ -68,7 +68,7 @@ TExecAgentConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IInvoker::TPtr TBootstrap::GetControlInvoker() const
+IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return NodeBootstrap->GetControlInvoker();
 }

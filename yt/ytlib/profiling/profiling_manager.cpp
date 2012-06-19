@@ -177,7 +177,7 @@ public:
         Signal();
     }
 
-    IInvoker::TPtr GetInvoker() const
+    IInvokerPtr GetInvoker() const
     {
         return Invoker; 
     }
@@ -300,7 +300,7 @@ void TProfilingManager::Enqueue(const TQueuedSample& sample, bool selfProfiling)
     Impl->Enqueue(sample, selfProfiling);
 }
 
-IInvoker::TPtr TProfilingManager::GetInvoker() const
+IInvokerPtr TProfilingManager::GetInvoker() const
 {
     return Impl->GetInvoker();
 }

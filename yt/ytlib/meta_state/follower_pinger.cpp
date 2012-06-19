@@ -28,7 +28,7 @@ TFollowerPinger::TFollowerPinger(
     TDecoratedMetaStatePtr decoratedState,
     TFollowerTrackerPtr followerTracker,
     const TEpoch& epoch,
-    IInvoker::TPtr epochControlInvoker)
+    IInvokerPtr epochControlInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)

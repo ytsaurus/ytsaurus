@@ -43,7 +43,7 @@ public:
     TElectionManager(
         TElectionManagerConfig* config,
         TCellManager* cellManager,
-        IInvoker::TPtr controlInvoker,
+        IInvokerPtr controlInvoker,
         IElectionCallbacks* electionCallbacks);
 
     ~TElectionManager();
@@ -88,7 +88,7 @@ private:
     TGuid Epoch;
     TInstant EpochStart;
     TCancelableContextPtr ControlEpochContext;
-    IInvoker::TPtr ControlEpochInvoker;
+    IInvokerPtr ControlEpochInvoker;
     
     typedef yhash_set<TPeerId> TPeerSet;
     TPeerSet AliveFollowers;
@@ -99,7 +99,7 @@ private:
 
     TElectionManagerConfigPtr Config;
     TCellManagerPtr CellManager;
-    IInvoker::TPtr ControlInvoker;
+    IInvokerPtr ControlInvoker;
     IElectionCallbacks::TPtr ElectionCallbacks;
 
     // Corresponds to #ControlInvoker.

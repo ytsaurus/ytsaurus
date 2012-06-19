@@ -17,8 +17,6 @@ namespace NConfig {
 struct IParameter
     : public TRefCounted
 {
-    typedef TIntrusivePtr<IParameter> TPtr;
-
     // node can be NULL
     virtual void Load(NYTree::INodePtr node, const NYTree::TYPath& path) = 0;
     virtual void Validate(const NYTree::TYPath& path) const = 0;

@@ -19,7 +19,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 TFollowerTracker::TFollowerTracker(
     TFollowerTrackerConfig *config,
     TCellManager* cellManager,
-    IInvoker::TPtr epochControlInvoker)
+    IInvokerPtr epochControlInvoker)
     : Config(config)
     , CellManager(cellManager)
     , EpochControlInvoker(epochControlInvoker)

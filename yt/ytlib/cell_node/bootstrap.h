@@ -26,7 +26,7 @@ public:
 
     TCellNodeConfigPtr GetConfig() const;
     NChunkServer::TIncarnationId GetIncarnationId() const;
-    IInvoker::TPtr GetControlInvoker() const;
+    IInvokerPtr GetControlInvoker() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
     NRpc::IServerPtr GetRpcServer() const;

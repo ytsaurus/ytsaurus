@@ -26,7 +26,7 @@ public:
     TCellSchedulerConfigPtr GetConfig() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
-    IInvoker::TPtr GetControlInvoker() const;
+    IInvokerPtr GetControlInvoker() const;
     NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
 
@@ -36,7 +36,7 @@ private:
     Stroka ConfigFileName;
     TCellSchedulerConfigPtr Config;
 
-    IInvoker::TPtr ControlInvoker;
+    IInvokerPtr ControlInvoker;
     NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     Stroka PeerAddress;

@@ -97,7 +97,7 @@ TYson SerializeToYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TConfigurable::TPtr
+// TIntrusivePtr<TConfigurable>
 template <class T>
 void Read(
     TIntrusivePtr<T>& parameter,
@@ -177,7 +177,7 @@ void Write(T* parameter, IYsonConsumer* consumer);
 template <class T>
 void Write(const TIntrusivePtr<T>& parameter, IYsonConsumer* consumer);
 
-// TConfigurable::TPtr
+// TIntrusivePtr<TConfigurable>
 template <class T>
 void Write(
     const T& parameter,
