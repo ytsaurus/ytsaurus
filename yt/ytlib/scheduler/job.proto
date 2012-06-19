@@ -121,7 +121,7 @@ message TMapJobResultExt
         optional TMapJobResultExt map_job_result_ext = 100;
     }
 
-    optional TUserJobResult mapper_result = 1;
+    required TUserJobResult mapper_result = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
