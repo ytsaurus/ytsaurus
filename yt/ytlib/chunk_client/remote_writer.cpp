@@ -966,8 +966,6 @@ void TRemoteWriter::TImpl::DoWriteBlock(const TSharedRef& block)
     if (State.IsActive()) {
         AddBlock(block);
     }
-
-    State.FinishOperation();
 }
 
 void TRemoteWriter::TImpl::AddBlock(const TSharedRef& block)
