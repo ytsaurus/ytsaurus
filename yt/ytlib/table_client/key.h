@@ -397,7 +397,7 @@ public:
 
 private:
     template <class TLhsBuffer, class TRhsBuffer>
-    friend int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs);
+    friend int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs, int prefixLength);
 
     friend Stroka ToString<>(const TKey& key);
 
@@ -451,22 +451,24 @@ Stroka ToString(const TKey<TBuffer>& key)
     return "[" + JoinToString(key.Parts) + "]";
 }
 
+//! Compares given keys (truncated to #prefixLength). Returns zero if |lhs == rhs|, a negative value
+//! if |lhs < rhs| and a positive value otherwise.
 template <class TLhsBuffer, class TRhsBuffer>
-int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs)
+int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs, int prefixLength = std::numeric_limits<int>::max())
 {
-    int minSize = std::min(lhs.Parts.size(), rhs.Parts.size());
-    for (int i = 0; i < minSize; ++i) {
-        int result = CompareKeyParts(lhs.Parts[i], rhs.Parts[i]);
+    int lhsSize = std::min(static_cast<int>(lhs.Parts.size()), prefixLength);
+    int rhsSize = std::min(static_cast<int>(rhs.Parts.size()), prefixLength);
+    int minSize = std::min(lhsSize, rhsSize);
+    for (int index = 0; index < minSize; ++index) {
+        int result = CompareKeyParts(lhs.Parts[index], rhs.Parts[index]);
         if (result != 0) {
             return result;
         }
     }
-    return static_cast<int>(lhs.Parts.size()) - static_cast<int>(rhs.Parts.size());
+    return lhsSize - rhsSize;
 }
 
-//! Compares given keys. Returns zero if |lhs == rhs|, a negative value
-//! if |lhs < rhs| and a positive value otherwise.
-int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
+int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs, int prefixLength = std::numeric_limits<int>::max());
 
 bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs);
 bool operator >= (const NProto::TKey& lhs, const NProto::TKey& rhs);

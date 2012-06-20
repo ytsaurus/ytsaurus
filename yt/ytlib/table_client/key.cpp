@@ -41,17 +41,18 @@ int CompareKeyParts(const NProto::TKeyPart& lhs, const NProto::TKeyPart& rhs)
 
 } // namespace
 
-int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs)
+int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs, int prefixLength)
 {
-    int minSize = std::min(lhs.parts_size(), rhs.parts_size());
-    for (int i = 0; i < minSize; ++i) {
-        int result = CompareKeyParts(lhs.parts(i), rhs.parts(i));
+    int lhsSize = std::min(lhs.parts_size(), prefixLength);
+    int rhsSize = std::min(rhs.parts_size(), prefixLength);
+    int minSize = std::min(lhsSize, rhsSize);
+    for (int index = 0; index < minSize; ++index) {
+        int result = CompareKeyParts(lhs.parts(index), rhs.parts(index));
         if (result != 0) {
             return result;
         }
     }
-
-    return static_cast<int>(lhs.parts_size()) - static_cast<int>(rhs.parts_size());
+    return lhsSize - rhsSize;
 }
 
 bool operator>(const NProto::TKey& lhs, const NProto::TKey& rhs)

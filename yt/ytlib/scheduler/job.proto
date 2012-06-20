@@ -142,6 +142,7 @@ message TMergeJobSpecExt
         optional TMergeJobSpecExt merge_job_spec_ext = 101;
     }
 
+    // For EJobType::SortedMerge, contains columns used for comparison.
     repeated string key_columns = 1;
 }
 

@@ -476,9 +476,9 @@ protected:
 
 
     // Unsorted helpers.
-    void CheckInputTablesSorted();
+    std::vector<Stroka> CheckInputTablesSorted(const TNullable< yvector<Stroka> >& keyColumns);
+    static bool AreKeysCompatible(const std::vector<Stroka>& fullColumns, const std::vector<Stroka>& prefixColumns);
     void CheckOutputTablesEmpty();
-    std::vector<Stroka> GetInputKeyColumns();
     void SetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
     bool CheckChunkListsPoolSize(int minSize);
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);

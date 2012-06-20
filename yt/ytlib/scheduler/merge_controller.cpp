@@ -64,7 +64,10 @@ protected:
     //! The total weight accumulated in #CurrentTaskStripes.
     i64 CurrentTaskWeight;
 
-    // The template for starting new jobs.
+    //! Key columns to pass in the job spec. Only makes sense for sorted merge.
+    std::vector<Stroka> KeyColumns;
+
+    //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
 
     // Merge task.
@@ -432,6 +435,9 @@ protected:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TMergeJobSpecExt::merge_job_spec_ext);
+        ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
+
         // ToDo(psushin): set larger PrefetchWindow for unordered merge.
         JobSpecTemplate.set_io_config(SerializeToYson(Config->MergeJobIO));
     }
@@ -556,7 +562,7 @@ public:
     { }
 
 private:
-    // Either the left or the right endpoint of a chunk.
+    //! Either the left or the right endpoint of a chunk.
     struct TKeyEndpoint
     {
         bool Left;
@@ -597,18 +603,20 @@ private:
         // Sort earlier collected endpoints to figure out overlapping chunks.
         // Sort endpoints by keys, in case of a tie left endpoints go first.
         LOG_INFO("Sorting chunks");
+
+        int prefixLength = static_cast<int>(KeyColumns.size());
         std::sort(
             Endpoints.begin(),
             Endpoints.end(),
-            [] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                auto keysResult = CompareKeys(lhs.Key, rhs.Key);
+            [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
+                auto keysResult = CompareKeys(lhs.Key, rhs.Key, prefixLength);
                 if (keysResult != 0) {
                     return keysResult < 0;
                 }
                 return lhs.Left && !rhs.Left;
             });
 
-        // Compute sets of overlapping chunks.
+        // Compute components consisting of overlapping chunks.
         // Combine small tasks, if requested so.
         LOG_INFO("Building tasks");
         int depth = 0;
@@ -624,20 +632,18 @@ private:
             } else {
                 --depth;
                 if (depth == 0) {
-                    ProcessConnectedComponent(startIndex, currentIndex + 1);
+                    ProcessOverlap(startIndex, currentIndex + 1);
                     startIndex = currentIndex + 1;
                 }
             }
         }
 
-        // Force all output tables to be marked as sorted.
-        auto keyColumns = GetInputKeyColumns();
-        SetOutputTablesSorted(keyColumns);
+        SetOutputTablesSorted(KeyColumns);
 
         TMergeControllerBase::EndInputChunks();
     }
 
-    void ProcessConnectedComponent(int startIndex, int endIndex)
+    void ProcessOverlap(int startIndex, int endIndex)
     {
         // Must be an even number of endpoints.
         YCHECK((endIndex - startIndex) % 2 == 0);
@@ -698,7 +704,9 @@ private:
     {
         UNUSED(batchRsp);
 
-        CheckInputTablesSorted();
+        KeyColumns = CheckInputTablesSorted(Spec->KeyColumns);
+        LOG_INFO("Key columns are %s", ~SerializeToYson(KeyColumns, EYsonFormat::Text));
+
         CheckOutputTablesEmpty();
     }
 };
@@ -712,7 +720,7 @@ IOperationControllerPtr CreateMergeController(
 {
     auto spec = New<TMergeOperationSpec>();
     try {
-        spec->Load(~operation->GetSpec());
+        spec->Load(operation->GetSpec());
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
     }
@@ -736,7 +744,7 @@ IOperationControllerPtr CreateEraseController(
 {
     auto eraseSpec = New<TEraseOperationSpec>();
     try {
-        eraseSpec->Load(~operation->GetSpec());
+        eraseSpec->Load(operation->GetSpec());
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
     }
@@ -757,7 +765,7 @@ IOperationControllerPtr CreateReduceController(
 {
     auto reduceSpec = New<TReduceOperationSpec>();
     try {
-        reduceSpec->Load(~operation->GetSpec());
+        reduceSpec->Load(operation->GetSpec());
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
     }
