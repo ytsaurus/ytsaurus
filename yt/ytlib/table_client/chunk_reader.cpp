@@ -808,8 +808,6 @@ TAsyncError TChunkReader::ContinueNextRow(
 
 void TChunkReader::MakeCurrentRow()
 {
-    TLexer lexer;
-
     FOREACH (const auto& reader, ChannelReaders) {
         while (reader->NextColumn()) {
             auto column = reader->GetColumn();
@@ -824,7 +822,7 @@ void TChunkReader::MakeCurrentRow()
                         CurrentKey.SetKeyPart(
                             columnInfo.KeyIndex,
                             reader->GetValue(),
-                            lexer);
+                            Lexer);
                     }
 
                     if (columnInfo.InChannel) {

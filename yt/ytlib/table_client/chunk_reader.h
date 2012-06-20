@@ -12,6 +12,7 @@
 #include <ytlib/table_client/table_reader.pb.h>
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/ytree/public.h>
+#include <ytlib/ytree/lexer.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -75,6 +76,9 @@ private:
     NYTree::TYson RowAttributes;
     TRow CurrentRow;
     TNonOwningKey CurrentKey;
+
+
+    NYTree::TLexer Lexer;
 
     struct TColumnInfo
     {
