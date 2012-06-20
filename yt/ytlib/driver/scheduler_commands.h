@@ -85,6 +85,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReduceCommand
+    : public TSchedulerCommandBase
+{
+public:
+    explicit TReduceCommand(ICommandContext* context);
+
+private:
+    virtual void DoExecute();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAbortOperationRequest
     : public TConfigurable
 {

@@ -27,7 +27,7 @@ void TGetExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildOptions(consumer);
 }
 
-Stroka TGetExecutor::GetDriverCommandName() const
+Stroka TGetExecutor::GetCommandName() const
 {
     return "get";
 }
@@ -69,7 +69,7 @@ TInputStream* TSetExecutor::GetInputStream()
     }
 }
 
-Stroka TSetExecutor::GetDriverCommandName() const
+Stroka TSetExecutor::GetCommandName() const
 {
     return "set";
 }
@@ -94,7 +94,7 @@ void TRemoveExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildOptions(consumer);
 }
 
-Stroka TRemoveExecutor::GetDriverCommandName() const
+Stroka TRemoveExecutor::GetCommandName() const
 {
     return "remove";
 }
@@ -118,7 +118,7 @@ void TListExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildOptions(consumer);
 }
 
-Stroka TListExecutor::GetDriverCommandName() const
+Stroka TListExecutor::GetCommandName() const
 {
     return "list";
 }
@@ -145,7 +145,7 @@ void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildOptions(consumer);
 }
 
-Stroka TCreateExecutor::GetDriverCommandName() const
+Stroka TCreateExecutor::GetCommandName() const
 {
     return "create";
 }
@@ -172,7 +172,7 @@ void TLockExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TLockExecutor::GetDriverCommandName() const
+Stroka TLockExecutor::GetCommandName() const
 {
     return "lock";
 }

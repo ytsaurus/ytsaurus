@@ -85,7 +85,7 @@ protected:
             ChunkPool = CreateAtomicChunkPool();
         }
 
-        virtual Stroka GetId() const
+        Stroka GetId() const OVERRIDE
         {
             return
                 PartitionIndex < 0
@@ -93,12 +93,12 @@ protected:
                 : Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
         }
 
-        virtual int GetPendingJobCount() const
+        int GetPendingJobCount() const OVERRIDE
         {
             return ChunkPool->IsPending() ? 1 : 0;
         }
 
-        virtual TDuration GetMaxLocalityDelay() const
+        TDuration GetMaxLocalityDelay() const OVERRIDE
         {
             // TODO(babenko): make configurable
             return TDuration::Seconds(5);
@@ -116,17 +116,17 @@ protected:
         int PartitionIndex;
 
 
-        virtual int GetChunkListCountPerJob() const 
+        int GetChunkListCountPerJob() const OVERRIDE
         {
             return 1;
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const
+        TNullable<i64> GetJobWeightThreshold() const OVERRIDE
         {
             return Null;
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgress* jip)
+        TJobSpec GetJobSpec(TJobInProgress* jip) OVERRIDE
         {
             auto jobSpec = Controller->JobSpecTemplate;
             AddParallelInputSpec(&jobSpec, jip);
@@ -134,7 +134,7 @@ protected:
             return jobSpec;
         }
 
-        virtual void OnJobStarted(TJobInProgress* jip)
+        void OnJobStarted(TJobInProgress* jip) OVERRIDE
         {
             TTask::OnJobStarted(jip);
 
@@ -142,7 +142,7 @@ protected:
             Controller->WeightCounter.Start(jip->PoolResult->TotalChunkWeight);
         }
 
-        virtual void OnJobCompleted(TJobInProgress* jip)
+        void OnJobCompleted(TJobInProgress* jip) OVERRIDE
         {
             TTask::OnJobCompleted(jip);
 
@@ -167,7 +167,7 @@ protected:
 
     std::vector<TMergeTaskPtr> MergeTasks;
 
-    //! Sets all entries in #CurrentTaskStripes to |NULL|.
+    //! Resizes #CurrentTaskStripes appropriately and sets all its entries to |NULL|.
     void ClearCurrentTaskStripes()
     {
         CurrentTaskStripes.clear();
@@ -177,7 +177,7 @@ protected:
     //! Finish the current task.
     void EndTask()
     {
-        YCHECK(CurrentTaskWeight > 0);
+        YCHECK(HasActiveTask());
 
         auto& table = OutputTables[0];
         auto task = New<TMergeTask>(
@@ -207,18 +207,22 @@ protected:
     //! Finish the current task if the size is large enough.
     void EndTaskIfLarge()
     {
-        if (CurrentTaskWeight >= Spec->MaxMergeJobWeight) {
+        if (HasLargeActiveTask()) {
             EndTask();
         }
     }
 
-    //! Returns True if some task is currently in progress.
+    //! Returns True if some stripes are currently queued.
     bool HasActiveTask()
     {
         return CurrentTaskWeight > 0;
     }
 
-    // Chunk pools and locality.
+    //! Returns True if the total weight of currently queued stripes exceeds the pre-configured limit.
+    bool HasLargeActiveTask()
+    {
+        return CurrentTaskWeight >= Spec->MaxMergeJobWeight;
+    }
 
     //! Add chunk to the current task's pool.
     void AddPendingChunk(const TInputChunk& chunk, int tableIndex)
@@ -261,7 +265,7 @@ protected:
 
     // Init/finish.
 
-    virtual void CustomInitialize()
+    void CustomInitialize() OVERRIDE
     {
         if (InputTables.empty()) {
             // At least one table is needed for sorted merge to figure out the key columns.
@@ -272,19 +276,19 @@ protected:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TYPath> GetInputTablePaths()
+    std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths()
+    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+    TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
     {
         return pipeline->Add(BIND(&TMergeControllerBase::ProcessInputs, MakeStrong(this)));
     }
@@ -361,7 +365,7 @@ protected:
 
     // Progress reporting.
 
-    virtual void LogProgress()
+    void LogProgress() OVERRIDE
     {
         LOG_DEBUG("Progress: "
             "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
@@ -376,7 +380,7 @@ protected:
             ~ToString(WeightCounter));
     }
 
-    virtual void DoGetProgress(IYsonConsumer* consumer)
+    void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
     {
         BuildYsonMapFluently(consumer)
             .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &ChunkCounter))
@@ -450,7 +454,7 @@ public:
     { }
 
 private:
-    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex)
+    void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
 
@@ -490,7 +494,7 @@ public:
 private:
     EOperationType OperationType;
 
-    virtual void CustomInitialize()
+    void CustomInitialize() OVERRIDE
     {
         if (OperationType == EOperationType::Erase) {
             // For erase operation the rowset specified by the user must actually be removed...
@@ -500,7 +504,7 @@ private:
         }
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
     {
         UNUSED(batchRsp);
 
@@ -513,14 +517,14 @@ private:
         }
     }
 
-    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex)
+    void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
 
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (IsLargeCompleteChunk(chunk) && CurrentTaskWeight == 0) {
+        if (IsLargeCompleteChunk(chunk) && !HasActiveTask()) {
             // Merge is not required and no current task is active.
             // Copy the chunk directly to the output.
             LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
@@ -563,7 +567,7 @@ private:
 
     std::vector<TKeyEndpoint> Endpoints;
 
-    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex)
+    void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         YCHECK(miscExt->sorted());
@@ -588,7 +592,7 @@ private:
         }
     }
 
-    virtual void EndInputChunks()
+    void EndInputChunks() OVERRIDE
     {
         // Sort earlier collected endpoints to figure out overlapping chunks.
         // Sort endpoints by keys, in case of a tie left endpoints go first.
@@ -629,6 +633,8 @@ private:
         // Force all output tables to be marked as sorted.
         auto keyColumns = GetInputKeyColumns();
         SetOutputTablesSorted(keyColumns);
+
+        TMergeControllerBase::EndInputChunks();
     }
 
     void ProcessConnectedComponent(int startIndex, int endIndex)
@@ -666,7 +672,7 @@ private:
                     endpoint.TableIndex);
                 YCHECK(openedChunks.erase(endpoint.InputChunk) == 1);
                 LOG_DEBUG("Chunk interval closed (ChunkId: %s)", ~chunkId.ToString());
-                if (CurrentTaskWeight >= Spec->MaxMergeJobWeight) {
+                if (HasLargeActiveTask()) {
                     auto nextBreakpoint = GetKeySuccessor(endpoint.Key);
                     LOG_DEBUG("Merge job is too large, flushing %" PRISZT " chunks at key {%s}",
                         openedChunks.size(),
@@ -676,23 +682,19 @@ private:
                             SliceChunk(*pair.second->InputChunk, lastBreakpoint, nextBreakpoint),
                             pair.second->TableIndex);
                     }
+                    EndTask();
                     LOG_DEBUG("Finished flushing opened chunks");
                     lastBreakpoint = nextBreakpoint;
                 }
             }
         }
 
-        FOREACH (const auto& pair, openedChunks) {
-            AddPendingChunk(
-                SliceChunk(*pair.second->InputChunk, lastBreakpoint),
-                pair.second->TableIndex);
-        }
-
+        YCHECK(openedChunks.empty());
         EndTaskIfLarge();
     }
 
 
-    virtual void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
     {
         UNUSED(batchRsp);
 
@@ -746,6 +748,22 @@ IOperationControllerPtr CreateEraseController(
     mergeSpec->Mode = EMergeMode::Ordered;
     mergeSpec->CombineChunks = eraseSpec->CombineChunks;
     return New<TOrderedMergeController>(config, EOperationType::Erase, mergeSpec, host, operation);
+}
+
+IOperationControllerPtr CreateReduceController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto reduceSpec = New<TReduceOperationSpec>();
+    try {
+        reduceSpec->Load(~operation->GetSpec());
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+    }
+
+    // TODO(babenko): fixme
+    return NULL;
 }
 
 ////////////////////////////////////////////////////////////////////

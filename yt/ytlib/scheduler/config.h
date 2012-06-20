@@ -155,10 +155,10 @@ struct TMergeOperationSpec
         Register("output_table_path", OutputTablePath);
         Register("mode", Mode)
             .Default(EMergeMode::Unordered);
-        Register("key_columns", KeyColumns)
-            .Default();
         Register("combine_chunks", CombineChunks)
             .Default(false);
+        Register("key_columns", KeyColumns)
+            .Default();
         Register("max_merge_job_weight", MaxMergeJobWeight)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);

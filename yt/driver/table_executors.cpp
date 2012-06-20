@@ -27,7 +27,7 @@ void TReadExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TReadExecutor::GetDriverCommandName() const
+Stroka TReadExecutor::GetCommandName() const
 {
     return "read";
 }
@@ -76,7 +76,7 @@ TInputStream* TWriteExecutor::GetInputStream()
     }
 }
 
-Stroka TWriteExecutor::GetDriverCommandName() const
+Stroka TWriteExecutor::GetCommandName() const
 {
     return "write";
 }

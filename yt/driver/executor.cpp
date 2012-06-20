@@ -37,7 +37,7 @@ static const char* ConfigEnvVar = "YT_CONFIG";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExecutorBase::TExecutorBase()
+TExecutor::TExecutor()
     : CmdLine("Command line", ' ', YT_VERSION)
     , ConfigArg("", "config", "configuration file", false, "", "file_name")
     , FormatArg("", "format", "format (both input and output)", false, "", "yson")
@@ -54,7 +54,7 @@ TExecutorBase::TExecutorBase()
     CmdLine.add(OptsArg);
 }
 
-IMapNodePtr TExecutorBase::GetArgs()
+IMapNodePtr TExecutor::GetArgs()
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -64,7 +64,7 @@ IMapNodePtr TExecutorBase::GetArgs()
     return builder->EndTree()->AsMap();
 }
 
-Stroka TExecutorBase::GetConfigFileName()
+Stroka TExecutor::GetConfigFileName()
 {
     Stroka fromCommandLine = ConfigArg.getValue();;
     Stroka fromEnv = Stroka(getenv(ConfigEnvVar));
@@ -97,7 +97,7 @@ Stroka TExecutorBase::GetConfigFileName()
         ~system.Quote());
 }
 
-void TExecutorBase::InitConfig()
+void TExecutor::InitConfig()
 {
     // Choose config file name.
     auto fileName = GetConfigFileName();
@@ -133,7 +133,7 @@ void TExecutorBase::InitConfig()
     }
 }
 
-void TExecutorBase::Execute(const std::vector<std::string>& args)
+void TExecutor::Execute(const std::vector<std::string>& args)
 {
     auto argsCopy = args;
     CmdLine.parse(argsCopy);
@@ -144,7 +144,7 @@ void TExecutorBase::Execute(const std::vector<std::string>& args)
    
     Driver = CreateDriver(Config);
 
-    auto commandName = GetDriverCommandName();
+    auto commandName = GetCommandName();
     
     auto descriptor = Driver->FindCommandDescriptor(commandName);
     YASSERT(descriptor);
@@ -164,7 +164,7 @@ void TExecutorBase::Execute(const std::vector<std::string>& args)
     TDriverRequest request;
     // GetArgs() must be called before GetInputStream()
     request.Arguments = GetArgs();
-    request.CommandName = GetDriverCommandName();
+    request.CommandName = GetCommandName();
     request.InputStream = GetInputStream();
     request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
     request.OutputStream = &outputStream;
@@ -173,7 +173,7 @@ void TExecutorBase::Execute(const std::vector<std::string>& args)
     DoExecute(request);
 }
 
-void TExecutorBase::ApplyConfigUpdates(IYPathServicePtr service)
+void TExecutor::ApplyConfigUpdates(IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigSetArg.getValue()) {
         TTokenizer tokenizer(updateString);
@@ -188,7 +188,7 @@ void TExecutorBase::ApplyConfigUpdates(IYPathServicePtr service)
     }
 }
 
-TFormat TExecutorBase::GetFormat(EDataType dataType, const Stroka& custom)
+TFormat TExecutor::GetFormat(EDataType dataType, const Stroka& custom)
 {
     if (!custom.empty()) {
         INodePtr customNode;
@@ -216,7 +216,7 @@ TFormat TExecutorBase::GetFormat(EDataType dataType, const Stroka& custom)
     }
 }
 
-void TExecutorBase::BuildOptions(IYsonConsumer* consumer)
+void TExecutor::BuildOptions(IYsonConsumer* consumer)
 {
     FOREACH (const auto& opts, OptsArg.getValue()) {
         // TODO(babenko): think about a better way of doing this
@@ -228,12 +228,12 @@ void TExecutorBase::BuildOptions(IYsonConsumer* consumer)
     }
 }
 
-void TExecutorBase::BuildArgs(IYsonConsumer* consumer)
+void TExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     UNUSED(consumer);
 }
 
-void TExecutorBase::DoExecute(const TDriverRequest& request)
+void TExecutor::DoExecute(const TDriverRequest& request)
 {
     auto response = Driver->Execute(request);
 
@@ -242,7 +242,7 @@ void TExecutorBase::DoExecute(const TDriverRequest& request)
     }
 }
 
-TInputStream* TExecutorBase::GetInputStream()
+TInputStream* TExecutor::GetInputStream()
 {
     return &StdInStream();
 }
@@ -263,7 +263,7 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
             fluent.Item("transaction_id").Scalar(txId);
         });
 
-    TExecutorBase::BuildArgs(consumer);
+    TExecutor::BuildArgs(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

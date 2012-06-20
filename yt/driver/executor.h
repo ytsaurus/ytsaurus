@@ -21,15 +21,14 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExecutorBase
+class TExecutor
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TExecutorBase> TPtr;
-
-    TExecutorBase();
+    TExecutor();
 
     virtual void Execute(const std::vector<std::string>& args);
+    virtual Stroka GetCommandName() const = 0;
 
 protected:
     typedef TCLAP::UnlabeledValueArg<Stroka> TUnlabeledStringArg;
@@ -55,18 +54,16 @@ protected:
     void BuildOptions(NYTree::IYsonConsumer* consumer);
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
 
-    virtual Stroka GetDriverCommandName() const = 0;
-
     virtual void DoExecute(const NDriver::TDriverRequest& request);
     virtual TInputStream* GetInputStream();
 };
 
-typedef TIntrusivePtr<TExecutorBase> TArgsBasePtr;
+typedef TIntrusivePtr<TExecutor> TExecutorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactedExecutor
-    : public TExecutorBase
+    : public TExecutor
 {
 public:
     TTransactedExecutor(bool required = false);

@@ -64,7 +64,6 @@ TMapCommand::TMapCommand(ICommandContext* host)
 void TMapCommand::DoExecute()
 {
     StartOperation(EOperationType::Map);
-    // TODO(babenko): dump stderrs
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +100,18 @@ TEraseCommand::TEraseCommand(ICommandContext* context)
 void TEraseCommand::DoExecute()
 {
     StartOperation(EOperationType::Erase);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReduceCommand::TReduceCommand(ICommandContext* context)
+    : TSchedulerCommandBase(context)
+    , TUntypedCommandBase(context)
+{ }
+
+void TReduceCommand::DoExecute()
+{
+    StartOperation(EOperationType::Reduce);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

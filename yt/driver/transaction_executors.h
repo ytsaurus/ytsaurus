@@ -11,7 +11,7 @@ class TStartTxExecutor
 {
 private:
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +23,7 @@ public:
     TRenewTxExecutor();
 
 private:
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +35,7 @@ public:
     TCommitTxExecutor();
 
 private:
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +47,7 @@ public:
     TAbortTxExecutor();
 
 private:
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

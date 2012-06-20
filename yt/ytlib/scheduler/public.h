@@ -19,6 +19,7 @@ DECLARE_ENUM(EOperationType,
     ((Merge)(1))
     ((Erase)(2))
     ((Sort)(3))
+    ((Reduce)(4))
 );
 
 DECLARE_ENUM(EJobType,

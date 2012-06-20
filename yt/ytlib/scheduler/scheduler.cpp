@@ -607,6 +607,8 @@ private:
                 return CreateEraseController(Config, this, operation);
             case EOperationType::Sort:
                 return CreateSortController(Config, this, operation);
+            case EOperationType::Reduce:
+                return CreateReduceController(Config, this, operation);
             default:
                 YUNREACHABLE();
         }

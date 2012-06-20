@@ -16,7 +16,7 @@ private:
     TUnlabeledStringArg PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +35,7 @@ private:
     TStringStream Stream;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
     virtual TInputStream* GetInputStream();
 };
 
@@ -51,7 +51,7 @@ private:
     TUnlabeledStringArg PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +66,7 @@ private:
     TUnlabeledStringArg PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +84,7 @@ private:
     TUnlabeledStringArg PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +102,7 @@ private:
     TModeArg ModeArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetDriverCommandName() const;
+    virtual Stroka GetCommandName() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
