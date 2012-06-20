@@ -931,13 +931,56 @@ void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExe
     }
 }
 
-void TOperationControllerBase::CheckInputTablesSorted()
+std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNullable< yvector<Stroka> >& keyColumns)
 {
+    YCHECK(!InputTables.empty());
+
     FOREACH (const auto& table, InputTables) {
         if (!table.Sorted) {
             ythrow yexception() << Sprintf("Input table %s is not sorted", ~table.Path);
         }
     }
+
+    if (keyColumns) {
+        FOREACH (const auto& table, InputTables) {
+            if (!AreKeysCompatible(table.KeyColumns, keyColumns.Get())) {
+                ythrow yexception() << Sprintf("Input table %s has key columns %s that are not compatible with the requested key columns %s",
+                    ~table.Path,
+                    ~SerializeToYson(table.KeyColumns, EYsonFormat::Text),
+                    ~SerializeToYson(keyColumns.Get(), EYsonFormat::Text));
+            }
+        }
+        return keyColumns.Get();
+    } else {
+        const auto& referenceTable = InputTables[0];
+        FOREACH (const auto& table, InputTables) {
+            if (table.KeyColumns != referenceTable.KeyColumns) {
+                ythrow yexception() << Sprintf("Key columns do not match: input table %s is sorted by %s while input table %s is sorted by %s",
+                    ~table.Path,
+                    ~SerializeToYson(table.KeyColumns, EYsonFormat::Text),
+                    ~referenceTable.Path,
+                    ~SerializeToYson(referenceTable.KeyColumns, EYsonFormat::Text));
+            }
+        }
+        return referenceTable.KeyColumns;
+    }
+}
+
+bool TOperationControllerBase::AreKeysCompatible(
+    const std::vector<Stroka>& fullColumns,
+    const std::vector<Stroka>& prefixColumns)
+{
+    if (fullColumns.size() < prefixColumns.size()) {
+        return false;
+    }
+
+    for (int index = 0; index < static_cast<int>(prefixColumns.size()); ++index) {
+        if (fullColumns[index] != prefixColumns[index]) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void TOperationControllerBase::CheckOutputTablesEmpty()
@@ -947,19 +990,6 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
             ythrow yexception() << Sprintf("Output table %s is not empty", ~table.Path);
         }
     }
-}
-
-std::vector<Stroka> TOperationControllerBase::GetInputKeyColumns()
-{
-    YCHECK(!InputTables.empty());
-    for (int index = 1; index < static_cast<int>(InputTables.size()); ++index) {
-        if (InputTables[0].KeyColumns != InputTables[index].KeyColumns) {
-            ythrow yexception() << Sprintf("Key columns mismatch in input tables %s and %s",
-                ~InputTables[0].Path,
-                ~InputTables[index].Path);
-        }
-    }
-    return InputTables[0].KeyColumns;
 }
 
 void TOperationControllerBase::SetOutputTablesSorted(const std::vector<Stroka>& keyColumns)

@@ -12,19 +12,6 @@ namespace NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileManifest
-    : public TConfigurable
-{
-    NChunkServer::TChunkId ChunkId;
-
-    TFileManifest()
-    {
-        Register("chunk_id", ChunkId);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TFileYPathProxy
     : NYTree::TYPathProxy
 {

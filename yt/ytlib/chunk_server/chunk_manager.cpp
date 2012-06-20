@@ -1539,8 +1539,10 @@ private:
         attributes->push_back(TAttributeInfo("meta_size", miscExt->has_meta_size()));
         attributes->push_back(TAttributeInfo("compressed_data_size", miscExt->has_compressed_data_size()));
         attributes->push_back(TAttributeInfo("uncompressed_data_size", miscExt->has_uncompressed_data_size()));
+        attributes->push_back(TAttributeInfo("data_weight", miscExt->has_data_weight()));
         attributes->push_back(TAttributeInfo("codec_id", miscExt->has_codec_id()));
         attributes->push_back(TAttributeInfo("row_count", miscExt->has_row_count()));
+        attributes->push_back(TAttributeInfo("value_count", miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", miscExt->has_sorted()));
         attributes->push_back(TAttributeInfo("size", chunk->IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk->IsConfirmed()));
@@ -1595,21 +1597,33 @@ private:
             return true;
         }
 
-        if (name == "uncompressed_data_size") {
-            BuildYsonFluently(consumer)
-                .Scalar(miscExt->uncompressed_data_size());
-            return true;
-        }
-
         if (name == "compressed_data_size") {
             BuildYsonFluently(consumer)
                 .Scalar(miscExt->compressed_data_size());
             return true;
         }
 
+        if (name == "uncompressed_data_size") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->uncompressed_data_size());
+            return true;
+        }
+
+        if (name == "data_weight") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->data_weight());
+            return true;
+        }
+
         if (name == "row_count") {
             BuildYsonFluently(consumer)
                 .Scalar(miscExt->row_count());
+            return true;
+        }
+
+        if (name == "value_count") {
+            BuildYsonFluently(consumer)
+                .Scalar(miscExt->value_count());
             return true;
         }
 

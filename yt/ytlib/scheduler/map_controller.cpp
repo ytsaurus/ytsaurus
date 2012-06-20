@@ -290,7 +290,7 @@ IOperationControllerPtr CreateMapController(
 {
     auto spec = New<TMapOperationSpec>();
     try {
-        spec->Load(~operation->GetSpec());
+        spec->Load(operation->GetSpec());
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
     }
