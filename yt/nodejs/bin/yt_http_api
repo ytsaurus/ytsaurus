@@ -37,7 +37,7 @@ var opts = require("optimist")
 
     .alias("s", "spare-threads")
     .default("s", 2)
-    .describe("s", "Specify a number of threads reserved for non-I/O-intensive tasks")
+    .describe("s", "Specify a number of threads reserved for non-heavy tasks")
 
     .alias("l", "log")
     .describe("l", "Specify log file")

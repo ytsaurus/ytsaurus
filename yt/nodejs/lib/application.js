@@ -224,11 +224,11 @@ YtCommand.prototype._getDescriptor = function(cb) {
         actual_http_method    : actual_http_method
     });
 
-    if (this.descriptor.is_io_intensive && this.watcher.is_choking()) {
+    if (this.descriptor.is_heavy && this.watcher.is_choking()) {
         this.rsp.statusCode = 503;
         this.rsp.setHeader("Retry-After", "60");
         throw new Error(
-            "Command '" + this.name + "' is I/O-intensive and the server is currently under heavy load.");
+            "Command '" + this.name + "' is heavy and the server is currently overloaded.");
     }
 
     if (expected_http_method != actual_http_method) {
