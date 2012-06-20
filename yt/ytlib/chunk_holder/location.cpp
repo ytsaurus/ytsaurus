@@ -123,7 +123,7 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
     ui8 firstHashByte = static_cast<ui8>(chunkId.Parts[0] & 0xff);
     return NFS::CombinePaths(
         GetPath(),
-        Sprintf("%x%s%s", firstHashByte, LOCSLASH_S, ~chunkId.ToString()));
+        Sprintf("%02x%s%s", firstHashByte, LOCSLASH_S, ~chunkId.ToString()));
 }
 
 bool TLocation::IsFull() const
