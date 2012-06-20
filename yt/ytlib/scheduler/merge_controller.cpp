@@ -177,7 +177,7 @@ protected:
         CurrentTaskStripes.resize(InputTables.size());
     }
     
-    //! Finish the current task.
+    //! Finishes the current task.
     void EndTask()
     {
         YCHECK(HasActiveTask());
@@ -199,7 +199,7 @@ protected:
 
         MergeTasks.push_back(task);
 
-        LOG_DEBUG("Finished task (Task: %d, DataSize: %" PRId64 ")",
+        LOG_DEBUG("Finished task (Task: %d, Weight: %" PRId64 ")",
             static_cast<int>(MergeTasks.size()) - 1,
             CurrentTaskWeight);
 
@@ -207,7 +207,7 @@ protected:
         ClearCurrentTaskStripes();
     }
 
-    //! Finish the current task if the size is large enough.
+    //! Finishes the current task if the size is large enough.
     void EndTaskIfLarge()
     {
         if (HasLargeActiveTask()) {
@@ -426,7 +426,7 @@ protected:
         return false;
     }
 
-    void InitJobSpecTemplate()
+    virtual void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(
             Spec->Mode == EMergeMode::Sorted
@@ -489,40 +489,13 @@ class TOrderedMergeController
 public:
     TOrderedMergeController(
         TSchedulerConfigPtr config,
-        EOperationType operationType,
         TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TMergeControllerBase(config, spec, host, operation)
-        , OperationType(operationType)
     { }
 
 private:
-    EOperationType OperationType;
-
-    void CustomInitialize() OVERRIDE
-    {
-        if (OperationType == EOperationType::Erase) {
-            // For erase operation the rowset specified by the user must actually be removed...
-            InputTables[0].NegateFetch = true;
-            // ...and the output table must be cleared.
-            OutputTables[0].Clear = true;
-        }
-    }
-
-    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
-    {
-        UNUSED(batchRsp);
-
-        if (OperationType == EOperationType::Erase) {
-            // For erase operation:
-            // - if the input is sorted then the output is marked as sorted as well
-            if (InputTables[0].Sorted) {
-                SetOutputTablesSorted(InputTables[0].KeyColumns);
-            }
-        }
-    }
-
     void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
@@ -543,6 +516,55 @@ private:
         // All chunks go to a single chunk stripe.
         AddPendingChunk(chunk, 0);
         EndTaskIfLarge();
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TEraseController
+    : public TOrderedMergeController
+{
+public:
+    TEraseController(
+        TSchedulerConfigPtr config,
+        TEraseOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TOrderedMergeController(
+            config,
+            BuildFakeMergeSpec(spec),
+            host,
+            operation)
+    { }
+
+
+private:
+    void CustomInitialize() OVERRIDE
+    {
+        // For erase operation the rowset specified by the user must actually be removed...
+        InputTables[0].NegateFetch = true;
+        // ...and the output table must be cleared.
+        OutputTables[0].Clear = true;
+    }
+
+    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    {
+        UNUSED(batchRsp);
+
+        // If the input is sorted then the output is marked as sorted as well
+        if (InputTables[0].Sorted) {
+            SetOutputTablesSorted(InputTables[0].KeyColumns);
+        }
+    }
+
+    static TMergeOperationSpecPtr BuildFakeMergeSpec(TEraseOperationSpecPtr eraseSpec)
+    {
+        auto mergeSpec = New<TMergeOperationSpec>();
+        mergeSpec->InputTablePaths.push_back(eraseSpec->TablePath);
+        mergeSpec->OutputTablePath = eraseSpec->TablePath;
+        mergeSpec->Mode = EMergeMode::Ordered;
+        mergeSpec->CombineChunks = eraseSpec->CombineChunks;
+        return mergeSpec;
     }
 };
 
@@ -680,7 +702,7 @@ private:
                 LOG_DEBUG("Chunk interval closed (ChunkId: %s)", ~chunkId.ToString());
                 if (HasLargeActiveTask()) {
                     auto nextBreakpoint = GetKeySuccessor(endpoint.Key);
-                    LOG_DEBUG("Merge job is too large, flushing %" PRISZT " chunks at key {%s}",
+                    LOG_DEBUG("Task is too large, flushing %" PRISZT " chunks at key {%s}",
                         openedChunks.size(),
                         ~nextBreakpoint.DebugString());
                     FOREACH (const auto& pair, openedChunks) {
@@ -729,7 +751,7 @@ IOperationControllerPtr CreateMergeController(
         case EMergeMode::Unordered:
             return New<TUnorderedMergeController>(config, spec, host, operation);
         case EMergeMode::Ordered:
-            return New<TOrderedMergeController>(config, EOperationType::Merge, spec, host, operation);
+            return New<TOrderedMergeController>(config, spec, host, operation);
         case EMergeMode::Sorted:
             return New<TSortedMergeController>(config, spec, host, operation);
         default:
@@ -742,20 +764,14 @@ IOperationControllerPtr CreateEraseController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto eraseSpec = New<TEraseOperationSpec>();
+    auto spec = New<TEraseOperationSpec>();
     try {
-        eraseSpec->Load(operation->GetSpec());
+        spec->Load(operation->GetSpec());
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
     }
 
-    // Create a fake spec for the ordered merge controller.
-    auto mergeSpec = New<TMergeOperationSpec>();
-    mergeSpec->InputTablePaths.push_back(eraseSpec->TablePath);
-    mergeSpec->OutputTablePath = eraseSpec->TablePath;
-    mergeSpec->Mode = EMergeMode::Ordered;
-    mergeSpec->CombineChunks = eraseSpec->CombineChunks;
-    return New<TOrderedMergeController>(config, EOperationType::Erase, mergeSpec, host, operation);
+    return New<TEraseController>(config, spec, host, operation);
 }
 
 IOperationControllerPtr CreateReduceController(

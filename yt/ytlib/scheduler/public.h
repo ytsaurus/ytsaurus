@@ -108,6 +108,9 @@ typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 struct TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
 
+struct TEraseOperationSpec;
+typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
+
 struct TSortOperationSpec;
 typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
 
