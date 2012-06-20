@@ -109,6 +109,7 @@ void TChunkWriterBase::FinaliseWriter()
         MiscExt.set_compressed_data_size(SentSize);
         MiscExt.set_meta_size(Meta.ByteSize());
         MiscExt.set_codec_id(Config->CodecId);
+        MiscExt.set_data_weight(DataWeight);
         SetProtoExtension(Meta.mutable_extensions(), MiscExt);
     }
 
