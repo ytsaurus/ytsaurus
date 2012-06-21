@@ -181,3 +181,55 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
         assert get('//tmp/t_out/@chunk_count') == '1'
 
+    def test_merge_ordered(self):
+        self._prepare_tables()
+
+        merge(mode='ordered',
+              input=[self.t1, self.t2],
+              out='//tmp/t_out')
+
+        assert read_table('//tmp/t_out') == self.v1 + self.v2
+        assert get('//tmp/t_out/@chunk_count') == '7'
+
+    def test_merge_ordered_combine(self):
+        self._prepare_tables()
+
+        merge('--combine',
+              mode='ordered',
+              input=[self.t1, self.t2],
+              out='//tmp/t_out')
+
+        assert read_table('//tmp/t_out') == self.v1 + self.v2
+        assert get('//tmp/t_out/@chunk_count') == '1'
+
+
+    def test_merge_sorted(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+
+        write('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+        write('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+
+        create('table', '//tmp/t_out')
+        merge(mode='sorted',
+              input=['//tmp/t1', '//tmp/t2'],
+              out='//tmp/t_out')
+
+        assert read_table('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
+        assert get('//tmp/t_out/@chunk_count') == '2'
+
+    def test_merge_sorted_combine(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+
+        write('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+        write('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+
+        create('table', '//tmp/t_out')
+        merge('--combine',
+              mode='sorted',
+              input=['//tmp/t1', '//tmp/t2'],
+              out='//tmp/t_out')
+
+        assert read_table('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
+        assert get('//tmp/t_out/@chunk_count') == '1'
