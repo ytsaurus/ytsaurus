@@ -69,7 +69,7 @@ void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
 
 TInputStream* TWriteExecutor::GetInputStream()
 {
-    return UseStdIn : &StdInStream() : &Stream;
+    return UseStdIn ? &StdInStream() : &Stream;
 }
 
 Stroka TWriteExecutor::GetCommandName() const
