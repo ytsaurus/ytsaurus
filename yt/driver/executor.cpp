@@ -39,19 +39,19 @@ static const char* ConfigEnvVar = "YT_CONFIG";
 
 TExecutor::TExecutor()
     : CmdLine("Command line", ' ', YT_VERSION)
-    , ConfigArg("", "config", "configuration file", false, "", "file_name")
-    , FormatArg("", "format", "format (both input and output)", false, "", "yson")
-    , InputFormatArg("", "in_format", "input format", false, "", "yson")
-    , OutputFormatArg("", "out_format", "output format", false, "", "yson")
-    , ConfigSetArg("", "config_set", "set configuration value", false, "ypath=yson")
-    , OptsArg("", "opts", "other options", false, "key=yson")
+    , ConfigArg("", "config", "configuration file", false, "", "STRING")
+    , FormatArg("", "format", "format (both input and output)", false, "", "YSON")
+    , InputFormatArg("", "in_format", "input format", false, "", "YSON")
+    , OutputFormatArg("", "out_format", "output format", false, "", "YSON")
+    , ConfigOptArg("", "config_opt", "override configuration option", false, "YPATH=YSON")
+    , OptArg("", "opt", "override command option", false, "YPATH=YSON")
 {
     CmdLine.add(ConfigArg);
     CmdLine.add(FormatArg);
     CmdLine.add(InputFormatArg);
     CmdLine.add(OutputFormatArg);
-    CmdLine.add(ConfigSetArg);
-    CmdLine.add(OptsArg);
+    CmdLine.add(ConfigOptArg);
+    CmdLine.add(OptArg);
 }
 
 IMapNodePtr TExecutor::GetArgs()
@@ -61,7 +61,11 @@ IMapNodePtr TExecutor::GetArgs()
     builder->OnBeginMap();
     BuildArgs(~builder);
     builder->OnEndMap();
-    return builder->EndTree()->AsMap();
+    auto args = builder->EndTree()->AsMap();
+    FOREACH (const auto& opt, OptArg.getValue()) {
+        ApplyYPathOverride(args, opt);
+    }
+    return args;
 }
 
 Stroka TExecutor::GetConfigFileName()
@@ -88,11 +92,12 @@ Stroka TExecutor::GetConfigFileName()
     }
 
     ythrow yexception() <<
-        Sprintf("Unable to find configuration file. Please specify it using one of the following methods:\n"
-        "1) --config option\n"
-        "2) YT_CONFIG environment variable\n"
+        Sprintf("Configuration file cannot be found. Please specify it using one of the following methods:\n"
+        "1) --config command-line option\n"
+        "2) %s environment variable\n"
         "3) per-user file %s\n"
         "4) system-wide file %s",
+        ConfigEnvVar,
         ~user.Quote(),
         ~system.Quote());
 }
@@ -114,20 +119,22 @@ void TExecutor::InitConfig()
     // Parse config.
     Config = New<TExecutorConfig>();
     try {
-        Config->Load(~configNode);
+        Config->Load(configNode);
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
     }
 
-    // Now convert back YSON tree to populate defaults.
+    // Now convert back YSON tree to populate the defaults.
     configNode = DeserializeFromYson(BIND(&TConfigurable::Save, Config));
 
     // Patch config from command line.
-    ApplyConfigUpdates(configNode);
+    FOREACH (const auto& opt, ConfigOptArg.getValue()) {
+        ApplyYPathOverride(configNode, opt);
+    }
 
     // And finally parse it again.
     try {
-        Config->Load(~configNode);
+        Config->Load(configNode);
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
     }
@@ -158,7 +165,7 @@ void TExecutor::Execute(const std::vector<std::string>& args)
         outputFormat = OutputFormatArg.getValue();
     }
 
-    // Set bufferization of streams
+    // Set stream buffers.
     TBufferedOutput outputStream(&StdOutStream(), 1 << 16);
 
     TDriverRequest request;
@@ -171,21 +178,6 @@ void TExecutor::Execute(const std::vector<std::string>& args)
     request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);;
 
     DoExecute(request);
-}
-
-void TExecutor::ApplyConfigUpdates(IYPathServicePtr service)
-{
-    FOREACH (auto updateString, ConfigSetArg.getValue()) {
-        TTokenizer tokenizer(updateString);
-        tokenizer.ParseNext();
-        while (tokenizer.GetCurrentType() != KeyValueSeparatorToken) {
-            if (!tokenizer.ParseNext()) {
-                ythrow yexception() << "Incorrect option";
-            }
-        }
-        TStringBuf ypath = TStringBuf(updateString).Chop(tokenizer.CurrentInput().length());
-        SyncYPathSet(service, TYPath(ypath), TYson(tokenizer.GetCurrentSuffix()));
-    }
 }
 
 TFormat TExecutor::GetFormat(EDataType dataType, const Stroka& custom)
@@ -216,18 +208,6 @@ TFormat TExecutor::GetFormat(EDataType dataType, const Stroka& custom)
     }
 }
 
-void TExecutor::BuildOptions(IYsonConsumer* consumer)
-{
-    FOREACH (const auto& opts, OptsArg.getValue()) {
-        // TODO(babenko): think about a better way of doing this
-        auto items = DeserializeFromYson("{" + opts + "}")->AsMap();
-        FOREACH (const auto& pair, items->GetChildren()) {
-            consumer->OnKeyedItem(pair.first);
-            VisitTree(pair.second, consumer, true);
-        }
-    }
-}
-
 void TExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     UNUSED(consumer);
@@ -250,7 +230,7 @@ TInputStream* TExecutor::GetInputStream()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactedExecutor::TTransactedExecutor(bool required)
-    : TxArg("", "tx", "set transaction id", required, "", "transaction_id")
+    : TxArg("", "tx", "set transaction id", required, "", "GUID")
 {
     CmdLine.add(TxArg);
 }
@@ -259,8 +239,7 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
-            Stroka txId = TxArg.getValue();
-            fluent.Item("transaction_id").Scalar(txId);
+            fluent.Item("transaction_id").Scalar(TxArg.getValue());
         });
 
     TExecutor::BuildArgs(consumer);

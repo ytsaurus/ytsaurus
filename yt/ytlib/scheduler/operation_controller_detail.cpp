@@ -9,6 +9,7 @@
 #include <ytlib/object_server/object_ypath_proxy.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/formats/format.h>
 
 #include <cmath>
 
@@ -22,6 +23,7 @@ using namespace NTableServer;
 using namespace NChunkServer;
 using namespace NObjectServer;
 using namespace NYTree;
+using namespace NFormats;
 using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -1071,6 +1073,40 @@ int TOperationControllerBase::GetJobCount(
     result = std::min(result, chunkCount);
     YCHECK(result > 0);
     return result;
+}
+
+void TOperationControllerBase::InitUserJobSpec(
+    NScheduler::NProto::TUserJobSpec* proto,
+    TUserJobSpecPtr config,
+    const std::vector<TFile>& files)
+{
+    proto->set_shell_command(config->Command);
+
+    {
+        // Set input and output format.
+        TFormat inputFormat(EFormatType::Yson);
+        TFormat outputFormat(EFormatType::Yson);
+
+        if (config->Format) {
+            inputFormat = outputFormat = TFormat::FromYson(config->Format);
+        }
+
+        if (config->InputFormat) {
+            inputFormat = TFormat::FromYson(config->InputFormat);
+        }
+
+        if (config->OutputFormat) {
+            outputFormat = TFormat::FromYson(config->OutputFormat);
+        }
+
+        proto->set_input_format(inputFormat.ToYson());
+        proto->set_output_format(outputFormat.ToYson());
+    }
+
+    // TODO(babenko): think about per-job files
+    FOREACH (const auto& file, files) {
+        *proto->add_files() = *file.FetchResponse;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////

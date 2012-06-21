@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "ypath_client.h"
-
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
 #include "tokenizer.h"
 #include "ypath_format.h"
+#include "yson_format.h"
 
 #include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/misc/serialize.h>
@@ -299,6 +299,27 @@ yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
     auto response = ExecuteVerb(service, request).Get();
     response->ThrowIfError();
     return NYT::FromProto<Stroka>(response->keys());
+}
+
+void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
+{
+    TTokenizer tokenizer(overrideString);
+
+    TYPath path;
+    while (true) {
+        if (!tokenizer.ParseNext()) {
+            ythrow yexception() << "Unexpected end-of-stream while parsing YPath override";
+        }
+        if (tokenizer.GetCurrentType() == KeyValueSeparatorToken) {
+            break;
+        }
+        path.append(tokenizer.CurrentToken().ToString());
+    }
+
+    auto value = TYson(tokenizer.GetCurrentSuffix());
+
+    ForceYPath(root, path);
+    SyncYPathSet(root, path, value);
 }
 
 INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)

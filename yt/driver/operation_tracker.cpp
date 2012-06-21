@@ -53,7 +53,10 @@ void TOperationTracker::Run()
     DumpResult();
 }
 
-void TOperationTracker::AppendPhaseProgress(Stroka* out, const Stroka& phase, const TYson& progress)
+void TOperationTracker::AppendPhaseProgress(
+    Stroka* out,
+    const Stroka& phase,
+    const TYson& progress)
 {
     i64 total = DeserializeFromYson<i64>(progress, "/total");
     if (total == 0) {

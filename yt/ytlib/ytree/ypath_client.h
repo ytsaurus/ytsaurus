@@ -164,6 +164,13 @@ void SyncYPathRemove(IYPathServicePtr service, const TYPath& path);
 //! Synchronously executes "List" verb. Throws if an error has occurred.
 yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
 
+//! Overrides a part of #root tree.
+/*!
+ *  #overrideString must have the |path = value| format.
+ *  The method updates #root by setting |value| (forcing those parts of |path| that are missing).
+ */
+void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString);
+
 INodePtr GetNodeByYPath(INodePtr root, const TYPath& path);
 
 void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value);

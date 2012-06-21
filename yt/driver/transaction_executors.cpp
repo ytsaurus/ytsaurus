@@ -9,12 +9,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartTxExecutor::BuildArgs(IYsonConsumer* consumer)
-{
-    TTransactedExecutor::BuildArgs(consumer);
-    BuildOptions(consumer);
-}
-
 Stroka TStartTxExecutor::GetCommandName() const
 {
     return "start_tx";

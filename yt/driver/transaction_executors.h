@@ -10,7 +10,6 @@ class TStartTxExecutor
     : public TTransactedExecutor
 {
 private:
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
 };
 

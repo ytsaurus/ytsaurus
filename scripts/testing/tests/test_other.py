@@ -67,7 +67,7 @@ class TestCanceledUpload(YTEnvSetup):
     # should be called on empty holders
     #@pytest.mark.xfail(run = False, reason = 'Replace blocking read from empty stream with something else')
     def test(self):
-        tx_id = start_transaction(opts = 'timeout=2000')
+        tx_id = start_transaction(opt = '/timeout=2000')
 
         # uploading from empty stream will fail
         process = run_command('upload', '//tmp/file', tx = tx_id)

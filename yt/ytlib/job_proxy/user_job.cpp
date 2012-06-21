@@ -40,7 +40,6 @@ using namespace NYTree;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
-using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,8 +72,8 @@ TError StatusToError(int status)
 
 TUserJob::TUserJob(
     TJobProxyConfigPtr proxyConfig,
-    const TJobSpec& jobSpec,
-    const TUserJobSpec& userJobSpec)
+    const NScheduler::NProto::TJobSpec& jobSpec,
+    const NScheduler::NProto::TUserJobSpec& userJobSpec)
     : Config(proxyConfig)
     , JobSpec(jobSpec)
     , UserJobSpec(userJobSpec)
@@ -85,7 +84,7 @@ TUserJob::TUserJob(
 
 #ifdef _linux_
 
-TJobResult TUserJob::Run()
+NScheduler::NProto::TJobResult TUserJob::Run()
 {
     // ToDo(psushin): use tagged logger here.
     LOG_DEBUG("Starting job process");
@@ -97,7 +96,7 @@ TJobResult TUserJob::Run()
         ythrow yexception() << Sprintf("Failed to start the job: fork failed (errno: %d)", errno);
     }
 
-    TJobResult result;
+    NScheduler::NProto::TJobResult result;
     try {
         if (ProcessId == 0) {
             // Child process.
@@ -119,7 +118,7 @@ TJobResult TUserJob::Run()
     }
 
     {
-        TUserJobResult* userJobResult;
+        NScheduler::NProto::TUserJobResult* userJobResult;
         switch (JobSpec.type()) {
             case EJobType::Map:
                 userJobResult = result.MutableExtension(TMapJobResultExt::map_job_result_ext)->mutable_mapper_result();
@@ -164,7 +163,8 @@ void TUserJob::InitPipes()
     // all input streams into fd == 0.
 
     int maxReservedDescriptor = std::max(
-        JobIO->GetInputCount(), JobIO->GetOutputCount()) * 3;
+        JobIO->GetInputCount(),
+        JobIO->GetOutputCount()) * 3;
 
     YASSERT(maxReservedDescriptor > 0);
 
@@ -203,7 +203,7 @@ void TUserJob::InitPipes()
 
     {
         auto format = TFormat::FromYson(UserJobSpec.output_format());
-        auto outputCount = JobIO->GetOutputCount();
+        int outputCount = JobIO->GetOutputCount();
         TableOutput.resize(outputCount);
 
         for (int i = 0; i < outputCount; ++i) {
@@ -341,7 +341,7 @@ void TUserJob::DoJobIO()
 
 // Streaming jobs are not supposed to work on windows for now.
 
-TJobResult TUserJob::Run()
+NScheduler::NProto::TJobResult TUserJob::Run()
 {
     YUNIMPLEMENTED();
 }

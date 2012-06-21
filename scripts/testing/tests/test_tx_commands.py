@@ -67,7 +67,7 @@ class TestTxCommands(YTEnvSetup):
         remove('//tmp/value')
 
     def test_timeout(self):
-        tx_id = start_transaction(opts = 'timeout=4000')
+        tx_id = start_transaction(opt = '/timeout=4000')
 
         # check that transaction is still alive after 2 seconds
         time.sleep(2)
@@ -78,7 +78,7 @@ class TestTxCommands(YTEnvSetup):
         assertItemsEqual(get_transactions(), [])
 
     def test_renew(self):
-        tx_id = start_transaction(opts = 'timeout=4000')
+        tx_id = start_transaction(opt = '/timeout=4000')
 
         time.sleep(2)
         assertItemsEqual(get_transactions(), [tx_id])

@@ -1,18 +1,13 @@
 #include "scheduler_executors.h"
 #include "preprocess.h"
-
 #include "operation_tracker.h"
 
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
-
 #include <ytlib/ytree/ypath_proxy.h>
-
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/helpers.h>
-
 #include <ytlib/logging/log_manager.h>
-
 #include <ytlib/object_server/object_service_proxy.h>
 
 #include <util/stream/format.h>
@@ -23,8 +18,6 @@ using namespace NYTree;
 using namespace NScheduler;
 using namespace NDriver;
 using namespace NObjectServer;
-
-//////////////////////////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -64,10 +57,10 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
 //////////////////////////////////////////////////////////////////////////////////
 
 TMapExecutor::TMapExecutor()
-    : InArg("", "in", "input table path", false, "ypath")
-    , OutArg("", "out", "output table path", false, "ypath")
-    , FilesArg("", "file", "additional file path", false, "ypath")
-    , MapperArg("", "mapper", "mapper shell command", true, "", "command")
+    : InArg("", "in", "input table path", false, "YPATH")
+    , OutArg("", "out", "output table path", false, "YPATH")
+    , FilesArg("", "file", "additional file path", false, "YPATH")
+    , MapperArg("", "mapper", "mapper shell command", true, "", "STRING")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -83,11 +76,12 @@ void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("mapper").Scalar(MapperArg.getValue())
             .Item("input_table_paths").List(input)
             .Item("output_table_paths").List(output)
-            .Item("file_paths").List(files)
-            .Do(BIND(&TMapExecutor::BuildOptions, Unretained(this)))
+            .Item("mapper").BeginMap()
+                .Item("command").Scalar(MapperArg.getValue())
+                .Item("file_paths").List(files)
+            .EndMap()
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -106,13 +100,13 @@ EOperationType TMapExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TMergeExecutor::TMergeExecutor()
-    : InArg("", "in", "input table path", false, "ypath")
-    , OutArg("", "out", "output table path", false, "", "ypath")
+    : InArg("", "in", "input table path", false, "YPATH")
+    , OutArg("", "out", "output table path", false, "", "YPATH")
     , ModeArg("", "mode", "merge mode", false, TMode(EMergeMode::Unordered), "unordered, ordered, sorted")
     , CombineArg("", "combine", "combine small output chunks into larger ones")
     , KeyColumnsArg("", "key_columns", "key columns names (only used for sorted merge; "
         "if omitted then all input tables are assumed to have same key columns)",
-        true, "", "yson_list_fragment")
+        true, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -133,7 +127,6 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
             .Item("key_columns").List(KeyColumnsArg.getValue())
-            .Do(BIND(&TMergeExecutor::BuildOptions, Unretained(this)))
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -152,9 +145,9 @@ EOperationType TMergeExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TSortExecutor::TSortExecutor()
-    : InArg("", "in", "input table path", false, "ypath")
-    , OutArg("", "out", "output table path", false, "", "ypath")
-    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "yson_list_fragment")
+    : InArg("", "in", "input table path", false, "YPATH")
+    , OutArg("", "out", "output table path", false, "", "YPATH")
+    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -173,7 +166,6 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("input_table_paths").List(input)
             .Item("output_table_path").Scalar(output)
             .Item("key_columns").List(keyColumns)
-            .Do(BIND(&TSortExecutor::BuildOptions, Unretained(this)))
         .EndMap();
 }
 
@@ -190,7 +182,7 @@ EOperationType TSortExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TEraseExecutor::TEraseExecutor()
-    : PathArg("path", "path to a table where rows must be removed", true, "", "ypath")
+    : PathArg("path", "path to a table where rows must be removed", true, "", "YPATH")
     , CombineArg("", "combine", "combine small output chunks into larger ones")
 {
     CmdLine.add(PathArg);
@@ -205,7 +197,6 @@ void TEraseExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("spec").BeginMap()
             .Item("table_path").Scalar(path)
             .Item("combine_chunks").Scalar(CombineArg.getValue())
-            .Do(BIND(&TEraseExecutor::BuildOptions, Unretained(this)))
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -224,13 +215,13 @@ EOperationType TEraseExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TReduceExecutor::TReduceExecutor()
-    : InArg("", "in", "input table path", false, "ypath")
-    , OutArg("", "out", "output table path", false, "", "ypath")
-    , FilesArg("", "file", "additional file path", false, "ypath")
-    , ReducerArg("", "reducer", "reducer shell command", true, "", "command")
+    : InArg("", "in", "input table path", false, "YPATH")
+    , OutArg("", "out", "output table path", false, "", "YPATH")
+    , FilesArg("", "file", "additional file path", false, "YPATH")
+    , ReducerArg("", "reducer", "reducer shell command", true, "", "STRING")
     , KeyColumnsArg("", "key_columns", "key columns names "
-    "(if omitted then all input tables are assumed to have same key columns)",
-    true, "", "yson_list_fragment")
+        "(if omitted then all input tables are assumed to have same key columns)",
+        true, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -247,12 +238,13 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("reducer").Scalar(ReducerArg.getValue())
             .Item("input_table_paths").List(input)
             .Item("output_table_path").Scalar(output)
-            .Item("file_paths").List(files)
             .Item("key_columns").List(KeyColumnsArg.getValue())
-            .Do(BIND(&TReduceExecutor::BuildOptions, Unretained(this)))
+            .Item("reducer").BeginMap()
+                .Item("command").Scalar(ReducerArg.getValue())
+                .Item("file_paths").List(files)
+            .EndMap()
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -271,7 +263,7 @@ EOperationType TReduceExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TAbortOpExecutor::TAbortOpExecutor()
-    : OpArg("", "op", "id of an operation that must be aborted", true, "", "operation_id")
+    : OpArg("", "op", "id of an operation that must be aborted", true, "", "GUID")
 {
     CmdLine.add(OpArg);
 }
@@ -292,7 +284,7 @@ Stroka TAbortOpExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TTrackOpExecutor::TTrackOpExecutor()
-    : OpArg("", "op", "id of an operation that must be tracked", true, "", "operation_id")
+    : OpArg("", "op", "id of an operation that must be tracked", true, "", "GUID")
 {
     CmdLine.add(OpArg);
 }
