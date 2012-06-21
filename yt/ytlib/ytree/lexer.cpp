@@ -313,7 +313,7 @@ private:
                 length = end - begin;
             }
 
-            StringBuffer.append(begin, length);
+            StringBuffer.append(begin, end);
             BytesRead += length;
         }
 
