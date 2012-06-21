@@ -490,6 +490,7 @@ private:
             ++statisticsCopy.Rank;
             chunkList->Statistics().Accumulate(statisticsCopy);
             chunkList->SetSorted(false);
+            chunkList->KeyColumns().clear();
 
             const auto& parents = chunkList->Parents();
             if (parents.empty()) {

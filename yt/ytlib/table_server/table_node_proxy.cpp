@@ -555,7 +555,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
     if (chunkList->GetSorted()) {
         if (name == "key_columns") {
             BuildYsonFluently(consumer)
-                .List(tableNode->KeyColumns());
+                .List(chunkList->KeyColumns());
             return true;
         }
     }
@@ -672,14 +672,17 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
-    context->SetRequestInfo("KeyColumns: [%s]", ~JoinToString(request->key_columns()));
+    auto keyColumns = FromProto<Stroka>(request->key_columns());
 
+    context->SetRequestInfo("KeyColumns: %s", ~SerializeToYson(keyColumns, EYsonFormat::Text));
+
+    // This takes an exclusive lock.
     auto* tableNode = GetTypedImplForUpdate();
-    tableNode->KeyColumns() = FromProto<Stroka>(request->key_columns());
 
     auto* rootChunkList = tableNode->GetChunkList();
     YASSERT(rootChunkList->Parents().empty());
     rootChunkList->SetSorted(true);
+    rootChunkList->KeyColumns() = keyColumns;
 
     context->Reply();
 }
@@ -688,7 +691,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
 {
     context->SetRequestInfo("");
 
-    // This takes exclusive lock.
+    // This takes an exclusive lock.
     auto* tableNode = GetTypedImplForUpdate();
 
     auto chunkManager = Bootstrap->GetChunkManager();

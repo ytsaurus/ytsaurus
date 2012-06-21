@@ -28,6 +28,9 @@ class TChunkList
     // However other chunk lists in such a table may have it false.
     DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
 
+    // A tuple of key columns, only non-empty if Sorted is set.
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, KeyColumns);
+
     // Indicates if the subtree of this chunk list can be rebalanced.
     // Rebalancing affects the root, i.e. changes the set of children.
     // For some chunk lists (e.g. those corresponding to roots of branched tables)

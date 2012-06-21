@@ -19,7 +19,6 @@ class TTableNode
     : public NCypress::TCypressNodeBase
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, KeyColumns);
     DEFINE_BYVAL_RW_PROPERTY(ETableUpdateMode, UpdateMode);
 
 public:

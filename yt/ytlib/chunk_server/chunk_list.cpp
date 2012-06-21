@@ -26,6 +26,7 @@ void TChunkList::Save(TOutputStream* output) const
     SaveObjectRefs(output, OwningNodes_);
     ::Save(output, Statistics_);
     ::Save(output, Sorted_);
+    ::Save(output, KeyColumns_);
     ::Save(output, BranchedRoot_);
     ::Save(output, RowCountSums_);
 }
@@ -39,6 +40,7 @@ void TChunkList::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRefs(input, OwningNodes_, context);
     ::Load(input, Statistics_);
     ::Load(input, Sorted_);
+    ::Load(input, KeyColumns_);
     ::Load(input, BranchedRoot_);
     ::Load(input, RowCountSums_);
 }

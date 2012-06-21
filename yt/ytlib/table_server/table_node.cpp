@@ -34,7 +34,6 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
 TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
     : TCypressNodeBase(id, other)
     , ChunkList_(other.ChunkList_)
-    , KeyColumns_(other.KeyColumns_)
     , UpdateMode_(other.UpdateMode_)
 { }
 
@@ -47,7 +46,6 @@ void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
     SaveObjectRef(output, ChunkList_);
-    ::Save(output, KeyColumns_);
     ::Save(output, UpdateMode_);
 }
 
@@ -55,7 +53,6 @@ void TTableNode::Load(const TLoadContext& context, TInputStream* input)
 {
     TCypressNodeBase::Load(context, input);
     LoadObjectRef(input, ChunkList_, context);
-    ::Load(input, KeyColumns_);
     ::Load(input, UpdateMode_);
 }
 
@@ -223,8 +220,9 @@ protected:
                 // Configure rebalancing depending on its mode for currentChunkList.
                 newChunkList->SetBranchedRoot(currentChunkList->GetBranchedRoot());
 
-                // Propagate "sorted" attribute back.
+                // Propagate "sorted" and "key_columns" attributes back.
                 newChunkList->SetSorted(branchedChunkList->GetSorted());
+                newChunkList->KeyColumns() = branchedChunkList->KeyColumns();
 
                 // Assign newChunkList to originatingNode.
                 originatingNode->SetChunkList(newChunkList);
