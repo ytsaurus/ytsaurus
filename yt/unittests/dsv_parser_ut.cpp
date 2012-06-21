@@ -234,7 +234,7 @@ TEST_F(TTskvParserTest, UndefinedValues)
 
     Stroka input =
         "tskv" "\t" "tskv" "\t" "tskv" "\n"
-        "tskv\t" "some_key" "\t\t\t" " a=b" "\t" "another_key" "\n"
+        "tskv\t" "some_key" "\t\t\t" "a=b" "\t" "another_key" "\n"
         "tskv\n"; // Note: consequent \t
 
 
