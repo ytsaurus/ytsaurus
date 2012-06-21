@@ -148,7 +148,7 @@ TEST_F(TTskvParserTest, Simple)
 
     Stroka input =
         "tskv\n"
-        "tskv\tid=1\tguid=100500\n"
+        "tskv\tid=1\tguid=100500\t\n"
         "tskv\tid=2\tguid=20025";
 
     ParseDsv(input, &Mock, Config);
@@ -204,15 +204,43 @@ TEST_F(TTskvParserTest, AllowedUnescapedSymbols)
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("key_with_\t"));
+        EXPECT_CALL(Mock, OnKeyedItem("just_key"));
         EXPECT_CALL(Mock, OnStringScalar("value_with_="));
     EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input =
-        "prefix_with_=" "\t" "key_with_\t" "=" "value_with_=";
+        "prefix_with_=" "\t" "just_key" "=" "value_with_=";
 
     ParseDsv(input, &Mock, Config);
 }
+
+TEST_F(TTskvParserTest, UndefinedValues)
+{
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("b"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input =
+        "tskv" "\t" "tskv" "\t" "tskv" "\n"
+        "tskv\t" "some_key" "\t\t\t" " a=b" "\t" "another_key" "\n"
+        "tskv\n"; // Note: consequent \t
+
+
+    ParseDsv(input, &Mock, Config);
+}
+
 
 TEST_F(TTskvParserTest, OnlyLinePrefix)
 {
@@ -257,15 +285,6 @@ TEST_F(TTskvParserTest, LinePrefixWithTab)
 TEST_F(TTskvParserTest, NotFinishedLinePrefix)
 {
     Stroka input = "tsk";
-
-    EXPECT_ANY_THROW(
-        ParseDsv(input, &ErrorMock, Config)
-    );
-}
-
-TEST_F(TTskvParserTest, NotFinishedKey)
-{
-    Stroka input = "tskv\tsome_key";
 
     EXPECT_ANY_THROW(
         ParseDsv(input, &ErrorMock, Config)

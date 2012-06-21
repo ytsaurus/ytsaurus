@@ -25,6 +25,7 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     memset(IsKeyStopSymbol, 0, sizeof(IsKeyStopSymbol));
     IsKeyStopSymbol[Config->EscapingSymbol] = true;
     IsKeyStopSymbol[Config->KeyValueSeparator] = true;
+    IsKeyStopSymbol[Config->FieldSeparator] = true;
     IsKeyStopSymbol[Config->RecordSeparator] = true;
 
     memset(IsValueStopSymbol, 0, sizeof(IsValueStopSymbol));
@@ -56,12 +57,6 @@ void TDsvParser::Finish()
             }
             break;
         case (EState::InsideKey):
-            if (!CurrentToken.empty()) {
-                ythrow yexception() <<
-                    Sprintf("Key %s must be followed by a value (%s)",
-                        ~CurrentToken.Quote(),
-                        ~GetPositionInfo());
-            }
             if (NewRecordStarted) {
                 Consumer->OnEndMap();
             }
@@ -112,19 +107,17 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
             CurrentToken.append(begin, next);
             if (next != end && *next != Config->EscapingSymbol) {
                 StartRecordIfNeeded();
-                if (*next == Config->RecordSeparator) {
-                    if (!CurrentToken.empty()) {
-                        ythrow yexception() <<
-                            Sprintf("Key %s must be followed by a value (%s)",
-                                ~CurrentToken.Quote(),
-                                ~GetPositionInfo());
-                    }
-                    EndRecord();
-                } else {
-                    YCHECK(*next == Config->KeyValueSeparator);
+                if (*next == Config->KeyValueSeparator) {
                     Consumer->OnKeyedItem(CurrentToken);
                     CurrentToken.clear();
                     State = EState::InsideValue;
+                } else {
+                    CurrentToken.clear();
+                    if (*next == Config->RecordSeparator) {
+                        EndRecord();
+                    } else {
+                        EndField();
+                    }
                 }
                 ++next;
             }
