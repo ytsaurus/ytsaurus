@@ -106,7 +106,7 @@ TMergeExecutor::TMergeExecutor()
     , CombineArg("", "combine", "combine small output chunks into larger ones")
     , KeyColumnsArg("", "key_columns", "key columns names (only used for sorted merge; "
         "if omitted then all input tables are assumed to have same key columns)",
-        true, "", "YSON_LIST_FRAGMENT")
+        false, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
