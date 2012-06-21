@@ -889,13 +889,7 @@ IOperationControllerPtr CreateSortController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = New<TSortOperationSpec>();
-    try {
-        spec->Load(operation->GetSpec());
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
-    }
-
+    auto spec = ParseOperationSpec<TSortOperationSpec>(operation);
     return New<TSortController>(config, spec, host, operation);
 }
 

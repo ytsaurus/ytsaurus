@@ -102,11 +102,17 @@ typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
 struct TOperationSpecBase;
 typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
 
+struct TUserJobSpec;
+typedef TIntrusivePtr<TUserJobSpec> TUserJobSpecPtr;
+
 struct  TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 
 struct TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
+
+struct TEraseOperationSpec;
+typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
 
 struct TSortOperationSpec;
 typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;

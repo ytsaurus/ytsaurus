@@ -11,6 +11,7 @@
 #include <ytlib/table_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/formats/format.h>
 
 #include <cmath>
 
@@ -22,6 +23,7 @@ using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NTableServer;
+using namespace NFormats;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTableClient::NProto;
@@ -39,18 +41,14 @@ class TMergeControllerBase
 public:
     TMergeControllerBase(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
-        , Spec(spec)
         , TotalJobCount(0)
         , CurrentTaskWeight(0)
     { }
 
 protected:
-    TMergeOperationSpecPtr Spec;
-
     // Counters.
     int TotalJobCount;
     TProgressCounter WeightCounter;
@@ -63,9 +61,6 @@ protected:
 
     //! The total weight accumulated in #CurrentTaskStripes.
     i64 CurrentTaskWeight;
-
-    //! Key columns to pass in the job spec. Only makes sense for sorted merge.
-    std::vector<Stroka> KeyColumns;
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
@@ -177,7 +172,7 @@ protected:
         CurrentTaskStripes.resize(InputTables.size());
     }
     
-    //! Finish the current task.
+    //! Finishes the current task.
     void EndTask()
     {
         YCHECK(HasActiveTask());
@@ -199,7 +194,7 @@ protected:
 
         MergeTasks.push_back(task);
 
-        LOG_DEBUG("Finished task (Task: %d, DataSize: %" PRId64 ")",
+        LOG_DEBUG("Finished task (Task: %d, Weight: %" PRId64 ")",
             static_cast<int>(MergeTasks.size()) - 1,
             CurrentTaskWeight);
 
@@ -207,7 +202,7 @@ protected:
         ClearCurrentTaskStripes();
     }
 
-    //! Finish the current task if the size is large enough.
+    //! Finishes the current task if the size is large enough.
     void EndTaskIfLarge()
     {
         if (HasLargeActiveTask()) {
@@ -224,7 +219,7 @@ protected:
     //! Returns True if the total weight of currently queued stripes exceeds the pre-configured limit.
     bool HasLargeActiveTask()
     {
-        return CurrentTaskWeight >= Spec->MaxMergeJobWeight;
+        return CurrentTaskWeight >= GetMaxTaskWeight();
     }
 
     //! Add chunk to the current task's pool.
@@ -278,18 +273,6 @@ protected:
     }
 
     // Custom bits of preparation pipeline.
-
-    std::vector<TYPath> GetInputTablePaths() OVERRIDE
-    {
-        return Spec->InputTablePaths;
-    }
-
-    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
-    {
-        std::vector<TYPath> result;
-        result.push_back(Spec->OutputTablePath);
-        return result;
-    }
 
     TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
     {
@@ -404,8 +387,10 @@ protected:
             !chunk.slice().end_limit().has_key ();
     }
 
-    //! Returns True iff the chunk is complete and is large enough to be included to the output as-is.
-    //! When |CombineChunks| is off, all complete chunks are considered large.
+    //! Returns True if the chunk can be included into the output as-is.
+    virtual bool IsPassthroughChunk(const TInputChunk& chunk) = 0;
+
+    //! Returns True iff the chunk is complete and is large enough.
     bool IsLargeCompleteChunk(const TInputChunk& chunk)
     {
         if (!IsCompleteChunk(chunk)) {
@@ -419,29 +404,20 @@ protected:
             return true;
         }
 
-        if (!Spec->CombineChunks) {
-            return true;
-        }
-
         return false;
     }
 
-    void InitJobSpecTemplate()
+    //! Returns the maximum desired weight of a single task.
+    virtual i64 GetMaxTaskWeight() = 0;
+
+    //! Initializes #JobSpecTemplate.
+    virtual void InitJobSpecTemplate()
     {
-        JobSpecTemplate.set_type(
-            Spec->Mode == EMergeMode::Sorted
-            ? EJobType::SortedMerge
-            : EJobType::OrderedMerge);
-
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-
-        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TMergeJobSpecExt::merge_job_spec_ext);
-        ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
 
         // ToDo(psushin): set larger PrefetchWindow for unordered merge.
         JobSpecTemplate.set_io_config(SerializeToYson(Config->MergeJobIO));
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -456,10 +432,30 @@ public:
         TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, host, operation)
+        : TMergeControllerBase(config, host, operation)
+        , Spec(spec)
     { }
 
 private:
+    TMergeOperationSpecPtr Spec;
+
+    bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    {
+        return IsLargeCompleteChunk(chunk) && !Spec->CombineChunks;
+    }
+
+    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    {
+        return Spec->InputTablePaths;
+    }
+
+    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    {
+        std::vector<TYPath> result;
+        result.push_back(Spec->OutputTablePath);
+        return result;
+    }
+
     void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
@@ -467,7 +463,7 @@ private:
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (IsLargeCompleteChunk(chunk)) {
+        if (IsPassthroughChunk(chunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
             AddPassthroughChunk(chunk);
             return;
@@ -478,51 +474,34 @@ private:
         EndTaskIfLarge();
     }
 
+    i64 GetMaxTaskWeight() OVERRIDE
+    {
+        return Spec->MaxMergeJobWeight;
+    }
+
+    void InitJobSpecTemplate() OVERRIDE
+    {
+        JobSpecTemplate.set_type(EJobType::OrderedMerge);
+
+        TMergeControllerBase::InitJobSpecTemplate();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
 
 //! Handles ordered merge and (sic!) erase operations.
-class TOrderedMergeController
+class TOrderedMergeControllerBase
     : public TMergeControllerBase
 {
 public:
-    TOrderedMergeController(
+    TOrderedMergeControllerBase(
         TSchedulerConfigPtr config,
-        EOperationType operationType,
-        TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, host, operation)
-        , OperationType(operationType)
+        : TMergeControllerBase(config, host, operation)
     { }
 
 private:
-    EOperationType OperationType;
-
-    void CustomInitialize() OVERRIDE
-    {
-        if (OperationType == EOperationType::Erase) {
-            // For erase operation the rowset specified by the user must actually be removed...
-            InputTables[0].NegateFetch = true;
-            // ...and the output table must be cleared.
-            OutputTables[0].Clear = true;
-        }
-    }
-
-    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
-    {
-        UNUSED(batchRsp);
-
-        if (OperationType == EOperationType::Erase) {
-            // For erase operation:
-            // - if the input is sorted then the output is marked as sorted as well
-            if (InputTables[0].Sorted) {
-                SetOutputTablesSorted(InputTables[0].KeyColumns);
-            }
-        }
-    }
-
     void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
@@ -530,7 +509,7 @@ private:
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (IsLargeCompleteChunk(chunk) && !HasActiveTask()) {
+        if (IsPassthroughChunk(chunk) && !HasActiveTask()) {
             // Merge is not required and no current task is active.
             // Copy the chunk directly to the output.
             LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
@@ -548,20 +527,136 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-//! Handles sorted merge operation.
-class TSortedMergeController
-    : public TMergeControllerBase
+class TOrderedMergeController
+    : public TOrderedMergeControllerBase
 {
 public:
-    TSortedMergeController(
+    TOrderedMergeController(
         TSchedulerConfigPtr config,
         TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, host, operation)
+        : TOrderedMergeControllerBase(config, host, operation)
+        , Spec(spec)
     { }
 
 private:
+    TMergeOperationSpecPtr Spec;
+
+    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    {
+        return Spec->InputTablePaths;
+    }
+
+    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    {
+        std::vector<TYPath> result;
+        result.push_back(Spec->OutputTablePath);
+        return result;
+    }
+
+    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    {
+        return IsLargeCompleteChunk(chunk) && !Spec->CombineChunks;
+    }
+
+    i64 GetMaxTaskWeight() OVERRIDE
+    {
+        return Spec->MaxMergeJobWeight;
+    }
+
+    void InitJobSpecTemplate() OVERRIDE
+    {
+        JobSpecTemplate.set_type(EJobType::OrderedMerge);
+
+        TMergeControllerBase::InitJobSpecTemplate();
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TEraseController
+    : public TOrderedMergeControllerBase
+{
+public:
+    TEraseController(
+        TSchedulerConfigPtr config,
+        TEraseOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TOrderedMergeControllerBase(config, host, operation)
+        , Spec(spec)
+    { }
+
+
+private:
+    TEraseOperationSpecPtr Spec;
+
+    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    {
+        std::vector<TYPath> result;
+        result.push_back(Spec->TablePath);
+        return result;
+    }
+
+    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    {
+        std::vector<TYPath> result;
+        result.push_back(Spec->TablePath);
+        return result;
+    }
+
+    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    {
+        return IsLargeCompleteChunk(chunk) && !Spec->CombineChunks;
+    }
+
+    void CustomInitialize() OVERRIDE
+    {
+        // For erase operation the rowset specified by the user must actually be removed...
+        InputTables[0].NegateFetch = true;
+        // ...and the output table must be cleared.
+        OutputTables[0].Clear = true;
+    }
+
+    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    {
+        UNUSED(batchRsp);
+
+        // If the input is sorted then the output is marked as sorted as well
+        if (InputTables[0].Sorted) {
+            SetOutputTablesSorted(InputTables[0].KeyColumns);
+        }
+    }
+
+    i64 GetMaxTaskWeight() OVERRIDE
+    {
+        return Spec->MaxMergeJobWeight;
+    }
+
+    void InitJobSpecTemplate() OVERRIDE
+    {
+        JobSpecTemplate.set_type(EJobType::OrderedMerge);
+
+        TMergeControllerBase::InitJobSpecTemplate();
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+//! Handles sorted merge and reduce operations.
+class TSortedMergeControllerBase
+    : public TMergeControllerBase
+{
+public:
+    TSortedMergeControllerBase(
+        TSchedulerConfigPtr config,
+        IOperationHost* host,
+        TOperation* operation)
+        : TMergeControllerBase(config, host, operation)
+    { }
+
+protected:
     //! Either the left or the right endpoint of a chunk.
     struct TKeyEndpoint
     {
@@ -572,6 +667,11 @@ private:
     };
 
     std::vector<TKeyEndpoint> Endpoints;
+    
+    //! The actual (adjusted) key columns.
+    std::vector<Stroka> KeyColumns;
+
+    virtual TNullable< yvector<Stroka> > GetSpecKeyColumns() = 0;
 
     void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
@@ -654,7 +754,7 @@ private:
         // Check for trivial components.
         {
             const auto& chunk = *Endpoints[startIndex].InputChunk;
-            if (chunkCount == 1 && IsLargeCompleteChunk(chunk) && !HasActiveTask()) {
+            if (chunkCount == 1 && IsPassthroughChunk(chunk) && !HasActiveTask()) {
                 auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                 // Merge is not required and no current task is active.
                 // Copy the chunk directly to the output.
@@ -680,7 +780,7 @@ private:
                 LOG_DEBUG("Chunk interval closed (ChunkId: %s)", ~chunkId.ToString());
                 if (HasLargeActiveTask()) {
                     auto nextBreakpoint = GetKeySuccessor(endpoint.Key);
-                    LOG_DEBUG("Merge job is too large, flushing %" PRISZT " chunks at key {%s}",
+                    LOG_DEBUG("Task is too large, flushing %" PRISZT " chunks at key {%s}",
                         openedChunks.size(),
                         ~nextBreakpoint.DebugString());
                     FOREACH (const auto& pair, openedChunks) {
@@ -699,13 +799,15 @@ private:
         EndTaskIfLarge();
     }
 
-
     void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
     {
         UNUSED(batchRsp);
 
-        KeyColumns = CheckInputTablesSorted(Spec->KeyColumns);
-        LOG_INFO("Key columns are %s", ~SerializeToYson(KeyColumns, EYsonFormat::Text));
+        auto specKeyColumns = GetSpecKeyColumns();
+        LOG_INFO("Spec key columns are %s", specKeyColumns ? ~SerializeToYson(specKeyColumns.Get(), EYsonFormat::Text) : "<Null>");
+
+        KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
+        LOG_INFO("Adjusted key columns are %s", ~SerializeToYson(KeyColumns, EYsonFormat::Text));
 
         CheckOutputTablesEmpty();
     }
@@ -713,23 +815,137 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+class TSortedMergeController
+    : public TSortedMergeControllerBase
+{
+public:
+    TSortedMergeController(
+        TSchedulerConfigPtr config,
+        TMergeOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TSortedMergeControllerBase(config, host, operation)
+        , Spec(spec)
+    { }
+
+private:
+    TMergeOperationSpecPtr Spec;
+
+    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    {
+        return Spec->InputTablePaths;
+    }
+
+    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    {
+        std::vector<TYPath> result;
+        result.push_back(Spec->OutputTablePath);
+        return result;
+    }
+
+    bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    {
+        return IsLargeCompleteChunk(chunk) && !Spec->CombineChunks;
+    }
+
+    TNullable< yvector<Stroka> > GetSpecKeyColumns() OVERRIDE
+    {
+        return Spec->KeyColumns;
+    }
+
+    i64 GetMaxTaskWeight() OVERRIDE
+    {
+        return Spec->MaxMergeJobWeight;
+    }
+
+    void InitJobSpecTemplate() OVERRIDE
+    {
+        JobSpecTemplate.set_type(EJobType::SortedMerge);
+
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TSortJobSpecExt::sort_job_spec_ext);
+        ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
+
+        TMergeControllerBase::InitJobSpecTemplate();
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TReduceController
+    : public TSortedMergeControllerBase
+{
+public:
+    TReduceController(
+        TSchedulerConfigPtr config,
+        TReduceOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TSortedMergeControllerBase(config, host, operation)
+        , Spec(spec)
+    { }
+
+private:
+    TReduceOperationSpecPtr Spec;
+
+    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    {
+        return Spec->InputTablePaths;
+    }
+
+    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    {
+        return Spec->OutputTablePaths;
+    }
+
+    std::vector<TYPath> GetFilePaths() OVERRIDE
+    {
+        return Spec->Reducer->FilePaths;
+    }
+
+    bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    {
+        UNUSED(chunk);
+        return false;
+    }
+
+    TNullable< yvector<Stroka> > GetSpecKeyColumns() OVERRIDE
+    {
+        return Spec->KeyColumns;
+    }
+
+    i64 GetMaxTaskWeight() OVERRIDE
+    {
+        return Spec->MaxReduceJobWeight;
+    }
+
+    void InitJobSpecTemplate() OVERRIDE
+    {
+        JobSpecTemplate.set_type(EJobType::Reduce);
+
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
+        ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
+
+        InitUserJobSpec(
+            jobSpecExt->mutable_reducer_spec(),
+            Spec->Reducer,
+            Files);
+
+        TMergeControllerBase::InitJobSpecTemplate();
+    }
+};
+////////////////////////////////////////////////////////////////////
+
 IOperationControllerPtr CreateMergeController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = New<TMergeOperationSpec>();
-    try {
-        spec->Load(operation->GetSpec());
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
-    }
-
+    auto spec = ParseOperationSpec<TMergeOperationSpec>(operation);
     switch (spec->Mode) {
         case EMergeMode::Unordered:
             return New<TUnorderedMergeController>(config, spec, host, operation);
         case EMergeMode::Ordered:
-            return New<TOrderedMergeController>(config, EOperationType::Merge, spec, host, operation);
+            return New<TOrderedMergeController>(config, spec, host, operation);
         case EMergeMode::Sorted:
             return New<TSortedMergeController>(config, spec, host, operation);
         default:
@@ -742,20 +958,8 @@ IOperationControllerPtr CreateEraseController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto eraseSpec = New<TEraseOperationSpec>();
-    try {
-        eraseSpec->Load(operation->GetSpec());
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
-    }
-
-    // Create a fake spec for the ordered merge controller.
-    auto mergeSpec = New<TMergeOperationSpec>();
-    mergeSpec->InputTablePaths.push_back(eraseSpec->TablePath);
-    mergeSpec->OutputTablePath = eraseSpec->TablePath;
-    mergeSpec->Mode = EMergeMode::Ordered;
-    mergeSpec->CombineChunks = eraseSpec->CombineChunks;
-    return New<TOrderedMergeController>(config, EOperationType::Erase, mergeSpec, host, operation);
+    auto spec = ParseOperationSpec<TEraseOperationSpec>(operation);
+    return New<TEraseController>(config, spec, host, operation);
 }
 
 IOperationControllerPtr CreateReduceController(
@@ -763,15 +967,8 @@ IOperationControllerPtr CreateReduceController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto reduceSpec = New<TReduceOperationSpec>();
-    try {
-        reduceSpec->Load(operation->GetSpec());
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
-    }
-
-    // TODO(babenko): fixme
-    return NULL;
+    auto spec = ParseOperationSpec<TReduceOperationSpec>(operation);
+    return New<TReduceController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

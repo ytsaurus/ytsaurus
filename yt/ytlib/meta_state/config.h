@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/election/config.h>
 #include <ytlib/misc/configurable.h>
+#include <ytlib/election/config.h>
 
 namespace NYT {
 namespace NMetaState {

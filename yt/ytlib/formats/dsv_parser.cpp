@@ -13,6 +13,8 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     , Config(config)
     , NewRecordStarted(false)
     , ExpectingEscapedChar(false)
+    , Record(1)
+    , Field(1)
 {
     if (!Config) {
         Config = New<TDsvFormatConfig>();
@@ -55,7 +57,10 @@ void TDsvParser::Finish()
             break;
         case (EState::InsideKey):
             if (!CurrentToken.empty()) {
-                ythrow yexception() << Sprintf("Key %s must be followed by value", ~CurrentToken);
+                ythrow yexception() <<
+                    Sprintf("Key %s must be followed by a value (%s)",
+                        ~CurrentToken.Quote(),
+                        ~GetPositionInfo());
             }
             if (NewRecordStarted) {
                 Consumer->OnEndMap();
@@ -63,15 +68,6 @@ void TDsvParser::Finish()
             break;
         default:
             YUNREACHABLE();
-    }
-}
-
-void TDsvParser::StartRecordIfNeeded()
-{
-    if (!NewRecordStarted) {
-        Consumer->OnListItem();
-        Consumer->OnBeginMap();
-        NewRecordStarted = true;
     }
 }
 
@@ -99,15 +95,13 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
             auto next = FindEndOfValue(begin, end);
             CurrentToken.append(begin, next);
             if (next != end && *next != Config->EscapingSymbol) {
+                StartRecordIfNeeded();
                 ValidatePrefix(CurrentToken);
                 CurrentToken.clear();
-                StartRecordIfNeeded();
                 if (*next == Config->RecordSeparator) {
-                    Consumer->OnEndMap();
-                    NewRecordStarted = false;
-                    State = GetStartState();
+                    EndRecord();
                 } else {
-                    State = EState::InsideKey;
+                    EndField();
                 }
                 ++next;
             }
@@ -121,15 +115,13 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                 if (*next == Config->RecordSeparator) {
                     if (!CurrentToken.empty()) {
                         ythrow yexception() <<
-                            Sprintf("Key %s must be followed by value", ~CurrentToken);
+                            Sprintf("Key %s must be followed by a value (%s)",
+                                ~CurrentToken.Quote(),
+                                ~GetPositionInfo());
                     }
-                    // TODO(panin): extract method
-                    Consumer->OnEndMap();
-                    NewRecordStarted = false;
-                    State = GetStartState();
+                    EndRecord();
                 } else {
                     YCHECK(*next == Config->KeyValueSeparator);
-                    StartRecordIfNeeded();
                     Consumer->OnKeyedItem(CurrentToken);
                     CurrentToken.clear();
                     State = EState::InsideValue;
@@ -145,11 +137,9 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                 Consumer->OnStringScalar(CurrentToken);
                 CurrentToken.clear();
                 if (*next == Config->RecordSeparator) {
-                    Consumer->OnEndMap();
-                    NewRecordStarted = false;
-                    State = GetStartState();
+                    EndRecord();
                 } else {
-                    State = EState::InsideKey;
+                    EndField();
                 }
                 ++next;
             }
@@ -159,6 +149,32 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
             YUNREACHABLE();
     }
 }
+
+void TDsvParser::StartRecordIfNeeded()
+{
+    if (!NewRecordStarted) {
+        Consumer->OnListItem();
+        Consumer->OnBeginMap();
+        NewRecordStarted = true;
+    }
+}
+
+void TDsvParser::EndRecord()
+{
+    Consumer->OnEndMap();
+    NewRecordStarted = false;
+    State = GetStartState();
+
+    ++Record;
+    Field = 1;
+}
+
+void TDsvParser::EndField()
+{
+    State = EState::InsideKey;
+    ++Field;
+}
+
 
 const char* TDsvParser::FindEndOfValue(const char* begin, const char* end)
 {
@@ -195,10 +211,19 @@ void TDsvParser::ValidatePrefix(const Stroka& prefix)
 {
     if (prefix != Config->LinePrefix.Get()) {
         ythrow yexception() <<
-            Sprintf("Expected %s at the beginning of line, found %s",
+            Sprintf("Expected %s at the beginning of record, found %s (%s)",
                 ~Config->LinePrefix.Get().Quote(),
-                ~prefix.Quote());
+                ~prefix.Quote(),
+                ~GetPositionInfo());
     }
+}
+
+Stroka TDsvParser::GetPositionInfo() const
+{
+    TStringStream stream;
+    stream << "Record: " << Record;
+    stream << ", Field: " << Field;
+    return stream.Str();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,11 +8,10 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(roizner): document
 class TTokenizer
 {
 public:
-    // TODO(roizner): document
-
     explicit TTokenizer(const TStringBuf& input);
 
     bool ParseNext();

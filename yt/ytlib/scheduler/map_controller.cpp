@@ -5,7 +5,6 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 
-#include <ytlib/formats/format.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/job_proxy/config.h>
@@ -19,7 +18,6 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NChunkServer;
-using namespace NFormats;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTableClient::NProto;
@@ -144,7 +142,7 @@ private:
 
     virtual std::vector<TYPath> GetFilePaths()
     {
-        return Spec->FilePaths;
+        return Spec->Mapper->FilePaths;
     }
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
@@ -248,33 +246,10 @@ private:
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMapJobSpecExt::map_job_spec_ext);
         
-        auto* mapperSpecExt = jobSpecExt->mutable_mapper_spec();
-        mapperSpecExt->set_shell_command(Spec->Mapper);
-
-        {
-            // Set input and output format.
-            TFormat inputFormat(EFormatType::Yson);
-            TFormat outputFormat(EFormatType::Yson);
-
-            if (Spec->Format) {
-                inputFormat = outputFormat = TFormat::FromYson(Spec->Format);
-            }
-
-            if (Spec->InputFormat) {
-                inputFormat = TFormat::FromYson(Spec->InputFormat);
-            }
-
-            if (Spec->OutputFormat) {
-                outputFormat = TFormat::FromYson(Spec->OutputFormat);
-            }
-
-            mapperSpecExt->set_input_format(inputFormat.ToYson());
-            mapperSpecExt->set_output_format(outputFormat.ToYson());
-        }
-
-        FOREACH (const auto& file, Files) {
-            *mapperSpecExt->add_files() = *file.FetchResponse;
-        }
+        InitUserJobSpec(
+            jobSpecExt->mutable_mapper_spec(),
+            Spec->Mapper,
+            Files);
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -288,13 +263,7 @@ IOperationControllerPtr CreateMapController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = New<TMapOperationSpec>();
-    try {
-        spec->Load(operation->GetSpec());
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
-    }
-
+    auto spec = ParseOperationSpec<TMapOperationSpec>(operation);
     return New<TMapController>(config, spec, host, operation);
 }
 

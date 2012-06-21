@@ -11,7 +11,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TUploadExecutor::TUploadExecutor()
-    : PathArg("path", "to a new file in Cypress that must be uploaded", true, "", "ypath")
+    : PathArg("path", "to a new file in Cypress that must be uploaded", true, "", "YPATH")
 {
     CmdLine.add(PathArg);
 }
@@ -34,7 +34,7 @@ Stroka TUploadExecutor::GetCommandName() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TDownloadExecutor::TDownloadExecutor()
-    : PathArg("path", "path to a file in Cypress that must be downloaded", true, "", "ypath")
+    : PathArg("path", "path to a file in Cypress that must be downloaded", true, "", "YPATH")
 {
     CmdLine.add(PathArg);
 }

@@ -11,7 +11,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TGetExecutor::TGetExecutor()
-    : PathArg("path", "path to an object in Cypress that must be retrieved", true, "", "ypath")
+    : PathArg("path", "path to an object in Cypress that must be retrieved", true, "", "YPATH")
 {
     CmdLine.add(PathArg);
 }
@@ -24,7 +24,6 @@ void TGetExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("path").Scalar(path);
 
     TTransactedExecutor::BuildArgs(consumer);
-    BuildOptions(consumer);
 }
 
 Stroka TGetExecutor::GetCommandName() const
@@ -35,7 +34,7 @@ Stroka TGetExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TSetExecutor::TSetExecutor()
-    : PathArg("path", "path to an object in Cypress that must be set", true, "", "ypath")
+    : PathArg("path", "path to an object in Cypress that must be set", true, "", "YPATH")
     , ValueArg("value", "value to set", false, "", "yson")
     , UseStdIn(true)
 {
@@ -57,7 +56,6 @@ void TSetExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("path").Scalar(path);
 
     TTransactedExecutor::BuildArgs(consumer);
-    BuildOptions(consumer);
 }
 
 TInputStream* TSetExecutor::GetInputStream()
@@ -78,7 +76,7 @@ Stroka TSetExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TRemoveExecutor::TRemoveExecutor()
-    : PathArg("path", "path to an object in Cypress that must be removed", true, "", "ypath")
+    : PathArg("path", "path to an object in Cypress that must be removed", true, "", "YPATH")
 {
     CmdLine.add(PathArg);
 }
@@ -91,7 +89,6 @@ void TRemoveExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("path").Scalar(path);
 
     TTransactedExecutor::BuildArgs(consumer);
-    BuildOptions(consumer);
 }
 
 Stroka TRemoveExecutor::GetCommandName() const
@@ -102,7 +99,7 @@ Stroka TRemoveExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TListExecutor::TListExecutor()
-    : PathArg("path", "path to a object in Cypress whose children must be listed", true, "", "ypath")
+    : PathArg("path", "path to a object in Cypress whose children must be listed", true, "", "YPATH")
 {
     CmdLine.add(PathArg);
 }
@@ -115,7 +112,6 @@ void TListExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("path").Scalar(path);
 
     TTransactedExecutor::BuildArgs(consumer);
-    BuildOptions(consumer);
 }
 
 Stroka TListExecutor::GetCommandName() const
@@ -126,8 +122,8 @@ Stroka TListExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateExecutor::TCreateExecutor()
-    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Null, "object type")
-    , PathArg("path", "path for a new object in Cypress", true, "", "ypath")
+    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Null, "NODE_TYPE")
+    , PathArg("path", "path for a new object in Cypress", true, "", "YPATH")
 {
     CmdLine.add(TypeArg);
     CmdLine.add(PathArg);
@@ -142,7 +138,6 @@ void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("type").Scalar(TypeArg.getValue().ToString());
 
     TTransactedExecutor::BuildArgs(consumer);
-    BuildOptions(consumer);
 }
 
 Stroka TCreateExecutor::GetCommandName() const
@@ -154,7 +149,7 @@ Stroka TCreateExecutor::GetCommandName() const
 
 TLockExecutor::TLockExecutor()
     : TTransactedExecutor(true)
-    , PathArg("path", "path to an object in Cypress that must be locked", true, "", "ypath")
+    , PathArg("path", "path to an object in Cypress that must be locked", true, "", "YPATH")
     , ModeArg("", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive")
 {
     CmdLine.add(PathArg);

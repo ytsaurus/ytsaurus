@@ -38,8 +38,8 @@ protected:
     TCLAP::ValueArg<Stroka> FormatArg;
     TCLAP::ValueArg<Stroka> InputFormatArg;
     TCLAP::ValueArg<Stroka> OutputFormatArg;
-    TCLAP::MultiArg<Stroka> ConfigSetArg;
-    TCLAP::MultiArg<Stroka> OptsArg;
+    TCLAP::MultiArg<Stroka> ConfigOptArg;
+    TCLAP::MultiArg<Stroka> OptArg;
 
     TExecutorConfigPtr Config;
     NDriver::IDriverPtr Driver;
@@ -51,7 +51,6 @@ protected:
     NFormats::TFormat GetFormat(NFormats::EDataType dataType, const NYTree::TYson& custom);
 
     NYTree::IMapNodePtr GetArgs();
-    void BuildOptions(NYTree::IYsonConsumer* consumer);
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
 
     virtual void DoExecute(const NDriver::TDriverRequest& request);

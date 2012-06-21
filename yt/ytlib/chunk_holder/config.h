@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include <ytlib/chunk_client/public.h>
+
 #include <ytlib/chunk_client/config.h>
 
 namespace NYT {

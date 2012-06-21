@@ -16,7 +16,7 @@
 
 #include <ytlib/election/leader_channel.h>
 
-#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/scheduler_channel.h>
