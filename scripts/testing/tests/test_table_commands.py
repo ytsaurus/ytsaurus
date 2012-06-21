@@ -70,6 +70,18 @@ class TestTableCommands(YTEnvSetup):
 
         remove('//tmp/table')
 
+    def test_sorted_write(self):
+        create('table', '//tmp/table')
+
+        write('//tmp/table', '{key = 0}; {key = 1}; {key = 2}; {key = 3}', sorted_by='key')
+
+        assertItemsEqual(yson2py(get('//tmp/table/@sorted')), 'true')
+        assertItemsEqual(yson2py(get('//tmp/table/@key_columns')), ['key'])
+        assertItemsEqual(yson2py(get('//tmp/table/@row_count')), 1)
+
+        remove('//tmp/table')
+
+
     def test_row_key_selector(self):
         create('table', '//tmp/table')
 
