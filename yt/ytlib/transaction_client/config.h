@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 namespace NYT {
 namespace NTransactionClient {
 

@@ -1,4 +1,6 @@
-﻿#pragma once
+#pragma once
+
+#include "public.h"
 
 #include <ytlib/misc/configurable.h>
 

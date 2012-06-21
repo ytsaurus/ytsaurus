@@ -97,32 +97,43 @@ struct TOperationSpecBase
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMapOperationSpec
-    : public TOperationSpecBase
+struct TUserJobSpec
+    : public TConfigurable
 {
-    Stroka Mapper;
-    
+    Stroka Command;
     yvector<NYTree::TYPath> FilePaths;
-    yvector<NYTree::TYPath> InputTablePaths;
-    yvector<NYTree::TYPath> OutputTablePaths;
-
     NYTree::INodePtr Format;
     NYTree::INodePtr InputFormat;
     NYTree::INodePtr OutputFormat;
 
-    TMapOperationSpec()
+    TUserJobSpec()
     {
-        Register("mapper", Mapper);
+        Register("command", Command);
         Register("file_paths", FilePaths)
-            .Default(yvector<NYTree::TYPath>());
-        Register("input_table_paths", InputTablePaths);
-        Register("output_table_paths", OutputTablePaths);
+            .Default();
         Register("format", Format)
             .Default(NULL);
         Register("input_format", InputFormat)
             .Default(NULL);
         Register("output_format", OutputFormat)
             .Default(NULL);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMapOperationSpec
+    : public TOperationSpecBase
+{
+    TUserJobSpecPtr Mapper;   
+    yvector<NYTree::TYPath> InputTablePaths;
+    yvector<NYTree::TYPath> OutputTablePaths;
+
+    TMapOperationSpec()
+    {
+        Register("mapper", Mapper);
+        Register("input_table_paths", InputTablePaths);
+        Register("output_table_paths", OutputTablePaths);
     }
 };
 
@@ -171,14 +182,17 @@ struct TEraseOperationSpec
     : public TOperationSpecBase
 {
     NYTree::TYPath TablePath;
-    NYTree::TYPath OutputTablePath;
     bool CombineChunks;
+    i64 MaxMergeJobWeight;
 
     TEraseOperationSpec()
     {
         Register("table_path", TablePath);
         Register("combine_chunks", CombineChunks)
             .Default(false);
+        Register("max_merge_job_weight", MaxMergeJobWeight)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
     }
 };
 
@@ -233,15 +247,17 @@ struct TSortOperationSpec
 struct TReduceOperationSpec
     : public TOperationSpecBase
 {
+    TUserJobSpecPtr Reducer;
     yvector<NYTree::TYPath> InputTablePaths;
-    NYTree::TYPath OutputTablePath;
+    yvector<NYTree::TYPath> OutputTablePaths;
     TNullable< yvector<Stroka> > KeyColumns;
     i64 MaxReduceJobWeight;
 
     TReduceOperationSpec()
     {
+        Register("reducer", Reducer);
         Register("input_table_paths", InputTablePaths);
-        Register("output_table_path", OutputTablePath);
+        Register("output_table_paths", OutputTablePaths);
         Register("key_columns", KeyColumns)
             .Default();
         Register("max_reduce_job_weight", MaxReduceJobWeight)

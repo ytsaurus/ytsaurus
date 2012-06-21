@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/job_proxy/config.h>
 #include <ytlib/misc/configurable.h>
+#include <ytlib/job_proxy/config.h>
 
 namespace NYT {
 namespace NExecAgent {

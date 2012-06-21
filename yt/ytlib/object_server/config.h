@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/misc/configurable.h>
 
 namespace NYT {

@@ -4,14 +4,9 @@
 
 #include <ytlib/misc/configurable.h>
 #include <ytlib/election/leader_lookup.h>
-// TODO: consider using forward declarations.
-#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/config.h>
-#include <ytlib/file_client/public.h>
 #include <ytlib/file_client/config.h>
-#include <ytlib/table_client/public.h>
 #include <ytlib/table_client/config.h>
-#include <ytlib/chunk_client/client_block_cache.h>
 
 namespace NYT {
 namespace NDriver {
