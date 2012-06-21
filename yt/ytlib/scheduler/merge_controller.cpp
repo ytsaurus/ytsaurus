@@ -407,6 +407,12 @@ protected:
         return false;
     }
 
+    //! A typical implementation of #IsPassthroughChunk that depends on whether chunks must be combined or not.
+    bool IsPassthroughChunkImpl(const TInputChunk& chunk, bool combineChunks)
+    {
+        return combineChunks ? IsLargeCompleteChunk(chunk) : IsCompleteChunk(chunk);
+    }
+
     //! Returns the maximum desired weight of a single task.
     virtual i64 GetMaxTaskWeight() = 0;
 
@@ -441,7 +447,7 @@ private:
 
     bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
     {
-        return IsLargeCompleteChunk(chunk) && !Spec->CombineChunks;
+        return Spec->CombineChunks ? IsLargeCompleteChunk(chunk) : IsCompleteChunk(chunk);
     }
 
     std::vector<TYPath> GetInputTablePaths() OVERRIDE
@@ -557,7 +563,7 @@ private:
 
     virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
     {
-        return IsLargeCompleteChunk(chunk) && !Spec->CombineChunks;
+        return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
     }
 
     i64 GetMaxTaskWeight() OVERRIDE
@@ -606,9 +612,9 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
     {
-        return IsLargeCompleteChunk(chunk) && !Spec->CombineChunks;
+        return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
     }
 
     void CustomInitialize() OVERRIDE
@@ -845,7 +851,7 @@ private:
 
     bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
     {
-        return IsLargeCompleteChunk(chunk) && !Spec->CombineChunks;
+        return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
     }
 
     TNullable< yvector<Stroka> > GetSpecKeyColumns() OVERRIDE
