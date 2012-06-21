@@ -700,9 +700,20 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         operation->SetState(EOperationState::Completed);
-        DoOperationFinished(operation);
+
+        MasterConnector->FinalizeOperationNode(operation).Subscribe(
+            BIND(&TThis::OnCompletedOperationNodeFinalized, MakeStrong(this), operation)
+            .Via(GetControlInvoker()));
     }
     
+    void OnCompletedOperationNodeFinalized(TOperationPtr operation, TError finalizeError)
+    {
+        // Can't do anything about the error anyway.
+        UNUSED(finalizeError);
+
+        operation->SetFinished();
+    }
+
 
     void OnOperationFailed(
         TOperationPtr operation,
@@ -732,46 +743,20 @@ private:
 
         AbortOperationJobs(operation);
 
-        MasterConnector->FlushOperationNode(operation).Subscribe(
-            BIND(
-                &TImpl::OnFailedOperationNodeFlushed,
-                MakeStrong(this),
-                operation,
-                finalError,
-                finalState)
-            .Via(GetControlInvoker()));
-    }
-
-    void OnFailedOperationNodeFlushed(
-        TOperationPtr operation,
-        TError finalError,
-        EOperationState finalState,
-        TError flushError)
-    {
-        UNUSED(flushError);
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        operation->GetController()->Abort();
-
         operation->SetState(finalState);
         *operation->Result().mutable_error() = finalError.ToProto();
 
-        DoOperationFinished(operation);
-    }
-
-
-    void DoOperationFinished(TOperationPtr operation)
-    {
         MasterConnector->FinalizeOperationNode(operation).Subscribe(
-            BIND(&TThis::OnOperationNodeFinalized, MakeStrong(this), operation)
+            BIND(&TImpl::OnFailedOperationNodeFinalized, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationNodeFinalized(TOperationPtr operation, TError finalizeError)
+    void OnFailedOperationNodeFinalized(TOperationPtr operation, TError finalizeError)
     {
         // Can't do anything about the error anyway.
         UNUSED(finalizeError);
 
+        operation->GetController()->Abort();
         operation->SetFinished();
     }
 
