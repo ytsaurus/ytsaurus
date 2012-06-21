@@ -13,7 +13,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLexer::TImpl
+class TLexerImpl
 {
 public:
     DECLARE_ENUM(EInnerState,
@@ -28,7 +28,7 @@ public:
         (AfterPlus)
     );
 
-    TImpl()
+    TLexerImpl()
     {
         Reset();
         StringValue.reserve(StringBufferSize);
@@ -36,7 +36,7 @@ public:
 
     void Reset()
     {
-        State_ = EState::None;
+        State_ = TLexer::EState::None;
         InnerState = EInnerState::None;
         Token = TToken();
         StringValue.clear();
@@ -47,7 +47,7 @@ public:
 
     const TToken& GetToken() const
     {
-        YASSERT(State_ == EState::Terminal);
+        YASSERT(State_ == TLexer::EState::Terminal);
         return Token;
     }
     
@@ -56,10 +56,10 @@ public:
         auto begin = input.begin();
         auto end = input.end();
         switch (State_) {
-            case EState::None:
+            case TLexer::EState::None:
                 return ReadStart(begin, end) - begin;
 
-            case EState::InProgress:
+            case TLexer::EState::InProgress:
                 switch (InnerState) {
                     case EInnerState::InsideUnquotedString:
                         return ReadUnquotedString(begin, end) - begin;
@@ -98,7 +98,7 @@ public:
     void Finish()
     {
         switch (State_) {
-            case EState::InProgress:
+            case TLexer::EState::InProgress:
                 switch (InnerState) {
                     case EInnerState::InsideBinaryInteger:
                     case EInnerState::InsideBinaryDouble:
@@ -135,7 +135,7 @@ public:
         
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(EState, State)
+    DEFINE_BYVAL_RO_PROPERTY(TLexer::EState, State)
 
 private:
     static const int StringBufferSize = 1 << 16;
@@ -276,7 +276,7 @@ private:
         // Reading length
         if (BytesRead >= 0) {
             begin = ReadBinaryInteger(begin, end);
-            if (State_ == EState::Terminal) {
+            if (State_ == TLexer::EState::Terminal) {
                 i64 length = IntegerValue;
                 if (length < 0) {
                     ythrow yexception() << Sprintf("Error reading binary string: String cannot have negative length (Length: %" PRId64 ")",
@@ -432,31 +432,31 @@ private:
 
     void ProduceToken(ETokenType type)
     {
-        YASSERT(State_ == EState::None || State_ == EState::InProgress);
-        State_ = EState::Terminal;
+        YASSERT(State_ == TLexer::EState::None || State_ == TLexer::EState::InProgress);
+        State_ = TLexer::EState::Terminal;
         InnerState = EInnerState::None;
         switch (type) {
             case ETokenType::String:
-                Token = TToken(StringValue);
+                Token.StringValue = StringValue;
                 break;
             case ETokenType::Integer:
-                Token = TToken(IntegerValue);
+                Token.IntegerValue = IntegerValue;
                 break;
             case ETokenType::Double:
-                Token = TToken(DoubleValue);
+                Token.DoubleValue = DoubleValue;
                 break;
             default:
-                Token = TToken(type);
                 break;
         }
+        Token.Type_ = type;
     }
 
     void SetInProgressState(EInnerState innerState)
     {
-        YASSERT(State_ == EState::None);
+        YASSERT(State_ == TLexer::EState::None);
         YASSERT(InnerState == EInnerState::None);
         YASSERT(innerState != EInnerState::None);
-        State_ = EState::InProgress;
+        State_ = TLexer::EState::InProgress;
         InnerState = innerState;
     }
 
@@ -477,7 +477,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLexer::TLexer()
-    : Impl(new TImpl())
+    : Impl(new TLexerImpl())
 { }
 
 TLexer::~TLexer()
