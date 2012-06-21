@@ -58,8 +58,8 @@ void TDsvParser::Finish()
         case (EState::InsideKey):
             if (!CurrentToken.empty()) {
                 ythrow yexception() <<
-                    Sprintf("Key %s must be followed by value (%s)",
-                        ~CurrentToken,
+                    Sprintf("Key %s must be followed by a value (%s)",
+                        ~CurrentToken.Quote(),
                         ~GetPositionInfo());
             }
             if (NewRecordStarted) {
@@ -115,8 +115,8 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
                 if (*next == Config->RecordSeparator) {
                     if (!CurrentToken.empty()) {
                         ythrow yexception() <<
-                            Sprintf("Key %s must be followed by value (%s)",
-                                ~CurrentToken,
+                            Sprintf("Key %s must be followed by a value (%s)",
+                                ~CurrentToken.Quote(),
                                 ~GetPositionInfo());
                     }
                     EndRecord();
@@ -211,7 +211,7 @@ void TDsvParser::ValidatePrefix(const Stroka& prefix)
 {
     if (prefix != Config->LinePrefix.Get()) {
         ythrow yexception() <<
-            Sprintf("Expected %s at the beginning of record, found %s, (%s)",
+            Sprintf("Expected %s at the beginning of record, found %s (%s)",
                 ~Config->LinePrefix.Get().Quote(),
                 ~prefix.Quote(),
                 ~GetPositionInfo());
