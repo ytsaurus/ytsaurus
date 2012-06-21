@@ -419,27 +419,47 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
 
 void ForceYPath(INodePtr root, const TYPath& path)
 {
-    INodePtr currentNode = root;
+    auto currentNode = root;
+
     TTokenizer tokenizer(path);
-    while (tokenizer.ParseNext()) {
+    if (!tokenizer.ParseNext()) {
+        // Hmm... empty path!
+        return;
+    }
+
+    while (true) {
         tokenizer.CurrentToken().CheckType(PathSeparatorToken);
 
-        INodePtr child;
         tokenizer.ParseNext();
-        switch (tokenizer.GetCurrentType()) {
+        auto token = tokenizer.CurrentToken();
+        
+        // Token holds a stringbuf that gets invalidated with each ParseNext call.
+        // Thus we have to make a persistent copy before advancing the tokenizer.
+        // For the sake of completeness, we also make copies of the type and the integer value.
+        auto tokenType = token.GetType();
+        Stroka key(token.GetType() == ETokenType::String ? token.GetStringValue() : "");
+        i64 index(token.GetType() == ETokenType::Integer ? token.GetIntegerValue() : -1);
+
+        if (!tokenizer.ParseNext()) {
+            // The previous token was the last one.
+            // Stop here -- we don't force the very last segment.
+            return;
+        }
+
+        INodePtr child;
+        switch (tokenType) {
             case ETokenType::String: {
-                Stroka key(tokenizer.CurrentToken().GetStringValue());
                 child = currentNode->AsMap()->FindChild(key);
                 if (!child) {
                     auto factory = currentNode->CreateFactory();
                     child = factory->CreateMap();
-                    YVERIFY(currentNode->AsMap()->AddChild(~child, key));
+                    YCHECK(currentNode->AsMap()->AddChild(~child, key));
                 }
                 break;
             }
 
             case ETokenType::Integer: {
-                child = currentNode->AsList()->GetChild(tokenizer.CurrentToken().GetIntegerValue());
+                child = currentNode->AsList()->GetChild(index);
                 break;
             }
 
@@ -447,6 +467,7 @@ void ForceYPath(INodePtr root, const TYPath& path)
                 ThrowUnexpectedToken(tokenizer.CurrentToken());
                 YUNREACHABLE();
         }
+
         currentNode = child;
     }
 }

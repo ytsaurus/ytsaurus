@@ -175,8 +175,15 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path);
 
 void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value);
 
+//! Creates missing maps along #path.
+/*!
+ *  E.g. if #root is an empty map and #path is |/a/b/c| then
+ *  nested maps |a| and |b| get created. Note that the final key (i.e. |c|)
+ *  is not forced (since we have no idea of its type anyway).
+ */
 void ForceYPath(INodePtr root, const TYPath& path);
 
+//! Computes a full YPath for a given #node (starting from #root).
 TYPath GetYPath(INodePtr node, INodePtr* root = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
