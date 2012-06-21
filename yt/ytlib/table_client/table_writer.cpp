@@ -205,18 +205,16 @@ void TTableWriter::Close()
     Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
     LOG_INFO("Chunk writer closed");
 
-    if (KeyColumns.IsInitialized()) {
-        LOG_INFO("Marking table as sorted");
+    if (KeyColumns) {
+        auto keyColumns = KeyColumns.Get();
+        LOG_INFO("Marking table as sorted by %s", ~SerializeToYson(keyColumns, EYsonFormat::Text));
         auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
-        // TODO(babenko): fill key columns
+        ToProto(req->mutable_key_columns(), keyColumns);
         auto rsp = ObjectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",
                 ~rsp->GetError().ToString());
         }
-
-        // ToDo(psushin): set key columns.
-
         LOG_INFO("Table is marked as sorted");
     }
 
