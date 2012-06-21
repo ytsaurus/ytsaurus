@@ -116,6 +116,8 @@ public:
         auto id = operation->GetOperationId();
         LOG_INFO("Creating operation node (OperationId: %s)", ~id.ToString());
 
+        CreateOperationUpdateList(operation);
+
         auto setReq = TYPathProxy::Set(GetOperationPath(id));
         setReq->set_value(BuildOperationYson(operation));
         return ObjectProxy
@@ -644,8 +646,6 @@ private:
                 ~error.ToString());
             return rsp->GetError();
         }
-
-        CreateOperationUpdateList(operation);
 
         LOG_ERROR("Operation node created successfully (OperationId: %s)",
             ~operationId.ToString());
