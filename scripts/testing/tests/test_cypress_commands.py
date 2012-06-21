@@ -70,8 +70,6 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/list/^0', 'first')
         assert get('//tmp/list') == '["first";200;1;777;100;"last"]'
 
-        remove('//tmp/list')
-
     def test_map(self):
         set('//tmp/map', '{hello=world; list=[0;a;{}]; n=1}')
         assert get_py('//tmp/map') == {"hello":"world","list":[0,"a",{}],"n":1}
@@ -102,8 +100,6 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/map/list')
         assert get_py('//tmp/map') == {}
 
-        remove('//tmp/map')
-
 
     def test_attributes(self):
         set('//tmp/t', '<attr=100;mode=rw> {nodes=[1; 2]}')
@@ -128,11 +124,10 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t/b/@dir/@file') == '<>-100'
         assert get('//tmp/t/b/@dir/@file/@') == '{}'
 
-        # a couple of attributes
-        set('//tmp/t', '<key1=value1;key2=value2>{}')
+        # set attributes directly
+        set('//tmp/t/@', '{key1=value1;key2=value2}')
         assert get('//tmp/t/@key1') == '"value1"'
         assert get('//tmp/t/@key2') == '"value2"'
 
-        remove('//tmp/t')
 
 
