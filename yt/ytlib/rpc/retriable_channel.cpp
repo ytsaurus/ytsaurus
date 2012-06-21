@@ -27,7 +27,7 @@ class TRetriableChannel
 
 public:
     TRetriableChannel(
-        TRetryConfig* config,
+        TRetryConfigPtr config,
         IChannelPtr underlyingChannel);
 
     virtual TNullable<TDuration> GetDefaultTimeout() const;
@@ -42,7 +42,7 @@ public:
 };
 
 IChannelPtr CreateRetriableChannel(
-    TRetryConfig* config,
+    TRetryConfigPtr config,
     IChannelPtr underlyingChannel)
 {
     return New<TRetriableChannel>(
@@ -57,7 +57,7 @@ class TRetriableRequest
 {
 public:
     TRetriableRequest(
-        TRetriableChannel* channel,
+        TRetriableChannelPtr channel,
         IClientRequestPtr request,
         IClientResponseHandlerPtr originalHandler,
         TNullable<TDuration> timeout)
@@ -189,7 +189,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TRetriableChannel::TRetriableChannel(
-    TRetryConfig* config,
+    TRetryConfigPtr config,
     IChannelPtr underlyingChannel)
     : UnderlyingChannel_(underlyingChannel)
     , Config_(config)

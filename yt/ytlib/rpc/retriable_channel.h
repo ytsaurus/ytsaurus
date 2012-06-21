@@ -39,8 +39,7 @@ struct TRetryConfig
  *  \param retryCount Maximum number of retry attempts.
  *  \returns A retriable channel.
  */ 
-IChannelPtr CreateRetriableChannel(
-    TRetryConfig* config,
+IChannelPtr CreateRetriableChannel(TRetryConfigPtr config,
     IChannelPtr underlyingChannel);
 
 ////////////////////////////////////////////////////////////////////////////////
