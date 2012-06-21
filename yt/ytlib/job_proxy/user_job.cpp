@@ -73,11 +73,12 @@ TError StatusToError(int status)
 TUserJob::TUserJob(
     TJobProxyConfigPtr proxyConfig,
     const NScheduler::NProto::TJobSpec& jobSpec,
-    const NScheduler::NProto::TUserJobSpec& userJobSpec)
+    const NScheduler::NProto::TUserJobSpec& userJobSpec,
+    TAutoPtr<TUserJobIO> userJobIO)
     : Config(proxyConfig)
     , JobSpec(jobSpec)
     , UserJobSpec(userJobSpec)
-    , JobIO(CreateUserJobIO(proxyConfig->JobIO, proxyConfig->Masters, jobSpec))
+    , JobIO(userJobIO)
     , ActivePipeCount(0)
     , ProcessId(-1)
 { }

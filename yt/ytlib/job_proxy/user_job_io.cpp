@@ -1,9 +1,15 @@
 ﻿#include "stdafx.h"
 
 #include "config.h"
-
 #include "user_job_io.h"
 #include "map_job_io.h"
+#include "reduce_job_io.h"
+#include "stderr_output.h"
+
+#include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/table_client/table_chunk_sequence_writer.h>
+#include <ytlib/table_client/sync_writer.h>
+#include <ytlib/table_client/schema.h>
 
 #include <ytlib/election/leader_channel.h>
 
@@ -12,19 +18,69 @@ namespace NJobProxy {
 
 using namespace NElection;
 using namespace NScheduler::NProto;
+using namespace NTableClient;
+using namespace NYTree;
+using namespace NTransactionClient;
+using namespace NChunkClient;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IUserJobIO> CreateUserJobIO(
-    TJobIOConfigPtr config,
+TUserJobIO::TUserJobIO(
+    TJobIOConfigPtr config, 
     NElection::TLeaderLookup::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
+    : Config(config)
+    , MasterChannel(CreateLeaderChannel(mastersConfig))
+    , JobSpec(jobSpec)
+{ }
+
+int TUserJobIO::GetInputCount() const
 {
-    auto masterChannel = CreateLeaderChannel(mastersConfig);
-    return new TMapJobIO(
-        config, 
-        masterChannel, 
-        jobSpec);
+    // We don't support piped input right now.
+    return 1;
+}
+
+int TUserJobIO::GetOutputCount() const
+{
+    return JobSpec.output_specs_size();
+}
+
+NTableClient::ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
+{
+    YASSERT(index < GetOutputCount());
+    const TYson& channels = JobSpec.output_specs(index).channels();
+    YASSERT(!channels.empty());
+
+    auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
+        Config->ChunkSequenceWriter,
+        MasterChannel,
+        TTransactionId::FromProto(JobSpec.output_transaction_id()),
+        TChunkListId::FromProto(JobSpec.output_specs(index).chunk_list_id()),
+        ChannelsFromYson(channels));
+
+    auto syncWriter = CreateSyncWriter(chunkSequenceWriter);
+    syncWriter->Open();
+
+    return syncWriter;
+}
+
+void TUserJobIO::UpdateProgress()
+{
+    YUNIMPLEMENTED();
+}
+
+double TUserJobIO::GetProgress() const
+{
+    YUNIMPLEMENTED();
+}
+
+TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput() const
+{
+    return new TErrorOutput(
+        Config->ErrorFileWriter, 
+        MasterChannel, 
+        TTransactionId::FromProto(JobSpec.output_transaction_id()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

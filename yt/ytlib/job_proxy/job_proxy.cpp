@@ -7,6 +7,8 @@
 #include "ordered_merge_job.h"
 #include "sort_job.h"
 #include "partition_job.h"
+#include "map_job_io.h"
+#include "reduce_job_io.h"
 
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/scheduler/public.h>
@@ -98,7 +100,15 @@ void TJobProxy::Run()
         switch (jobSpec.type()) {
             case EJobType::Map: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-                Job = new TUserJob(Config, jobSpec, jobSpecExt.mapper_spec());
+                auto userJobIO = new TMapJobIO(Config->JobIO, Config->Masters, jobSpec);
+                Job = new TUserJob(Config, jobSpec, jobSpecExt.mapper_spec(), userJobIO);
+                break;
+            }
+
+            case EJobType::Reduce: {
+                const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                auto userJobIO = new TReduceJobIO(Config->JobIO, Config->Masters, jobSpec);
+                Job = new TUserJob(Config, jobSpec, jobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
 

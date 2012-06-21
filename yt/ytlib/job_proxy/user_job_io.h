@@ -13,32 +13,38 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IUserJobIO
+class TUserJobIO
 {
-    virtual ~IUserJobIO()
+public:
+    TUserJobIO(
+        TJobIOConfigPtr config,
+        NElection::TLeaderLookup::TConfigPtr mastersConfig,
+        const NScheduler::NProto::TJobSpec& jobSpec);
+
+    virtual ~TUserJobIO()
     { }
 
-    virtual int GetInputCount() const = 0;
-    virtual int GetOutputCount() const = 0;
+    virtual int GetInputCount() const;
+    virtual int GetOutputCount() const;
 
-    virtual void UpdateProgress() = 0;
-    virtual double GetProgress() const = 0;
+    virtual void UpdateProgress();
+    virtual double GetProgress() const;
 
     virtual TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
         int index, 
         NYTree::IYsonConsumer* consumer) const = 0;
 
-    virtual NTableClient::ISyncWriterPtr CreateTableOutput(int index) const = 0;
+    virtual NTableClient::ISyncWriterPtr CreateTableOutput(int index) const;
 
-    virtual TAutoPtr<TErrorOutput> CreateErrorOutput() const = 0;
+    virtual TAutoPtr<TErrorOutput> CreateErrorOutput() const;
+
+protected:
+    TJobIOConfigPtr Config;
+
+    NScheduler::NProto::TJobSpec JobSpec;
+    NRpc::IChannelPtr MasterChannel;
+
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAutoPtr<IUserJobIO> CreateUserJobIO(
-    TJobIOConfigPtr ioConfig,
-    NElection::TLeaderLookup::TConfigPtr mastersConfig,
-    const NScheduler::NProto::TJobSpec& jobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

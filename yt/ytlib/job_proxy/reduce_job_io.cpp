@@ -1,22 +1,16 @@
-#include "stdafx.h"
-#include "map_job_io.h"
-#include "table_output.h"
+﻿#include "stdafx.h"
+
+#include "reduce_job_io.h"
 #include "config.h"
-#include "stderr_output.h"
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
+#include <ytlib/table_client/merging_reader.h>
 
 namespace NYT {
 namespace NJobProxy {
-
-////////////////////////////////////////////////////////////////////
-
-static NLog::TLogger& Logger = JobProxyLogger;
-
-////////////////////////////////////////////////////////////////////
 
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -28,7 +22,7 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////
 
-TMapJobIO::TMapJobIO(
+TReduceJobIO::TReduceJobIO(
     TJobIOConfigPtr config,
     NElection::TLeaderLookup::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
@@ -36,29 +30,36 @@ TMapJobIO::TMapJobIO(
 { }
 
 TAutoPtr<NTableClient::TTableProducer>
-TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
+TReduceJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
 {
     YASSERT(index < GetInputCount());
 
     auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
 
-    std::vector<NTableClient::NProto::TInputChunk> chunks(
-        JobSpec.input_specs(0).chunks().begin(),
-        JobSpec.input_specs(0).chunks().end());
+    std::vector<TChunkSequenceReaderPtr> readers;
+    TReaderOptions options;
+    options.ReadKey = true;
 
-    LOG_DEBUG("Opening input %d with %d chunks", 
-        index, 
-        static_cast<int>(chunks.size()));
+    FOREACH (const auto& inputSpec, JobSpec.input_specs()) {
+        // ToDo(psushin): validate that input chunks are sorted.
+        std::vector<NTableClient::NProto::TInputChunk> chunks(
+            inputSpec.chunks().begin(),
+            inputSpec.chunks().end());
 
-    auto reader = New<TChunkSequenceReader>(
-        Config->ChunkSequenceReader,
-        MasterChannel,
-        blockCache,
-        chunks);
-    auto syncReader = New<TSyncReaderAdapter>(reader);
-    syncReader->Open();
+        auto reader = New<TChunkSequenceReader>(
+            Config->ChunkSequenceReader,
+            MasterChannel,
+            blockCache,
+            chunks,
+            DefaultPartitionTag,
+            options);
 
-    return new TTableProducer(syncReader, consumer);
+        readers.push_back(reader);
+    }
+
+    auto reader = New<TMergingReader>(readers);
+
+    return new TTableProducer(reader, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////

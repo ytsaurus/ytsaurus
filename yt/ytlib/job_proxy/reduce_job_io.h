@@ -1,23 +1,18 @@
-#pragma once
+﻿#pragma once
 
-#include "private.h"
 #include "public.h"
-
 #include "user_job_io.h"
-
-#include <ytlib/scheduler/job.pb.h>
-#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-class TMapJobIO
+class TReduceJobIO
     : public TUserJobIO
 {
 public:
-    TMapJobIO(
+    TReduceJobIO(
         TJobIOConfigPtr config,
         NElection::TLeaderLookup::TConfigPtr mastersConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);

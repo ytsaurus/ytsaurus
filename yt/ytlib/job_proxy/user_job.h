@@ -19,7 +19,8 @@ public:
     TUserJob(
         TJobProxyConfigPtr proxyConfig,
         const NScheduler::NProto::TJobSpec& jobSpec,
-        const NScheduler::NProto::TUserJobSpec& userJobSpec);
+        const NScheduler::NProto::TUserJobSpec& userJobSpec,
+        TAutoPtr<TUserJobIO> userJobIO);
 
     NScheduler::NProto::TJobResult Run();
 
@@ -33,7 +34,7 @@ private:
     
     TJobProxyConfigPtr Config;
 
-    TAutoPtr<IUserJobIO> JobIO;
+    TAutoPtr<TUserJobIO> JobIO;
     NScheduler::NProto::TJobSpec JobSpec;
     NScheduler::NProto::TUserJobSpec UserJobSpec;
 
