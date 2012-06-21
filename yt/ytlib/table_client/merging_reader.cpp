@@ -44,6 +44,7 @@ void TMergingReader::NextRow()
     Sync(ReaderHeap.back(), &TChunkSequenceReader::AsyncNextRow);
     if (ReaderHeap.back()->IsValid()) {
         std::push_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+        std::pop_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
     } else {
         ReaderHeap.pop_back();
     }
