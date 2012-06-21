@@ -7,9 +7,6 @@
 #include <vector>
 #include <list>
 
-// TODO: try to get rid of this
-using std::string; // hack for guid.h to work
-
 #include <util/system/atomic.h>
 #include <util/system/defaults.h>
 #include <util/system/spinlock.h>
