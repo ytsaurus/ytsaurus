@@ -9,52 +9,45 @@ import yson
 import time
 import os
 
-
-#TODO(panin): tests of scheduler
 class TestOrchid(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
+    NUM_SCHEDULERS = 1
+
+    def _check_service(self, path_to_orchid, service_name):
+        path_to_value = path_to_orchid + '/value'
+
+        assert get_py(path_to_orchid + '/@service_name') == service_name
+
+        some_map = '{"a"=1;"b"=2}'
+
+        set(path_to_value, some_map)
+        assert get(path_to_value) == some_map
+
+        assertItemsEqual(yson2py(ls(path_to_value)), ['a', 'b'])
+        remove(path_to_value)
+        with pytest.raises(YTError): get(path_to_value)
+
+
+    def _check_orchid(self, path, num_services, service_name):
+        result = ls(path)
+        services = yson2py(result)
+        q = '"'
+        
+        assert len(services) == num_services
+        for service in services:
+            path_to_orchid = path + '/'  + q + service + q + '/orchid'
+            self._check_service(path_to_orchid, service_name)
 
     def test_on_masters(self):
-        result = ls('//sys/masters')
-        masters = yson_parser.parse_string(result)
-        assert len(masters) == self.NUM_MASTERS
-
-        q = '"'
-        for master in masters:
-            path_to_orchid = '//sys/masters/'  + q + master + q + '/orchid'
-            path = path_to_orchid + '/value'
-
-            assert get(path_to_orchid + '/@service_name') == '"master"'
-
-            some_map = '{"a"=1;"b"=2}'
-
-            set(path, some_map)
-            assert get(path) == some_map
-            assertItemsEqual(yson2py(ls(path)), ['a', 'b'])
-            remove(path)
-            with pytest.raises(YTError): get(path)
-
+        self._check_orchid('//sys/masters', self.NUM_MASTERS, "master")
 
     def test_on_holders(self):
-        result = ls('//sys/holders')
-        holders = yson_parser.parse_string(result)
-        assert len(holders) == self.NUM_HOLDERS
+        self._check_orchid('//sys/holders', self.NUM_HOLDERS, "node")
 
-        q = '"'
-        for holder in holders:
-            path_to_orchid = '//sys/holders/'  + q + holder + q + '/orchid'
-            path = path_to_orchid + '/value'
-
-            assert get(path_to_orchid + '/@service_name') == '"node"'
-
-            some_map = '{"a"=1;"b"=2}'
-
-            set(path, some_map)
-            assert get(path) == some_map
-            assertItemsEqual(yson2py(ls(path)), ['a', 'b'])
-            remove(path)
-            with pytest.raises(YTError): get(path)
+    def test_on_scheduler(self):
+        self._check_service('//sys/scheduler/orchid', "scheduler")
+    
 
 ###################################################################################
 
@@ -65,7 +58,6 @@ class TestCanceledUpload(YTEnvSetup):
     DELTA_HOLDER_CONFIG = {'chunk_holder' : {'session_timeout': 100}}
 
     # should be called on empty holders
-    #@pytest.mark.xfail(run = False, reason = 'Replace blocking read from empty stream with something else')
     def test(self):
         tx_id = start_transaction(opt = '/timeout=2000')
 
