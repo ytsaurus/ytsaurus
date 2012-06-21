@@ -92,6 +92,8 @@ def download(path, **kw):
     return command('download', path, **kw)
 
 def map(*args, **kw): return command('map', *args, **kw)
+def merge(*args, **kw): return command('map', *args, **kw)
+
 def track_op(**kw): return command('track_op', **kw)
 
 #########################################
@@ -110,6 +112,9 @@ def read_table(path, **kw):
 
 def get_py(path, **kw):
     return yson2py(get(path, **kw))
+
+def write_py(path, value, **kw):
+    return write(path, yson2py(value), **kw)
 
 def get_transactions(**kw):
     yson_map = get('//sys/transactions', **kw)

@@ -6,12 +6,12 @@ from yt_commands import *
 ##################################################################
 
 #TODO(panin): refactor
-def get_stderr(op_id):
+def check_all_stderrs(op_id, expected):
     jobs_path = '//sys/operations/' + op_id + '/jobs'
-    job_id = yson2py(ls(jobs_path))[0]
-    return download(jobs_path + '/"' + job_id + '"/stderr')
+    for job_id in yson2py(ls(jobs_path)):
+        download(jobs_path + '/"' + job_id + '"/stderr')
 
-class TestSchedulerCommands(YTEnvSetup):
+class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 1
@@ -49,7 +49,7 @@ class TestSchedulerCommands(YTEnvSetup):
 
         op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
         track_op(op=op_id)
-        assert get_stderr(op_id) == 'stderr'
+        check_all_stderrs(op_id, 'stderr')
 
     # check that stderr is captured for failed jobs
     def test_map_stderr_failed(self):
@@ -61,7 +61,7 @@ class TestSchedulerCommands(YTEnvSetup):
 
         op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
         track_op(op=op_id)
-        assert get_stderr(op_id) == 'stderr'
+        check_all_stderrs(op_id, 'stderr')
 
     def test_map_job_count(self):
         create('table', '//tmp/t1')
@@ -131,4 +131,56 @@ echo {v = 2} >&7
         assert read_table(output_tables[0]) == [{'v': 0}]
         assert read_table(output_tables[1]) == [{'v': 1}]
         assert read_table(output_tables[2]) == [{'v': 2}]
+
+
+class TestSchedulerMergeCommands(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_HOLDERS = 5
+    NUM_SCHEDULERS = 1
+
+    def _prepare_tables(self):
+        t1 = '//tmp/t1'
+        create('table', t1)
+        v1 = [{'key' + str(i) : 'value' + str(i)} for i in xrange(3)]
+        for v in v1:
+            write_py(t1, v)
+
+        t2 = '//tmp/t2'
+        create('table', t2)
+        v2 = [{'another_key' + str(i) : 'another_value' + str(i)} for i in xrange(4)]
+        for v in v2:
+            write_py(t2, v)
+
+        self.t1 = t1
+        self.t2 = t2
+        
+        self.v1 = v1
+        self.v2 = v2
+        
+
+    # usual cases
+    def test_merge_unordered(self):
+        self._prepare_tables()
+
+        merge(input=[self.t1, self.t2], 
+              out='//tmp/t_out')
+        
+        assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
+        assert get('//tmp/t_out/@chunk_count') == '7'
+
+    def test_merge_unordered_combine(self):
+        self._prepare_tables()
+
+        merge('--combine_chunks',
+              input=[self.t1, self.t2],
+              out='//tmp/t_out')
+
+        assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
+        assert get('//tmp/t_out/@chunk_count') == '1'
+
+
+
+
+
+
 
