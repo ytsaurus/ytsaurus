@@ -37,8 +37,14 @@ private:
     const char* FindEndOfKey(const char* begin, const char* end);
 
     void StartRecordIfNeeded();
+    void EndRecord();
+    void EndField();
 
     void ValidatePrefix(const Stroka& prefix);
+
+    int Record;
+    int Field;
+    Stroka GetPositionInfo() const;
 
     DECLARE_ENUM(EState,
         (InsidePrefix)
@@ -47,6 +53,7 @@ private:
     );
     EState State;
     EState GetStartState();
+
 
 };
 
