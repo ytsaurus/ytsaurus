@@ -970,7 +970,7 @@ void TRemoteWriter::TImpl::DoWriteBlock(const TSharedRef& block)
 
 void TRemoteWriter::TImpl::AddBlock(const TSharedRef& block)
 {
-    YASSERT(!IsClosing);
+    YASSERT(!IsCloseRequested);
 
     CurrentGroup->AddBlock(block);
     ++BlockCount;
