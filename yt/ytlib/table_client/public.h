@@ -64,6 +64,9 @@ typedef TIntrusivePtr<TChunkSequenceReaderConfig> TChunkSequenceReaderConfigPtr;
 class TTableProducer;
 class TTableConsumer;
 
+class TMergingReader;
+typedef TIntrusivePtr<TMergingReader> TMergingReaderPtr;
+
 struct TTableConsumerConfig;
 typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
 

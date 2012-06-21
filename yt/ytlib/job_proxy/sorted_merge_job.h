@@ -22,7 +22,7 @@ public:
     NScheduler::NProto::TJobResult Run();
 
 private:
-    std::vector<NTableClient::TChunkSequenceReaderPtr> Readers;
+    NTableClient::TMergingReaderPtr Reader;
     NTableClient::ISyncWriterPtr Writer;
 
 };

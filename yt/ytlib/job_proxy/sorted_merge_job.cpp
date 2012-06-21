@@ -13,7 +13,7 @@
 #include <ytlib/table_client/private.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
-#include <ytlib/misc/sync.h>
+#include <ytlib/table_client/merging_reader.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -32,17 +32,6 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-inline bool CompareReaders(
-    const TChunkSequenceReader* lhs,
-    const TChunkSequenceReader* rhs)
-{
-    return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
-}
-
-} // namespace
-
 TSortedMergeJob::TSortedMergeJob(
     TJobProxyConfigPtr proxyConfig,
     const TJobSpec& jobSpec)
@@ -53,6 +42,7 @@ TSortedMergeJob::TSortedMergeJob(
     auto masterChannel = CreateLeaderChannel(proxyConfig->Masters);
 
     {
+        std::vector<TChunkSequenceReaderPtr> readers;
         TReaderOptions options;
         options.ReadKey = true;
 
@@ -70,8 +60,10 @@ TSortedMergeJob::TSortedMergeJob(
                 DefaultPartitionTag,
                 options);
 
-            Readers.push_back(reader);
+            readers.push_back(reader);
         }
+
+        Reader = New<TMergingReader>(readers);
     }
 
     {
@@ -92,33 +84,17 @@ TJobResult TSortedMergeJob::Run()
     PROFILE_TIMING ("/sorted_merge_time") {
         // Open readers, remove invalid ones, and create the initial heap.
         LOG_INFO("Initializing");
-        std::vector<TChunkSequenceReader*> readerHeap;
         {
-            FOREACH (auto reader, Readers) {
-                Sync(~reader, &TChunkSequenceReader::AsyncOpen);
-                if (reader->IsValid()) {
-                    readerHeap.push_back(~reader);
-                }
-            }
-
-            std::make_heap(readerHeap.begin(), readerHeap.end(), CompareReaders);
-
+            Reader->Open();
             Writer->Open();
         }
         PROFILE_TIMING_CHECKPOINT("init");
 
         // Run the actual merge.
         LOG_INFO("Merging");
-        while (!readerHeap.empty()) {
-            std::pop_heap(readerHeap.begin(), readerHeap.end(), CompareReaders);
-            Writer->WriteRow(readerHeap.back()->GetRow(), readerHeap.back()->GetKey());
-
-            Sync(readerHeap.back(), &TChunkSequenceReader::AsyncNextRow);
-            if (readerHeap.back()->IsValid()) {
-                std::push_heap(readerHeap.begin(), readerHeap.end(), CompareReaders);
-            } else {
-                readerHeap.pop_back();
-            }
+        while (!Reader->IsValid()) {
+            Writer->WriteRow(Reader->GetRow(), Reader->GetKey());
+            Reader->NextRow();
         }
         PROFILE_TIMING_CHECKPOINT("merge");
 

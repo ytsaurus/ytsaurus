@@ -20,6 +20,7 @@ set( SRCS
   ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/value.cpp
+  ${BASE}/merging_reader.cpp
 )
 
 set( HDRS
@@ -51,6 +52,7 @@ set( HDRS
   ${BASE}/table_writer.h
   ${BASE}/validating_writer.h
   ${BASE}/value.h
+  ${BASE}/merging_reader.h
 )
 
 list(APPEND YT_SOURCE_FILES
