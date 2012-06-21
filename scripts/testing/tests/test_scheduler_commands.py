@@ -156,13 +156,15 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         
         self.v1 = v1
         self.v2 = v2
-        
+
+        create('table', '//tmp/t_out')
 
     # usual cases
     def test_merge_unordered(self):
         self._prepare_tables()
 
-        merge(input=[self.t1, self.t2], 
+        merge(mode='unordered',
+              input=[self.t1, self.t2], 
               out='//tmp/t_out')
         
         assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
@@ -171,16 +173,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_merge_unordered_combine(self):
         self._prepare_tables()
 
-        merge('--combine_chunks',
+        merge('--combine',
+              mode='unordered',
               input=[self.t1, self.t2],
               out='//tmp/t_out')
 
         assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
         assert get('//tmp/t_out/@chunk_count') == '1'
-
-
-
-
-
-
 

@@ -92,7 +92,7 @@ def download(path, **kw):
     return command('download', path, **kw)
 
 def map(*args, **kw): return command('map', *args, **kw)
-def merge(*args, **kw): return command('map', *args, **kw)
+def merge(*args, **kw): return command('merge', *args, **kw)
 
 def track_op(**kw): return command('track_op', **kw)
 
@@ -106,6 +106,9 @@ def table2py(yson):
 def yson2py(yson):
     return yson_parser.parse_string(yson)
 
+def py2yson(py):
+    return yson.dumps(py, indent='')
+
 #TODO(panin): maybe rename to read_py?
 def read_table(path, **kw):
     return table2py(read(path, **kw))
@@ -114,7 +117,7 @@ def get_py(path, **kw):
     return yson2py(get(path, **kw))
 
 def write_py(path, value, **kw):
-    return write(path, yson2py(value), **kw)
+    return write(path, py2yson(value), **kw)
 
 def get_transactions(**kw):
     yson_map = get('//sys/transactions', **kw)
