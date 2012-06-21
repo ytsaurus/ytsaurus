@@ -107,7 +107,7 @@ public:
 
     NYTree::TYPathServiceProducer CreateOrchidProducer()
     {
-        // TODO(babenko): virtualize
+        // TODO(babenko): virtualOPize
         auto producer = BIND(&TThis::BuildOrchidYson, MakeStrong(this));
         return BIND([=] () {
             return IYPathService::FromProducer(producer);
@@ -338,26 +338,21 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto state = operation->GetState();
-        if (state == EOperationState::Preparing || state == EOperationState::Running) {
-            LOG_INFO("Aborting operation %s (State: %s, Reason: %s)",
-                ~operation->GetOperationId().ToString(),
-                ~state.ToString(),
-                ~reason.ToString());
-                
-            operation->GetController()->Abort();
-
-            operation->SetState(EOperationState::Aborted);
-            TError error("Operation aborted (Reason: %s)", ~reason.ToString());
-            *operation->Result().mutable_error() = error.ToProto();
-
-            MasterConnector->FinalizeOperationNode(operation).Subscribe(
-                BIND([=] (TError error) {
-                    // TODO(babenko): can we do anything about the error? Seems not.
-                    operation->SetFinished();
-                })
-                .Via(GetControlInvoker()));
+        auto currentState = operation->GetState();
+        if (currentState != EOperationState::Preparing &&
+            currentState != EOperationState::Running &&
+            currentState != EOperationState::Reviving)
+        {
+            return;
         }
+
+        LOG_INFO("Aborting operation (OperationId: %s, State: %s, Reason: %s)",
+            ~operation->GetOperationId().ToString(),
+            ~currentState.ToString(),
+            ~reason.ToString());
+                
+        TError error("Operation aborted (Reason: %s)", ~reason.ToString());
+        DoOperationFailed(operation, error, EOperationState::Aborted);
     }
 
 
@@ -616,37 +611,37 @@ private:
     
 
     // IOperationHost methods
-    virtual NRpc::IChannelPtr GetMasterChannel()
+    NRpc::IChannelPtr GetMasterChannel() OVERRIDE
     {
         return Bootstrap->GetMasterChannel();
     }
 
-    virtual TTransactionManagerPtr GetTransactionManager()
+    TTransactionManagerPtr GetTransactionManager() OVERRIDE
     {
         return Bootstrap->GetTransactionManager();
     }
 
-    virtual IInvokerPtr GetControlInvoker()
+    IInvokerPtr GetControlInvoker() OVERRIDE
     {
         return Bootstrap->GetControlInvoker();
     }
 
-    virtual IInvokerPtr GetBackgroundInvoker()
+    IInvokerPtr GetBackgroundInvoker() OVERRIDE
     {
         return BackgroundQueue->GetInvoker();
     }
 
-    virtual int GetExecNodeCount()
+    int GetExecNodeCount() OVERRIDE
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return static_cast<int>(ExecNodes.size());
     }
 
-    virtual TJobPtr CreateJob(
+    TJobPtr CreateJob(
         TOperationPtr operation,
         TExecNodePtr node,
-        const NProto::TJobSpec& spec)
+        const NProto::TJobSpec& spec) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -661,7 +656,7 @@ private:
     }
 
 
-    virtual void OnOperationCompleted(TOperationPtr operation)
+    void OnOperationCompleted(TOperationPtr operation) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -675,30 +670,32 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto state = operation->GetState();
-        if (state != EOperationState::Preparing && state != EOperationState::Running) {
-            // Operation is being aborted.
+        auto currentState = operation->GetState();
+        if (currentState != EOperationState::Preparing &&
+            currentState != EOperationState::Running)
+        {
+            // Operation is probably being aborted.
             return;
         }
 
         AbortOperationJobs(operation);
 
         MasterConnector->FlushOperationNode(operation).Subscribe(
-            BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
+            BIND(&TImpl::OnCompletedOperationNodeFlushed, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationNodeFlushed(TOperationPtr operation, TError error)
+    void OnCompletedOperationNodeFlushed(TOperationPtr operation, TError flushError)
     {
-        UNUSED(error);
+        UNUSED(flushError);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         operation->GetController()->Commit().Subscribe(
-            BIND(&TImpl::OnOperationCommitted, MakeStrong(this), operation)
+            BIND(&TImpl::OnCompletedOperationCommitted, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationCommitted(TOperationPtr operation)
+    void OnCompletedOperationCommitted(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -707,37 +704,57 @@ private:
     }
     
 
-    virtual void OnOperationFailed(
+    void OnOperationFailed(
         TOperationPtr operation,
-        const TError& error)
+        const TError& error) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
         GetControlInvoker()->Invoke(BIND(
             &TThis::DoOperationFailed,
             MakeStrong(this),
             operation,
-            error));
+            error,
+            EOperationState::Failed));
     }
 
-    void DoOperationFailed(TOperationPtr operation, const TError& error)
+    void DoOperationFailed(TOperationPtr operation, const TError& finalError, EOperationState finalState)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto state = operation->GetState();
-        if (state != EOperationState::Preparing &&
-            state != EOperationState::Running &&
-            state != EOperationState::Reviving)
+        auto currentState = operation->GetState();
+        if (currentState != EOperationState::Preparing &&
+            currentState != EOperationState::Running &&
+            currentState != EOperationState::Reviving)
         {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }
 
+        AbortOperationJobs(operation);
+
+        MasterConnector->FlushOperationNode(operation).Subscribe(
+            BIND(
+                &TImpl::OnFailedOperationNodeFlushed,
+                MakeStrong(this),
+                operation,
+                finalError,
+                finalState)
+            .Via(GetControlInvoker()));
+    }
+
+    void OnFailedOperationNodeFlushed(
+        TOperationPtr operation,
+        TError finalError,
+        EOperationState finalState,
+        TError flushError)
+    {
+        UNUSED(flushError);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         operation->GetController()->Abort();
 
-        operation->SetState(EOperationState::Failed);
-        *operation->Result().mutable_error() = error.ToProto();
-
-        AbortOperationJobs(operation);
+        operation->SetState(finalState);
+        *operation->Result().mutable_error() = finalError.ToProto();
 
         DoOperationFinished(operation);
     }
@@ -750,10 +767,11 @@ private:
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationNodeFinalized(TOperationPtr operation, TError error)
+    void OnOperationNodeFinalized(TOperationPtr operation, TError finalizeError)
     {
-        UNUSED(error);
         // Can't do anything about the error anyway.
+        UNUSED(finalizeError);
+
         operation->SetFinished();
     }
 
