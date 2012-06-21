@@ -11,6 +11,7 @@
 #include <ytlib/table_client/table_writer.h>
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/table_producer.h>
+#include <ytlib/chunk_client/block_cache.h>
 
 namespace NYT {
 namespace NDriver {
