@@ -121,11 +121,11 @@ NScheduler::NProto::TJobResult TUserJob::Run()
         NScheduler::NProto::TUserJobResult* userJobResult;
         switch (JobSpec.type()) {
             case EJobType::Map:
-                userJobResult = result.MutableExtension(TMapJobResultExt::map_job_result_ext)->mutable_mapper_result();
+                userJobResult = result.MutableExtension(NScheduler::NProto::TMapJobResultExt::map_job_result_ext)->mutable_mapper_result();
                 break;
 
             case EJobType::Reduce:
-                userJobResult = result.MutableExtension(TReduceJobResultExt::reduce_job_result_ext)->mutable_reducer_result();
+                userJobResult = result.MutableExtension(NScheduler::NProto::TReduceJobResultExt::reduce_job_result_ext)->mutable_reducer_result();
                 break;
 
             default:
