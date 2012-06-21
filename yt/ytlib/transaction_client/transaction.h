@@ -28,6 +28,7 @@ struct ITransaction
      *  
      *  This call does not block (by default) and does not throw.
      *  When calling with #wait = true this call is blocking
+     *  and throws exception of it wasn't aborted.
      *  Safe to call multiple times.
      * 
      *  \note Thread affinity: any

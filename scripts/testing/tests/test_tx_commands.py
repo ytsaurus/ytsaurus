@@ -24,8 +24,8 @@ class TestTxCommands(YTEnvSetup):
 
         #couldn't commit committed transaction
         with pytest.raises(YTError): commit_transaction(tx = tx_id)
-        #could (!) abort commited transaction
-        abort_transaction(tx = tx_id)
+        #couldn't abort commited transaction
+        with pytest.raises(YTError): abort_transaction(tx = tx_id)
 
         ##############################################################3
         #check the same for abort
@@ -40,8 +40,8 @@ class TestTxCommands(YTEnvSetup):
 
         #couldn't commit aborted transaction
         with pytest.raises(YTError): commit_transaction(tx = tx_id)
-        #could (!) abort aborted transaction
-        abort_transaction(tx = tx_id)
+        #couldn't abort aborted transaction
+        with pytest.raises(YTError): abort_transaction(tx = tx_id)
 
     def test_changes_inside_tx(self):
         set('//tmp/value', '42')

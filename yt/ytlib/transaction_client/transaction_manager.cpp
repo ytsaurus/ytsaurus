@@ -256,7 +256,12 @@ private:
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
         auto result = Proxy.Execute(req);
         if (wait) {
-            result.Get();
+            auto rsp = result.Get();
+            if (!rsp->IsOK()) {
+                throw yexception() <<
+                    Sprintf("Error aborting transaction\n%s",
+                        ~rsp->GetError().ToString());
+            }
         }
     }
 

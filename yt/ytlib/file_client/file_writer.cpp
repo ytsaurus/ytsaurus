@@ -123,7 +123,7 @@ TFileWriter::~TFileWriter()
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (UploadTransaction) {
-        UploadTransaction->Abort(true);
+        UploadTransaction->Abort();
         UploadTransaction.Reset();
     }
 }
