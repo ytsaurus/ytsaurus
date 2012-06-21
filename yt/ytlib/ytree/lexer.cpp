@@ -107,6 +107,7 @@ public:
                             BytesRead);
     
                     case EInnerState::InsideUnquotedString:
+                        Token.StringValue = StringBuffer;
                         FinishString();
                         break;
 
