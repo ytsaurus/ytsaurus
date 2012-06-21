@@ -31,7 +31,7 @@ public:
     TLexerImpl()
     {
         Reset();
-        StringValue.reserve(StringBufferSize);
+        StringBuffer.reserve(StringBufferSize);
     }
 
     void Reset()
@@ -39,9 +39,7 @@ public:
         State_ = TLexer::EState::None;
         InnerState = EInnerState::None;
         Token = TToken();
-        StringValue.clear();
-        IntegerValue = 0;
-        DoubleValue = 0.0;
+        StringBuffer.clear();
         BytesRead = 0;
     }
 
@@ -152,25 +150,25 @@ private:
         switch (ch) {
             case '"':
                 SetInProgressState(EInnerState::InsideQuotedString);
-                YASSERT(StringValue.empty());
+                YASSERT(StringBuffer.empty());
                 YASSERT(BytesRead == 0);
                 return ReadQuotedString(current, end);
 
             case '\x01':
                 SetInProgressState(EInnerState::InsideBinaryString);
-                YASSERT(StringValue.empty());
+                YASSERT(StringBuffer.empty());
                 YASSERT(BytesRead == 0);
                 return ReadBinaryString(current, end);
 
             case '\x02':
                 SetInProgressState(EInnerState::InsideBinaryInteger);
-                YASSERT(IntegerValue == 0);
+                YASSERT(Token.IntegerValue == 0);
                 YASSERT(BytesRead == 0);
                 return ReadBinaryInteger(current, end);
 
             case '\x03':
                 SetInProgressState(EInnerState::InsideBinaryDouble);
-                YASSERT(DoubleValue == 0.0);
+                YASSERT(Token.DoubleValue == 0.0);
                 YASSERT(BytesRead == 0);
                 BytesRead = -static_cast<int>(sizeof(double));
                 return ReadBinaryDouble(current, end);
@@ -185,11 +183,13 @@ private:
                     ProduceToken(specialTokenType);
                     return current;
                 } else if (isdigit(ch) || ch == '-') { // case of '+' is handled in AfterPlus state
-                    StringValue.append(ch);
+                    YASSERT(StringBuffer.empty());
+                    StringBuffer.append(ch);
                     SetInProgressState(EInnerState::InsideNumeric);
                     return ReadNumeric(current, end);
                 } else if (isalpha(ch) || ch == '_' || ch == '%') {
-                    StringValue.append(ch);
+                    YASSERT(StringBuffer.empty());
+                    StringBuffer.append(ch);
                     SetInProgressState(EInnerState::InsideUnquotedString);
                     return ReadUnquotedString(current, end);
                 } else {
@@ -207,8 +207,9 @@ private:
             if (isalpha(ch) || isdigit(ch) ||
                 ch == '_' || ch == '-' || ch == '%' || ch == '.')
             {
-                StringValue.append(ch);
+                StringBuffer.append(ch);
             } else {
+                Token.StringValue = StringBuffer;
                 FinishString();
                 return current;
             }
@@ -222,23 +223,24 @@ private:
             bool finish = false;
             char ch = *current;
             if (ch != '"') {
-                StringValue.append(ch);
+                StringBuffer.append(ch);
             } else {
                 // We must count the number of '\' at the end of StringValue
                 // to check if it's not \"
                 int slashCount = 0;
-                int length = StringValue.length();
-                while (slashCount < length && StringValue[length - 1 - slashCount] == '\\')
+                int length = StringBuffer.length();
+                while (slashCount < length && StringBuffer[length - 1 - slashCount] == '\\')
                     ++slashCount;
                 if (slashCount % 2 == 0) {
                     finish = true;
                 } else {
-                    StringValue.append(ch);
+                    StringBuffer.append(ch);
                 }
             }
 
             if (finish) {
-                StringValue = UnescapeC(StringValue); // ! Creating new Stroka here!
+                StringBuffer = UnescapeC(StringBuffer); // ! Creating new Stroka here!
+                Token.StringValue = StringBuffer;
                 FinishString();
                 return ++current;
             } else {
@@ -249,7 +251,7 @@ private:
     }
 
     const char* ReadBinaryInteger(const char* begin, const char* end) {
-        ui64 ui64Value = static_cast<ui64>(IntegerValue);
+        ui64 ui64Value = static_cast<ui64>(Token.IntegerValue);
         for (auto current = begin; current != end; ++current) {
             ui8 byte = static_cast<ui8>(*current);
 
@@ -261,13 +263,13 @@ private:
             ++BytesRead;
 
             if ((byte & 0x80) == 0) {
-                IntegerValue = ZigZagDecode64(static_cast<ui64>(ui64Value));
+                Token.IntegerValue = ZigZagDecode64(static_cast<ui64>(ui64Value));
                 ProduceToken(ETokenType::Integer);
                 BytesRead = 0;
                 return ++current;
             }
         }
-        IntegerValue = static_cast<i64>(ui64Value);
+        Token.IntegerValue = static_cast<i64>(ui64Value);
         return end;
     }
 
@@ -277,12 +279,13 @@ private:
         if (BytesRead >= 0) {
             begin = ReadBinaryInteger(begin, end);
             if (State_ == TLexer::EState::Terminal) {
-                i64 length = IntegerValue;
+                i64 length = Token.IntegerValue;
                 if (length < 0) {
                     ythrow yexception() << Sprintf("Error reading binary string: String cannot have negative length (Length: %" PRId64 ")",
                         length);
                 }
-                Reset();
+                // Token.IntegerValue = 0; // It's not necessary
+                YASSERT(Token.StringValue.empty());
                 SetInProgressState(EInnerState::InsideBinaryString);
                 BytesRead = -length;
             } else {
@@ -291,26 +294,30 @@ private:
             }
         }
 
-        if (begin != end) {
+        if (EXPECT_TRUE(begin != end)) {
             int length = -BytesRead;
             YASSERT(length >= 0);
-            if (end - begin > length) {
-                end = begin + length;
-            }
-            if (begin != end) {
-                // performance hack
-                if (end - begin == length && StringValue.empty()) {
-                    FinishString(); // stuff for turning to Terminal state
-                    Token = TToken(TStringBuf(begin, end)); // rewriting Token
-                    return end;
-                }
+            bool enough = end >= begin + length;
 
-                StringValue.append(begin, end);
-                BytesRead += end - begin;
+            // performance hack
+            if (enough && StringBuffer.empty()) {
+                Token.StringValue = TStringBuf(begin, length);
+                FinishString();
+                return begin + length;
             }
+
+            if (enough) {
+                end = begin + length;
+            } else {
+                length = end - begin;
+            }
+
+            StringBuffer.append(begin, length);
+            BytesRead += length;
         }
 
         if (BytesRead == 0) {
+            Token.StringValue = StringBuffer;
             FinishString();
         }
 
@@ -322,15 +329,15 @@ private:
         for (auto current = begin; current != end; ++current) {
             char ch = *current;
             if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
-                StringValue.append(ch);
+                StringBuffer.append(ch);
             } else if (ch == '.' || ch == 'e' || ch == 'E') {
-                StringValue.append(ch);
+                StringBuffer.append(ch);
                 InnerState = EInnerState::InsideDouble;
                 return ReadDouble(++current, end);
             } else if (isalpha(ch)) {
                 ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %s, Token: %s)",
                     ~Stroka(ch).Quote(),
-                    ~StringValue);
+                    ~StringBuffer);
             } else {
                 FinishNumeric();
                 return current;
@@ -348,11 +355,11 @@ private:
                 ch == '.' ||
                 ch == 'e' || ch == 'E')
             {
-                StringValue.append(ch);
+                StringBuffer.append(ch);
             } else if (isalpha(ch)) {
                 ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %s, Token: %s)",
                     ~Stroka(ch).Quote(),
-                    ~StringValue);
+                    ~StringBuffer);
             } else {
                 FinishDouble();
                 return current;
@@ -369,7 +376,7 @@ private:
         }
 
         if (begin != end) {
-            std::copy(begin, end, reinterpret_cast<char*>(&DoubleValue) + (8 + BytesRead));
+            std::copy(begin, end, reinterpret_cast<char*>(&Token.DoubleValue) + (8 + BytesRead));
             BytesRead += end - begin;
         }
 
@@ -391,7 +398,7 @@ private:
     	}
 
     	Reset();
-        StringValue.append('+');
+        StringBuffer.append('+');
         SetInProgressState(EInnerState::InsideNumeric);
         return ReadNumeric(begin, end);
     }
@@ -404,11 +411,11 @@ private:
     void FinishNumeric()
     {
         try {
-            IntegerValue = FromString<i64>(StringValue);
+            Token.IntegerValue = FromString<i64>(StringBuffer);
         } catch (const std::exception& ex) {
             // This exception is wrapped in parser
             ythrow yexception() << Sprintf("Failed to parse Integer literal %s",
-                ~StringValue.Quote());
+                ~StringBuffer.Quote());
         }
         ProduceToken(ETokenType::Integer);
     }
@@ -416,11 +423,11 @@ private:
     void FinishDouble()
     {
         try {
-            DoubleValue = FromString<double>(StringValue);
+            Token.DoubleValue = FromString<double>(StringBuffer);
         } catch (const std::exception& ex) {
             // This exception is wrapped in parser
             ythrow yexception() << Sprintf("Failed to parse Double literal %s",
-                ~StringValue.Quote());
+                ~StringBuffer.Quote());
         }
         ProduceToken(ETokenType::Double);
     }
@@ -432,29 +439,14 @@ private:
 
     void ProduceToken(ETokenType type)
     {
-        YASSERT(State_ == TLexer::EState::None || State_ == TLexer::EState::InProgress);
-        State_ = TLexer::EState::Terminal;
+        YASSERT(State_ != TLexer::EState::Terminal);
         InnerState = EInnerState::None;
-        switch (type) {
-            case ETokenType::String:
-                Token.StringValue = StringValue;
-                break;
-            case ETokenType::Integer:
-                Token.IntegerValue = IntegerValue;
-                break;
-            case ETokenType::Double:
-                Token.DoubleValue = DoubleValue;
-                break;
-            default:
-                break;
-        }
         Token.Type_ = type;
+        State_ = TLexer::EState::Terminal;
     }
 
     void SetInProgressState(EInnerState innerState)
     {
-        YASSERT(State_ == TLexer::EState::None);
-        YASSERT(InnerState == EInnerState::None);
         YASSERT(innerState != EInnerState::None);
         State_ = TLexer::EState::InProgress;
         InnerState = innerState;
@@ -462,9 +454,7 @@ private:
 
     EInnerState InnerState;
     TToken Token;
-    Stroka StringValue;
-    i64 IntegerValue;
-    double DoubleValue;
+    Stroka StringBuffer;
 
     /*
      * BytesRead > 0 means we've read BytesRead bytes (in binary integers)
