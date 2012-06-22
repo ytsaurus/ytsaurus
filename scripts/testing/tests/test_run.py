@@ -1,4 +1,3 @@
-import unittest
 
 from yt_env_setup import YTEnvSetup
 

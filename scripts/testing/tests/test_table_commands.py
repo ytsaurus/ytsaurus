@@ -37,8 +37,6 @@ class TestTableCommands(YTEnvSetup):
         assert read_table('//tmp/table') == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get('//tmp/table/@row_count') == '3'
 
-        remove('//tmp/table')
-
     def test_invalid_cases(self):
         create('table', '//tmp/table')
 
@@ -47,8 +45,6 @@ class TestTableCommands(YTEnvSetup):
         with pytest.raises(YTError): write('//tmp/table', '100')
         with pytest.raises(YTError): write('//tmp/table', '3.14')
         with pytest.raises(YTError): write('//tmp/table', '<>')
-
-        remove('//tmp/table')
 
     def test_row_index_selector(self):
         create('table', '//tmp/table')

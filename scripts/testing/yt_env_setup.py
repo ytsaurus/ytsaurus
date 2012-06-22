@@ -35,11 +35,12 @@ class YTEnvSetup(YTEnv):
         os.makedirs(path_to_test_case)
         os.chdir(path_to_test_case)
         if self.Env.NUM_MASTERS > 0:
+            self._abort_all_transactions()
             yt_commands.set('//tmp', '{}')
 
-    # needed for compatibility with unittest.TestCase
-    def runTest(self):
-        pass
+    def _abort_all_transactions(self):
+        for tx in yt_commands.get_transactions():
+            yt_commands.abort_transaction(tx=tx)
 
 # decorator form
 ATTRS = [
