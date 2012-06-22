@@ -32,8 +32,6 @@ public:
         NTransactionClient::TTransactionManagerPtr transactionManager,
         const NYTree::TYPath& path);
 
-    ~TFileWriter();
-
     //! Opens the writer.
     virtual void Open();
 

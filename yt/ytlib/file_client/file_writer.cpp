@@ -118,16 +118,6 @@ NCypress::TNodeId TFileWriter::GetNodeId() const
     return NodeId;
 }
 
-TFileWriter::~TFileWriter()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (UploadTransaction) {
-        UploadTransaction->Abort();
-        UploadTransaction.Reset();
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFileClient
