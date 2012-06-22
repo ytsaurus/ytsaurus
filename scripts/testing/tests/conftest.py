@@ -8,6 +8,6 @@ import pytest
 
 ##################################################################
 
-def pytest_collect_file(path, parent):
-    if path.ext == ".sh" and path.basename.startswith("test"):
-        return ShellFile(path, parent)
+# def pytest_collect_file(path, parent):
+#     if path.ext == ".sh" and path.basename.startswith("test"):
+#         return ShellFile(path, parent)
