@@ -14,6 +14,8 @@
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/ephemeral.h>
 
+#include <rpc/scoped_channel.h>
+
 #include <ytlib/election/leader_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
@@ -106,6 +108,7 @@ public:
         }
 
         const auto& entry = it->second;
+
         TCommandContext context(this, entry.Descriptor, &request);
         auto command = entry.Factory.Run(&context);
         command->Execute();
@@ -169,48 +172,59 @@ private:
         : public ICommandContext
     {
     public:
-        TCommandContext(TDriver* driver, const TCommandDescriptor& descriptor, const TDriverRequest* request)
+        TCommandContext(
+            TDriver* driver,
+            const TCommandDescriptor& descriptor,
+            const TDriverRequest* request)
             : Driver(driver)
             , Descriptor(descriptor)
             , Request(request)
+            , MasterChannel(CreateScopedChannel(Driver->GetMasterChannel()))
+            , SchedulerChannel(CreateScopedChannel(Driver->GetSchedulerChannel()))
         { }
 
-        virtual TDriverConfigPtr GetConfig()
+        ~TCommandContext()
+        {
+            MasterChannel->Terminate();
+            SchedulerChannel->Terminate();
+        }
+
+        TDriverConfigPtr GetConfig() OVERRIDE
         {
             return Driver->Config;
         }
 
-        virtual IChannelPtr GetMasterChannel()
+        IChannelPtr GetMasterChannel() OVERRIDE
         {
-            return Driver->MasterChannel;
+            return MasterChannel;
         }
 
-        virtual IChannelPtr GetSchedulerChannel()
+        IChannelPtr GetSchedulerChannel() OVERRIDE
         {
-            return Driver->SchedulerChannel;
+            return SchedulerChannel;
         }
 
-        virtual IBlockCachePtr GetBlockCache()
+        IBlockCachePtr GetBlockCache() OVERRIDE
         {
             return Driver->BlockCache;
         }
 
-        virtual TTransactionManagerPtr GetTransactionManager()
+        TTransactionManagerPtr GetTransactionManager() OVERRIDE
         {
             return Driver->TransactionManager;
         }
 
-        virtual const TDriverRequest* GetRequest()
+        const TDriverRequest* GetRequest() OVERRIDE
         {
             return Request;
         }
 
-        virtual TDriverResponse* GetResponse()
+        TDriverResponse* GetResponse() OVERRIDE
         {
             return &Response;
         }
 
-        virtual TYsonProducer CreateInputProducer()
+        TYsonProducer CreateInputProducer() OVERRIDE
         {
             return CreateProducerForFormat(
                 Request->InputFormat,
@@ -218,7 +232,7 @@ private:
                 Request->InputStream);
         }
 
-        virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer()
+        TAutoPtr<IYsonConsumer> CreateOutputConsumer() OVERRIDE
         {
             return CreateConsumerForFormat(
                 Request->OutputFormat,
@@ -230,6 +244,10 @@ private:
         TDriver* Driver;
         TCommandDescriptor Descriptor;
         const TDriverRequest* Request;
+
+        IChannelPtr MasterChannel;
+        IChannelPtr SchedulerChannel;
+
         TDriverResponse Response;
 
     };

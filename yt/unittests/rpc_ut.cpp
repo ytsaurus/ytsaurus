@@ -14,6 +14,7 @@
 #include <ytlib/rpc/client.h>
 #include <ytlib/rpc/server.h>
 #include <ytlib/rpc/service.h>
+#include <ytlib/rpc/bus_channel.h>
 
 #include <contrib/testing/framework.h>
 

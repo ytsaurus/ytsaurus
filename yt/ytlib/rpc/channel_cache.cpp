@@ -3,7 +3,7 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/foreach.h>
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/bus_channel.h>
 #include <ytlib/bus/config.h>
 #include <ytlib/bus/tcp_client.h>
 

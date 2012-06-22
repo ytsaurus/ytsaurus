@@ -7,11 +7,12 @@
 #include <ytlib/bus/config.h>
 #include <ytlib/bus/tcp_client.h>
 #include <ytlib/rpc/roaming_channel.h>
+#include <ytlib/rpc/bus_channel.h>
 
 namespace NYT {
 namespace NScheduler {
 
-    using namespace NBus;
+using namespace NBus;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NYTree;

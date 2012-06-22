@@ -13,7 +13,7 @@
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/scheduler/public.h>
 #include <ytlib/bus/tcp_client.h>
-#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/bus_channel.h>
 
 namespace NYT {
 namespace NJobProxy {

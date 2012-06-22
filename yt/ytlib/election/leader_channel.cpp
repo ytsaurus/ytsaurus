@@ -2,6 +2,7 @@
 #include "leader_channel.h"
 
 #include <ytlib/rpc/roaming_channel.h>
+#include <ytlib/rpc/bus_channel.h>
 
 #include <ytlib/bus/config.h>
 #include <ytlib/bus/tcp_client.h>
