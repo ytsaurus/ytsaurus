@@ -58,6 +58,13 @@ public:
         YASSERT(owner);
     }
 
+    ~TTransaction()
+    {
+        if (State == EState::Active) {
+            InvokeAbort(false);
+        }
+    }
+
     void Start(IAttributeDictionary* attributes)
     {
         LOG_INFO("Starting transaction");
