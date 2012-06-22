@@ -263,8 +263,10 @@ protected:
 
     // Init/finish.
 
-    void CustomInitialize() OVERRIDE
+    void DoInitialize() OVERRIDE
     {
+        TOperationControllerBase::DoInitialize();
+
         if (InputTables.empty()) {
             // At least one table is needed for sorted merge to figure out the key columns.
             // To be consistent, we don't allow empty set of input tables in for any merge type.
@@ -617,8 +619,10 @@ private:
         return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
     }
 
-    void CustomInitialize() OVERRIDE
+    void DoInitialize() OVERRIDE
     {
+        TOperationControllerBase::DoInitialize();
+
         // For erase operation the rowset specified by the user must actually be removed...
         InputTables[0].NegateFetch = true;
         // ...and the output table must be cleared.

@@ -77,7 +77,7 @@ void TOperationControllerBase::Initialize()
     }
 
     try {
-        CustomInitialize();
+        DoInitialize();
     } catch (const std::exception& ex) {
         LOG_INFO("Operation has failed to initialize\n%s", ex.what());
         Active = false;
@@ -89,7 +89,7 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Operation initialized");
 }
 
-void TOperationControllerBase::CustomInitialize()
+void TOperationControllerBase::DoInitialize()
 { }
 
 TFuture<void> TOperationControllerBase::Prepare()

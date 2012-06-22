@@ -434,7 +434,7 @@ protected:
     virtual void OnCustomOutputsCommitted(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 
-    virtual void CustomInitialize();
+    virtual void DoInitialize();
     virtual void LogProgress() = 0;
     virtual void DoGetProgress(NYTree::IYsonConsumer* consumer) = 0;
 
