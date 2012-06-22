@@ -294,6 +294,13 @@ private:
             }
         }
 
+        bool IsCompleted() const
+        {
+            return
+                Controller->PartitionTask->IsCompleted() &&
+                TTask::IsCompleted();
+        }
+
     private:
         TSortController* Controller;
         TPartition* Partition;
