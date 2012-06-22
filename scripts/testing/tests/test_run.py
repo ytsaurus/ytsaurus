@@ -4,28 +4,28 @@ from yt_env_setup import YTEnvSetup
 
 ##################################################################
 
-class TestRunNothing(unittest.TestCase, YTEnvSetup):
+class TestRunNothing(YTEnvSetup):
     NUM_MASTERS = 0
     NUM_HOLDERS = 0
 
     def test(self):
         assert True
 
-class TestRunMaster(unittest.TestCase, YTEnvSetup):
+class TestRunMaster(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
 
     def test(self):
         assert True
 
-class TestRunHolder(unittest.TestCase, YTEnvSetup):
+class TestRunHolder(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 1
 
     def test(self):
         assert True
 
-class TestRunScheduler(unittest.TestCase, YTEnvSetup):
+class TestRunScheduler(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
     NUM_SCHEDULERS = 1

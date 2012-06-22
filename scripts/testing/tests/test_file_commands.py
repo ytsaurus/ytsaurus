@@ -6,7 +6,7 @@ from yt_commands import *
 
 ##################################################################
 
-class TestFileCommands(unittest.TestCase, YTEnvSetup):
+class TestFileCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
 

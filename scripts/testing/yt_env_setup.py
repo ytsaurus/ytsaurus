@@ -23,11 +23,11 @@ class YTEnvSetup(YTEnv):
 
         cls.path_to_test = path_to_test
         cls.Env = cls()
-        cls.Env.setUp(path_to_run)
+        cls.Env.my_setUp(path_to_run)
 
     @classmethod
     def teardown_class(cls):
-        cls.Env.tearDown()
+        cls.Env.my_tearDown()
 
     def setup_method(self, method):
         path_to_test_case = os.path.join(self.path_to_test, method.__name__)
@@ -36,6 +36,10 @@ class YTEnvSetup(YTEnv):
         os.chdir(path_to_test_case)
         if self.Env.NUM_MASTERS > 0:
             yt_commands.set('//tmp', '{}')
+
+    # needed for compatibility with unittest.TestCase
+    def runTest(self):
+        pass
 
 # decorator form
 ATTRS = [

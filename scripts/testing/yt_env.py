@@ -3,6 +3,8 @@ import sys
 #TODO:get rid of it
 sys.path.append('../yson')
 
+import unittest
+
 import yson_parser
 import yson
 
@@ -47,7 +49,7 @@ def init_logging(node, path, name):
     node['writers']['raw']['file_name'] = debugging_file_name
 
 
-class YTEnv:
+class YTEnv(unittest.TestCase):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 0
@@ -55,6 +57,10 @@ class YTEnv:
     DELTA_MASTER_CONFIG = {}
     DELTA_HOLDER_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
+
+    # needed for compatibility with unittest.TestCase
+    def runTest(self):
+        pass
 
     # to be redefiened in successors
     def modify_master_config(self, config):
@@ -68,7 +74,7 @@ class YTEnv:
     def modify_scheduler_config(self, config):
         pass
 
-    def setUp(self, path_to_run):
+    def my_setUp(self, path_to_run):
         # TODO(panin): add option for this
         os.system('killall MasterMain')
         os.system('killall NodeMain')
@@ -91,7 +97,7 @@ class YTEnv:
             self.tearDown()
             raise
 
-    def tearDown(self):
+    def my_tearDown(self):
         print 'Tearing down'
         for p, name in self.process_to_kill:
             p.poll()

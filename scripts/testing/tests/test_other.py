@@ -12,7 +12,7 @@ import os
 
 ##################################################################
 
-class TestOrchid(unittest.TestCase, YTEnvSetup):
+class TestOrchid(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 1

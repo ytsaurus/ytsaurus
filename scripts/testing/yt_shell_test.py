@@ -55,7 +55,7 @@ class ShellItem(pytest.Item):
             setattr(CurYTEnv, name, value)
 
         Env = CurYTEnv()
-        Env.setUp(path_to_run)
+        Env.my_setUp(path_to_run)
 
         ext = [".stdout", ".stderr"]
 
@@ -66,7 +66,7 @@ class ShellItem(pytest.Item):
         os.system('touch {stderr_expected}'.format(**vars()))
 
         exit_code = os.system("cd {path_to_actual} && {script_path} >{stdout_actual} 2> {stderr_actual}".format(**vars()))
-        Env.tearDown()
+        Env.my_tearDown()
 
         stdout_diff = get_output(["diff", "-ui", stdout_actual, stdout_expected])
         stderr_diff = get_output(["diff", "-ui", stderr_actual, stderr_expected])

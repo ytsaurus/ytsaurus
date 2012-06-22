@@ -8,7 +8,7 @@ import time
 
 ##################################################################
 
-class TestTxCommands(unittest.TestCase, YTEnvSetup):
+class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
 

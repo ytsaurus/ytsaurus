@@ -1,12 +1,11 @@
 import pytest
-import unittest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 ##################################################################
 
-class TestTableCommands(unittest.TestCase, YTEnvSetup):
+class TestTableCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
 
@@ -76,9 +75,9 @@ class TestTableCommands(unittest.TestCase, YTEnvSetup):
 
         write('//tmp/table', '{key = 0}; {key = 1}; {key = 2}; {key = 3}', sorted_by='key')
 
-        self.assertEqual(yson2py(get('//tmp/table/@sorted')), 'true')
-        self.assertEqual(yson2py(get('//tmp/table/@key_columns')), ['key'])
-        self.assertEqual(yson2py(get('//tmp/table/@row_count')), 4)
+        self.assertEqual(get_py('//tmp/table/@sorted'), 'true')
+        self.assertEqual(get_py('//tmp/table/@key_columns'), ['key'])
+        self.assertEqual(get_py('//tmp/table/@row_count'), 4)
 
         remove('//tmp/table')
 

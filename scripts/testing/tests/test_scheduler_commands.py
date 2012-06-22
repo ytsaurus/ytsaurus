@@ -1,5 +1,4 @@
 import pytest
-import unittest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -12,7 +11,7 @@ def check_all_stderrs(op_id, expected):
     for job_id in yson2py(ls(jobs_path)):
         download(jobs_path + '/"' + job_id + '"/stderr')
 
-class TestSchedulerMapCommands(unittest.TestCase, YTEnvSetup):
+class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 1
