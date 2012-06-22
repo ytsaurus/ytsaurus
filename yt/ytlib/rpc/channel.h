@@ -40,11 +40,6 @@ struct IChannel
     virtual void Terminate(const TError& error = TError("Channel terminated")) = 0;
 };
 
-//! Creates a channel implemented via NBus.
-IChannelPtr CreateBusChannel(
-    NBus::IBusClientPtr client,
-    TNullable<TDuration> defaultTimeout = Null);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

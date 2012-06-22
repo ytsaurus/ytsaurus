@@ -1,7 +1,8 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc )
 set( SRCS
-  ${BASE}/channel.cpp
+  ${BASE}/bus_channel.cpp
+  ${BASE}/scoped_channel.cpp
   ${BASE}/channel_cache.cpp
   ${BASE}/client.cpp
   ${BASE}/message.cpp
@@ -16,6 +17,8 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/channel.h
+  ${BASE}/bus_channel.h
+  ${BASE}/scoped_channel.h
   ${BASE}/channel_cache.h
   ${BASE}/client.h
   ${BASE}/error.h
