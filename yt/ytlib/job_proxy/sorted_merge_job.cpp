@@ -92,7 +92,7 @@ TJobResult TSortedMergeJob::Run()
 
         // Run the actual merge.
         LOG_INFO("Merging");
-        while (!Reader->IsValid()) {
+        while (Reader->IsValid()) {
             Writer->WriteRow(Reader->GetRow(), Reader->GetKey());
             Reader->NextRow();
         }
