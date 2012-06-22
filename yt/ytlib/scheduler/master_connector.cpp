@@ -553,6 +553,7 @@ private:
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         auto operation = list->Operation;
+        auto state = operation->GetState();
         auto operationPath = GetOperationPath(operation->GetOperationId());
 
         // Set state.
@@ -563,15 +564,20 @@ private:
         }
 
         // Set progress.
-        if (operation->GetState() == EOperationState::Running) {
+        if (state == EOperationState::Running ||
+            state == EOperationState::Completed ||
+            state == EOperationState::Failed ||
+            state == EOperationState::Aborted)
+        {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(SerializeToYson(BIND(&IOperationController::BuildProgressYson, operation->GetController())));
             batchReq->AddRequest(req);
         }
 
         // Set result.
-        if (operation->GetState() == EOperationState::Completed ||
-            operation->GetState() == EOperationState::Failed)
+        if (state == EOperationState::Completed ||
+            state == EOperationState::Failed ||
+            state == EOperationState::Aborted)
         {
             auto req = TYPathProxy::Set(operationPath + "/@result");
             req->set_value(SerializeToYson(BIND(&IOperationController::BuildResultYson, operation->GetController())));
