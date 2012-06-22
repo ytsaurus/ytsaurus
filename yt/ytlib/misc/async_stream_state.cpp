@@ -16,29 +16,36 @@ TAsyncStreamState::TAsyncStreamState()
 
 void TAsyncStreamState::Cancel(const TError& error)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    {
+        TGuard<TSpinLock> guard(SpinLock);
 
-    if (!IsActive_) {
-        return;
+        if (!IsActive_) {
+            return;
+        }
+
+        DoFail();
     }
 
-    DoFail(error);
+    StaticError.Set(error);
 }
 
 void TAsyncStreamState::Fail(const TError& error)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (!IsActive_) {
-        YASSERT(!StaticError.Get().IsOK());
-        return;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (!IsActive_) {
+            YASSERT(!StaticError.Get().IsOK());
+            return;
+        }
+
+        DoFail();
     }
 
-    DoFail(error);
+    StaticError.Set(error);
 }
 
-void TAsyncStreamState::DoFail(const TError& error)
+void TAsyncStreamState::DoFail()
 {
-    YASSERT(!error.IsOK());
     IsActive_ = false;
     if (!CurrentError.IsNull()) {
         StaticError = CurrentError;
@@ -46,7 +53,6 @@ void TAsyncStreamState::DoFail(const TError& error)
     } else {
         StaticError = NewPromise<TError>();
     }
-    StaticError.Set(error);
 }
 
 void TAsyncStreamState::Close()
@@ -132,7 +138,9 @@ void TAsyncStreamState::FinishOperation(const TError& error)
             currentError.Set(TError());
         }
     } else {
-        DoFail(error);
+        DoFail();
+        guard.Release();
+        StaticError.Set(error);
     }
 }
 

@@ -83,7 +83,7 @@ public:
     void FinishOperation(const TError& error = TError());
 
 private:
-    void DoFail(const TError& error);
+    void DoFail();
 
     bool IsOperationFinished;
     bool IsActive_;
