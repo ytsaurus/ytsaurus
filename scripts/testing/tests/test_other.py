@@ -9,7 +9,7 @@ import yson
 import time
 import os
 
-class TestOrchid(YTEnvSetup):
+class TestOrchid(unittest.TestCase, YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 1

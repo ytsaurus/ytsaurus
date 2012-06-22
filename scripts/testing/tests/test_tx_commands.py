@@ -6,7 +6,7 @@ from yt_commands import *
 
 import time
 
-class TestTxCommands(YTEnvSetup):
+class TestTxCommands(unittest.TestCase, YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
 

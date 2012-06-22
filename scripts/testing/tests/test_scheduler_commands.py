@@ -11,7 +11,7 @@ def check_all_stderrs(op_id, expected):
     for job_id in yson2py(ls(jobs_path)):
         download(jobs_path + '/"' + job_id + '"/stderr')
 
-class TestSchedulerMapCommands(YTEnvSetup):
+class TestSchedulerMapCommands(unittest.TestCase, YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 1

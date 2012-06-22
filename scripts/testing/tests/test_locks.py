@@ -5,7 +5,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 
-class TestLocks(YTEnvSetup):
+class TestLocks(unittest.TestCase, YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
 
