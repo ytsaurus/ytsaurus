@@ -16,27 +16,21 @@ var opts = require("optimist")
     .describe("c", "Specify configuration file")
 
     .alias("p", "port")
-    .default("p", "80")
     .describe("p", "Specify port to listen")
 
-    .alias("i", "interface")
-    .default("i", "0.0.0.0")
-    .describe("i", "Specify interface to listen")
+    .alias("a", "address")
+    .describe("a", "Specify address to listen")
 
     .alias("n", "number-of-workers")
-    .default("n", 8)
     .describe("n", "Specify number of worker processes")
 
     .alias("m", "memory-limit")
-    .default("m", 32)
     .describe("m", "Specify memory limit (in MB) for data buffer size for each request")
 
     .alias("t", "thread-limit")
-    .default("t", 16)
     .describe("t", "Specify thread limit for concurrent off-loop processing")
 
     .alias("s", "spare-threads")
-    .default("s", 2)
     .describe("s", "Specify a number of threads reserved for non-heavy tasks")
 
     .alias("l", "log")
@@ -63,22 +57,65 @@ if (opts.argv.h) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+function merge(lhs, rhs) {
+    for (var p in rhs) {
+        try {
+            if (typeof(rhs[p]) !== "undefined" && rhs[p] !== null) {
+                if (rhs[p].constructor === Object) {
+                    lhs[p] = merge(lhs[p], rhs[p]);
+                } else {
+                    lhs[p] = rhs[p];
+                }
+            }
+        } catch(err) {
+            lhs[p] = rhs[p];
+        }
+    }
+    return lhs;
+}
+
+var configuration;
+configuration = {
+    port              : 80,
+    address           : "0.0.0.0",
+    number_of_workers : 4,
+    memory_limit      : 32 * 1024 * 1024,
+    thread_limit      : 32,
+    spare_threads     : 4,
+};
+configuration = merge(configuration, JSON.parse(fs.readFileSync(opts.argv.c, "utf8")) || {});
+configuration = merge(configuration, {
+    port              : opts.argv.p && parseInt(opts.argv.p),
+    address           : opts.argv.a,
+    number_of_workers : opts.argv.n && parseInt(opts.argv.n),
+    memory_limit      : opts.argv.m && parseInt(opts.argv.m) * 1024 * 1024,
+    thread_limit      : opts.argv.t && parseInt(opts.argv.t),
+    spare_threads     : opts.argv.s && parseInt(opts.argv.s),
+    logging           : opts.argv.l && { filename : opts.argv.l, timestamp : true, raw : true },
+    user              : opts.argv.u,
+    group             : opts.argv.g
+});
+
+// console.error(JSON.stringify(configuration, null, 2));
+// try {
+//     var assert = require("chai").assert;
+//     assert.operator(configuration.number_of_workers, ">=", 0);
+//     assert.operator(configuration.memory_limit, ">=", 1024 * 1024, "Memory limit should be specified in MB");
+//     assert.operator(configuration.thread_limit, ">=", 4);
+//     assert.operator(configuration.spare_threads, ">=", 0);
+// } catch(err) { . . . }
+
+////////////////////////////////////////////////////////////////////////////////
+
 process.title = "YtHttpProxy";
 
 var agent = null;
 var profiler = null;
 
 var logger = new winston.Logger({
-    transports: [ opts.argv.l
-        ? new winston.transports.File({
-            filename: opts.argv.l,
-            timestamp: true,
-            raw: true
-        })
-        : new winston.transports.Console({
-            timestamp: true,
-            raw: true
-        })
+    transports: [ configuration.logging
+        ? new winston.transports.File(configuration.logging)
+        : new winston.transports.Console({ timestamp: true, raw: true })
     ]
 });
 
@@ -90,27 +127,27 @@ if (opts.argv.profiler) {
     console.error("*** Send SIGUSR2 to take a heap snapshot and fire up DT");
 }
 
-if (opts.argv.n > 0 && cluster.isMaster) {
-    var spawnWorker = function() {
+if (configuration.number_of_workers > 0 && cluster.isMaster) {
+    function spawnWorker() {
         var worker = cluster.fork();
 
         logger.info("Spawned worker", { pid : worker.pid });
 
         worker.on("message", function(message) {
             if (message && message.fatal) {
-                logger.error("Worker has generated a fatal error", { pid : worker.pid });
+                logger.error("Worker has generated a fatal error", { id : (worker.uniqueId || worker.id), pid : worker.pid });
                 logger.error("Terminating master process");
                 process.exit(1);
             }
         });
     }
 
-    for (var i = 0; i < opts.argv.n; ++i) {
+    for (var i = 0; i < configuration.number_of_workers; ++i) {
         spawnWorker();
     }
 
     cluster.on("death", function(worker) {
-        logger.info("Worker has died; restarting", { pid : worker.pid });
+        logger.info("Worker has died; restarting", { id : (worker.uniqueId || worker.id), pid : worker.pid });
         spawnWorker();
     });
 } else {
@@ -124,39 +161,32 @@ if (opts.argv.n > 0 && cluster.isMaster) {
             console.error("*** Taken heap snapshot '" + snapshot + "'");
         });
     }
-    fs.readFile(opts.argv.c, function(err, configuration) {
-        if (err) {
-            throw err;
-        }
-        try {
-            var my_memory_limit = parseInt(opts.argv.m);
-            var my_thread_limit = parseInt(opts.argv.t);
-            var my_spare_limit = parseInt(opts.argv.s);
-            var my_configuration = configuration.toString();
-            connect()
-                .use(connect.favicon())
-                .use(yt.YtAssignRequestID())
-                .use(yt.YtLogger(logger))
-                .use("/api", yt.YtApplication(logger, my_memory_limit, my_thread_limit, my_spare_limit, my_configuration))
-                .listen(opts.argv.p, opts.argv.i, function() {
-                    if (opts.argv.g) {
-                        process.setgid(opts.argv.g);
-                    }
 
-                    if (opts.argv.u) {
-                        process.setuid(opts.argv.u);
-                    }
+    try {
+        connect()
+            .use(connect.favicon())
+            .use(yt.YtAssignRequestID())
+            .use(yt.YtLogger(logger))
+            .use("/api", yt.YtApplication(logger, configuration))
+            .listen(configuration.port, configuration.address, function() {
+                if (configuration.group) {
+                    process.setgid(configuration.group);
+                }
 
-                    if (process.getuid() == 0 || process.getgid() == 0) {
-                        logger.error("Failed to drop privileges; aborting");
-                        process.send({ fatal : true });
-                        process.exit(100);
-                    }
-                });
-        } catch(err) {
-            logger.error("Error '%s' while calling '%s'; aborting", err.message, err.syscall);
-            process.send({ fatal : true });
-            process.exit(200);
-        }
-    });
+                if (configuration.user) {
+                    process.setuid(configuration.user);
+                }
+
+                if (process.getuid() == 0 || process.getgid() == 0) {
+                    logger.error("Failed to drop privileges; aborting");
+                    if (process.send) process.send({ fatal : true });
+                    process.exit(100);
+                }
+            });
+    } catch(err) {
+        logger.error("Error '" + err.message + "' while calling '" + err.syscall + "'; aborting");
+        console.error(err.stack);
+        if (process.send) process.send({ fatal : true });
+        process.exit(200);
+    }
 }

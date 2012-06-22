@@ -13,6 +13,7 @@ var __DBG;
 
 if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { console.error("YT Application:", x); };
+    __DBG.UUID = require("node-uuid");
 } else {
     __DBG = function( ) { };
 }
@@ -39,6 +40,13 @@ var _MAPPING_DATA_TYPE_TO_METHOD = {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtCommand(logger, driver, watcher, req, rsp) {
+    if (__DBG.UUID) {
+        this.__DBG  = function(x) { __DBG("Command (" + this.__UUID + ") -> " + x); };
+        this.__UUID = __DBG.UUID.v4();
+    } else {
+        this.__DBG  = function( ) { };
+    }
+
     this.logger = logger;
     this.driver = driver;
     this.watcher = watcher;
@@ -47,9 +55,13 @@ function YtCommand(logger, driver, watcher, req, rsp) {
     this.rsp = rsp;
 
     this.req.parsedUrl = url.parse(this.req.url);
+
+    this.__DBG("New");
 }
 
 YtCommand.prototype.dispatch = function() {
+    this.__DBG("dispatch");
+
     var self = this;
 
     utils.callSeq(this, [
@@ -64,6 +76,8 @@ YtCommand.prototype.dispatch = function() {
         this._execute,
         this._epilogue
     ], function andThen(err) {
+        self.__DBG("dispatch -> andThen");
+
         var thereWasError = err || self.rsp.yt_code !== 0;
         if (thereWasError) {
             var error = err ? err.message : self.rsp.yt_message;
@@ -96,17 +110,23 @@ YtCommand.prototype.dispatch = function() {
 };
 
 YtCommand.prototype._prologue = function(cb) {
+    this.__DBG("_prologue");
+
     this.watcher.tackle();
     this.rsp.statusCode = 202;
     return cb(null);
 };
 
 YtCommand.prototype._epilogue = function(cb) {
+    this.__DBG("_epilogue");
+
     this.watcher.tackle();
     return cb(null);
 };
 
 YtCommand.prototype._extractName = function(cb) {
+    this.__DBG("_extractName");
+
     this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
     if (!/^[a-z_]+$/.test(this.name)) {
         this.rsp.statusCode = 400;
@@ -117,6 +137,8 @@ YtCommand.prototype._extractName = function(cb) {
 };
 
 YtCommand.prototype._extractParameters = function(cb) {
+    this.__DBG("_extractParameters");
+
     this.parameters = utils.numerify(qs.parse(this.req.parsedUrl.query));
     if (!this.parameters) {
         this.rsp.statusCode = 400;
@@ -127,6 +149,8 @@ YtCommand.prototype._extractParameters = function(cb) {
 };
 
 YtCommand.prototype._getInputFormat = function(cb) {
+    this.__DBG("_getInputFormat");
+
     var result, format, header;
 
     // Firstly, try to deduce input format from Content-Type header.
@@ -156,6 +180,8 @@ YtCommand.prototype._getInputFormat = function(cb) {
 };
 
 YtCommand.prototype._getOutputFormat = function(cb) {
+    this.__DBG("_getOutputFormat");
+
     var result, format, header;
 
     // Firstly, try to deduce output format from Accept header.
@@ -188,6 +214,8 @@ YtCommand.prototype._getOutputFormat = function(cb) {
 };
 
 YtCommand.prototype._logInformation = function(cb) {
+    this.__DBG("_logInformation");
+
     this.logger.debug("Gathered request parameters", {
         request_id    : this.req.uuid,
         name          : this.name,
@@ -199,6 +227,8 @@ YtCommand.prototype._logInformation = function(cb) {
 };
 
 YtCommand.prototype._getDescriptor = function(cb) {
+    this.__DBG("_getDescriptor");
+
     this.descriptor = this.driver.find_command_descriptor(this.name);
     if (!this.descriptor) {
         this.rsp.statusCode = 404;
@@ -243,6 +273,8 @@ YtCommand.prototype._getDescriptor = function(cb) {
 };
 
 YtCommand.prototype._addHeaders = function(cb) {
+    this.__DBG("_addHeaders");
+
     this.rsp.setHeader("Connection", "close");
     this.rsp.setHeader("Transfer-Encoding", "chunked");
     this.rsp.setHeader("Access-Control-Allow-Origin", "*");
@@ -252,6 +284,8 @@ YtCommand.prototype._addHeaders = function(cb) {
 };
 
 YtCommand.prototype._execute = function(cb) {
+    this.__DBG("_execute");
+
     var self = this;
 
     this.driver.execute(this.name,
@@ -260,6 +294,8 @@ YtCommand.prototype._execute = function(cb) {
         this.parameters,
         function callback(err, code, message)
         {
+            self.__DBG("_execute -> (callback)");
+
             if (err) {
                 if (typeof(err) === "string") {
                     self.logger.error(
@@ -304,12 +340,12 @@ YtCommand.prototype._execute = function(cb) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtEioWatcher(logger, thread_limit, spare_limit) {
+function YtEioWatcher(logger, thread_limit, spare_threads) {
     this.logger = logger;
     this.thread_limit = thread_limit;
-    this.spare_limit = spare_limit;
+    this.spare_threads = spare_threads;
 
-    __DBG("Eio concurrency: " + thread_limit + " (w/ " + spare_limit + " spares)");
+    __DBG("Eio concurrency: " + thread_limit + " (w/ " + spare_threads + " spare threads)");
 
     ytnode_wrappers.SetEioConcurrency(thread_limit);
 }
@@ -329,7 +365,7 @@ YtEioWatcher.prototype.tackle = function() {
 YtEioWatcher.prototype.is_choking = function() {
     var info = ytnode_wrappers.GetEioInformation();
 
-    if (this.thread_limit - this.spare_limit <= info.nreqs - info.npending) {
+    if (this.thread_limit - this.spare_threads <= info.nreqs - info.npending) {
         return true;
     } else {
         return false;
@@ -338,17 +374,17 @@ YtEioWatcher.prototype.is_choking = function() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplication(logger, memory_limit, thread_limit, spare_limit, configuration) {
-    var low_watermark = Math.floor(0.80 * memory_limit * 1024 * 1024);
-    var high_watermark = Math.ceil(0.95 * memory_limit * 1024 * 1024);
+function YtApplication(logger, configuration) {
+    __DBG("Application -> New");
 
-    __DBG("New Application: memory_limit = " + memory_limit);
-    __DBG("New Application: thread_limit = " + thread_limit);
-    __DBG("New Application: low_watermark = " + low_watermark);
-    __DBG("New Application: high_watermark = " + high_watermark);
+    var low_watermark = parseInt(0.95 * configuration.memory_limit);
+    var high_watermark = parseInt(0.80 * configuration.memory_limit);
 
-    var driver = new ytnode_wrappers.YtDriver(configuration, low_watermark, high_watermark);
-    var watcher = new YtEioWatcher(logger, thread_limit, spare_limit);
+    __DBG("Application -> low_watermark = " + low_watermark);
+    __DBG("Application -> high_watermark = " + high_watermark);
+
+    var driver = new ytnode_wrappers.YtDriver(configuration.driver, low_watermark, high_watermark);
+    var watcher = new YtEioWatcher(logger, configuration.thread_limit, configuration.spare_threads);
 
     return function(req, rsp) {
         return (new YtCommand(

@@ -73,8 +73,7 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
         if (object->Has(SpecialAttributesKey)) {
             auto attributes = object->Get(SpecialAttributesKey);
             if (!attributes->IsObject()) {
-                ThrowException(Exception::TypeError(String::New(
-                    "Attributes have to be an object")));
+                ythrow yexception() << "Attributes have to be an object";
                 return;
             }
 
@@ -131,9 +130,7 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
                 consumer);
         }
     } else {
-        ThrowException(Exception::TypeError(String::New(
-            "Unable to map V8 value onto YSON; unsupported value type")));
-        return;
+        ythrow yexception() << "Unsupported value type";
     }
 }
 
@@ -144,7 +141,7 @@ Handle<Value> GetYsonRepresentation(const Arguments& args)
 
     YASSERT(args.Length() == 1);
 
-    Stroka yson = SerializeToYson(ConvertV8ValueToYson(args[0]), EYsonFormat::Text);
+    Stroka yson = SerializeToYson(ConvertV8ValueToNode(args[0]), EYsonFormat::Text);
     return scope.Close(String::New(~yson));
 }
 
@@ -189,25 +186,26 @@ Handle<Value> SetEioConcurrency(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodePtr ConvertV8ValueToYson(Handle<Value> value)
+INodePtr ConvertV8ValueToNode(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
-    TryCatch block;
 
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    builder->BeginTree();
-    ConsumeV8Value(value, ~builder);
-
-    if (block.HasCaught()) {
-        block.ReThrow();
-        return NULL;
-    } else {
+    try {
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        builder->BeginTree();
+        ConsumeV8Value(value, ~builder);
         return builder->EndTree();
+    } catch(const std::exception& ex) {
+        ThrowException(Exception::TypeError(
+            String::Concat(
+                String::New("Unable to map V8 value onto YSON: "),
+                String::New(ex.what()))));
+        return NULL;
     }
 }
 
-INodePtr ConvertV8StringToYson(Handle<String> string)
+INodePtr ConvertV8StringToNode(Handle<String> string)
 {
     String::AsciiValue value(string);
     return DeserializeFromYson(TStringBuf(*value, value.length()));

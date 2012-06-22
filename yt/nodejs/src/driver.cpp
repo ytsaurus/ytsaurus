@@ -102,43 +102,35 @@ Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSDriver::TNodeJSDriver(const NYTree::TYson& configuration)
+TNodeJSDriver::TNodeJSDriver(Handle<Object> configObject)
     : node::ObjectWrap()
 {
     THREAD_AFFINITY_IS_V8();
 
     bool stillOkay = true;
 
-    INodePtr configNode;
-    if (stillOkay) {
-        try {
-            configNode = DeserializeFromYson(configuration);
-        } catch (const std::exception& ex) {
-            Message = Sprintf("Error reading configuration\n%s", ex.what());
-            stillOkay = false;
-        }
+    INodePtr configNode = ConvertV8ValueToNode(configObject);
+    if (!configNode) {
+        Message = "Error converting from V8 to YSON";
+        return;
     }
 
     TDriverConfigPtr config;
-    if (stillOkay) {
-        try {
-            // Qualify namespace to avoid collision with class method New().
-            config = ::NYT::New<NDriver::TDriverConfig>();
-            config->Load(~configNode);
-        } catch (const std::exception& ex) {
-            Message = Sprintf("Error parsing configuration\n%s", ex.what());
-            stillOkay = false;
-        }
+    try {
+        // Qualify namespace to avoid collision with class method New().
+        config = ::NYT::New<NDriver::TDriverConfig>();
+        config->Load(~configNode);
+    } catch (const std::exception& ex) {
+        Message = Sprintf("Error loading configuration\n%s", ex.what());
+        return;
     }
 
-    if (stillOkay) {
-        try {
-            NLog::TLogManager::Get()->Configure(~configNode->AsMap()->GetChild("logging"));
-            Driver = CreateDriver(config);
-        } catch (const std::exception& ex) {
-            Message = Sprintf("Error initializing driver instance\n%s", ex.what());
-            stillOkay = false;
-        }
+    try {
+        NLog::TLogManager::Get()->Configure(~configNode->AsMap()->GetChild("logging"));
+        Driver = CreateDriver(config);
+    } catch (const std::exception& ex) {
+        Message = Sprintf("Error initializing driver instance\n%s", ex.what());
+        return;
     }
 }
 
@@ -199,13 +191,11 @@ Handle<Value> TNodeJSDriver::New(const Arguments& args)
 
     YASSERT(args.Length() == 1);
 
-    EXPECT_THAT_IS(args[0], String);
-
-    String::AsciiValue configuration(args[0]);
+    EXPECT_THAT_IS(args[0], Object);
 
     TNodeJSDriver* host = NULL;
     try {
-        host = new TNodeJSDriver(Stroka(*configuration, configuration.length()));
+        host = new TNodeJSDriver(Local<Object>::Cast(args[0]));
         host->Wrap(args.This());
 
         if (host->Driver) {
@@ -318,13 +308,13 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     TNodeJSInputStream* inputStream =
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
     INodePtr inputFormat =
-        ConvertV8StringToYson(args[2].As<String>());
+        ConvertV8StringToNode(args[2].As<String>());
     TNodeJSOutputStream* outputStream =
         ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3].As<Object>());
     INodePtr outputFormat =
-        ConvertV8StringToYson(args[4].As<String>());
+        ConvertV8StringToNode(args[4].As<String>());
     INodePtr parameters =
-        ConvertV8ValueToYson(args[5].As<Object>());
+        ConvertV8ValueToNode(args[5].As<Object>());
     Local<Function> callback = args[6].As<Function>();
 
     // Build an atom of work.

@@ -15,7 +15,7 @@ class TNodeJSDriver
     : public node::ObjectWrap
 {
 protected:
-    TNodeJSDriver(const NYTree::TYson& configuration);
+    TNodeJSDriver(v8::Handle<v8::Object> configObject);
     ~TNodeJSDriver();
 
 public:
