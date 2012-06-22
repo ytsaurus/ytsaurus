@@ -75,9 +75,9 @@ class TestTableCommands(YTEnvSetup):
 
         write('//tmp/table', '{key = 0}; {key = 1}; {key = 2}; {key = 3}', sorted_by='key')
 
-        assertItemsEqual(yson2py(get('//tmp/table/@sorted')), 'true')
-        assertItemsEqual(yson2py(get('//tmp/table/@key_columns')), ['key'])
-        assertItemsEqual(yson2py(get('//tmp/table/@row_count')), 1)
+        assert yson2py(get('//tmp/table/@sorted')) == 'true'
+        assert yson2py(get('//tmp/table/@key_columns')) == ['key']
+        assert yson2py(get('//tmp/table/@row_count')) == 4
 
         remove('//tmp/table')
 
