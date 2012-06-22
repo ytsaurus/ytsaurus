@@ -78,6 +78,7 @@ var configuration;
 configuration = {
     port              : 80,
     address           : "0.0.0.0",
+    neighbours        : [ "localhost" ],
     number_of_workers : 4,
     memory_limit      : 32 * 1024 * 1024,
     thread_limit      : 32,
@@ -167,6 +168,14 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
             .use(connect.favicon())
             .use(yt.YtAssignRequestID())
             .use(yt.YtLogger(logger))
+            .use("/hosts", function(req, rsp) {
+                var body = JSON.stringify(configuration.neighbours);
+                rsp.writeHead(200, {
+                    "Content-Length" : body.length,
+                    "Content-Type" : "application/json"
+                });
+                rsp.end(body);
+            })
             .use("/api", yt.YtApplication(logger, configuration))
             .listen(configuration.port, configuration.address, function() {
                 if (configuration.group) {
