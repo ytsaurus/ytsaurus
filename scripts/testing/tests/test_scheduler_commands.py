@@ -216,7 +216,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               out='//tmp/t_out')
 
         assert read_table('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
-        assert get('//tmp/t_out/@chunk_count') == '2'
+        assert get('//tmp/t_out/@chunk_count') == '1'
 
     def test_merge_sorted_combine(self):
         create('table', '//tmp/t1')
