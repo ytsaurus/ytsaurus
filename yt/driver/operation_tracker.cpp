@@ -183,7 +183,7 @@ void TOperationTracker::DumpResult()
         if (error.IsOK()) {
             printf("Operation completed successfully\n");
         } else {
-            printf("Operation failed\n%s\n", ~error.ToString());
+            printf("%s\n", ~error.ToString());
         }
     }
 
