@@ -680,7 +680,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     auto* tableNode = GetTypedImplForUpdate();
 
     auto* rootChunkList = tableNode->GetChunkList();
-    YASSERT(rootChunkList->Parents().empty());
+    YCHECK(rootChunkList->Parents().empty());
     rootChunkList->SetSorted(true);
     rootChunkList->KeyColumns() = keyColumns;
 
