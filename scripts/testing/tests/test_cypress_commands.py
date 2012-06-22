@@ -5,7 +5,7 @@ from yt_commands import *
 
 ##################################################################
 
-class TestCypressCommands(unittest.TestCase, YTEnvSetup):
+class TestCypressCommands(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 3
     NUM_HOLDERS = 0
 
