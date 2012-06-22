@@ -167,7 +167,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               input=[self.t1, self.t2], 
               out='//tmp/t_out')
         
-        assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
+        self.assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
         assert get('//tmp/t_out/@chunk_count') == '7'
 
     def test_merge_unordered_combine(self):
@@ -178,7 +178,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               input=[self.t1, self.t2],
               out='//tmp/t_out')
 
-        assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
+        self.assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
         assert get('//tmp/t_out/@chunk_count') == '1'
 
     def test_merge_ordered(self):

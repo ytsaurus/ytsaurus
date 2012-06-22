@@ -15,12 +15,12 @@ class TestTxCommands(YTEnvSetup):
         tx_id = start_transaction()
         
         #check that transaction is on the master (also within a tx)
-        assertItemsEqual(get_transactions(), [tx_id])
-        assertItemsEqual(get_transactions(tx = tx_id), [tx_id])
+        self.assertItemsEqual(get_transactions(), [tx_id])
+        self.assertItemsEqual(get_transactions(tx = tx_id), [tx_id])
 
         commit_transaction(tx = tx_id)
         #check that transaction no longer exists
-        assertItemsEqual(get_transactions(), [])
+        self.assertItemsEqual(get_transactions(), [])
 
         #couldn't commit committed transaction
         with pytest.raises(YTError): commit_transaction(tx = tx_id)
@@ -31,12 +31,12 @@ class TestTxCommands(YTEnvSetup):
         #check the same for abort
         tx_id = start_transaction()
 
-        assertItemsEqual(get_transactions(), [tx_id])
-        assertItemsEqual(get_transactions(tx = tx_id), [tx_id])
+        self.assertItemsEqual(get_transactions(), [tx_id])
+        self.assertItemsEqual(get_transactions(tx = tx_id), [tx_id])
         
         abort_transaction(tx = tx_id)
         #check that transaction no longer exists
-        assertItemsEqual(get_transactions(), [])
+        self.assertItemsEqual(get_transactions(), [])
 
         #couldn't commit aborted transaction
         with pytest.raises(YTError): commit_transaction(tx = tx_id)
@@ -71,20 +71,20 @@ class TestTxCommands(YTEnvSetup):
 
         # check that transaction is still alive after 2 seconds
         time.sleep(2)
-        assertItemsEqual(get_transactions(), [tx_id])
+        self.assertItemsEqual(get_transactions(), [tx_id])
 
         # check that transaction is expired after 4 seconds
         time.sleep(2)
-        assertItemsEqual(get_transactions(), [])
+        self.assertItemsEqual(get_transactions(), [])
 
     def test_renew(self):
         tx_id = start_transaction(opt = '/timeout=4000')
 
         time.sleep(2)
-        assertItemsEqual(get_transactions(), [tx_id])
+        self.assertItemsEqual(get_transactions(), [tx_id])
         renew_transaction(tx = tx_id)
 
         time.sleep(3)
-        assertItemsEqual(get_transactions(), [tx_id])
+        self.assertItemsEqual(get_transactions(), [tx_id])
         
         abort_transaction(tx = tx_id)

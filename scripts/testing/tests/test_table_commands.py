@@ -75,12 +75,11 @@ class TestTableCommands(YTEnvSetup):
 
         write('//tmp/table', '{key = 0}; {key = 1}; {key = 2}; {key = 3}', sorted_by='key')
 
-        assert yson2py(get('//tmp/table/@sorted')) == 'true'
-        assert yson2py(get('//tmp/table/@key_columns')) == ['key']
-        assert yson2py(get('//tmp/table/@row_count')) == 4
+        self.assertEqual(yson2py(get('//tmp/table/@sorted')), 'true')
+        self.assertEqual(yson2py(get('//tmp/table/@key_columns')), ['key'])
+        self.assertEqual(yson2py(get('//tmp/table/@row_count')), 4)
 
         remove('//tmp/table')
-
 
     def test_row_key_selector(self):
         create('table', '//tmp/table')

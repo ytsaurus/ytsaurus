@@ -24,7 +24,7 @@ class TestOrchid(YTEnvSetup):
         set(path_to_value, some_map)
         assert get(path_to_value) == some_map
 
-        assertItemsEqual(yson2py(ls(path_to_value)), ['a', 'b'])
+        self.assertItemsEqual(yson2py(ls(path_to_value)), ['a', 'b'])
         remove(path_to_value)
         with pytest.raises(YTError): get(path_to_value)
 
