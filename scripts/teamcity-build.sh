@@ -204,7 +204,6 @@ cd $CHECKOUT_DIRECTORY/scripts/testing
 PATH=$WORKING_DIRECTORY/bin:$PATH \
     py.test \
         -rx -s -v \
-        --assert=plain \
         --junitxml=$WORKING_DIRECTORY/test_integration.xml
 b=$?
 a=$((a+b))
