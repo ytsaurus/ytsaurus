@@ -168,6 +168,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
             .use(connect.favicon())
             .use(yt.YtAssignRequestID())
             .use(yt.YtLogger(logger))
+            .use("/api", yt.YtApplication(logger, configuration))
             .use("/hosts", function(req, rsp) {
                 var body = JSON.stringify(configuration.neighbours);
                 rsp.writeHead(200, {
@@ -176,7 +177,6 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
                 });
                 rsp.end(body);
             })
-            .use("/api", yt.YtApplication(logger, configuration))
             .listen(configuration.port, configuration.address, function() {
                 if (configuration.group) {
                     process.setgid(configuration.group);
