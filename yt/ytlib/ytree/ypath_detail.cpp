@@ -393,7 +393,7 @@ void TSupportsAttributes::GetAttribute(
                     if (attribute.IsOpaque) {
                         writer.OnEntity();
                     } else {
-                        YVERIFY(systemAttributeProvider->GetSystemAttribute(attribute.Key, &writer));
+                        YCHECK(systemAttributeProvider->GetSystemAttribute(attribute.Key, &writer));
                     }
                 }
             }

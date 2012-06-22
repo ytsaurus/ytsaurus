@@ -1841,7 +1841,7 @@ private:
         attributes->push_back("compressed_size");
         attributes->push_back("chunk_count");
         attributes->push_back("rank");
-        attributes->push_back("rebalancing_enabled");
+        attributes->push_back("branched_root");
         attributes->push_back(TAttributeInfo("tree", true, true));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         TBase::GetSystemAttributes(attributes);
