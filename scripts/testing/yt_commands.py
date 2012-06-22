@@ -124,8 +124,3 @@ def get_transactions(**kw):
     return yson2py(yson_map).keys()
 
 #########################################
-
-#testing helpers:
-
-def assertItemsEqual(a, b):
-    assert sorted(a) == sorted(b)
