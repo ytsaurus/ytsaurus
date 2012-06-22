@@ -37,6 +37,7 @@ public:
         , Proxy(cellChannel)
         , State(EState::Active)
         , ParentId(parentId)
+        , Aborted(NewPromise<void>())
     {
         YASSERT(cellChannel);
         YASSERT(owner);
@@ -49,8 +50,9 @@ public:
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
-        , Id(id)
         , ParentId(NullTransactionId)
+        , Id(id)
+        , Aborted(NewPromise<void>())
     {
         YASSERT(cellChannel);
         YASSERT(owner);
@@ -183,27 +185,13 @@ public:
     virtual void SubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        
-        TGuard<TSpinLock> guard(SpinLock);
-        switch (State) {
-            case EState::Active:
-                Aborted.Subscribe(handler);
-                break;
-
-            case EState::Aborted:
-                guard.Release();
-                handler.Run();
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
+        Aborted.Subscribe(handler);
     }
 
     virtual void UnsubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Aborted.Unsubscribe(handler);
+        YUNREACHABLE();
     }
 
     void HandleAbort()
@@ -245,7 +233,7 @@ private:
     TTransactionId ParentId;
 
     TTransactionId Id;
-    TCallbackList<void()> Aborted;
+    TPromise<void> Aborted;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
@@ -267,8 +255,7 @@ private:
 
     void FireAbort()
     {
-        Aborted.Fire();
-        Aborted.Clear();
+        Aborted.Set();
     }
 
 };
