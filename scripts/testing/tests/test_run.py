@@ -1,5 +1,8 @@
+import unittest
 
 from yt_env_setup import YTEnvSetup
+
+##################################################################
 
 class TestRunNothing(unittest.TestCase, YTEnvSetup):
     NUM_MASTERS = 0
