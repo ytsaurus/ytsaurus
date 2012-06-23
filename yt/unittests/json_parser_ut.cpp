@@ -147,6 +147,28 @@ TEST(TJsonParserTest, StringStartingWithSpecialSymbolAsKeyInMap)
     ParseJson(&stream, &Mock);
 }
 
+TEST(TJsonParserTest, UnsupportedValue)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    Stroka input = "true";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
+TEST(TJsonParserTest, InvalidJson)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    Stroka input = "{\"hello\" = \"world\"}"; // YSon style instead of json
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Values with attributes:
