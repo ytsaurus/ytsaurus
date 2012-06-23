@@ -73,7 +73,7 @@ private:
     
     static void WriteScalar(IYsonConsumer* consumer, const TInstant& value)
     {
-        WriteScalar(consumer, static_cast<i64>(value.MilliSeconds()));
+        WriteScalar(consumer, value.ToString());
     }
 
     static void WriteScalar(IYsonConsumer* consumer, const TStringBuf& value)
