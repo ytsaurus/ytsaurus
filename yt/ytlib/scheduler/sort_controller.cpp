@@ -206,12 +206,13 @@ private:
                 auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
                 RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.mutable_extensions());
 
-                YCHECK(partitionsExt->sizes_size() == Controller->Partitions.size());
-                LOG_TRACE("Partition sizes are [%s]", ~JoinToString(partitionsExt->sizes()));
-                for (int index = 0; index < partitionsExt->sizes_size(); ++index) {
-                    i64 weight = partitionsExt->sizes(index);
-                    if (weight > 0) {
-                        auto stripe = New<TChunkStripe>(partitionChunk, weight);
+                YCHECK(partitionsExt->partitions_size() == Controller->Partitions.size());
+                LOG_TRACE("Partition attributes are:");
+                for (int index = 0; index < partitionsExt->partitions_size(); ++index) {
+                    const auto& partitionAttributes = partitionsExt->partitions(index);
+                    LOG_TRACE("Partition[%d] = {%s}", index, ~partitionAttributes.DebugString());
+                    if (partitionAttributes.data_weight() > 0) {
+                        auto stripe = New<TChunkStripe>(partitionChunk, partitionAttributes.data_weight());
                         auto partition = Controller->Partitions[index];
                         partition->SortTask->AddStripe(stripe);
                     }

@@ -91,7 +91,13 @@ message TChannelsExt
 
 message TPartitionsExt
 {
-    repeated int64 sizes = 1;
+    message TPartitionAttributes
+    {
+        required int64 data_weight = 1;
+        required int64 row_count = 2;
+    }
+
+    repeated TPartitionAttributes partitions = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -80,9 +80,11 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         PartitionKeys.back().FromProto(key);
     }
 
-    for (int i = 0; i <= PartitionKeys.size(); ++i) {
+    for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
         ChannelWriters.push_back(New<TChannelWriter>(Channel, ColumnIndexes));
-        PartitionsExt.add_sizes(0);
+        auto* partitionAttributes = PartitionsExt.add_partitions();
+        partitionAttributes->set_data_weight(0);
+        partitionAttributes->set_row_count(0);
     }
 
     MiscExt.set_value_count(0);
@@ -120,7 +122,7 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
     auto partitionTag = std::distance(PartitionKeys.begin(), partitionIt);
     auto& channelWriter = ChannelWriters[partitionTag];
 
-    i64 rowDataSize = 1;
+    i64 rowDataWeight = 1;
     FOREACH (const auto& pair, row) {
         auto it = ColumnIndexes.find(pair.first);
         channelWriter->Write(
@@ -128,17 +130,21 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
             pair.first,
             pair.second);
 
-        rowDataSize += pair.first.size();
-        rowDataSize += pair.second.size();
+        rowDataWeight += pair.first.size();
+        rowDataWeight += pair.second.size();
 
         MiscExt.set_value_count(MiscExt.value_count() + 1);
     }
     channelWriter->EndRow();
 
-    PartitionsExt.set_sizes(partitionTag, PartitionsExt.sizes(partitionTag) + rowDataSize);
-    MiscExt.set_row_count(MiscExt.row_count() + 1);
+    // Update partition counters.
+    auto* partitionAttributes = PartitionsExt.mutable_partitions(partitionTag);
+    partitionAttributes->set_data_weight(partitionAttributes->data_weight() + rowDataWeight);
+    partitionAttributes->set_row_count(partitionAttributes->row_count() + 1);
 
-    DataWeight += rowDataSize;
+    // Update global counters.
+    DataWeight += rowDataWeight;
+    MiscExt.set_row_count(MiscExt.row_count() + 1);
 
     if (channelWriter->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
         PrepareBlock(partitionTag);
