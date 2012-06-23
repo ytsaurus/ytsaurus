@@ -388,19 +388,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
             auto channelsExt = GetProtoExtension<NTableClient::NProto::TChannelsExt>(
                 result.Value().extensions());
             // Partition chunks must have only one channel.
-            YCHECK(channelsExt->items_size() == 1);
+            YCHECK(channelsExt.items_size() == 1);
 
-            FOREACH (const auto& blockInfo, channelsExt->items(0).blocks()) {
+            FOREACH (const auto& blockInfo, channelsExt.items(0).blocks()) {
                 YCHECK(blockInfo.partition_tag() != NTableClient::DefaultPartitionTag);
                 if (blockInfo.partition_tag() == partitionTag.Get()) {
                     filteredBlocks.push_back(blockInfo);
                 }
             }
 
-            ToProto(channelsExt->mutable_items(0)->mutable_blocks(), filteredBlocks);
+            ToProto(channelsExt.mutable_items(0)->mutable_blocks(), filteredBlocks);
             UpdateProtoExtension(
                 response->mutable_chunk_meta()->mutable_extensions(), 
-                *channelsExt.Get());
+                channelsExt);
         }
 
         context->Reply();
@@ -476,7 +476,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                     }
 
                     auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
-                    FOREACH (const auto& sample, samplesExt->items()) {
+                    FOREACH (const auto& sample, samplesExt.items()) {
                         auto* key = chunkSamples->add_items();
 
                         size_t size = 0;

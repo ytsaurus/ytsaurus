@@ -145,7 +145,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
     }
 
     auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-    if (blockIndex >= static_cast<int>(blocksExt->blocks_size())) {
+    if (blockIndex >= static_cast<int>(blocksExt.blocks_size())) {
         LOG_DEBUG("All blocks are enqueued for replication");
 
         Writer

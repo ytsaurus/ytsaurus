@@ -1537,14 +1537,14 @@ private:
         attributes->push_back("stored_locations");
         attributes->push_back("replication_factor");
         attributes->push_back("master_meta_size");
-        attributes->push_back(TAttributeInfo("meta_size", miscExt->has_meta_size()));
-        attributes->push_back(TAttributeInfo("compressed_data_size", miscExt->has_compressed_data_size()));
-        attributes->push_back(TAttributeInfo("uncompressed_data_size", miscExt->has_uncompressed_data_size()));
-        attributes->push_back(TAttributeInfo("data_weight", miscExt->has_data_weight()));
-        attributes->push_back(TAttributeInfo("codec_id", miscExt->has_codec_id()));
-        attributes->push_back(TAttributeInfo("row_count", miscExt->has_row_count()));
-        attributes->push_back(TAttributeInfo("value_count", miscExt->has_value_count()));
-        attributes->push_back(TAttributeInfo("sorted", miscExt->has_sorted()));
+        attributes->push_back(TAttributeInfo("meta_size", miscExt.has_meta_size()));
+        attributes->push_back(TAttributeInfo("compressed_data_size", miscExt.has_compressed_data_size()));
+        attributes->push_back(TAttributeInfo("uncompressed_data_size", miscExt.has_uncompressed_data_size()));
+        attributes->push_back(TAttributeInfo("data_weight", miscExt.has_data_weight()));
+        attributes->push_back(TAttributeInfo("codec_id", miscExt.has_codec_id()));
+        attributes->push_back(TAttributeInfo("row_count", miscExt.has_row_count()));
+        attributes->push_back(TAttributeInfo("value_count", miscExt.has_value_count()));
+        attributes->push_back(TAttributeInfo("sorted", miscExt.has_sorted()));
         attributes->push_back(TAttributeInfo("size", chunk->IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk->IsConfirmed()));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
@@ -1594,49 +1594,49 @@ private:
 
         if (name == "meta_size") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->meta_size());
+                .Scalar(miscExt.meta_size());
             return true;
         }
 
         if (name == "compressed_data_size") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->compressed_data_size());
+                .Scalar(miscExt.compressed_data_size());
             return true;
         }
 
         if (name == "uncompressed_data_size") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->uncompressed_data_size());
+                .Scalar(miscExt.uncompressed_data_size());
             return true;
         }
 
         if (name == "data_weight") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->data_weight());
+                .Scalar(miscExt.data_weight());
             return true;
         }
 
         if (name == "row_count") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->row_count());
+                .Scalar(miscExt.row_count());
             return true;
         }
 
         if (name == "value_count") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->value_count());
+                .Scalar(miscExt.value_count());
             return true;
         }
 
         if (name == "codec_id") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt->codec_id());
+                .Scalar(miscExt.codec_id());
             return true;
         }
 
         if (name == "sorted") {
             BuildYsonFluently(consumer)
-                .Scalar(FormatBool(miscExt->sorted()));
+                .Scalar(FormatBool(miscExt.sorted()));
             return true;
         }
 

@@ -24,7 +24,7 @@ TChunk::TChunk(const TChunkId& id)
     : TObjectWithIdBase(id)
     , ReplicationFactor_(1)
 {
-    // We must set required proto fields to ensure successful work of #Save
+    // Set required proto fields, otherwise #Save would fail.
     ChunkInfo_.set_size(UnknownSize);
     ChunkMeta_.set_type(EChunkType::Unknown);
 }
@@ -42,8 +42,8 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     result.Rank = 0;
 
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(ChunkMeta().extensions());
-    result.UncompressedSize = miscExt->uncompressed_data_size();
-    result.RowCount = miscExt->row_count();
+    result.UncompressedSize = miscExt.uncompressed_data_size();
+    result.RowCount = miscExt.row_count();
 
     return result;
 }

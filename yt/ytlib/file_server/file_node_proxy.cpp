@@ -123,7 +123,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     }
 
     if (name == "codec_id") {
-        auto codecId = ECodecId(miscExt->codec_id());
+        auto codecId = ECodecId(miscExt.codec_id());
         BuildYsonFluently(consumer)
             .Scalar(CamelCaseToUnderscoreCase(codecId.ToString()));
         return true;

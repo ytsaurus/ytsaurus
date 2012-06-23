@@ -51,8 +51,8 @@ TChunkSequenceReader::TChunkSequenceReader(
 
     for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
-        //TotalRowCount += miscExt->row_count();
-        TotalValueCount += miscExt->value_count();
+        //TotalRowCount += miscExt.row_count();
+        TotalValueCount += miscExt.value_count();
         Readers.push_back(NewPromise<TChunkReaderPtr>());
     }
 
@@ -157,7 +157,7 @@ void TChunkSequenceReader::SwitchCurrentChunk(TChunkReaderPtr nextReader)
             TotalRowCount = CurrentRowIndex + nextReader->GetRowCount();
             for (int i = CurrentReaderIndex + 1; i < InputChunks.size(); ++i) {
                 auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
-                TotalRowCount += miscExt->row_count();
+                TotalRowCount += miscExt.row_count();
             }
         }
 

@@ -143,12 +143,12 @@ i32 GetProtoExtensionTag();
 //! Finds and deserializes an extension of the given type. Fails if no matching
 //! extension is found.
 template <class T>
-TAutoPtr<T> GetProtoExtension(const NProto::TExtensionSet& extensions);
+T GetProtoExtension(const NProto::TExtensionSet& extensions);
 
 //! Finds and deserializes an extension of the given type. Returns NULL if no matching
 //! extension is found.
 template <class T>
-TAutoPtr<T> FindProtoExtension(const NProto::TExtensionSet& extensions);
+TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions);
 
 //! Serializes and stores an extension.
 //! Fails if extension with the same tag already exists.

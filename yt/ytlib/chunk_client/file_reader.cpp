@@ -91,7 +91,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     YASSERT(Opened);
 
     auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-    i32 blockCount = blocksExt->blocks_size();
+    i32 blockCount = blocksExt.blocks_size();
 
     if (blockIndex > blockCount || blockIndex < -blockCount) {
         return TSharedRef();
@@ -105,14 +105,14 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
         return TSharedRef();
     }
 
-    const TBlockInfo& blockInfo = blocksExt->blocks(blockIndex);
+    const auto& blockInfo = blocksExt.blocks(blockIndex);
     TBlob data(blockInfo.size());
     i64 offset = blockInfo.offset();
     DataFile->Pread(data.begin(), data.size(), offset); 
 
     TSharedRef result(MoveRV(data));
 
-    TChecksum checksum = GetChecksum(result);
+    auto checksum = GetChecksum(result);
     if (checksum != blockInfo.checksum()) {
         ythrow yexception()
             << Sprintf("Incorrect checksum in chunk block (FileName: %s, BlockIndex: %d, Expected: %" PRIx64 ", Found: %" PRIx64 ")",

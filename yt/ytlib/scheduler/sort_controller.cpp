@@ -206,10 +206,10 @@ private:
                 auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
                 RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.mutable_extensions());
 
-                YCHECK(partitionsExt->partitions_size() == Controller->Partitions.size());
+                YCHECK(partitionsExt.partitions_size() == Controller->Partitions.size());
                 LOG_TRACE("Partition attributes are:");
-                for (int index = 0; index < partitionsExt->partitions_size(); ++index) {
-                    const auto& partitionAttributes = partitionsExt->partitions(index);
+                for (int index = 0; index < partitionsExt.partitions_size(); ++index) {
+                    const auto& partitionAttributes = partitionsExt.partitions(index);
                     LOG_TRACE("Partition[%d] = {%s}", index, ~partitionAttributes.DebugString());
                     if (partitionAttributes.data_weight() > 0) {
                         auto stripe = New<TChunkStripe>(partitionChunk, partitionAttributes.data_weight());
@@ -398,7 +398,7 @@ private:
             auto stripe = New<TChunkStripe>();
             FOREACH (const auto& chunk, resultExt.chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt->data_weight();
+                i64 weight = miscExt.data_weight();
                 stripe->AddChunk(chunk, weight);
             }
 
@@ -643,7 +643,7 @@ private:
         FOREACH (const auto& table, InputTables) {
             FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt->data_weight();
+                i64 weight = miscExt.data_weight();
                 SortWeightCounter.Increment(weight);
             }
         }
@@ -689,7 +689,7 @@ private:
         FOREACH (const auto& table, InputTables) {
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt->data_weight();
+                i64 weight = miscExt.data_weight();
                 auto stripe = New<TChunkStripe>(chunk, weight);
                 partition->SortTask->AddStripe(stripe);
                 ++chunkCount;
@@ -735,7 +735,7 @@ private:
         FOREACH (const auto& table, InputTables) {
             FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt->data_weight();
+                i64 weight = miscExt.data_weight();
                 auto stripe = New<TChunkStripe>(chunk, weight);
                 PartitionTask->AddStripe(stripe);
             }

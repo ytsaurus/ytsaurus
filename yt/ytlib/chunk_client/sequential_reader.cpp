@@ -6,11 +6,11 @@
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NChunkHolder::NProto;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkReaderLogger;
-
-using namespace NChunkHolder::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -18,9 +18,9 @@ TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
     const std::vector<int>& blockIndexes,
     IAsyncReaderPtr chunkReader,
-    TAutoPtr<TBlocksExt> protoBlocks)
+    const TBlocksExt& blocksExt)
     : BlockIndexSequence(blockIndexes)
-    , ProtoBlocks(protoBlocks)
+    , BlocksExt(blocksExt)
     , Config(config)
     , ChunkReader(chunkReader)
     , AsyncSemaphore(config->WindowSize)
@@ -31,7 +31,7 @@ TSequentialReader::TSequentialReader(
 
     YASSERT(ChunkReader);
     YASSERT(blockIndexes.size() > 0);
-    YASSERT(blockIndexes.size() <= ProtoBlocks->blocks_size());
+    YASSERT(blockIndexes.size() <= BlocksExt.blocks_size());
 
     LOG_DEBUG("Creating sequential reader (BlockCount: %d)", 
         static_cast<int>(blockIndexes.size()));
@@ -72,7 +72,7 @@ TAsyncError TSequentialReader::AsyncNextBlock()
     YASSERT(!State.HasRunningOperation());
 
     if (NextSequenceIndex > 0) {
-        AsyncSemaphore.Release(ProtoBlocks->blocks(
+        AsyncSemaphore.Release(BlocksExt.blocks(
             BlockIndexSequence[NextSequenceIndex - 1]).size());
         BlockWindow[NextSequenceIndex - 1].Reset();
     }
@@ -132,7 +132,7 @@ void TSequentialReader::FetchNextGroup()
     while (groupSize < Config->GroupSize && NextUnfetchedIndex < BlockIndexSequence.size()) {
         auto blockIndex = BlockIndexSequence[NextUnfetchedIndex];
         blockIndexes.push_back(blockIndex);
-        groupSize += ProtoBlocks->blocks(blockIndex).size();
+        groupSize += BlocksExt.blocks(blockIndex).size();
         ++NextUnfetchedIndex;
     }
 

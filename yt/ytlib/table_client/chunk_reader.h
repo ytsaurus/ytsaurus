@@ -104,7 +104,7 @@ private:
 
     THolder<TKeyValidator> EndValidator;
 
-    TAutoPtr<NProto::TKeyColumnsExt> KeyColumnsExt;
+    NProto::TKeyColumnsExt KeyColumnsExt;
 
     /*! 
      *  See #DoNextRow for usage.

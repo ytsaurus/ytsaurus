@@ -177,7 +177,7 @@ private:
 
                     // TODO(babenko): make customizable
                     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
-                    i64 weight = miscExt->data_weight();
+                    i64 weight = miscExt.data_weight();
 
                     auto stripe = New<TChunkStripe>(inputChunk, weight);
                     MapTask->AddStripe(stripe);

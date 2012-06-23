@@ -211,7 +211,7 @@ private:
             // Download all blocks.
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-            BlockCount = static_cast<int>(blocksExt->blocks_size());
+            BlockCount = static_cast<int>(blocksExt.blocks_size());
             yvector<int> blockIndexes;
             blockIndexes.reserve(BlockCount);
             for (int index = 0; index < BlockCount; ++index) {

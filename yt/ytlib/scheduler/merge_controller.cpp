@@ -226,8 +226,8 @@ protected:
     void AddPendingChunk(const TInputChunk& chunk, int tableIndex)
     {
         // Merge is IO-bound, use data size as weight.
-        auto misc = GetProtoExtension<TMiscExt>(chunk.extensions());
-        i64 weight = misc->data_weight();
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+        i64 weight = miscExt.data_weight();
 
         auto stripe = CurrentTaskStripes[tableIndex];
         if (!stripe) {
@@ -294,8 +294,8 @@ protected:
                 FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                    i64 weight = miscExt->data_weight();
-                    i64 rowCount = miscExt->row_count();
+                    i64 weight = miscExt.data_weight();
+                    i64 rowCount = miscExt.row_count();
                     LOG_DEBUG("Processing chunk (ChunkId: %s, DataWeight: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
                         weight,
@@ -402,7 +402,7 @@ protected:
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * miscExt->compressed_data_size() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (0.9 * miscExt.compressed_data_size() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -686,7 +686,7 @@ protected:
     void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-        YCHECK(miscExt->sorted());
+        YCHECK(miscExt.sorted());
 
         // Construct endpoints and place them into the list.
         auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk.extensions());
@@ -694,7 +694,7 @@ protected:
             TKeyEndpoint endpoint;
             endpoint.Left = true;
             endpoint.TableIndex = tableIndex;
-            endpoint.Key = boundaryKeysExt->start();
+            endpoint.Key = boundaryKeysExt.start();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }
@@ -702,7 +702,7 @@ protected:
             TKeyEndpoint endpoint;
             endpoint.Left = false;
             endpoint.TableIndex = tableIndex;
-            endpoint.Key = boundaryKeysExt->end();
+            endpoint.Key = boundaryKeysExt.end();
             endpoint.InputChunk = &chunk;
             Endpoints.push_back(endpoint);
         }

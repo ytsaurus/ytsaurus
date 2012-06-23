@@ -11,26 +11,38 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TAutoPtr<T> GetProtoExtension(const NProto::TExtensionSet& extensions)
+T GetProtoExtension(const NProto::TExtensionSet& extensions)
 {
-    auto result = FindProtoExtension<T>(extensions);
-    YASSERT(~result);
+    // Intentionally complex to take benefit of RVO.
+    T result;
+    i32 tag = GetProtoExtensionTag<T>();
+    bool found = false;
+    FOREACH (const auto& extension, extensions.extensions()) {
+        if (extension.tag() == tag) {
+            const auto& data = extension.data();
+            result.ParseFromArray(data.begin(), data.length());
+            found = true;
+            break;
+        }
+    }
+    YCHECK(found);
     return result;
 }
 
 template <class T>
-TAutoPtr<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
+TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
 {
+    TNullable<T> result;
     i32 tag = GetProtoExtensionTag<T>();
     FOREACH (const auto& extension, extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
-            TAutoPtr<T> result(new T());
-            YVERIFY(result->ParseFromArray(data.begin(), data.length()));
-            return result;
+            result.Assign(T());
+            result.Get().ParseFromArray(data.begin(), data.length());
+            break;
         }
     }
-    return NULL;
+    return result;
 }
 
 template <class T>
