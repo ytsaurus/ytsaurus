@@ -129,5 +129,12 @@ class TestCypressCommands(YTEnvSetup):
         self.assertEqual(get('//tmp/t/@key1'), '"value1"')
         self.assertEqual(get('//tmp/t/@key2'), '"value2"')
 
+    def test_format_json(self):
+        # check input format for json
+        set('//tmp/json_in', '{"list": [1,2,{"string": "this"}]}', format="json")
+        assert get_py('//tmp/json_in') == {"list": [1, 2, {"string": "this"}]}
 
+        # check output format for json
+        set('//tmp/json_out', '{list=[1;2;{string=this}]}')
+        assert get('//tmp/json_out', format="json") == '{"list":[1,2,{"string":"this"}]}'
 
