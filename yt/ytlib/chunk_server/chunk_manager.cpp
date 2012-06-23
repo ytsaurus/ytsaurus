@@ -1257,7 +1257,7 @@ private:
         }
 
         if (removeFromHolder) {
-            auto* holder = FindHolderByAddresss(job->GetRunnerAddress());
+            auto* holder = FindHolderByAddresss(job->GetAddress());
             if (holder) {
                 holder->RemoveJob(job);
             }

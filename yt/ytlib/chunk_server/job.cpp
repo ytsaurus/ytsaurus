@@ -14,13 +14,13 @@ TJob::TJob(
     EJobType type,
     const TJobId& jobId,
     const TChunkId& chunkId,
-    const Stroka& runnerAddress,
-    const yvector<Stroka>& targetAddresses,
+    const Stroka& Address,
+    const std::vector<Stroka>& targetAddresses,
     TInstant startTime)
     : Type_(type)
     , TObjectWithIdBase(jobId)
     , ChunkId_(chunkId)
-    , RunnerAddress_(runnerAddress)
+    , Address_(Address)
     , TargetAddresses_(targetAddresses)
     , StartTime_(startTime)
 { }
@@ -33,7 +33,7 @@ void TJob::Save(TOutputStream* output) const
 {
     ::Save(output, Type_);
     ::Save(output, ChunkId_);
-    ::Save(output, RunnerAddress_);
+    ::Save(output, Address_);
     ::Save(output, TargetAddresses_);
     ::Save(output, StartTime_);
 }
@@ -43,7 +43,7 @@ void TJob::Load(const TLoadContext& context, TInputStream* input)
     UNUSED(context);
     ::Load(input, Type_);
     ::Load(input, ChunkId_);
-    ::Load(input, RunnerAddress_);
+    ::Load(input, Address_);
     ::Load(input, TargetAddresses_);
     ::Load(input, StartTime_);
 }

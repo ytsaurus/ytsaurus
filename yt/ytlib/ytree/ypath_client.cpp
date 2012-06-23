@@ -293,7 +293,7 @@ void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
     response->ThrowIfError();
 }
 
-yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
+std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(service, request).Get();

@@ -74,10 +74,10 @@ inline void ToProto(
 }
 
 template <class TArrayItem, class TProtoItem>
-inline yvector<TArrayItem> FromProto(
+inline std::vector<TArrayItem> FromProto(
     const ::google::protobuf::RepeatedPtrField<TProtoItem>& proto)
 {
-    yvector<TArrayItem> array(proto.size());
+    std::vector<TArrayItem> array(proto.size());
     for (int i = 0; i < proto.size(); ++i) {
         array[i] = TProtoTraits<TArrayItem>::FromProto(proto.Get(i));
     }
@@ -85,10 +85,10 @@ inline yvector<TArrayItem> FromProto(
 }
 
 template <class TArrayItem, class TProtoItem>
-inline yvector<TArrayItem> FromProto(
+inline std::vector<TArrayItem> FromProto(
     const ::google::protobuf::RepeatedField<TProtoItem>& proto)
 {
-    yvector<TArrayItem> array(proto.size());
+    std::vector<TArrayItem> array(proto.size());
     for (int i = 0; i < proto.size(); ++i) {
         array[i] = proto.Get(i);
     }
@@ -145,7 +145,7 @@ i32 GetProtoExtensionTag();
 template <class T>
 T GetProtoExtension(const NProto::TExtensionSet& extensions);
 
-//! Finds and deserializes an extension of the given type. Returns NULL if no matching
+//! Finds and deserializes an extension of the given type. Returns |Null| if no matching
 //! extension is found.
 template <class T>
 TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions);

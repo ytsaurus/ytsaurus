@@ -149,20 +149,20 @@ template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 
-//! Asynchronously executes "Get" verb. 
+//! Asynchronously executes |Get| verb. 
 TFuture< TValueOrError<TYson> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path);
 
-//! Synchronously executes "Get" verb. Throws if an error has occurred.
+//! Synchronously executes |Get| verb. Throws if an error has occurred.
 TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path);
 
-//! Synchronously executes "Set" verb. Throws if an error has occurred.
+//! Synchronously executes |Set| verb. Throws if an error has occurred.
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& value);
 
-//! Synchronously executes "Remove" verb. Throws if an error has occurred.
+//! Synchronously executes |Remove| verb. Throws if an error has occurred.
 void SyncYPathRemove(IYPathServicePtr service, const TYPath& path);
 
-//! Synchronously executes "List" verb. Throws if an error has occurred.
-yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
+//! Synchronously executes |List| verb. Throws if an error has occurred.
+std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
 
 //! Overrides a part of #root tree.
 /*!

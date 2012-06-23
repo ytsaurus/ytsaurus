@@ -29,7 +29,7 @@ public:
         EJobType jobType,
         const TJobId& jobId,
         TStoredChunkPtr chunk,
-        const yvector<Stroka>& targetAddresses);
+        const std::vector<Stroka>& targetAddresses);
 
     //! Returns the type.
     EJobType GetType() const;
@@ -41,7 +41,7 @@ public:
     EJobState GetState() const;
 
     //! Returns the addresses of chunk holders where the chunk is being replicated to.
-    yvector<Stroka> GetTargetAddresses() const;
+    std::vector<Stroka> GetTargetAddresses() const;
 
     //! Returns the chunk that is being replicated.
     TChunkPtr GetChunk() const;
@@ -55,7 +55,7 @@ private:
     EJobState State;
     TStoredChunkPtr Chunk;
     NProto::TChunkMeta ChunkMeta;
-    yvector<Stroka> TargetAddresses;
+    std::vector<Stroka> TargetAddresses;
     NChunkClient::IAsyncWriterPtr Writer;
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableInvoker;
@@ -106,7 +106,7 @@ public:
         EJobType jobType,
         const TJobId& jobId,
         TStoredChunkPtr chunk,
-        const yvector<Stroka>& targetAddresses);
+        const std::vector<Stroka>& targetAddresses);
 
     //! Stops the job.
     void StopJob(TJobPtr job);
@@ -119,7 +119,7 @@ public:
     TJobPtr FindJob(const TJobId& jobId);
 
     //! Gets all active jobs.
-    yvector<TJobPtr> GetAllJobs();
+    std::vector<TJobPtr> GetAllJobs();
 
 private:
     friend class TJob;

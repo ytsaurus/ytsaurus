@@ -11,8 +11,8 @@
 namespace NYT {
 namespace NFormats {
 
-// See json_writer.h for details how yson is mapped into json
-// This implementation of TJsonParser is DOM-based (less effective)
+// See json_writer.h for details on how YSON is mapped to JSON.
+// This implementation of TJsonParser is DOM-based (and is thus suboptimal).
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +20,9 @@ class TJsonParser
     : public NYTree::IParser
 {
 public:
-    explicit TJsonParser(NYTree::IYsonConsumer* consumer, TJsonFormatConfigPtr config = NULL);
+    TJsonParser(
+        NYTree::IYsonConsumer* consumer,
+        TJsonFormatConfigPtr config = NULL);
 
     virtual void Read(const TStringBuf& data);
     virtual void Finish();

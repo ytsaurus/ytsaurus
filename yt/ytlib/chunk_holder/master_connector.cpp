@@ -297,7 +297,7 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
         Bootstrap->GetJobExecutor()->StartJob(
             jobType,
             jobId,
-            ~chunk,
+            chunk,
             FromProto<Stroka>(startInfo.target_addresses()));
     }
 }

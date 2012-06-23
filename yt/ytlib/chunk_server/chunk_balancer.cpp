@@ -471,7 +471,7 @@ void TChunkBalancer::GetReplicaStatistics(
                 }
 
                 case EJobType::Remove:
-                    if (storedAddresses.find(job->GetRunnerAddress()) != storedAddresses.end()) {
+                    if (storedAddresses.find(job->GetAddress()) != storedAddresses.end()) {
                         ++*minusCount;
                     }
                     break;

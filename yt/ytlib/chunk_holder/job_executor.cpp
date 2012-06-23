@@ -32,7 +32,7 @@ TJob::TJob(
     EJobType jobType,
     const TJobId& jobId,
     TStoredChunkPtr chunk,
-    const yvector<Stroka>& targetAddresses)
+    const std::vector<Stroka>& targetAddresses)
     : Owner(owner)
     , JobType(jobType)
     , JobId(jobId)
@@ -64,7 +64,7 @@ EJobState TJob::GetState() const
     return State;
 }
 
-yvector<Stroka> TJob::GetTargetAddresses() const
+std::vector<Stroka> TJob::GetTargetAddresses() const
 {
     return TargetAddresses;
 }
@@ -83,7 +83,7 @@ void TJob::Start()
             LOG_INFO("Removal job started (ChunkId: %s)",
                 ~Chunk->GetId().ToString());
 
-            Owner->ChunkStore->RemoveChunk(~Chunk);
+            Owner->ChunkStore->RemoveChunk(Chunk);
 
             LOG_DEBUG("Removal job completed");
 
@@ -221,16 +221,16 @@ TJobPtr TJobExecutor::StartJob(
     EJobType jobType,
     const TJobId& jobId,
     TStoredChunkPtr chunk,
-    const yvector<Stroka>& targetAddresses)
+    const std::vector<Stroka>& targetAddresses)
 {
     auto job = New<TJob>(
         this,
-        ~ServiceInvoker,
+        ServiceInvoker,
         jobType,
         jobId,
         chunk,
         targetAddresses);
-    YVERIFY(Jobs.insert(MakePair(jobId, job)).second);
+    YCHECK(Jobs.insert(MakePair(jobId, job)).second);
     job->Start();
 
     return job;
@@ -239,7 +239,7 @@ TJobPtr TJobExecutor::StartJob(
 void TJobExecutor::StopJob(TJobPtr job)
 {
     job->Stop();
-    YVERIFY(Jobs.erase(job->GetJobId()) == 1);
+    YCHECK(Jobs.erase(job->GetJobId()) == 1);
     
     LOG_INFO("Job stopped (JobId: %s, State: %s)",
         ~job->GetJobId().ToString(),
@@ -252,9 +252,9 @@ TJobPtr TJobExecutor::FindJob(const TJobId& jobId)
     return it == Jobs.end() ? NULL : it->second;
 }
 
-yvector<TJobPtr> TJobExecutor::GetAllJobs()
+std::vector<TJobPtr> TJobExecutor::GetAllJobs()
 {
-    yvector<TJobPtr> result;
+    std::vector<TJobPtr> result;
     FOREACH (const auto& pair, Jobs) {
         result.push_back(pair.second);
     }

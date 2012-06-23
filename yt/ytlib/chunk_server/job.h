@@ -18,8 +18,8 @@ class TJob
     // Don't try making it TChunk*.
     // Removal jobs may refer to nonexistent chunks.
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
-    DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
 public:
@@ -27,8 +27,8 @@ public:
         EJobType type,
         const TJobId& jobId,
         const TChunkId& chunkId,
-        const Stroka& runnerAddress,
-        const yvector<Stroka>& targetAddresses,
+        const Stroka& address,
+        const std::vector<Stroka>& targetAddresses,
         TInstant startTime);
 
     explicit TJob(const TJobId& jobId);
