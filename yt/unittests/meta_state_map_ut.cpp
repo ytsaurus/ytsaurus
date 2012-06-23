@@ -14,37 +14,39 @@ namespace NUnitTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-    typedef Stroka TKey;
+
+typedef Stroka TKey;
     
-    struct TMyInt
+struct TMyInt
+{
+    int Value;
+
+    TMyInt()
+    { }
+
+    TMyInt(const Stroka&)
+    { }
+
+    TMyInt(int value)
+        : Value(value)
+    { }
+
+    void Save(TOutputStream* output) const
     {
-        int Value;
+        WritePod(*output, Value);
+    }
 
-        TMyInt()
-        { }
+    void Load(TVoid, TInputStream* input)
+    {
+        ReadPod(*input, Value);
+    }
+};
 
-        TMyInt(const Stroka&)
-        { }
+class TMetaStateMapTest: public ::testing::Test
+{ };
 
-        TMyInt(int value)
-            : Value(value)
-        { }
+typedef TMyInt TValue;
 
-        void Save(TOutputStream* output) const
-        {
-            WritePod(*output, Value);
-        }
-
-        void Load(TVoid, TInputStream* input)
-        {
-            ReadPod(*input, Value);
-        }
-    };
-
-    class TMetaStateMapTest: public ::testing::Test
-    { };
-
-    typedef TMyInt TValue;
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +94,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
             if (result) {
                 map.Insert(key, new TValue(value));
             } else {
-                EXPECT_EQ(map.Get(key).Value, checkMap[key]);
+                EXPECT_EQ(map.Get(key)->Value, checkMap[key]);
             }
         }
         TStringOutput output(snapshotData);
@@ -137,7 +139,7 @@ TEST_F(TMetaStateMapTest, StressSave)
         if (result) {
             map.Insert(key, new TValue(value));
         } else {
-            EXPECT_EQ(map.Get(key).Value, checkMap[key]);
+            EXPECT_EQ(map.Get(key)->Value, checkMap[key]);
         }
     }
     map.SaveKeys(&output);
@@ -159,7 +161,7 @@ TEST_F(TMetaStateMapTest, StressSave)
                 if (result) {
                     map.Insert(key, new TValue(value));
                 } else {
-                    EXPECT_EQ(map.Get(key).Value, checkMap[key]);
+                    EXPECT_EQ(map.Get(key)->Value, checkMap[key]);
                 }
             }
             case 1: {

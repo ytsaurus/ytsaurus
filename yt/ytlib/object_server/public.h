@@ -19,6 +19,9 @@ class TObjectWithIdBase;
 struct IObjectProxy;
 typedef TIntrusivePtr<IObjectProxy> IObjectProxyPtr;
 
+struct IObjectTypeHandler;
+typedef TIntrusivePtr<IObjectTypeHandler> IObjectTypeHandlerPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NObjectServer

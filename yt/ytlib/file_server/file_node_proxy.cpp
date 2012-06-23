@@ -162,7 +162,7 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
     const auto* chunk = chunkRef.AsChunk();
 
     *response->mutable_chunk_id() = chunkId.ToProto();
-    chunkManager->FillNodeAddresses(response->mutable_node_addresses(), *chunk);
+    chunkManager->FillNodeAddresses(response->mutable_node_addresses(), chunk);
 
     response->set_executable(IsExecutable());
     response->set_file_name(GetFileName());

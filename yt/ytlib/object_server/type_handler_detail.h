@@ -34,26 +34,26 @@ public:
 
     virtual i32 RefObject(const TObjectId& id)
     {
-        auto& obj = Map->Get(id);
-        return obj.RefObject();
+        auto* obj = Map->Get(id);
+        return obj->RefObject();
     }
 
     virtual i32 UnrefObject(const TObjectId& id)
     {
-        auto& obj = Map->Get(id);
-        i32 result = obj.UnrefObject();
+        auto* obj = Map->Get(id);
+        i32 result = obj->UnrefObject();
         if (result == 0) {
             // Remove the object from the map but keep it alive for a while.
             TAutoPtr<TObject> objHolder(Map->Release(id));
-            OnObjectDestroyed(obj);
+            OnObjectDestroyed(objHolder.Get());
         }
         return result;
     }
 
     virtual i32 GetObjectRefCounter(const TObjectId& id)
     {
-        auto& obj = Map->Get(id);
-        return obj.GetObjectRefCounter();
+        auto* obj = Map->Get(id);
+        return obj->GetObjectRefCounter();
     }
 
     virtual IObjectProxyPtr GetProxy(
@@ -87,7 +87,7 @@ protected:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
 
-    virtual void OnObjectDestroyed(TObject& obj)
+    virtual void OnObjectDestroyed(TObject* obj)
     {
         UNUSED(obj);
     }

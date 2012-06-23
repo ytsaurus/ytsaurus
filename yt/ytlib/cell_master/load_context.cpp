@@ -27,37 +27,37 @@ TLoadContext::TLoadContext(TBootstrap *bootstrap)
 template <>
 TTransaction* TLoadContext::Get(const TObjectId& id) const
 {
-    return &Bootstrap_->GetTransactionManager()->GetTransaction(id);
+    return Bootstrap_->GetTransactionManager()->GetTransaction(id);
 }
 
 template <>
 TChunkList* TLoadContext::Get(const TObjectId& id) const
 {
-    return &Bootstrap_->GetChunkManager()->GetChunkList(id);
+    return Bootstrap_->GetChunkManager()->GetChunkList(id);
 }
 
 template <>
 TChunk* TLoadContext::Get(const TObjectId& id) const
 {
-    return &Bootstrap_->GetChunkManager()->GetChunk(id);
+    return Bootstrap_->GetChunkManager()->GetChunk(id);
 }
 
 template <>
 TJob* TLoadContext::Get(const TObjectId& id) const
 {
-    return &Bootstrap_->GetChunkManager()->GetJob(id);
+    return Bootstrap_->GetChunkManager()->GetJob(id);
 }
 
 template <>
 TLock* TLoadContext::Get(const TObjectId& id) const
 {
-    return &Bootstrap_->GetCypressManager()->GetLock(id);
+    return Bootstrap_->GetCypressManager()->GetLock(id);
 }
 
 template <>
 ICypressNode* TLoadContext::Get(const TVersionedObjectId& id) const
 {
-    return &Bootstrap_->GetCypressManager()->GetNode(id);
+    return Bootstrap_->GetCypressManager()->GetNode(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

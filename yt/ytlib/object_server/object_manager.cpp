@@ -298,7 +298,7 @@ IYPathServicePtr TObjectManager::GetRootService()
     return RootService;
 }
 
-void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)
+void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
 {
     // No thread affinity check here.
     // This will be called during init-time only but from an unspecified thread.
@@ -635,7 +635,7 @@ TVoid TObjectManager::ReplayVerb(
     auto* transaction =
         transactionId == NullTransactionId
         ?  NULL
-        : &transactionManager->GetTransaction(transactionId);
+        : transactionManager->GetTransaction(transactionId);
 
     std::vector<TSharedRef> parts(message.request_parts_size());
     for (int partIndex = 0; partIndex < message.request_parts_size(); ++partIndex) {

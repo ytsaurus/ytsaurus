@@ -82,7 +82,7 @@ private:
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
-        const auto& chunk = GetTypedImpl();
+        const auto* chunk = GetTypedImpl();
         attributes->push_back("mode");
         attributes->push_back("node_id");
         attributes->push_back("transaction_id");
@@ -526,8 +526,8 @@ void TCypressManager::ValidateLock(
     }
 
     // Examine existing locks.
-    const auto& node = NodeMap.Get(nodeId);
-    FOREACH (auto* lock, node.Locks()) {
+    const auto* node = NodeMap.Get(nodeId);
+    FOREACH (auto* lock, node->Locks()) {
         // If the requested mode is Snapshot then no descendant transaction (including |transaction| itself)
         // may hold a lock other than Snapshot.
         // Allowing otherwise would cause a trouble when this nested transaction commits.
@@ -629,8 +629,8 @@ TLockId TCypressManager::AcquireLock(
         ~lockId.ToString());
 
     // Assign the node to the node itself.
-    auto& lockedNode = NodeMap.Get(nodeId);
-    YCHECK(lockedNode.Locks().insert(lock).second);
+    auto* lockedNode = NodeMap.Get(nodeId);
+    YCHECK(lockedNode->Locks().insert(lock).second);
 
     // Snapshot locks always involve branching (unless the node is already branched by another Snapshot lock).
     if (mode == ELockMode::Snapshot) {
@@ -648,8 +648,8 @@ TLockId TCypressManager::AcquireLock(
 void TCypressManager::ReleaseLock(TLock* lock)
 {
     // Remove the lock from the node itself.
-    auto& lockedNode = NodeMap.Get(lock->GetNodeId());
-    YCHECK(lockedNode.Locks().erase(lock) == 1);
+    auto* lockedNode = NodeMap.Get(lock->GetNodeId());
+    YCHECK(lockedNode->Locks().erase(lock) == 1);
 
     Bootstrap->GetObjectManager()->UnrefObject(lock);
 }
@@ -792,15 +792,15 @@ i32 TCypressManager::RefNode(const TNodeId& nodeId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto& node = NodeMap.Get(nodeId);
-    return node.RefObject();
+    auto* node = NodeMap.Get(nodeId);
+    return node->RefObject();
 }
 
 i32 TCypressManager::UnrefNode(const TNodeId& nodeId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* node = &NodeMap.Get(nodeId);
+    auto* node = NodeMap.Get(nodeId);
 
     int refCounter = node->UnrefObject();
     if (refCounter == 0) {
@@ -815,8 +815,8 @@ i32 TCypressManager::UnrefNode(const TNodeId& nodeId)
 
 i32 TCypressManager::GetNodeRefCounter(const TNodeId& nodeId)
 {
-    const auto& node = NodeMap.Get(nodeId);
-    return node.GetObjectRefCounter();
+    const auto* node = NodeMap.Get(nodeId);
+    return node->GetObjectRefCounter();
 }
 
 void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
@@ -996,7 +996,7 @@ TYPath TCypressManager::GetNodePath(const TVersionedNodeId& id)
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto* transaction = id.TransactionId == NullTransactionId
         ? NULL
-        : &transactionManager->GetTransaction(id.TransactionId);
+        : transactionManager->GetTransaction(id.TransactionId);
     return GetNodePath(id.ObjectId, transaction);
 }
 

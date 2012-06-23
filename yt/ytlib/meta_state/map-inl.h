@@ -60,23 +60,23 @@ TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key)
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-const TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key) const
+const TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     auto* value = Find(key);
-    YASSERT(value);
-    return *value;
+    YCHECK(value);
+    return value;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key)
+TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     auto* value = Find(key);
-    YASSERT(value);
-    return *value;
+    YCHECK(value);
+    return value;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>

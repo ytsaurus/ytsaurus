@@ -30,19 +30,19 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, OverreplicatedChunkIds);
 
-    void OnHolderRegistered(const THolder& holder);
-    void OnHolderUnregistered(const THolder& holder);
+    void OnHolderRegistered(const THolder* holder);
+    void OnHolderUnregistered(const THolder* holder);
 
-    void OnChunkRemoved(const TChunk& chunk);
+    void OnChunkRemoved(const TChunk* chunk);
 
     void RefreshAllChunks();
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
 
-    void ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId);
+    void ScheduleChunkRemoval(const THolder* holder, const TChunkId& chunkId);
 
     void ScheduleJobs(
-        THolder& holder,
+        THolder* holder,
         const std::vector<NProto::TJobInfo>& runningJobs,
         std::vector<NProto::TJobStartInfo>* jobsToStart,
         std::vector<NProto::TJobStopInfo>* jobsToStop);
@@ -80,10 +80,10 @@ private:
     THolderInfoMap HolderInfoMap;
 
     THolderInfo* FindHolderInfo(THolderId holderId);
-    THolderInfo& GetHolderInfo(THolderId holderId);
+    THolderInfo* GetHolderInfo(THolderId holderId);
 
     void ProcessExistingJobs(
-        const THolder& holder,
+        const THolder* holder,
         const std::vector<NProto::TJobInfo>& runningJobs,
         std::vector<NProto::TJobStopInfo>* jobsToStop,
         int* replicationJobCount,
@@ -98,27 +98,27 @@ private:
     );
 
     EScheduleFlags ScheduleReplicationJob(
-        THolder& sourceHolder,
+        THolder* sourceHolder,
         const TChunkId& chunkId,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
-        THolder& sourceHolder,
+        THolder* sourceHolder,
         const TChunkId& chunkId,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
-        THolder& holder,
+        THolder* holder,
         const TChunkId& chunkId,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     void ScheduleNewJobs(
-        THolder& holder,
+        THolder* holder,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
 
-    void Refresh(const TChunk& chunk);
-    int GetReplicationFactor(const TChunk& chunk);
+    void Refresh(const TChunk* chunk);
+    int GetReplicationFactor(const TChunk* chunk);
     void GetReplicaStatistics(
-        const TChunk& chunk,
+        const TChunk* chunk,
         int* desiredCount,
         int* storedCount,
         int* cachedCount,

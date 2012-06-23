@@ -91,7 +91,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
             context->SetResponseInfo("HolderId: %d", id);
             context->Reply();
         }))
-        ->OnError(CreateErrorHandler(~context))
+        ->OnError(CreateErrorHandler(context))
         ->Commit();
 }
 
@@ -104,21 +104,21 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
     ValidateHolderId(holderId);
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto& holder = chunkManager->GetHolder(holderId);
-    if (holder.GetState() != EHolderState::Registered) {
+    const auto* holder = chunkManager->GetHolder(holderId);
+    if (holder->GetState() != EHolderState::Registered) {
         context->Reply(TError(
             EErrorCode::InvalidState,
-            Sprintf("Cannot process a full heartbeat in %s state", ~holder.GetState().ToString())));
+            Sprintf("Cannot process a full heartbeat in %s state", ~holder->GetState().ToString())));
         return;
     }
-    CheckHolderAuthorization(holder.GetAddress());
+    CheckHolderAuthorization(holder->GetAddress());
 
     chunkManager
         ->InitiateFullHeartbeat(context)
         ->OnSuccess(BIND([=] (TVoid) {
             context->Reply();
         }))
-        ->OnError(CreateErrorHandler(~context))
+        ->OnError(CreateErrorHandler(context))
         ->Commit();
 }
 
@@ -131,14 +131,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     ValidateHolderId(holderId);
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto& holder = chunkManager->GetHolder(holderId);
-    if (holder.GetState() != EHolderState::Online) {
+    auto* holder = chunkManager->GetHolder(holderId);
+    if (holder->GetState() != EHolderState::Online) {
         context->Reply(TError(
             EErrorCode::InvalidState,
-            Sprintf("Cannot process an incremental heartbeat in %s state", ~holder.GetState().ToString())));
+            Sprintf("Cannot process an incremental heartbeat in %s state", ~holder->GetState().ToString())));
         return;
     }
-    CheckHolderAuthorization(holder.GetAddress());
+    CheckHolderAuthorization(holder->GetAddress());
 
     TMsgIncrementalHeartbeat heartbeatMsg;
     heartbeatMsg.set_holder_id(holderId);
@@ -154,7 +154,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     yvector<TJobStartInfo> jobsToStart;
     yvector<TJobStopInfo> jobsToStop;
     chunkManager->ScheduleJobs(
-        &holder,
+        holder,
         runningJobs,
         &jobsToStart,
         &jobsToStop);
@@ -188,8 +188,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
                 static_cast<int>(response->jobs_to_stop_size()));
             context->Reply();
         }))
-        ->OnError(CreateErrorHandler(~context))
-->Commit();
+        ->OnError(CreateErrorHandler(context))
+        ->Commit();
 }
 
 void TChunkService::CheckHolderAuthorization(const Stroka &address) const

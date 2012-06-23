@@ -17,8 +17,6 @@ namespace NObjectServer {
 struct IObjectTypeHandler
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IObjectTypeHandler> TPtr;
-
     //! Returns the object type handled by the handler.
     virtual EObjectType GetType() = 0;
 

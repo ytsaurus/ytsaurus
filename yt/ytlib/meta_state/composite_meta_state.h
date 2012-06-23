@@ -15,8 +15,8 @@ class TMetaStatePart
 {
 public:
     TMetaStatePart(
-        IMetaStateManager* metaStateManager,
-        TCompositeMetaState* metaState);
+        IMetaStateManagerPtr metaStateManager,
+        TCompositeMetaStatePtr metaState);
 
 protected:
     IMetaStateManagerPtr MetaStateManager;

@@ -19,8 +19,8 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMetaStatePart::TMetaStatePart(
-    IMetaStateManager* metaStateManager,
-    TCompositeMetaState* metaState)
+    IMetaStateManagerPtr metaStateManager,
+    TCompositeMetaStatePtr metaState)
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
 {

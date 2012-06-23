@@ -59,13 +59,13 @@ public:
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_SIGNAL(void(const THolder&), HolderRegistered);
+    DECLARE_SIGNAL(void(const THolder*), HolderRegistered);
     //! Fired when a holder gets unregistered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_SIGNAL(void(const THolder&), HolderUnregistered);
+    DECLARE_SIGNAL(void(const THolder*), HolderUnregistered);
 
     //! Returns a holder registered at the given address (|NULL| if none).
     THolder* FindHolderByAddress(const Stroka& address);
@@ -105,7 +105,7 @@ public:
      */
     void FillNodeAddresses(
         ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
-        const TChunk& chunk);
+        const TChunk* chunk);
 
     const yhash_set<TChunkId>& LostChunkIds() const;
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
@@ -113,7 +113,7 @@ public:
 
     TTotalHolderStatistics GetTotalHolderStatistics();
 
-    bool IsHolderConfirmed(const THolder& holder);
+    bool IsHolderConfirmed(const THolder* holder);
 
     //! Returns the total number of all chunk replicas.
     i32 GetChunkReplicaCount();

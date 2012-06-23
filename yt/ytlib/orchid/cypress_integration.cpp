@@ -26,7 +26,7 @@ using namespace NOrchid::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NRpc::TChannelCache ChannelCache;
+static TChannelCache ChannelCache;
 static TLazyPtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
 static NLog::TLogger& Logger = OrchidLogger;
 
@@ -51,22 +51,22 @@ public:
         return TResolveResult::Here(path);
     }
 
-    void Invoke(NRpc::IServiceContextPtr context)
+    void Invoke(IServiceContextPtr context)
     {
         auto manifest = LoadManifest();
 
         auto channel = ChannelCache.GetChannel(manifest->RemoteAddress);
 
-        TOrchidServiceProxy proxy(~channel);
+        TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
 
-        auto path = GetRedirectPath(~manifest, context->GetPath());
+        auto path = GetRedirectPath(manifest, context->GetPath());
         auto verb = context->GetVerb();
 
         auto requestMessage = context->GetRequestMessage();
-        auto requestHeader = GetRequestHeader(~requestMessage);
+        auto requestHeader = GetRequestHeader(requestMessage);
         requestHeader.set_path(path);
-        auto innerRequestMessage = SetRequestHeader(~requestMessage, requestHeader);
+        auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage->GetParts();
@@ -108,7 +108,7 @@ private:
         auto manifest = New<TOrchidManifest>();
         auto manifestNode = Bootstrap->GetObjectManager()->GetProxy(Id)->Attributes().ToMap();
         try {
-            manifest->Load(~manifestNode);
+            manifest->Load(manifestNode);
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
                 ex.what());
@@ -117,9 +117,9 @@ private:
     }
 
     void OnResponse(
-        NRpc::IServiceContextPtr context,
+        IServiceContextPtr context,
         TOrchidManifest::TPtr manifest,
-        TYPath path,
+        const TYPath& path,
         const Stroka& verb,
         TOrchidServiceProxy::TRspExecutePtr response)
     {
@@ -129,7 +129,7 @@ private:
 
         if (response->IsOK()) {
             auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
-            context->Reply(~innerResponseMessage);
+            context->Reply(innerResponseMessage);
         } else {
             context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
                 ~path,
@@ -140,7 +140,7 @@ private:
         }
     }
 
-    static Stroka GetRedirectPath(TOrchidManifest* manifest, const TYPath& path)
+    static Stroka GetRedirectPath(TOrchidManifest::TPtr manifest, const TYPath& path)
     {
         return manifest->RemoteRoot + path;
     }

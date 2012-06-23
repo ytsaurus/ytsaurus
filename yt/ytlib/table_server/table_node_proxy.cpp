@@ -314,7 +314,7 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
 
 void TTableNodeProxy::TraverseChunkTree(std::vector<TChunkId>* chunkIds, const TChunkList* chunkList)
 {
-    FOREACH (const auto& child, chunkList->Children()) {
+    FOREACH (auto child, chunkList->Children()) {
         switch (child.GetType()) {
             case EObjectType::Chunk: {
                 chunkIds->push_back(child.GetId());
@@ -360,7 +360,7 @@ void TTableNodeProxy::TraverseChunkTree(
         if (upperBound && firstRowIndex >= *upperBound) {
             break;
         }
-        const auto& child = chunkList->Children()[index];
+        auto child = chunkList->Children()[index];
         switch (child.GetType()) {
             case EObjectType::Chunk: {
                 i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
@@ -422,7 +422,7 @@ void TTableNodeProxy::TraverseChunkTree(
     }
 
     for (; it != chunkList->Children().end(); ++it) {
-        const auto& child = *it;
+        auto child = *it;
         if (IsEmpty(child)) {
             continue;
         }
@@ -596,7 +596,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
     context->SetRequestInfo("");
 
-    const auto& tableNode = GetTypedImpl();
+    auto* tableNode = GetTypedImpl();
 
     auto channel = TChannel::CreateEmpty();
     TReadLimit lowerLimit, upperLimit;
@@ -640,8 +640,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto& inputChunk, *response->mutable_chunks()) {
         auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
-        const auto& chunk = chunkManager->GetChunk(chunkId);
-        if (!chunk.IsConfirmed()) {
+        const auto* chunk = chunkManager->GetChunk(chunkId);
+        if (!chunk->IsConfirmed()) {
             ythrow yexception() << Sprintf("Cannot fetch a table containing an unconfirmed chunk %s",
                 ~chunkId.ToString());
         }
@@ -653,14 +653,14 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
 
         if (request->fetch_all_meta_extensions()) {
-            *inputChunk.mutable_extensions() = chunk.ChunkMeta().extensions();
+            *inputChunk.mutable_extensions() = chunk->ChunkMeta().extensions();
         } else {
             yhash_set<int> tags(
                 request->extension_tags().begin(),
                 request->extension_tags().end());
             FilterProtoExtensions(
                 inputChunk.mutable_extensions(),
-                chunk.ChunkMeta().extensions(),
+                chunk->ChunkMeta().extensions(),
                 tags);
         }
     }

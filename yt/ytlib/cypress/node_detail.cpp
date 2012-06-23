@@ -189,10 +189,10 @@ void TMapNodeTypeHandler::DoMerge(
                 auto originatingTransaction =
                     originatingId.TransactionId == NullTransactionId
                     ? NULL
-                    : &transactionManager->GetTransaction(originatingId.TransactionId);
-                const auto& transactions = transactionManager->GetTransactionPath(originatingTransaction);
+                    : transactionManager->GetTransaction(originatingId.TransactionId);
+                auto transactions = transactionManager->GetTransactionPath(originatingTransaction);
                 bool contains = false;
-                FOREACH (const auto& currentTransaction, transactions) {
+                FOREACH (const auto* currentTransaction, transactions) {
                     if (currentTransaction == originatingTransaction) {
                         continue;
                     }
@@ -289,7 +289,7 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
 {
     // Drop references to the children.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto& nodeId, node->IndexToChild()) {
+    FOREACH (const auto& nodeId, node->IndexToChild()) {
         objectManager->UnrefObject(nodeId);
     }
 }

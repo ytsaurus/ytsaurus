@@ -82,7 +82,7 @@ public:
      *  \param key A key.
      *  \returns A reference to the value.
      */
-    const TValue& Get(const TKey& key) const;
+    const TValue* Get(const TKey& key) const;
 
     //! Returns a modifiable value corresponding to the key.
     /*!
@@ -90,7 +90,7 @@ public:
      *  \param key A key.
      *  \returns A reference to the value.
      */
-    TValue& Get(const TKey& key);
+    TValue* Get(const TKey& key);
 
     //! Removes the key from the map and deletes the corresponding value.
     /*!
@@ -222,7 +222,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 
 #define DECLARE_METAMAP_ACCESSORS(entityName, entityType, idType) \
     entityType* Find ## entityName(const idType& id); \
-    entityType& Get ## entityName(const idType& id); \
+    entityType* Get ## entityName(const idType& id); \
     std::vector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
     std::vector<entityType*> Get ## entityName ## s(size_t sizeLimit = Max<size_t>()); \
     int Get ## entityName ## Count() const;
@@ -233,7 +233,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).Find(id); \
     } \
     \
-    entityType& declaringType::Get ## entityName(const idType& id) \
+    entityType* declaringType::Get ## entityName(const idType& id) \
     { \
         return (map).Get(id); \
     } \
@@ -259,7 +259,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (delegateTo).Find ## entityName(id); \
     } \
     \
-    entityType& declaringType::Get ## entityName(const idType& id) \
+    entityType* declaringType::Get ## entityName(const idType& id) \
     { \
         return (delegateTo).Get ## entityName(id); \
     } \

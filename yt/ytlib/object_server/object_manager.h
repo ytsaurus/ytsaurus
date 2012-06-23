@@ -36,7 +36,7 @@ public:
     /*!
      *  It asserts than no handler of this type is already registered.
      */
-    void RegisterHandler(IObjectTypeHandler* handler);
+    void RegisterHandler(IObjectTypeHandlerPtr handler);
 
     //! Returns the handler for a given type or NULL if the type is unknown.
     IObjectTypeHandler* FindHandler(EObjectType type) const;
@@ -132,7 +132,7 @@ private:
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
     yvector< TIdGenerator<ui64> > TypeToCounter;
-    yvector<IObjectTypeHandler::TPtr> TypeToHandler;
+    yvector<IObjectTypeHandlerPtr> TypeToHandler;
     TIntrusivePtr<TRootService> RootService;
 
     // Stores deltas from parent transaction.

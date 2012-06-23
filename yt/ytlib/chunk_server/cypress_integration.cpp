@@ -285,7 +285,7 @@ private:
         if (holder) {
             if (name == "confirmed") {
                 BuildYsonFluently(consumer)
-                    .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsHolderConfirmed(*holder)));
+                    .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsHolderConfirmed(holder)));
                 return true;
             }
 
@@ -344,10 +344,7 @@ class THolderTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    typedef THolderTypeHandler TThis;
-    typedef TIntrusivePtr<TThis> TPtr;
-
-    THolderTypeHandler(TBootstrap* bootstrap)
+    explicit THolderTypeHandler(TBootstrap* bootstrap)
         : TMapNodeTypeHandler(bootstrap)
     { }
 
@@ -381,22 +378,18 @@ class THolderMapBehavior
     : public TNodeBehaviorBase<TMapNode, TMapNodeProxy>
 {
 public:
-    typedef TNodeBehaviorBase<TMapNode, TMapNodeProxy> TBase;
-    typedef THolderMapBehavior TThis;
-    typedef TIntrusivePtr<TThis> TPtr;
-
     THolderMapBehavior(TBootstrap* bootstrap, const TNodeId& nodeId)
-        : TBase(bootstrap, nodeId)
+        : TNodeBehaviorBase<TMapNode, TMapNodeProxy>(bootstrap, nodeId)
     {
         bootstrap->GetChunkManager()->SubscribeHolderRegistered(BIND(
-            &TThis::OnRegistered,
+            &THolderMapBehavior::OnRegistered,
             MakeWeak(this)));
     }
 
 private:
-    void OnRegistered(const THolder& holder)
+    void OnRegistered(const THolder* holder)
     {
-        Stroka address = holder.GetAddress();
+        Stroka address = holder->GetAddress();
         auto node = GetProxy();
 
         auto cypressManager = Bootstrap->GetCypressManager();
@@ -496,7 +489,7 @@ private:
             bool state = name == "confirmed";
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetHolders(), [=] (TFluentList fluent, THolder* holder) {
-                    if (chunkManager->IsHolderConfirmed(*holder) == state) {
+                    if (chunkManager->IsHolderConfirmed(holder) == state) {
                         fluent.Item().Scalar(holder->GetAddress());
                     }
                 });
@@ -548,10 +541,7 @@ class THolderMapTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    typedef THolderMapTypeHandler TThis;
-    typedef TIntrusivePtr<TThis> TPtr;
-
-    THolderMapTypeHandler(TBootstrap* bootstrap)
+    explicit THolderMapTypeHandler(TBootstrap* bootstrap)
         : TMapNodeTypeHandler(bootstrap)
     { }
 

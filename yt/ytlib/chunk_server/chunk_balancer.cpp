@@ -50,7 +50,7 @@ TChunkBalancer::TChunkBalancer(
 }
 
 void TChunkBalancer::ScheduleJobs(
-    THolder& holder,
+    THolder* holder,
     const std::vector<TJobInfo>& runningJobs,
     std::vector<TJobStartInfo>* jobsToStart,
     std::vector<TJobStopInfo>* jobsToStop)
@@ -75,41 +75,41 @@ void TChunkBalancer::ScheduleJobs(
     }
 }
 
-void TChunkBalancer::OnHolderRegistered(const THolder& holder)
+void TChunkBalancer::OnHolderRegistered(const THolder* holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YCHECK(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
+    YCHECK(HolderInfoMap.insert(MakePair(holder->GetId(), THolderInfo())).second);
 
-    FOREACH (auto& chunk, holder.StoredChunks()) {
+    FOREACH (const auto* chunk, holder->StoredChunks()) {
         ScheduleChunkRefresh(chunk->GetId());
     }
 }
 
-void TChunkBalancer::OnHolderUnregistered(const THolder& holder)
+void TChunkBalancer::OnHolderUnregistered(const THolder* holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YCHECK(HolderInfoMap.erase(holder.GetId()) == 1);
+    YCHECK(HolderInfoMap.erase(holder->GetId()) == 1);
 }
 
-void TChunkBalancer::OnChunkRemoved(const TChunk& chunk)
+void TChunkBalancer::OnChunkRemoved(const TChunk* chunk)
 {
-    auto chunkId = chunk.GetId();
+    auto chunkId = chunk->GetId();
     LostChunkIds_.erase(chunkId);
     UnderreplicatedChunkIds_.erase(chunkId);
     OverreplicatedChunkIds_.erase(chunkId);
 }
 
-void TChunkBalancer::ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId)
+void TChunkBalancer::ScheduleChunkRemoval(const THolder* holder, const TChunkId& chunkId)
 {
-    auto& holderInfo = GetHolderInfo(holder.GetId());
-    holderInfo.ChunksToReplicate.erase(chunkId);
-    holderInfo.ChunksToRemove.insert(chunkId);
+    auto* holderInfo = GetHolderInfo(holder->GetId());
+    holderInfo->ChunksToReplicate.erase(chunkId);
+    holderInfo->ChunksToRemove.insert(chunkId);
 }
 
 void TChunkBalancer::ProcessExistingJobs(
-    const THolder& holder,
+    const THolder* holder,
     const std::vector<TJobInfo>& runningJobs,
     std::vector<TJobStopInfo>* jobsToStop,
     int* replicationJobCount,
@@ -129,7 +129,7 @@ void TChunkBalancer::ProcessExistingJobs(
         if (!job) {
             LOG_WARNING("Stopping unknown or obsolete job %s on %s",
                 ~jobId.ToString(),
-                ~holder.GetAddress());
+                ~holder->GetAddress());
             TJobStopInfo stopInfo;
             *stopInfo.mutable_job_id() = jobId.ToProto();
             jobsToStop->push_back(stopInfo);
@@ -153,7 +153,7 @@ void TChunkBalancer::ProcessExistingJobs(
                 }
                 LOG_INFO("Job %s is running on %s",
                     ~jobId.ToString(),
-                    ~holder.GetAddress());
+                    ~holder->GetAddress());
 
                 if (TInstant::Now() - job->GetStartTime() > Config->Balancer->JobTimeout) {
                     TJobStopInfo stopInfo;
@@ -162,7 +162,7 @@ void TChunkBalancer::ProcessExistingJobs(
 
                     LOG_WARNING("Job %s has timed out on %s after %s",
                         ~jobId.ToString(),
-                        ~holder.GetAddress(),
+                        ~holder->GetAddress(),
                         ~ToString(TInstant::Now() - job->GetStartTime()));
                 }
                 break;
@@ -178,7 +178,7 @@ void TChunkBalancer::ProcessExistingJobs(
                 LOG_INFO("Job %s has %s on %s",
                     ~jobId.ToString(),
                     jobState == EJobState::Completed ? "completed" : "failed",
-                    ~holder.GetAddress());
+                    ~holder->GetAddress());
                 break;
             }
 
@@ -188,7 +188,7 @@ void TChunkBalancer::ProcessExistingJobs(
     }
 
     // Check for missing jobs
-    FOREACH (auto job, holder.Jobs()) {
+    FOREACH (auto job, holder->Jobs()) {
         auto jobId = job->GetId();
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
             TJobStopInfo stopInfo;
@@ -197,7 +197,7 @@ void TChunkBalancer::ProcessExistingJobs(
 
             LOG_WARNING("Job %s is missing on %s",
                 ~jobId.ToString(),
-                ~holder.GetAddress());
+                ~holder->GetAddress());
         }
     }
 }
@@ -208,7 +208,7 @@ bool TChunkBalancer::IsRefreshScheduled(const TChunkId& chunkId)
 }
 
 TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
-    THolder& sourceHolder,
+    THolder* sourceHolder,
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
 {
@@ -217,7 +217,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
     if (!chunk) {
         LOG_TRACE("Chunk %s we're about to replicate is missing on %s",
             ~chunkId.ToString(),
-            ~sourceHolder.GetAddress());
+            ~sourceHolder->GetAddress());
         return EScheduleFlags::Purged;
     }
 
@@ -233,7 +233,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
     int plusCount;
     int minusCount;
     GetReplicaStatistics(
-        *chunk,
+        chunk,
         &replicationFactor,
         &storedCount,
         &cachedCount,
@@ -247,7 +247,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
         return EScheduleFlags::Purged;
     }
 
-    auto targets = ChunkPlacement->GetReplicationTargets(*chunk, replicasNeeded);
+    auto targets = ChunkPlacement->GetReplicationTargets(chunk, replicasNeeded);
     if (targets.empty()) {
         LOG_TRACE("No suitable target holders for replication of chunk %s",
             ~chunkId.ToString());
@@ -255,9 +255,9 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
     }
 
     std::vector<Stroka> targetAddresses;
-    FOREACH (auto holder, targets) {
+    FOREACH (auto* holder, targets) {
         targetAddresses.push_back(holder->GetAddress());
-        ChunkPlacement->OnSessionHinted(*holder);
+        ChunkPlacement->OnSessionHinted(holder);
     }
 
     auto jobId = TJobId::Create();
@@ -271,7 +271,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
 
     LOG_DEBUG("Job %s is scheduled on %s: replicate chunk %s to [%s]",
         ~jobId.ToString(),
-        ~sourceHolder.GetAddress(),
+        ~sourceHolder->GetAddress(),
         ~chunkId.ToString(),
         ~JoinToString(targetAddresses));
 
@@ -283,12 +283,12 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
 }
 
 TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleBalancingJob(
-    THolder& sourceHolder,
+    THolder* sourceHolder,
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto* chunk = &chunkManager->GetChunk(chunkId);
+    auto* chunk = chunkManager->GetChunk(chunkId);
 
     if (IsRefreshScheduled(chunkId)) {
         LOG_DEBUG("Chunk %s we're about to balance is scheduled for another refresh",
@@ -306,7 +306,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleBalancingJob(
         return EScheduleFlags::None;
     }
 
-    ChunkPlacement->OnSessionHinted(*targetHolder);
+    ChunkPlacement->OnSessionHinted(targetHolder);
     
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
@@ -319,7 +319,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleBalancingJob(
 
     LOG_DEBUG("Job %s is scheduled on %s: balance chunk %s to [%s]",
         ~jobId.ToString(),
-        ~sourceHolder.GetAddress(),
+        ~sourceHolder->GetAddress(),
         ~chunkId.ToString(),
         ~targetHolder->GetAddress());
 
@@ -328,7 +328,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleBalancingJob(
 }
 
 TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleRemovalJob(
-    THolder& holder,
+    THolder* holder,
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
 {
@@ -348,7 +348,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleRemovalJob(
 
     LOG_DEBUG("Job %s is scheduled on %s: chunk %s will be removed",
         ~jobId.ToString(),
-        ~holder.GetAddress(),
+        ~holder->GetAddress(),
         ~chunkId.ToString());
 
     // TODO: flagged enums
@@ -356,12 +356,12 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleRemovalJob(
 }
 
 void TChunkBalancer::ScheduleNewJobs(
-    THolder& holder,
+    THolder* holder,
     int maxReplicationJobsToStart,
     int maxRemovalJobsToStart,
     std::vector<TJobStartInfo>* jobsToStart)
 {
-    auto* holderInfo = FindHolderInfo(holder.GetId());
+    auto* holderInfo = FindHolderInfo(holder->GetId());
     if (!holderInfo)
         return;
 
@@ -395,7 +395,7 @@ void TChunkBalancer::ScheduleNewJobs(
         if (!chunksToBalance.empty()) {
             LOG_DEBUG("Balancing chunks [%s] on %s",
                 ~JoinToString(chunksToBalance),
-                ~holder.GetAddress());
+                ~holder->GetAddress());
 
             FOREACH (const auto& chunkId, chunksToBalance) {
                 if (maxReplicationJobsToStart == 0) {
@@ -433,7 +433,7 @@ void TChunkBalancer::ScheduleNewJobs(
 }
 
 void TChunkBalancer::GetReplicaStatistics(
-    const TChunk& chunk,
+    const TChunk* chunk,
     int* replicationFactor,
     int* storedCount,
     int* cachedCount,
@@ -441,8 +441,8 @@ void TChunkBalancer::GetReplicaStatistics(
     int* minusCount)
 {
     *replicationFactor = GetReplicationFactor(chunk);
-    *storedCount = static_cast<int>(chunk.StoredLocations().size());
-    *cachedCount = !~chunk.CachedLocations() ? 0 : static_cast<int>(chunk.CachedLocations()->size());
+    *storedCount = static_cast<int>(chunk->StoredLocations().size());
+    *cachedCount = !~chunk->CachedLocations() ? 0 : static_cast<int>(chunk->CachedLocations()->size());
     *plusCount = 0;
     *minusCount = 0;
 
@@ -451,12 +451,12 @@ void TChunkBalancer::GetReplicaStatistics(
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto* jobList = chunkManager->FindJobList(chunk.GetId());
+    const auto* jobList = chunkManager->FindJobList(chunk->GetId());
     if (jobList) {
         yhash_set<Stroka> storedAddresses(*storedCount);
-        FOREACH (auto holderId, chunk.StoredLocations()) {
+        FOREACH (auto holderId, chunk->StoredLocations()) {
             const auto& holder = chunkManager->GetHolder(holderId);
-            storedAddresses.insert(holder.GetAddress());
+            storedAddresses.insert(holder->GetAddress());
         }
 
         FOREACH (auto& job, jobList->Jobs()) {
@@ -483,12 +483,12 @@ void TChunkBalancer::GetReplicaStatistics(
     }
 }
 
-int TChunkBalancer::GetReplicationFactor(const TChunk& chunk)
+int TChunkBalancer::GetReplicationFactor(const TChunk* chunk)
 {
-    return chunk.GetReplicationFactor();
+    return chunk->GetReplicationFactor();
 }
 
-void TChunkBalancer::Refresh(const TChunk& chunk)
+void TChunkBalancer::Refresh(const TChunk* chunk)
 {
     int replicationFactor;
     int storedCount;
@@ -509,14 +509,14 @@ void TChunkBalancer::Refresh(const TChunk& chunk)
         plusCount,
         minusCount);
 
-    FOREACH (auto holderId, chunk.StoredLocations()) {
+    FOREACH (auto holderId, chunk->StoredLocations()) {
         auto* holderInfo = FindHolderInfo(holderId);
         if (holderInfo) {
-            holderInfo->ChunksToReplicate.erase(chunk.GetId());
-            holderInfo->ChunksToRemove.erase(chunk.GetId());
+            holderInfo->ChunksToReplicate.erase(chunk->GetId());
+            holderInfo->ChunksToRemove.erase(chunk->GetId());
         }
     }
-    auto chunkId = chunk.GetId();
+    auto chunkId = chunk->GetId();
     LostChunkIds_.erase(chunkId);
     OverreplicatedChunkIds_.erase(chunkId);
     UnderreplicatedChunkIds_.erase(chunkId);
@@ -526,7 +526,7 @@ void TChunkBalancer::Refresh(const TChunk& chunk)
         LostChunkIds_.insert(chunkId);
 
         LOG_TRACE("Chunk %s is lost: %d replicas needed but only %s exist",
-            ~chunk.GetId().ToString(),
+            ~chunk->GetId().ToString(),
             replicationFactor,
             ~replicaCountStr);
     } else if (storedCount - minusCount > replicationFactor) {
@@ -535,16 +535,16 @@ void TChunkBalancer::Refresh(const TChunk& chunk)
         // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (plusCount > 0) {
             LOG_WARNING("Chunk %s is over-replicated: %s replicas exist but only %d needed, waiting for pending replications to complete",
-                ~chunk.GetId().ToString(),
+                ~chunk->GetId().ToString(),
                 ~replicaCountStr,
                 replicationFactor);
             return;
         }
 
         auto holders = ChunkPlacement->GetRemovalTargets(chunk, storedCount - minusCount - replicationFactor);
-        FOREACH (auto holder, holders) {
-            auto& holderInfo = GetHolderInfo(holder->GetId());
-            holderInfo.ChunksToRemove.insert(chunk.GetId());
+        FOREACH (auto* holder, holders) {
+            auto* holderInfo = GetHolderInfo(holder->GetId());
+            holderInfo->ChunksToRemove.insert(chunk->GetId());
         }
 
         std::vector<Stroka> holderAddresses;
@@ -553,7 +553,7 @@ void TChunkBalancer::Refresh(const TChunk& chunk)
         }
 
         LOG_DEBUG("Chunk %s is over-replicated: %s replicas exist but only %d needed, removal is scheduled on [%s]",
-            ~chunk.GetId().ToString(),
+            ~chunk->GetId().ToString(),
             ~replicaCountStr,
             replicationFactor,
             ~JoinToString(holderAddresses));
@@ -563,25 +563,25 @@ void TChunkBalancer::Refresh(const TChunk& chunk)
         // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
         if (minusCount > 0) {
             LOG_WARNING("Chunk %s is under-replicated: %s replicas exist but %d needed, waiting for pending removals to complete",
-                ~chunk.GetId().ToString(),
+                ~chunk->GetId().ToString(),
                 ~replicaCountStr,
                 replicationFactor);
             return;
         }
 
-        auto holder = ChunkPlacement->GetReplicationSource(chunk);
-        auto& holderInfo = GetHolderInfo(holder->GetId());
+        auto* holder = ChunkPlacement->GetReplicationSource(chunk);
+        auto* holderInfo = GetHolderInfo(holder->GetId());
 
-        holderInfo.ChunksToReplicate.insert(chunk.GetId());
+        holderInfo->ChunksToReplicate.insert(chunk->GetId());
 
         LOG_DEBUG("Chunk %s is under-replicated: %s replicas exist but %d needed, replication is scheduled on %s",
-            ~chunk.GetId().ToString(),
+            ~chunk->GetId().ToString(),
             ~replicaCountStr,
             replicationFactor,
             ~holder->GetAddress());
     } else {
         LOG_TRACE("Chunk %s is OK: %s replicas exist and %d needed",
-            ~chunk.GetId().ToString(),
+            ~chunk->GetId().ToString(),
             ~replicaCountStr,
             replicationFactor);
     }
@@ -603,7 +603,8 @@ void TChunkBalancer::RefreshAllChunks()
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto* chunk, chunkManager->GetChunks()) {
-        Refresh(*chunk);
+
+        Refresh(chunk);
     }
 }
 
@@ -637,7 +638,7 @@ void TChunkBalancer::OnRefresh()
 
             auto* chunk = chunkManager->FindChunk(entry.ChunkId);
             if (chunk) {
-                Refresh(*chunk);
+                Refresh(chunk);
             }
 
             YCHECK(RefreshSet.erase(entry.ChunkId) == 1);
@@ -654,11 +655,11 @@ TChunkBalancer::THolderInfo* TChunkBalancer::FindHolderInfo(THolderId holderId)
     return it == HolderInfoMap.end() ? NULL : &it->second;
 }
 
-TChunkBalancer::THolderInfo& TChunkBalancer::GetHolderInfo(THolderId holderId)
+TChunkBalancer::THolderInfo* TChunkBalancer::GetHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     YASSERT(it != HolderInfoMap.end());
-    return it->second;
+    return &it->second;
 }
 
 bool TChunkBalancer::IsEnabled()

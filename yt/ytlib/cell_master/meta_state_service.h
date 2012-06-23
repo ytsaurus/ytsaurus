@@ -38,11 +38,11 @@ protected:
         const Stroka& loggingCategory);
 
     template <class TContext>
-    TClosure CreateErrorHandler(TContext* context)
+    TClosure CreateErrorHandler(TIntrusivePtr<TContext> context)
     {
         return BIND(
-            (void (TContext::*)(int, const Stroka&))&TContext::Reply,
-            MakeStrong(context),
+            (void (TContext::*)(int, const Stroka&)) &TContext::Reply,
+            context,
             NRpc::EErrorCode::Unavailable,
             "Error committing meta state changes");
     }

@@ -30,7 +30,7 @@ THolderLeaseTracker::THolderLeaseTracker(
     YASSERT(bootstrap);
 }
 
-void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool recovery)
+void THolderLeaseTracker::OnHolderRegistered(const THolder* holder, bool recovery)
 {
     THolderInfo holderInfo;
     holderInfo.Confirmed = !recovery;
@@ -39,43 +39,43 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool recover
         BIND(
             &THolderLeaseTracker::OnExpired,
             MakeStrong(this),
-            holder.GetId())
+            holder->GetId())
         .Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));
-    YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
+    YVERIFY(HolderInfoMap.insert(MakePair(holder->GetId(), holderInfo)).second);
 }
 
-void THolderLeaseTracker::OnHolderOnline(const THolder& holder, bool recovery)
+void THolderLeaseTracker::OnHolderOnline(const THolder* holder, bool recovery)
 {
-    auto& holderInfo = GetHolderInfo(holder.GetId());
+    auto& holderInfo = GetHolderInfo(holder->GetId());
     holderInfo.Confirmed = !recovery;
     RenewLease(holder, holderInfo);
-    YASSERT(holder.GetState() == EHolderState::Online);
+    YASSERT(holder->GetState() == EHolderState::Online);
     ++OnlineHolderCount;
 }
 
-void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
+void THolderLeaseTracker::OnHolderUnregistered(const THolder* holder)
 {
-    auto holderId = holder.GetId();
+    auto holderId = holder->GetId();
     auto& holderInfo = GetHolderInfo(holderId);
     TLeaseManager::CloseLease(holderInfo.Lease);
     YVERIFY(HolderInfoMap.erase(holderId) == 1);
-    if (holder.GetState() == EHolderState::Online) {
+    if (holder->GetState() == EHolderState::Online) {
         --OnlineHolderCount;
     }
 }
 
-void THolderLeaseTracker::OnHolderHeartbeat(const THolder& holder)
+void THolderLeaseTracker::OnHolderHeartbeat(const THolder* holder)
 {
-    auto& holderInfo = GetHolderInfo(holder.GetId());
+    auto& holderInfo = GetHolderInfo(holder->GetId());
     holderInfo.Confirmed = true;
     RenewLease(holder, holderInfo);
 }
 
-bool THolderLeaseTracker::IsHolderConfirmed(const THolder& holder)
+bool THolderLeaseTracker::IsHolderConfirmed(const THolder* holder)
 {
-    const auto& holderInfo = GetHolderInfo(holder.GetId());
+    const auto& holderInfo = GetHolderInfo(holder->GetId());
     return holderInfo.Confirmed;
 }
 
@@ -108,17 +108,17 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
         ->Commit();
 }
 
-TDuration THolderLeaseTracker::GetTimeout(const THolder& holder, const THolderInfo& holderInfo)
+TDuration THolderLeaseTracker::GetTimeout(const THolder* holder, const THolderInfo& holderInfo)
 {
     if (!holderInfo.Confirmed) {
         return Config->UnconfirmedHolderTimeout;
     }
-    return holder.GetState() == EHolderState::Registered
+    return holder->GetState() == EHolderState::Registered
         ? Config->RegisteredHolderTimeout
         : Config->OnlineHolderTimeout;
 }
 
-void THolderLeaseTracker::RenewLease(const THolder& holder, const THolderInfo& holderInfo)
+void THolderLeaseTracker::RenewLease(const THolder* holder, const THolderInfo& holderInfo)
 {
     TLeaseManager::RenewLease(
         holderInfo.Lease,

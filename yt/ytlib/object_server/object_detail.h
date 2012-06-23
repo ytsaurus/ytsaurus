@@ -162,12 +162,12 @@ protected:
 
     const TObject* GetTypedImpl() const
     {
-        return &Map->Get(GetId());
+        return Map->Get(GetId());
     }
 
     TObject* GetTypedImpl()
     {
-        return &Map->Get(GetId());
+        return Map->Get(GetId());
     }
 };
 

@@ -49,19 +49,19 @@ public:
      *  Initial lease timeout for registered holders is #TChunkManagerConfig::RegisteredHolderTimeout.
      *  For online holders it is decreased to #TChunkManagerConfig::OnlineHolderTimeout.
      */
-    void OnHolderRegistered(const THolder& holder, bool recovery);
+    void OnHolderRegistered(const THolder* holder, bool recovery);
 
     //! Notifies that the holder has become online and hence its lease timeout must be updated.
-    void OnHolderOnline(const THolder& holder, bool recovery);
+    void OnHolderOnline(const THolder* holder, bool recovery);
 
     //! Renews the lease.
-    void OnHolderHeartbeat(const THolder& holder);
+    void OnHolderHeartbeat(const THolder* holder);
 
     //! Unregisters the holder and stop tracking its lease.
-    void OnHolderUnregistered(const THolder& holder);
+    void OnHolderUnregistered(const THolder* holder);
 
     //! Returns True iff the holder is confirmed.
-    bool IsHolderConfirmed(const THolder& holder);
+    bool IsHolderConfirmed(const THolder* holder);
 
     //! Returns the number of holders that are currently online (including unconfirmed).
     int GetOnlineHolderCount();
@@ -83,8 +83,8 @@ private:
 
     THolderInfo* FindHolderInfo(THolderId holderId);
     THolderInfo& GetHolderInfo(THolderId holderId);
-    void RenewLease(const THolder& holder, const THolderInfo& holderInfo);
-    TDuration GetTimeout(const THolder& holder, const THolderInfo& holderInfo);
+    void RenewLease(const THolder* holder, const THolderInfo& holderInfo);
+    TDuration GetTimeout(const THolder* holder, const THolderInfo& holderInfo);
 
     void OnExpired(THolderId holderId);
 

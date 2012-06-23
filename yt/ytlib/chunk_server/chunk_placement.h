@@ -17,24 +17,24 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void OnHolderRegistered(THolder& holder);
-    void OnHolderUnregistered(THolder& holder);
-    void OnHolderUpdated(THolder& holder);
+    void OnHolderRegistered(THolder* holder);
+    void OnHolderUnregistered(THolder* holder);
+    void OnHolderUpdated(THolder* holder);
 
-    void OnSessionHinted(THolder& holder);
+    void OnSessionHinted(THolder* holder);
 
-    double GetLoadFactor(THolder& holder) const;
-    double GetFillCoeff(THolder& holder) const;
+    double GetLoadFactor(THolder* holder) const;
+    double GetFillCoeff(THolder* holder) const;
 
     // TODO(babenko): consider using small vectors here
     std::vector<THolder*> GetUploadTargets(
         int count,
         const yhash_set<Stroka>* forbiddenAddresses,
         Stroka* preferredHostName);
-    std::vector<THolder*> GetReplicationTargets(const TChunk& chunk, int count);
-    std::vector<THolder*> GetRemovalTargets(const TChunk& chunk, int count);
-    THolder* GetReplicationSource(const TChunk& chunk);
-    std::vector<TChunkId> GetBalancingChunks(THolder& holder, int count);
+    std::vector<THolder*> GetReplicationTargets(const TChunk* chunk, int count);
+    std::vector<THolder*> GetRemovalTargets(const TChunk* chunk, int count);
+    THolder* GetReplicationSource(const TChunk* chunk);
+    std::vector<TChunkId> GetBalancingChunks(THolder* holder, int count);
     THolder* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:
@@ -48,10 +48,10 @@ private:
     TIteratorMap IteratorMap;
     yhash_map<THolder*, int> HintedSessionsMap;
 
-    bool IsFull(THolder& holder) const;
-    int GetSessionCount(THolder& holder) const;
-    bool IsValidUploadTarget(THolder& targetHolder) const;
-    bool IsValidBalancingTarget(THolder& targetHolder, TChunk *chunk) const;
+    bool IsFull(THolder* holder) const;
+    int GetSessionCount(THolder* holder) const;
+    bool IsValidUploadTarget(THolder* targetHolder) const;
+    bool IsValidBalancingTarget(THolder* targetHolder, TChunk *chunk) const;
 
 };
 

@@ -170,7 +170,7 @@ protected:
     {
         const auto* node = GetImpl();
         // NB: Locks are stored in originating nodes.
-        const auto* origniatingNode = &Bootstrap->GetCypressManager()->GetNode(Id);
+        const auto* origniatingNode = Bootstrap->GetCypressManager()->GetNode(Id);
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
