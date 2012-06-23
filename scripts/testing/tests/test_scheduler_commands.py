@@ -8,7 +8,7 @@ from yt_commands import *
 #TODO(panin): refactor
 def check_all_stderrs(op_id, expected):
     jobs_path = '//sys/operations/' + op_id + '/jobs'
-    for job_id in yson2py(ls(jobs_path)):
+    for job_id in ls(jobs_path):
         download(jobs_path + '/"' + job_id + '"/stderr')
 
 class TestSchedulerMapCommands(YTEnvSetup):
@@ -21,29 +21,29 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         map(input='//tmp/t1', out='//tmp/t2', mapper='cat')
 
-        assert read_table('//tmp/t2') == []
+        assert read('//tmp/t2') == []
 
     def test_map_one_chunk(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write('//tmp/t1', '{a=b}')
+        write_str('//tmp/t1', '{a=b}')
         map(input='//tmp/t1', out='//tmp/t2', mapper='cat')
 
-        assert read_table('//tmp/t2') == [{'a' : 'b'}]
+        assert read('//tmp/t2') == [{'a' : 'b'}]
 
     def test_map_input_equal_to_output(self):
         create('table', '//tmp/t1')
-        write('//tmp/t1', '{foo=bar}')
+        write_str('//tmp/t1', '{foo=bar}')
 
         map(input='//tmp/t1', out='//tmp/t1', mapper='cat')
 
-        assert read_table('//tmp/t1') == [{'foo': 'bar'}, {'foo': 'bar'}]
+        assert read('//tmp/t1') == [{'foo': 'bar'}, {'foo': 'bar'}]
 
     # check that stderr is captured for successfull job
     def test_map_stderr_ok(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write('//tmp/t1', '{foo=bar}')
+        write_str('//tmp/t1', '{foo=bar}')
 
         mapper = "cat > /dev/null; echo stderr 1>&2"
 
@@ -55,7 +55,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_map_stderr_failed(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write('//tmp/t1', '{foo=bar}')
+        write_str('//tmp/t1', '{foo=bar}')
 
         mapper = "cat > /dev/null; echo stderr 1>&2; exit 125"
 
@@ -66,7 +66,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_map_job_count(self):
         create('table', '//tmp/t1')
         for i in xrange(5):
-            write('//tmp/t1', '{foo=bar}')
+            write_str('//tmp/t1', '{foo=bar}')
 
         mapper = "cat > /dev/null; echo {hello=world}"
 
@@ -76,7 +76,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 out=table_name,
                 mapper=mapper,
                 opt='/spec/job_count=%d' % job_count)
-            assert read_table(table_name) == [{'hello': 'world'} for i in xrange(expected_num_records)]
+            assert read(table_name) == [{'hello': 'world'} for i in xrange(expected_num_records)]
 
         check('//tmp/t2', 3, 3)
         check('//tmp/t3', 10, 5) # number of jobs can't be more that number of chunks
@@ -84,7 +84,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_map_with_user_files(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write('//tmp/t1', '{foo=bar}')
+        write_str('//tmp/t1', '{foo=bar}')
 
         file1 = '//tmp/some_file.txt' 
         file2 = '//tmp/renamed_file.txt' 
@@ -101,7 +101,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             mapper=mapper,
             file=[file1, file2])
 
-        assert read_table('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
+        assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
 
 
     def test_map_many_output_tables(self):
@@ -111,7 +111,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for table_path in output_tables:
             create('table', table_path)
 
-        write('//tmp/t_in', '{a=b}')
+        write_str('//tmp/t_in', '{a=b}')
 
         mapper = \
 """
@@ -128,9 +128,9 @@ echo {v = 2} >&7
             mapper='bash mapper.sh',
             file='//tmp/mapper.sh')
 
-        assert read_table(output_tables[0]) == [{'v': 0}]
-        assert read_table(output_tables[1]) == [{'v': 1}]
-        assert read_table(output_tables[2]) == [{'v': 2}]
+        assert read(output_tables[0]) == [{'v': 0}]
+        assert read(output_tables[1]) == [{'v': 1}]
+        assert read(output_tables[2]) == [{'v': 2}]
 
 
 class TestSchedulerMergeCommands(YTEnvSetup):
@@ -143,13 +143,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', t1)
         v1 = [{'key' + str(i) : 'value' + str(i)} for i in xrange(3)]
         for v in v1:
-            write_py(t1, v)
+            write(t1, v)
 
         t2 = '//tmp/t2'
         create('table', t2)
         v2 = [{'another_key' + str(i) : 'another_value' + str(i)} for i in xrange(4)]
         for v in v2:
-            write_py(t2, v)
+            write(t2, v)
 
         self.t1 = t1
         self.t2 = t2
@@ -167,8 +167,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               input=[self.t1, self.t2], 
               out='//tmp/t_out')
         
-        self.assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
-        assert get('//tmp/t_out/@chunk_count') == '7'
+        self.assertItemsEqual(read('//tmp/t_out'), self.v1 + self.v2)
+        assert get('//tmp/t_out/@chunk_count') == 7
 
     def test_merge_unordered_combine(self):
         self._prepare_tables()
@@ -178,8 +178,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               input=[self.t1, self.t2],
               out='//tmp/t_out')
 
-        self.assertItemsEqual(read_table('//tmp/t_out'), self.v1 + self.v2)
-        assert get('//tmp/t_out/@chunk_count') == '1'
+        self.assertItemsEqual(read('//tmp/t_out'), self.v1 + self.v2)
+        assert get('//tmp/t_out/@chunk_count') == 1
 
     def test_merge_ordered(self):
         self._prepare_tables()
@@ -188,8 +188,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               input=[self.t1, self.t2],
               out='//tmp/t_out')
 
-        assert read_table('//tmp/t_out') == self.v1 + self.v2
-        assert get('//tmp/t_out/@chunk_count') == '7'
+        assert read('//tmp/t_out') == self.v1 + self.v2
+        assert get('//tmp/t_out/@chunk_count') ==7
 
     def test_merge_ordered_combine(self):
         self._prepare_tables()
@@ -199,31 +199,31 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               input=[self.t1, self.t2],
               out='//tmp/t_out')
 
-        assert read_table('//tmp/t_out') == self.v1 + self.v2
-        assert get('//tmp/t_out/@chunk_count') == '1'
+        assert read('//tmp/t_out') == self.v1 + self.v2
+        assert get('//tmp/t_out/@chunk_count') == 1
 
 
     def test_merge_sorted(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
-        write('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
-        write('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
 
         create('table', '//tmp/t_out')
         merge(mode='sorted',
               input=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out')
 
-        assert read_table('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
-        assert get('//tmp/t_out/@chunk_count') == '1'
+        assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
+        assert get('//tmp/t_out/@chunk_count') == 1
 
     def test_merge_sorted_combine(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
-        write('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
-        write('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
 
         create('table', '//tmp/t_out')
         merge('--combine',
@@ -231,5 +231,5 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               input=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out')
 
-        assert read_table('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
-        assert get('//tmp/t_out/@chunk_count') == '1'
+        assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
+        assert get('//tmp/t_out/@chunk_count') == 1

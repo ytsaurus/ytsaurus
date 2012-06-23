@@ -25,7 +25,7 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YTError): lock('/', mode = 'None', tx = tx_id)
 
         # attributes do not have @lock_mode
-        set('//tmp/value', '<attr=some> 42', tx = tx_id)
+        set_str('//tmp/value', '<attr=some> 42', tx = tx_id)
         with pytest.raises(YTError): lock('//tmp/value/@attr/@lock_mode', tx = tx_id)
        
         abort_transaction(tx = tx_id)
@@ -33,12 +33,12 @@ class TestLocks(YTEnvSetup):
     def test_display_locks(self):
         tx_id = start_transaction()
         
-        set('//tmp/map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id)
+        set_str('//tmp/map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id)
 
         # check that lock is set on nested nodes
-        assert get('//tmp/map/@lock_mode', tx = tx_id) == '"exclusive"'
-        assert get('//tmp/map/list/@lock_mode', tx = tx_id) == '"exclusive"'
-        assert get('//tmp/map/list/0/@lock_mode', tx = tx_id) == '"exclusive"'
+        assert get('//tmp/map/@lock_mode', tx = tx_id) == 'exclusive'
+        assert get('//tmp/map/list/@lock_mode', tx = tx_id) == 'exclusive'
+        assert get('//tmp/map/list/0/@lock_mode', tx = tx_id) == 'exclusive'
 
         abort_transaction(tx = tx_id)
 
@@ -87,27 +87,27 @@ class TestLocks(YTEnvSetup):
     
     @pytest.mark.xfail(run = False, reason = 'Issue #196')
     def test_snapshot_lock(self):
-        set('//tmp/node', '42')
+        set('//tmp/node', 42)
         
         tx_id = start_transaction()
         lock('//tmp/node', mode = 'snapshot', tx = tx_id)
         
-        set('//tmp/node', '100')
+        set('//tmp/node', 100)
         # check that node under snapshot lock wasn't changed
-        assert get('//tmp/node', tx = tx_id) == '42'
+        assert get('//tmp/node', tx = tx_id) == 42
 
         remove('//tmp/node')
         # check that node under snapshot lock still exist
-        assert get('//tmp/node', tx = tx_id) == '42'
+        assert get('//tmp/node', tx = tx_id) == 42
         
         abort_transaction(tx = tx_id)
 
     @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
 
-        set('//tmp/a', '{}')
-        set('//tmp/a/b', '{}')
-        set('//tmp/a/b/c', '42')
+        set('//tmp/a', {})
+        set('//tmp/a/b', {})
+        set('//tmp/a/b/c', 42)
 
         tx1 = start_transaction()
         tx2 = start_transaction()

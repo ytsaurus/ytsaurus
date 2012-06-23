@@ -19,21 +19,20 @@ class TestOrchid(YTEnvSetup):
     def _check_service(self, path_to_orchid, service_name):
         path_to_value = path_to_orchid + '/value'
 
-        assert get_py(path_to_orchid + '/@service_name') == service_name
+        assert get(path_to_orchid + '/@service_name') == service_name
 
-        some_map = '{"a"=1;"b"=2}'
+        some_map = {"a": 1, "b": 2}
 
         set(path_to_value, some_map)
         assert get(path_to_value) == some_map
 
-        self.assertItemsEqual(yson2py(ls(path_to_value)), ['a', 'b'])
+        self.assertItemsEqual(ls(path_to_value), ['a', 'b'])
         remove(path_to_value)
         with pytest.raises(YTError): get(path_to_value)
 
 
     def _check_orchid(self, path, num_services, service_name):
-        result = ls(path)
-        services = yson2py(result)
+        services = ls(path)
         q = '"'
         
         assert len(services) == num_services

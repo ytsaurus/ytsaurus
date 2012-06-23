@@ -63,17 +63,16 @@ def run_command(name, *args, **kw):
 ###########################################################################
 
 def lock(path, **kw): return command('lock', path, **kw)
-def get(path, **kw): return command('get', path, **kw)
+def get_str(path, **kw): return command('get', path, **kw)
 def remove(path, **kw): return command('remove', path, **kw)
 
-#TODO(panin): think of better name
-def set(path, value, **kw): return command('set', path, value, **kw)
+def set_str(path, value, **kw): return command('set', path, value, **kw)
 
-def ls(path, **kw): return command('list', path, **kw)
+def ls_str(path, **kw): return command('list', path, **kw)
 
 def create(object_type, path, **kw): return command('create', object_type, path, **kw)
-def read(path, **kw): return command('read', path, **kw)
-def write(path, value, **kw): return command('write', path, value, **kw)
+def read_str(path, **kw): return command('read', path, **kw)
+def write_str(path, value, **kw): return command('write', path, value, **kw)
 
 def start_transaction(**kw):
     raw_tx = command('start_tx', **kw)
@@ -98,6 +97,23 @@ def track_op(**kw): return command('track_op', **kw)
 
 #########################################
 
+def get(path, **kw):
+    return yson2py(get_str(path, **kw))
+
+def ls(path, **kw):
+    return yson2py(ls_str(path, **kw))
+
+def set(path, value, **kw):
+    return set_str(path, py2yson(value), **kw)
+
+def read(path, **kw):
+    return table2py(read_str(path, **kw))
+
+def write(path, value, **kw):
+    return write_str(path, py2yson(value), **kw)
+
+#########################################
+
 #helpers:
 
 def table2py(yson):
@@ -109,18 +125,9 @@ def yson2py(yson):
 def py2yson(py):
     return yson.dumps(py, indent='')
 
-#TODO(panin): maybe rename to read_py?
-def read_table(path, **kw):
-    return table2py(read(path, **kw))
-
-def get_py(path, **kw):
-    return yson2py(get(path, **kw))
-
-def write_py(path, value, **kw):
-    return write(path, py2yson(value), **kw)
 
 def get_transactions(**kw):
-    yson_map = get('//sys/transactions', **kw)
+    yson_map = get_str('//sys/transactions', **kw)
     return yson2py(yson_map).keys()
 
 #########################################
