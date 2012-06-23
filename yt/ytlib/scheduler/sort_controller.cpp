@@ -212,7 +212,10 @@ private:
                     const auto& partitionAttributes = partitionsExt.partitions(index);
                     LOG_TRACE("Partition[%d] = {%s}", index, ~partitionAttributes.DebugString());
                     if (partitionAttributes.data_weight() > 0) {
-                        auto stripe = New<TChunkStripe>(partitionChunk, partitionAttributes.data_weight());
+                        auto stripe = New<TChunkStripe>(
+                            partitionChunk,
+                            partitionAttributes.data_weight(),
+                            partitionAttributes.row_count());
                         auto partition = Controller->Partitions[index];
                         partition->SortTask->AddStripe(stripe);
                     }
@@ -397,9 +400,7 @@ private:
             const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
             auto stripe = New<TChunkStripe>();
             FOREACH (const auto& chunk, resultExt.chunks()) {
-                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt.data_weight();
-                stripe->AddChunk(chunk, weight);
+                stripe->AddChunk(chunk);
             }
 
             // Put the stripe into the pool.
@@ -688,9 +689,7 @@ private:
         int chunkCount = 0;
         FOREACH (const auto& table, InputTables) {
             FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
-                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt.data_weight();
-                auto stripe = New<TChunkStripe>(chunk, weight);
+                auto stripe = New<TChunkStripe>(chunk);
                 partition->SortTask->AddStripe(stripe);
                 ++chunkCount;
             }
@@ -734,9 +733,7 @@ private:
         // Populate the pool partition pool.
         FOREACH (const auto& table, InputTables) {
             FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
-                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt.data_weight();
-                auto stripe = New<TChunkStripe>(chunk, weight);
+                auto stripe = New<TChunkStripe>(chunk);
                 PartitionTask->AddStripe(stripe);
             }
         }

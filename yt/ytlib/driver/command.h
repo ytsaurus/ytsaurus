@@ -153,7 +153,7 @@ protected:
         if (transactionId == NTransactionClient::NullTransactionId) {
             return NULL;
         }
-        return this->Context->GetTransactionManager()->Attach(transactionId);
+        return this->Context->GetTransactionManager()->Attach(transactionId, false);
     }
 
 };

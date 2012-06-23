@@ -175,11 +175,8 @@ private:
                         inputChunk.set_row_attributes(rowAttributes.Get());
                     }
 
-                    // TODO(babenko): make customizable
-                    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
-                    i64 weight = miscExt.data_weight();
-
-                    auto stripe = New<TChunkStripe>(inputChunk, weight);
+                    // TODO(babenko): make customizable: choose either data_weight or row_count as weight
+                    auto stripe = New<TChunkStripe>(inputChunk);
                     MapTask->AddStripe(stripe);
                 }
             }

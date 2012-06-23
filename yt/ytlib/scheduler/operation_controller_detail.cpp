@@ -568,7 +568,7 @@ void TOperationControllerBase::OnPrimaryTransactionStarted(TObjectServiceProxy::
         CheckResponse(rsp, "Error starting primary transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Primary transaction is %s", ~id.ToString());
-        PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
+        PrimaryTransaction = Host->GetTransactionManager()->Attach(id, true);
     }
 }
 
@@ -606,7 +606,7 @@ void TOperationControllerBase::OnSecondaryTransactionsStarted(TObjectServiceProx
         CheckResponse(rsp, "Error starting input transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Input transaction is %s", ~id.ToString());
-        InputTransaction = Host->GetTransactionManager()->Attach(id);
+        InputTransaction = Host->GetTransactionManager()->Attach(id, true);
     }
 
     {
@@ -614,7 +614,7 @@ void TOperationControllerBase::OnSecondaryTransactionsStarted(TObjectServiceProx
         CheckResponse(rsp, "Error starting output transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Output transaction is %s", ~id.ToString());
-        OutputTransaction = Host->GetTransactionManager()->Attach(id);
+        OutputTransaction = Host->GetTransactionManager()->Attach(id, true);
     }
 }
 

@@ -14,8 +14,12 @@ namespace NScheduler {
 
 struct TWeightedChunk
 {
+    TWeightedChunk();
+
     NTableClient::NProto::TInputChunk InputChunk;
     i64 Weight;
+    i64 DataWeightOverride;
+    i64 RowCountOverride;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,9 +28,16 @@ struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     TChunkStripe();
-    TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
+    TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk);
+    TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk,
+        i64 weight,
+        i64 rowCount);
 
-    void AddChunk(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight);
+    void AddChunk(const NTableClient::NProto::TInputChunk& inputChunk);
+    void AddChunk(
+        const NTableClient::NProto::TInputChunk& inputChunk,
+        i64 dataWeightOverride,
+        i64 rowCountOverride);
 
     std::vector<NChunkServer::TChunkId> GetChunkIds() const;
 

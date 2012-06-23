@@ -36,6 +36,7 @@ public:
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
+        , IsOwning(false)
         , ParentId(parentId)
         , Aborted(NewPromise<void>())
     {
@@ -60,7 +61,7 @@ public:
 
     ~TTransaction()
     {
-        if (State == EState::Active) {
+        if (IsOwning && State == EState::Active) {
             InvokeAbort(false);
         }
     }
@@ -87,22 +88,28 @@ public:
         Id = TTransactionId::FromProto(rsp->object_id());
 
         State = EState::Active;
-        LOG_INFO("Started transaction %s", ~Id.ToString());
+        IsOwning = true;
+
+        LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
     }
 
-    void Attach()
+    void Attach(bool takeOwnership)
     {
-        LOG_INFO("Attached transaction %s", ~Id.ToString());
+        LOG_INFO("Transaction attached (TransactionId: %s, TakeOwnership: %s)",
+            ~Id.ToString(),
+            ~FormatBool(takeOwnership));
+
         State = EState::Active;
+        IsOwning = takeOwnership;
     }
 
-    virtual TTransactionId GetId() const
+    TTransactionId GetId() const OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Id;
     }
 
-    virtual void Commit() 
+    void Commit() OVERRIDE
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -126,7 +133,7 @@ public:
             }
         }
 
-        LOG_INFO("Committing transaction %s", ~Id.ToString());
+        LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
         auto rsp = Proxy.Execute(req).Get();
@@ -143,20 +150,20 @@ public:
             return;
         }
 
-        LOG_INFO("Committed transaction %s", ~Id.ToString());
+        LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
     }
 
-    virtual void Abort(bool wait)
+    void Abort(bool wait) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_INFO("Transaction %s aborted by client",  ~Id.ToString());
+        LOG_INFO("Transaction aborted by client (TransactionId: %s)", ~Id.ToString());
 
         InvokeAbort(wait);
         HandleAbort();
     }
 
-    virtual void Detach()
+    void Detach() OVERRIDE
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -186,16 +193,16 @@ public:
         Owner->UnregisterTransaction(Id);
         Owner.Reset();
 
-        LOG_INFO("Detached transaction %s", ~Id.ToString());
+        LOG_INFO("Transaction detached (TransactionId: %s)", ~Id.ToString());
     }
 
-    virtual void SubscribeAborted(const TCallback<void()>& handler)
+    void SubscribeAborted(const TCallback<void()>& handler) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Aborted.Subscribe(handler);
     }
 
-    virtual void UnsubscribeAborted(const TCallback<void()>& handler)
+    void UnsubscribeAborted(const TCallback<void()>& handler) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YUNREACHABLE();
@@ -237,6 +244,7 @@ private:
     //! Protects state transitions.
     TSpinLock SpinLock;
     EState State;
+    bool IsOwning;
     TTransactionId ParentId;
 
     TTransactionId Id;
@@ -297,7 +305,9 @@ ITransactionPtr TTransactionManager::Start(
     return transaction;
 }
 
-ITransactionPtr TTransactionManager::Attach(const TTransactionId& id)
+ITransactionPtr TTransactionManager::Attach(
+    const TTransactionId& id,
+    bool takeOwnership)
 {
     // Try to find it among existing
     auto transaction = FindTransaction(id);
@@ -306,8 +316,8 @@ ITransactionPtr TTransactionManager::Attach(const TTransactionId& id)
     }
 
     // Not found, create a new one.
-    transaction = New<TTransaction>(~Channel, this, id);
-    transaction->Attach();
+    transaction = New<TTransaction>(Channel, this, id);
+    transaction->Attach(takeOwnership);
 
     RegisterTransaction(transaction);
     SendPing(transaction->GetId());
@@ -356,7 +366,7 @@ void TTransactionManager::SendPing(const TTransactionId& id)
         return;
     }
 
-    LOG_DEBUG("Renewing lease for transaction %s", ~id.ToString());
+    LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
     ObjectProxy.Execute(req).Subscribe(BIND(
@@ -377,18 +387,18 @@ void TTransactionManager::OnPingResponse(
     if (!rsp->IsOK()) {
         UnregisterTransaction(id);
         if (rsp->GetErrorCode() == EYPathErrorCode::ResolveError) {
-            LOG_WARNING("Transaction %s has expired or was aborted",
+            LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
                 ~id.ToString());
             transaction->HandleAbort();
         } else {
-            LOG_WARNING("Error renewing lease for transaction %s\n%s",
+            LOG_WARNING("Error renewing transaction lease (TransactionId: %s)\n%s",
                 ~id.ToString(),
                 ~rsp->GetError().ToString());
         }
         return;
     }
 
-    LOG_DEBUG("Renewed lease for transaction %s", ~id.ToString());
+    LOG_DEBUG("Transaction lease renewed (TransactionId: %s)", ~id.ToString());
 
     SchedulePing(transaction);
 }

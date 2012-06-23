@@ -307,9 +307,7 @@ protected:
         {
             auto* inputSpec = jobSpec->add_input_specs();
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                FOREACH (const auto& chunk, stripe->Chunks) {
-                    *inputSpec->add_chunks() = chunk.InputChunk;
-                }
+                AddInputChunks(inputSpec, stripe);
             }
         }
 
@@ -317,9 +315,7 @@ protected:
         {
             FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
                 auto* inputSpec = jobSpec->add_input_specs();
-                FOREACH (const auto& chunk, stripe->Chunks) {
-                    *inputSpec->add_chunks() = chunk.InputChunk;
-                }
+                AddInputChunks(inputSpec, stripe);
             }
         }
 
@@ -331,6 +327,24 @@ protected:
             jip->ChunkListIds.push_back(chunkListId);
             *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
         }
+
+    private:
+        void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe)
+        {
+            FOREACH (const auto& weightedChunk, stripe->Chunks) {
+                auto* inputChunk = inputSpec->add_chunks();
+
+                // Copy everything.
+                *inputChunk = weightedChunk.InputChunk;
+
+                // Apply overrides.
+                auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk->extensions());
+                miscExt.set_data_weight(weightedChunk.DataWeightOverride);
+                miscExt.set_row_count(weightedChunk.RowCountOverride);
+                UpdateProtoExtension(inputChunk->mutable_extensions(), miscExt);
+            }
+        }
+
     };
 
     typedef TIntrusivePtr<TTask> TTaskPtr;

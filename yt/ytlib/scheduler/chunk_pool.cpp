@@ -9,23 +9,51 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
+TWeightedChunk::TWeightedChunk()
+    : Weight(0)
+    , DataWeightOverride(0)
+    , RowCountOverride(0)
+{ }
+
+////////////////////////////////////////////////////////////////////
+
 TChunkStripe::TChunkStripe()
     : Weight(0)
 { }
 
-TChunkStripe::TChunkStripe(const TInputChunk& inputChunk, i64 weight)
+TChunkStripe::TChunkStripe(const TInputChunk& inputChunk)
     : Weight(0)
 {
-    AddChunk(inputChunk, weight);
+    AddChunk(inputChunk);
 }
 
-void TChunkStripe::AddChunk(const TInputChunk& inputChunk, i64 weight)
+TChunkStripe::TChunkStripe(const TInputChunk& inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
+    : Weight(0)
+{
+    AddChunk(inputChunk, dataWeightOverride, rowCountOverride);
+}
+
+void TChunkStripe::AddChunk(const TInputChunk& inputChunk)
+{
+    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
+    AddChunk(
+        inputChunk,
+        miscExt.data_weight(),
+        miscExt.row_count());
+}
+
+void TChunkStripe::AddChunk(const TInputChunk& inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
 {
     Chunks.push_back(TWeightedChunk());
-    auto& stripeChunk = Chunks.back();
-    stripeChunk.InputChunk = inputChunk;
-    stripeChunk.Weight = weight;
-    Weight += weight;
+    auto& weightedChunk = Chunks.back();
+    
+    weightedChunk.InputChunk = inputChunk;
+    weightedChunk.DataWeightOverride = dataWeightOverride;
+    weightedChunk.RowCountOverride = rowCountOverride;
+    // TODO(babenko): make customizable
+    weightedChunk.Weight = weightedChunk.DataWeightOverride;
+    
+    Weight += weightedChunk.Weight;
 }
 
 std::vector<NChunkServer::TChunkId> TChunkStripe::GetChunkIds() const

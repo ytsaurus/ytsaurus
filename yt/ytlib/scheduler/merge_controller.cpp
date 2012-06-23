@@ -228,6 +228,7 @@ protected:
         // Merge is IO-bound, use data size as weight.
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         i64 weight = miscExt.data_weight();
+        i64 rowCount = miscExt.row_count();
 
         auto stripe = CurrentTaskStripes[tableIndex];
         if (!stripe) {
@@ -237,15 +238,17 @@ protected:
         WeightCounter.Increment(weight);
         ChunkCounter.Increment(1);
         CurrentTaskWeight += weight;
-        stripe->AddChunk(chunk, weight);
+        stripe->AddChunk(chunk, weight, rowCount);
 
         auto& table = OutputTables[0];
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d)",
+        LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, Weight: %" PRId64 ", RowCount: %" PRId64 ")",
             ~chunkId.ToString(),
             static_cast<int>(table.PartitionTreeIds.size()),
             static_cast<int>(MergeTasks.size()),
-            tableIndex);
+            tableIndex,
+            weight,
+            rowCount);
     }
 
     //! Add chunk directly to the output.

@@ -33,14 +33,27 @@ public:
     //! Starts a new transaction.
     /*!
      *  \note
-     *  This call may block.
+     *  This call does not block.
      *  Thread affinity: any.
      */
     ITransactionPtr Start(
         NYTree::IAttributeDictionary* attributes = NULL,
         const TTransactionId& parentId = NullTransactionId);
 
-    ITransactionPtr Attach(const TTransactionId& id);
+    //! Attaches to an existing transaction.
+    /*!
+     *  The manager will be renewning the lease of time transaction periodically.
+     *  
+     *  If #takeOwnership is True then the transaction object will be aborted
+     *  (if not committed) at the end of its lifetime.
+     *
+     *  \note
+     *  This call may block.
+     *  Thread affinity: any.
+     */
+    ITransactionPtr Attach(
+        const TTransactionId& id,
+        bool takeOwnership);
 
 private:
     class TTransaction;

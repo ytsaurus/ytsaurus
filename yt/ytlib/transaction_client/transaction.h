@@ -26,9 +26,11 @@ struct ITransaction
     //! Aborts the transaction.
     /*!
      *  
-     *  This call does not block (by default) and does not throw.
-     *  When calling with #wait = true this call is blocking
-     *  and throws exception of it wasn't aborted.
+     *  If #wait is False then then call does not block and does not throw.
+     *  
+     *  If #wait is True then the call blocks until the master has confirmed
+     *  transaction abort. It may also throw an exception if something goes wrong.
+     *  
      *  Safe to call multiple times.
      * 
      *  \note Thread affinity: any
