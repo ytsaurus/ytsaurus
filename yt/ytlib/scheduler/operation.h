@@ -27,6 +27,7 @@ class TOperation
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, EndTime);
 
     //! Currently existing jobs in the operation.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);

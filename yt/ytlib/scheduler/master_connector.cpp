@@ -584,6 +584,13 @@ private:
             batchReq->AddRequest(req);
         }
 
+        // Set end time, if given.
+        if (operation->GetEndTime()) {
+            auto req = TYPathProxy::Set(operationPath + "/@end_time");
+            req->set_value(SerializeToYson(operation->GetEndTime().Get()));
+            batchReq->AddRequest(req);
+        }
+
         // Create jobs.
         FOREACH (auto job, list->PendingJobCreations) {
             auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());

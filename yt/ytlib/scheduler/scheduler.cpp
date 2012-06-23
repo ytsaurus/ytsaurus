@@ -678,7 +678,10 @@ private:
             return;
         }
 
+        // The operation may still have running jobs (e.g. those started speculatively).
         AbortOperationJobs(operation);
+        
+        operation->SetEndTime(TInstant::Now());
 
         MasterConnector->FlushOperationNode(operation).Subscribe(
             BIND(&TImpl::OnCompletedOperationNodeFlushed, MakeStrong(this), operation)
@@ -742,7 +745,8 @@ private:
         }
 
         AbortOperationJobs(operation);
-
+        
+        operation->SetEndTime(TInstant::Now());
         operation->SetState(finalState);
         *operation->Result().mutable_error() = finalError.ToProto();
 
