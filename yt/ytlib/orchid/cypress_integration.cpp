@@ -45,13 +45,13 @@ public:
         , Id(id)
     { }
 
-    TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    TResolveResult Resolve(const TYPath& path, const Stroka& verb) OVERRIDE
     {
         UNUSED(verb);
         return TResolveResult::Here(path);
     }
 
-    void Invoke(IServiceContextPtr context)
+    void Invoke(IServiceContextPtr context) OVERRIDE
     {
         auto manifest = LoadManifest();
 
@@ -71,7 +71,7 @@ public:
         auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage->GetParts();
 
-        LOG_INFO("Sending request to a remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
+        LOG_INFO("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
             ~manifest->RemoteAddress,
             ~path,
             ~verb,
@@ -88,12 +88,12 @@ public:
             .Via(OrchidQueue->GetInvoker()));
     }
 
-    virtual Stroka GetLoggingCategory() const
+    Stroka GetLoggingCategory() const OVERRIDE
     {
         return OrchidLogger.GetCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const
+    bool IsWriteRequest(IServiceContextPtr context) const OVERRIDE
     {
         UNUSED(context);
         return false;
@@ -110,7 +110,7 @@ private:
         try {
             manifest->Load(manifestNode);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
+            ythrow yexception() << Sprintf("Error parsing Orchid manifest\n%s",
                 ex.what());
         }
         return manifest;
