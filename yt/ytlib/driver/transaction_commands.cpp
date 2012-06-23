@@ -28,6 +28,8 @@ void TStartTransactionCommand::DoExecute()
 
     BuildYsonFluently(~Context->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
+
+    newTransaction->Detach();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
