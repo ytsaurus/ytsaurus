@@ -35,7 +35,7 @@ class YTEnvSetup(YTEnv):
         os.makedirs(path_to_test_case)
         os.chdir(path_to_test_case)
         if self.Env.NUM_MASTERS > 0:
-            self._abort_all_transactions()
+            #self._abort_all_transactions()
             yt_commands.set_str('//tmp', '{}')
 
     def _abort_all_transactions(self):
