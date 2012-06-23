@@ -696,18 +696,18 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
         {
             // NB: Use table.Path, not YPath here, otherwise path suffix is ignored.
-            auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path, PrimaryTransaction->GetId()));
+            auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path, InputTransaction->GetId()));
             req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
             req->set_negate(table.NegateFetch);
             batchReq->AddRequest(req, "fetch_in");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, PrimaryTransaction->GetId()) + "/@sorted");
+            auto req = TYPathProxy::Get(WithTransaction(ypath, InputTransaction->GetId()) + "/@sorted");
             batchReq->AddRequest(req, "get_in_sorted");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, PrimaryTransaction->GetId()) + "/@key_columns");
+            auto req = TYPathProxy::Get(WithTransaction(ypath, InputTransaction->GetId()) + "/@key_columns");
             batchReq->AddRequest(req, "get_in_key_columns");
         }
     }
@@ -771,6 +771,8 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 CheckResponse(
                     rsp,
                     Sprintf("Error locking input table %s", ~table.Path));
+                LOG_INFO("Input table %s was locked successfully",
+                    ~table.Path);
             }
             {
                 auto rsp = fetchInRsps[index];
@@ -787,6 +789,9 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     }
                     InputChunkIds.insert(chunkId);
                 }
+                LOG_INFO("Input table %s has %d chunks",
+                    ~table.Path,
+                    rsp->chunks_size());
             }
             {
                 auto rsp = getInSortedRsps[index];
@@ -794,6 +799,9 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error getting \"sorted\" attribute for input table %s", ~table.Path));
                 table.Sorted = DeserializeFromYson<bool>(rsp->value());
+                LOG_INFO("Input table %s is %s",
+                    ~table.Path,
+                    table.Sorted ? "sorted" : "not sorted");
             }
             if (table.Sorted) {
                 auto rsp = getInKeyColumns[index];
@@ -801,6 +809,9 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error getting \"key_columns\" attribute for input table %s", ~table.Path));
                 table.KeyColumns = DeserializeFromYson< yvector<Stroka> >(rsp->value());
+                LOG_INFO("Input table %s has key columns %s",
+                    ~table.Path,
+                    ~SerializeToYson(table.KeyColumns, EYsonFormat::Text));
             }
         }
     }
@@ -818,6 +829,8 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 CheckResponse(
                     rsp,
                     Sprintf("Error locking output table %s", ~table.Path));
+                LOG_INFO("Output table %s was locked successfully",
+                    ~table.Path);
             }
             {
                 auto rsp = getOutChannelsRsps[index];
@@ -825,6 +838,10 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error getting channels for output table %s", ~table.Path));
                 table.Channels = rsp->value();
+                LOG_INFO("Output table %s has channels %s",
+                    ~table.Path,
+                    // TODO(babenko): refactor
+                    ~SerializeToYson(DeserializeFromYson(table.Channels), EYsonFormat::Text));
             }
             {
                 auto rsp = getOutRowCountRsps[index];
@@ -839,12 +856,17 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error getting output chunk list for table %s", ~table.Path));
                 table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
+                LOG_INFO("Output table %s has output chunk list %s",
+                    ~table.Path,
+                    ~table.OutputChunkListId.ToString());
             }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
                 CheckResponse(
                     rsp,
                     Sprintf("Error clearing output table %s", ~table.Path));
+                LOG_INFO("Output table %s was cleared successfully",
+                    ~table.Path);
             }
         }
     }
@@ -857,6 +879,9 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = fetchFilesRsps[index];
                 CheckResponse(rsp, "Error fetching files");
                 file.FetchResponse = rsp;
+                LOG_INFO("File %s consists of chunk %s",
+                    ~file.Path,
+                    ~TChunkId::FromProto(rsp->chunk_id()).ToString());
             }
         }
     }
