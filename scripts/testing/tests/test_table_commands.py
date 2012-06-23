@@ -86,9 +86,7 @@ class TestTableCommands(YTEnvSetup):
         v4 = {'s' : 'b', 'i': 20,   'd' : 20.}
         v5 = {'s' : 'c', 'i': -100, 'd' : 10.}
 
-        values = yson.dumps([v1, v2, v3, v4, v5])
-        values = values[1:-1] # remove surrounding [ ]
-
+        values = [v1, v2, v3, v4, v5]
         write_str('//tmp/table', values, sorted_by='s;i;d')
 
         # possible empty ranges

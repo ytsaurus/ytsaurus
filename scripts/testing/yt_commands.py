@@ -110,7 +110,10 @@ def read(path, **kw):
     return table2py(read_str(path, **kw))
 
 def write(path, value, **kw):
-    return write_str(path, py2yson(value), **kw)
+    output = py2yson(value)
+    if isinstance(value, list):
+        output = output[1:-1] # remove surrounding [ ]
+    return write_str(path, output, **kw)
 
 #########################################
 

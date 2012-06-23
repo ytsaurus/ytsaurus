@@ -26,7 +26,7 @@ class TestCypressCommands(YTEnvSetup):
         with pytest.raises(YTError): set('/', [])
 
         # set the root to the empty map
-        # expect_error( set('/', '{}'))
+        # with pytest.raises(YTError): set('/', {}))
 
         # remove the root
         with pytest.raises(YTError): remove('/')
