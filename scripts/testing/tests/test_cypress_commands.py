@@ -36,6 +36,9 @@ class TestCypressCommands(YTEnvSetup):
         # remove non existent child
         with pytest.raises(YTError): remove('//tmp/b')
 
+        # can't create entity node inside cypress
+        with pytest.raises(YTError): set_str('//tmp/entity', '#')
+
     def test_list(self):
         set('//tmp/list', [1,2,"some string"])
         assert get('//tmp/list') == [1,2,"some string"]
@@ -100,7 +103,6 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/map/list')
         assert get('//tmp/map') == {}
 
-
     def test_attributes(self):
         set_str('//tmp/t', '<attr=100;mode=rw> {nodes=[1; 2]}')
         assert get('//tmp/t/@attr') == 100
@@ -137,4 +139,19 @@ class TestCypressCommands(YTEnvSetup):
         # check output format for json
         set('//tmp/json_out', {'list': [1, 2, {'string': 'this'}]})
         assert get_str('//tmp/json_out', format="json") == '{"list":[1,2,{"string":"this"}]}'
+
+    def test_remove(self):
+        # remove items from map
+        set('//tmp/map', {"a" : "b", "c": "d"})
+        assert get('//tmp/map/@count') == 2
+        remove('//tmp/map/*')
+        assert get('//tmp/map') == {}
+        assert get('//tmp/map/@count') == 0
+
+        # remove items from list
+        set('//tmp/list', [10, 20, 30])
+        assert get('//tmp/list/@count') == 3
+        remove('//tmp/list/*')
+        assert get('//tmp/list') == []
+        assert get('//tmp/list/@count') == 0
 
