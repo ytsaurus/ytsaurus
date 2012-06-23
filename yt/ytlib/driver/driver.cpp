@@ -60,10 +60,6 @@ public:
 
         BlockCache = CreateClientBlockCache(config->BlockCache);
 
-        TransactionManager = New<TTransactionManager>(
-            config->TransactionManager,
-            MasterChannel);
-
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
         RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
@@ -95,7 +91,7 @@ public:
 #undef REGISTER
     }
 
-    virtual TDriverResponse Execute(const TDriverRequest& request)
+    TDriverResponse Execute(const TDriverRequest& request) OVERRIDE
     {
         YASSERT(request.InputStream);
         YASSERT(request.OutputStream);
@@ -116,7 +112,7 @@ public:
         return *context.GetResponse();
     }
 
-    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName)
+    TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) OVERRIDE
     {
         auto it = Commands.find(commandName);
         if (it == Commands.end()) {
@@ -125,7 +121,7 @@ public:
         return it->second.Descriptor;
     }
 
-    virtual std::vector<TCommandDescriptor> GetCommandDescriptors()
+    std::vector<TCommandDescriptor> GetCommandDescriptors() OVERRIDE
     {
         std::vector<TCommandDescriptor> result;
         result.reserve(Commands.size());
@@ -135,19 +131,14 @@ public:
         return result;
     }
 
-    virtual IChannelPtr GetMasterChannel()
+    IChannelPtr GetMasterChannel() OVERRIDE
     {
         return MasterChannel;
     }
 
-    virtual IChannelPtr GetSchedulerChannel()
+    IChannelPtr GetSchedulerChannel() OVERRIDE
     {
         return SchedulerChannel;
-    }
-
-    virtual TTransactionManagerPtr GetTransactionManager()
-    {
-        return TransactionManager;
     }
 
 private:
@@ -156,7 +147,6 @@ private:
     IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
-    TTransactionManagerPtr TransactionManager;
 
     typedef TCallback< TAutoPtr<ICommand>(ICommandContext*) > TCommandFactory;
 
@@ -181,6 +171,9 @@ private:
             , Request(request)
             , MasterChannel(CreateScopedChannel(Driver->GetMasterChannel()))
             , SchedulerChannel(CreateScopedChannel(Driver->GetSchedulerChannel()))
+            , TransactionManager(New<TTransactionManager>(
+                Driver->Config->TransactionManager,
+                MasterChannel))
         { }
 
         ~TCommandContext()
@@ -211,7 +204,7 @@ private:
 
         TTransactionManagerPtr GetTransactionManager() OVERRIDE
         {
-            return Driver->TransactionManager;
+            return TransactionManager;
         }
 
         const TDriverRequest* GetRequest() OVERRIDE
@@ -247,6 +240,7 @@ private:
 
         IChannelPtr MasterChannel;
         IChannelPtr SchedulerChannel;
+        TTransactionManagerPtr TransactionManager;
 
         TDriverResponse Response;
 
