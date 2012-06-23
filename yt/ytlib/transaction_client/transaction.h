@@ -37,7 +37,6 @@ struct ITransaction
 
     //! Detaches the transaction, i.e. makes the manager forget about it.
     /*!
-     *  
      *  This call does not block and does not throw.
      *  Safe to call multiple times.
      * 
