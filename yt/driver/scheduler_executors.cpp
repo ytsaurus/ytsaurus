@@ -119,6 +119,7 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
+    auto keyColums = KeyColumnsArg.getValue();
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -126,7 +127,9 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("output_table_path").Scalar(output)
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
-            .Item("key_columns").List(KeyColumnsArg.getValue())
+            .DoIf(!keyColums.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("key_columns").List(keyColums);
+            })
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
