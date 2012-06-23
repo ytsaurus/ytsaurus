@@ -169,8 +169,9 @@ protected:
         children.push_back(TChunkTreeRef(originatingChunkList));
         chunkManager->AttachToChunkList(branchedChunkList, children);
 
-        // Propagate "sorted" attribute.
+        // Propagate "sorted" and "key_columns" attributes.
         branchedChunkList->SetSorted(originatingChunkList->GetSorted());
+        branchedChunkList->KeyColumns() = originatingChunkList->KeyColumns();
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, OriginatingChunkListId: %s, BranchedChunkListId: %s)",
             ~branchedNode->GetId().ToString(),
