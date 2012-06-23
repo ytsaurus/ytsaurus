@@ -20,8 +20,6 @@ class TestTableCommands(YTEnvSetup):
         chunk_id = chunk_ids[0]
 
         with pytest.raises(YTError): get('//sys/chunk_lists/"' + chunk_id + '"')
-        remove('//tmp/t')
-
 
     def test_simple(self):
         create('table', '//tmp/table')
@@ -64,8 +62,6 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table[:#3]') == [{'a': 0}, {'b' : 1}, {'c' : 2}]
         assert read('//tmp/table[#2:]') == [{'c' : 2}, {'d' : 3}]
 
-        remove('//tmp/table')
-
     def test_sorted_write(self):
         create('table', '//tmp/table')
 
@@ -74,8 +70,6 @@ class TestTableCommands(YTEnvSetup):
         assert get('//tmp/table/@sorted') ==  'true'
         assert get('//tmp/table/@key_columns') ==  ['key']
         assert get('//tmp/table/@row_count') ==  4
-
-        remove('//tmp/table')
 
     def test_row_key_selector(self):
         create('table', '//tmp/table')
@@ -87,7 +81,7 @@ class TestTableCommands(YTEnvSetup):
         v5 = {'s' : 'c', 'i': -100, 'd' : 10.}
 
         values = [v1, v2, v3, v4, v5]
-        write_str('//tmp/table', values, sorted_by='s;i;d')
+        write('//tmp/table', values, sorted_by='s;i;d')
 
         # possible empty ranges
         assert read('//tmp/table[a : a]') == []
@@ -97,10 +91,7 @@ class TestTableCommands(YTEnvSetup):
 
         # some typical cases
         assert read('//tmp/table[(a, 4) : (b, 20, 18.)]') == [v2, v3]
-        assert read('//tmp/table[(a, 4) : (b, 20, 18.)]') == [v2, v3]
-       
-
-        remove('//tmp/table')
+        # TODO(panin): add more tests
 
 
     def test_column_selector(self):
@@ -140,8 +131,6 @@ class TestTableCommands(YTEnvSetup):
         # fully open
         assert read('//tmp/table{:}') == [{'a' :1, 'aa': 2,  'b': 3, 'bb' : 4, 'c': 5}]
 
-        remove('//tmp/table')
-
         # mixed column keys
         # TODO(panin): check intersected columns
 
@@ -158,8 +147,6 @@ class TestTableCommands(YTEnvSetup):
         commit_transaction(tx=tx_id)
         assert read('//tmp/table') == [{'a':1}, {'b':2}]
 
-        remove('//tmp/table')
-
     def test_shared_locks_three_chunks(self):
         create('table', '//tmp/table')
         tx_id = start_transaction()
@@ -173,10 +160,6 @@ class TestTableCommands(YTEnvSetup):
 
         commit_transaction(tx=tx_id)
         assert read('//tmp/table') == [{'a':1}, {'b':2}, {'c' : 3}]
-
-        remove('//tmp/table')
-
-
 
     def test_shared_locks_parallel_tx(self):
         create('table', '//tmp/table')
