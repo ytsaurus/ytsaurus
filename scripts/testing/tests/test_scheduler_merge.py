@@ -122,7 +122,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         create('table', '//tmp/t_out')
 
-        # error when sorted_by of input tables is different and key_columns is not set
+        # error when sorted_by of input tables are different and key_columns is not set
         with pytest.raises(YTError): 
             merge(mode='sorted',
               input=['//tmp/t1', '//tmp/t2'],
