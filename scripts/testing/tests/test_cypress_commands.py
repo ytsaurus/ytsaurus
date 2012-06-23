@@ -71,7 +71,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/list') == ["first",200,1,777,100,"last"]
 
     def test_map(self):
-        set('//tmp/map', {'hello': 'world', 'list':[0,'a',{}], 'n': 1}
+        set('//tmp/map', {'hello': 'world', 'list':[0,'a',{}], 'n': 1})
         assert get('//tmp/map') == {"hello":"world","list":[0,"a",{}],"n":1}
 
         set('//tmp/map/hello', 'not_world')
