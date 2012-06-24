@@ -234,10 +234,10 @@ void TOperationTracker::DumpResult()
         }
 
         printf("\n");
-        printf("%-12s %10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed", "Aborted");
+        printf("%-14s %10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed", "Aborted");
         for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
             if (totalJobCount[jobType] > 0) {
-                printf("%-12s %10d %10d %10d %10d\n",
+                printf("%-14s %10d %10d %10d %10d\n",
                     ~EJobType(jobType).ToString(),
                     totalJobCount[jobType],
                     completedJobCount[jobType],
