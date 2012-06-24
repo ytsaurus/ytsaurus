@@ -685,6 +685,7 @@ void TObjectManager::PromoteCreatedObjects(TTransaction* transaction)
     FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
         YCHECK(parentTransaction->CreatedObjectIds().insert(objectId).second);
     }
+    transaction->CreatedObjectIds().clear();
 }
 
 void TObjectManager::ReleaseCreatedObjects(TTransaction* transaction)
@@ -693,6 +694,7 @@ void TObjectManager::ReleaseCreatedObjects(TTransaction* transaction)
     FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
         objectManager->UnrefObject(objectId);
     }
+    transaction->CreatedObjectIds().clear();
 }
 
 DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)

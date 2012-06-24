@@ -842,11 +842,12 @@ void TCypressManager::OnTransactionAborted(TTransaction* transaction)
     ReleaseCreatedNodes(transaction);
 }
 
-void TCypressManager::ReleaseLocks(const TTransaction* transaction)
+void TCypressManager::ReleaseLocks(TTransaction* transaction)
 {
     FOREACH (auto* lock, transaction->Locks()) {
         ReleaseLock(lock);
     }
+    transaction->Locks().clear();
 }
 
 void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branchedNode)
@@ -911,6 +912,7 @@ void TCypressManager::MergeNodes(TTransaction* transaction)
     FOREACH (auto* node, transaction->BranchedNodes()) {
         MergeNode(transaction, node);
     }
+    transaction->BranchedNodes().clear();
 }
 
 void TCypressManager::PromoteCreatedNodes(NTransactionServer::TTransaction* transaction)
@@ -922,6 +924,7 @@ void TCypressManager::PromoteCreatedNodes(NTransactionServer::TTransaction* tran
             ~node->GetId().ObjectId.ToString(),
             ~parentTransaction->GetId().ToString());
     }
+    transaction->CreatedNodes().clear();
 }
 
 void TCypressManager::ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction)
@@ -930,6 +933,7 @@ void TCypressManager::ReleaseCreatedNodes(NTransactionServer::TTransaction* tran
     FOREACH (auto* node, transaction->CreatedNodes()) {
         objectManager->UnrefObject(node);
     }
+    transaction->CreatedNodes().clear();
 }
 
 void TCypressManager::PromoteLocks(TTransaction* transaction)
@@ -942,6 +946,7 @@ void TCypressManager::PromoteLocks(TTransaction* transaction)
             ~lock->GetId().ToString(),
             ~parentTransaction->GetId().ToString());
     }
+    transaction->Locks().clear();
 }
 
 void TCypressManager::RemoveBranchedNodes(const TTransaction* transaction)
@@ -958,6 +963,7 @@ void TCypressManager::RemoveBranchedNodes(const TTransaction* transaction)
 
         LOG_INFO_UNLESS(IsRecovery(), "Removed branched node %s", ~branchedNodeId.ToString());
     }
+    transaction->BranchedNodes().clear();
 }
 
 DEFINE_METAMAP_ACCESSORS(TCypressManager, Lock, TLock, TLockId, LockMap);
