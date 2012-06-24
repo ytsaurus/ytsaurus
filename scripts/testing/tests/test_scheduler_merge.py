@@ -32,49 +32,49 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t_out')
 
     # usual cases
-    def test_merge_unordered(self):
+    def test_unordered(self):
         self._prepare_tables()
 
         merge(mode='unordered',
-              input=[self.t1, self.t2], 
+              in_=[self.t1, self.t2], 
               out='//tmp/t_out')
         
         self.assertItemsEqual(read('//tmp/t_out'), self.v1 + self.v2)
         assert get('//tmp/t_out/@chunk_count') == 7
 
-    def test_merge_unordered_combine(self):
+    def test_unordered_combine(self):
         self._prepare_tables()
 
         merge('--combine',
               mode='unordered',
-              input=[self.t1, self.t2],
+              in_=[self.t1, self.t2],
               out='//tmp/t_out')
 
         self.assertItemsEqual(read('//tmp/t_out'), self.v1 + self.v2)
         assert get('//tmp/t_out/@chunk_count') == 1
 
-    def test_merge_ordered(self):
+    def test_ordered(self):
         self._prepare_tables()
 
         merge(mode='ordered',
-              input=[self.t1, self.t2],
+              in_=[self.t1, self.t2],
               out='//tmp/t_out')
 
         assert read('//tmp/t_out') == self.v1 + self.v2
         assert get('//tmp/t_out/@chunk_count') ==7
 
-    def test_merge_ordered_combine(self):
+    def test_ordered_combine(self):
         self._prepare_tables()
 
         merge('--combine',
               mode='ordered',
-              input=[self.t1, self.t2],
+              in_=[self.t1, self.t2],
               out='//tmp/t_out')
 
         assert read('//tmp/t_out') == self.v1 + self.v2
         assert get('//tmp/t_out/@chunk_count') == 1
 
-    def test_merge_sorted(self):
+    def test_sorted(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
@@ -83,13 +83,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         create('table', '//tmp/t_out')
         merge(mode='sorted',
-              input=['//tmp/t1', '//tmp/t2'],
+              in_=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out')
 
         assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
         assert get('//tmp/t_out/@chunk_count') == 1
 
-    def test_merge_sorted_combine(self):
+    def test_sorted_combine(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
@@ -99,13 +99,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t_out')
         merge('--combine',
               mode='sorted',
-              input=['//tmp/t1', '//tmp/t2'],
+              in_=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out')
 
         assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
         assert get('//tmp/t_out/@chunk_count') == 1
 
-    def test_merge_sorted_key_columns(self):
+    def test_sorted_key_columns(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
@@ -125,12 +125,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         # error when sorted_by of input tables are different and key_columns is not set
         with pytest.raises(YTError): 
             merge(mode='sorted',
-              input=['//tmp/t1', '//tmp/t2'],
+              in_=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out')
 
         # now key_columns are set
         merge(mode='sorted',
-              input=['//tmp/t1', '//tmp/t2'],
+              in_=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out',
               key_colums='a')
 
