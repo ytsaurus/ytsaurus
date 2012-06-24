@@ -53,7 +53,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
         return NULL;
     }
 
-    auto jip = New<TJobInProgress>();
+    auto jip = New<TJobInProgress>(this);
     auto weightThreshold = GetJobWeightThreshold();
     jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold);
 
@@ -64,16 +64,11 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
         jip->PoolResult->TotalChunkWeight,
         ~ToString(weightThreshold));
 
-    auto jobSpec = GetJobSpec(~jip);
-
-    // Pass jip to handlers via raw pointer to avoid cyclic references.
-    jip->OnCompleted = BIND(&TTask::OnJobCompleted, MakeStrong(this), Unretained(~jip));
-    jip->OnFailed = BIND(&TTask::OnJobFailed, MakeStrong(this), Unretained(~jip));
-
+    auto jobSpec = GetJobSpec(jip);
     jip->Job = Controller->Host->CreateJob(Controller->Operation, node, jobSpec);
     Controller->RegisterJobInProgress(jip);
 
-    OnJobStarted(~jip);
+    OnJobStarted(jip);
 
     return jip->Job;
 }
@@ -98,12 +93,12 @@ const TProgressCounter& TOperationControllerBase::TTask::ChunkCounter() const
     return ChunkPool->ChunkCounter();
 }
 
-void TOperationControllerBase::TTask::OnJobStarted(TJobInProgress* jip)
+void TOperationControllerBase::TTask::OnJobStarted(TJobInProgressPtr jip)
 {
     UNUSED(jip);
 }
 
-void TOperationControllerBase::TTask::OnJobCompleted(TJobInProgress* jip)
+void TOperationControllerBase::TTask::OnJobCompleted(TJobInProgressPtr jip)
 {
     ChunkPool->OnCompleted(jip->PoolResult);
 
@@ -112,7 +107,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobInProgress* jip)
     }
 }
 
-void TOperationControllerBase::TTask::OnJobFailed(TJobInProgress* jip)
+void TOperationControllerBase::TTask::OnJobFailed(TJobInProgressPtr jip)
 {
     ChunkPool->OnFailed(jip->PoolResult);
 
@@ -340,7 +335,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     ++CompletedJobCount;
 
     auto jip = GetJobInProgress(job);
-    jip->OnCompleted.Run();
+    jip->Task->OnJobCompleted(jip);
     
     RemoveJobInProgress(job);
 
@@ -359,7 +354,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     ++FailedJobCount;
 
     auto jip = GetJobInProgress(job);
-    jip->OnFailed.Run();
+    jip->Task->OnJobFailed(jip);
 
     RemoveJobInProgress(job);
 

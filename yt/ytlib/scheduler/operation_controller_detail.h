@@ -137,18 +137,27 @@ protected:
 
     std::vector<TFile> Files;
 
+    // Forward declarations.
+
+    class TTask;
+    typedef TIntrusivePtr<TTask> TTaskPtr;
+
+    struct TJobInProgress;
+    typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
+
     // Jobs in progress.
     struct TJobInProgress
         : public TIntrinsicRefCounted
     {
+        explicit TJobInProgress(TTaskPtr task)
+            : Task(task)
+        { }
+
+        TTaskPtr Task;
         TJobPtr Job;
-        TClosure OnCompleted;
-        TClosure OnFailed;
         TPoolExtractionResultPtr PoolResult;
         std::vector<NChunkServer::TChunkListId> ChunkListIds;
     };
-
-    typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
 
     yhash_map<TJobPtr, TJobInProgressPtr> JobsInProgress;
 
@@ -175,6 +184,9 @@ protected:
 
         TJobPtr ScheduleJob(TExecNodePtr node);
 
+        virtual void OnJobCompleted(TJobInProgressPtr jip);
+        virtual void OnJobFailed(TJobInProgressPtr jip);
+
         bool IsPending() const;
         bool IsCompleted() const;
 
@@ -190,11 +202,9 @@ protected:
 
         virtual TNullable<i64> GetJobWeightThreshold() const = 0;
 
-        virtual NScheduler::NProto::TJobSpec GetJobSpec(TJobInProgress* jip) = 0;
+        virtual NScheduler::NProto::TJobSpec GetJobSpec(TJobInProgressPtr jip) = 0;
 
-        virtual void OnJobStarted(TJobInProgress* jip);
-        virtual void OnJobCompleted(TJobInProgress* jip);
-        virtual void OnJobFailed(TJobInProgress* jip);
+        virtual void OnJobStarted(TJobInProgressPtr jip);
         virtual void OnTaskCompleted();
 
         void AddPendingHint();
@@ -210,8 +220,6 @@ protected:
         void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe);
 
     };
-
-    typedef TIntrusivePtr<TTask> TTaskPtr;
 
     yhash_set<TTaskPtr> PendingTasks;
     yhash_map<Stroka, yhash_set<TTaskPtr>> AddressToLocalTasks;

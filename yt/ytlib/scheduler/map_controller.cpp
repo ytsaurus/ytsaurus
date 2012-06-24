@@ -101,7 +101,7 @@ private:
                 WeightCounter().GetPending());
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgress* jip)
+        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip)
         {
             auto jobSpec = Controller->JobSpecTemplate;
             AddSequentialInputSpec(&jobSpec, jip);
@@ -111,7 +111,7 @@ private:
             return jobSpec;
         }
 
-        virtual void OnJobCompleted(TJobInProgress* jip)
+        virtual void OnJobCompleted(TJobInProgressPtr jip)
         {
             TTask::OnJobCompleted(jip);
 

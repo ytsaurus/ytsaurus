@@ -179,7 +179,7 @@ private:
                 WeightCounter().GetPending());
         }
 
-        TJobSpec GetJobSpec(TJobInProgress* jip) OVERRIDE
+        TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
             auto jobSpec = Controller->PartitionJobSpecTemplate;
             AddSequentialInputSpec(&jobSpec, jip);
@@ -187,14 +187,14 @@ private:
             return jobSpec;
         }
 
-        void OnJobStarted(TJobInProgress* jip) OVERRIDE
+        void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
             Controller->PartitionJobCounter.Start(1);
 
             TTask::OnJobStarted(jip);
         }
 
-        void OnJobCompleted(TJobInProgress* jip) OVERRIDE
+        void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             Controller->PartitionJobCounter.Completed(1);
 
@@ -225,7 +225,7 @@ private:
             TTask::OnJobCompleted(jip);
         }
 
-        void OnJobFailed(TJobInProgress* jip) OVERRIDE
+        void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
             Controller->PartitionJobCounter.Failed(1);
 
@@ -344,7 +344,7 @@ private:
             return Controller->Spec->MaxSortJobWeight;
         }
 
-        TJobSpec GetJobSpec(TJobInProgress* jip) OVERRIDE
+        TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
             auto jobSpec = Controller->SortJobSpecTemplate;
 
@@ -368,7 +368,7 @@ private:
             return jobSpec;
         }
 
-        void OnJobStarted(TJobInProgress* jip) OVERRIDE
+        void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
             ++Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
@@ -383,7 +383,7 @@ private:
             TTask::OnJobStarted(jip);
         }
 
-        void OnJobCompleted(TJobInProgress* jip) OVERRIDE
+        void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             --Controller->RunningSortJobCount;
             ++Controller->CompletedSortJobCount;
@@ -409,7 +409,7 @@ private:
             TTask::OnJobCompleted(jip);
         }
 
-        void OnJobFailed(TJobInProgress* jip) OVERRIDE
+        void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
             --Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
@@ -489,7 +489,7 @@ private:
             return Null;
         }
 
-        TJobSpec GetJobSpec(TJobInProgress* jip) OVERRIDE
+        TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
             auto jobSpec = Controller->MergeJobSpecTemplate;
 
@@ -512,14 +512,14 @@ private:
             return jobSpec;
         }
 
-        void OnJobStarted(TJobInProgress* jip) OVERRIDE
+        void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
             ++Controller->RunningMergeJobCount;
 
             TTask::OnJobStarted(jip);
         }
 
-        void OnJobCompleted(TJobInProgress* jip) OVERRIDE
+        void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             --Controller->RunningMergeJobCount;
             ++Controller->CompletedMergeJobCount;
@@ -530,7 +530,7 @@ private:
             TTask::OnJobCompleted(jip);
         }
 
-        void OnJobFailed(TJobInProgress* jip) OVERRIDE
+        void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
             --Controller->RunningMergeJobCount;
 

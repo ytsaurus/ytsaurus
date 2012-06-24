@@ -124,7 +124,7 @@ protected:
             return Null;
         }
 
-        TJobSpec GetJobSpec(TJobInProgress* jip) OVERRIDE
+        TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
             auto jobSpec = Controller->JobSpecTemplate;
             AddParallelInputSpec(&jobSpec, jip);
@@ -132,7 +132,7 @@ protected:
             return jobSpec;
         }
 
-        void OnJobStarted(TJobInProgress* jip) OVERRIDE
+        void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
             TTask::OnJobStarted(jip);
 
@@ -140,7 +140,7 @@ protected:
             Controller->WeightCounter.Start(jip->PoolResult->TotalChunkWeight);
         }
 
-        void OnJobCompleted(TJobInProgress* jip) OVERRIDE
+        void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             TTask::OnJobCompleted(jip);
 
@@ -151,7 +151,7 @@ protected:
             table.PartitionTreeIds[PartitionIndex] = jip->ChunkListIds[0];
         }
 
-        void OnJobFailed(TJobInProgress* jip)
+        void OnJobFailed(TJobInProgressPtr jip)
         {
             TTask::OnJobFailed(jip);
 
