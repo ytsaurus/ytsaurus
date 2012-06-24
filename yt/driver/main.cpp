@@ -67,6 +67,7 @@ public:
         RegisterExecutor(New<TMergeExecutor>());
         RegisterExecutor(New<TSortExecutor>());
         RegisterExecutor(New<TEraseExecutor>());
+        RegisterExecutor(New<TReduceExecutor>());
         RegisterExecutor(New<TAbortOpExecutor>());
         RegisterExecutor(New<TTrackOpExecutor>());
     }
