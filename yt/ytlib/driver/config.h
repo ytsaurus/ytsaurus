@@ -47,22 +47,5 @@ struct TDriverConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDsvFormatConfig
-    : public TConfigurable
-{
-    char NewLineSeparator;
-    char KeyValueSeparator;
-    char ItemSeparator;
-
-    TDsvFormatConfig()
-    {
-        Register("newline", NewLineSeparator).Default('\n');
-        Register("key_value", KeyValueSeparator).Default('=');
-        Register("item", ItemSeparator).Default('\t');
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NDriver
 } // namespace NYT
