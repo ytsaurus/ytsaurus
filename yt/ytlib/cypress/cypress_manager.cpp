@@ -949,7 +949,7 @@ void TCypressManager::PromoteLocks(TTransaction* transaction)
     transaction->Locks().clear();
 }
 
-void TCypressManager::RemoveBranchedNodes(const TTransaction* transaction)
+void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)
 {
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (auto* branchedNode, transaction->BranchedNodes()) {

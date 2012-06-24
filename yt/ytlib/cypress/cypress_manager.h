@@ -146,7 +146,7 @@ private:
     void MergeNode(
         NTransactionServer::TTransaction* transaction,
         ICypressNode* branchedNode);
-    void RemoveBranchedNodes(const NTransactionServer::TTransaction* transaction);
+    void RemoveBranchedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteCreatedNodes(NTransactionServer::TTransaction* transaction);
     void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
