@@ -43,7 +43,7 @@ class TestLocks(YTEnvSetup):
         abort_transaction(tx = tx_id)
 
 
-    #@pytest.mark.xfail(run = False, reason = 'Issue #293')
+    @pytest.mark.xfail(run = False, reason = 'Issue #293')
     def test_shared_locks_on_different_types(self):
 
         types_to_check = """
