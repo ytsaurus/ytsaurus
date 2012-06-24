@@ -1,6 +1,7 @@
 var url = require("url");
 var crypto = require("crypto");
 
+var buffertools = require("buffertools");
 var qs = require("qs");
 var uuid = require("node-uuid");
 
@@ -54,98 +55,163 @@ function YtCommand(logger, driver, watcher, req, rsp) {
     this.req = req;
     this.rsp = rsp;
 
+    this.prematurely_completed = false;
+
     this.req.parsedUrl = url.parse(this.req.url);
 
     this.__DBG("New");
 }
 
 YtCommand.prototype.dispatch = function() {
-    this.__DBG("dispatch");
-
-    var self = this;
+    this._prologue();
 
     utils.callSeq(this, [
-        this._prologue,
-        this._extractName,
-        this._extractParameters,
+        this._getName,
+        this._getDescriptor,
+        this._checkHttpMethod,
+        this._checkHeavy,
+        this._getParameters,
         this._getInputFormat,
         this._getOutputFormat,
-        this._logInformation,
-        this._getDescriptor,
+        utils.callIf(this, this._needToCaptureBody,
+            this._captureBody,
+            this._retainBody),
+        this._logRequest,
         this._addHeaders,
         this._execute,
+    ],
         this._epilogue
-    ], function andThen(err) {
-        self.__DBG("dispatch -> andThen");
-
-        var thereWasError = err || self.rsp.yt_code !== 0;
-        if (thereWasError) {
-            var error = err ? err.message : self.rsp.yt_message;
-
-            self.logger.error("Done (failure)", {
-                request_id : self.req.uuid,
-                error : error
-            });
-
-            if (!self.rsp._header) {
-                var body = {};
-
-                if (error)               { body.error      = error; }
-                if (self.rsp.yt_code)    { body.yt_code    = self.rsp.yt_code; }
-                if (self.rsp.yt_message) { body.yt_message = self.rsp.yt_message; }
-
-                body = JSON.stringify(body);
-
-                self.rsp.removeHeader("Transfer-Encoding");
-                self.rsp.setHeader("Content-Type", "application/json");
-                self.rsp.setHeader("Content-Length", body.length);
-                self.rsp.end(body);
-            } else {
-                self.rsp.end();
-            }
-        }
-
-        self.logger.info("Done (success)", { request_id : self.req.uuid });
-    });
+    );
 };
 
-YtCommand.prototype._prologue = function(cb) {
+YtCommand.prototype._prologue = function() {
     this.__DBG("_prologue");
 
-    this.watcher.tackle();
     this.rsp.statusCode = 202;
-    return cb(null);
 };
 
-YtCommand.prototype._epilogue = function(cb) {
+YtCommand.prototype._epilogue = function(err) {
     this.__DBG("_epilogue");
 
     this.watcher.tackle();
-    return cb(null);
+
+    var failed = !this.prematurely_completed && (err || this.yt_code !== 0);
+    if (failed) {
+        var error = err ? err.message : this.yt_message;
+
+        this.logger.error("Done (failure)", {
+            request_id : this.req.uuid,
+            error : error
+        });
+
+        if (!this.rsp._header) {
+            var body = {};
+
+            if (error)           { body.error      = error; }
+            if (this.yt_code)    { body.yt_code    = this.yt_code; }
+            if (this.yt_message) { body.yt_message = this.yt_message; }
+
+            body = JSON.stringify(body);
+
+            this.rsp.removeHeader("Transfer-Encoding");
+            this.rsp.setHeader("Content-Type", "application/json");
+            this.rsp.end(body);
+        } else {
+            this.rsp.end();
+        }
+    }
+
+    this.logger.info("Done (success)", { request_id : this.req.uuid });
 };
 
-YtCommand.prototype._extractName = function(cb) {
-    this.__DBG("_extractName");
+YtCommand.prototype._getName = function(cb) {
+    this.__DBG("_getName");
 
     this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
+
+    if (!this.name.length) {
+        this.prematurely_completed = true;
+        this.rsp.statusCode = 303;
+        this.rsp.setHeader("Location", "/");
+        this.rsp.end();
+        return cb(false);
+    }
+
     if (!/^[a-z_]+$/.test(this.name)) {
         this.rsp.statusCode = 400;
         throw new Error("Malformed command name '" + name + "'.");
     }
 
-    return cb(null);
+    return cb();
 };
 
-YtCommand.prototype._extractParameters = function(cb) {
-    this.__DBG("_extractParameters");
+YtCommand.prototype._getDescriptor = function(cb) {
+    this.__DBG("_getDescriptor");
+
+    this.descriptor = this.driver.find_command_descriptor(this.name);
+
+    if (!this.descriptor) {
+        this.rsp.statusCode = 404;
+        throw new Error("Command '" + this.name + "' is not registered.");
+    }
+
+    this.logger.debug("Successfully found command descriptor", {
+        request_id : this.req.uuid,
+        descriptor : this.descriptor
+    });
+
+    return cb();
+};
+
+YtCommand.prototype._checkHttpMethod = function(cb) {
+    this.__DBG("_checkHttpMethod");
+
+    var expected_http_method, actual_http_method = this.req.method;
+
+    if (this.descriptor.input_type !== ytnode_wrappers.EDataType_Null) {
+        expected_http_method = "PUT";
+    } else {
+        if (this.descriptor.is_volatile) {
+            expected_http_method = "POST";
+        } else {
+            expected_http_method = "GET";
+        }
+    }
+
+    if (expected_http_method != actual_http_method) {
+        this.rsp.statusCode = 405;
+        this.rsp.setHeader("Allow", expected_http_method);
+        throw new Error(
+            "Command '" + this.name + "' have to be executed with the " + expected_http_method + " HTTP method.");
+    }
+
+    return cb();
+};
+
+YtCommand.prototype._checkHeavy = function(cb) {
+    this.__DBG("_checkHeavy");
+
+    if (this.descriptor.is_heavy && this.watcher.is_choking()) {
+        this.rsp.statusCode = 503;
+        this.rsp.setHeader("Retry-After", "60");
+        throw new Error(
+            "Command '" + this.name + "' is heavy and the proxy is currently under heavy load. Please, try again later.");
+    }
+
+    return cb();
+};
+
+YtCommand.prototype._getParameters = function(cb) {
+    this.__DBG("_getParameters");
 
     this.parameters = utils.numerify(qs.parse(this.req.parsedUrl.query));
+
     if (!this.parameters) {
         this.rsp.statusCode = 400;
         throw new Error("Unable to parse parameters from the query string.");
     }
 
-    return cb(null);
+    return cb();
 };
 
 YtCommand.prototype._getInputFormat = function(cb) {
@@ -176,111 +242,119 @@ YtCommand.prototype._getInputFormat = function(cb) {
     }
 
     this.input_format = result;
-    return cb(null);
+
+    return cb();
 };
 
 YtCommand.prototype._getOutputFormat = function(cb) {
     this.__DBG("_getOutputFormat");
 
-    var result, format, header;
+    var result_format, result_mime, format, header;
 
-    // Firstly, try to deduce output format from Accept header.
+    // Firstly, check whether the command produces an octet stream.
+    if (this.descriptor.output_type === ytnode_wrappers.EDataType_Binary) {
+        this.output_mime = "application/octet-stream";
+        this.output_format = "yson";
+        return cb();
+    }
+
+    // Secondly, try to deduce output format from Accept header.
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
         for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
             if (utils.accepts(mime, header)) {
-                result = _MAPPING_MIME_TYPE_TO_FORMAT[mime];
-                this.rsp.setHeader("Content-Type", mime);
+                result_mime = mime;
+                result_format = _MAPPING_MIME_TYPE_TO_FORMAT[mime];
                 break;
             }
         }
     }
 
-    // Secondly, try to deduce output format from our custom header.
+    // Thirdly, try to deduce output format from our custom header.
     header = this.req.headers["x-yt-output-format"];
     if (typeof(header) === "string") {
-        result = header;
-        this.rsp.setHeader("Content-Type", "application/octet-stream");
+        result_mime = "application/octet-stream";
+        result_format = header;
     }
 
     // Lastly, provide a default option, i. e. YSON.
-    if (typeof(result) === "undefined") {
-        result = "<format=pretty;enable_raw=false>yson";
-        this.rsp.setHeader("Content-Type", "text/plain");
+    if (typeof(result_format) === "undefined") {
+        result_mime = "text/plain";
+        result_format = "<format=pretty;enable_raw=false>yson";
     }
 
-    this.output_format = result;
-    return cb(null);
+    this.output_mime = result_mime;
+    this.output_format = result_format;
+
+    return cb();
 };
 
-YtCommand.prototype._logInformation = function(cb) {
-    this.__DBG("_logInformation");
+YtCommand.prototype._needToCaptureBody = function(cb) {
+    this.__DBG("_needToCaptureBody");
+
+    return this.req.method === "POST";
+};
+
+YtCommand.prototype._captureBody = function(cb) {
+    this.__DBG("_captureBody");
+
+    if (this.input_format !== "json") {
+        throw new Error("Currently it is only allowed to POST a JSON body.");
+    }
+
+    var self = this;
+    var chunks = [];
+
+    this.req.on("data", function(chunk) { chunks.push(chunk); });
+    this.req.on("end", function() {
+        try {
+            var result = buffertools.concat.apply(buffertools, chunks);
+            if (result.length) {
+                self.parameters = utils.merge(self.parameters, JSON.parse(result));
+            }
+
+            self.input_stream = new utils.NullStream();
+            self.output_stream = self.rsp;
+
+            return cb();
+        } catch (err) {
+            return cb(err);
+        }
+    });
+};
+
+YtCommand.prototype._retainBody = function(cb) {
+    this.__DBG("_retainBody");
+
+    this.input_stream = this.req;
+    this.output_stream = this.rsp;
+
+    return cb();
+};
+
+YtCommand.prototype._logRequest = function(cb) {
+    this.__DBG("_logRequest");
 
     this.logger.debug("Gathered request parameters", {
         request_id    : this.req.uuid,
         name          : this.name,
         parameters    : this.parameters,
         input_format  : this.input_format,
+        output_mime   : this.output_mime,
         output_format : this.output_format
     });
-    return cb(null);
-};
-
-YtCommand.prototype._getDescriptor = function(cb) {
-    this.__DBG("_getDescriptor");
-
-    this.descriptor = this.driver.find_command_descriptor(this.name);
-    if (!this.descriptor) {
-        this.rsp.statusCode = 404;
-        throw new Error("Command '" + this.name + "' is not registered.");
-    }
-
-    var input_type_as_string = ytnode_wrappers.EDataType[this.descriptor.input_type];
-    var output_type_as_string = ytnode_wrappers.EDataType[this.descriptor.output_type];
-
-    if (output_type_as_string == "Binary") {
-        this.rsp.setHeader("Content-Type", "application/octet-stream");
-    }
-
-    var expected_http_method = _MAPPING_DATA_TYPE_TO_METHOD[input_type_as_string];
-    var actual_http_method = this.req.method;
-
-    this.logger.debug("Successfully found command descriptor", {
-        request_id            : this.req.uuid,
-        descriptor            : this.descriptor,
-        input_type_as_string  : input_type_as_string,
-        output_type_as_string : output_type_as_string,
-        expected_http_method  : expected_http_method,
-        actual_http_method    : actual_http_method
-    });
-
-    if (this.descriptor.is_heavy && this.watcher.is_choking()) {
-        this.rsp.statusCode = 503;
-        this.rsp.setHeader("Retry-After", "60");
-        throw new Error(
-            "Command '" + this.name + "' is heavy and the server is currently overloaded.");
-    }
-
-    if (expected_http_method != actual_http_method) {
-        this.rsp.statusCode = 405;
-        this.rsp.setHeader("Allow", expected_http_method);
-        throw new Error(
-            "Command '" + this.name + "' expects " + input_type_as_string.toLowerCase() +
-            " input and hence have to be requested with the " + expected_http_method + " HTTP method.");
-    }
-
-    return cb(null);
+    return cb();
 };
 
 YtCommand.prototype._addHeaders = function(cb) {
     this.__DBG("_addHeaders");
 
-    this.rsp.setHeader("Connection", "close");
+    this.rsp.setHeader("Content-Type", this.output_mime);
     this.rsp.setHeader("Transfer-Encoding", "chunked");
     this.rsp.setHeader("Access-Control-Allow-Origin", "*");
     this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
 
-    return cb(null);
+    return cb();
 };
 
 YtCommand.prototype._execute = function(cb) {
@@ -289,8 +363,8 @@ YtCommand.prototype._execute = function(cb) {
     var self = this;
 
     this.driver.execute(this.name,
-        this.req, this.input_format,
-        this.rsp, this.output_format,
+        this.input_stream, this.input_format,
+        this.output_stream, this.output_format,
         this.parameters,
         function callback(err, code, message)
         {
@@ -299,13 +373,13 @@ YtCommand.prototype._execute = function(cb) {
             if (err) {
                 if (typeof(err) === "string") {
                     self.logger.error(
-                        "Command '" + self.name + "' thrown C++ exception",
+                        "Command '" + self.name + "' has thrown C++ exception",
                         { request_id : self.req.uuid, error : error });
                     return cb(new Error(err));
                 }
                 if (err instanceof Error) {
                     self.logger.error(
-                        "Command '" + self.name + "' failed to execute",
+                        "Command '" + self.name + "' has failed to execute",
                         { request_id : self.req.uuid, error : error.message });
                     return cb(err);
                 }
@@ -316,8 +390,8 @@ YtCommand.prototype._execute = function(cb) {
                     { request_id : self.req.uuid, code : code, error : message });
             }
 
-            self.rsp.yt_code = code;
-            self.rsp.yt_message = message;
+            self.yt_code = code;
+            self.yt_message = message;
 
             if (code === 0) {
                 self.rsp.statusCode = 200;
@@ -334,7 +408,7 @@ YtCommand.prototype._execute = function(cb) {
                 });
             }
 
-            return cb(null);
+            return cb();
         });
 };
 

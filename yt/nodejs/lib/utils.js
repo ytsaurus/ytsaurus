@@ -2,6 +2,9 @@
 // http://expressjs.com/
 ////////////////////////////////////////////////////////////////////////////////
 
+var util = require("util");
+var stream = require("stream");
+
 /**
  * Check if `type` matches given `str`.
  */
@@ -122,7 +125,7 @@ exports.callSeq = function(context, functions, callback) {
         if (typeof(nextFunction) !== "undefined") {
             try {
                 nextFunction.call(context, function(ex) {
-                    if (ex === null) {
+                    if (typeof(ex) === "undefined") {
                         inner(context, functions, callback);
                     } else {
                         callback.call(context, ex);
@@ -137,3 +140,52 @@ exports.callSeq = function(context, functions, callback) {
     }(context, functions, callback));
 };
 
+exports.callIf = function(context, condition, if_true, if_false) {
+    return (function(cb) {
+        if (condition.call(context)) {
+            if (if_true) {
+                if_true.call(context, cb);
+            }
+        } else {
+            if (if_false) {
+                if_false.call(context, cb);
+            }
+        }
+    });
+};
+
+exports.merge = function (lhs, rhs) {
+    for (var p in rhs) {
+        try {
+            if (typeof(rhs[p]) !== "undefined") {
+                if (rhs[p].constructor === Object) {
+                    lhs[p] = merge(lhs[p], rhs[p]);
+                } else {
+                    lhs[p] = rhs[p];
+                }
+            }
+        } catch(err) {
+            lhs[p] = rhs[p];
+        }
+    }
+    return lhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+exports.NullStream = function() {
+    stream.Stream.call(this);
+
+    this.readable = true;
+    this.writable = false;
+
+    var self = this;
+
+    process.nextTick(function() { self.emit("end"); self.readable = false; });
+};
+
+util.inherits(exports.NullStream, stream.Stream);
+
+exports.NullStream.prototype.pause = function() { };
+exports.NullStream.prototype.resume = function() { };
+exports.NullStream.prototype.destroy = function() { };

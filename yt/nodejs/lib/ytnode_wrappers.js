@@ -323,7 +323,11 @@ exports.YtWritableStream = YtWritableStream;
 
 exports.YtDriver = YtDriver;
 
-exports.EDataType = binding.EDataType;
-
 exports.GetEioInformation = binding.GetEioInformation;
 exports.SetEioConcurrency = binding.SetEioConcurrency;
+
+for (var p in binding) {
+    if (/^EDataType/.test(p)) {
+        exports[p] = binding[p];
+    }
+}

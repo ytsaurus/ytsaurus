@@ -160,18 +160,13 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
         String::NewSymbol("TNodeJSDriver"),
         ConstructorTemplate->GetFunction());
 
-    Local<Object> dataType = Object::New();
 #define YTNODE_SET_ENUM(object, type, element) \
-    (object)->Set(type::element, String::NewSymbol(type::GetLiteralByValue(type::element)))
-    YTNODE_SET_ENUM(dataType, EDataType, Null);
-    YTNODE_SET_ENUM(dataType, EDataType, Binary);
-    YTNODE_SET_ENUM(dataType, EDataType, Structured);
-    YTNODE_SET_ENUM(dataType, EDataType, Tabular);
+    (object)->Set(String::NewSymbol(#type "_" #element), Integer::New(type::element))
+    YTNODE_SET_ENUM(target, EDataType, Null);
+    YTNODE_SET_ENUM(target, EDataType, Binary);
+    YTNODE_SET_ENUM(target, EDataType, Structured);
+    YTNODE_SET_ENUM(target, EDataType, Tabular);
 #undef YTNODE_SET_ENUM
-
-    target->Set(
-        String::New("EDataType"),
-        dataType);
 }
 
 bool TNodeJSDriver::HasInstance(Handle<Value> value)
