@@ -150,6 +150,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount, const TEpoch& epoch)
 
     File.Reset(new TBufferedFile(TempFileName, RdWr | CreateAlways));
     File->Resize(sizeof(TSnapshotHeader));
+    File->Seek(0, sEnd);
 
     TOutputStream* outputStream = File->GetOutputStream();
     if (EnableCompression) {
