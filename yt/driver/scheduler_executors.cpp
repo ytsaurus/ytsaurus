@@ -119,7 +119,7 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
-    auto keyColums = KeyColumnsArg.getValue();
+    auto keyColumns = KeyColumnsArg.getValue();
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -127,8 +127,8 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("output_table_path").Scalar(output)
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
-            .DoIf(!keyColums.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("key_columns").List(keyColums);
+            .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("key_columns").List(keyColumns);
             })
         .EndMap();
 
@@ -224,7 +224,7 @@ TReduceExecutor::TReduceExecutor()
     , ReducerArg("", "reducer", "reducer shell command", true, "", "STRING")
     , KeyColumnsArg("", "key_columns", "key columns names "
         "(if omitted then all input tables are assumed to have same key columns)",
-        true, "", "YSON_LIST_FRAGMENT")
+        false, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -238,12 +238,15 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
     auto files = PreprocessYPaths(FilesArg.getValue());
+    auto keyColumns = KeyColumnsArg.getValue();
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(input)
             .Item("output_table_path").Scalar(output)
-            .Item("key_columns").List(KeyColumnsArg.getValue())
+            .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("key_columns").List(keyColumns);
+            })
             .Item("reducer").BeginMap()
                 .Item("command").Scalar(ReducerArg.getValue())
                 .Item("file_paths").List(files)
