@@ -39,7 +39,7 @@ def convert_to_yt_args(*args, **kw):
     all_args = list(args)
     for k, v in kw.items():
         # workaround to deal with 'in' as keyword
-        if k == 'input': k = 'in'
+        if k == 'in_': k = 'in'
 
         if isinstance(v, list):
             for elem in v:
@@ -90,8 +90,14 @@ def upload(path, data, **kw):
 def download(path, **kw):
     return command('download', path, **kw)
 
-def map(*args, **kw): return command('map', *args, **kw)
-def merge(*args, **kw): return command('merge', *args, **kw)
+def map(*args, **kw):
+    return command('map', *args, **kw)
+
+def merge(*args, **kw):
+    return command('merge', *args, **kw)
+
+def reduce(*args, **kw):
+    return command('reduce', *args, **kw)
 
 def track_op(**kw): return command('track_op', **kw)
 
