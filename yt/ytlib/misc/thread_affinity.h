@@ -51,7 +51,7 @@ public:
         do {
             intptr_t boundThreadId = BoundId;
             if (boundThreadId != InvalidId) {
-                YVERIFY(boundThreadId == currentThreadId);
+                YCHECK(boundThreadId == currentThreadId);
                 break;
             }
         } while (!AtomicCas(&BoundId, currentThreadId, InvalidId));
