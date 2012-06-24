@@ -12,6 +12,7 @@
 #include <util/string/cast.h>
 #include <util/generic/typehelpers.h>
 #include <util/generic/yexception.h>
+#include <util/generic/vector.h>
 #include <util/ysaveload.h>
 
 namespace NYT {
@@ -135,6 +136,19 @@ protected:
             return false; \
         } \
         \
+        static int GetDomainSize() \
+        { \
+            return PP_COUNT(seq); \
+        } \
+        \
+        static std::vector<int> GetDomainValues() \
+        { \
+            static const int values[] = { \
+                PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
+                -1 \
+            }; \
+            return std::vector<int>(values, values + sizeof(values) / sizeof(values[0]) - 1); \
+        }; \
         static name FromString(const char* str) \
         { \
             int value; \
@@ -219,6 +233,21 @@ protected:
     }
 //! \}
 
+//! #GetDomainValues() helper.
+//! \{
+#define ENUM__GET_DOMAIN_VALUES_ITEM(item) \
+    PP_IF( \
+        PP_IS_SEQUENCE(item), \
+        ENUM__GET_DOMAIN_VALUES_ITEM_SEQ, \
+        ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC \
+    )(item)
+
+#define ENUM__GET_DOMAIN_VALUES_ITEM_SEQ(seq) \
+    ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
+
+#define ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(item) \
+    static_cast<int>(item),
+
 //! Declaration of relational operators; all at once.
 #define ENUM__RELATIONAL_OPERATORS(name) \
     public: \
@@ -267,11 +296,6 @@ protected:
             } else { \
                 return Stroka(PP_STRINGIZE(name)) + "(" + ::ToString(Value)+ ")"; \
             } \
-        } \
-        \
-        static int GetDomainSize() \
-        { \
-            return PP_COUNT(seq); \
         } \
         ENUM__RELATIONAL_OPERATORS(name)
 

@@ -166,6 +166,22 @@ TEST(TEnumTest, DomainSize)
     EXPECT_EQ(5, EColor::GetDomainSize());
 }
 
+TEST(TEnumTest, DomainValues)
+{
+    std::vector<int> simpleValues, colorValues;
+    simpleValues.push_back(0);
+    simpleValues.push_back(1);
+    simpleValues.push_back(2);
+    colorValues.push_back(10);
+    colorValues.push_back(20);
+    colorValues.push_back(30);
+    colorValues.push_back(31);
+    colorValues.push_back(32);
+
+    EXPECT_EQ(simpleValues, ESimple::GetDomainValues());
+    EXPECT_EQ(colorValues, EColor::GetDomainValues());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
