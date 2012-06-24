@@ -40,7 +40,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             out = ['//tmp/out'],
             reducer = 'cat')
                
-        assert read('//tmp/out') ==
+        assert read('//tmp/out') == \
             [
                 {'key': -1,'value': 5},
                 {'key': 0, 'value': 1},
