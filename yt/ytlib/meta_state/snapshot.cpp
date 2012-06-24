@@ -18,13 +18,6 @@ namespace {
 typedef TSnappyCompress TCompressedOutput;
 typedef TSnappyDecompress TDecompressedInput;
 
-template<class TOutput>
-void AppendZeroes(TOutput& output, size_t count)
-{
-    std::vector<char> zeroes(count, 0);
-    output.Append(&(*zeroes.begin()), count);
-}
-
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,7 +149,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount, const TEpoch& epoch)
     Header->Epoch = epoch;
 
     File.Reset(new TBufferedFile(TempFileName, RdWr | CreateAlways));
-    AppendZeroes(*File, sizeof(TSnapshotHeader));
+    File->Resize(sizeof(TSnapshotHeader));
 
     TOutputStream* outputStream = File->GetOutputStream();
     if (EnableCompression) {
