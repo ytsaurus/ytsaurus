@@ -28,6 +28,169 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
+TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
+    : Controller(controller)
+    , Logger(Controller->Logger)
+{ }
+
+i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
+{
+    return ChunkPool->GetLocality(address);
+}
+
+void TOperationControllerBase::TTask::AddStripe(TChunkStripePtr stripe)
+{
+    ChunkPool->Add(stripe);
+    AddInputLocalityHint(stripe);
+    AddPendingHint();
+}
+
+TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
+{
+    using ::ToString;
+
+    if (!Controller->CheckChunkListsPoolSize(GetChunkListCountPerJob())) {
+        return NULL;
+    }
+
+    auto jip = New<TJobInProgress>();
+    auto weightThreshold = GetJobWeightThreshold();
+    jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold);
+
+    LOG_DEBUG("Chunks extracted (Address: %s, TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
+        ~node->GetAddress(),
+        jip->PoolResult->TotalChunkCount,
+        jip->PoolResult->LocalChunkCount,
+        jip->PoolResult->TotalChunkWeight,
+        ~ToString(weightThreshold));
+
+    auto jobSpec = GetJobSpec(~jip);
+
+    // Pass jip to handlers via raw pointer to avoid cyclic references.
+    jip->OnCompleted = BIND(&TTask::OnJobCompleted, MakeStrong(this), Unretained(~jip));
+    jip->OnFailed = BIND(&TTask::OnJobFailed, MakeStrong(this), Unretained(~jip));
+
+    jip->Job = Controller->Host->CreateJob(Controller->Operation, node, jobSpec);
+    Controller->RegisterJobInProgress(jip);
+
+    OnJobStarted(~jip);
+
+    return jip->Job;
+}
+
+bool TOperationControllerBase::TTask::IsPending() const
+{
+    return ChunkPool->IsPending();
+}
+
+bool TOperationControllerBase::TTask::IsCompleted() const
+{
+    return ChunkPool->IsCompleted();
+}
+
+const TProgressCounter& TOperationControllerBase::TTask::WeightCounter() const
+{
+    return ChunkPool->WeightCounter();
+}
+
+const TProgressCounter& TOperationControllerBase::TTask::ChunkCounter() const
+{
+    return ChunkPool->ChunkCounter();
+}
+
+void TOperationControllerBase::TTask::OnJobStarted(TJobInProgress* jip)
+{
+    UNUSED(jip);
+}
+
+void TOperationControllerBase::TTask::OnJobCompleted(TJobInProgress* jip)
+{
+    ChunkPool->OnCompleted(jip->PoolResult);
+
+    if (IsCompleted()) {
+        OnTaskCompleted();
+    }
+}
+
+void TOperationControllerBase::TTask::OnJobFailed(TJobInProgress* jip)
+{
+    ChunkPool->OnFailed(jip->PoolResult);
+
+    Controller->ReleaseChunkLists(jip->ChunkListIds);
+
+    FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+        AddInputLocalityHint(stripe);
+    }
+    AddPendingHint();
+}
+
+void TOperationControllerBase::TTask::OnTaskCompleted()
+{
+    LOG_DEBUG("Task completed (Task: %s)", ~GetId());
+}
+
+void TOperationControllerBase::TTask::AddPendingHint()
+{
+    Controller->AddTaskPendingHint(this);
+}
+
+void TOperationControllerBase::TTask::AddInputLocalityHint(TChunkStripePtr stripe)
+{
+    Controller->AddTaskLocalityHint(this, stripe);
+}
+
+i64 TOperationControllerBase::TTask::GetJobWeightThresholdGeneric(int pendingJobCount, i64 pendingWeight)
+{
+    YASSERT(pendingJobCount > 0);
+    YASSERT(pendingWeight > 0);
+    return static_cast<i64>(std::ceil((double) pendingWeight / pendingJobCount));
+}
+
+void TOperationControllerBase::TTask::AddSequentialInputSpec(
+    NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip)
+{
+    auto* inputSpec = jobSpec->add_input_specs();
+    FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+        AddInputChunks(inputSpec, stripe);
+    }
+}
+
+void TOperationControllerBase::TTask::AddParallelInputSpec(
+    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobInProgressPtr jip)
+{
+    FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+        auto* inputSpec = jobSpec->add_input_specs();
+        AddInputChunks(inputSpec, stripe);
+    }
+}
+
+void TOperationControllerBase::TTask::AddTabularOutputSpec(
+    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobInProgressPtr jip,
+    const TOutputTable& table)
+{
+    auto* outputSpec = jobSpec->add_output_specs();
+    outputSpec->set_channels(table.Channels);
+    auto chunkListId = Controller->ChunkListPool->Extract();
+    jip->ChunkListIds.push_back(chunkListId);
+    *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
+}
+
+void TOperationControllerBase::TTask::AddInputChunks(
+    NScheduler::NProto::TTableInputSpec* inputSpec,
+    TChunkStripePtr stripe)
+{
+    FOREACH (const auto& weightedChunk, stripe->Chunks) {
+        auto* inputChunk = inputSpec->add_chunks();
+        *inputChunk = weightedChunk.InputChunk;
+        inputChunk->set_data_weight(weightedChunk.DataWeightOverride);
+        inputChunk->set_row_count(weightedChunk.RowCountOverride);
+    }
+}
+
+////////////////////////////////////////////////////////////////////
+
 TOperationControllerBase::TOperationControllerBase(
     TSchedulerConfigPtr config,
     IOperationHost* host,

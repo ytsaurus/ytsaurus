@@ -42,6 +42,13 @@ message TInputChunk
     // When this value is given the reader inserts this YSON map as attributes at every row.
     // This enables,  e.g., the client to distinguish between several tables coming through a single input stream.
     optional bytes row_attributes = 5 [default = ""];
+
+    // Sometimes the party constructing an instance of TInputChunk has
+    // a much more precise information about the data size and the row count.
+    // A typical example is the scheduler preparing the input for a sort job.
+    // Here's the place for such overrides.
+    optional int64 data_weight = 6;
+    optional int64 row_count = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
