@@ -108,7 +108,7 @@ public:
 
 private:
     TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::ValueArg<Stroka> OutArg;
+    TCLAP::MultiArg<Stroka> OutArg;
     TCLAP::MultiArg<Stroka> FilesArg;
     TCLAP::ValueArg<Stroka> ReducerArg;
     TCLAP::ValueArg<NYTree::TYson> KeyColumnsArg;

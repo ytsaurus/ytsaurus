@@ -219,7 +219,7 @@ EOperationType TEraseExecutor::GetOperationType() const
 
 TReduceExecutor::TReduceExecutor()
     : InArg("", "in", "input table path", false, "YPATH")
-    , OutArg("", "out", "output table path", false, "", "YPATH")
+    , OutArg("", "out", "output table path", false, "YPATH")
     , FilesArg("", "file", "additional file path", false, "YPATH")
     , ReducerArg("", "reducer", "reducer shell command", true, "", "STRING")
     , KeyColumnsArg("", "key_columns", "key columns names "
@@ -236,14 +236,14 @@ TReduceExecutor::TReduceExecutor()
 void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
-    auto output = PreprocessYPath(OutArg.getValue());
+    auto output = PreprocessYPaths(OutArg.getValue());
     auto files = PreprocessYPaths(FilesArg.getValue());
     auto keyColumns = KeyColumnsArg.getValue();
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(input)
-            .Item("output_table_path").Scalar(output)
+            .Item("output_table_paths").List(output)
             .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
                 fluent.Item("key_columns").List(keyColumns);
             })
