@@ -183,7 +183,7 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value);
  */
 void ForceYPath(INodePtr root, const TYPath& path);
 
-//! Computes a full YPath for a given #node (starting from #root).
+//! Computes a full YPath for a given #node and (optionally) returns the root.
 TYPath GetYPath(INodePtr node, INodePtr* root = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
