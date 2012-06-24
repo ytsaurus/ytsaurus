@@ -24,7 +24,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         create('table', '//tmp/in2')
         write(
-            '//tmp/in1',
+            '//tmp/in2',
             [
                 {'key': -1,'value': 5},
                 {'key': 1, 'value': 6},
