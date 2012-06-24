@@ -926,9 +926,9 @@ void TRemoteWriter::TImpl::CancelAllPings()
 
 bool TRemoteWriter::TImpl::TryWriteBlock(const TSharedRef& block)
 {
-    YCHECK(IsOpen);
-    YCHECK(!IsClosing);
-    YCHECK(!State.IsClosed());
+    YASSERT(IsOpen);
+    YASSERT(!IsClosing);
+    YASSERT(!State.IsClosed());
 
     if (!WindowSlots.IsReady())
         return false;
@@ -944,10 +944,10 @@ bool TRemoteWriter::TImpl::TryWriteBlock(const TSharedRef& block)
 
 TAsyncError TRemoteWriter::TImpl::GetReadyEvent()
 {
-    YCHECK(IsOpen);
-    YCHECK(!IsClosing);
-    YCHECK(!State.HasRunningOperation());
-    YCHECK(!State.IsClosed());
+    YASSERT(IsOpen);
+    YASSERT(!IsClosing);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(!State.IsClosed());
 
     if (!WindowSlots.IsReady()) {
         State.StartOperation();
