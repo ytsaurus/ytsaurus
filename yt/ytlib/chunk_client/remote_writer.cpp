@@ -139,7 +139,6 @@ private:
         TIntrusivePtr<TResponse> rsp);
 
     void AddBlock(const TSharedRef& block);
-    void DoWriteBlock(const TSharedRef& block);
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
@@ -288,7 +287,7 @@ i64 TRemoteWriter::TGroup::GetSize() const
 bool TRemoteWriter::TGroup::IsWritten() const
 {
     auto writer = Writer.Lock();
-    YASSERT(writer);
+    YCHECK(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -303,14 +302,14 @@ bool TRemoteWriter::TGroup::IsWritten() const
 void TRemoteWriter::TGroup::PutGroup()
 {
     auto writer = Writer.Lock();
-    YASSERT(writer);
+    YCHECK(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     int nodeIndex = 0;
     while (!writer->Nodes[nodeIndex]->IsAlive) {
         ++nodeIndex;
-        YASSERT(nodeIndex < writer->Nodes.size());
+        YCHECK(nodeIndex < writer->Nodes.size());
     }
 
     auto node = writer->Nodes[nodeIndex];
@@ -335,7 +334,7 @@ TRemoteWriter::TProxy::TInvPutBlocks
 TRemoteWriter::TGroup::PutBlocks(TNodePtr node)
 {
     auto writer = Writer.Lock();
-    YASSERT(writer);
+    YCHECK(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -372,7 +371,7 @@ void TRemoteWriter::TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlocksPtr 
 void TRemoteWriter::TGroup::SendGroup(TNodePtr srcNode)
 {
     auto writer = Writer.Lock();
-    YASSERT(writer);
+    YCHECK(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -398,7 +397,7 @@ TRemoteWriter::TGroup::SendBlocks(
     TNodePtr dstNod)
 {
     auto writer = Writer.Lock();
-    YASSERT(writer);
+    YCHECK(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -449,7 +448,7 @@ void TRemoteWriter::TGroup::OnSentBlocks(
     TProxy::TRspSendBlocksPtr rsp)
 {
     auto writer = Writer.Lock();
-    YASSERT(writer);
+    YCHECK(writer);
 
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
@@ -466,7 +465,7 @@ void TRemoteWriter::TGroup::OnSentBlocks(
 bool TRemoteWriter::TGroup::IsFlushing() const
 {
     auto writer = Writer.Lock();
-    YASSERT(writer);
+    YCHECK(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -476,7 +475,7 @@ bool TRemoteWriter::TGroup::IsFlushing() const
 void TRemoteWriter::TGroup::SetFlushing()
 {
     auto writer = Writer.Lock();
-    YASSERT(writer);
+    YCHECK(writer);
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
@@ -495,7 +494,7 @@ void TRemoteWriter::TGroup::Process()
         return;
     }
 
-    YASSERT(writer->IsInitComplete);
+    YCHECK(writer->IsInitComplete);
 
     LOG_DEBUG("Processing blocks %d-%d",
         StartBlockIndex, 
@@ -547,7 +546,7 @@ TRemoteWriter::TImpl::TImpl(
     , FinishChunkTiming(0, 1000, 20)
     , Logger(ChunkWriterLogger)
 {
-    YASSERT(AliveNodeCount > 0);
+    YCHECK(AliveNodeCount > 0);
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
@@ -603,7 +602,7 @@ void TRemoteWriter::TImpl::ShiftWindow()
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     if (!State.IsActive()) {
-        YASSERT(Window.empty());
+        YCHECK(Window.empty());
         return;
     }
 
@@ -705,7 +704,7 @@ void TRemoteWriter::TImpl::OnWindowShifted(int lastFlushedBlock)
 void TRemoteWriter::TImpl::AddGroup(TGroupPtr group)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-    YASSERT(!IsCloseRequested);
+    YCHECK(!IsCloseRequested);
 
     if (!State.IsActive())
         return;
@@ -812,7 +811,7 @@ void TRemoteWriter::TImpl::CloseSession()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    YASSERT(IsCloseRequested);
+    YCHECK(IsCloseRequested);
 
     LOG_INFO("Closing writer");
 
@@ -876,7 +875,7 @@ void TRemoteWriter::TImpl::OnSessionFinished()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    YASSERT(Window.empty());
+    YCHECK(Window.empty());
 
     if (State.IsActive()) {
         State.Close();
@@ -927,27 +926,28 @@ void TRemoteWriter::TImpl::CancelAllPings()
 
 bool TRemoteWriter::TImpl::TryWriteBlock(const TSharedRef& block)
 {
-    YASSERT(IsOpen);
-    YASSERT(!IsClosing);
-    YASSERT(!State.IsClosed());
+    YCHECK(IsOpen);
+    YCHECK(!IsClosing);
+    YCHECK(!State.IsClosed());
 
     if (!WindowSlots.IsReady())
         return false;
 
     WindowSlots.Acquire(block.Size());
-    BIND(&TImpl::DoWriteBlock, MakeWeak(this), block)
-        .Via(WriterThread->GetInvoker())
-        .Run();
+    WriterThread->GetInvoker()->Invoke(BIND(
+        &TImpl::AddBlock, 
+        MakeWeak(this), 
+        block));
 
     return true;
 }
 
 TAsyncError TRemoteWriter::TImpl::GetReadyEvent()
 {
-    YASSERT(IsOpen);
-    YASSERT(!IsClosing);
-    YASSERT(!State.HasRunningOperation());
-    YASSERT(!State.IsClosed());
+    YCHECK(IsOpen);
+    YCHECK(!IsClosing);
+    YCHECK(!State.HasRunningOperation());
+    YCHECK(!State.IsClosed());
 
     if (!WindowSlots.IsReady()) {
         State.StartOperation();
@@ -961,29 +961,25 @@ TAsyncError TRemoteWriter::TImpl::GetReadyEvent()
     return State.GetOperationError();
 }
 
-void TRemoteWriter::TImpl::DoWriteBlock(const TSharedRef& block)
-{
-    if (State.IsActive()) {
-        AddBlock(block);
-    }
-}
-
 void TRemoteWriter::TImpl::AddBlock(const TSharedRef& block)
 {
-    YASSERT(!IsCloseRequested);
+    VERIFY_THREAD_AFFINITY(WriterThread);
+    YCHECK(!IsCloseRequested);
+
+    if (!State.IsActive())
+        return;
 
     CurrentGroup->AddBlock(block);
-    ++BlockCount;
 
     LOG_DEBUG("Added block %d (Group: %p, Size: %" PRISZT ")",
         BlockCount,
         ~CurrentGroup,
         block.Size());
+
+    ++BlockCount;
+
     if (CurrentGroup->GetSize() >= Config->GroupSize) {
-        WriterThread->GetInvoker()->Invoke(BIND(
-            &TImpl::AddGroup,
-            MakeWeak(this),
-            CurrentGroup));
+        AddGroup(CurrentGroup);
         // Construct a new (empty) group.
         CurrentGroup = New<TGroup>(Nodes.size(), BlockCount, this);
     }
@@ -992,7 +988,7 @@ void TRemoteWriter::TImpl::AddBlock(const TSharedRef& block)
 void TRemoteWriter::TImpl::DoClose()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-    YASSERT(!IsCloseRequested);
+    YCHECK(!IsCloseRequested);
 
     LOG_DEBUG("Writer close requested");
 
@@ -1014,10 +1010,10 @@ void TRemoteWriter::TImpl::DoClose()
 
 TAsyncError TRemoteWriter::TImpl::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
-    YASSERT(IsOpen);
-    YASSERT(!IsClosing);
-    YASSERT(!State.HasRunningOperation());
-    YASSERT(!State.IsClosed());
+    YCHECK(IsOpen);
+    YCHECK(!IsClosing);
+    YCHECK(!State.HasRunningOperation());
+    YCHECK(!State.IsClosed());
 
     IsClosing = true;
     ChunkMeta = chunkMeta;
