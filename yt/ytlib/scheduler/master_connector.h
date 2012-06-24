@@ -26,7 +26,7 @@ public:
     std::vector<TOperationPtr> LoadOperations();
 
     TAsyncError CreateOperationNode(TOperationPtr operation);
-    void ReviveOperationNode(TOperationPtr operation);
+    void ReviveOperationNodes(const std::vector<TOperationPtr> operations);
     void RemoveOperationNode(TOperationPtr operation);
     TAsyncError FlushOperationNode(TOperationPtr operation);
     TAsyncError FinalizeOperationNode(TOperationPtr operation);

@@ -103,6 +103,7 @@ public:
                 operations.push_back(operation);
             }
         }
+
         LOG_INFO("Operations loaded successfully");
 
         return operations;
@@ -127,11 +128,26 @@ public:
                 .AsyncVia(Bootstrap->GetControlInvoker()));
     }
 
-    void ReviveOperationNode(TOperationPtr operation)
+    void ReviveOperationNodes(const std::vector<TOperationPtr> operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CreateOperationUpdateList(operation);
+        auto batchReq = ObjectProxy.ExecuteBatch();
+        FOREACH (auto operation, operations) {
+            LOG_INFO("Reviving operation node (OperationId: %s)", ~operation->GetOperationId().ToString());
+            
+            CreateOperationUpdateList(operation);
+
+            YCHECK(operation->GetState() == EOperationState::Reviving);
+            
+            auto req = TYPathProxy::Set(GetOperationPath(operation->GetOperationId()));
+            req->set_value(BuildOperationYson(operation));
+            batchReq->AddRequest(req);
+        }
+
+        batchReq->Invoke().Subscribe(
+            BIND(&TImpl::OnOperationNodesRevived, MakeStrong(this))
+            .Via(Bootstrap->GetControlInvoker()));
     }
     
     void RemoveOperationNode(TOperationPtr operation)
@@ -564,21 +580,14 @@ private:
         }
 
         // Set progress.
-        if (state == EOperationState::Running ||
-            state == EOperationState::Completed ||
-            state == EOperationState::Failed ||
-            state == EOperationState::Aborted)
-        {
+        if (state == EOperationState::Running || operation->IsFinished()) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(SerializeToYson(BIND(&IOperationController::BuildProgressYson, operation->GetController())));
             batchReq->AddRequest(req);
         }
 
         // Set result.
-        if (state == EOperationState::Completed ||
-            state == EOperationState::Failed ||
-            state == EOperationState::Aborted)
-        {
+        if (operation->IsFinished()) {
             auto req = TYPathProxy::Set(operationPath + "/@result");
             req->set_value(SerializeToYson(BIND(&IOperationController::BuildResultYson, operation->GetController())));
             batchReq->AddRequest(req);
@@ -624,6 +633,26 @@ private:
     }
 
 
+    void OnOperationNodesRevived(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Just check every response and log the errors.
+        // TODO(babenko): retry?
+        if (!batchRsp->IsOK()) {
+            LOG_ERROR("Error reviving operation nodes\n%s", ~batchRsp->GetError().ToString());
+            return;
+        }
+
+        FOREACH (auto rsp, batchRsp->GetResponses()) {
+            if (!rsp->IsOK()) {
+                LOG_ERROR("Error reviving operation node\n%s", ~rsp->GetError().ToString());
+            }
+        }
+
+        LOG_INFO("Operation nodes revived successfully");
+    }
+
     void OnOperationNodesUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -633,13 +662,13 @@ private:
         // Just check every response and log the errors.
         // TODO(babenko): retry?
         if (!batchRsp->IsOK()) {
-            LOG_ERROR("Error updating operations\n%s", ~batchRsp->GetError().ToString());
+            LOG_ERROR("Error updating operation nodes\n%s", ~batchRsp->GetError().ToString());
             return;
         }
 
         FOREACH (auto rsp, batchRsp->GetResponses()) {
             if (!rsp->IsOK()) {
-                LOG_ERROR("Error updating operations\n%s", ~rsp->GetError().ToString());
+                LOG_ERROR("Error updating operation nodes\n%s", ~rsp->GetError().ToString());
             }
         }
 
@@ -779,9 +808,9 @@ TAsyncError TMasterConnector::CreateOperationNode(TOperationPtr operation)
     return Impl->CreateOperationNode(operation);
 }
 
-void TMasterConnector::ReviveOperationNode(TOperationPtr operation)
+void TMasterConnector::ReviveOperationNodes(const std::vector<TOperationPtr> operations)
 {
-    return Impl->ReviveOperationNode(operation);
+    return Impl->ReviveOperationNodes(operations);
 }
 
 void TMasterConnector::RemoveOperationNode(TOperationPtr operation)

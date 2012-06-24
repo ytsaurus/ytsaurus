@@ -300,19 +300,24 @@ private:
     }
 
 
-    void ReviveOperation(TOperationPtr operation)
+    void ReviveOperations(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        RegisterOperation(operation);
+        FOREACH (auto operation, operations) {
+            operation->SetController(CreateController(~operation));
+            operation->SetState(EOperationState::Reviving);
+            RegisterOperation(operation);
+        }
 
-        operation->SetState(EOperationState::Reviving);
+        MasterConnector->ReviveOperationNodes(operations);
 
-        // Run async revival.
-        LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
-        operation ->GetController()->Revive().Subscribe(
-            BIND(&TThis::OnOperationRevived, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
+        FOREACH (auto operation, operations) {
+            LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
+            operation ->GetController()->Revive().Subscribe(
+                BIND(&TThis::OnOperationRevived, MakeStrong(this), operation)
+                .Via(GetControlInvoker()));
+        }
     }
 
     void OnOperationRevived(TOperationPtr operation)
@@ -338,17 +343,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto currentState = operation->GetState();
-        if (currentState != EOperationState::Preparing &&
-            currentState != EOperationState::Running &&
-            currentState != EOperationState::Reviving)
-        {
+        if (operation->IsFinished()) {
             return;
         }
 
         LOG_INFO("Aborting operation (OperationId: %s, State: %s, Reason: %s)",
             ~operation->GetOperationId().ToString(),
-            ~currentState.ToString(),
+            ~operation->GetState().ToString(),
             ~reason.ToString());
                 
         TError error("Operation aborted (Reason: %s)", ~reason.ToString());
@@ -575,19 +576,17 @@ private:
     void LoadOperations()
     {
         auto operations = MasterConnector->LoadOperations();
+        std::vector<TOperationPtr> operationsToRevive;
         FOREACH (auto operation, operations) {
-            if (operation->GetState() != EOperationState::Completed &&
-                operation->GetState() != EOperationState::Aborted &&
-                operation->GetState() != EOperationState::Failed)
-            {
-                operation->SetController(CreateController(operation.Get()));
-                MasterConnector->RemoveOperationNode(operation);
-                Bootstrap->GetControlInvoker()->Invoke(BIND(
-                    &TThis::ReviveOperation,
-                    MakeStrong(this),
-                    operation));
+            if (!operation->IsFinished()) {
+                operationsToRevive.push_back(operation);
             }
         } 
+
+        Bootstrap->GetControlInvoker()->Invoke(BIND(
+            &TThis::ReviveOperations,
+            MakeStrong(this),
+            operationsToRevive));
     }
 
 
@@ -670,10 +669,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto currentState = operation->GetState();
-        if (currentState != EOperationState::Preparing &&
-            currentState != EOperationState::Running)
-        {
+        if (operation->IsFinished()) {
             // Operation is probably being aborted.
             return;
         }
@@ -735,11 +731,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto currentState = operation->GetState();
-        if (currentState != EOperationState::Preparing &&
-            currentState != EOperationState::Running &&
-            currentState != EOperationState::Reviving)
-        {
+        if (operation->IsFinished()) {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }
