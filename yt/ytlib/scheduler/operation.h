@@ -43,6 +43,9 @@ class TOperation
     //! Marks the operation as finished.
     void SetFinished();
 
+    //! Returns True iff state is #EOperationState::Completed, #EOperationState::Failed or #EOperationState::Aborted.
+    bool IsFinished() const;
+
 public:
     TOperation(
         const TOperationId& operationId,

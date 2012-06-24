@@ -35,6 +35,14 @@ void TOperation::SetFinished()
     FinishedPromise.Set();
 }
 
+bool TOperation::IsFinished() const
+{
+    return
+        State_ == EOperationState::Completed ||
+        State_ == EOperationState::Failed ||
+        State_ == EOperationState::Aborted;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
