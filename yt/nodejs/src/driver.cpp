@@ -6,6 +6,9 @@
 #include <ytlib/driver/driver.h>
 #include <ytlib/formats/format.h>
 
+#include <util/stream/zlib.h>
+#include <util/stream/lz.h>
+
 #include <string>
 
 namespace NYT {
@@ -21,12 +24,27 @@ using namespace NFormats;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+DECLARE_ENUM(ECompression,
+    (None)
+    (Gzip)
+    (Deflate)
+    (LZO)
+    (LZF)
+    (Snappy)
+);
+
+// TODO(sandello): Refactor this huge mess.
 struct TExecuteRequest
 {
     uv_work_t Request;
     TNodeJSDriver* Host;
+
     TNodeJSInputStream* InputStream;
+    ECompression InputCompression;
+
     TNodeJSOutputStream* OutputStream;
+    ECompression OutputCompression;
 
     Persistent<Function> Callback;
 
@@ -38,11 +56,15 @@ struct TExecuteRequest
     TExecuteRequest(
         TNodeJSDriver* host,
         TNodeJSInputStream* inputStream,
+        ECompression inputStreamCompression,
         TNodeJSOutputStream* outputStream,
+        ECompression outputStreamCompression,
         Handle<Function> callback)
         : Host(host)
         , InputStream(inputStream)
+        , InputCompression(inputStreamCompression)
         , OutputStream(outputStream)
+        , OutputCompression(outputStreamCompression)
         , Callback(Persistent<Function>::New(callback))
     {
         THREAD_AFFINITY_IS_V8();
@@ -51,8 +73,7 @@ struct TExecuteRequest
         YASSERT(InputStream);
         YASSERT(OutputStream);
 
-        DriverRequest.InputStream = InputStream;
-        DriverRequest.OutputStream = OutputStream;
+        SwitchStreams(InputStream, OutputStream);
 
         Host->Ref();
         InputStream->AsyncRef(true);
@@ -69,6 +90,12 @@ struct TExecuteRequest
         OutputStream->AsyncUnref();
         InputStream->AsyncUnref();
         Host->Unref();
+    }
+
+    void SwitchStreams(TInputStream* input, TOutputStream* output)
+    {
+        DriverRequest.InputStream = input;
+        DriverRequest.OutputStream = output;
     }
 };
 
@@ -95,6 +122,60 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         Boolean::New(descriptor.IsHeavy));
     return scope.Close(result);
 }
+
+template <class T, size_t N>
+class TCustomStreamStack
+{
+private:
+    static const size_t OwnershipMask = (size_t)(0x1);
+    static const size_t PointerMask = ~(size_t)(0x1);
+
+public:
+    TCustomStreamStack()
+        : Head(Stack + N)
+    { }
+
+    ~TCustomStreamStack()
+    {
+        T** end = Stack + N;
+        for (T** current = Head; current != end; ++current) {
+            if ((size_t)(*current) & OwnershipMask) {
+                delete (T*)((size_t)(*current) & PointerMask);
+            }
+        }
+    }
+
+    template <class S>
+    void Add(S* stream, bool takeOwnership = true)
+    {
+        YASSERT(((size_t)stream & OwnershipMask) == 0);
+        YASSERT((Head > Stack));
+
+        *--Head = stream;
+        if (takeOwnership) {
+            *Head = (T*)((size_t)(*Head) | OwnershipMask);
+        }
+    }
+
+    T* Top() const
+    {
+        T* const* end = Stack + N;
+        return Head == end ? NULL : (T*)((size_t)(*Head) & PointerMask);
+    }
+
+    T* Bottom() const
+    {
+        T* const* end = Stack + N;
+        return Head == end ? NULL : (T*)((size_t)(*(end - 1)) & PointerMask);
+    }
+
+private:
+    typedef T* TPtr;
+    TPtr Stack[N];
+    TPtr* Head;
+};
+
+static const size_t StreamBufferSize = 32 * 1024;
 
 } // namespace
 
@@ -162,10 +243,19 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
 
 #define YTNODE_SET_ENUM(object, type, element) \
     (object)->Set(String::NewSymbol(#type "_" #element), Integer::New(type::element))
+
+    YTNODE_SET_ENUM(target, ECompression, None);
+    YTNODE_SET_ENUM(target, ECompression, Gzip);
+    YTNODE_SET_ENUM(target, ECompression, Deflate);
+    YTNODE_SET_ENUM(target, ECompression, LZO);
+    YTNODE_SET_ENUM(target, ECompression, LZF);
+    YTNODE_SET_ENUM(target, ECompression, Snappy);
+
     YTNODE_SET_ENUM(target, EDataType, Null);
     YTNODE_SET_ENUM(target, EDataType, Binary);
     YTNODE_SET_ENUM(target, EDataType, Structured);
     YTNODE_SET_ENUM(target, EDataType, Tabular);
+
 #undef YTNODE_SET_ENUM
 }
 
@@ -286,15 +376,17 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 7);
+    YASSERT(args.Length() == 9);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
     EXPECT_THAT_HAS_INSTANCE(args[1], TNodeJSInputStream); // InputStream
-    EXPECT_THAT_IS(args[2], String); // InputFormat
-    EXPECT_THAT_HAS_INSTANCE(args[3], TNodeJSOutputStream); // OutputStream
-    EXPECT_THAT_IS(args[4], String); // OutputFormat
-    EXPECT_THAT_IS(args[5], Object); // Parameters
-    EXPECT_THAT_IS(args[6], Function); // Callback
+    EXPECT_THAT_IS(args[2], Uint32); // InputCompression
+    EXPECT_THAT_IS(args[3], String); // InputFormat
+    EXPECT_THAT_HAS_INSTANCE(args[4], TNodeJSOutputStream); // OutputStream
+    EXPECT_THAT_IS(args[5], Uint32); // OutputCompression
+    EXPECT_THAT_IS(args[6], String); // OutputFormat
+    EXPECT_THAT_IS(args[7], Object); // Parameters
+    EXPECT_THAT_IS(args[8], Function); // Callback
 
     // Unwrap arguments.
     TNodeJSDriver* host = ObjectWrap::Unwrap<TNodeJSDriver>(args.This());
@@ -302,15 +394,19 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     String::AsciiValue commandName(args[0]);
     TNodeJSInputStream* inputStream =
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
+    ECompression inputStreamCompression =
+        (ECompression)args[2]->Uint32Value();
     INodePtr inputFormat =
-        ConvertV8StringToNode(args[2].As<String>());
+        ConvertV8StringToNode(args[3].As<String>());
     TNodeJSOutputStream* outputStream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args[3].As<Object>());
+        ObjectWrap::Unwrap<TNodeJSOutputStream>(args[4].As<Object>());
+    ECompression outputStreamCompression =
+        (ECompression)args[5]->Uint32Value();
     INodePtr outputFormat =
-        ConvertV8StringToNode(args[4].As<String>());
+        ConvertV8StringToNode(args[6].As<String>());
     INodePtr parameters =
-        ConvertV8ValueToNode(args[5].As<Object>());
-    Local<Function> callback = args[6].As<Function>();
+        ConvertV8ValueToNode(args[7].As<Object>());
+    Local<Function> callback = args[8].As<Function>();
 
     // Build an atom of work.
     YCHECK(inputFormat);
@@ -321,7 +417,9 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     TExecuteRequest* request = new TExecuteRequest(
         host,
         inputStream,
+        inputStreamCompression,
         outputStream,
+        outputStreamCompression,
         callback);
 
     // Fill in TDriverRequest structure.
@@ -342,20 +440,77 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
+    
+    try {
+        ExecuteWorkUnsafe(workRequest);
+    } catch(const std::exception& ex) {
+        // TODO(sandello): Better logging here.
+        Cerr << "*** Unhandled exception in TNodeJSDriver::ExecuteWork: " << ex.what();
+    }    
+}
+
+void TNodeJSDriver::ExecuteWorkUnsafe(uv_work_t* workRequest)
+{
+    THREAD_AFFINITY_IS_UV();
+
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
-    TInputStream* inputStream = request->DriverRequest.InputStream;
-    TOutputStream* outputStream = request->DriverRequest.OutputStream;
+    TCustomStreamStack<TInputStream, 2> inputStream;
+    TCustomStreamStack<TOutputStream, 3> outputStream;
 
-    TBufferedOutput bufferedOutputStream(outputStream);
+    inputStream.Add(request->InputStream, false);
+    outputStream.Add(request->OutputStream, false);
+    outputStream.Add(new TBufferedOutput(outputStream.Top(), StreamBufferSize));
 
-    request->DriverRequest.OutputStream = &bufferedOutputStream;
+    switch (request->InputCompression) {
+        case ECompression::None:
+            break;
+        case ECompression::Gzip:
+        case ECompression::Deflate:
+            inputStream.Add(new TZLibDecompress(inputStream.Top()));
+            break;
+        case ECompression::LZO:
+            inputStream.Add(new TLzoDecompress(inputStream.Top()));
+            break;
+        case ECompression::LZF:
+            inputStream.Add(new TLzfDecompress(inputStream.Top()));
+            break;
+        case ECompression::Snappy:
+            inputStream.Add(new TSnappyDecompress(inputStream.Top()));
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
+    switch (request->OutputCompression) {
+        case ECompression::None:
+            break;
+        case ECompression::Gzip:
+            outputStream.Add(new TZLibCompress(outputStream.Top(), ZLib::GZip, 4, StreamBufferSize));
+            break;
+        case ECompression::Deflate:
+            outputStream.Add(new TZLibCompress(outputStream.Top(), ZLib::ZLib, 4, StreamBufferSize));
+            break;
+        case ECompression::LZO:
+            outputStream.Add(new TLzoCompress(outputStream.Top(), StreamBufferSize));
+            break;
+        case ECompression::LZF:
+            outputStream.Add(new TLzfCompress(outputStream.Top(), StreamBufferSize));
+            break;
+        case ECompression::Snappy:
+            outputStream.Add(new TSnappyCompress(outputStream.Top(), StreamBufferSize));
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
+    request->SwitchStreams(inputStream.Top(), outputStream.Top());
     try {
         request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
     } catch (const std::exception& ex) {
         request->Exception = ex.what();
     }
-    request->DriverRequest.OutputStream = outputStream;
+    request->SwitchStreams(inputStream.Bottom(), outputStream.Bottom());
 }
 
 void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)

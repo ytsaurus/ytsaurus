@@ -262,8 +262,8 @@ function YtDriver(configuration, low_watermark, high_watermark) {
 }
 
 YtDriver.prototype.execute = function(name,
-    input_stream, input_format,
-    output_stream, output_format,
+    input_stream, input_compression, input_format,
+    output_stream, output_compression, output_format,
     parameters, cb
 ) {
     this.__DBG("execute");
@@ -293,8 +293,8 @@ YtDriver.prototype.execute = function(name,
     output_stream.on("error", on_error);
 
     var result = this._binding.Execute(name,
-        wrapped_input_stream._binding, input_format,
-        wrapped_output_stream._binding, output_format,
+        wrapped_input_stream._binding, input_compression, input_format,
+        wrapped_output_stream._binding, output_compression, output_format,
         parameters, function(err, code, message)
     {
         self.__DBG("execute -> (on-execute callback)");
@@ -327,7 +327,7 @@ exports.GetEioInformation = binding.GetEioInformation;
 exports.SetEioConcurrency = binding.SetEioConcurrency;
 
 for (var p in binding) {
-    if (/^EDataType/.test(p)) {
+    if (/^(ECompression|EDataType)/.test(p)) {
         exports[p] = binding[p];
     }
 }

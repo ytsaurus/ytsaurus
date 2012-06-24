@@ -30,14 +30,30 @@ exports.is = function(type, str) {
 /**
  * Check if `type(s)` are acceptable based on the given `str`.
  */
-exports.accepts = function(type, str) {
+exports.accepts = function(mime, str) {
     if (!str) {
         return false;
     }
 
     var accepted = exports.parseAccept(str);
     for (var i = 0, imax = accepted.length; i < imax; ++i) {
-        if (exports.testAccept(type, accepted[i])) {
+        if (exports.testAccept(mime, accepted[i])) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+// TODO: test me
+exports.acceptsEncoding = function(encoding, str) {
+    if (!str) {
+        return false;
+    }
+
+    var accepted = exports.parseAcceptEncoding(str);
+    for (var i = 0, imax = accepted.length; i < imax; ++i) {
+        if (accepted[i].value === "*" || accepted[i].value == encoding) {
             return true;
         }
     }
@@ -66,6 +82,18 @@ exports.parseAccept = function(str) {
             obj.type = parts[0];
             obj.subtype = parts[1];
             return obj;
+        });
+};
+
+exports.parseAcceptEncoding = function(str) {
+    return str
+        .split(/ *, */)
+        .map(exports.parseQuality)
+        .filter(function(obj) {
+            return obj.quality;
+        })
+        .sort(function(a, b) {
+            return b.quality - a.quality;
         });
 };
 

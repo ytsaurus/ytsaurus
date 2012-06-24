@@ -30,12 +30,13 @@ var _MAPPING_MIME_TYPE_TO_FORMAT = {
     "text/x-tskv"                  : "<line_prefix=tskv>dsv"
 };
 
-// This mapping defines which HTTP methods various YT data types require.
-var _MAPPING_DATA_TYPE_TO_METHOD = {
-    "Null"       : "GET",
-    "Binary"     : "PUT",
-    "Structured" : "POST",
-    "Tabular"    : "PUT"
+// This mapping defines how Content-Encoding and Accept-Encoding map onto YT compressors.
+var _MAPPING_STREAM_COMPRESSION = {
+    "gzip"     : ytnode_wrappers.ECompression_Gzip,
+    "deflate"  : ytnode_wrappers.ECompression_Deflate,
+    "x-lzo"    : ytnode_wrappers.ECompression_LZO,
+    "x-lzf"    : ytnode_wrappers.ECompression_LZF,
+    "x-snappy" : ytnode_wrappers.ECompression_Snappy
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +73,9 @@ YtCommand.prototype.dispatch = function() {
         this._checkHeavy,
         this._getParameters,
         this._getInputFormat,
+        this._getInputCompression,
         this._getOutputFormat,
+        this._getOutputCompression,
         utils.callIf(this, this._needToCaptureBody,
             this._captureBody,
             this._retainBody),
@@ -114,6 +117,8 @@ YtCommand.prototype._epilogue = function(err) {
             body = JSON.stringify(body);
 
             this.rsp.removeHeader("Transfer-Encoding");
+            this.rsp.removeHeader("Content-Encoding");
+            this.rsp.removeHeader("Vary");
             this.rsp.setHeader("Content-Type", "application/json");
             this.rsp.end(body);
         } else {
@@ -222,6 +227,7 @@ YtCommand.prototype._getInputFormat = function(cb) {
     // Firstly, try to deduce input format from Content-Type header.
     header = this.req.headers["content-type"];
     if (typeof(header) === "string") {
+        header = header.trim();
         for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
             if (utils.is(mime, header)) {
                 result = _MAPPING_MIME_TYPE_TO_FORMAT[mime];
@@ -233,7 +239,7 @@ YtCommand.prototype._getInputFormat = function(cb) {
     // Secondly, try to deduce output format from our custom header.
     header = this.req.headers["x-yt-input-format"];
     if (typeof(header) === "string") {
-        result = header;
+        result = header.trim();
     }
 
     // Lastly, provide a default option, i. e. YSON.
@@ -246,10 +252,34 @@ YtCommand.prototype._getInputFormat = function(cb) {
     return cb();
 };
 
+YtCommand.prototype._getInputCompression = function(cb) {
+    this.__DBG("_getInputCompression");
+
+    var result, header;
+
+    header = this.req.headers["content-encoding"];
+    if (typeof(header) === "string") {
+        header = header.trim();
+        result = _MAPPING_STREAM_COMPRESSION[header];
+    }
+
+    if (typeof(result) !== "undefined") {
+        if (this.req.method !== "PUT") {
+            throw new Error("Currently it is only allowed to specify Content-Encoding for PUT requests.");
+        } else {
+            this.input_compression = result;
+        }
+    } else {
+        this.input_compression = ytnode_wrappers.ECompression_None;
+    }
+
+    return cb();
+};
+
 YtCommand.prototype._getOutputFormat = function(cb) {
     this.__DBG("_getOutputFormat");
 
-    var result_format, result_mime, format, header;
+    var result_format, result_mime, header;
 
     // Firstly, check whether the command produces an octet stream.
     if (this.descriptor.output_type === ytnode_wrappers.EDataType_Binary) {
@@ -261,6 +291,7 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     // Secondly, try to deduce output format from Accept header.
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
+        header = header.trim();
         for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
             if (utils.accepts(mime, header)) {
                 result_mime = mime;
@@ -274,7 +305,7 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     header = this.req.headers["x-yt-output-format"];
     if (typeof(header) === "string") {
         result_mime = "application/octet-stream";
-        result_format = header;
+        result_format = header.trim();
     }
 
     // Lastly, provide a default option, i. e. YSON.
@@ -289,6 +320,34 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     return cb();
 };
 
+YtCommand.prototype._getOutputCompression = function(cb) {
+    this.__DBG("_getOutputCompression");
+
+    var result_compression, result_mime, header;
+
+    header = this.req.headers["accept-encoding"];
+    if (typeof(header) === "string") {
+        header = header.trim();
+        for (var encoding in _MAPPING_STREAM_COMPRESSION) {
+            if (utils.acceptsEncoding(encoding, header)) {
+                result_mime = encoding;
+                result_compression = _MAPPING_STREAM_COMPRESSION[encoding];
+                break;
+            }
+        }
+    }
+
+    if (typeof(result_compression) === "undefined") {
+        result_mime = "identity";
+        result_compression = ytnode_wrappers.ECompression_None;
+    }
+
+    this.output_compression_mime = result_mime;
+    this.output_compression = result_compression;
+
+    return cb();
+}
+
 YtCommand.prototype._needToCaptureBody = function(cb) {
     this.__DBG("_needToCaptureBody");
 
@@ -299,7 +358,7 @@ YtCommand.prototype._captureBody = function(cb) {
     this.__DBG("_captureBody");
 
     if (this.input_format !== "json") {
-        throw new Error("Currently it is only allowed to POST a JSON body.");
+        throw new Error("Currently it is only allowed to use JSON in a POST body.");
     }
 
     var self = this;
@@ -336,12 +395,15 @@ YtCommand.prototype._logRequest = function(cb) {
     this.__DBG("_logRequest");
 
     this.logger.debug("Gathered request parameters", {
-        request_id    : this.req.uuid,
-        name          : this.name,
-        parameters    : this.parameters,
-        input_format  : this.input_format,
-        output_mime   : this.output_mime,
-        output_format : this.output_format
+        request_id              : this.req.uuid,
+        name                    : this.name,
+        parameters              : this.parameters,
+        input_format            : this.input_format,
+        input_compression       : this.input_compression,
+        output_mime             : this.output_mime,
+        output_format           : this.output_format,
+        output_compression      : this.output_compression,
+        output_compression_mime : this.output_compression_mime
     });
     return cb();
 };
@@ -354,6 +416,11 @@ YtCommand.prototype._addHeaders = function(cb) {
     this.rsp.setHeader("Access-Control-Allow-Origin", "*");
     this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
 
+    if (this.output_compression !== ytnode_wrappers.ECompression_None) {
+        this.rsp.setHeader("Content-Encoding", this.output_compression_mime);
+        this.rsp.setHeader("Vary", "Content-Encoding");
+    }
+
     return cb();
 };
 
@@ -363,8 +430,8 @@ YtCommand.prototype._execute = function(cb) {
     var self = this;
 
     this.driver.execute(this.name,
-        this.input_stream, this.input_format,
-        this.output_stream, this.output_format,
+        this.input_stream, this.input_compression, this.input_format,
+        this.output_stream, this.output_compression, this.output_format,
         this.parameters,
         function callback(err, code, message)
         {

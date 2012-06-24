@@ -38,6 +38,7 @@ public:
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Execute(const v8::Arguments& args);
     static void ExecuteWork(uv_work_t* workRequest);
+    static void ExecuteWorkUnsafe(uv_work_t* workRequest);
     static void ExecuteAfter(uv_work_t* workRequest);
 
 private:
