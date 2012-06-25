@@ -100,14 +100,14 @@ void TJobProxy::Run()
         switch (jobSpec.type()) {
             case EJobType::Map: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-                auto userJobIO = new TMapJobIO(Config->JobIO, Config->Masters, jobSpec);
+                TAutoPtr<TUserJobIO> userJobIO = new TMapJobIO(Config->JobIO, Config->Masters, jobSpec);
                 Job = new TUserJob(Config, jobSpec, jobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
             case EJobType::Reduce: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                auto userJobIO = new TReduceJobIO(Config->JobIO, Config->Masters, jobSpec);
+                TAutoPtr<TUserJobIO> userJobIO = new TReduceJobIO(Config->JobIO, Config->Masters, jobSpec);
                 Job = new TUserJob(Config, jobSpec, jobSpecExt.reducer_spec(), userJobIO);
                 break;
             }

@@ -58,6 +58,7 @@ TReduceJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
     }
 
     auto reader = New<TMergingReader>(readers);
+    reader->Open();
 
     return new TTableProducer(reader, consumer);
 }
