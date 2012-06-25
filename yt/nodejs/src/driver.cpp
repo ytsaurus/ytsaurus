@@ -25,6 +25,8 @@ using namespace NFormats;
 
 namespace {
 
+static const size_t StreamBufferSize = 32 * 1024;
+
 DECLARE_ENUM(ECompression,
     (None)
     (Gzip)
@@ -34,17 +36,84 @@ DECLARE_ENUM(ECompression,
     (Snappy)
 );
 
+template <class T, size_t N>
+class TGrowingStreamStack
+{
+public:
+    static_assert(N >= 1, "You have to provide a base stream to grow on.");
+
+    TGrowingStreamStack(T* base)
+        : Head(Stack + N - 1)
+    {
+        * Head = base;
+    }
+
+    ~TGrowingStreamStack()
+    {
+        T** end = Stack + N - 1;
+        for (T** current = Head; current != end; ++current) {
+            delete *current;
+        }
+    }
+
+    template <class U>
+    void Add()
+    {
+        static_assert(
+            NMpl::TIsConvertible<U*, T*>::Value,
+            "U* have to be convertible to T*");
+        YASSERT((Head > Stack));
+        T* layer = new U(*Head);
+        *--Head = layer;
+    }
+
+    template <class U, class A1>
+    void Add(A1&& a1)
+    {
+        static_assert(
+            NMpl::TIsConvertible<U*, T*>::Value,
+            "U* have to be convertible to T*");
+        YASSERT(Head > Stack);
+        T* layer = new U(Top(), ForwardRV<A1>(a1));
+        *--Head = layer;
+    }
+
+    template <class U, class A1, class A2>
+    void Add(A1&& a1, A2&& a2)
+    {
+        static_assert(
+            NMpl::TIsConvertible<U*, T*>::Value,
+            "U* have to be convertible to T*");
+        YASSERT(Head > Stack);
+        T* layer = new S(Top(), ForwardRV<A1>(a1), ForwardRV<A2>(a2));
+        *--Head = layer;
+    }
+
+    T* Top() const
+    {
+        return *(Head);
+    }
+
+    T* Bottom() const
+    {
+        return *(Stack + N - 1);
+    }
+
+private:
+    typedef T* TPtr;
+
+    TPtr Stack[N];
+    TPtr* Head;
+};
+
 // TODO(sandello): Refactor this huge mess.
 struct TExecuteRequest
 {
     uv_work_t Request;
     TNodeJSDriver* Host;
 
-    TNodeJSInputStream* InputStream;
-    ECompression InputCompression;
-
-    TNodeJSOutputStream* OutputStream;
-    ECompression OutputCompression;
+    TGrowingStreamStack<TInputStream*, 2> InputStack;
+    TGrowingStreamStack<TOutputStream*, 2> OutputStack;
 
     Persistent<Function> Callback;
 
@@ -56,28 +125,22 @@ struct TExecuteRequest
     TExecuteRequest(
         TNodeJSDriver* host,
         TNodeJSInputStream* inputStream,
-        ECompression inputStreamCompression,
         TNodeJSOutputStream* outputStream,
-        ECompression outputStreamCompression,
         Handle<Function> callback)
         : Host(host)
-        , InputStream(inputStream)
-        , InputCompression(inputStreamCompression)
-        , OutputStream(outputStream)
-        , OutputCompression(outputStreamCompression)
+        , InputStack(inputStream)
+        , OutputStack(inputStream)
         , Callback(Persistent<Function>::New(callback))
     {
         THREAD_AFFINITY_IS_V8();
 
         YASSERT(Host);
-        YASSERT(InputStream);
-        YASSERT(OutputStream);
-
-        SwitchStreams(InputStream, OutputStream);
+        YASSERT(inputStream == GetNodeJSInputStream());
+        YASSERT(outputStream == GetNodeJSOutputStream());
 
         Host->Ref();
-        InputStream->AsyncRef(true);
-        OutputStream->AsyncRef(true);
+        GetNodeJSInputStream()->AsyncRef(true);
+        GetNodeJSOutputStream()->AsyncRef(true);
     }
 
     ~TExecuteRequest()
@@ -87,15 +150,92 @@ struct TExecuteRequest
         Callback.Dispose();
         Callback.Clear();
 
-        OutputStream->AsyncUnref();
-        InputStream->AsyncUnref();
+        GetNodeJSOutputStream()->AsyncUnref();
+        GetNodeJSInputStream()->AsyncUnref();
         Host->Unref();
     }
 
-    void SwitchStreams(TInputStream* input, TOutputStream* output)
+    TNodeJSInputStream* GetNodeJSInputStream()
     {
-        DriverRequest.InputStream = input;
-        DriverRequest.OutputStream = output;
+        return static_cast<TNodeJSInputStream*>(InputStack.Bottom());
+    }
+
+    TNodeJSOutputStream* GetNodeJSOutputStream()
+    {
+        return static_cast<TNodeJSOutputStream*>(OutputStack.Bottom());
+    }
+
+    void SetCommand(const std::string& commandName, INodePtr arguments)
+    {
+        DriverRequest.CommandName = commandName;
+        DriverRequest.Arguments = arguments->AsMap();
+    }
+
+    void SetInputCompression(ECompression compression)
+    {
+        switch (compression) {
+            case ECompression::None:
+                break;
+            case ECompression::Gzip:
+            case ECompression::Deflate:
+                InputStack.Add<TZLibDecompress>();
+                break;
+            case ECompression::LZO:
+                InputStack.Add<TLzoDecompress>();
+                break;
+            case ECompression::LZF:
+                InputStack.Add<TLzfDecompress>();
+                break;
+            case ECompression::Snappy:
+                InputStack.Add<TSnappyDecompress>();
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void SetInputFormat(INodePtr format)
+    {
+        DriverRequest.InputFormat = TFormat::FromYson(MoveRV(format));
+    }
+
+    void SetOutputCompression(ECompression compression)
+    {
+        switch (compression) {
+            case ECompression::None:
+                OutputStack.Add<TBufferedOutput>(StreamBufferSize);
+                break;
+            case ECompression::Gzip:
+                OutputStack.Add<TZLibCompress>(ZLib::GZip, 4, StreamBufferSize);
+                break;
+            case ECompression::Deflate:
+                OutputStack.Add<TZLibCompress>(ZLib::ZLib, 4, StreamBufferSize);
+                break;
+            case ECompression::LZO:
+                OutputStack.Add<TLzoCompress>(StreamBufferSize);
+                break;
+            case ECompression::LZF:
+                OutputStack.Add<TLzfCompress>(StreamBufferSize);
+                break;
+            case ECompression::Snappy:
+                OutputStack.Add<TSnappyCompress>(StreamBufferSize);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void SetOutputFormat(INodePtr format)
+    {
+        DriverRequest.OutputFormat = TFormat::FromYson(MoveRV(format));
+    }
+
+    void Prepare()
+    {
+        Request.data = this;
+
+        DriverRequest.InputStream = InputStack.Top();
+        DriverRequest.OutputStream = OutputStack.Top();
     }
 };
 
@@ -122,60 +262,6 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         Boolean::New(descriptor.IsHeavy));
     return scope.Close(result);
 }
-
-template <class T, size_t N>
-class TCustomStreamStack
-{
-private:
-    static const size_t OwnershipMask = (size_t)(0x1);
-    static const size_t PointerMask = ~(size_t)(0x1);
-
-public:
-    TCustomStreamStack()
-        : Head(Stack + N)
-    { }
-
-    ~TCustomStreamStack()
-    {
-        T** end = Stack + N;
-        for (T** current = Head; current != end; ++current) {
-            if ((size_t)(*current) & OwnershipMask) {
-                delete (T*)((size_t)(*current) & PointerMask);
-            }
-        }
-    }
-
-    template <class S>
-    void Add(S* stream, bool takeOwnership = true)
-    {
-        YASSERT(((size_t)stream & OwnershipMask) == 0);
-        YASSERT((Head > Stack));
-
-        *--Head = stream;
-        if (takeOwnership) {
-            *Head = (T*)((size_t)(*Head) | OwnershipMask);
-        }
-    }
-
-    T* Top() const
-    {
-        T* const* end = Stack + N;
-        return Head == end ? NULL : (T*)((size_t)(*Head) & PointerMask);
-    }
-
-    T* Bottom() const
-    {
-        T* const* end = Stack + N;
-        return Head == end ? NULL : (T*)((size_t)(*(end - 1)) & PointerMask);
-    }
-
-private:
-    typedef T* TPtr;
-    TPtr Stack[N];
-    TPtr* Head;
-};
-
-static const size_t StreamBufferSize = 32 * 1024;
 
 } // namespace
 
@@ -394,13 +480,13 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     String::AsciiValue commandName(args[0]);
     TNodeJSInputStream* inputStream =
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
-    ECompression inputStreamCompression =
+    ECompression inputCompression =
         (ECompression)args[2]->Uint32Value();
     INodePtr inputFormat =
         ConvertV8StringToNode(args[3].As<String>());
     TNodeJSOutputStream* outputStream =
         ObjectWrap::Unwrap<TNodeJSOutputStream>(args[4].As<Object>());
-    ECompression outputStreamCompression =
+    ECompression outputCompression =
         (ECompression)args[5]->Uint32Value();
     INodePtr outputFormat =
         ConvertV8StringToNode(args[6].As<String>());
@@ -417,19 +503,19 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     TExecuteRequest* request = new TExecuteRequest(
         host,
         inputStream,
-        inputStreamCompression,
         outputStream,
-        outputStreamCompression,
         callback);
 
-    // Fill in TDriverRequest structure.
-    request->DriverRequest.CommandName = std::string(*commandName, commandName.length());
-    request->DriverRequest.InputFormat = TFormat::FromYson(inputFormat);
-    request->DriverRequest.OutputFormat = TFormat::FromYson(outputFormat);
-    // TODO(sandello): Arguments -> Parameters
-    request->DriverRequest.Arguments = parameters->AsMap();
+    request->SetCommand(std::string(*commandName, commandName.length()), parameters);
 
-    request->Request.data = request;
+    request->SetInputCompression(inputCompression);
+    request->SetInputFormat(inputFormat);
+
+    request->SetOutputCompression(outputCompression);
+    request->SetOutputFormat(outputFormat);
+
+    request->Prepare();
+
     uv_queue_work(
         uv_default_loop(), &request->Request,
         TNodeJSDriver::ExecuteWork, TNodeJSDriver::ExecuteAfter);
@@ -442,75 +528,10 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
     THREAD_AFFINITY_IS_UV();
     
     try {
-        ExecuteWorkUnsafe(workRequest);
-    } catch(const std::exception& ex) {
-        // TODO(sandello): Better logging here.
-        Cerr << "*** Unhandled exception in TNodeJSDriver::ExecuteWork: " << ex.what();
-    }    
-}
-
-void TNodeJSDriver::ExecuteWorkUnsafe(uv_work_t* workRequest)
-{
-    THREAD_AFFINITY_IS_UV();
-
-    TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
-
-    TCustomStreamStack<TInputStream, 2> inputStream;
-    TCustomStreamStack<TOutputStream, 3> outputStream;
-
-    inputStream.Add(request->InputStream, false);
-    outputStream.Add(request->OutputStream, false);
-    outputStream.Add(new TBufferedOutput(outputStream.Top(), StreamBufferSize));
-
-    switch (request->InputCompression) {
-        case ECompression::None:
-            break;
-        case ECompression::Gzip:
-        case ECompression::Deflate:
-            inputStream.Add(new TZLibDecompress(inputStream.Top()));
-            break;
-        case ECompression::LZO:
-            inputStream.Add(new TLzoDecompress(inputStream.Top()));
-            break;
-        case ECompression::LZF:
-            inputStream.Add(new TLzfDecompress(inputStream.Top()));
-            break;
-        case ECompression::Snappy:
-            inputStream.Add(new TSnappyDecompress(inputStream.Top()));
-            break;
-        default:
-            YUNREACHABLE();
-    }
-
-    switch (request->OutputCompression) {
-        case ECompression::None:
-            break;
-        case ECompression::Gzip:
-            outputStream.Add(new TZLibCompress(outputStream.Top(), ZLib::GZip, 4, StreamBufferSize));
-            break;
-        case ECompression::Deflate:
-            outputStream.Add(new TZLibCompress(outputStream.Top(), ZLib::ZLib, 4, StreamBufferSize));
-            break;
-        case ECompression::LZO:
-            outputStream.Add(new TLzoCompress(outputStream.Top(), StreamBufferSize));
-            break;
-        case ECompression::LZF:
-            outputStream.Add(new TLzfCompress(outputStream.Top(), StreamBufferSize));
-            break;
-        case ECompression::Snappy:
-            outputStream.Add(new TSnappyCompress(outputStream.Top(), StreamBufferSize));
-            break;
-        default:
-            YUNREACHABLE();
-    }
-
-    request->SwitchStreams(inputStream.Top(), outputStream.Top());
-    try {
         request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
     } catch (const std::exception& ex) {
         request->Exception = ex.what();
     }
-    request->SwitchStreams(inputStream.Bottom(), outputStream.Bottom());
 }
 
 void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
