@@ -912,7 +912,7 @@ private:
         }
 
         FOREACH (auto job, jobsToStart) {
-            LOG_INFO("Scheduling job start on %s (JobType: %s, JobId: %s, OperationId: %s)",
+            LOG_INFO("Starting job on %s (JobType: %s, JobId: %s, OperationId: %s)",
                 ~address,
                 ~EJobType(job->Spec().type()).ToString(),
                 ~job->GetId().ToString(),
@@ -927,7 +927,7 @@ private:
         }
 
         FOREACH (auto job, jobsToAbort) {
-            LOG_INFO("Scheduling job abort on %s (JobId: %s, OperationId: %s)",
+            LOG_INFO("Aborting job on %s (JobId: %s, OperationId: %s)",
                 ~address,
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
