@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/ytree/lexer.h>
 #include <ytlib/misc/enum.h>
 
 namespace NYT {
@@ -14,7 +15,7 @@ namespace NFormats {
 // Note: line_prefix is only supported for tabular data
 
 class TDsvWriter
-    : public NYTree::TYsonConsumerBase
+    : public virtual NYTree::IYsonConsumer
 {
 public:
     explicit TDsvWriter(TOutputStream* stream,
@@ -36,6 +37,8 @@ public:
     virtual void OnBeginAttributes();
     virtual void OnEndAttributes();
 
+    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type);
+
 private:
     NYTree::EYsonType Type;
 
@@ -52,6 +55,8 @@ private:
     bool AllowBeginMap;
 
     bool IsStopSymbol[256];
+
+    NYTree::TLexer Lexer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

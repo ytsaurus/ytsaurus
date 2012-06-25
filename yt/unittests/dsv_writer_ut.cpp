@@ -40,6 +40,35 @@ TEST(TDsvWriterTest, SimpleTabular)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TDsvWriterTest, TabularUsingOnRaw)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("integer");
+        writer.OnRaw("42", EYsonType::Node);
+        writer.OnKeyedItem("string");
+        writer.OnRaw("some", EYsonType::Node);
+        writer.OnKeyedItem("double");
+        writer.OnRaw("10.", EYsonType::Node);
+    writer.OnEndMap();
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("foo");
+        writer.OnRaw("bar", EYsonType::Node);
+        writer.OnKeyedItem("one");
+        writer.OnRaw("1", EYsonType::Node);
+    writer.OnEndMap();
+
+    Stroka output =
+        "integer=42\tstring=some\tdouble=10.\n"
+        "foo=bar\tone=1";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TDsvWriterTest, StringScalar)
 {
     TStringStream outputStream;

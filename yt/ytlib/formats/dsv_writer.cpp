@@ -118,6 +118,36 @@ void TDsvWriter::OnEndAttributes()
     YUNREACHABLE();
 }
 
+void TDsvWriter::OnRaw(const TStringBuf& yson, EYsonType type)
+{
+    if (type != EYsonType::Node) {
+        YUNIMPLEMENTED();
+    }
+
+    Lexer.Reset();
+    Lexer.Read(yson);
+    Lexer.Finish();
+
+    YCHECK(Lexer.GetState() == TLexer::EState::Terminal);
+    auto token = Lexer.GetToken();
+    switch(token.GetType()) {
+        case ETokenType::String:
+            OnStringScalar(token.GetStringValue());
+            break;
+        case ETokenType::Integer:
+            OnIntegerScalar(token.GetIntegerValue());
+            break;
+        case ETokenType::Double:
+            OnDoubleScalar(token.GetDoubleValue());
+            break;
+        case ETokenType::LeftBrace:
+            YUNIMPLEMENTED();
+            break;
+        default:
+            YUNREACHABLE();
+    }
+}
+
 void TDsvWriter::EscapeAndWrite(const TStringBuf& key)
 {
     if (Config->EnableEscaping) {
