@@ -256,6 +256,8 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
     Queue.Enqueue(part);
 
     EnqueueOnWrite();
+
+    AtomicAdd(BytesCounter, length);
 }
 
 void TNodeJSOutputStream::DoFlush()

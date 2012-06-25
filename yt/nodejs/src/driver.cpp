@@ -577,6 +577,8 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         Local<Value> args[] = {
             Local<Value>::New(v8::Null()),
             Local<Value>::New(v8::Null()),
+            Local<Value>::New(v8::Null()),
+            Local<Value>::New(v8::Null()),
             Local<Value>::New(v8::Null())
         };
 
@@ -585,6 +587,8 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         } else {
             args[1] = Integer::New(request->DriverResponse.Error.GetCode());
             args[2] = String::New(~request->DriverResponse.Error.GetMessage());
+            args[3] = Integer::NewFromUnsigned(request->GetNodeJSInputStream()->BytesCounter);
+            args[4] = Integer::NewFromUnsigned(request->GetNodeJSOutputStream()->BytesCounter);
         }
 
         request->Callback->Call(

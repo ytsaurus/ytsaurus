@@ -373,7 +373,7 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
         return 0;
     }
 
-    TScopedRef<false> guardAsyncReference(this);
+    TScopedRef<false> guardAsyncRef(this);
     TGuard<TMutex> guard(&Mutex);
 
     size_t result = 0;
@@ -433,6 +433,8 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
     } else {
         EnqueueSweep();
     }
+
+    AtomicAdd(BytesCounter, result);
 
     return result;
 }

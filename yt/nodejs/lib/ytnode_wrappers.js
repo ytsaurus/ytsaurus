@@ -276,12 +276,6 @@ YtDriver.prototype.execute = function(name,
     input_stream.pipe(wrapped_input_stream);
     wrapped_output_stream.pipe(output_stream);
 
-    var bytes_in = 0;
-    var bytes_out = 0;
-
-    input_stream.on("data", function(chunk) { bytes_in += chunk.length; });
-    wrapped_output_stream.on("data", function(chunk) { bytes_out += chunk.length; });
-
     var self = this;
     var self_finished = false;
 
@@ -301,7 +295,7 @@ YtDriver.prototype.execute = function(name,
     var result = this._binding.Execute(name,
         wrapped_input_stream._binding, input_compression, input_format,
         wrapped_output_stream._binding, output_compression, output_format,
-        parameters, function(err, code, message)
+        parameters, function(err, code, message, bytes_in, bytes_out)
     {
         self.__DBG("execute -> (on-execute callback)");
         if (!self_finished) {

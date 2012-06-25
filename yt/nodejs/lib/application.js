@@ -134,7 +134,11 @@ YtCommand.prototype._epilogue = function(err) {
         }
     }
 
-    this.logger.info("Done (success)", { request_id : this.req.uuid });
+    this.logger.info("Done (success)", {
+        request_id : this.req.uuid,
+        bytes_in   : this.bytes_in,
+        bytes_out  : this.bytes_out
+    });
 };
 
 YtCommand.prototype._getName = function(cb) {
@@ -467,8 +471,8 @@ YtCommand.prototype._execute = function(cb) {
             self.yt_code = code;
             self.yt_message = message;
 
-            self.req.bytes_in = bytes_in;
-            self.req.bytes_out = bytes_out;
+            self.bytes_in = bytes_in;
+            self.bytes_out = bytes_out;
 
             if (code === 0) {
                 self.rsp.statusCode = 200;
@@ -571,8 +575,6 @@ function YtLogger(logger) {
             logger.info("Handled request", {
                 request_id   : req.uuid,
                 request_time : new Date() - req._startTime,
-                bytes_in     : req.bytes_in,
-                bytes_out    : req.bytes_out,
                 status       : rsp.statusCode
             });
         };

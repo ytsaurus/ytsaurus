@@ -9,6 +9,7 @@ COMMON_V8_USES
 TNodeJSStreamBase::TNodeJSStreamBase()
     : node::ObjectWrap()
     , AsyncRefCounter(0)
+    , BytesCounter(0)
 { }
 
 TNodeJSStreamBase::~TNodeJSStreamBase()
