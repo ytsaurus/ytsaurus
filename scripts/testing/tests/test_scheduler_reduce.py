@@ -16,9 +16,9 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             '//tmp/in1',
             [
                 {'key': 0, 'value': 1},
-                {'key': 1, 'value': 2},
-                {'key': 2, 'value': 3},
-                {'key': 3, 'value': 4}
+                {'key': 2, 'value': 2},
+                {'key': 4, 'value': 3},
+                {'key': 7, 'value': 4}
             ],
             sorted_by = 'key')
 
@@ -28,8 +28,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             [
                 {'key': -1,'value': 5},
                 {'key': 1, 'value': 6},
-                {'key': 2, 'value': 7},
-                {'key': 4, 'value': 8}
+                {'key': 3, 'value': 7},
+                {'key': 5, 'value': 8}
             ],
             sorted_by = 'key')
 
@@ -44,11 +44,11 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             [
                 {'key': -1,'value': 5},
                 {'key': 0, 'value': 1},
-                {'key': 1, 'value': 2},
                 {'key': 1, 'value': 6},
-                {'key': 2, 'value': 3},
-                {'key': 2, 'value': 7},
-                {'key': 3, 'value': 4},
-                {'key': 4, 'value': 8}
+                {'key': 2, 'value': 2},
+                {'key': 3, 'value': 7},
+                {'key': 4, 'value': 3},
+                {'key': 5, 'value': 8},
+                {'key': 7, 'value': 4}
             ]
         
