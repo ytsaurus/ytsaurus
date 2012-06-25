@@ -14,9 +14,10 @@ protected:
     ~TNodeJSStreamBase();
 
     NDetail::TVolatileCounter AsyncRefCounter;
-    TAtomic BytesCounter;
 
 public:
+    TAtomic BytesCounter;
+
     using node::ObjectWrap::Ref;
     using node::ObjectWrap::Unref;
 
