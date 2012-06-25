@@ -55,13 +55,13 @@ void TDsvWriter::OnDoubleScalar(double value)
 
 void TDsvWriter::OnEntity()
 {
-    ythrow yexception() << "Entities are not supported by Dsv";
+    ythrow yexception() << "Entities are not supported by DSV";
 }
 
 void TDsvWriter::OnBeginList()
 {
     if (!AllowBeginList) {
-        ythrow yexception() << "Embedded lists are not supported by Dsv";
+        ythrow yexception() << "Embedded lists are not supported by DSV";
     }
     AllowBeginList = false;
 }
@@ -83,7 +83,7 @@ void TDsvWriter::OnEndList()
 void TDsvWriter::OnBeginMap()
 {
     if (!AllowBeginMap) {
-        ythrow yexception() << "Embedded maps are not supported by Dsv";
+        ythrow yexception() << "Embedded maps are not supported by DSV";
     }
     AllowBeginMap = false;
     AllowBeginList = false;
@@ -110,7 +110,7 @@ void TDsvWriter::OnEndMap()
 
 void TDsvWriter::OnBeginAttributes()
 {
-    ythrow yexception() << "Attributes are not supported by Dsv";
+    ythrow yexception() << "Attributes are not supported by DSV";
 }
 
 void TDsvWriter::OnEndAttributes()

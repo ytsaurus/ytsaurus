@@ -18,7 +18,8 @@ class TDsvWriter
     : public virtual NYTree::IYsonConsumer
 {
 public:
-    explicit TDsvWriter(TOutputStream* stream,
+    explicit TDsvWriter(
+        TOutputStream* stream,
         NYTree::EYsonType type = NYTree::EYsonType::ListFragment,
         TDsvFormatConfigPtr config = NULL);
     ~TDsvWriter();
