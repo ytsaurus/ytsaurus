@@ -107,7 +107,7 @@ public:
 
     NYTree::TYPathServiceProducer CreateOrchidProducer()
     {
-        // TODO(babenko): virtualOPize
+        // TODO(babenko): virtualize
         auto producer = BIND(&TThis::BuildOrchidYson, MakeStrong(this));
         return BIND([=] () {
             return IYPathService::FromProducer(producer);
