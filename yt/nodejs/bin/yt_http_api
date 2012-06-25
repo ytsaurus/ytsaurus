@@ -177,6 +177,14 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
                 });
                 rsp.end(body);
             })
+            .use("/", function(req, rsp) {
+                rsp.writeHead(303, {
+                    "Location" : "/api",
+                    "Content-Length" : 0
+                    "Content-Type" : "application/json"
+                });
+                rsp.end(body);
+            })
             .listen(configuration.port, configuration.address, function() {
                 if (configuration.group) {
                     process.setgid(configuration.group);
