@@ -27,11 +27,10 @@ TStartOpExecutor::TStartOpExecutor()
     CmdLine.add(DontTrackArg);
 }
 
-void TStartOpExecutor::DoExecute(const TDriverRequest& request)
+EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
 {
     if (DontTrackArg.getValue()) {
-        TExecutor::DoExecute(request);
-        return;
+        return TExecutor::DoExecute(request);
     }
 
     printf("Starting %s operation... ", ~GetCommandName().Quote());
@@ -51,7 +50,7 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
     printf("done, %s\n", ~operationId.ToString());
 
     TOperationTracker tracker(Config, Driver, operationId);
-    tracker.Run();
+    return tracker.Run();
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +118,8 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
-    auto keyColumns = KeyColumnsArg.getValue();
+    // TODO(babenko): refactor
+    auto keyColumns = DeserializeFromYson< yvector<Stroka> >("[" + KeyColumnsArg.getValue() + "]");
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -295,7 +295,7 @@ TTrackOpExecutor::TTrackOpExecutor()
     CmdLine.add(OpArg);
 }
 
-void TTrackOpExecutor::Execute(const std::vector<std::string>& args)
+EExitCode TTrackOpExecutor::Execute(const std::vector<std::string>& args)
 {
     auto argsCopy = args;
     CmdLine.parse(argsCopy);
@@ -310,7 +310,7 @@ void TTrackOpExecutor::Execute(const std::vector<std::string>& args)
     printf("Started tracking operation %s\n", ~operationId.ToString());
 
     TOperationTracker tracker(Config, Driver, operationId);
-    tracker.Run();
+    return tracker.Run();
 }
 
 void TTrackOpExecutor::BuildArgs(IYsonConsumer* consumer)

@@ -27,7 +27,7 @@ TOperationTracker::TOperationTracker(
     , OperationId(operationId)
 { }
 
-void TOperationTracker::Run()
+EExitCode TOperationTracker::Run()
 {
     OperationType = GetOperationType(OperationId);
     TSchedulerServiceProxy proxy(Driver->GetSchedulerChannel());
@@ -50,7 +50,7 @@ void TOperationTracker::Run()
         DumpProgress();
     }
 
-    DumpResult();
+    return DumpResult();
 }
 
 void TOperationTracker::AppendPhaseProgress(
@@ -153,7 +153,7 @@ void TOperationTracker::DumpProgress()
     }
 }
 
-void TOperationTracker::DumpResult()
+EExitCode TOperationTracker::DumpResult()
 {
     auto operationPath = GetOperationPath(OperationId);
     auto jobsPath = GetJobsPath(OperationId);
@@ -172,9 +172,9 @@ void TOperationTracker::DumpResult()
         batchReq->AddRequest(req, "get_jobs");
     }
 
+    EExitCode exitCode;
     auto batchRsp = batchReq->Invoke().Get();
     CheckResponse(batchRsp, "Error getting operation result");
-
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_result");
         CheckResponse(rsp, "Error getting operation result");
@@ -183,8 +183,10 @@ void TOperationTracker::DumpResult()
         auto error = TError::FromYson(errorNode);
         if (error.IsOK()) {
             printf("Operation completed successfully\n");
+            exitCode = EExitCode::OK;
         } else {
             printf("%s\n", ~error.ToString());
+            exitCode = EExitCode::Error;
         }
     }
 
@@ -200,7 +202,7 @@ void TOperationTracker::DumpResult()
 
         auto jobs = DeserializeFromYson(rsp->value())->AsMap();
         if (jobs->GetChildCount() == 0) {
-            return;
+            return exitCode;
         }
 
         std::list<TJobId> failedJobIds;
@@ -272,6 +274,7 @@ void TOperationTracker::DumpResult()
             }
         }
     }
+    return exitCode;
 }
 
 EOperationType TOperationTracker::GetOperationType(const TOperationId& operationId)

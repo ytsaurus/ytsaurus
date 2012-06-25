@@ -132,7 +132,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(mode='sorted',
               in_=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out',
-              key_colums='a')
+              key_columns='a')
 
         result = read('//tmp/t_out')
         assert result[:2] == [a1, b1]

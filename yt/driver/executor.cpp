@@ -140,7 +140,7 @@ void TExecutor::InitConfig()
     }
 }
 
-void TExecutor::Execute(const std::vector<std::string>& args)
+EExitCode TExecutor::Execute(const std::vector<std::string>& args)
 {
     auto argsCopy = args;
     CmdLine.parse(argsCopy);
@@ -177,7 +177,7 @@ void TExecutor::Execute(const std::vector<std::string>& args)
     request.OutputStream = &outputStream;
     request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);;
 
-    DoExecute(request);
+    return DoExecute(request);
 }
 
 TFormat TExecutor::GetFormat(EDataType dataType, const Stroka& custom)
@@ -213,13 +213,15 @@ void TExecutor::BuildArgs(IYsonConsumer* consumer)
     UNUSED(consumer);
 }
 
-void TExecutor::DoExecute(const TDriverRequest& request)
+EExitCode TExecutor::DoExecute(const TDriverRequest& request)
 {
     auto response = Driver->Execute(request);
 
     if (!response.Error.IsOK()) {
         ythrow yexception() << response.Error.ToString();
     }
+
+    return EExitCode::OK;
 }
 
 TInputStream* TExecutor::GetInputStream()

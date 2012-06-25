@@ -108,7 +108,7 @@ public:
                 args.push_back(std::string(argv[i]));
             }
 
-            Executor->Execute(args);
+            ExitCode = Executor->Execute(args);
         } catch (const std::exception& ex) {
             Cerr << "ERROR: " << ex.what() << Endl;
             ExitCode = 1;

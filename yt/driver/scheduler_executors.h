@@ -15,7 +15,7 @@ public:
 private:
     TCLAP::SwitchArg DontTrackArg;
 
-    virtual void DoExecute(const NDriver::TDriverRequest& request);
+    virtual EExitCode DoExecute(const NDriver::TDriverRequest& request);
 
     virtual NScheduler::EOperationType GetOperationType() const = 0;
 };
@@ -141,7 +141,7 @@ class TTrackOpExecutor
 public:
     TTrackOpExecutor();
 
-    virtual void Execute(const std::vector<std::string>& args);
+    virtual EExitCode Execute(const std::vector<std::string>& args);
 
 private:
     TCLAP::ValueArg<Stroka> OpArg;

@@ -26,7 +26,8 @@ class YTError(Exception):
 def send_data(process, data=None):
     stdout, stderr = process.communicate(data)
     if process.returncode != 0:
-        print 'XXX:', stderr
+        print 'process exited with returncode:', process.returncode
+        print stderr
         raise YTError(stderr)
     print stdout
     return stdout.strip('\n')

@@ -17,7 +17,7 @@ public:
         NDriver::IDriverPtr driver,
         const NScheduler::TOperationId& operationId);
 
-    void Run();
+    EExitCode Run();
 
 private:
     TExecutorConfigPtr Config;
@@ -40,7 +40,7 @@ private:
 
     Stroka FormatProgress(const NYTree::TYson& progress);
     void DumpProgress();
-    void DumpResult();
+    EExitCode DumpResult();
 
     NScheduler::EOperationType GetOperationType(const NScheduler::TOperationId& operationId);
 };

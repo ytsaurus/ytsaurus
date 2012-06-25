@@ -19,6 +19,13 @@
 
 namespace NYT {
 
+/////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EExitCode,
+    ((OK)(0))
+    ((Error)(1))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecutor
@@ -27,7 +34,7 @@ class TExecutor
 public:
     TExecutor();
 
-    virtual void Execute(const std::vector<std::string>& args);
+    virtual EExitCode Execute(const std::vector<std::string>& args);
     virtual Stroka GetCommandName() const = 0;
 
 protected:
@@ -53,7 +60,7 @@ protected:
     NYTree::IMapNodePtr GetArgs();
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
 
-    virtual void DoExecute(const NDriver::TDriverRequest& request);
+    virtual EExitCode DoExecute(const NDriver::TDriverRequest& request);
     virtual TInputStream* GetInputStream();
 };
 
