@@ -281,6 +281,7 @@ YtCommand.prototype._getInputCompression = function(cb) {
     return cb();
 };
 
+// TODO(sandello): 406 Error
 YtCommand.prototype._getOutputFormat = function(cb) {
     this.__DBG("_getOutputFormat");
 
@@ -325,6 +326,7 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     return cb();
 };
 
+// TODO(sandello): 415 Error
 YtCommand.prototype._getOutputCompression = function(cb) {
     this.__DBG("_getOutputCompression");
 
