@@ -51,4 +51,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': 5, 'value': 8},
                 {'key': 7, 'value': 4}
             ]
+
+        assert get('//tmp/out/@sorted', 'false')
         
