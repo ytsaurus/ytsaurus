@@ -531,8 +531,8 @@ YtEioWatcher.prototype.is_choking = function() {
 function YtApplication(logger, configuration) {
     __DBG("Application -> New");
 
-    var low_watermark = parseInt(0.95 * configuration.memory_limit);
-    var high_watermark = parseInt(0.80 * configuration.memory_limit);
+    var low_watermark = parseInt(0.80 * configuration.memory_limit);
+    var high_watermark = parseInt(0.95 * configuration.memory_limit);
 
     __DBG("Application -> low_watermark = " + low_watermark);
     __DBG("Application -> high_watermark = " + high_watermark);
