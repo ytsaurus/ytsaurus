@@ -74,6 +74,20 @@ function merge(lhs, rhs) {
     return lhs;
 }
 
+function shuffle(array) {
+    var i = array.length;
+    if (i === 0) {
+        return false;
+    }
+    while (--i) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var lhs = array[i];
+        var rhs = array[j];
+        array[i] = rhs;
+        array[j] = lhs;
+   }
+}
+
 var configuration;
 configuration = {
     port              : 80,
@@ -170,7 +184,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
             .use(yt.YtLogger(logger))
             .use("/api", yt.YtApplication(logger, configuration))
             .use("/hosts", function(req, rsp) {
-                var body = JSON.stringify(configuration.neighbours);
+                var body = JSON.stringify(shuffle(configuration.neighbours));
                 rsp.writeHead(200, {
                     "Content-Length" : body.length,
                     "Content-Type" : "application/json"
