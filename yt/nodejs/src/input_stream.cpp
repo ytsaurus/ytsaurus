@@ -37,6 +37,8 @@ TNodeJSInputStream::TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark)
     , HighWatermark(highWatermark)
 {
     THREAD_AFFINITY_IS_V8();
+
+    YCHECK(LowWatermark < HighWatermark);
 }
 
 TNodeJSInputStream::~TNodeJSInputStream() throw()
@@ -171,7 +173,8 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer,
         Conditional.BroadCast();
     }
 
-    if (AtomicAdd(CurrentBufferSize, length) > HighWatermark) {
+    auto transientBufferSize = AtomicAdd(CurrentBufferSize, length);
+    if (transientBufferSize > HighWatermark) {
         return v8::False();
     } else {
         return v8::True();
@@ -427,11 +430,13 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
         }
     };
 
-    if (AtomicSub(CurrentBufferSize, result) < LowWatermark) {
+    if (!InactiveQueue.empty()) {
         EnqueueSweep();
+    }
+
+    auto transientBufferSize = AtomicSub(CurrentBufferSize, result);
+    if (transientBufferSize < LowWatermark && LowWatermark <= transientBufferSize + result) {
         EnqueueDrain();
-    } else {
-        EnqueueSweep();
     }
 
     AtomicAdd(BytesCounter, result);
