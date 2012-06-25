@@ -440,7 +440,7 @@ YtCommand.prototype._execute = function(cb) {
         this.input_stream, this.input_compression, this.input_format,
         this.output_stream, this.output_compression, this.output_format,
         this.parameters,
-        function callback(err, code, message)
+        function callback(err, code, message, bytes_in, bytes_out)
         {
             self.__DBG("_execute -> (callback)");
 
@@ -466,6 +466,9 @@ YtCommand.prototype._execute = function(cb) {
 
             self.yt_code = code;
             self.yt_message = message;
+
+            self.req.bytes_in = bytes_in;
+            self.req.bytes_out = bytes_out;
 
             if (code === 0) {
                 self.rsp.statusCode = 200;
@@ -568,6 +571,8 @@ function YtLogger(logger) {
             logger.info("Handled request", {
                 request_id   : req.uuid,
                 request_time : new Date() - req._startTime,
+                bytes_in     : req.bytes_in,
+                bytes_out    : req.bytes_out,
                 status       : rsp.statusCode
             });
         };

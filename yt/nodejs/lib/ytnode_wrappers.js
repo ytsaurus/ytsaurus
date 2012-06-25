@@ -276,16 +276,22 @@ YtDriver.prototype.execute = function(name,
     input_stream.pipe(wrapped_input_stream);
     wrapped_output_stream.pipe(output_stream);
 
+    var bytes_in = 0;
+    var bytes_out = 0;
+
+    input_stream.on("data", function(chunk) { bytes_in += chunk.length; });
+    wrapped_output_stream.on("data", function(chunk) { bytes_out += chunk.length; });
+
     var self = this;
-    var selfFinished = false;
+    var self_finished = false;
 
     function on_error(err) {
         self.__DBG("execute -> (on-error callback)");
         wrapped_input_stream.destroy();
         wrapped_output_stream.destroy();
-        if (!selfFinished) {
+        if (!self_finished) {
             cb.call(this, new Error("I/O error while executing driver command"));
-            selfFinished = true;
+            self_finished = true;
         }
     }
 
@@ -298,10 +304,10 @@ YtDriver.prototype.execute = function(name,
         parameters, function(err, code, message)
     {
         self.__DBG("execute -> (on-execute callback)");
-        if (!selfFinished) {
-            cb.call(this, err, code, message);
+        if (!self_finished) {
+            cb.call(this, err, code, message, bytes_in, bytes_out);
             wrapped_output_stream._endSoon();
-            selfFinished = true;
+            self_finished = true;
         }
     });
 };
