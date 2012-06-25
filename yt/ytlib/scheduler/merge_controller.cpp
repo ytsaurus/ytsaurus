@@ -751,8 +751,6 @@ protected:
             }
         }
 
-        SetOutputTablesSorted(KeyColumns);
-
         TMergeControllerBase::EndInputChunks();
     }
 
@@ -812,7 +810,7 @@ protected:
         EndTaskIfLarge();
     }
 
-    void OnCustomInputsRecieved(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
     {
         UNUSED(batchRsp);
 
@@ -821,8 +819,6 @@ protected:
 
         KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
         LOG_INFO("Adjusted key columns are %s", ~SerializeToYson(KeyColumns, EYsonFormat::Text));
-
-        CheckOutputTablesEmpty();
     }
 };
 
@@ -879,6 +875,14 @@ private:
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
 
         TMergeControllerBase::InitJobSpecTemplate();
+    }
+
+    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    {
+        TSortedMergeControllerBase::OnCustomInputsRecieved(batchRsp);
+
+        SetOutputTablesSorted(KeyColumns);
+        CheckOutputTablesEmpty();
     }
 };
 
