@@ -4,6 +4,7 @@
 #include <ytlib/driver/driver.h>
 
 namespace NYT {
+namespace NDriver {
 
 using namespace NYTree;
 
@@ -49,4 +50,5 @@ Stroka TAbortTxExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDriver
 } // namespace NYT

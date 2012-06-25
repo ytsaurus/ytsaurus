@@ -21,9 +21,9 @@
 #include <util/folder/dirut.h>
 
 namespace NYT {
+namespace NDriver {
 
 using namespace NYTree;
-using namespace NDriver;
 using namespace NScheduler;
 using namespace NRpc;
 using namespace NFormats;
@@ -249,4 +249,5 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDriver
 } // namespace NYT

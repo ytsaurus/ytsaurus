@@ -7,6 +7,7 @@
 #include <ytlib/ytree/ypath_client.h>
 
 namespace NYT {
+namespace NDriver {
 
 using namespace NYTree;
 
@@ -36,4 +37,5 @@ std::vector<TYPath> PreprocessYPaths(const std::vector<TYPath>& paths)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDriver
 } // namespace NYT

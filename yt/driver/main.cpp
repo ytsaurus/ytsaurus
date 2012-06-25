@@ -111,7 +111,7 @@ public:
             ExitCode = Executor->Execute(args);
         } catch (const std::exception& ex) {
             Cerr << "ERROR: " << ex.what() << Endl;
-            ExitCode = 1;
+            ExitCode = EExitCode::Error;
         }
 
         // TODO: refactor system shutdown

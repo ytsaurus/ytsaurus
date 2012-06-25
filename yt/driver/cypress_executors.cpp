@@ -5,6 +5,7 @@
 #include <ytlib/driver/driver.h>
 
 namespace NYT {
+namespace NDriver {
 
 using namespace NYTree;
 
@@ -174,4 +175,5 @@ Stroka TLockExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDriver
 } // namespace NYT

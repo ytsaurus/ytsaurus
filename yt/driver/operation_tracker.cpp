@@ -10,10 +10,10 @@
 #include <util/stream/format.h>
 
 namespace NYT {
+namespace NDriver {
 
 using namespace NYTree;
 using namespace NScheduler;
-using namespace NDriver;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,4 +289,5 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDriver
 } // namespace NYT

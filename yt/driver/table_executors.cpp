@@ -5,6 +5,7 @@
 #include <ytlib/driver/driver.h>
 
 namespace NYT {
+namespace NDriver {
 
 using namespace NYTree;
 
@@ -79,4 +80,5 @@ Stroka TWriteExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDriver
 } // namespace NYT
