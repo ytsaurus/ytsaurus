@@ -431,9 +431,7 @@ private:
         // Take a copy, the collection will be modified.
         auto jobs = operation->Jobs();
         FOREACH (auto job, jobs) {
-            job->SetState(EJobState::Aborted);
-            MasterConnector->UpdateJobNode(job);
-            UnregisterJob(job);
+            AbortJob(job);
         }
         YCHECK(operation->Jobs().empty());
     }
@@ -486,6 +484,13 @@ private:
 
         Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
         Profiler.Enqueue("/job_count/total", Jobs.size());
+    }
+
+    void AbortJob(TJobPtr job)
+    {
+        job->SetState(EJobState::Aborted);
+        MasterConnector->UpdateJobNode(job);
+        UnregisterJob(job);
     }
 
 
@@ -928,9 +933,7 @@ private:
                 ~job->GetOperation()->GetOperationId().ToString());
             *response->add_jobs_to_remove() = job->GetId().ToProto();
             
-            job->SetState(EJobState::Aborted);
-            UnregisterJob(job);
-            MasterConnector->UpdateJobNode(job);
+            AbortJob(job);
         }
 
         context->Reply();
