@@ -16,54 +16,54 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 1
 
-    def test_map_empty_table(self):
+    def test_empty_table(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        map(input='//tmp/t1', out='//tmp/t2', mapper='cat')
+        map(in_='//tmp/t1', out='//tmp/t2', mapper='cat')
 
         assert read('//tmp/t2') == []
 
-    def test_map_one_chunk(self):
+    def test_one_chunk(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{a=b}')
-        map(input='//tmp/t1', out='//tmp/t2', mapper='cat')
+        map(in_='//tmp/t1', out='//tmp/t2', mapper='cat')
 
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
-    def test_map_input_equal_to_output(self):
+    def test_in_equal_to_output(self):
         create('table', '//tmp/t1')
         write_str('//tmp/t1', '{foo=bar}')
 
-        map(input='//tmp/t1', out='//tmp/t1', mapper='cat')
+        map(in_='//tmp/t1', out='//tmp/t1', mapper='cat')
 
         assert read('//tmp/t1') == [{'foo': 'bar'}, {'foo': 'bar'}]
 
     # check that stderr is captured for successfull job
-    def test_map_stderr_ok(self):
+    def test_stderr_ok(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
         mapper = "cat > /dev/null; echo stderr 1>&2"
 
-        op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', mapper=mapper)
         track_op(op=op_id)
         check_all_stderrs(op_id, 'stderr')
 
     # check that stderr is captured for failed jobs
-    def test_map_stderr_failed(self):
+    def test_stderr_failed(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
         mapper = "cat > /dev/null; echo stderr 1>&2; exit 125"
 
-        op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', mapper=mapper)
         track_op(op=op_id)
         check_all_stderrs(op_id, 'stderr')
 
-    def test_map_job_count(self):
+    def test_job_count(self):
         create('table', '//tmp/t1')
         for i in xrange(5):
             write_str('//tmp/t1', '{foo=bar}')
@@ -72,7 +72,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         def check(table_name, job_count, expected_num_records):
             create('table', table_name)
-            map(input='//tmp/t1',
+            map(in_='//tmp/t1',
                 out=table_name,
                 mapper=mapper,
                 opt='/spec/job_count=%d' % job_count)
@@ -81,7 +81,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check('//tmp/t2', 3, 3)
         check('//tmp/t3', 10, 5) # number of jobs can't be more that number of chunks
 
-    def test_map_with_user_files(self):
+    def test_with_user_files(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
@@ -96,7 +96,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         set(file2 + '/@file_name', 'my_file.txt')
         mapper = "cat > /dev/null; cat some_file.txt; cat my_file.txt"
 
-        map(input='//tmp/t1',
+        map(in_='//tmp/t1',
             out='//tmp/t2',
             mapper=mapper,
             file=[file1, file2])
@@ -104,7 +104,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
 
 
-    def test_map_many_output_tables(self):
+    def test_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
         create('table', '//tmp/t_in')
@@ -123,7 +123,7 @@ echo {v = 2} >&7
 """
         upload('//tmp/mapper.sh', mapper)
 
-        map(input='//tmp/t_in',
+        map(in_='//tmp/t_in',
             out=output_tables,
             mapper='bash mapper.sh',
             file='//tmp/mapper.sh')
@@ -132,7 +132,7 @@ echo {v = 2} >&7
         assert read(output_tables[1]) == [{'v': 1}]
         assert read(output_tables[2]) == [{'v': 2}]
 
-    def test_map_tskv_input_format(self):
+    def test_tskv_in__format(self):
         create('table', '//tmp/t_in')
         write_str('//tmp/t_in', '{foo=bar}')
 
@@ -147,7 +147,7 @@ print '{hello=world}'
         upload('//tmp/mapper.sh', mapper)
 
         create('table', '//tmp/t_out')
-        map(input='//tmp/t_in',
+        map(in_='//tmp/t_in',
             out='//tmp/t_out',
             mapper="python mapper.sh",
             file='//tmp/mapper.sh',
@@ -155,7 +155,7 @@ print '{hello=world}'
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
-    def test_map_tskv_output_format(self):
+    def test_tskv_output_format(self):
         create('table', '//tmp/t_in')
         write_str('//tmp/t_in', '{foo=bar}')
 
@@ -170,7 +170,7 @@ print "tskv" + "\\t" + "hello=world"
         upload('//tmp/mapper.sh', mapper)
 
         create('table', '//tmp/t_out')
-        map(input='//tmp/t_in',
+        map(in_='//tmp/t_in',
             out='//tmp/t_out',
             mapper="python mapper.sh",
             file='//tmp/mapper.sh',
