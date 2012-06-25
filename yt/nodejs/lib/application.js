@@ -87,6 +87,20 @@ YtCommand.prototype.dispatch = function() {
     );
 };
 
+YtCommand.prototype.dispatchJSON = function(object) {
+    var body = JSON.stringify(object);
+
+    this.rsp.removeHeader("Transfer-Encoding");
+    this.rsp.removeHeader("Content-Encoding");
+    this.rsp.removeHeader("Vary");
+    this.rsp.setHeader("Content-Type", "application/json");
+    this.rsp.setHeader("Content-Length", body.length);
+    this.rsp.writeHead(200);
+    this.rsp.end(body);
+
+    this.prematurely_completed = true;
+};
+
 YtCommand.prototype._prologue = function() {
     this.__DBG("_prologue");
 
@@ -114,13 +128,7 @@ YtCommand.prototype._epilogue = function(err) {
             if (this.yt_code)    { body.yt_code    = this.yt_code; }
             if (this.yt_message) { body.yt_message = this.yt_message; }
 
-            body = JSON.stringify(body);
-
-            this.rsp.removeHeader("Transfer-Encoding");
-            this.rsp.removeHeader("Content-Encoding");
-            this.rsp.removeHeader("Vary");
-            this.rsp.setHeader("Content-Type", "application/json");
-            this.rsp.end(body);
+            this.dispatchJSON(body);
         } else {
             this.rsp.end();
         }
@@ -135,10 +143,7 @@ YtCommand.prototype._getName = function(cb) {
     this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
 
     if (!this.name.length) {
-        this.prematurely_completed = true;
-        this.rsp.statusCode = 303;
-        this.rsp.setHeader("Location", "/");
-        this.rsp.end();
+        this.dispatchJSON(this.driver.get_command_descriptors());
         return cb(false);
     }
 
