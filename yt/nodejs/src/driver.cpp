@@ -111,6 +111,16 @@ public:
         return *(Stack + N - 1);
     }
 
+    T* const* begin() const
+    {
+        return Head;
+    }
+
+    T* const* end() const
+    {
+        return Stack + N - 1;
+    }
+
 private:
     typedef T* TPtr;
 
@@ -158,6 +168,12 @@ struct TExecuteRequest
     ~TExecuteRequest()
     {
         THREAD_AFFINITY_IS_V8();
+
+        FOREACH (auto* current, OutputStack)
+        {
+            current->Flush();
+            current->Finish();
+        }
 
         Callback.Dispose();
         Callback.Clear();
@@ -333,7 +349,7 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Execute", TNodeJSDriver::Execute);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "FindCommandDescriptor", TNodeJSDriver::FindCommandDescriptor);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetCommandDescriptor", TNodeJSDriver::GetCommandDescriptors);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetCommandDescriptors", TNodeJSDriver::GetCommandDescriptors);
 
     target->Set(
         String::NewSymbol("TNodeJSDriver"),
@@ -455,7 +471,7 @@ Handle<Value> TNodeJSDriver::DoGetCommandDescriptors()
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    Local<Array> result;
+    Local<Array> result = Array::New();
 
     auto descriptors = Driver->GetCommandDescriptors();
     FOREACH (const auto& descriptor, descriptors) {

@@ -39,6 +39,8 @@ int TNodeJSStreamBase::UnrefCallback(eio_req* request)
 
     TNodeJSStreamBase* stream = static_cast<TNodeJSStreamBase*>(request->data);
 
+    YASSERT(NDetail::AtomicallyFetch(&stream->AsyncRefCounter) == 0);
+
     stream->Unref();
 
     return 0;
