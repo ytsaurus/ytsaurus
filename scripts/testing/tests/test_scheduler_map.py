@@ -1,0 +1,284 @@
+import pytest
+
+from yt_env_setup import YTEnvSetup
+from yt_commands import *
+
+##################################################################
+
+#TODO(panin): refactor
+def check_all_stderrs(op_id, expected):
+    jobs_path = '//sys/operations/' + op_id + '/jobs'
+    for job_id in ls(jobs_path):
+        download(jobs_path + '/"' + job_id + '"/stderr')
+
+class TestSchedulerMapCommands(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_HOLDERS = 5
+    NUM_SCHEDULERS = 1
+
+    def test_map_empty_table(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        map(input='//tmp/t1', out='//tmp/t2', mapper='cat')
+
+        assert read('//tmp/t2') == []
+
+    def test_map_one_chunk(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{a=b}')
+        map(input='//tmp/t1', out='//tmp/t2', mapper='cat')
+
+        assert read('//tmp/t2') == [{'a' : 'b'}]
+
+    def test_map_input_equal_to_output(self):
+        create('table', '//tmp/t1')
+        write_str('//tmp/t1', '{foo=bar}')
+
+        map(input='//tmp/t1', out='//tmp/t1', mapper='cat')
+
+        assert read('//tmp/t1') == [{'foo': 'bar'}, {'foo': 'bar'}]
+
+    # check that stderr is captured for successfull job
+    def test_map_stderr_ok(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{foo=bar}')
+
+        mapper = "cat > /dev/null; echo stderr 1>&2"
+
+        op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        track_op(op=op_id)
+        check_all_stderrs(op_id, 'stderr')
+
+    # check that stderr is captured for failed jobs
+    def test_map_stderr_failed(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{foo=bar}')
+
+        mapper = "cat > /dev/null; echo stderr 1>&2; exit 125"
+
+        op_id = map('--dont_track', input='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        track_op(op=op_id)
+        check_all_stderrs(op_id, 'stderr')
+
+    def test_map_job_count(self):
+        create('table', '//tmp/t1')
+        for i in xrange(5):
+            write_str('//tmp/t1', '{foo=bar}')
+
+        mapper = "cat > /dev/null; echo {hello=world}"
+
+        def check(table_name, job_count, expected_num_records):
+            create('table', table_name)
+            map(input='//tmp/t1',
+                out=table_name,
+                mapper=mapper,
+                opt='/spec/job_count=%d' % job_count)
+            assert read(table_name) == [{'hello': 'world'} for i in xrange(expected_num_records)]
+
+        check('//tmp/t2', 3, 3)
+        check('//tmp/t3', 10, 5) # number of jobs can't be more that number of chunks
+
+    def test_map_with_user_files(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{foo=bar}')
+
+        file1 = '//tmp/some_file.txt' 
+        file2 = '//tmp/renamed_file.txt' 
+
+        upload(file1, '{value=42};\n')
+        upload(file2, '{a=b};\n')
+
+        # check attributes @file_name
+        set(file2 + '/@file_name', 'my_file.txt')
+        mapper = "cat > /dev/null; cat some_file.txt; cat my_file.txt"
+
+        map(input='//tmp/t1',
+            out='//tmp/t2',
+            mapper=mapper,
+            file=[file1, file2])
+
+        assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
+
+
+    def test_map_many_output_tables(self):
+        output_tables = ['//tmp/t%d' % i for i in range(3)]
+
+        create('table', '//tmp/t_in')
+        for table_path in output_tables:
+            create('table', table_path)
+
+        write_str('//tmp/t_in', '{a=b}')
+
+        mapper = \
+"""
+cat  > /dev/null
+echo {v = 0} >&1
+echo {v = 1} >&4
+echo {v = 2} >&7
+
+"""
+        upload('//tmp/mapper.sh', mapper)
+
+        map(input='//tmp/t_in',
+            out=output_tables,
+            mapper='bash mapper.sh',
+            file='//tmp/mapper.sh')
+
+        assert read(output_tables[0]) == [{'v': 0}]
+        assert read(output_tables[1]) == [{'v': 1}]
+        assert read(output_tables[2]) == [{'v': 2}]
+
+    def test_map_tskv_input_format(self):
+        create('table', '//tmp/t_in')
+        write_str('//tmp/t_in', '{foo=bar}')
+
+        mapper = \
+"""
+import sys
+input = sys.stdin.readline().strip('\\n').split('\\t')
+assert input == ['tskv', 'foo=bar']
+print '{hello=world}'
+
+"""
+        upload('//tmp/mapper.sh', mapper)
+
+        create('table', '//tmp/t_out')
+        map(input='//tmp/t_in',
+            out='//tmp/t_out',
+            mapper="python mapper.sh",
+            file='//tmp/mapper.sh',
+            opt='/spec/mapper/input_format=<line_prefix=tskv>dsv')
+
+        assert read('//tmp/t_out') == [{'hello': 'world'}]
+
+    def test_map_tskv_output_format(self):
+        create('table', '//tmp/t_in')
+        write_str('//tmp/t_in', '{foo=bar}')
+
+        mapper = \
+"""
+import sys
+input = sys.stdin.readline().strip('\\n')
+assert input == '{"foo"="bar"};'
+print "tskv" + "\\t" + "hello=world"
+
+"""
+        upload('//tmp/mapper.sh', mapper)
+
+        create('table', '//tmp/t_out')
+        map(input='//tmp/t_in',
+            out='//tmp/t_out',
+            mapper="python mapper.sh",
+            file='//tmp/mapper.sh',
+            opt=[ \
+                '/spec/mapper/input_format=<format=text>yson',
+                '/spec/mapper/output_format=<line_prefix=tskv>dsv'])
+
+        assert read('//tmp/t_out') == [{'hello': 'world'}]
+
+
+
+class TestSchedulerMergeCommands(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_HOLDERS = 5
+    NUM_SCHEDULERS = 1
+
+    def _prepare_tables(self):
+        t1 = '//tmp/t1'
+        create('table', t1)
+        v1 = [{'key' + str(i) : 'value' + str(i)} for i in xrange(3)]
+        for v in v1:
+            write(t1, v)
+
+        t2 = '//tmp/t2'
+        create('table', t2)
+        v2 = [{'another_key' + str(i) : 'another_value' + str(i)} for i in xrange(4)]
+        for v in v2:
+            write(t2, v)
+
+        self.t1 = t1
+        self.t2 = t2
+        
+        self.v1 = v1
+        self.v2 = v2
+
+        create('table', '//tmp/t_out')
+
+    # usual cases
+    def test_merge_unordered(self):
+        self._prepare_tables()
+
+        merge(mode='unordered',
+              input=[self.t1, self.t2], 
+              out='//tmp/t_out')
+        
+        self.assertItemsEqual(read('//tmp/t_out'), self.v1 + self.v2)
+        assert get('//tmp/t_out/@chunk_count') == 7
+
+    def test_merge_unordered_combine(self):
+        self._prepare_tables()
+
+        merge('--combine',
+              mode='unordered',
+              input=[self.t1, self.t2],
+              out='//tmp/t_out')
+
+        self.assertItemsEqual(read('//tmp/t_out'), self.v1 + self.v2)
+        assert get('//tmp/t_out/@chunk_count') == 1
+
+    def test_merge_ordered(self):
+        self._prepare_tables()
+
+        merge(mode='ordered',
+              input=[self.t1, self.t2],
+              out='//tmp/t_out')
+
+        assert read('//tmp/t_out') == self.v1 + self.v2
+        assert get('//tmp/t_out/@chunk_count') ==7
+
+    def test_merge_ordered_combine(self):
+        self._prepare_tables()
+
+        merge('--combine',
+              mode='ordered',
+              input=[self.t1, self.t2],
+              out='//tmp/t_out')
+
+        assert read('//tmp/t_out') == self.v1 + self.v2
+        assert get('//tmp/t_out/@chunk_count') == 1
+
+
+    def test_merge_sorted(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+
+        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+
+        create('table', '//tmp/t_out')
+        merge(mode='sorted',
+              input=['//tmp/t1', '//tmp/t2'],
+              out='//tmp/t_out')
+
+        assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
+        assert get('//tmp/t_out/@chunk_count') == 1
+
+    def test_merge_sorted_combine(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+
+        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+
+        create('table', '//tmp/t_out')
+        merge('--combine',
+              mode='sorted',
+              input=['//tmp/t1', '//tmp/t2'],
+              out='//tmp/t_out')
+
+        assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
+        assert get('//tmp/t_out/@chunk_count') == 1
