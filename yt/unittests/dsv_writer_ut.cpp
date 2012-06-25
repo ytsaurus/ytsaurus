@@ -106,6 +106,21 @@ TEST(TDsvWriterTest, MapInsideMap)
     EXPECT_ANY_THROW(writer.OnBeginMap());
 }
 
+TEST(TDsvWriterTest, WithoutEsacping)
+{
+    auto config = New<TDsvFormatConfig>();
+    config->EnableEscaping = false;
+
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::Node, config);
+
+    writer.OnStringScalar("string_with_\t_\\_=_and_\n");
+
+    Stroka output = "string_with_\t_\\_=_and_\n";
+    Cout << outputStream.Str() << Endl;
+    Cout << output << Endl;
+    EXPECT_EQ(outputStream.Str(), output);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

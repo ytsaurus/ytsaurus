@@ -120,17 +120,21 @@ void TDsvWriter::OnEndAttributes()
 
 void TDsvWriter::EscapeAndWrite(const TStringBuf& key)
 {
-    auto current = key.begin();
-    auto end = key.end();
-    while (current != end) {
-        auto next = FindNextEscapedSymbol(current, end);
-        Stream->Write(current, next - current);
-        if (next != end) {
-            Stream->Write(Config->EscapingSymbol);
-            Stream->Write(*next);
-            ++next;
+    if (Config->EnableEscaping) {
+        auto current = key.begin();
+        auto end = key.end();
+        while (current != end) {
+            auto next = FindNextEscapedSymbol(current, end);
+            Stream->Write(current, next - current);
+            if (next != end) {
+                Stream->Write(Config->EscapingSymbol);
+                Stream->Write(*next);
+                ++next;
+            }
+            current = next;
         }
-        current = next;
+    } else {
+        Stream->Write(key);
     }
 }
 

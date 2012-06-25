@@ -16,15 +16,24 @@ struct TDsvFormatConfig
     char KeyValueSeparator;
     char FieldSeparator;
     TNullable<Stroka> LinePrefix;
+
+    bool EnableEscaping;
     char EscapingSymbol;
 
     TDsvFormatConfig()
     {
-        Register("record_separator", RecordSeparator).Default('\n');
-        Register("key_value_separator", KeyValueSeparator).Default('=');
-        Register("field_separator", FieldSeparator).Default('\t');
-        Register("line_prefix", LinePrefix).Default();
-        Register("escaping_symbol", EscapingSymbol).Default('\\');
+        Register("record_separator", RecordSeparator)
+            .Default('\n');
+        Register("key_value_separator", KeyValueSeparator)
+            .Default('=');
+        Register("field_separator", FieldSeparator)
+            .Default('\t');
+        Register("line_prefix", LinePrefix)
+            .Default();
+        Register("enable_escaping", EnableEscaping)
+            .Default(true);
+        Register("escaping_symbol", EscapingSymbol)
+            .Default('\\');
     }
 };
 
@@ -35,7 +44,8 @@ struct TJsonFormatConfig
 
     TJsonFormatConfig()
     {
-        Register("pretty", Pretty).Default(false);
+        Register("pretty", Pretty)
+            .Default(false);
     }
 };
 
