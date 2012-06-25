@@ -169,12 +169,6 @@ struct TExecuteRequest
     {
         THREAD_AFFINITY_IS_V8();
 
-        FOREACH (auto* current, OutputStack)
-        {
-            current->Flush();
-            current->Finish();
-        }
-
         Callback.Dispose();
         Callback.Clear();
 
@@ -264,6 +258,15 @@ struct TExecuteRequest
 
         DriverRequest.InputStream = InputStack.Top();
         DriverRequest.OutputStream = OutputStack.Top();
+    }
+
+    void Finish()
+    {
+        FOREACH (auto* current, OutputStack)
+        {
+            current->Flush();
+            current->Finish();
+        }
     }
 };
 
@@ -570,6 +573,8 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
     HandleScope scope;
 
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
+
+    request->Finish();
 
     {
         TryCatch block;
