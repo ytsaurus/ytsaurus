@@ -63,7 +63,7 @@ public:
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
         YASSERT((Head > Stack));
-        T* layer = new U(*Head);
+        T* layer = new U(Top());
         *--Head = layer;
     }
 
@@ -85,9 +85,21 @@ public:
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
         YASSERT(Head > Stack);
-        T* layer = new S(Top(), ForwardRV<A1>(a1), ForwardRV<A2>(a2));
+        T* layer = new U(Top(), ForwardRV<A1>(a1), ForwardRV<A2>(a2));
         *--Head = layer;
     }
+
+    template <class U, class A1, class A2, class A3>
+    void Add(A1&& a1, A2&& a2, A3&& a3)
+    {
+        static_assert(
+            NMpl::TIsConvertible<U*, T*>::Value,
+            "U* have to be convertible to T*");
+        YASSERT(Head > Stack);
+        T* layer = new U(Top(), ForwardRV<A1>(a1), ForwardRV<A2>(a2), ForwardRV<A3>(a3));
+        *--Head = layer;
+    }
+
 
     T* Top() const
     {
@@ -112,8 +124,8 @@ struct TExecuteRequest
     uv_work_t Request;
     TNodeJSDriver* Host;
 
-    TGrowingStreamStack<TInputStream*, 2> InputStack;
-    TGrowingStreamStack<TOutputStream*, 2> OutputStack;
+    TGrowingStreamStack<TInputStream, 2> InputStack;
+    TGrowingStreamStack<TOutputStream, 2> OutputStack;
 
     Persistent<Function> Callback;
 
@@ -129,7 +141,7 @@ struct TExecuteRequest
         Handle<Function> callback)
         : Host(host)
         , InputStack(inputStream)
-        , OutputStack(inputStream)
+        , OutputStack(outputStream)
         , Callback(Persistent<Function>::New(callback))
     {
         THREAD_AFFINITY_IS_V8();
@@ -526,7 +538,9 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
-    
+
+    TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
+
     try {
         request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
     } catch (const std::exception& ex) {
