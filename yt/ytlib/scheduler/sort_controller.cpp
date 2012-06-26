@@ -730,7 +730,7 @@ private:
             Partitions[index] = New<TPartition>(this, index);
         }
 
-        // Populate the pool partition pool.
+        // Populate the partition pool.
         FOREACH (const auto& table, InputTables) {
             FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                 auto stripe = New<TChunkStripe>(chunk);
