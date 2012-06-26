@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/bind_ut.cpp
   ${BASE}/bus_ut.cpp
   ${BASE}/callback_ut.cpp
+  ${BASE}/codec_ut.cpp
   ${BASE}/change_log_ut.cpp
   ${BASE}/configurable_ut.cpp
   ${BASE}/dsv_parser_ut.cpp
