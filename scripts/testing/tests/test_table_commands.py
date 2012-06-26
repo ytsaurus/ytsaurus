@@ -62,6 +62,9 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table[:#3]') == [{'a': 0}, {'b' : 1}, {'c' : 2}]
         assert read('//tmp/table[#2:]') == [{'c' : 2}, {'d' : 3}]
 
+        # reading key selectors from unsorted table
+        with pytest.raises(YTError): read('//tmp/table[:a]')
+
     def test_sorted_write(self):
         create('table', '//tmp/table')
 
@@ -91,7 +94,22 @@ class TestTableCommands(YTEnvSetup):
 
         # some typical cases
         assert read('//tmp/table[(a, 4) : (b, 20, 18.)]') == [v2, v3]
-        # TODO(panin): add more tests
+        assert read('//tmp/table[c:]') == [v5]
+        assert read('//tmp/table[:(a, 10)]') == [v1]
+        assert read('//tmp/table[:(a, 11)]') == [v1, v2]
+        assert read('//tmp/table[:]') == [v1, v2, v3, v4, v5]
+
+        # combination of row and key selectors
+        assert read('//tmp/table{i}[aa: (b, 10)]') == [{'i' : 5}]
+        assert read('//tmp/table{a: o}[(b, 0): (c, 0)]') == \
+            [
+                {'i': 5, 'd' : 20.},
+                {'i': 20,'d' : 20.},
+                {'i': -100, 'd' : 10.}
+            ]
+
+        # limits of different types
+        with pytest.raises(YTError): assert read('//tmp/table[#0:zz]')
 
 
     def test_column_selector(self):
@@ -106,6 +124,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table{a, }') == [{'a' : 1}] # extra comma
         assert read('//tmp/table{a, a}') == [{'a' : 1}]
         assert read('//tmp/table{c, b}') == [{'b' : 3, 'c' : 5}]
+        assert read('//tmp/table{zzzzz}') == [{}] # non existent column
 
         # range columns
         # closed ranges
