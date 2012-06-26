@@ -19,15 +19,15 @@ size_t Size(const std::vector<TSharedRef>& refs)
 }
 
 //! Implements snappy::Source interface over a vector of TSharedRef-s. 
-class VectorRefsSource:
-    public snappy::Source
+class VectorRefsSource
+    : public snappy::Source
 {
 public:
-    VectorRefsSource(const std::vector<TSharedRef>& blocks):
-        Blocks_(blocks),
-        Available_(Size(blocks)),
-        Index_(0),
-        Position_(0)
+    explicit VectorRefsSource(const std::vector<TSharedRef>& blocks)
+        : Blocks_(blocks)
+        , Available_(Size(blocks))
+        , Index_(0)
+        , Position_(0)
     { }
 
     virtual size_t Available() const OVERRIDE
@@ -72,12 +72,12 @@ class TNoneCodec
     : public ICodec
 {
 public:
-    virtual TSharedRef Compress(const TSharedRef& block)
+    virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
         return block;
     }
 
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks)
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
         TBlob result(Size(blocks));
         size_t pos = 0;
@@ -88,7 +88,7 @@ public:
         return TSharedRef(MoveRV(result));
     }
 
-    virtual TSharedRef Decompress(const TSharedRef& block)
+    virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
         return block;
     }
@@ -110,8 +110,7 @@ public:
         return TSharedRef(MoveRV(blob), ref);
     }
 
-    //! Compress vector of blocks without efficiently,
-    //! without memory copying.
+    //! Zero-copy compression.
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
         if (blocks.size() == 1) {
