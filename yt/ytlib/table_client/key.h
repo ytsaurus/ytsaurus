@@ -328,7 +328,7 @@ public:
                 *key.add_parts() = part.ToProto(MaxKeySize - currentSize);
                 currentSize += part.GetSize();
             } else {
-                *key.add_parts() = TKeyPart<typename TBuffer::TStoredType>::CreateNull().ToProto();
+                *key.add_parts() = TKeyPart<typename TBuffer::TStoredType>::CreateSentinel(EKeyPartType::Null).ToProto();
             }
         }
         return key;

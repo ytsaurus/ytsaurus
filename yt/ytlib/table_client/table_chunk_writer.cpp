@@ -298,7 +298,7 @@ void TTableChunkWriter::EmitSample(TRow& row)
                 break;
 
             default:
-                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateComposite().ToProto();
+                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateSentinel(EKeyPartType::Composite).ToProto();
                 break;
         }
     }
