@@ -798,6 +798,18 @@ private:
         AddTaskPendingHint(partition->SortTask);
     }
 
+    void AddPartition(const NTableClient::NProto::TKey& key)
+    {
+        LOG_DEBUG("Partition %d has starting key %s",
+            static_cast<int>(Partitions.size()),
+            ~ToString(TNonOwningKey::FromProto(key)));
+
+        PartitionKeys.push_back(key);
+        Partitions.push_back(New<TPartition>(
+            this,
+            static_cast<int>(Partitions.size())));
+    }
+
     void BuildMulitplePartitions(int partitionCount)
     {
         LOG_DEBUG("Building partition keys");
@@ -822,15 +834,7 @@ private:
             auto* sampleKey = GetSampleKey(sampleIndex);
             // Check for same keys.
             if (PartitionKeys.empty() || CompareKeys(*sampleKey, PartitionKeys.back()) != 0) {
-                LOG_DEBUG("Partition %d has starting key %s",
-                    static_cast<int>(Partitions.size()),
-                    ~ToString(TNonOwningKey::FromProto(*sampleKey)));
-
-                PartitionKeys.push_back(*sampleKey);
-                Partitions.push_back(New<TPartition>(
-                    this,
-                    static_cast<int>(Partitions.size())));
-
+                AddPartition(*sampleKey);
                 ++sampleIndex;
             } else {
                 // Skip same keys.
@@ -851,15 +855,7 @@ private:
                 YCHECK(skippedCount >= 1);
                 
                 auto successorKey = GetSuccessorKey(*sampleKey);
-
-                LOG_DEBUG("Partition %d has starting key %s",
-                    static_cast<int>(Partitions.size()),
-                    ~ToString(TNonOwningKey::FromProto(successorKey)));
-
-                PartitionKeys.push_back(successorKey);
-                Partitions.push_back(New<TPartition>(
-                    this,
-                    static_cast<int>(Partitions.size())));
+                AddPartition(successorKey);
             }
         }
 
