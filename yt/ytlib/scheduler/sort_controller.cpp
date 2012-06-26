@@ -718,7 +718,7 @@ private:
             int sampleIndex = (index + 1) * (SortedSamples.size() - 1) / partitionCount;
             auto* key = SortedSamples[sampleIndex];
             // Avoid producing same keys.
-            if (PartitionKeys.empty() || CompareKeys(*key, *SortedSamples.back()) != 0) {
+            if (PartitionKeys.empty() || CompareKeys(*key, *PartitionKeys.back()) != 0) {
                 LOG_DEBUG("PartitionKey[%d] = %s",
                     static_cast<int>(PartitionKeys.size()),
                     ~ToString(TNonOwningKey::FromProto(*key)));
