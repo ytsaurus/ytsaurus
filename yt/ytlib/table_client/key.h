@@ -415,26 +415,24 @@ private:
     {
         Reset(other.Parts.size());
         for (int i = 0; i < other.Parts.size(); ++i) {
-            switch (other.Parts[i].GetType()) {
+            const auto& part = other.Parts[i];
+            switch (part.GetType()) {
                 case EKeyPartType::Composite:
-                    SetComposite(i);
+                case EKeyPartType::Null:
+                case EKeyPartType::MinSentinel:
+                    SetSentinel(i, part.GetType());
                     break;
 
                 case EKeyPartType::Integer:
-                    SetValue(i, other.Parts[i].GetInteger());
+                    SetValue(i, part.GetInteger());
                     break;
 
                 case EKeyPartType::Double:
-                    SetValue(i, other.Parts[i].GetDouble());
+                    SetValue(i, part.GetDouble());
                     break;
 
                 case EKeyPartType::String:
-                    SetValue(i, other.Parts[i].GetString());
-                    break;
-
-                case EKeyPartType::Null:
-                case EKeyPartType::MinSentinel:
-                    // Do nothing.
+                    SetValue(i, part.GetString());
                     break;
 
                 default:
