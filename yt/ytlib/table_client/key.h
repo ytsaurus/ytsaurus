@@ -137,24 +137,25 @@ public:
         keyPart.set_type(Type_);
 
         switch (Type_) {
-        case EKeyPartType::String:
-            keyPart.set_str_value(StrValue.begin(), StrValue.size());
-            break;
+            case EKeyPartType::String:
+                keyPart.set_str_value(StrValue.begin(), StrValue.size());
+                break;
 
-        case EKeyPartType::Integer:
-            keyPart.set_int_value(IntValue);
-            break;
+            case EKeyPartType::Integer:
+                keyPart.set_int_value(IntValue);
+                break;
 
-        case EKeyPartType::Double:
-            keyPart.set_double_value(DoubleValue);
-            break;
+            case EKeyPartType::Double:
+                keyPart.set_double_value(DoubleValue);
+                break;
 
-        case EKeyPartType::Null:
-        case EKeyPartType::Composite:
-            break;
+            case EKeyPartType::MinSentinel:
+            case EKeyPartType::Null:
+            case EKeyPartType::Composite:
+                break;
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
 
         return keyPart;
@@ -175,9 +176,11 @@ Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
 {
     switch (keyPart.GetType()) {
         case NYT::NTableClient::EKeyPartType::Null:
-            return "<null>";
+            return "<Null>";
         case NYT::NTableClient::EKeyPartType::Composite:
-            return "<composite>";
+            return "<Composite>";
+        case NYT::NTableClient::EKeyPartType::MinSentinel:
+            return "<Min>";
         case NYT::NTableClient::EKeyPartType::String:
             return keyPart.GetString().ToString().Quote();
         case NYT::NTableClient::EKeyPartType::Integer:
