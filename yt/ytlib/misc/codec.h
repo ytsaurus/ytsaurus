@@ -19,6 +19,9 @@ struct ICodec
     //! Compress a given block.
     virtual TSharedRef Compress(const TSharedRef& block) = 0;
 
+    //! Compress vector of blocks.
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) = 0;
+
     //! Decompress a given block.
     virtual TSharedRef Decompress(const TSharedRef& block) = 0;
 
