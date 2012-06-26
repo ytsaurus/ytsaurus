@@ -191,34 +191,38 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
     }
 
     switch (rhs.GetType()) {
-    case EKeyPartType::String: {
-        size_t minLen = std::min(lhs.GetStringSize(), rhs.GetStringSize());
-        auto res = strncmp(lhs.Begin(), rhs.Begin(), minLen);
-        return res ? res : static_cast<int>(lhs.GetStringSize()) - static_cast<int>(rhs.GetStringSize());
-        // Too slow because of allocations.
-        // return lhs.GetString().compare(rhs.GetString());
-    }
+        case EKeyPartType::String: {
+            // Too slow because of allocations:
+            // return lhs.GetString().compare(rhs.GetString());
+            size_t minLen = std::min(lhs.GetStringSize(), rhs.GetStringSize());
+            int result = strncmp(lhs.Begin(), rhs.Begin(), minLen);
+            if (result != 0) {
+                return result;
+            }
+            return static_cast<int>(lhs.GetStringSize()) - static_cast<int>(rhs.GetStringSize());
+        }
 
-    case EKeyPartType::Integer:
-        if (lhs.GetInteger() > rhs.GetInteger())
-            return 1;
-        if (lhs.GetInteger() < rhs.GetInteger())
-            return -1;
-        return 0;
+        case EKeyPartType::Integer:
+            if (lhs.GetInteger() > rhs.GetInteger())
+                return 1;
+            if (lhs.GetInteger() < rhs.GetInteger())
+                return -1;
+            return 0;
 
-    case EKeyPartType::Double:
-        if (lhs.GetDouble() > rhs.GetDouble())
-            return 1;
-        if (lhs.GetDouble() < rhs.GetDouble())
-            return -1;
-        return 0;
+        case EKeyPartType::Double:
+            if (lhs.GetDouble() > rhs.GetDouble())
+                return 1;
+            if (lhs.GetDouble() < rhs.GetDouble())
+                return -1;
+            return 0;
 
-    case EKeyPartType::Null:
-    case EKeyPartType::Composite:
-        return 0; // All composites are equal to each other.
+        case EKeyPartType::Null:
+        case EKeyPartType::Composite:
+        case EKeyPartType::MinSentinel:
+            return 0; // All sentinels are considered equal.
 
-    default:
-        YUNREACHABLE();
+        default:
+            YUNREACHABLE();
     }
 }
 
