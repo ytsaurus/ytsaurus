@@ -480,7 +480,7 @@ private:
             return;
         }
 
-        // All chunks go to a single chunk stripe.
+        // NB: During unordered merge all chunks go to a single chunk stripe.
         AddPendingChunk(chunk, 0);
         EndTaskIfLarge();
     }
@@ -517,20 +517,16 @@ private:
     {
         UNUSED(tableIndex);
 
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        auto& table = OutputTables[0];
-
-        if (IsPassthroughChunk(chunk) && !HasActiveTask()) {
-            // Merge is not required and no current task is active.
-            // Copy the chunk directly to the output.
-            LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
-                ~chunkId.ToString(),
-                static_cast<int>(table.PartitionTreeIds.size()));
-            table.PartitionTreeIds.push_back(chunkId);
+        if (IsPassthroughChunk(chunk)) {
+            // Merge is not needed. Copy the chunk directly to the output.
+            if (HasActiveTask()) {
+                EndTask();
+            }
+            AddPassthroughChunk(chunk);
             return;
         }
 
-        // All chunks go to a single chunk stripe.
+        // NB: During ordered merge all chunks go to a single chunk stripe.
         AddPendingChunk(chunk, 0);
         EndTaskIfLarge();
     }
@@ -765,10 +761,11 @@ protected:
         // Check for trivial components.
         {
             const auto& chunk = *Endpoints[startIndex].InputChunk;
-            if (chunkCount == 1 && IsPassthroughChunk(chunk) && !HasActiveTask()) {
-                auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                // Merge is not required and no current task is active.
-                // Copy the chunk directly to the output.
+            if (chunkCount == 1 && IsPassthroughChunk(chunk)) {
+                // No merge is needed. Copy the chunk directly to the output.
+                if (HasActiveTask()) {
+                    EndTask();
+                }
                 AddPassthroughChunk(chunk);
                 return;
             }
