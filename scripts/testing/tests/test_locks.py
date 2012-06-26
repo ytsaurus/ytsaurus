@@ -6,7 +6,7 @@ from yt_commands import *
 ##################################################################
 
 class TestLocks(YTEnvSetup):
-    NUM_MASTERS = 1
+    NUM_MASTERS = 3
     NUM_HOLDERS = 0
 
     #TODO(panin): check error messages
@@ -85,7 +85,6 @@ class TestLocks(YTEnvSetup):
 
             abort_transaction(tx = tx_id)
     
-    @pytest.mark.xfail(run = False, reason = 'Issue #196')
     def test_snapshot_lock(self):
         set('//tmp/node', 42)
         
@@ -96,9 +95,8 @@ class TestLocks(YTEnvSetup):
         # check that node under snapshot lock wasn't changed
         assert get('//tmp/node', tx = tx_id) == 42
 
-        remove('//tmp/node')
-        # check that node under snapshot lock still exist
-        assert get('//tmp/node', tx = tx_id) == 42
+        # can't change value under snapshot lock
+        with pytest.raises(YTError): set('//tmp/node', 200, tx = tx_id)
         
         abort_transaction(tx = tx_id)
 
