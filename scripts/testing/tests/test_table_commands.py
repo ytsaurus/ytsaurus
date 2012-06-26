@@ -38,7 +38,7 @@ class TestTableCommands(YTEnvSetup):
     def test_invalid_cases(self):
         create('table', '//tmp/table')
 
-        # we can write only list or maps
+        # we can write only list fragments
         with pytest.raises(YTError): write_str('//tmp/table', 'string')
         with pytest.raises(YTError): write_str('//tmp/table', '100')
         with pytest.raises(YTError): write_str('//tmp/table', '3.14')
@@ -98,7 +98,6 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/table')
 
         write_str('//tmp/table', '{a = 1; aa = 2; b = 3; bb = 4; c = 5}')
-
         # empty columns
         assert read('//tmp/table{}') == [{}]
 
@@ -132,7 +131,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table{:}') == [{'a' :1, 'aa': 2,  'b': 3, 'bb' : 4, 'c': 5}]
 
         # mixed column keys
-        # TODO(panin): check intersected columns
+        assert read('//tmp/table{aa, a:bb}') == [{'a' : 1, 'aa' : 2, 'b': 3}]
 
     def test_shared_locks_two_chunks(self):
         create('table', '//tmp/table')
