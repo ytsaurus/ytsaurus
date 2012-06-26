@@ -19,7 +19,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EKeyPartType,
-    // A special sentinel used by #GetKeySuccessor.
+    // A special sentinel used by #GetSuccessorKey.
     ((MinSentinel)(-1))
     // Denotes a missing (null) component in a composite key.
     ((Null)(0))
@@ -45,17 +45,10 @@ public:
         : Type_(EKeyPartType::Null)
     { }
 
-    static TKeyPart CreateNull()
+    static TKeyPart CreateSentinel(EKeyPartType type)
     {
         TKeyPart result;
-        result.Type_ = EKeyPartType::Null;
-        return result;
-    }
-
-    static TKeyPart CreateComposite()
-    {
-        TKeyPart result;
-        result.Type_ = EKeyPartType::Composite;
+        result.Type_ = type;
         return result;
     }
 
@@ -115,18 +108,16 @@ public:
 
     size_t GetSize() const
     {
-        auto typeSize = sizeof(Type_);
-
+        size_t result = sizeof(Type_);
         switch (Type_) {
-        case EKeyPartType::String:
-            return typeSize + StrValue.size();
-        case EKeyPartType::Integer:
-            return typeSize + sizeof(i64);
-        case EKeyPartType::Double:
-            return typeSize + sizeof(double);
-        default:
-            return typeSize;
+            case EKeyPartType::String:
+                result += StrValue.size();
+            case EKeyPartType::Integer:
+                result += sizeof(i64);
+            case EKeyPartType::Double:
+                result += sizeof(double);
         }
+        return result;
     }
 
     //! Converts the part into protobuf.
@@ -303,10 +294,10 @@ public:
         Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateValue(part);
     }
 
-    void SetComposite(int index)
+    void SetSentinel(int index, EKeyPartType type)
     {
         YASSERT(index < ColumnCount);
-        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateComposite();
+        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateSentinel(type);
     }
 
     void Reset(int columnCount = -1)
@@ -348,30 +339,32 @@ public:
         TKey key;
         key.Reset(protoKey.parts_size());
         for (int i = 0; i < protoKey.parts_size(); ++i) {
-            switch (protoKey.parts(i).type()) {
+            const auto& part = protoKey.parts(i);
+            auto partType = EKeyPartType(part.type());
+            switch (partType) {
+                case EKeyPartType::Null:
+                case EKeyPartType::MinSentinel:
                 case EKeyPartType::Composite:
-                    key.SetComposite(i);
+                    key.SetSentinel(i, partType);
                     break;
 
                 case EKeyPartType::Double:
-                    key.SetValue(i, protoKey.parts(i).double_value());
+                    key.SetValue(i, part.double_value());
                     break;
 
                 case EKeyPartType::Integer:
-                    key.SetValue(i, protoKey.parts(i).int_value());
+                    key.SetValue(i, part.int_value());
                     break;
 
                 case EKeyPartType::String:
-                    key.SetValue(i, protoKey.parts(i).str_value());
+                    key.SetValue(i, part.str_value());
                     break;
 
-                case EKeyPartType::Null:
-                case EKeyPartType::MinSentinel:
                     break;
 
                 default:
                     YUNREACHABLE();
-                }
+            }
         }
         return key;
     }
@@ -423,28 +416,29 @@ private:
         Reset(other.Parts.size());
         for (int i = 0; i < other.Parts.size(); ++i) {
             switch (other.Parts[i].GetType()) {
-            case EKeyPartType::Composite:
-                SetComposite(i);
-                break;
+                case EKeyPartType::Composite:
+                    SetComposite(i);
+                    break;
 
-            case EKeyPartType::Integer:
-                SetValue(i, other.Parts[i].GetInteger());
-                break;
+                case EKeyPartType::Integer:
+                    SetValue(i, other.Parts[i].GetInteger());
+                    break;
 
-            case EKeyPartType::Double:
-                SetValue(i, other.Parts[i].GetDouble());
-                break;
+                case EKeyPartType::Double:
+                    SetValue(i, other.Parts[i].GetDouble());
+                    break;
 
-            case EKeyPartType::String:
-                SetValue(i, other.Parts[i].GetString());
-                break;
+                case EKeyPartType::String:
+                    SetValue(i, other.Parts[i].GetString());
+                    break;
 
-            case EKeyPartType::Null:
-                // Do nothing.
-                break;
+                case EKeyPartType::Null:
+                case EKeyPartType::MinSentinel:
+                    // Do nothing.
+                    break;
 
-            default:
-                YUNREACHABLE();
+                default:
+                    YUNREACHABLE();
             }
         }
     }

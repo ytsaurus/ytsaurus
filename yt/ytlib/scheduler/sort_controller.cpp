@@ -836,7 +836,7 @@ private:
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
-                       CompareKeys(*GetSampleKey(sampleIndex), PartitionKeys.back()))
+                       CompareKeys(*GetSampleKey(sampleIndex), PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;

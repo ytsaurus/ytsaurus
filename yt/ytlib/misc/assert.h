@@ -55,7 +55,7 @@ namespace NYT {
 
 
 // TODO(panin): extract common part from YASSERT and YCHECK
-//! Do the same as YASSERT but both in release and debug mode
+//! Do the same as YASSERT but both in release and debug mode.
 #define YCHECK( a ) \
     do { \
         try { \
