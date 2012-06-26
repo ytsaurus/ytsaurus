@@ -53,6 +53,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table[#0:#2]') == [{'a': 0}, {'b' : 1}] # simple
         assert read('//tmp/table[#-1:#1]') == [{'a': 0}] # left < min
         assert read('//tmp/table[#2:#5]') == [{'c': 2}, {'d': 3}] # right > max
+        assert read('//tmp/table[#-10:-#5]') == [] # negative indexes
 
         assert read('//tmp/table[#1:#1]') == [] # left = right
         assert read('//tmp/table[#3:#1]') == [] # left > right
