@@ -9,15 +9,13 @@
 #include <util/system/file.h>
 
 #include <errno.h>
-#include <io.h>
 
 #ifdef _linux_
-
-#include <unistd.h>
-#include <fcntl.h>
-
-#include <sys/epoll.h>
-
+    #include <unistd.h>
+    #include <fcntl.h>
+    #include <sys/epoll.h>
+#else
+    #include <io.h>
 #endif
 
 namespace NYT {
