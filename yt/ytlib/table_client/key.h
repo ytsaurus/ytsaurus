@@ -390,7 +390,7 @@ public:
                 break;
 
             default:
-                SetComposite(index);
+                SetSentinel(index, EKeyPartType::Composite);
                 break;
         }
     }
