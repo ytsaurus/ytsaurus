@@ -8,7 +8,7 @@ import time
 ##################################################################
 
 class TestTxCommands(YTEnvSetup):
-    NUM_MASTERS = 1
+    NUM_MASTERS = 3
     NUM_HOLDERS = 0
 
     def test_simple(self):
@@ -89,3 +89,27 @@ class TestTxCommands(YTEnvSetup):
         self.assertItemsEqual(get_transactions(), [tx_id])
         
         abort_transaction(tx = tx_id)
+
+    def test_nested_tx(self):
+        set('//tmp/t1', 0)
+
+        tx_outer = start_transaction()
+
+        tx1 = start_transaction(tx=tx_outer)
+        set('//tmp/t1', 1, tx=tx1)
+
+        tx2 = start_transaction(tx=tx_outer)
+
+        # can't be committed as long there are uncommitted transactions
+        with pytest.raises(YTError): commit_transaction(tx=tx_outer)
+
+        assert get('//tmp/t1', tx=tx_outer) == 0
+        commit_transaction(tx=tx1)
+        assert get('//tmp/t1', tx=tx_outer) == 1
+
+        # can be aborted..
+        abort_transaction(tx=tx_outer)
+        
+        # and this aborts all nested transactions
+        assert get('//tmp/t1') == 0
+        assert get_transactions() == []
