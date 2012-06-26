@@ -114,6 +114,10 @@ public:
     //! without memory copying.
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks)
     {
+        if (blocks.size() == 1) {
+            return Compress(blocks.front());
+        }
+
         VectorRefsSource reader(blocks);
         TBlob result(snappy::MaxCompressedLength(reader.Available()));
 
