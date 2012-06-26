@@ -100,7 +100,7 @@ class TSnappyCodec
     : public ICodec
 {
 public:
-    virtual TSharedRef Compress(const TSharedRef& block)
+    virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
         auto maxSize = snappy::MaxCompressedLength(block.Size());
         TBlob blob(maxSize);
@@ -112,7 +112,7 @@ public:
 
     //! Compress vector of blocks without efficiently,
     //! without memory copying.
-    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks)
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
         if (blocks.size() == 1) {
             return Compress(blocks.front());
@@ -129,7 +129,7 @@ public:
         return TSharedRef(MoveRV(result), compressedRef);
     }
 
-    virtual TSharedRef Decompress(const TSharedRef& block)
+    virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE  
     {
         size_t size = 0;
         YVERIFY(snappy::GetUncompressedLength(block.Begin(), block.Size(), &size));
