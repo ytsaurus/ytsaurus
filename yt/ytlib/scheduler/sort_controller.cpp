@@ -711,12 +711,17 @@ private:
 
     void BuildMulitplePartitions(int partitionCount)
     {
+        LOG_DEBUG("Building partition keys");
+
         // Take partition keys evenly.
         for (int index = 0; index < partitionCount - 1; ++index) {
             int sampleIndex = (index + 1) * (SortedSamples.size() - 1) / partitionCount;
             auto* key = SortedSamples[sampleIndex];
             // Avoid producing same keys.
             if (PartitionKeys.empty() || CompareKeys(*key, *SortedSamples.back()) != 0) {
+                LOG_DEBUG("PartitionKey[%d] = %s",
+                    static_cast<int>(PartitionKeys.size()),
+                    ~ToString(TNonOwningKey::FromProto(*key)));
                 PartitionKeys.push_back(key);
             }
         }

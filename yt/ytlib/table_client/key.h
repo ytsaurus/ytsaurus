@@ -8,6 +8,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/blob_output.h>
 #include <ytlib/ytree/lexer.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_reader.pb.h>
@@ -178,7 +179,7 @@ Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
         case NYT::NTableClient::EKeyPartType::Composite:
             return "<composite>";
         case NYT::NTableClient::EKeyPartType::String:
-            return keyPart.GetString().ToString();
+            return keyPart.GetString().ToString().Quote();
         case NYT::NTableClient::EKeyPartType::Integer:
             return ::ToString(keyPart.GetInteger());
         case NYT::NTableClient::EKeyPartType::Double:
@@ -339,34 +340,36 @@ public:
         return key;
     }
 
-    void FromProto(const NProto::TKey& protoKey)
+    static TKey FromProto(const NProto::TKey& protoKey)
     {
-        Reset(protoKey.parts_size());
+        TKey key;
+        key.Reset(protoKey.parts_size());
         for (int i = 0; i < protoKey.parts_size(); ++i) {
             switch (protoKey.parts(i).type()) {
-            case EKeyPartType::Composite:
-                SetComposite(i);
-                break;
+                case EKeyPartType::Composite:
+                    key.SetComposite(i);
+                    break;
 
-            case EKeyPartType::Double:
-                SetValue(i, protoKey.parts(i).double_value());
-                break;
+                case EKeyPartType::Double:
+                    key.SetValue(i, protoKey.parts(i).double_value());
+                    break;
 
-            case EKeyPartType::Integer:
-                SetValue(i, protoKey.parts(i).int_value());
-                break;
+                case EKeyPartType::Integer:
+                    key.SetValue(i, protoKey.parts(i).int_value());
+                    break;
 
-            case EKeyPartType::String:
-                SetValue(i, protoKey.parts(i).str_value());
-                break;
+                case EKeyPartType::String:
+                    key.SetValue(i, protoKey.parts(i).str_value());
+                    break;
 
-            case EKeyPartType::Null:
-                break;
+                case EKeyPartType::Null:
+                    break;
 
-            default:
-                YUNREACHABLE();
-            }
+                default:
+                    YUNREACHABLE();
+                }
         }
+        return key;
     }
 
     void SetKeyPart(int index, const TStringBuf& yson, NYTree::TLexer& lexer)

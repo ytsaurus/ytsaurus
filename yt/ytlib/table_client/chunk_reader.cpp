@@ -54,9 +54,8 @@ class TChunkReader::TKeyValidator
 public:
     TKeyValidator(const NProto::TKey& pivot, bool leftBoundary)
         : LeftBoundary(leftBoundary)
-    {
-        Pivot.FromProto(pivot);
-    }
+        , Pivot(TOwningKey::FromProto(pivot))
+    { }
 
     template<class TBuffer>
     bool IsValid(const TKey<TBuffer>& key)
@@ -67,7 +66,7 @@ public:
 
 private:
     bool LeftBoundary;
-    TKey<TBlobOutput> Pivot;
+    TOwningKey Pivot;
 
 };
 

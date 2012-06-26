@@ -76,8 +76,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
 
     PartitionKeys.reserve(partitionKeys.size());
     FOREACH (const auto& key, partitionKeys) {
-        PartitionKeys.push_back(TOwningKey());
-        PartitionKeys.back().FromProto(key);
+        PartitionKeys.push_back(TOwningKey::FromProto(key));
     }
 
     for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
