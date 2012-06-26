@@ -30,7 +30,7 @@ void WriteYson(
     TOutputStream* output,
     const T& value,
     EYsonType type,
-    EYsonFormat format = EYsonFormat::Binary)
+    EYsonFormat format)
 {
     TYsonWriter writer(output, format, type);
     Consume(value, &writer);
@@ -40,7 +40,7 @@ template <class T>
 void WriteYson(
     TOutputStream* output,
     const T& value,
-    EYsonFormat format = EYsonFormat::Binary)
+    EYsonFormat format)
 {
     WriteYson(output, value, GetYsonType(value), format);
 }
@@ -49,7 +49,7 @@ template <class T>
 void WriteYson(
     const TYsonOutput& output,
     const T& value,
-    EYsonFormat format = EYsonFormat::Binary)
+    EYsonFormat format)
 {
     WriteYson(output.GetStream(), value, output.GetType(), format);
 }
