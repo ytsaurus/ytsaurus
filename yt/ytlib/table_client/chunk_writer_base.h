@@ -25,7 +25,6 @@ class TChunkWriterBase
 public:
     TAsyncError GetReadyEvent();
 
-
 protected:
     TChunkWriterConfigPtr Config;
     NChunkClient::IAsyncWriterPtr ChunkWriter;
@@ -35,6 +34,7 @@ protected:
 
     //! Uncompressed size of completed blocks.
     i64 UncompressedSize;
+    
     //! Total size of completed and sent blocks.
     i64 SentSize;
 
@@ -42,6 +42,12 @@ protected:
 
     //! Approximate data size counting all written rows.
     i64 DataWeight;
+
+    //! Total number of written rows.
+    i64 RowCount;
+
+    //! Total number of values ("cells") in all written rows.
+    i64 ValueCount;
 
     //! Compressed blocks waiting to be sent to 
     std::deque<TSharedRef> PendingBlocks;
@@ -63,7 +69,7 @@ protected:
         NTableClient::NProto::TBlockInfo* blockInfo);
     void WritePendingBlock(TError error);
 
-    void FinaliseWriter();
+    void FinalizeWriter();
 
 };
 

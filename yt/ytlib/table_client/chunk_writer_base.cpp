@@ -27,6 +27,8 @@ TChunkWriterBase::TChunkWriterBase(
     , SentSize(0)
     , CompressionRatio(0)
     , DataWeight(0)
+    , RowCount(0)
+    , ValueCount(0)
     , PendingSemaphore(2)
 {
     VERIFY_INVOKER_AFFINITY(WriterThread->GetInvoker(), WriterThread);
@@ -98,11 +100,11 @@ TAsyncError TChunkWriterBase::GetReadyEvent()
     return State.GetOperationError();
 }
 
-void TChunkWriterBase::FinaliseWriter()
+void TChunkWriterBase::FinalizeWriter()
 {
-    SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
-
     Meta.set_type(EChunkType::Table);
+
+    SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
 
     {
         MiscExt.set_uncompressed_data_size(UncompressedSize);
@@ -110,6 +112,8 @@ void TChunkWriterBase::FinaliseWriter()
         MiscExt.set_meta_size(Meta.ByteSize());
         MiscExt.set_codec_id(Config->CodecId);
         MiscExt.set_data_weight(DataWeight);
+        MiscExt.set_row_count(RowCount);
+        MiscExt.set_value_count(ValueCount);
         SetProtoExtension(Meta.mutable_extensions(), MiscExt);
     }
 

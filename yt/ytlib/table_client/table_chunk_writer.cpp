@@ -44,8 +44,6 @@ TTableChunkWriter::TTableChunkWriter(
     YASSERT(config);
     YASSERT(chunkWriter);
 
-    MiscExt.set_row_count(0);
-    MiscExt.set_value_count(0);
     MiscExt.set_codec_id(Config->CodecId);
 
     {
@@ -117,8 +115,7 @@ bool TTableChunkWriter::TryWriteRow(TRow& row, const TNonOwningKey& key)
 
         rowDataWeight += pair.first.size();
         rowDataWeight += pair.second.size();
-
-        MiscExt.set_value_count(MiscExt.value_count() + 1);
+        ValueCount += 1;
 
         FOREACH (const auto& writer, ChannelWriters) {
             writer->Write(columnIndex, pair.first, pair.second);
@@ -130,9 +127,10 @@ bool TTableChunkWriter::TryWriteRow(TRow& row, const TNonOwningKey& key)
     }
 
     CurrentSize = SentSize;
-    MiscExt.set_row_count(MiscExt.row_count() + 1);
 
     DataWeight += rowDataWeight;
+    RowCount += 1;
+
     if (SamplesSize < Config->SampleRate * DataWeight * CompressionRatio) {
         EmitSample(row);
     }
@@ -249,7 +247,7 @@ void TTableChunkWriter::OnFinalBlocksWritten()
         }
     }
 
-    FinaliseWriter();
+    FinalizeWriter();
 }
 
 void TTableChunkWriter::EmitIndexEntry()

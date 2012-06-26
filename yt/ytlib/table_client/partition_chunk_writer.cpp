@@ -131,8 +131,7 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
 
         rowDataWeight += pair.first.size();
         rowDataWeight += pair.second.size();
-
-        MiscExt.set_value_count(MiscExt.value_count() + 1);
+        ValueCount += 1;
     }
     channelWriter->EndRow();
 
@@ -143,7 +142,7 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
 
     // Update global counters.
     DataWeight += rowDataWeight;
-    MiscExt.set_row_count(MiscExt.row_count() + 1);
+    RowCount += 1;
 
     if (channelWriter->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
         PrepareBlock(partitionTag);
@@ -213,7 +212,7 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
 void TPartitionChunkWriter::OnFinalBlocksWritten()
 {
     SetProtoExtension(Meta.mutable_extensions(), PartitionsExt);
-    FinaliseWriter();
+    FinalizeWriter();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
