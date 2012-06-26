@@ -73,6 +73,7 @@ class TestLocks(YTEnvSetup):
             tx_id = start_transaction()
             if object_type != "file":
                 create(object_type, '//tmp/some', tx = tx_id)
+                assert get('//tmp/some/@type') == object_type
             else:
                 #file can't be created via create
                 with pytest.raises(YTError): create(object_type, '//tmp/some', tx = tx_id)
