@@ -128,12 +128,16 @@ struct TMapOperationSpec
     TUserJobSpecPtr Mapper;   
     yvector<NYTree::TYPath> InputTablePaths;
     yvector<NYTree::TYPath> OutputTablePaths;
+    i64 MaxWeightPerJob;
 
     TMapOperationSpec()
     {
         Register("mapper", Mapper);
         Register("input_table_paths", InputTablePaths);
         Register("output_table_paths", OutputTablePaths);
+        Register("max_weight_per_job", MaxWeightPerJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
     }
 };
 
@@ -158,7 +162,7 @@ struct TMergeOperationSpec
     //! groups of chunks are partitioned into tasks of this or smaller size.
     //! This number, however, is merely an estimate, i.e. some tasks may still
     //! be larger.
-    i64 MaxMergeJobWeight;
+    i64 MaxWeightPerJob;
 
     TMergeOperationSpec()
     {
@@ -170,7 +174,7 @@ struct TMergeOperationSpec
             .Default(false);
         Register("key_columns", KeyColumns)
             .Default();
-        Register("max_merge_job_weight", MaxMergeJobWeight)
+        Register("max_weight_per_job", MaxWeightPerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
@@ -183,14 +187,14 @@ struct TEraseOperationSpec
 {
     NYTree::TYPath TablePath;
     bool CombineChunks;
-    i64 MaxMergeJobWeight;
+    i64 MaxWeightPerJob;
 
     TEraseOperationSpec()
     {
         Register("table_path", TablePath);
         Register("combine_chunks", CombineChunks)
             .Default(false);
-        Register("max_merge_job_weight", MaxMergeJobWeight)
+        Register("max_weight_per_job", MaxWeightPerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
@@ -218,7 +222,11 @@ struct TSortOperationSpec
     //! By default, the controller computes the number of partitions by dividing
     //! the total input size by this number. The user, however, may specify a custom
     //! number of partitions.
-    i64 MaxSortJobWeight;
+    i64 MaxWeightPerSortJob;
+
+    //! Maximum amount of (uncompressed) data to be given to a single unordered merge job
+    //! that takes care of a megalomaniac partition.
+    i64 MaxWeightPerUnorderedMergeJob;
 
     TSortOperationSpec()
     {
@@ -236,7 +244,10 @@ struct TSortOperationSpec
             .Default()
             .GreaterThan(0);
         // TODO(babenko): update when the sort gets optimized
-        Register("max_sort_job_weight", MaxSortJobWeight)
+        Register("max_weight_per_sort_job", MaxWeightPerSortJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("max_weight_per_unordered_merge_job", MaxWeightPerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }
@@ -251,7 +262,7 @@ struct TReduceOperationSpec
     yvector<NYTree::TYPath> InputTablePaths;
     yvector<NYTree::TYPath> OutputTablePaths;
     TNullable< yvector<Stroka> > KeyColumns;
-    i64 MaxReduceJobWeight;
+    i64 MaxWeightPerJob;
 
     TReduceOperationSpec()
     {
@@ -260,7 +271,7 @@ struct TReduceOperationSpec
         Register("output_table_paths", OutputTablePaths);
         Register("key_columns", KeyColumns)
             .Default();
-        Register("max_reduce_job_weight", MaxReduceJobWeight)
+        Register("max_weight_per_job", MaxWeightPerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
     }

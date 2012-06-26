@@ -120,10 +120,14 @@ protected:
         bool Clear;
         std::vector<Stroka> KeyColumns;
         NYTree::TYsonString Channels;
+
         // Chunk list for appending the output.
         NChunkServer::TChunkListId OutputChunkListId;
-        // Chunk trees comprising the output (the order matters).
-        std::vector<NChunkServer::TChunkTreeId> PartitionTreeIds;
+
+        //! Chunk trees comprising the output (the order matters).
+        //! Keys are used when the output is sorted (e.g. in sort operations).
+        //! Trees are sorted w.r.t. key and appended to #OutputChunkListId.
+        std::multimap<int, NChunkServer::TChunkTreeId> OutputChunkTreeIds;
     };
 
     std::vector<TOutputTable> OutputTables;
@@ -214,7 +218,7 @@ protected:
 
         void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
         void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
-        void AddTabularOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip, const TOutputTable& table);
+        void AddTabularOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip, int tableIndex);
 
     private:
         void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe);
@@ -361,23 +365,35 @@ protected:
 
 
     // Unsorted helpers.
+
     std::vector<Stroka> CheckInputTablesSorted(const TNullable< yvector<Stroka> >& keyColumns);
-    static bool AreKeysCompatible(const std::vector<Stroka>& fullColumns, const std::vector<Stroka>& prefixColumns);
     void CheckOutputTablesEmpty();
     void SetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
-    bool CheckChunkListsPoolSize(int minSize);
+    void RegisterOutputChunkTree(
+        const NChunkServer::TChunkTreeId& chunkTreeId,
+        int key,
+        int tableIndex);
+
+    bool HasEnoughChunkLists(int minSize);
+
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
-    void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
     static int GetJobCount(
         i64 totalWeight,
         i64 weightPerJob,
         TNullable<int> configJobCount,
         int chunkCount);
+
     static void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
         const std::vector<TFile>& files);
+
+private:
+    static bool AreKeysCompatible(const std::vector<Stroka>& fullColumns, const std::vector<Stroka>& prefixColumns);
+
+    void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 };
 

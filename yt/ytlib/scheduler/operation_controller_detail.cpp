@@ -50,7 +50,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
 {
     using ::ToString;
 
-    if (!Controller->CheckChunkListsPoolSize(GetChunkListCountPerJob())) {
+    if (!Controller->HasEnoughChunkLists(GetChunkListCountPerJob())) {
         return NULL;
     }
 
@@ -143,7 +143,8 @@ i64 TOperationControllerBase::TTask::GetJobWeightThresholdGeneric(int pendingJob
 }
 
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
-    NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip)
+    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobInProgressPtr jip)
 {
     auto* inputSpec = jobSpec->add_input_specs();
     FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
@@ -164,8 +165,9 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
 void TOperationControllerBase::TTask::AddTabularOutputSpec(
     NScheduler::NProto::TJobSpec* jobSpec,
     TJobInProgressPtr jip,
-    const TOutputTable& table)
+    int tableIndex)
 {
+    const auto& table = Controller->OutputTables[tableIndex];
     auto* outputSpec = jobSpec->add_output_specs();
     outputSpec->set_channels(table.Channels.Data());
     auto chunkListId = Controller->ChunkListPool->Extract();
@@ -614,10 +616,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
         auto ypath = FromObjectId(table.ObjectId);
         {
             auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-            FOREACH (const auto& childId, table.PartitionTreeIds) {
-                if (childId != NullChunkTreeId) {
-                    *req->add_children_ids() = childId.ToProto();
-                }
+            FOREACH (const auto& pair, table.OutputChunkTreeIds) {
+                *req->add_children_ids() = pair.second.ToProto();
             }
             batchReq->AddRequest(req, "attach_out");
         }
@@ -1186,7 +1186,21 @@ void TOperationControllerBase::SetOutputTablesSorted(const std::vector<Stroka>& 
     }
 }
 
-bool TOperationControllerBase::CheckChunkListsPoolSize(int minSize)
+void TOperationControllerBase::RegisterOutputChunkTree(
+    const NChunkServer::TChunkTreeId& chunkTreeId,
+    int key,
+    int tableIndex)
+{
+    auto& table = OutputTables[tableIndex];
+    table.OutputChunkTreeIds.insert(std::make_pair(key, chunkTreeId));
+
+    LOG_DEBUG("Output chunk tree registered (Table: %d, ChunkTreeId: %s, Key: %d)",
+        tableIndex,
+        ~chunkTreeId.ToString(),
+        key);
+}
+
+bool TOperationControllerBase::HasEnoughChunkLists(int minSize)
 {
     if (ChunkListPool->GetSize() >= minSize) {
         return true;
@@ -1194,6 +1208,7 @@ bool TOperationControllerBase::CheckChunkListsPoolSize(int minSize)
 
     int allocateCount = minSize * Config->ChunkListAllocationMultiplier;
     LOG_DEBUG("Insufficient pooled chunk lists left, allocating another %d", allocateCount);
+
     ChunkListPool->Allocate(allocateCount);
     return false;
 }

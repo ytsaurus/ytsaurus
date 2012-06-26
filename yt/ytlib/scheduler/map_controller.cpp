@@ -105,8 +105,8 @@ private:
         {
             auto jobSpec = Controller->JobSpecTemplate;
             AddSequentialInputSpec(&jobSpec, jip);
-            FOREACH (const auto& table, Controller->OutputTables) {
-                AddTabularOutputSpec(&jobSpec, jip, table);
+            for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
+                AddTabularOutputSpec(&jobSpec, jip, index);
             }
             return jobSpec;
         }
@@ -116,8 +116,7 @@ private:
             TTask::OnJobCompleted(jip);
 
             for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
-                auto chunkListId = jip->ChunkListIds[index];
-                Controller->OutputTables[index].PartitionTreeIds.push_back(chunkListId);
+                Controller->RegisterOutputChunkTree(jip->ChunkListIds[index], 0, index);
             }
         }
     };
@@ -190,7 +189,7 @@ private:
 
             TotalJobCount = GetJobCount(
                 MapTask->WeightCounter().GetTotal(),
-                Config->MapJobIO->ChunkSequenceWriter->DesiredChunkSize,
+                Spec->MaxWeightPerJob,
                 Spec->JobCount,
                 MapTask->ChunkCounter().GetTotal());
             

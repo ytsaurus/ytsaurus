@@ -87,8 +87,11 @@ private:
     class TSortTask;
     typedef TIntrusivePtr<TSortTask> TSortTaskPtr;
 
-    class TMergeTask;
-    typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;
+    class TSortedMergeTask;
+    typedef TIntrusivePtr<TSortedMergeTask> TSortedMergeTaskPtr;
+
+    class TUnorderedMergeTask;
+    typedef TIntrusivePtr<TUnorderedMergeTask> TUnorderedMergeTaskPtr;
 
     // Samples and partitions.
     struct TPartition
@@ -97,9 +100,11 @@ private:
         TPartition(TSortController* controller, int index)
             : Index(index)
             , Completed(false)
-            , NeedsMerge(false)
+            , SortedMergeNeeded(false)
+            , Megalomaniac(false)
             , SortTask(New<TSortTask>(controller, this))
-            , MergeTask(New<TMergeTask>(controller, this))
+            , SortedMergeTask(New<TSortedMergeTask>(controller, this))
+            , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
         { }
 
         //! Sequential index (zero based).
@@ -109,10 +114,14 @@ private:
         bool Completed;
 
         //! Do we need to run merge tasks for this partition?
-        bool NeedsMerge;
+        bool SortedMergeNeeded;
+
+        //! Does the partition consist of rows with the same key?
+        bool Megalomaniac;
 
         TSortTaskPtr SortTask;
-        TMergeTaskPtr MergeTask;
+        TSortedMergeTaskPtr SortedMergeTask;
+        TUnorderedMergeTaskPtr UnorderedMergeTask;
     };
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
@@ -121,7 +130,7 @@ private:
     std::vector<const NTableClient::NProto::TKey*> SortedSamples;
 
     //! |PartitionCount - 1| separating keys.
-    std::vector<const NTableClient::NProto::TKey*> PartitionKeys;
+    std::vector<NTableClient::NProto::TKey> PartitionKeys;
     
     //! List of all partitions.
     std::vector<TPartitionPtr> Partitions;
@@ -129,7 +138,8 @@ private:
     //! Templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
     TJobSpec SortJobSpecTemplate;
-    TJobSpec MergeJobSpecTemplate;
+    TJobSpec SortedMergeJobSpecTemplate;
+    TJobSpec UnorderedMergeJobSpecTemplate;
 
     
     // Partition task.
@@ -183,7 +193,7 @@ private:
         {
             auto jobSpec = Controller->PartitionJobSpecTemplate;
             AddSequentialInputSpec(&jobSpec, jip);
-            AddTabularOutputSpec(&jobSpec, jip, Controller->OutputTables[0]);
+            AddTabularOutputSpec(&jobSpec, jip, 0);
             return jobSpec;
         }
 
@@ -217,7 +227,10 @@ private:
                             partitionAttributes.data_weight(),
                             partitionAttributes.row_count());
                         auto partition = Controller->Partitions[index];
-                        partition->SortTask->AddStripe(stripe);
+                        auto destinationTask = partition->Megalomaniac
+                            ? TTaskPtr(partition->UnorderedMergeTask)
+                            : TTaskPtr(partition->SortTask);
+                        destinationTask->AddStripe(stripe);
                     }
                 }
             }
@@ -265,11 +278,12 @@ private:
             return Sprintf("Sort(%d)", Partition->Index);
         }
 
+
         virtual int GetPendingJobCount() const OVERRIDE
         {
             i64 weight = ChunkPool->WeightCounter().GetPending();
-            i64 weightPerChunk = Controller->Spec->MaxSortJobWeight;
-            double fractionalJobCount = (double) weight / weightPerChunk;
+            i64 weightPerJob = Controller->Spec->MaxWeightPerSortJob;
+            double fractionalJobCount = (double) weight / weightPerJob;
             return
                 Controller->PartitionTask->IsCompleted()
                 ? static_cast<int>(ceil(fractionalJobCount))
@@ -291,7 +305,7 @@ private:
             if (AddressToOutputLocality.empty()) {
                 // No primary node is chosen yet, an arbitrary one will do.
                 // Return some magic number.
-                return Controller->Spec->MaxSortJobWeight;
+                return Controller->Spec->MaxWeightPerSortJob;
             } else {
                 auto it = AddressToOutputLocality.find(address);
                 return it == AddressToOutputLocality.end() ? 0 : it->second;
@@ -311,13 +325,13 @@ private:
 
         yhash_map<Stroka, i64> AddressToOutputLocality;
 
-        bool CheckMergeNeeded()
+        bool CheckSortedMergeNeeded()
         {
-            if (Partition->NeedsMerge) {
+            if (Partition->SortedMergeNeeded) {
                 return true;
             }
 
-            // Check if this sort job only handles a fraction of partition.
+            // Check if this sort job only handles a fraction of the partition.
             // Two cases are possible:
             // 1) Partition task is still running and thus may enqueue
             // additional data to be sorted.
@@ -327,8 +341,8 @@ private:
                 IsPending();
 
             if (mergeNeeded) {
-                LOG_DEBUG("Partition needs merge (Partition: %d)", Partition->Index);
-                Partition->NeedsMerge = true;
+                LOG_DEBUG("Partition needs sorted merge (Partition: %d)", Partition->Index);
+                Partition->SortedMergeNeeded = true;
             }
 
             return mergeNeeded;
@@ -341,7 +355,7 @@ private:
 
         virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
         {
-            return Controller->Spec->MaxSortJobWeight;
+            return Controller->Spec->MaxWeightPerSortJob;
         }
 
         virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
@@ -349,12 +363,12 @@ private:
             auto jobSpec = Controller->SortJobSpecTemplate;
 
             AddSequentialInputSpec(&jobSpec, jip);
-            AddTabularOutputSpec(&jobSpec, jip, Controller->OutputTables[0]);
+            AddTabularOutputSpec(&jobSpec, jip, 0);
 
             {
                 // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
                 // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-                auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, !CheckMergeNeeded());
+                auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, !CheckSortedMergeNeeded());
                 jobSpec.set_io_config(ConvertToYsonString(ioConfig).Data());
             }
 
@@ -370,6 +384,8 @@ private:
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
+            YCHECK(!Partition->Megalomaniac);
+
             ++Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
 
@@ -389,8 +405,9 @@ private:
             ++Controller->CompletedSortJobCount;
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
-            if (!Partition->NeedsMerge) {
-                Controller->CompletePartition(Partition, jip->ChunkListIds[0]);
+            if (!Partition->SortedMergeNeeded) {
+                Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
+                Controller->CompletePartition(Partition);
                 return;
             } 
 
@@ -404,7 +421,7 @@ private:
             }
 
             // Put the stripe into the pool.
-            Partition->MergeTask->AddStripe(stripe);
+            Partition->SortedMergeTask->AddStripe(stripe);
 
             TTask::OnJobCompleted(jip);
         }
@@ -428,8 +445,8 @@ private:
             TTask::OnTaskCompleted();
 
             // Kick-start the corresponding merge task.
-            if (Partition->NeedsMerge) {
-                Controller->AddTaskPendingHint(Partition->MergeTask);
+            if (Partition->SortedMergeNeeded) {
+                Controller->AddTaskPendingHint(Partition->SortedMergeTask);
             }
         }
 
@@ -441,13 +458,13 @@ private:
     };
 
 
-    // Merge task.
+    // Sorted merge task.
 
-    class TMergeTask
+    class TSortedMergeTask
         : public TTask
     {
     public:
-        TMergeTask(TSortController* controller, TPartition* partition)
+        TSortedMergeTask(TSortController* controller, TPartition* partition)
             : TTask(controller)
             , Controller(controller)
             , Partition(partition)
@@ -457,13 +474,14 @@ private:
 
         virtual Stroka GetId() const OVERRIDE
         {
-            return Sprintf("Merge(%d)", Partition->Index);
+            return Sprintf("SortedMerge(%d)", Partition->Index);
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
         {
             return
-                Partition->NeedsMerge &&
+                !Partition->Megalomaniac &&
+                Partition->SortedMergeNeeded &&
                 Partition->SortTask->IsCompleted() &&
                 IsPending()
                 ? 1 : 0;
@@ -491,24 +509,99 @@ private:
 
         virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
-            auto jobSpec = Controller->MergeJobSpecTemplate;
+            auto jobSpec = Controller->SortedMergeJobSpecTemplate;
+            AddParallelInputSpec(&jobSpec, jip);
+            AddTabularOutputSpec(&jobSpec, jip, 0);
+            return jobSpec;
+        }
 
-            FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
-                auto* inputSpec = jobSpec.add_input_specs();
-                FOREACH (const auto& chunk, stripe->Chunks) {
-                    *inputSpec->add_chunks() = chunk.InputChunk;
-                }
-            }
+        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        {
+            YCHECK(!Partition->Megalomaniac);
 
+            ++Controller->RunningMergeJobCount;
+
+            TTask::OnJobStarted(jip);
+        }
+
+        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        {
+            --Controller->RunningMergeJobCount;
+            ++Controller->CompletedMergeJobCount;
+
+            Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
+
+            YCHECK(ChunkPool->IsCompleted());
+            Controller->CompletePartition(Partition);
+
+            TTask::OnJobCompleted(jip);
+        }
+
+        virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
+        {
+            --Controller->RunningMergeJobCount;
+
+            TTask::OnJobFailed(jip);
+        }
+    };
+
+    // Unorderded merge task (for megalomaniacs).
+    
+    class TUnorderedMergeTask
+        : public TTask
+    {
+    public:
+        TUnorderedMergeTask(TSortController* controller, TPartition* partition)
+            : TTask(controller)
+            , Controller(controller)
+            , Partition(partition)
+        {
+            ChunkPool = CreateUnorderedChunkPool();
+        }
+
+        virtual Stroka GetId() const OVERRIDE
+        {
+            return Sprintf("UnorderedMerge(%d)", Partition->Index);
+        }
+
+        virtual int GetPendingJobCount() const OVERRIDE
+        {
+            if (!Partition->Megalomaniac ||
+                !Controller->PartitionTask->IsCompleted())
             {
-                auto* outputSpec = jobSpec.add_output_specs();
-                const auto& ouputTable = Controller->OutputTables[0];
-                auto chunkListId = Controller->ChunkListPool->Extract();
-                jip->ChunkListIds.push_back(chunkListId);
-                *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
-                outputSpec->set_channels(ouputTable.Channels.Data());
+                return 0;
             }
 
+            i64 weight = ChunkPool->WeightCounter().GetPending();
+            i64 weightPerJob = Controller->Spec->MaxWeightPerUnorderedMergeJob;
+            return static_cast<int>(ceil((double) weight / weightPerJob));
+        }
+
+        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
+        {
+            // Unordered merge will fetch all partitions so the locality is not an issue here.
+            return TDuration::Zero();
+        }
+
+    private:
+        TSortController* Controller;
+        TPartition* Partition;
+
+        virtual int GetChunkListCountPerJob() const OVERRIDE
+        {
+            return 1;
+        }
+
+        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        {
+            return Controller->Spec->MaxWeightPerUnorderedMergeJob;
+        }
+
+        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        {
+            auto jobSpec = Controller->UnorderedMergeJobSpecTemplate;
+            AddSequentialInputSpec(&jobSpec, jip);
+            AddTabularOutputSpec(&jobSpec, jip, 0);
             return jobSpec;
         }
 
@@ -524,8 +617,11 @@ private:
             --Controller->RunningMergeJobCount;
             ++Controller->CompletedMergeJobCount;
 
-            YCHECK(ChunkPool->IsCompleted());
-            Controller->CompletePartition(Partition, jip->ChunkListIds[0]);
+            Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
+
+            if (ChunkPool->IsCompleted()) {
+                Controller->CompletePartition(Partition);
+            }
 
             TTask::OnJobCompleted(jip);
         }
@@ -541,17 +637,19 @@ private:
 
     // Init/finish.
 
-    void CompletePartition(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
+    void RegisterOutputChunkTree(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
     {
-        auto& table = OutputTables[0];
-        YCHECK(table.PartitionTreeIds[partition->Index] == NullChunkTreeId);
-        table.PartitionTreeIds[partition->Index] = chunkTreeId;
-        ++CompletedPartitionCount;
+        TOperationControllerBase::RegisterOutputChunkTree(chunkTreeId, partition->Index, 0);
+    }
+
+    void CompletePartition(TPartitionPtr partition)
+    {
         YCHECK(!partition->Completed);
         partition->Completed = true;
-        LOG_INFO("Partition completed (Partition: %d, ChunkTreeId: %s)",
-            partition->Index,
-            ~chunkTreeId.ToString());
+
+        ++CompletedPartitionCount;
+
+        LOG_INFO("Partition completed (Partition: %d)", partition->Index);
     }
 
     virtual void OnOperationCompleted() OVERRIDE
@@ -653,7 +751,7 @@ private:
         // Otherwise use size estimates.
         int partitionCount = Spec->PartitionCount
             ? Spec->PartitionCount.Get()
-            : static_cast<int>(ceil((double) SortWeightCounter.GetTotal() / Spec->MaxSortJobWeight));
+            : static_cast<int>(ceil((double) SortWeightCounter.GetTotal() / Spec->MaxWeightPerSortJob));
 
         // Don't create more partitions than we have samples.
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
@@ -667,15 +765,6 @@ private:
             BuildSinglePartition();
         } else {
             BuildMulitplePartitions(partitionCount);
-        }
-
-        // Init output trees.
-        {
-            auto& table = OutputTables[0];
-            table.PartitionTreeIds.resize(Partitions.size());
-            for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
-                table.PartitionTreeIds[index] = NullChunkTreeId;
-            }
         }
     }
 
@@ -698,7 +787,7 @@ private:
         // Init counters.
         MaxSortJobCount = GetJobCount(
             SortWeightCounter.GetTotal(),
-            Spec->MaxSortJobWeight,
+            Spec->MaxWeightPerSortJob,
             Spec->SortJobCount,
             chunkCount);
         MaxMergeJobCount = 1;
@@ -713,16 +802,52 @@ private:
     {
         LOG_DEBUG("Building partition keys");
 
+        auto GetSampleKey = [&](int sampleIndex) {
+            return SortedSamples[(sampleIndex + 1) * (SortedSamples.size() - 1) / partitionCount];
+        };
+
+        // Construct the leftmost partition.
+        Partitions.push_back(New<TPartition>(this, 0));
+
+        // Invariant:
+        //   lastPartition = Partitions.back()
+        //   lastKey = PartitionKeys.back()
+        //   lastPartition receives keys in [lastKey, ...)
+        //   
+        // Initially PartitionKeys is empty so lastKey is assumed to be -inf.
+
         // Take partition keys evenly.
-        for (int index = 0; index < partitionCount - 1; ++index) {
-            int sampleIndex = (index + 1) * (SortedSamples.size() - 1) / partitionCount;
-            auto* key = SortedSamples[sampleIndex];
-            // Avoid producing same keys.
-            if (PartitionKeys.empty() || CompareKeys(*key, *PartitionKeys.back()) != 0) {
-                LOG_DEBUG("PartitionKey[%d] = %s",
+        int sampleIndex = 0;
+        while (sampleIndex < partitionCount - 1) {
+            auto* sampleKey = GetSampleKey(sampleIndex);
+            // Check for same keys.
+            if (PartitionKeys.empty() || CompareKeys(*sampleKey, PartitionKeys.back()) != 0) {
+                LOG_DEBUG("Partition %d has starting key %s",
                     static_cast<int>(PartitionKeys.size()),
-                    ~ToString(TNonOwningKey::FromProto(*key)));
-                PartitionKeys.push_back(key);
+                    ~ToString(TNonOwningKey::FromProto(*sampleKey)));
+                PartitionKeys.push_back(*sampleKey);
+                Partitions.push_back(New<TPartition>(
+                    this,
+                    static_cast<int>(Partitions.size())));
+                ++sampleIndex;
+            } else {
+                // Skip same keys.
+                int skippedCount = 0;
+                while (sampleIndex < partitionCount - 1 &&
+                       CompareKeys(*GetSampleKey(sampleIndex), PartitionKeys.back()))
+                {
+                    ++sampleIndex;
+                    ++skippedCount;
+                }
+
+                LOG_DEBUG("Partition %d is a megalomaniac, skipped %d samples",
+                    static_cast<int>(Partitions.size()),
+                    ~ToString(TNonOwningKey::FromProto(*sampleKey)),
+                    skippedCount);
+
+                YCHECK(skippedCount >= 1);
+                PartitionKeys.push_back(GetKeySuccessor(*sampleKey));
+                Partitions.back()->Megalomaniac = true;
             }
         }
 
@@ -753,7 +878,7 @@ private:
         // Very rough estimates.
         MaxSortJobCount = GetJobCount(
             PartitionTask->WeightCounter().GetTotal(),
-            Spec->MaxSortJobWeight,
+            Spec->MaxWeightPerSortJob,
             Null,
             std::numeric_limits<int>::max()) + partitionCount;
         MaxMergeJobCount = partitionCount;
@@ -865,8 +990,8 @@ private:
             *PartitionJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            FOREACH (const auto* key, PartitionKeys) {
-                *specExt->add_partition_keys() = *key;
+            FOREACH (const auto& key, PartitionKeys) {
+                *specExt->add_partition_keys() = key;
             }
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
@@ -882,13 +1007,20 @@ private:
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);          
 
             // Can't fill io_config right away: some sort jobs need output replication
-            // while others don't. Leave this customization to |TryScheduleSortJob|.
+            // while others don't. Leave this customization to #TSortTask::GetJobSpec.
         }
         {
-            MergeJobSpecTemplate.set_type(EJobType::SortedMerge);
-            *MergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
+            *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-            MergeJobSpecTemplate.set_io_config(ConvertToYsonString(
+            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(
+                PrepareJobIOConfig(Config->MergeJobIO, true)).Data());
+        }
+        {
+            UnorderedMergeJobSpecTemplate.set_type(EJobType::OrderedMerge);
+            *UnorderedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(
                 PrepareJobIOConfig(Config->MergeJobIO, true)).Data());
         }
     }

@@ -46,6 +46,7 @@ public:
         : TOperationControllerBase(config, host, operation)
         , TotalJobCount(0)
         , CurrentTaskWeight(0)
+        , PartitionCount(0)
     { }
 
 protected:
@@ -64,6 +65,13 @@ protected:
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
+
+    //! Number of output partitions generated so far.
+    /*!
+     *  Each partition either corresponds to a merge task or to a pass-through chunk.
+     *  Partition index is used as a key when calling #TOperationControllerBase::RegisterOutputChunkTree.
+     */
+    int PartitionCount;
 
     // Merge task.
 
@@ -128,7 +136,7 @@ protected:
         {
             auto jobSpec = Controller->JobSpecTemplate;
             AddParallelInputSpec(&jobSpec, jip);
-            AddTabularOutputSpec(&jobSpec, jip, Controller->OutputTables[0]);
+            AddTabularOutputSpec(&jobSpec, jip, 0);
             return jobSpec;
         }
 
@@ -147,8 +155,7 @@ protected:
             Controller->ChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
             Controller->WeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
-            auto& table = Controller->OutputTables[0];
-            table.PartitionTreeIds[PartitionIndex] = jip->ChunkListIds[0];
+            Controller->RegisterOutputChunkTree(jip->ChunkListIds[0], PartitionIndex, 0);
         }
 
         void OnJobFailed(TJobInProgressPtr jip)
@@ -181,7 +188,7 @@ protected:
         auto task = New<TMergeTask>(
             this,
             static_cast<int>(MergeTasks.size()),
-            static_cast<int>(table.PartitionTreeIds.size()));
+            PartitionCount);
 
         FOREACH (auto stripe, CurrentTaskStripes) {
             if (stripe) {
@@ -189,9 +196,7 @@ protected:
             }
         }
 
-        // Reserve a place for this task among partitions.
-        table.PartitionTreeIds.push_back(NullChunkListId);
-
+        ++PartitionCount;
         MergeTasks.push_back(task);
 
         LOG_DEBUG("Finished task (Task: %d, Weight: %" PRId64 ")",
@@ -244,7 +249,7 @@ protected:
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, Weight: %" PRId64 ", RowCount: %" PRId64 ")",
             ~chunkId.ToString(),
-            static_cast<int>(table.PartitionTreeIds.size()),
+            PartitionCount,
             static_cast<int>(MergeTasks.size()),
             tableIndex,
             weight,
@@ -258,9 +263,11 @@ protected:
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         LOG_DEBUG("Added passthrough chunk (ChunkId: %s, Partition: %d)",
             ~chunkId.ToString(),
-            static_cast<int>(table.PartitionTreeIds.size()));
+            PartitionCount);
+
         // Place the chunk directly to the output table.
-        table.PartitionTreeIds.push_back(chunkId);
+        RegisterOutputChunkTree(chunkId, PartitionCount, 0);
+        ++PartitionCount;
     }
 
 
@@ -487,7 +494,7 @@ private:
 
     i64 GetMaxTaskWeight() OVERRIDE
     {
-        return Spec->MaxMergeJobWeight;
+        return Spec->MaxWeightPerJob;
     }
 
     void InitJobSpecTemplate() OVERRIDE
@@ -569,7 +576,7 @@ private:
 
     i64 GetMaxTaskWeight() OVERRIDE
     {
-        return Spec->MaxMergeJobWeight;
+        return Spec->MaxWeightPerJob;
     }
 
     void InitJobSpecTemplate() OVERRIDE
@@ -640,7 +647,7 @@ private:
 
     i64 GetMaxTaskWeight() OVERRIDE
     {
-        return Spec->MaxMergeJobWeight;
+        return Spec->MaxWeightPerJob;
     }
 
     void InitJobSpecTemplate() OVERRIDE
@@ -861,7 +868,7 @@ private:
 
     i64 GetMaxTaskWeight() OVERRIDE
     {
-        return Spec->MaxMergeJobWeight;
+        return Spec->MaxWeightPerJob;
     }
 
     void InitJobSpecTemplate() OVERRIDE
@@ -929,7 +936,7 @@ private:
 
     i64 GetMaxTaskWeight() OVERRIDE
     {
-        return Spec->MaxReduceJobWeight;
+        return Spec->MaxWeightPerJob;
     }
 
     void InitJobSpecTemplate() OVERRIDE
