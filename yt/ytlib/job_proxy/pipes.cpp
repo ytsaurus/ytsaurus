@@ -7,7 +7,9 @@
 #include <ytlib/table_client/sync_reader.h>
 
 #include <util/system/file.h>
+
 #include <errno.h>
+#include <io.h>
 
 #ifdef _linux_
 
