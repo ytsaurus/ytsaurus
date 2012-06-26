@@ -63,26 +63,43 @@ def run_command(name, *args, **kw):
 
 ###########################################################################
 
-def lock(path, **kw): return command('lock', path, **kw)
-def get_str(path, **kw): return command('get', path, **kw)
-def remove(path, **kw): return command('remove', path, **kw)
+def lock(path, **kw):
+    return command('lock', path, **kw)
 
-def set_str(path, value, **kw): return command('set', path, value, **kw)
+def get_str(path, **kw):
+    return command('get', path, **kw)
 
-def ls_str(path, **kw): return command('list', path, **kw)
+def remove(path, **kw):
+    return command('remove', path, **kw)
 
-def create(object_type, path, **kw): return command('create', object_type, path, **kw)
-def read_str(path, **kw): return command('read', path, **kw)
-def write_str(path, value, **kw): return command('write', path, value, **kw)
+def set_str(path, value, **kw):
+    return command('set', path, value, **kw)
+
+def ls_str(path, **kw):
+    return command('list', path, **kw)
+
+def create(object_type, path, **kw):
+    return command('create', object_type, path, **kw)
+
+def read_str(path, **kw):
+    return command('read', path, **kw)
+
+def write_str(path, value, **kw):
+    return command('write', path, value, **kw)
 
 def start_transaction(**kw):
     raw_tx = command('start_tx', **kw)
     tx_id = raw_tx.replace('"', '').strip('\n')
     return tx_id
 
-def commit_transaction(**kw): return command('commit_tx', **kw)
-def renew_transaction(**kw): return command('renew_tx', **kw)
-def abort_transaction(**kw): return command('abort_tx', **kw)
+def commit_transaction(**kw):
+    return command('commit_tx', **kw)
+
+def renew_transaction(**kw):
+    return command('renew_tx', **kw)
+
+def abort_transaction(**kw):
+    return command('abort_tx', **kw)
 
 def upload(path, data, **kw): 
     process =  run_command('upload', path, **kw)
@@ -100,7 +117,8 @@ def merge(*args, **kw):
 def reduce(*args, **kw):
     return command('reduce', *args, **kw)
 
-def track_op(**kw): return command('track_op', **kw)
+def track_op(**kw):
+    return command('track_op', **kw)
 
 #########################################
 
@@ -124,7 +142,7 @@ def write(path, value, **kw):
 
 #########################################
 
-#helpers:
+# Helpers:
 
 def table2py(yson):
     return yson_parser.parse_list_fragment(yson)
