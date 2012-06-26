@@ -366,6 +366,7 @@ public:
                     break;
 
                 case EKeyPartType::Null:
+                case EKeyPartType::MinSentinel:
                     break;
 
                 default:
