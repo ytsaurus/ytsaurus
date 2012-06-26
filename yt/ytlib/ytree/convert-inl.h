@@ -22,8 +22,9 @@ void Consume(const T& value, IYsonConsumer* consumer)
 {
     // Check that T differs from Stroka to prevent
     // accident usage of Stroka instead TYsonString.
-    typedef TSameType<T, Stroka> TIsStroka;
-    STATIC_ASSERT(!TIsStroka::Result);
+    static_assert(!TSameType<T, Stroka>::Result,
+        "Are you sure that you want to convert from Stroka, not from TYsonString?. "
+        "In this case use RawString wrapper on Stroka.");
     
     Serialize(value, consumer);
 }
@@ -61,11 +62,6 @@ INodePtr ConvertToNode(
     const T& value,
     INodeFactory* factory)
 {
-    // Check that T differs from Stroka to prevent
-    // accident usage of Stroka instead TYsonString.
-    typedef TSameType<T, Stroka> TIsStroka;
-    STATIC_ASSERT(!TIsStroka::Result);
-
     EYsonType type = GetYsonType(value);
   
     auto builder = CreateBuilderFromFactory(factory);
