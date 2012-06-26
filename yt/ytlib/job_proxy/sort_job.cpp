@@ -281,12 +281,11 @@ TJobResult TSortJob::Run()
                             break;
 
                         case EKeyPartType::Composite:
-                            key.SetComposite(keyIndex);
+                            key.SetSentinel(keyIndex, EKeyPartType::Composite);
                             break;
 
                         default:
-                            // Do nothing.
-                            break;
+                            YUNREACHABLE();
                     }
                 }
 
