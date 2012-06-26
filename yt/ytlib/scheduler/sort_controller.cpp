@@ -842,7 +842,6 @@ private:
 
                 LOG_DEBUG("Partition %d is a megalomaniac, skipped %d samples",
                     static_cast<int>(Partitions.size()),
-                    ~ToString(TNonOwningKey::FromProto(*sampleKey)),
                     skippedCount);
 
                 YCHECK(skippedCount >= 1);
