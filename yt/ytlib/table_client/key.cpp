@@ -80,7 +80,7 @@ bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs)
     return CompareKeys(lhs, rhs) == 0;
 }
 
-NProto::TKey GetKeySuccessor(const NProto::TKey& key)
+NProto::TKey GetSuccessorKey(const NProto::TKey& key)
 {
     NProto::TKey result;
     result.CopyFrom(key);

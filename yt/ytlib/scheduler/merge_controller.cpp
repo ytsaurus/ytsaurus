@@ -794,7 +794,7 @@ protected:
                 YCHECK(openedChunks.erase(endpoint.InputChunk) == 1);
                 LOG_DEBUG("Chunk interval closed (ChunkId: %s)", ~chunkId.ToString());
                 if (HasLargeActiveTask()) {
-                    auto nextBreakpoint = GetKeySuccessor(endpoint.Key);
+                    auto nextBreakpoint = GetSuccessorKey(endpoint.Key);
                     LOG_DEBUG("Task is too large, flushing %" PRISZT " chunks at key {%s}",
                         openedChunks.size(),
                         ~nextBreakpoint.DebugString());

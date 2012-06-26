@@ -484,7 +484,7 @@ bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 //! Returns the successor of |key|, i.e. the key
 //! obtained from |key| by appending a sentinel part.
-NProto::TKey GetKeySuccessor(const NProto::TKey& key);
+NProto::TKey GetSuccessorKey(const NProto::TKey& key);
 
 //! Constructs a new chunk by slicing the original one and restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.

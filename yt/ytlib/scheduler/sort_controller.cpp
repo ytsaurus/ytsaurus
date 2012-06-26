@@ -823,12 +823,14 @@ private:
             // Check for same keys.
             if (PartitionKeys.empty() || CompareKeys(*sampleKey, PartitionKeys.back()) != 0) {
                 LOG_DEBUG("Partition %d has starting key %s",
-                    static_cast<int>(PartitionKeys.size()),
+                    static_cast<int>(Partitions.size()),
                     ~ToString(TNonOwningKey::FromProto(*sampleKey)));
+
                 PartitionKeys.push_back(*sampleKey);
                 Partitions.push_back(New<TPartition>(
                     this,
                     static_cast<int>(Partitions.size())));
+
                 ++sampleIndex;
             } else {
                 // Skip same keys.
@@ -840,13 +842,24 @@ private:
                     ++skippedCount;
                 }
 
+                auto lastPartition = Partitions.back();
                 LOG_DEBUG("Partition %d is a megalomaniac, skipped %d samples",
-                    static_cast<int>(Partitions.size()),
+                    lastPartition->Index,
                     skippedCount);
 
+                lastPartition->Megalomaniac = true;
                 YCHECK(skippedCount >= 1);
-                PartitionKeys.push_back(GetKeySuccessor(*sampleKey));
-                Partitions.back()->Megalomaniac = true;
+                
+                auto successorKey = GetSuccessorKey(*sampleKey);
+
+                LOG_DEBUG("Partition %d has starting key %s",
+                    static_cast<int>(Partitions.size()),
+                    ~ToString(TNonOwningKey::FromProto(successorKey)));
+
+                PartitionKeys.push_back(successorKey);
+                Partitions.push_back(New<TPartition>(
+                    this,
+                    static_cast<int>(Partitions.size())));
             }
         }
 
