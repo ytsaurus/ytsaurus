@@ -297,6 +297,7 @@ TTrackOpExecutor::TTrackOpExecutor()
 
 EExitCode TTrackOpExecutor::Execute(const std::vector<std::string>& args)
 {
+    // TODO(babenko): get rid of this copy-paste
     auto argsCopy = args;
     CmdLine.parse(argsCopy);
 
@@ -306,7 +307,7 @@ EExitCode TTrackOpExecutor::Execute(const std::vector<std::string>& args)
 
     Driver = CreateDriver(Config);
 
-    auto operationId = DeserializeFromYson<TOperationId>(OpArg.getValue());
+    auto operationId = TOperationId::FromString(OpArg.getValue());
     printf("Started tracking operation %s\n", ~operationId.ToString());
 
     TOperationTracker tracker(Config, Driver, operationId);
