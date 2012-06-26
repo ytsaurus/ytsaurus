@@ -145,12 +145,12 @@ private:
             ChunkPool = CreateUnorderedChunkPool();
         }
 
-        Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const OVERRIDE
         {
             return "Partition";
         }
 
-        int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const OVERRIDE
         {
             return
                 IsCompleted() 
@@ -158,7 +158,7 @@ private:
                 : Controller->PartitionJobCounter.GetPending();
         }
 
-        TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
         {
             // TODO(babenko): make customizable
             return TDuration::Seconds(5);
@@ -167,19 +167,19 @@ private:
     private:
         TSortController* Controller;
 
-        int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const OVERRIDE
         {
             return 1;
         }
 
-        TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
         {
             return GetJobWeightThresholdGeneric(
                 GetPendingJobCount(),
                 WeightCounter().GetPending());
         }
 
-        TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
             auto jobSpec = Controller->PartitionJobSpecTemplate;
             AddSequentialInputSpec(&jobSpec, jip);
@@ -187,14 +187,14 @@ private:
             return jobSpec;
         }
 
-        void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
             Controller->PartitionJobCounter.Start(1);
 
             TTask::OnJobStarted(jip);
         }
 
-        void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             Controller->PartitionJobCounter.Completed(1);
 
@@ -225,14 +225,14 @@ private:
             TTask::OnJobCompleted(jip);
         }
 
-        void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
             Controller->PartitionJobCounter.Failed(1);
 
             TTask::OnJobFailed(jip);
         }
 
-        void OnTaskCompleted() OVERRIDE
+        virtual void OnTaskCompleted() OVERRIDE
         {
             TTask::OnTaskCompleted();
 
@@ -260,12 +260,12 @@ private:
             ChunkPool = CreateUnorderedChunkPool();
         }
 
-        Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const OVERRIDE
         {
             return Sprintf("Sort(%d)", Partition->Index);
         }
 
-        int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const OVERRIDE
         {
             i64 weight = ChunkPool->WeightCounter().GetPending();
             i64 weightPerChunk = Controller->Spec->MaxSortJobWeight;
@@ -276,14 +276,14 @@ private:
                 : static_cast<int>(floor(fractionalJobCount));
         }
 
-        TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
         {
             // TODO(babenko): make customizable
             // If no primary node is chosen yet then start the job immediately.
             return AddressToOutputLocality.empty() ? TDuration::Zero() : TDuration::Seconds(30);
         }
 
-        i64 GetLocality(const Stroka& address) const OVERRIDE
+        virtual i64 GetLocality(const Stroka& address) const OVERRIDE
         {
             // To make subsequent merges local,
             // sort locality is assigned based on outputs (including those that are still running)
@@ -334,17 +334,17 @@ private:
             return mergeNeeded;
         }
 
-        int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const OVERRIDE
         {
             return 1;
         }
 
-        TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
         {
             return Controller->Spec->MaxSortJobWeight;
         }
 
-        TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
             auto jobSpec = Controller->SortJobSpecTemplate;
 
@@ -368,7 +368,7 @@ private:
             return jobSpec;
         }
 
-        void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
             ++Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
@@ -383,7 +383,7 @@ private:
             TTask::OnJobStarted(jip);
         }
 
-        void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             --Controller->RunningSortJobCount;
             ++Controller->CompletedSortJobCount;
@@ -409,7 +409,7 @@ private:
             TTask::OnJobCompleted(jip);
         }
 
-        void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
             --Controller->RunningSortJobCount;
             Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
@@ -423,7 +423,7 @@ private:
             TTask::OnJobFailed(jip);
         }
 
-        void OnTaskCompleted() OVERRIDE
+        virtual void OnTaskCompleted() OVERRIDE
         {
             TTask::OnTaskCompleted();
 
@@ -433,7 +433,7 @@ private:
             }
         }
 
-        void AddInputLocalityHint(TChunkStripePtr stripe) OVERRIDE
+        virtual void AddInputLocalityHint(TChunkStripePtr stripe) OVERRIDE
         {
             UNUSED(stripe);
             // See #GetLocality.
@@ -455,12 +455,12 @@ private:
             ChunkPool = CreateAtomicChunkPool();
         }
 
-        Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const OVERRIDE
         {
             return Sprintf("Merge(%d)", Partition->Index);
         }
 
-        int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const OVERRIDE
         {
             return
                 Partition->NeedsMerge &&
@@ -469,7 +469,7 @@ private:
                 ? 1 : 0;
         }
 
-        TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
         {
             // TODO(babenko): make configurable
             return TDuration::Seconds(30);
@@ -479,17 +479,17 @@ private:
         TSortController* Controller;
         TPartition* Partition;
 
-        int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const OVERRIDE
         {
             return 1;
         }
 
-        TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
         {
             return Null;
         }
 
-        TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
             auto jobSpec = Controller->MergeJobSpecTemplate;
 
@@ -512,14 +512,14 @@ private:
             return jobSpec;
         }
 
-        void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
             ++Controller->RunningMergeJobCount;
 
             TTask::OnJobStarted(jip);
         }
 
-        void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             --Controller->RunningMergeJobCount;
             ++Controller->CompletedMergeJobCount;
@@ -530,7 +530,7 @@ private:
             TTask::OnJobCompleted(jip);
         }
 
-        void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
             --Controller->RunningMergeJobCount;
 
@@ -554,7 +554,7 @@ private:
             ~chunkTreeId.ToString());
     }
 
-    void OnOperationCompleted() OVERRIDE
+    virtual void OnOperationCompleted() OVERRIDE
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
         TOperationControllerBase::OnOperationCompleted();
@@ -565,19 +565,19 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         return Spec->InputTablePaths;
     }
 
-    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
 
-    TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
     {
         return pipeline
             ->Add(BIND(&TSortController::RequestSamples, MakeStrong(this)))
@@ -613,7 +613,7 @@ private:
         }
     }
 
-    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
     {
         UNUSED(batchRsp);
 
@@ -786,7 +786,7 @@ private:
 
     // Progress reporting.
 
-    void LogProgress() OVERRIDE
+    virtual void LogProgress() OVERRIDE
     {
         LOG_DEBUG("Progress: "
             "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
@@ -820,7 +820,7 @@ private:
             CompletedMergeJobCount);
     }
 
-    void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
+    virtual void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
     {
         BuildYsonMapFluently(consumer)
             .Item("partitions").BeginMap()
