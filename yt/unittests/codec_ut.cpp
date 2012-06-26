@@ -7,7 +7,8 @@ using NYT::TSharedRef;
 using NYT::ECodecId;
 using NYT::GetCodec;
 
-class TCodecTest: public ::testing::Test
+class TCodecTest:
+    public ::testing::Test
 {
 };
 

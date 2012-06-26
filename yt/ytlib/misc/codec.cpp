@@ -18,52 +18,50 @@ size_t Size(const std::vector<TSharedRef>& refs)
     return size;
 }
 
-//! Implements special case of Source for vector if shared refs.
-//! Prevents excess memory copying.
-class VectorRefsSource: public snappy::Source {
+//! Implements snappy::Source interface over a vector of TSharedRef-s. 
+class VectorRefsSource:
+    public snappy::Source
+{
 public:
     VectorRefsSource(const std::vector<TSharedRef>& blocks):
-        blocks_(blocks),
-        available_(Size(blocks)),
-        index_(0),
-        position_(0)
+        Blocks_(blocks),
+        Available_(Size(blocks)),
+        Index_(0),
+        Position_(0)
     { }
 
-    virtual ~VectorRefsSource()
-    { }
-
-    virtual size_t Available() const
+    virtual size_t Available() const OVERRIDE
     {
-        return available_;
+        return Available_;
     }
 
-    virtual const char* Peek(size_t* len)
+    virtual const char* Peek(size_t* len) OVERRIDE
     {
-        *len = blocks_[index_].Size() - position_;
-        return blocks_[index_].Begin() + position_;
+        *len = Blocks_[Index_].Size() - Position_;
+        return Blocks_[Index_].Begin() + Position_;
     }
 
-    virtual void Skip(size_t n)
+    virtual void Skip(size_t n) OVERRIDE
     {
-        while (n > 0 && index_ < blocks_.size()) {
-            size_t toSkip = std::min(blocks_[index_].Size() - position_, n);
+        while (n > 0 && Index_ < Blocks_.size()) {
+            size_t toSkip = std::min(Blocks_[Index_].Size() - Position_, n);
 
-            position_ += toSkip;
-            if (position_ == blocks_[index_].Size()) {
-                index_ += 1;
-                position_ = 0;
+            Position_ += toSkip;
+            if (Position_ == Blocks_[Index_].Size()) {
+                Index_ += 1;
+                Position_ = 0;
             }
 
             n -= toSkip;
-            available_ -= toSkip;
+            Available_ -= toSkip;
         }
     }
 
 private:
-    const std::vector<TSharedRef>& blocks_;
-    size_t available_;
-    size_t index_;
-    size_t position_;
+    const std::vector<TSharedRef>& Blocks_;
+    size_t Available_;
+    size_t Index_;
+    size_t Position_;
 };
 
 } // anonymous namespace
@@ -84,7 +82,7 @@ public:
         TBlob result(Size(blocks));
         size_t pos = 0;
         for (size_t i = 0; i < blocks.size(); ++i) {
-            std::memcpy(&(*result.begin()) + pos, blocks[i].Begin(), blocks[i].Size());
+            std::copy(blocks[i].Begin(), blocks[i].End(), result.begin() + pos);
             pos += blocks[i].Size();
         }
         return TSharedRef(MoveRV(result));
@@ -117,13 +115,13 @@ public:
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks)
     {
         VectorRefsSource reader(blocks);
-        yvector<char> result(snappy::MaxCompressedLength(reader.Available()));
+        TBlob result(snappy::MaxCompressedLength(reader.Available()));
 
-        snappy::UncheckedByteArraySink writer(&(*result.begin()));
+        snappy::UncheckedByteArraySink writer(&*result.begin());
         snappy::Compress(&reader, &writer);
 
         size_t compressedLength = writer.CurrentDestination() - &(*result.begin());
-        TRef compressedRef(&(*result.begin()), compressedLength);
+        TRef compressedRef(&*result.begin(), compressedLength);
         return TSharedRef(MoveRV(result), compressedRef);
     }
 
@@ -157,3 +155,4 @@ ICodec* GetCodec(ECodecId id)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
