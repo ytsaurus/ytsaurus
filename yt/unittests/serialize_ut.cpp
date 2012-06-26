@@ -10,12 +10,13 @@ namespace NYTree{
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-Stroka ToString(TSharedRef ref) {
+Stroka ToString(TSharedRef ref)
+{
     return Stroka(ref.Begin(), ref.Size());
 }
 
-Stroka deleteSpaces(const Stroka& str) {
+Stroka RemoveSpaces(const Stroka& str)
+{
     Stroka res = str;
     while (true) {
         size_t pos = res.find(" ");
@@ -34,7 +35,7 @@ TEST(TYTreeSerializationTest, All)
                       "{\"mode\"=755;\"path\"=\"/home/sandello\"}");
     auto root = ConvertToNode(someYson);
     auto deserializedYson = ConvertToYsonString(root, EYsonFormat::Text);
-    EXPECT_EQ(deleteSpaces(someYson.Data()), deserializedYson.Data()) <<
+    EXPECT_EQ(RemoveSpaces(someYson.Data()), deserializedYson.Data()) <<
         "Before deserialize/serialize: " << someYson.Data() << "\n" <<
         "After: " << deserializedYson.Data();
 }
