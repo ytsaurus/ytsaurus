@@ -319,7 +319,10 @@ public:
 
     void Clear()
     {
+        auto size = Parts.size();
         Parts.clear();
+        Parts.resize(size);
+
         Buffer.Clear();
     }
 

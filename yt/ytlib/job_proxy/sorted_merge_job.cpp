@@ -58,7 +58,6 @@ TSortedMergeJob::TSortedMergeJob(
                 masterChannel,
                 blockCache,
                 chunks,
-                DefaultPartitionTag,
                 options);
 
             readers.push_back(reader);

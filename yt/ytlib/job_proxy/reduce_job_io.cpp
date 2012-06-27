@@ -51,7 +51,6 @@ TReduceJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
             MasterChannel,
             blockCache,
             chunks,
-            DefaultPartitionTag,
             options);
 
         readers.push_back(reader);
