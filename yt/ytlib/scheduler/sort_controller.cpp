@@ -210,6 +210,8 @@ private:
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
+            TTask::OnJobCompleted(jip);
+
             Controller->PartitionJobCounter.Completed(1);
 
             auto* resultExt = jip->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
@@ -239,8 +241,6 @@ private:
                     }
                 }
             }
-
-            TTask::OnJobCompleted(jip);
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -415,6 +415,8 @@ private:
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
+            TTask::OnJobCompleted(jip);
+
             --Controller->RunningSortJobCount;
             ++Controller->CompletedSortJobCount;
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
@@ -436,8 +438,6 @@ private:
 
             // Put the stripe into the pool.
             Partition->SortedMergeTask->AddStripe(stripe);
-
-            TTask::OnJobCompleted(jip);
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -540,6 +540,8 @@ private:
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
+            TTask::OnJobCompleted(jip);
+
             --Controller->RunningMergeJobCount;
             ++Controller->CompletedMergeJobCount;
 
@@ -547,8 +549,6 @@ private:
 
             YCHECK(ChunkPool->IsCompleted());
             Controller->OnPartitionCompeted(Partition);
-
-            TTask::OnJobCompleted(jip);
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -630,6 +630,8 @@ private:
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
+            TTask::OnJobCompleted(jip);
+
             --Controller->RunningMergeJobCount;
             ++Controller->CompletedMergeJobCount;
 
@@ -638,8 +640,6 @@ private:
             if (ChunkPool->IsCompleted()) {
                 Controller->OnPartitionCompeted(Partition);
             }
-
-            TTask::OnJobCompleted(jip);
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -876,9 +876,6 @@ private:
             }
         }
 
-        // Do the final adjustments.
-        partitionCount = static_cast<int>(PartitionKeys.size()) + 1;
-
         // Populate the partition pool.
         FOREACH (const auto& table, InputTables) {
             FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
@@ -895,15 +892,17 @@ private:
             PartitionTask->ChunkCounter().GetTotal()));
 
         // Very rough estimates.
-        MaxSortJobCount = GetJobCount(
-            PartitionTask->WeightCounter().GetTotal(),
-            Spec->MaxWeightPerSortJob,
-            Null,
-            std::numeric_limits<int>::max()) + partitionCount;
-        MaxMergeJobCount = partitionCount;
+        MaxSortJobCount =
+            GetJobCount(
+                PartitionTask->WeightCounter().GetTotal(),
+                Spec->MaxWeightPerSortJob,
+                Null,
+                std::numeric_limits<int>::max()) +
+            Partitions.size();
+        MaxMergeJobCount = Partitions.size();
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
-            partitionCount,
+            static_cast<int>(Partitions.size()),
             PartitionJobCounter.GetTotal());
 
         // Kick-start the partition task.

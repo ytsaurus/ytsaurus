@@ -102,10 +102,6 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobInProgressPtr jip)
 void TOperationControllerBase::TTask::OnJobCompleted(TJobInProgressPtr jip)
 {
     ChunkPool->OnCompleted(jip->PoolResult);
-
-    if (IsCompleted()) {
-        OnTaskCompleted();
-    }
 }
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobInProgressPtr jip)
@@ -341,6 +337,10 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     RemoveJobInProgress(job);
 
     LogProgress();
+
+    if (jip->Task->IsCompleted()) {
+        jip->Task->OnTaskCompleted();
+    }
 
     if (RunningJobCount == 0 && GetPendingJobCount() == 0) {
         OnOperationCompleted();
