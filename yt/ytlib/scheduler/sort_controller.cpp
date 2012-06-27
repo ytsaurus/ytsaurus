@@ -621,6 +621,8 @@ private:
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
+            YCHECK(Partition->Megalomaniac);
+
             ++Controller->RunningMergeJobCount;
 
             TTask::OnJobStarted(jip);
