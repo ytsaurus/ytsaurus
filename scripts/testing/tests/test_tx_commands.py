@@ -67,6 +67,30 @@ class TestTxCommands(YTEnvSetup):
 
         remove('//tmp/value')
 
+    def test_nested_tx(self):
+        set('//tmp/t1', 0)
+
+        tx_outer = start_transaction()
+
+        tx1 = start_transaction(tx = tx_outer)
+        set('//tmp/t1', 1, tx=tx1)
+
+        tx2 = start_transaction(tx = tx_outer)
+
+        # can't be committed as long there are uncommitted transactions
+        with pytest.raises(YTError): commit_transaction(tx=tx_outer)
+
+        assert get('//tmp/t1', tx=tx_outer) == 0
+        commit_transaction(tx=tx1)
+        assert get('//tmp/t1', tx=tx_outer) == 1
+
+        # can be aborted..
+        abort_transaction(tx=tx_outer)
+        
+        # and this aborts all nested transactions
+        assert get('//tmp/t1') == 0
+        assert get_transactions() == []
+
     def test_timeout(self):
         tx_id = start_transaction(opt = '/timeout=4000')
 
@@ -90,26 +114,27 @@ class TestTxCommands(YTEnvSetup):
         
         abort_transaction(tx = tx_id)
 
-    def test_nested_tx(self):
-        set('//tmp/t1', 0)
+    def test_expire_outer(self):
+        tx_outer = start_transaction(opt = '/timeout=4000')
+        tx_inner = start_transaction(tx = tx_outer)
 
-        tx_outer = start_transaction()
+        time.sleep(2)
+        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
+        renew_transaction(tx = tx_inner)
 
-        tx1 = start_transaction(tx=tx_outer)
-        set('//tmp/t1', 1, tx=tx1)
+        time.sleep(3)
+        # check that outer tx expired (and therefore inner was aborted)
+        self.assertItemsEqual(get_transactions(), [])
 
-        tx2 = start_transaction(tx=tx_outer)
+    def test_ping_ancestors(self):
+        tx_outer = start_transaction(opt = '/timeout=4000')
+        tx_inner = start_transaction(tx = tx_outer)
 
-        # can't be committed as long there are uncommitted transactions
-        with pytest.raises(YTError): commit_transaction(tx=tx_outer)
+        time.sleep(2)
+        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
+        renew_transaction('--ping_ancestors', tx = tx_inner)
 
-        assert get('//tmp/t1', tx=tx_outer) == 0
-        commit_transaction(tx=tx1)
-        assert get('//tmp/t1', tx=tx_outer) == 1
+        time.sleep(3)
+        # check that outer tx expired (and therefore inner was aborted)
+        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
 
-        # can be aborted..
-        abort_transaction(tx=tx_outer)
-        
-        # and this aborts all nested transactions
-        assert get('//tmp/t1') == 0
-        assert get_transactions() == []

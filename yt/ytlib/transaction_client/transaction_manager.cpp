@@ -29,16 +29,20 @@ class TTransactionManager::TTransaction
     : public ITransaction
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(bool, PingAncestors)
+
     TTransaction(
         NRpc::IChannelPtr cellChannel,
         const TTransactionId& parentId,
-        TTransactionManagerPtr owner)
+        TTransactionManagerPtr owner,
+        bool pingAncestors = false)
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
         , IsOwning(false)
         , ParentId(parentId)
         , Aborted(NewPromise<void>())
+        , PingAncestors_(pingAncestors)
     {
         YASSERT(cellChannel);
         YASSERT(owner);
@@ -47,13 +51,15 @@ public:
     TTransaction(
         NRpc::IChannelPtr cellChannel,
         TTransactionManagerPtr owner,
-        const TTransactionId& id)
+        const TTransactionId& id,
+        bool pingAncestors = false)
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
         , ParentId(NullTransactionId)
         , Id(id)
         , Aborted(NewPromise<void>())
+        , PingAncestors_(pingAncestors)
     {
         YASSERT(cellChannel);
         YASSERT(owner);
@@ -250,6 +256,8 @@ private:
     TTransactionId Id;
     TPromise<void> Aborted;
 
+    bool PingAncestors;
+
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
 
@@ -289,25 +297,28 @@ TTransactionManager::TTransactionManager(
 
 ITransactionPtr TTransactionManager::Start(
     IAttributeDictionary* attributes,
-    const TTransactionId& parentId)
+    const TTransactionId& parentId,
+    bool pingAncestors)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction>(
         Channel,
         parentId,
-        this);
+        this,
+        pingAncestors);
     transaction->Start(attributes);
 
     RegisterTransaction(transaction);
-    SchedulePing(transaction);
+    SendPing(transaction->GetId());
 
     return transaction;
 }
 
 ITransactionPtr TTransactionManager::Attach(
     const TTransactionId& id,
-    bool takeOwnership)
+    bool takeOwnership,
+    bool pingAncestors)
 {
     // Try to find it among existing
     auto transaction = FindTransaction(id);
@@ -316,7 +327,7 @@ ITransactionPtr TTransactionManager::Attach(
     }
 
     // Not found, create a new one.
-    transaction = New<TTransaction>(Channel, this, id);
+    transaction = New<TTransaction>(Channel, this, id, pingAncestors);
     transaction->Attach(takeOwnership);
 
     RegisterTransaction(transaction);
@@ -369,6 +380,7 @@ void TTransactionManager::SendPing(const TTransactionId& id)
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
+    req->set_renew_ancestors(transaction->GetPingAncestors());
     ObjectProxy.Execute(req).Subscribe(BIND(
         &TThis::OnPingResponse,
         MakeStrong(this),

@@ -76,6 +76,7 @@ public:
 
 protected:
     TCLAP::ValueArg<Stroka> TxArg;
+    TCLAP::SwitchArg PingAncestorsArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
 };

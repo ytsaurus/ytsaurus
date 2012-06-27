@@ -63,6 +63,13 @@ struct ITransaction
      *  \note Thread affinity: any
      */
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);
+
+    //! Specifies is it needed to ping ancestors
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool GetPingAncestors() const = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
