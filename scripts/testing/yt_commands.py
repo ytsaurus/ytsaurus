@@ -118,6 +118,8 @@ def reduce(*args, **kw):
     return command('reduce', *args, **kw)
 
 def track_op(**kw):
+    if "op" in kw:
+        kw["op"] = kw["op"].strip("\"\'")
     return command('track_op', **kw)
 
 #########################################
