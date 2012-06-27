@@ -295,7 +295,7 @@ TEST_F(TTskvParserTest, WrongLinePrefix)
 {
     Stroka input =
         "tskv\ta=b\n"
-        "tZkv\tc=d\e=f\n"
+        "tZkv\tc=d\te=f\n"
         "tskv\ta=b";
 
     EXPECT_ANY_THROW(
