@@ -249,9 +249,12 @@ private:
         {
             TTask::OnTaskCompleted();
 
-            // Kick-start all sort tasks.
+            // Kick-start sort and unordered merge tasks.
             FOREACH (auto partition, Controller->Partitions) {
-                Controller->AddTaskPendingHint(partition->SortTask);
+                auto taskToKick = partition->Megalomaniac
+                    ? TTaskPtr(partition->UnorderedMergeTask)
+                    : TTaskPtr(partition->SortTask);
+                Controller->AddTaskPendingHint(taskToKick);
             }
         }
     };
