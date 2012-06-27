@@ -807,6 +807,8 @@ private:
             static_cast<int>(Partitions.size()),
             ~ToString(TNonOwningKey::FromProto(key)));
 
+        YCHECK(CompareKeys(PartitionKeys.back(), key) < 0);
+
         PartitionKeys.push_back(key);
         Partitions.push_back(New<TPartition>(
             this,
