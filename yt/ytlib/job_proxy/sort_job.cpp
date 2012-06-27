@@ -280,8 +280,9 @@ TJobResult TSortJob::Run()
                             key.SetValue(keyIndex, keyPart.GetString());
                             break;
 
+                        case EKeyPartType::Null:
                         case EKeyPartType::Composite:
-                            key.SetSentinel(keyIndex, EKeyPartType::Composite);
+                            key.SetSentinel(keyIndex, keyPart.Type);
                             break;
 
                         default:
