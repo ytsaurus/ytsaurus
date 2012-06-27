@@ -50,12 +50,12 @@ TEST(TCustomTypeSerializationTest, TInstant)
 
 TEST(TSerializationTest, PackRefs)
 {
-    yvector<TSharedRef> refs;
+    std::vector<TSharedRef> refs;
     refs.push_back(TSharedRef::FromString("abc"));
     refs.push_back(TSharedRef::FromString("12"));
     
     TSharedRef packed = PackRefs(refs);
-    yvector<TSharedRef> unpacked;
+    std::vector<TSharedRef> unpacked;
     UnpackRefs(packed, &unpacked);
     
     EXPECT_EQ(unpacked.size(), 2);

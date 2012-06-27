@@ -28,7 +28,7 @@ public:
     virtual TSharedRef GetRequestBody() const;
     virtual void SetResponseBody(const TSharedRef& responseBody);
 
-    virtual yvector<TSharedRef>& RequestAttachments();
+    virtual std::vector<TSharedRef>& RequestAttachments();
     virtual std::vector<TSharedRef>& ResponseAttachments();
 
     virtual NYTree::IAttributeDictionary& RequestAttributes();
@@ -55,7 +55,7 @@ protected:
     NBus::IMessagePtr RequestMessage;
 
     TSharedRef RequestBody;
-    yvector<TSharedRef> RequestAttachments_;
+    std::vector<TSharedRef> RequestAttachments_;
     TAutoPtr<NYTree::IAttributeDictionary> RequestAttributes_;
     bool OneWay;
     bool Replied;

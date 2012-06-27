@@ -366,7 +366,7 @@ protected:
 
     // Unsorted helpers.
 
-    std::vector<Stroka> CheckInputTablesSorted(const TNullable< yvector<Stroka> >& keyColumns);
+    std::vector<Stroka> CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns);
     void CheckOutputTablesEmpty();
     void SetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
     void RegisterOutputChunkTree(

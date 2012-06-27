@@ -121,7 +121,7 @@ private:
     NMetaState::TMetaStateMap<TVersionedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
-    yvector<INodeTypeHandlerPtr> TypeToHandler;
+    std::vector<INodeTypeHandlerPtr> TypeToHandler;
 
     yhash_map<TNodeId, INodeBehavior::TPtr> NodeBehaviors;
 

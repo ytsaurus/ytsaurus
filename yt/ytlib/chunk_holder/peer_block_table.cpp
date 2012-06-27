@@ -16,13 +16,13 @@ TPeerBlockTable::TPeerBlockTable(TPeerBlockTableConfigPtr config)
     : Config(config)
 { }
 
-const yvector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
+const std::vector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
 {
     SweepAllExpiredPeers();
 
     auto it = Table.find(blockId);
     if (it == Table.end()) {
-        static yvector<TPeerInfo> empty;
+        static std::vector<TPeerInfo> empty;
         return empty;
     } else {
         SweepExpiredPeers(it->second);
@@ -58,7 +58,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
         peers.insert(it, peer);
     }
 
-    if (peers.ysize() > Config->MaxPeersPerBlock) {
+    if (peers.size() > Config->MaxPeersPerBlock) {
         peers.erase(peers.begin() + Config->MaxPeersPerBlock, peers.end());
     }
 }
@@ -86,7 +86,7 @@ void TPeerBlockTable::SweepAllExpiredPeers()
     LOG_DEBUG("All expired peers were swept");
 }
 
-void TPeerBlockTable::SweepExpiredPeers(yvector<TPeerInfo>& peers)
+void TPeerBlockTable::SweepExpiredPeers(std::vector<TPeerInfo>& peers)
 {
     auto now = TInstant::Now();
 
@@ -98,12 +98,12 @@ void TPeerBlockTable::SweepExpiredPeers(yvector<TPeerInfo>& peers)
     peers.erase(it, peers.end());
 }
 
-yvector<TPeerInfo>& TPeerBlockTable::GetMutablePeers(const TBlockId& blockId)
+std::vector<TPeerInfo>& TPeerBlockTable::GetMutablePeers(const TBlockId& blockId)
 {
     auto it = Table.find(blockId);
     if (it != Table.end())
         return it->second;
-    auto pair = Table.insert(MakePair(blockId, yvector<TPeerInfo>()));
+    auto pair = Table.insert(MakePair(blockId, std::vector<TPeerInfo>()));
     YASSERT(pair.second);
     return pair.first->second;
 }

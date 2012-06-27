@@ -150,9 +150,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
         ->InitiateIncrementalHeartbeat(heartbeatMsg)
         ->Commit();
 
-    yvector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
-    yvector<TJobStartInfo> jobsToStart;
-    yvector<TJobStopInfo> jobsToStop;
+    std::vector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
+    std::vector<TJobStartInfo> jobsToStart;
+    std::vector<TJobStopInfo> jobsToStop;
     chunkManager->ScheduleJobs(
         holder,
         runningJobs,

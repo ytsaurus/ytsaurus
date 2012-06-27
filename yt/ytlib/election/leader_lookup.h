@@ -27,7 +27,7 @@ public:
         : public TYsonSerializable
     {
         //! List of peer addresses.
-        yvector<Stroka> Addresses;
+        std::vector<Stroka> Addresses;
 
         //! Timeout for RPC requests to masters.
         TDuration RpcTimeout;

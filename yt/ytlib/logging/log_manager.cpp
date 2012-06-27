@@ -49,7 +49,7 @@ struct TRule
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
 
-    yvector<Stroka> Writers;
+    std::vector<Stroka> Writers;
     
     TRule()
         : AllCategories(false)
@@ -84,7 +84,7 @@ struct TRule
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef yvector<ILogWriter::TPtr> TLogWriters;
+typedef std::vector<ILogWriter::TPtr> TLogWriters;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -235,7 +235,7 @@ private:
         }
     }
 
-    yvector<TRule::TPtr> Rules;
+    std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
     yhash_map<Stroka, ILogWriter::TPtr> Writers;
     ymap<TPair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
@@ -386,7 +386,7 @@ public:
 
 
 private:
-    typedef yvector<ILogWriter::TPtr> TWriters;
+    typedef std::vector<ILogWriter::TPtr> TWriters;
 
     TWriters GetWriters(const TLogEvent& event)
     {

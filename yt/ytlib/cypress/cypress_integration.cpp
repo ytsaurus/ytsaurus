@@ -28,7 +28,7 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& ids = Bootstrap->GetCypressManager()->GetNodeIds(sizeLimit);
         return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
@@ -73,7 +73,7 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& locks = Bootstrap->GetCypressManager()->GetLocks(sizeLimit);
         std::vector<TLockId> ids;

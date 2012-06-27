@@ -37,7 +37,7 @@ void TChunkStore::Start()
     LOG_INFO("Chunk store scan started");
 
     try {
-        for (int i = 0; i < Config->StoreLocations.ysize(); ++i) {
+        for (int i = 0; i < Config->StoreLocations.size(); ++i) {
             auto& locationConfig = Config->StoreLocations[i];
 
             auto location = New<TLocation>(
@@ -98,7 +98,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 {
     YASSERT(!Locations_.empty());
 
-    yvector<TLocationPtr> candidates;
+    std::vector<TLocationPtr> candidates;
     candidates.reserve(Locations_.size());
 
     int minCount = Max<int>();

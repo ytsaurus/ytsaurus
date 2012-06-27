@@ -40,6 +40,7 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
 
 void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 {
+    // Split works with yvector
     yvector<Stroka> params;
     Split(query, "&", params);
     FOREACH (const auto& param, params) {

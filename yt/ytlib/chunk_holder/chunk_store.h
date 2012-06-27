@@ -18,8 +18,8 @@ class TChunkStore
     : public TRefCounted
 {
 public:
-    typedef yvector<TStoredChunkPtr> TChunks;
-    typedef yvector<TLocationPtr> TLocations;
+    typedef std::vector<TStoredChunkPtr> TChunks;
+    typedef std::vector<TLocationPtr> TLocations;
 
     //! Constructs a new instance.
     TChunkStore(TChunkHolderConfigPtr config, TBootstrap* bootstrap);

@@ -57,10 +57,10 @@ TCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-yvector<typename TCacheBase<TKey, TValue, THash>::TValuePtr>
+std::vector<typename TCacheBase<TKey, TValue, THash>::TValuePtr>
 TCacheBase<TKey, TValue, THash>::GetAll()
 {
-    yvector<TValuePtr> result;
+    std::vector<TValuePtr> result;
     TGuard<TSpinLock> guard(SpinLock);
     result.reserve(ValueMap.ysize());
     FOREACH (const auto& pair, ValueMap) {

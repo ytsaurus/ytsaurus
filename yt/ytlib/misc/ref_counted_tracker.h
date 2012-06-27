@@ -61,8 +61,8 @@ public:
     i64 GetCreatedObjects(TKey key);
 
 private:
-    yvector<TItem> GetItems();
-    void SortItems(yvector<TItem>& items, int sortByColumn);
+    std::vector<TItem> GetItems();
+    void SortItems(std::vector<TItem>& items, int sortByColumn);
 
     typedef yhash_map<TKey, TItem> TStatistics; 
     TSpinLock SpinLock;

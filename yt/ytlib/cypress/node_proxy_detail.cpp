@@ -125,15 +125,15 @@ int TMapNodeProxy::GetChildCount() const
     return GetTypedImpl()->ChildCountDelta();
 }
 
-yvector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
+std::vector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 {
     const auto& children = DoGetChildren();
-    return yvector< TPair<Stroka, INodePtr> >(children.begin(), children.end());
+    return std::vector< TPair<Stroka, INodePtr> >(children.begin(), children.end());
 }
 
-yvector<Stroka> TMapNodeProxy::GetKeys() const
+std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
-    yvector<Stroka> result;
+    std::vector<Stroka> result;
     const auto& children = DoGetChildren();
     FOREACH (const auto& pair, children) {
         result.push_back(pair.first);
@@ -374,14 +374,14 @@ void TListNodeProxy::Clear()
 
 int TListNodeProxy::GetChildCount() const
 {
-    return GetTypedImpl()->IndexToChild().ysize();
+    return GetTypedImpl()->IndexToChild().size();
 }
 
-yvector<INodePtr> TListNodeProxy::GetChildren() const
+std::vector<INodePtr> TListNodeProxy::GetChildren() const
 {
-    yvector<INodePtr> result;
+    std::vector<INodePtr> result;
     const auto& list = GetTypedImpl()->IndexToChild();
-    result.reserve(list.ysize());
+    result.reserve(list.size());
     FOREACH (const auto& nodeId, list) {
         result.push_back(GetProxy(nodeId));
     }
@@ -391,7 +391,7 @@ yvector<INodePtr> TListNodeProxy::GetChildren() const
 INodePtr TListNodeProxy::FindChild(int index) const
 {
     const auto& list = GetTypedImpl()->IndexToChild();
-    return index >= 0 && index < list.ysize() ? GetProxy(list[index]) : NULL;
+    return index >= 0 && index < list.size() ? GetProxy(list[index]) : NULL;
 }
 
 void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
@@ -404,7 +404,7 @@ void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
     auto* childImpl = childProxy->GetImplForUpdate();
 
     if (beforeIndex < 0) {
-        YCHECK(impl->ChildToIndex().insert(MakePair(childId, list.ysize())).second);
+        YCHECK(impl->ChildToIndex().insert(MakePair(childId, list.size())).second);
         list.push_back(childId);
     } else {
         // Update the indices.
@@ -425,7 +425,7 @@ bool TListNodeProxy::RemoveChild(int index)
     auto* impl = GetTypedImplForUpdate();
     auto& list = impl->IndexToChild();
 
-    if (index < 0 || index >= list.ysize()) {
+    if (index < 0 || index >= list.size()) {
         return false;
     }
 

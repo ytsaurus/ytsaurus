@@ -87,19 +87,6 @@ void Serialize(const TNullable<T>& value, IYsonConsumer* consumer)
     Serialize(*value, consumer);
 }
 
-// TODO(panin): kill this once we get rid of yvector
-// yvector
-template <class T>
-void Serialize(const yvector<T>& value, IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    FOREACH (const auto& value, value) {
-        consumer->OnListItem();
-        Serialize(value, consumer);
-    }
-    consumer->OnEndList();
-}
-
 // std::vector
 template <class T>
 void Serialize(const std::vector<T>& value, IYsonConsumer* consumer)
@@ -187,18 +174,6 @@ void Deserialize(TNullable<T>& value, INodePtr node)
         value = T();
     }
     Deserialize(*value, node);
-}
-
-// yvector
-template <class T>
-void Deserialize(yvector<T>& value, INodePtr node)
-{
-    auto listNode = node->AsList();
-    auto size = listNode->GetChildCount();
-    value.resize(size);
-    for (int i = 0; i < size; ++i) {
-        Deserialize(value[i], listNode->GetChild(i));
-    }
 }
 
 // std::vector

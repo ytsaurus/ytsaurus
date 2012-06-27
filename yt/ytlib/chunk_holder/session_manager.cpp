@@ -236,7 +236,7 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
             Sprintf("Attempt to flush an unreceived block %d (WindowStart: %d, WindowSize: %d)",
             blockIndex,
             WindowStart,
-            Window.ysize());
+            Window.size());
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
@@ -256,14 +256,14 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 {
     CloseLease();
 
-    for (i32 blockIndex = WindowStart; blockIndex < Window.ysize(); ++blockIndex) {
+    for (i32 blockIndex = WindowStart; blockIndex < Window.size(); ++blockIndex) {
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(EErrorCode::WindowError) <<
                 Sprintf("Attempt to finish a session with an unflushed block %d (WindowStart: %d, WindowSize: %d)",
                 blockIndex,
                 WindowStart,
-                Window.ysize());
+                Window.size());
         }
     }
 
@@ -365,7 +365,7 @@ void TSession::VerifyInWindow(i32 blockIndex)
             Sprintf("Block %d is out of the window (WindowStart: %d, WindowSize: %d)",
                 blockIndex,
                 WindowStart,
-                Window.ysize());
+                Window.size());
     }
 }
 

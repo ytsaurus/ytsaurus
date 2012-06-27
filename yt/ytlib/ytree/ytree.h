@@ -170,13 +170,13 @@ struct IMapNode
     /*!
      *  Map items are returned in unspecified order.
      */
-    virtual yvector< TPair<Stroka, INodePtr> > GetChildren() const = 0;
+    virtual std::vector< TPair<Stroka, INodePtr> > GetChildren() const = 0;
 
     //! Returns map keys.
     /*!
      *  Keys are returned in unspecified order.
      */
-    virtual yvector<Stroka> GetKeys() const = 0;
+    virtual std::vector<Stroka> GetKeys() const = 0;
 
     //! Gets a child by its key.
     /*!
@@ -228,7 +228,7 @@ struct IListNode
     using ICompositeNode::RemoveChild;
 
     //! Returns the current snapshot of the list.
-    virtual yvector<INodePtr> GetChildren() const = 0;
+    virtual std::vector<INodePtr> GetChildren() const = 0;
 
     //! Gets a child by its index.
     /*!

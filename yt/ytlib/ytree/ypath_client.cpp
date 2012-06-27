@@ -58,7 +58,7 @@ void TYPathResponse::Deserialize(NBus::IMessagePtr message)
         DeserializeBody(parts[1]);
 
         // Load attachments.
-        Attachments_ = yvector<TSharedRef>(parts.begin() + 2, parts.end());
+        Attachments_ = std::vector<TSharedRef>(parts.begin() + 2, parts.end());
     }
 }
 

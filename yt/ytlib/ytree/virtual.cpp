@@ -56,7 +56,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
     // TODO(MRoizner): use fluent
     BuildYsonFluently(&writer);
 
-    if (keys.ysize() != size) {
+    if (keys.size() != size) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
         writer.OnStringScalar("true");

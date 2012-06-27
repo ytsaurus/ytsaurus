@@ -93,7 +93,7 @@ public:
 
     TAsyncDownloadResult Download(
         const TChunkId& chunkId,
-        const yvector<Stroka>& seedAddresses)
+        const std::vector<Stroka>& seedAddresses)
     {
         LOG_INFO("Getting chunk from cache (ChunkId: %s, SeedAddresses: [%s])",
             ~chunkId.ToString(),
@@ -145,7 +145,7 @@ private:
         TDownloadSession(
             TImpl* owner,
             const TChunkId& chunkId,
-            const yvector<Stroka>& seedAddresses,
+            const std::vector<Stroka>& seedAddresses,
             TSharedPtr<TInsertCookie> cookie)
             : Owner(owner)
             , ChunkId(chunkId)
@@ -184,7 +184,7 @@ private:
     private:
         TIntrusivePtr<TImpl> Owner;
         TChunkId ChunkId;
-        yvector<Stroka> SeedAddresses;
+        std::vector<Stroka> SeedAddresses;
         TSharedPtr<TInsertCookie> Cookie;
         IInvokerPtr Invoker;
 
@@ -212,7 +212,7 @@ private:
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
             BlockCount = static_cast<int>(blocksExt.blocks_size());
-            yvector<int> blockIndexes;
+            std::vector<int> blockIndexes;
             blockIndexes.reserve(BlockCount);
             for (int index = 0; index < BlockCount; ++index) {
                 blockIndexes.push_back(index);
@@ -352,7 +352,7 @@ int TChunkCache::GetChunkCount()
 
 TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
     const TChunkId& chunkId,
-    const yvector<Stroka>& seedAddresses)
+    const std::vector<Stroka>& seedAddresses)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return Impl->Download(chunkId, seedAddresses);

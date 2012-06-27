@@ -687,7 +687,7 @@ protected:
     //! The actual (adjusted) key columns.
     std::vector<Stroka> KeyColumns;
 
-    virtual TNullable< yvector<Stroka> > GetSpecKeyColumns() = 0;
+    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
     void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
@@ -861,7 +861,7 @@ private:
         return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
     }
 
-    TNullable< yvector<Stroka> > GetSpecKeyColumns() OVERRIDE
+    TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
     {
         return Spec->KeyColumns;
     }
@@ -929,7 +929,7 @@ private:
         return false;
     }
 
-    TNullable< yvector<Stroka> > GetSpecKeyColumns() OVERRIDE
+    TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
     {
         return Spec->KeyColumns;
     }

@@ -105,7 +105,7 @@ struct TChunkHolderConfig
     i64 ResponseThrottlingSize;
 
     //! Regular storage locations.
-    yvector<TLocationConfigPtr> StoreLocations;
+    std::vector<TLocationConfigPtr> StoreLocations;
 
     //! Cached chunks location.
     TLocationConfigPtr CacheLocation;

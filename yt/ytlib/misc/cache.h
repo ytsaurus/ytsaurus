@@ -52,7 +52,7 @@ public:
     void Clear();
     i32 GetSize() const;
     TValuePtr Find(const TKey& key);
-    yvector<TValuePtr> GetAll();
+    std::vector<TValuePtr> GetAll();
 
 protected:
     class TInsertCookie

@@ -82,7 +82,7 @@ public:
         UnderlyingContext->SetResponseBody(responseBody);
     }
 
-    virtual yvector<TSharedRef>& RequestAttachments()
+    virtual std::vector<TSharedRef>& RequestAttachments()
     {
         return UnderlyingContext->RequestAttachments();
     }

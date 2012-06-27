@@ -29,7 +29,7 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& ids = Bootstrap->GetTransactionManager()->GetTransactionIds(sizeLimit);
         return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);

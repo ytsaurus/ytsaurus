@@ -80,7 +80,7 @@ void TFileReaderBase::Open(
         ~codecId.ToString());
 
     // Take all blocks.
-    yvector<int> blockIndexes;
+    std::vector<int> blockIndexes;
     blockIndexes.reserve(BlockCount);
     for (int index = 0; index < BlockCount; ++index) {
         blockIndexes.push_back(index);

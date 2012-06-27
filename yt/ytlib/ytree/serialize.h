@@ -102,9 +102,9 @@ void Serialize(const TNullable<T>& value, IYsonConsumer* consumer);
 // TODO(roizner): move to ytree.h
 void Serialize(INode& value, IYsonConsumer* consumer);
 
-// yvector
+// std::vector
 template <class T>
-void Serialize(const yvector<T>& value, IYsonConsumer* consumer);
+void Serialize(const std::vector<T>& value, IYsonConsumer* consumer);
 
 // std::vector
 template <class T>
@@ -175,9 +175,9 @@ void Deserialize(
     INodePtr& value,
     INodePtr node);
 
-// yvector
+// std::vector
 template <class T>
-void Deserialize(yvector<T>& value, INodePtr node);
+void Deserialize(std::vector<T>& value, INodePtr node);
 
 // std::vector
 template <class T>

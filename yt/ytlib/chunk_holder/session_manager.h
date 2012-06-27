@@ -81,7 +81,7 @@ private:
         TPromise<TVoid> IsWritten;
     };
 
-    typedef yvector<TSlot> TWindow;
+    typedef std::vector<TSlot> TWindow;
 
     TSessionManagerPtr SessionManager;
     TChunkId ChunkId;
@@ -139,7 +139,7 @@ class TSessionManager
     : public TRefCounted
 {
 public:
-    typedef yvector<TSessionPtr> TSessions;
+    typedef std::vector<TSessionPtr> TSessions;
 
     //! Constructs a manager.
     TSessionManager(

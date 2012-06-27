@@ -967,7 +967,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 CheckResponse(
                     rsp,
                     Sprintf("Error getting \"key_columns\" attribute for input table %s", ~table.Path));
-                table.KeyColumns = ConvertTo< yvector<Stroka> >(TYsonString(rsp->value()));
+                table.KeyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s has key columns %s",
                     ~table.Path,
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data());
@@ -1117,7 +1117,7 @@ void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExe
     }
 }
 
-std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNullable< yvector<Stroka> >& keyColumns)
+std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns)
 {
     YCHECK(!InputTables.empty());
 

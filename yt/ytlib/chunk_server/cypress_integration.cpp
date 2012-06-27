@@ -73,7 +73,7 @@ private:
         return chunkIds.find(chunkId) != chunkIds.end();
     }
 
-    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
     {
         if (Filter == EChunkFilter::All) {
             const auto& chunkIds = Bootstrap->GetChunkManager()->GetChunkIds(sizeLimit);
@@ -162,7 +162,7 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& chunkListIds = Bootstrap->GetChunkManager()->GetChunkListIds(sizeLimit);
         return ConvertToStrings(chunkListIds.begin(), chunkListIds.end(), sizeLimit);

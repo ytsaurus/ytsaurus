@@ -74,7 +74,7 @@ public:
         const Stroka& source);
 
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
-    yvector<TCachedBlockPtr> GetAllBlocks() const;
+    std::vector<TCachedBlockPtr> GetAllBlocks() const;
 
     //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;

@@ -75,7 +75,7 @@ TFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 {
     YASSERT(Opened);
 
-    yvector<TSharedRef> blocks;
+    std::vector<TSharedRef> blocks;
     blocks.reserve(blockIndexes.size());
 
     for (int index = 0; index < blockIndexes.size(); ++index) {

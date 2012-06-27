@@ -27,11 +27,11 @@ public:
 private:
     TIntrusivePtr<TCollection> Collection;
 
-    virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
     {
         auto chunks = Collection->GetChunks();
-        yvector<Stroka> keys;
-        keys.reserve(chunks.ysize());
+        std::vector<Stroka> keys;
+        keys.reserve(chunks.size());
         FOREACH (auto chunk, chunks) {
             keys.push_back(chunk->GetId().ToString());
             if (keys.size() == sizeLimit)

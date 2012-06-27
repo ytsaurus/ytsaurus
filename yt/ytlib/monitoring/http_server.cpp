@@ -35,7 +35,7 @@ static inline bool SendAndClose(SOCKET s, const Stroka& data)
     return result;
 }
 
-static inline bool SendAndClose(SOCKET s, const yvector<char>& data)
+static inline bool SendAndClose(SOCKET s, const std::vector<char>& data)
 {
     bool result = SendRetry(s, &data[0], data.ysize());
     if (result) {

@@ -24,7 +24,7 @@ class TChunkCache
     : public TRefCounted
 {
 public:
-    typedef yvector<TCachedChunkPtr> TChunks;
+    typedef std::vector<TCachedChunkPtr> TChunks;
 
     //! Constructs a new instance.
     TChunkCache(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
@@ -53,7 +53,7 @@ public:
      */
     TAsyncDownloadResult DownloadChunk(
         const TChunkId& chunkId,
-        const yvector<Stroka>& seedAddresses = yvector<Stroka>());
+        const std::vector<Stroka>& seedAddresses = std::vector<Stroka>());
 
     //! Raised when a chunk is added to the cache.
     DECLARE_SIGNAL(void(TChunkPtr), ChunkAdded);

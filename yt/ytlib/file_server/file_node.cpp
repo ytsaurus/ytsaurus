@@ -105,7 +105,7 @@ public:
         YCHECK(chunkList->OwningNodes().insert(~node).second);
         objectManager->RefObject(chunkList);
 
-        yvector<TChunkTreeRef> children;
+        std::vector<TChunkTreeRef> children;
         children.push_back(TChunkTreeRef(chunk));
         chunkManager->AttachToChunkList(chunkList, children);
 

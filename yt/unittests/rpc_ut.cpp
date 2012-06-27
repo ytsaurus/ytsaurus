@@ -274,7 +274,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
-    for (int i = 0; i < request->Attachments().ysize(); ++i) {
+    for (int i = 0; i < request->Attachments().size(); ++i) {
         auto blob = request->Attachments()[i].ToBlob();
         blob.push_back('_');
 
@@ -405,7 +405,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ(Stroka("hello, TMyService"), request->message());
 
     const auto& attachments = request->Attachments();
-    EXPECT_EQ(3, attachments.ysize());
+    EXPECT_EQ(3, attachments.size());
     EXPECT_EQ("Attachments",     StringFromSharedRef(attachments[0]));
     EXPECT_EQ("are",      StringFromSharedRef(attachments[1]));
     EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));

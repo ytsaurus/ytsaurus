@@ -500,7 +500,7 @@ private:
             return;
         }
 
-        auto onlineAddresses = ConvertTo< yvector<Stroka> >(TYsonString(rsp->value()));
+        auto onlineAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
         LOG_INFO("Exec nodes refreshed successfully, %d nodes found",
             static_cast<int>(onlineAddresses.size()));
 

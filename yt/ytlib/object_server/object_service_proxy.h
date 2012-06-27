@@ -143,7 +143,7 @@ public:
         TKeyToIndexMultimap KeyToIndexes;
         TPromise<TRspExecuteBatchPtr> Promise;
         NProto::TRspExecute Body;
-        yvector<int> BeginPartIndexes;
+        std::vector<int> BeginPartIndexes;
 
         virtual void FireCompleted();
         virtual void DeserializeBody(const TRef& data);

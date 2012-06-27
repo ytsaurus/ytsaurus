@@ -131,8 +131,8 @@ private:
 
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
-    yvector< TIdGenerator<ui64> > TypeToCounter;
-    yvector<IObjectTypeHandlerPtr> TypeToHandler;
+    std::vector< TIdGenerator<ui64> > TypeToCounter;
+    std::vector<IObjectTypeHandlerPtr> TypeToHandler;
     TIntrusivePtr<TRootService> RootService;
 
     // Stores deltas from parent transaction.

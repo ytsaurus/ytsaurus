@@ -119,7 +119,7 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
     // TODO(babenko): refactor
-    auto keyColumns = ConvertTo< yvector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
+    auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -162,7 +162,7 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
     // TODO(babenko): refactor
-    auto keyColumns = ConvertTo< yvector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
+    auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()

@@ -163,7 +163,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d",
         ~chunkId.ToString(),
         startBlockIndex,
-        request->Attachments().ysize());
+        request->Attachments().size());
 
     auto session = GetSession(chunkId);
 
@@ -258,7 +258,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                     blockInfo->add_peer_addresses(peer.Address);
                 }
                 LOG_DEBUG("GetBlocks: %d peers suggested for block %d",
-                    peers.ysize(),
+                    peers.size(),
                     blockIndex);
             }
         } else {
@@ -384,7 +384,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         if (partitionTag) {
             // XXX(psushin):
             // std::vector here causes MSVC internal compiler error :)
-            yvector<NTableClient::NProto::TBlockInfo> filteredBlocks;
+            std::vector<NTableClient::NProto::TBlockInfo> filteredBlocks;
             auto channelsExt = GetProtoExtension<NTableClient::NProto::TChannelsExt>(
                 result.Value().extensions());
             // Partition chunks must have only one channel.

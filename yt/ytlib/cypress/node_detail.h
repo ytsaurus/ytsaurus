@@ -381,7 +381,7 @@ private:
 class TListNode
     : public TCypressNodeBase
 {
-    typedef yvector<TNodeId> TIndexToChild;
+    typedef std::vector<TNodeId> TIndexToChild;
     typedef yhash_map<TNodeId, int> TChildToIndex;
 
     DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);

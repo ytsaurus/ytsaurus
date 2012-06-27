@@ -250,7 +250,7 @@ void DoSetAttribute(
         }
 
         // Check for system attributes
-        yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
         systemAttributeProvider->GetSystemAttributes(&systemAttributes);
                 
         FOREACH (const auto& attribute, systemAttributes) {
@@ -274,7 +274,7 @@ std::vector<Stroka> DoListAttributes(
     std::vector<Stroka> keys;
 
     if (systemAttributeProvider) {
-        yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
         systemAttributeProvider->GetSystemAttributes(&systemAttributes);
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
@@ -384,7 +384,7 @@ void TSupportsAttributes::GetAttribute(
         writer.OnBeginMap();
 
         if (systemAttributeProvider) {
-            yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
             systemAttributeProvider->GetSystemAttributes(&systemAttributes);
             FOREACH (const auto& attribute, systemAttributes) {
                 if (attribute.IsPresent) {

@@ -39,7 +39,7 @@ namespace {
 
 TEST(TRefCountedTrackerTest, Simple)
 {
-    yvector<TSimpleObject::TPtr> container;
+    std::vector<TSimpleObject::TPtr> container;
     container.reserve(2000);
 
     EXPECT_EQ(   0, TSimpleObject::GetAliveCount());

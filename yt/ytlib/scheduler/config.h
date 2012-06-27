@@ -101,7 +101,7 @@ struct TUserJobSpec
     : public TYsonSerializable
 {
     Stroka Command;
-    yvector<NYTree::TYPath> FilePaths;
+    std::vector<NYTree::TYPath> FilePaths;
     NYTree::INodePtr Format;
     NYTree::INodePtr InputFormat;
     NYTree::INodePtr OutputFormat;
@@ -126,8 +126,8 @@ struct TMapOperationSpec
     : public TOperationSpecBase
 {
     TUserJobSpecPtr Mapper;   
-    yvector<NYTree::TYPath> InputTablePaths;
-    yvector<NYTree::TYPath> OutputTablePaths;
+    std::vector<NYTree::TYPath> InputTablePaths;
+    std::vector<NYTree::TYPath> OutputTablePaths;
     i64 MaxWeightPerJob;
 
     TMapOperationSpec()
@@ -152,11 +152,11 @@ DECLARE_ENUM(EMergeMode,
 struct TMergeOperationSpec
     : public TOperationSpecBase
 {
-    yvector<NYTree::TYPath> InputTablePaths;
+    std::vector<NYTree::TYPath> InputTablePaths;
     NYTree::TYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
-    TNullable< yvector<Stroka> > KeyColumns;
+    TNullable< std::vector<Stroka> > KeyColumns;
 
     //! During sorted merge the scheduler tries to ensure that large connected
     //! groups of chunks are partitioned into tasks of this or smaller size.
@@ -205,11 +205,11 @@ struct TEraseOperationSpec
 struct TSortOperationSpec
     : public TOperationSpecBase
 {
-    yvector<NYTree::TYPath> InputTablePaths;
+    std::vector<NYTree::TYPath> InputTablePaths;
     
     NYTree::TYPath OutputTablePath;
     
-    yvector<Stroka> KeyColumns;
+    std::vector<Stroka> KeyColumns;
     
     TNullable<int> PartitionCount;
     
@@ -259,9 +259,9 @@ struct TReduceOperationSpec
     : public TOperationSpecBase
 {
     TUserJobSpecPtr Reducer;
-    yvector<NYTree::TYPath> InputTablePaths;
-    yvector<NYTree::TYPath> OutputTablePaths;
-    TNullable< yvector<Stroka> > KeyColumns;
+    std::vector<NYTree::TYPath> InputTablePaths;
+    std::vector<NYTree::TYPath> OutputTablePaths;
+    TNullable< std::vector<Stroka> > KeyColumns;
     i64 MaxWeightPerJob;
 
     TReduceOperationSpec()

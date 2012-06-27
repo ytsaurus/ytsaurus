@@ -33,17 +33,17 @@ TRefCountedTracker::TCookie TRefCountedTracker::GetCookie(TKey key)
     return &Statistics.insert(MakePair(key, TItem(key))).first->second;
 }
 
-yvector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
+std::vector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
 {
     TGuard<TSpinLock> guard(SpinLock);
-    yvector<TItem> result;
+    std::vector<TItem> result;
     FOREACH (auto pair, Statistics) {
         result.push_back(pair.second);
     }
     return result;
 }
 
-void TRefCountedTracker::SortItems(yvector<TItem>& items, int sortByColumn)
+void TRefCountedTracker::SortItems(std::vector<TItem>& items, int sortByColumn)
 {
     switch (sortByColumn) {
         case 3:

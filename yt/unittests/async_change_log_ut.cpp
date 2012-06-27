@@ -44,7 +44,7 @@ protected:
     { }
 
 public:
-    static void CheckRecord(ui32 data, yvector<TSharedRef>& result)
+    static void CheckRecord(ui32 data, std::vector<TSharedRef>& result)
     {
         EXPECT_EQ(1, result.size());
         TSharedRef record = result[0];
@@ -54,7 +54,7 @@ public:
 };
 
 TVoid ReadRecord(TAsyncChangeLog* asyncChangeLog, ui32 recordId) {
-    yvector<TSharedRef> result;
+    std::vector<TSharedRef> result;
     result.clear();
     asyncChangeLog->Read(recordId, 1, &result);
     TAsyncChangeLogTest::CheckRecord(recordId, result);

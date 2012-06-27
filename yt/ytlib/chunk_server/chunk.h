@@ -46,7 +46,7 @@ public:
 
     void AddLocation(THolderId holderId, bool cached);
     void RemoveLocation(THolderId holderId, bool cached);
-    yvector<THolderId> GetLocations() const;
+    std::vector<THolderId> GetLocations() const;
 
     bool ValidateChunkInfo(const NChunkHolder::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;

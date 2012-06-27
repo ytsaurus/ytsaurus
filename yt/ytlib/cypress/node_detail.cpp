@@ -253,7 +253,7 @@ void TListNode::Load(const TLoadContext& context, TInputStream* input)
 {
     TCypressNodeBase::Load(context, input);
     ::Load(input, IndexToChild());
-    for (int i = 0; i < IndexToChild().ysize(); ++i) {
+    for (int i = 0; i < IndexToChild().size(); ++i) {
         ChildToIndex()[IndexToChild()[i]] = i;
     }
 }

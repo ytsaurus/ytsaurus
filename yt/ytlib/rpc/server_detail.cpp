@@ -28,7 +28,7 @@ TServiceContextBase::TServiceContextBase(
     const auto& parts = requestMessage->GetParts();
     YASSERT(parts.size() >= 2);
     RequestBody = parts[1];
-    RequestAttachments_ = yvector<TSharedRef>(parts.begin() + 2, parts.end());
+    RequestAttachments_ = std::vector<TSharedRef>(parts.begin() + 2, parts.end());
     RequestAttributes_ =
         header.has_attributes()
         ? FromProto(header.attributes())
@@ -83,7 +83,7 @@ TSharedRef TServiceContextBase::GetRequestBody() const
     return RequestBody;
 }
 
-yvector<TSharedRef>& TServiceContextBase::RequestAttachments()
+std::vector<TSharedRef>& TServiceContextBase::RequestAttachments()
 {
     return RequestAttachments_;
 }

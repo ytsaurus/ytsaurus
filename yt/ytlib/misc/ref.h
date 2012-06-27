@@ -8,7 +8,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef yvector<char> TBlob;
+typedef std::vector<char> TBlob;
 
 //! A non-owning reference to a block of memory.
 /*!

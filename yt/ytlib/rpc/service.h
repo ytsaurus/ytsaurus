@@ -91,7 +91,7 @@ struct IServiceContext
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;
 
     //! Returns a vector of request attachments.
-    virtual yvector<TSharedRef>& RequestAttachments() = 0;
+    virtual std::vector<TSharedRef>& RequestAttachments() = 0;
 
     //! Returns request attributes.
     virtual NYTree::IAttributeDictionary& RequestAttributes() = 0;
@@ -141,7 +141,7 @@ public:
         : Context(context)
     { }
 
-    yvector<TSharedRef>& Attachments()
+    std::vector<TSharedRef>& Attachments()
     {
         return Context->RequestAttachments();
     }

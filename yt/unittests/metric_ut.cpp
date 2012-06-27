@@ -37,7 +37,7 @@ TEST_F(TMetricTest, ManyValues)
     // from random import randint
     // for s in ["x.push_back(%.3lf);" % uniform(0, 4) for i in xrange(10)]:print s
 
-    yvector<double> x;
+    std::vector<double> x;
     x.push_back(1.907);
     x.push_back(2.259);
     x.push_back(3.374);
@@ -50,19 +50,19 @@ TEST_F(TMetricTest, ManyValues)
     x.push_back(1.986);
 
 
-    for (int i = 0; i < x.ysize(); ++i) {
+    for (int i = 0; i < x.size(); ++i) {
         metric.AddValue(x[i]);
     }
 
     double sum = 0;
-    for (int i = 0; i < x.ysize(); ++i) {
+    for (int i = 0; i < x.size(); ++i) {
         sum += x[i];
     }
 
     double mean = sum / x.size();
 
     double sumDeltaSq = 0;
-    for (int i = 0; i < x.ysize(); ++i) {
+    for (int i = 0; i < x.size(); ++i) {
         double delta = (x[i] - mean);
         sumDeltaSq += delta * delta;
     }

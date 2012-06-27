@@ -272,7 +272,7 @@ IBlockCachePtr TBlockStore::GetBlockCache()
     return ~CacheImpl;
 }
 
-yvector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const
+std::vector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const
 {
     return StoreImpl->GetAll();
 }

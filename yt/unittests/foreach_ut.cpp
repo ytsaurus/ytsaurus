@@ -14,12 +14,12 @@ namespace NYT {
 
 TEST(TForeachTest, CommonCase)
 {
-    yvector<int> a;
+    std::vector<int> a;
     for (int i = 0; i < 10; ++i) {
         a.push_back(i);
     }
 
-    yvector<int> b;
+    std::vector<int> b;
     FOREACH (int x, a) {
         b.push_back(x);
     }
@@ -29,12 +29,12 @@ TEST(TForeachTest, CommonCase)
 
 TEST(TForeachTest, CommonCaseReference)
 {
-    yvector<int> a;
+    std::vector<int> a;
     for (int i = 0; i < 10; ++i) {
         a.push_back(i);
     }
 
-    yvector<int> b = a;
+    std::vector<int> b = a;
     FOREACH (int& x, b) {
         x += 10;
     }
@@ -48,18 +48,18 @@ TEST(TForeachTest, CommonCaseReference)
 
 TEST(TForeachTest, Break)
 {
-    yvector<int> a;
+    std::vector<int> a;
     for (int i = 0; i < 10; ++i) {
         a.push_back(i);
     }
 
-    yvector<int> b;
+    std::vector<int> b;
     FOREACH (int x, a) {
         if (x > 5) break;
         b.push_back(x);
     }
 
-    yvector<int> aEtalon;
+    std::vector<int> aEtalon;
     for (int i = 0; i < 10; ++i) {
         int x = a[i];
         if (x > 5) break;
@@ -71,18 +71,18 @@ TEST(TForeachTest, Break)
 
 TEST(TForeachTest, Continue)
 {
-    yvector<int> a;
+    std::vector<int> a;
     for (int i = 0; i < 10; ++i) {
         a.push_back(i);
     }
 
-    yvector<int> b;
+    std::vector<int> b;
     FOREACH (int x, a) {
         if (x % 2 == 0) continue;
         b.push_back(x);
     }
 
-    yvector<int> aEtalon;
+    std::vector<int> aEtalon;
     for (int i = 0; i < 10; ++i) {
         int x = a[i];
         if (x % 2 == 0) continue;
@@ -94,17 +94,17 @@ TEST(TForeachTest, Continue)
 
 TEST(TForeachTest, NestedLoops)
 {
-    yvector< yvector<int> > a;
-    for (int i = 0; i < a.ysize(); ++i) {
-        a.push_back(yvector<int>());
+    std::vector< std::vector<int> > a;
+    for (int i = 0; i < a.size(); ++i) {
+        a.push_back(std::vector<int>());
         for (int j = 0; j < i; ++j) {
             a[i].push_back(100 * j + i);
         }
     }
 
-    yvector< yvector<int> > b;
+    std::vector< std::vector<int> > b;
     FOREACH (auto& v, a) {
-        b.push_back(yvector<int>());
+        b.push_back(std::vector<int>());
         FOREACH (int x, v) {
             b.back().push_back(x);
         }
@@ -113,19 +113,19 @@ TEST(TForeachTest, NestedLoops)
     EXPECT_EQ(a, b);
 }
 
-yvector<int> GetVector(yvector <int>& a)
+std::vector<int> GetVector(std::vector <int>& a)
 {
-    return yvector<int>(a);
+    return std::vector<int>(a);
 }
 
 TEST(TForeachTest, CollectionGivenByResultOfFunction)
 {
-    yvector<int> a;
+    std::vector<int> a;
     for (int i = 0; i < 10; ++i) {
         a.push_back(i);
     }
 
-    yvector<int> b;
+    std::vector<int> b;
     FOREACH (int x, GetVector(a)) {
         b.push_back(x);
     }
@@ -135,13 +135,13 @@ TEST(TForeachTest, CollectionGivenByResultOfFunction)
 
 TEST(TForeachTest, CollectionGivenByReference)
 {
-    yvector<int> a;
+    std::vector<int> a;
     for (int i = 0; i < 10; ++i) {
         a.push_back(i);
     }
-    yvector<int>& referenceToA = a;
+    std::vector<int>& referenceToA = a;
 
-    yvector<int> b;
+    std::vector<int> b;
     FOREACH (int x, referenceToA) {
         b.push_back(x);
     }
@@ -151,13 +151,13 @@ TEST(TForeachTest, CollectionGivenByReference)
 
 TEST(TForeachTest, CollectionGivenByConstReference)
 {
-    yvector<int> a;
+    std::vector<int> a;
     for (int i = 0; i < 10; ++i) {
         a.push_back(i);
     }
-    const yvector<int>& referenceToA = a;
+    const std::vector<int>& referenceToA = a;
 
-    yvector<int> b;
+    std::vector<int> b;
     FOREACH (int x, referenceToA) {
         b.push_back(x);
     }

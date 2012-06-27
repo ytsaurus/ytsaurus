@@ -53,7 +53,7 @@ private:
     int MaxBucket;
 
     //! Contains number of values from [#MinValue, #MaxValue)
-    yvector<int> Buckets;
+    std::vector<int> Buckets;
 
     //! Puts the #value into an appropriate bucket.
     void IncrementBucket(double value);

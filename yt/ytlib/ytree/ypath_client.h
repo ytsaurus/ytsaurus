@@ -20,7 +20,7 @@ class TYPathRequest
 {
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
     DEFINE_BYVAL_RW_PROPERTY(TYPath, Path);
-    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
     typedef TIntrusivePtr<TYPathRequest> TPtr;
@@ -65,7 +65,7 @@ class TYPathResponse
     , public TEphemeralAttributeProvider
 {
     DEFINE_BYVAL_RW_PROPERTY(TError, Error);
-    DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
     typedef TIntrusivePtr<TYPathResponse> TPtr;

@@ -43,7 +43,7 @@ public:
 private:
     NCellMaster::TBootstrap* Bootstrap;
     NTransactionServer::TTransaction* Transaction;
-    yvector<TNodeId> CreatedNodeIds;
+    std::vector<TNodeId> CreatedNodeIds;
 
     ICypressNodeProxyPtr DoCreate(EObjectType type);
 
@@ -634,8 +634,8 @@ public:
 
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector< TPair<Stroka, NYTree::INodePtr> > GetChildren() const;
-    virtual yvector<Stroka> GetKeys() const;
+    virtual std::vector< TPair<Stroka, NYTree::INodePtr> > GetChildren() const;
+    virtual std::vector<Stroka> GetKeys() const;
     virtual NYTree::INodePtr FindChild(const TStringBuf& key) const;
     virtual bool AddChild(NYTree::INode* child, const TStringBuf& key);
     virtual bool RemoveChild(const TStringBuf& key);
@@ -671,7 +671,7 @@ public:
 
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector<NYTree::INodePtr> GetChildren() const;
+    virtual std::vector<NYTree::INodePtr> GetChildren() const;
     virtual NYTree::INodePtr FindChild(int index) const;
     virtual void AddChild(NYTree::INode* child, int beforeIndex = -1);
     virtual bool RemoveChild(int index);

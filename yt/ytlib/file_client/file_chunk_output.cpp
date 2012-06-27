@@ -129,7 +129,7 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
         dataSize -= copySize;
 
         // Flush the block if full.
-        if (Buffer.ysize() == Config->BlockSize) {
+        if (Buffer.size() == Config->BlockSize) {
             FlushBlock();
         }
     }

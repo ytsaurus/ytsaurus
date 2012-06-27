@@ -16,7 +16,7 @@ struct TCellConfig
     int RpcPort;
 
     //! Master server addresses.
-    yvector<Stroka> Addresses;
+    std::vector<Stroka> Addresses;
 
     TCellConfig()
     {

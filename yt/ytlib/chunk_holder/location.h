@@ -33,7 +33,7 @@ public:
     ELocationType GetType() const;
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
-    yvector<TChunkDescriptor> Scan();
+    std::vector<TChunkDescriptor> Scan();
 
     //! Updates #UsedSpace and #AvailalbleSpace
     void UpdateUsedSpace(i64 size);

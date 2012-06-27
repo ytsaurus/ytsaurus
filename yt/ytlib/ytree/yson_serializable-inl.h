@@ -67,25 +67,6 @@ struct TLoadHelper<TNullable<T>, void>
     }
 };
 
-// TODO(panin): kill this once we get rid of yvector
-// yvector
-template <class T>
-struct TLoadHelper<yvector<T>, void>
-{
-    static void Load(yvector<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
-    {
-        auto listNode = node->AsList();
-        auto size = listNode->GetChildCount();
-        parameter.resize(size);
-        for (int i = 0; i < size; ++i) {
-            TLoadHelper<T>::Load(
-                parameter[i],
-                listNode->GetChild(i),
-                path + "/" + NYTree::EscapeYPathToken(i));
-        }
-    }
-};
-
 // std::vector
 template <class T>
 struct TLoadHelper<std::vector<T>, void>
@@ -162,13 +143,13 @@ inline void ValidateSubconfigs(
     }
 }
 
-// yvector
+// std::vector
 template <class T>
 inline void ValidateSubconfigs(
-    const yvector<T>* parameter,
+    const std::vector<T>* parameter,
     const NYTree::TYPath& path)
 {
-    for (int i = 0; i < parameter->ysize(); ++i) {
+    for (int i = 0; i < parameter->size(); ++i) {
         ValidateSubconfigs(
             &(*parameter)[i],
             path + "/" + NYTree::EscapeYPathToken(i));

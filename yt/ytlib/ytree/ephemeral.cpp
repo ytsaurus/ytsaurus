@@ -136,14 +136,14 @@ public:
         return KeyToChild.ysize();
     }
 
-    virtual yvector< TPair<Stroka, INodePtr> > GetChildren() const
+    virtual std::vector< TPair<Stroka, INodePtr> > GetChildren() const
     {
-        return yvector< TPair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
+        return std::vector< TPair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
-    virtual yvector<Stroka> GetKeys() const
+    virtual std::vector<Stroka> GetKeys() const
     {
-        yvector<Stroka> result;
+        std::vector<Stroka> result;
         result.reserve(KeyToChild.size());
         FOREACH (const auto& pair, KeyToChild) {
             result.push_back(pair.first);
@@ -267,17 +267,17 @@ public:
 
     virtual int GetChildCount() const
     {
-        return IndexToChild.ysize();
+        return IndexToChild.size();
     }
 
-    virtual yvector<INodePtr> GetChildren() const
+    virtual std::vector<INodePtr> GetChildren() const
     {
         return IndexToChild;
     }
 
     virtual INodePtr FindChild(int index) const
     {
-        return index >= 0 && index < IndexToChild.ysize() ? IndexToChild[index] : NULL;
+        return index >= 0 && index < IndexToChild.size() ? IndexToChild[index] : NULL;
     }
 
     virtual void AddChild(INode* child, int beforeIndex = -1)
@@ -285,7 +285,7 @@ public:
         YASSERT(child);
 
         if (beforeIndex < 0) {
-            YCHECK(ChildToIndex.insert(MakePair(child, IndexToChild.ysize())).second);
+            YCHECK(ChildToIndex.insert(MakePair(child, IndexToChild.size())).second);
             IndexToChild.push_back(child); 
         } else {
             for (auto it = IndexToChild.begin() + beforeIndex; it != IndexToChild.end(); ++it) {
@@ -300,7 +300,7 @@ public:
 
     virtual bool RemoveChild(int index)
     {
-        if (index < 0 || index >= IndexToChild.ysize())
+        if (index < 0 || index >= IndexToChild.size())
             return false;
 
         auto child = IndexToChild[index];
@@ -355,7 +355,7 @@ public:
     }
 
 private:
-    yvector<INodePtr> IndexToChild;
+    std::vector<INodePtr> IndexToChild;
     yhash_map<INodePtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb)

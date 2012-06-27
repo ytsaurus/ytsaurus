@@ -147,7 +147,7 @@ void RemoveFile(const Stroka& fileName)
 
 } // namespace
 
-yvector<TChunkDescriptor> TLocation::Scan()
+std::vector<TChunkDescriptor> TLocation::Scan()
 {
     auto path = GetPath();
 
@@ -173,7 +173,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
         }
     }
 
-    yvector<TChunkDescriptor> result;
+    std::vector<TChunkDescriptor> result;
     result.reserve(chunkIds.size());
 
     FOREACH (const auto& chunkId, chunkIds) {
@@ -204,7 +204,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
         }
     }
 
-    LOG_INFO("Done, %d chunks found", result.ysize());
+    LOG_INFO("Done, %d chunks found", result.size());
 
     return result;
 }

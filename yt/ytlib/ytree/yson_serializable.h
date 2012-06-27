@@ -61,7 +61,7 @@ public: // for users
 private:
     T& Parameter;
     bool HasDefaultValue;
-    yvector<TValidator> Validators;
+    std::vector<TValidator> Validators;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
