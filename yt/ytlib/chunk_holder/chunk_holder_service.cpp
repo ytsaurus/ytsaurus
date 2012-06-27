@@ -382,9 +382,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         *response->mutable_chunk_meta() = result.Value();
 
         if (partitionTag) {
-            // XXX(psushin):
+            // XXX(psushin): Don't use std::vector!
             // std::vector here causes MSVC internal compiler error :)
-            std::vector<NTableClient::NProto::TBlockInfo> filteredBlocks;
+            yvector<NTableClient::NProto::TBlockInfo> filteredBlocks;
             auto channelsExt = GetProtoExtension<NTableClient::NProto::TChannelsExt>(
                 result.Value().extensions());
             // Partition chunks must have only one channel.
