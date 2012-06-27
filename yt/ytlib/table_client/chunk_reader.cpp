@@ -747,7 +747,7 @@ TAsyncError TChunkReader::DoNextRow()
         it.second.Used = false;
     }
     CurrentRow.clear();
-    CurrentKey.Clear();
+    CurrentKey.ClearAndResize(KeyColumnsExt.values_size());
 
     return ContinueNextRow(-1, SuccessResult, TError());
 }
