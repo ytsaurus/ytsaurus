@@ -135,6 +135,6 @@ class TestTxCommands(YTEnvSetup):
         renew_transaction('--ping_ancestors', tx = tx_inner)
 
         time.sleep(3)
-        # check that outer tx expired (and therefore inner was aborted)
+        # check that all tx are still alive
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
 
