@@ -199,7 +199,6 @@ message TSortJobSpecExt
         optional TSortJobSpecExt sort_job_spec_ext = 104;
     }
 
-    optional int32 partition_tag = 3 [default = -1];
     repeated string key_columns = 5;
 }
 

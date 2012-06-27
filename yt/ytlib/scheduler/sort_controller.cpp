@@ -389,7 +389,10 @@ private:
             {
                 auto* jobSpecExt = jobSpec.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                 if (Controller->Partitions.size() > 1) {
-                    jobSpecExt->set_partition_tag(Partition->Index);
+                    auto* inputSpec = jobSpec.mutable_input_specs(0);
+                    FOREACH(auto& chunk, *inputSpec->mutable_chunks()) {
+                        chunk.set_partition_tag(Partition->Index);
+                    }
                 }
             }
 
@@ -616,6 +619,14 @@ private:
             auto jobSpec = Controller->UnorderedMergeJobSpecTemplate;
             AddSequentialInputSpec(&jobSpec, jip);
             AddTabularOutputSpec(&jobSpec, jip, 0);
+
+            if (Controller->Partitions.size() > 1) {
+                auto* inputSpec = jobSpec.mutable_input_specs(0);
+                FOREACH(auto& chunk, *inputSpec->mutable_chunks()) {
+                    chunk.set_partition_tag(Partition->Index);
+                }
+            }
+
             return jobSpec;
         }
 

@@ -24,7 +24,6 @@ public:
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         const std::vector<NProto::TInputChunk>& inputChunks,
-        int partitionTag = DefaultPartitionTag,
         const TReaderOptions& options = TReaderOptions());
 
     virtual TAsyncError AsyncOpen();
@@ -74,7 +73,6 @@ private:
     TAsyncStreamState State;
 
     int CurrentReaderIndex;
-    int PartitionTag;
 
     TChunkReaderPtr CurrentReader;
 

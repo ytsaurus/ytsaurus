@@ -30,14 +30,12 @@ TChunkSequenceReader::TChunkSequenceReader(
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     const std::vector<NProto::TInputChunk>& fetchedChunks,
-    int partitionTag,
     const TReaderOptions& options)
     : Config(config)
     , BlockCache(blockCache)
     , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
     , CurrentReaderIndex(-1)
-    , PartitionTag(partitionTag)
     , Options(options)
     , TotalValueCount(0)
     , TotalRowCount(0)
@@ -93,7 +91,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         slice.end_limit(),
         // TODO(ignat) yson type ?
         NYTree::TYsonString(inputChunk.row_attributes()),
-        PartitionTag,
+        inputChunk.partition_tag(),
         Options); // ToDo(psushin): pass row attributes here.
 
     chunkReader->AsyncOpen().Subscribe(BIND(

@@ -145,7 +145,6 @@ TSortJob::TSortJob(
         masterChannel, 
         blockCache, 
         chunks,
-        jobSpecExt.partition_tag(),
         options);
 
     Writer = New<TTableChunkSequenceWriter>(
