@@ -13,6 +13,10 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Note: line_prefix is only supported for tabular data
+// YsonNode is writtern as follows:
+//  * Each element of list is ended with RecordSeparator
+//  * Items in map are separated with FieldSeparator
+//  * Key and Values in map are separated with KeyValueSeparator
 
 class TDsvWriter
     : public NYTree::IYsonConsumer

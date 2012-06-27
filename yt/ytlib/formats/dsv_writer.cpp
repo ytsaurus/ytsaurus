@@ -70,17 +70,23 @@ void TDsvWriter::OnBeginList()
 
 void TDsvWriter::OnListItem()
 {
-    if (!FirstLine) {
-        Stream->Write(Config->RecordSeparator);
-    }
     if (Config->LinePrefix) {
         Stream->Write(Config->LinePrefix.Get());
     }
+
+    if (Type == EYsonType::Node && !FirstLine) {
+        Stream->Write(Config->RecordSeparator);
+    }
+
     FirstLine = false;
 }
 
 void TDsvWriter::OnEndList()
-{ }
+{
+    if (Type == EYsonType::Node) {
+        Stream->Write(Config->RecordSeparator);
+    }
+}
 
 void TDsvWriter::OnBeginMap()
 {
@@ -108,6 +114,9 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 void TDsvWriter::OnEndMap()
 {
     AllowBeginMap = true;
+    if (Type == EYsonType::ListFragment) {
+        Stream->Write(Config->RecordSeparator);
+    }
 }
 
 void TDsvWriter::OnBeginAttributes()

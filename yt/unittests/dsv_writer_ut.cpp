@@ -35,8 +35,7 @@ TEST(TDsvWriterTest, SimpleTabular)
 
     Stroka output =
         "integer=42\tstring=some\tdouble=10.\n"
-        "foo=bar\tone=1";
-
+        "foo=bar\tone=1\n";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -60,6 +59,7 @@ TEST(TDsvWriterTest, ListContainingDifferentTypes)
     writer.OnListItem();
     writer.OnStringScalar("foo");
     writer.OnListItem();
+    writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("a");
         writer.OnStringScalar("10");
@@ -71,8 +71,10 @@ TEST(TDsvWriterTest, ListContainingDifferentTypes)
     Stroka output =
         "100\n"
         "foo\n"
-        "a=10\tb=c";
+        "\n"
+        "a=10\tb=c\n";
 
+    Cout << outputStream.Str();
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -148,7 +150,7 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
 
     Stroka output =
         "integer=42\tstring=some\tdouble=10.\n"
-        "foo=bar\tone=1";
+        "foo=bar\tone=1\n";
 
     EXPECT_EQ(output, outputStream.Str());
 }
@@ -234,7 +236,7 @@ TEST(TTskvWriterTest, SimpleTabular)
     Stroka output =
         "tskv\n"
         "tskv\tid=1\tguid=100500\n"
-        "tskv\tid=2\tguid=20025";
+        "tskv\tid=2\tguid=20025\n";
 
     EXPECT_EQ(outputStream.Str(), output);
 }
@@ -268,7 +270,7 @@ TEST(TTskvWriterTest, Escaping)
     Stroka output =
         "tskv\n"
         "tskv\t" "a\\=b=c\\=d\n"
-        "tskv\t" "key_with_\\\t=value_with_\\\t,\\\\_and_\\\n" "\tanother_key=another_value";
+        "tskv\t" "key_with_\\\t=value_with_\\\t,\\\\_and_\\\n" "\tanother_key=another_value\n";
 
     EXPECT_EQ(outputStream.Str(), output);
 }
