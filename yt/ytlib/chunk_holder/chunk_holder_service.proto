@@ -55,7 +55,7 @@ message TRspSendBlocks
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqFlushBlock
-{
+  {
     required NYT.NProto.TGuid chunk_id = 1;
     required int32 block_index = 2;
 }

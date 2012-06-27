@@ -24,8 +24,9 @@ public:
     const TBlob* GetBlob() const;
 
     const char* Begin() const;
-    i64 GetSize() const;
+    size_t GetSize() const;
 
+    void Reserve(size_t size);
     void Clear();
     TSharedRef Flush();
 
@@ -44,14 +45,13 @@ class TFakeStringBufStore
 public:
     typedef TStringBuf TStoredType;
 
-    /*!
-     *  \param capacity Unused, required for compatibility with TBlobOutput.
-     */
+    TFakeStringBufStore();
     explicit TFakeStringBufStore(size_t capacity);
 
     TStoredType PutData(const TStringBuf& value);
 
     void Clear();
+    void Reserve(size_t capacity);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

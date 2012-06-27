@@ -76,6 +76,29 @@ public:
         return result;
     }
 
+    void SetSentinel(EKeyPartType type)
+    {
+        Type_ = type;
+    }
+
+    void SetValue(const TStrType& value)
+    {
+        Type_ = EKeyPartType::String;
+        StrValue = value;
+    }
+
+    void SetValue(i64 value)
+    {
+        Type_ = EKeyPartType::Integer;
+        IntValue = value;
+    }
+
+    void SetValue(double value)
+    {
+        Type_ = EKeyPartType::Double;
+        DoubleValue = value;
+    }
+
     i64 GetInteger() const
     {
         YASSERT(Type_ == EKeyPartType::Integer);
@@ -240,23 +263,20 @@ template <class TBuffer>
 class TKey
 {
 public:
-    //! Creates an empty key.
-    /* 
-     *  \param maxSize maximum string key size.
-     */
     explicit TKey(int columnCount = 0)
-        : ColumnCount(columnCount)
-        , Buffer(columnCount * MaxKeySize)
-        , Parts(ColumnCount)
-    { }
+    {
+        ClearAndResize(columnCount);
+    }
+
+    TKey(const TKey<TBuffer>& other)
+    {
+        Assign(other);
+    }
 
     template<class TOtherBuffer>
     TKey(const TKey<TOtherBuffer>& other)
-        : ColumnCount(other.ColumnCount)
-        , Buffer(ColumnCount * MaxKeySize)
-        , Parts(ColumnCount)
     {
-        *this = other;
+        Assign(other);
     }
 
     template<class TOtherBuffer>
@@ -276,42 +296,39 @@ public:
 
     void SetValue(int index, i64 value)
     {
-        YASSERT(index < ColumnCount);
-        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateValue(value);
+        Parts[index].SetValue(value);
     }
 
     void SetValue(int index, double value)
     {
-        YASSERT(index < ColumnCount);
-        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateValue(value);
+        Parts[index].SetValue(value);
     }
 
     void SetValue(int index, const TStringBuf& value)
     {
-        YASSERT(index < ColumnCount);
-
         // Strip long values.
-        int length = std::min(MaxKeySize - sizeof(EKeyPartType), value.size());
-
-        auto part = Buffer.PutData(TStringBuf(value.begin(), length));
-
-        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateValue(part);
+        int trimmedLegnth = std::min(MaxKeySize - sizeof(EKeyPartType), value.size());
+        auto storedValue = Buffer.PutData(TStringBuf(value.begin(), trimmedLegnth));
+        Parts[index].SetValue(storedValue);
     }
 
     void SetSentinel(int index, EKeyPartType type)
     {
-        YASSERT(index < ColumnCount);
-        Parts[index] = TKeyPart<typename TBuffer::TStoredType>::CreateSentinel(type);
+        Parts[index].SetSentinel(type);
     }
 
-    void Reset(int columnCount = -1)
+    void Clear()
     {
-        if (columnCount >= 0)
-            ColumnCount = columnCount;
-
-        Buffer.Clear();
         Parts.clear();
-        Parts.resize(ColumnCount);
+        Buffer.Clear();
+    }
+
+    void ClearAndResize(int columnCount)
+    {
+        Parts.clear();
+        Parts.resize(columnCount);
+        Buffer.Clear();
+        Buffer.Reserve(columnCount * MaxKeySize);
     }
 
     size_t GetSize() const
@@ -341,7 +358,7 @@ public:
     static TKey FromProto(const NProto::TKey& protoKey)
     {
         TKey key;
-        key.Reset(protoKey.parts_size());
+        key.ClearAndResize(protoKey.parts_size());
         for (int i = 0; i < protoKey.parts_size(); ++i) {
             const auto& part = protoKey.parts(i);
             auto partType = EKeyPartType(part.type());
@@ -362,8 +379,6 @@ public:
 
                 case EKeyPartType::String:
                     key.SetValue(i, part.str_value());
-                    break;
-
                     break;
 
                 default:
@@ -409,15 +424,16 @@ private:
     template <class TOtherBuffer>
     friend class TKey;
 
-    int ColumnCount;
-
+    //! Parts comprising the key.
     TSmallVector< TKeyPart<typename TBuffer::TStoredType>, 4> Parts;
+
+    //! Buffer where all string parts store their data (in case of an owning key).
     TBuffer Buffer;
 
     template <class TOtherBuffer>
     void Assign(const TKey<TOtherBuffer>& other)
     {
-        Reset(other.Parts.size());
+        ClearAndResize(other.Parts.size());
         for (int i = 0; i < other.Parts.size(); ++i) {
             const auto& part = other.Parts[i];
             switch (part.GetType()) {

@@ -29,9 +29,14 @@ const char* TBlobOutput::Begin() const
     return Blob.begin();
 }
 
-i64 TBlobOutput::GetSize() const
+size_t TBlobOutput::GetSize() const
 {
-    return static_cast<i64>(Blob.size());
+    return Blob.size();
+}
+
+void TBlobOutput::Reserve(size_t size)
+{
+    Blob.reserve(size);
 }
 
 void TBlobOutput::Clear()
@@ -58,8 +63,13 @@ TBlobOutput::TStoredType TBlobOutput::PutData(const TStringBuf& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFakeStringBufStore::TFakeStringBufStore(size_t /* capacity */)
+TFakeStringBufStore::TFakeStringBufStore()
 { }
+
+TFakeStringBufStore::TFakeStringBufStore(size_t capacity)
+{
+    UNUSED(capacity);
+}
 
 TFakeStringBufStore::TStoredType TFakeStringBufStore::PutData(const TStringBuf& value)
 {
@@ -68,6 +78,11 @@ TFakeStringBufStore::TStoredType TFakeStringBufStore::PutData(const TStringBuf& 
 
 void TFakeStringBufStore::Clear()
 { }
+
+void TFakeStringBufStore::Reserve(size_t capacity)
+{
+    UNUSED(capacity);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

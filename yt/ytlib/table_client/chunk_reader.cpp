@@ -228,7 +228,7 @@ private:
                     columnInfo.InChannel = true;
             }
 
-            chunkReader->CurrentKey.Reset(chunkReader->KeyColumnsExt.values_size());
+            chunkReader->CurrentKey.ClearAndResize(chunkReader->KeyColumnsExt.values_size());
         }
 
         if (HasRangeRequest) {
@@ -747,7 +747,7 @@ TAsyncError TChunkReader::DoNextRow()
         it.second.Used = false;
     }
     CurrentRow.clear();
-    CurrentKey.Reset();
+    CurrentKey.Clear();
 
     return ContinueNextRow(-1, SuccessResult, TError());
 }

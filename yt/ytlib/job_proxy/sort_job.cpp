@@ -252,10 +252,10 @@ TJobResult TSortJob::Run()
             Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
             TRow row;
-            TNonOwningKey key;
+            TNonOwningKey key(keyColumnCount);
             for (size_t progressIndex = 0; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
                 row.clear();
-                key.Reset(keyColumnCount);
+                key.Clear();
 
                 auto rowIndex = rowIndexBuffer[progressIndex];
                 for (auto valueIndex = valueIndexBuffer[rowIndex];

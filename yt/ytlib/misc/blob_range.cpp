@@ -11,7 +11,6 @@ TBlobRange::TBlobRange()
     , Length(0)
 { }
 
-
 TBlobRange::TBlobRange(const TBlob* blob, size_t offset, size_t length)
     : Blob(blob)
     , Offset(offset)
@@ -32,7 +31,6 @@ size_t TBlobRange::size() const
 {
     return Length;
 }
-
 
 bool operator==(const TBlobRange& lhs, const TBlobRange& rhs)
 {
