@@ -814,16 +814,15 @@ private:
 
     void AddPartition(const NTableClient::NProto::TKey& key)
     {
+        int index = static_cast<int>(Partitions.size());
         LOG_DEBUG("Partition %d has starting key %s",
-            static_cast<int>(Partitions.size()),
+            index,
             ~ToString(TNonOwningKey::FromProto(key)));
 
         YCHECK(PartitionKeys.empty() || CompareKeys(PartitionKeys.back(), key) < 0);
 
         PartitionKeys.push_back(key);
-        Partitions.push_back(New<TPartition>(
-            this,
-            static_cast<int>(Partitions.size())));
+        Partitions.push_back(New<TPartition>(this, index));
     }
 
     void BuildMulitplePartitions(int partitionCount)
