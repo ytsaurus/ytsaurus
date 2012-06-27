@@ -40,35 +40,6 @@ TEST(TDsvWriterTest, SimpleTabular)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TDsvWriterTest, TabularUsingOnRaw)
-{
-    TStringStream outputStream;
-    TDsvWriter writer(&outputStream);
-
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("integer");
-        writer.OnRaw("42", EYsonType::Node);
-        writer.OnKeyedItem("string");
-        writer.OnRaw("some", EYsonType::Node);
-        writer.OnKeyedItem("double");
-        writer.OnRaw("10.", EYsonType::Node);
-    writer.OnEndMap();
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("foo");
-        writer.OnRaw("bar", EYsonType::Node);
-        writer.OnKeyedItem("one");
-        writer.OnRaw("1", EYsonType::Node);
-    writer.OnEndMap();
-
-    Stroka output =
-        "integer=42\tstring=some\tdouble=10.\n"
-        "foo=bar\tone=1";
-
-    EXPECT_EQ(output, outputStream.Str());
-}
-
 TEST(TDsvWriterTest, StringScalar)
 {
     TStringStream outputStream;
@@ -146,9 +117,88 @@ TEST(TDsvWriterTest, WithoutEsacping)
     writer.OnStringScalar("string_with_\t_\\_=_and_\n");
 
     Stroka output = "string_with_\t_\\_=_and_\n";
-    Cout << outputStream.Str() << Endl;
-    Cout << output << Endl;
+
     EXPECT_EQ(outputStream.Str(), output);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// OnRaw tests:
+
+TEST(TDsvWriterTest, TabularUsingOnRaw)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("integer");
+        writer.OnRaw("42", EYsonType::Node);
+        writer.OnKeyedItem("string");
+        writer.OnRaw("some", EYsonType::Node);
+        writer.OnKeyedItem("double");
+        writer.OnRaw("10.", EYsonType::Node);
+    writer.OnEndMap();
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("foo");
+        writer.OnRaw("bar", EYsonType::Node);
+        writer.OnKeyedItem("one");
+        writer.OnRaw("1", EYsonType::Node);
+    writer.OnEndMap();
+
+    Stroka output =
+        "integer=42\tstring=some\tdouble=10.\n"
+        "foo=bar\tone=1";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TDsvWriterTest, ListInTable)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+
+    EXPECT_ANY_THROW(writer.OnRaw("[10, 20, 30]", EYsonType::Node));
+}
+
+TEST(TDsvWriterTest, MapInTable)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+
+    EXPECT_ANY_THROW(writer.OnRaw("{a=10}", EYsonType::Node));
+}
+
+TEST(TDsvWriterTest, AttributesInTable)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+
+    EXPECT_ANY_THROW(writer.OnRaw("<a=10>string", EYsonType::Node));
+}
+
+TEST(TDsvWriterTest, EntityInTable)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+
+    EXPECT_ANY_THROW(writer.OnRaw("#", EYsonType::Node));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,7 +235,7 @@ TEST(TTskvWriterTest, SimpleTabular)
         "tskv\n"
         "tskv\tid=1\tguid=100500\n"
         "tskv\tid=2\tguid=20025";
-//    Cout << outputStream.Str() << Endl;
+
     EXPECT_EQ(outputStream.Str(), output);
 }
 

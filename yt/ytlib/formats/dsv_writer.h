@@ -15,7 +15,7 @@ namespace NFormats {
 // Note: line_prefix is only supported for tabular data
 
 class TDsvWriter
-    : public virtual NYTree::IYsonConsumer
+    : public NYTree::IYsonConsumer
 {
 public:
     explicit TDsvWriter(
@@ -25,20 +25,20 @@ public:
     ~TDsvWriter();
 
     // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value);
-    virtual void OnIntegerScalar(i64 value);
-    virtual void OnDoubleScalar(double value);
-    virtual void OnEntity();
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList();
-    virtual void OnBeginMap();
-    virtual void OnKeyedItem(const TStringBuf& key);
-    virtual void OnEndMap();
-    virtual void OnBeginAttributes();
-    virtual void OnEndAttributes();
+    virtual void OnStringScalar(const TStringBuf& value) OVERRIDE;
+    virtual void OnIntegerScalar(i64 value) OVERRIDE;
+    virtual void OnDoubleScalar(double value) OVERRIDE;
+    virtual void OnEntity() OVERRIDE;
+    virtual void OnBeginList() OVERRIDE;
+    virtual void OnListItem() OVERRIDE;
+    virtual void OnEndList() OVERRIDE;
+    virtual void OnBeginMap() OVERRIDE;
+    virtual void OnKeyedItem(const TStringBuf& key) OVERRIDE;
+    virtual void OnEndMap() OVERRIDE;
+    virtual void OnBeginAttributes() OVERRIDE;
+    virtual void OnEndAttributes() OVERRIDE;
 
-    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type);
+    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type) OVERRIDE;
 
 private:
     NYTree::EYsonType Type;

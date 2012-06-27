@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "dsv_writer.h"
 
+#include <ytree/yson_format.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -120,6 +122,8 @@ void TDsvWriter::OnEndAttributes()
 
 void TDsvWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 {
+    // On raw is called only for values in table
+
     if (type != EYsonType::Node) {
         YUNIMPLEMENTED();
     }
@@ -134,15 +138,31 @@ void TDsvWriter::OnRaw(const TStringBuf& yson, EYsonType type)
         case ETokenType::String:
             OnStringScalar(token.GetStringValue());
             break;
+
         case ETokenType::Integer:
             OnIntegerScalar(token.GetIntegerValue());
             break;
+
         case ETokenType::Double:
             OnDoubleScalar(token.GetDoubleValue());
             break;
-        case ETokenType::LeftBrace:
-            YUNIMPLEMENTED();
+
+        case EntityToken:
+            ythrow yexception() << "Enitites are not supported as values in table";
             break;
+
+        case BeginListToken:
+            ythrow yexception() << "Lists are not supported as values in table";
+            break;
+
+        case BeginMapToken:
+            ythrow yexception() << "Maps are not supported as values in table";
+            break;
+
+        case BeginAttributesToken:
+            ythrow yexception() << "Attributes are not supported as values in table";
+            break;
+
         default:
             YUNREACHABLE();
     }
