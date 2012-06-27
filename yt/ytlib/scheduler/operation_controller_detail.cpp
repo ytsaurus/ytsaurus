@@ -137,8 +137,6 @@ void TOperationControllerBase::TTask::AddInputLocalityHint(TChunkStripePtr strip
 
 i64 TOperationControllerBase::TTask::GetJobWeightThresholdGeneric(int pendingJobCount, i64 pendingWeight)
 {
-    YASSERT(pendingJobCount > 0);
-    YASSERT(pendingWeight > 0);
     return static_cast<i64>(std::ceil((double) pendingWeight / pendingJobCount));
 }
 
