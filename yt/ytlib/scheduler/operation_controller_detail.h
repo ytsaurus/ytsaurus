@@ -191,6 +191,8 @@ protected:
         virtual void OnJobCompleted(TJobInProgressPtr jip);
         virtual void OnJobFailed(TJobInProgressPtr jip);
 
+        virtual void OnTaskCompleted();
+
         bool IsPending() const;
         bool IsCompleted() const;
 
@@ -209,7 +211,6 @@ protected:
         virtual NScheduler::NProto::TJobSpec GetJobSpec(TJobInProgressPtr jip) = 0;
 
         virtual void OnJobStarted(TJobInProgressPtr jip);
-        virtual void OnTaskCompleted();
 
         void AddPendingHint();
         virtual void AddInputLocalityHint(TChunkStripePtr stripe);
