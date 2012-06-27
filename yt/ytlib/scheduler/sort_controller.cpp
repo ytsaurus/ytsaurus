@@ -879,12 +879,6 @@ private:
         // Do the final adjustments.
         partitionCount = static_cast<int>(PartitionKeys.size()) + 1;
 
-        // Prepare partitions.
-        Partitions.resize(partitionCount);
-        for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
-            Partitions[index] = New<TPartition>(this, index);
-        }
-
         // Populate the partition pool.
         FOREACH (const auto& table, InputTables) {
             FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
