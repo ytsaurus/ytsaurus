@@ -890,7 +890,9 @@ private:
                     request,
                     response,
                     jobStatus);
-                YCHECK(missingJobs.erase(job) == 1);
+                if (job) {
+                    YCHECK(missingJobs.erase(job) == 1);
+                }
             }
 
             // Check for missing jobs.
