@@ -102,6 +102,7 @@ private:
             , Completed(false)
             , SortedMergeNeeded(false)
             , Megalomaniac(false)
+            , Empty(true)
             , SortTask(New<TSortTask>(controller, this))
             , SortedMergeTask(New<TSortedMergeTask>(controller, this))
             , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
@@ -118,6 +119,9 @@ private:
 
         //! Does the partition consist of rows with the same key?
         bool Megalomaniac;
+
+        //! Is there any data here?
+        bool Empty;
 
         TSortTaskPtr SortTask;
         TSortedMergeTaskPtr SortedMergeTask;
@@ -227,6 +231,7 @@ private:
                             partitionAttributes.data_weight(),
                             partitionAttributes.row_count());
                         auto partition = Controller->Partitions[index];
+                        partition->Empty = false;
                         auto destinationTask = partition->Megalomaniac
                             ? TTaskPtr(partition->UnorderedMergeTask)
                             : TTaskPtr(partition->SortTask);
@@ -250,11 +255,17 @@ private:
             TTask::OnTaskCompleted();
 
             // Kick-start sort and unordered merge tasks.
+            // Mark empty partitions are completed.
             FOREACH (auto partition, Controller->Partitions) {
-                auto taskToKick = partition->Megalomaniac
-                    ? TTaskPtr(partition->UnorderedMergeTask)
-                    : TTaskPtr(partition->SortTask);
-                Controller->AddTaskPendingHint(taskToKick);
+                if (partition->Empty) {
+                    LOG_DEBUG("Partition is empty (Partition: %d)", partition->Index);
+                    Controller->OnPartitionCompeted(partition);
+                } else {
+                    auto taskToKick = partition->Megalomaniac
+                        ? TTaskPtr(partition->UnorderedMergeTask)
+                        : TTaskPtr(partition->SortTask);
+                    Controller->AddTaskPendingHint(taskToKick);
+                }
             }
         }
     };
@@ -410,7 +421,7 @@ private:
 
             if (!Partition->SortedMergeNeeded) {
                 Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
-                Controller->CompletePartition(Partition);
+                Controller->OnPartitionCompeted(Partition);
                 return;
             } 
 
@@ -535,7 +546,7 @@ private:
             Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
 
             YCHECK(ChunkPool->IsCompleted());
-            Controller->CompletePartition(Partition);
+            Controller->OnPartitionCompeted(Partition);
 
             TTask::OnJobCompleted(jip);
         }
@@ -623,7 +634,7 @@ private:
             Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
 
             if (ChunkPool->IsCompleted()) {
-                Controller->CompletePartition(Partition);
+                Controller->OnPartitionCompeted(Partition);
             }
 
             TTask::OnJobCompleted(jip);
@@ -645,7 +656,7 @@ private:
         TOperationControllerBase::RegisterOutputChunkTree(chunkTreeId, partition->Index, 0);
     }
 
-    void CompletePartition(TPartitionPtr partition)
+    void OnPartitionCompeted(TPartitionPtr partition)
     {
         YCHECK(!partition->Completed);
         partition->Completed = true;
