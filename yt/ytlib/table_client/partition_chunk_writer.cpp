@@ -86,8 +86,6 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         partitionAttributes->set_row_count(0);
     }
 
-    MiscExt.set_value_count(0);
-
     BasicMetaSize = ChannelsExt.ByteSize() + sizeof(i64) * PartitionKeys.size() + 
         sizeof(NChunkHolder::NProto::TMiscExt) + 
         sizeof(NChunkHolder::NProto::TChunkMeta);
@@ -117,7 +115,7 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
         }
     }
 
-    auto partitionIt = std::lower_bound(PartitionKeys.begin(), PartitionKeys.end(), key);
+    auto partitionIt = std::upper_bound(PartitionKeys.begin(), PartitionKeys.end(), key);
     auto partitionTag = std::distance(PartitionKeys.begin(), partitionIt);
     auto& channelWriter = ChannelWriters[partitionTag];
 
