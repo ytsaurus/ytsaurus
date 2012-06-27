@@ -257,7 +257,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                 FOREACH (const auto& peer, peers) {
                     blockInfo->add_peer_addresses(peer.Address);
                 }
-                LOG_DEBUG("GetBlocks: %d peers suggested for block %d",
+                LOG_DEBUG("GetBlocks: %" PRId64 " peers suggested for block %d",
                     peers.size(),
                     blockIndex);
             }

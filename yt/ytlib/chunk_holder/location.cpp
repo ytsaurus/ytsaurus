@@ -204,7 +204,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         }
     }
 
-    LOG_INFO("Done, %d chunks found", result.size());
+    LOG_INFO("Done, %" PRId64 " chunks found", result.size());
 
     return result;
 }

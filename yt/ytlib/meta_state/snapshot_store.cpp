@@ -119,6 +119,7 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
         }
 
         // Remove the orphaned id from the set and retry.
+        // TODO(ignat): add logging here
         {
             TGuard<TSpinLock> guard(SpinLock);
             SnapshotIds.erase(snapshotId);

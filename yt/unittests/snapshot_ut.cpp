@@ -1,7 +1,11 @@
 #include "stdafx.h"
 
-#include <ytlib/meta_state/snapshot.h>
 #include <ytlib/meta_state/common.h>
+#include <ytlib/meta_state/config.h>
+#include <ytlib/meta_state/snapshot.h>
+#include <ytlib/meta_state/snapshot_store.h>
+
+#include <ytlib/ytree/convert.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
@@ -18,7 +22,7 @@ class TSnapshotTest
 {
 protected:
     THolder<TTempFile> TemporaryFile;
-    
+
     virtual void SetUp()
     {
         TemporaryFile.Reset(new TTempFile(GenerateRandomFileName("Snapshot")));
@@ -91,6 +95,37 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
     }
 
     reader.Reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSnapshotTest, SnapshotStore)
+{
+    TSnapshotStoreConfigPtr config = New<TSnapshotStoreConfig>();
+    config->Load(NYTree::ConvertToNode(NYTree::TYsonString("{path=snapshot_store}")));
+
+    TSnapshotStorePtr store = New<TSnapshotStore>(config);
+    store->Start();
+
+    EXPECT_FALSE(store->GetReader(1).IsOK());
+
+    auto writer = store->GetWriter(2);
+    writer->Open(1, TEpoch());
+    TOutputStream* output = writer->GetStream();
+    std::vector<char> data(10, 42);
+    output->Write(&*data.begin(), data.size());
+    writer->Close();
+
+    auto readerResult = store->GetReader(2);
+    ASSERT_TRUE(readerResult.IsOK());
+    auto reader = readerResult.Value();
+    reader->Open();
+    EXPECT_EQ(1, reader->GetPrevRecordCount());
+    EXPECT_EQ(TEpoch(), reader->GetEpoch());
+
+    EXPECT_FALSE(store->GetReader(3).IsOK());
+
+    // TODO(ignat): add more tests
 }
 
 ////////////////////////////////////////////////////////////////////////////////
