@@ -52,14 +52,20 @@ class TestOrchid(YTEnvSetup):
 
 ###################################################################################
 
-class TestCanceledUpload(YTEnvSetup):
+# TODO(panin): unite with next
+class TestResourceLeak(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 3
 
     DELTA_HOLDER_CONFIG = {'chunk_holder' : {'session_timeout': 100}}
 
+    def _check_no_temp_file(self, chunk_store):
+        for root, dirs, files in os.walk(chunk_store):
+            for file in files:
+                assert not file.endswith('~'), 'Found temporary file: ' + file  
+
     # should be called on empty holders
-    def test(self):
+    def test_canceled_upload(self):
         tx_id = start_transaction(opt = '/timeout=2000')
 
         # uploading from empty stream will fail
@@ -75,7 +81,25 @@ class TestCanceledUpload(YTEnvSetup):
             chunk_store_path = holder_config['chunk_holder']['store_locations'][0]['path']
             self._check_no_temp_file(chunk_store_path)
 
-    def _check_no_temp_file(self, chunk_store):
-        for root, dirs, files in os.walk(chunk_store):
-            for file in files:
-                assert not file.endswith('~'), 'Found temporary file: ' + file  
+# TODO(panin): check chunks
+class TestResourceLeak2(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_HOLDERS = 5
+
+    def test_abort_snapshot_lock(self):
+        upload('//tmp/file', 'some_data')
+
+        tx_id = start_transaction()
+
+        lock('//tmp/file', mode='snapshot', tx=tx_id)
+        remove('//tmp/file')
+        abort_transaction(tx=tx_id)
+
+    def test_commit_snapshot_lock(self):
+        upload('//tmp/file', 'some_data')
+
+        tx_id = start_transaction()
+
+        lock('//tmp/file', mode='snapshot', tx=tx_id)
+        remove('//tmp/file')
+        commit_transaction(tx=tx_id)

@@ -50,9 +50,12 @@ def convert_to_yt_args(*args, **kw):
 
     return all_args
 
+def quote(s):
+    return "'" + s + "'"
+
 def run_command(name, *args, **kw):
     all_args = [name] + convert_to_yt_args(*args, **kw)
-    print ' '.join(all_args)
+    print ' '.join(quote(s) for s in all_args)
 
     process = subprocess.Popen([YT] + all_args,
         stdout=subprocess.PIPE,
