@@ -24,7 +24,7 @@ void Consume(const T& value, IYsonConsumer* consumer)
     // accident usage of Stroka instead TYsonString.
     static_assert(!TSameType<T, Stroka>::Result,
         "Are you sure that you want to convert from Stroka, not from TYsonString?. "
-        "In this case use RawString wrapper on Stroka.");
+        "In this case use TRawString wrapper on Stroka.");
     
     Serialize(value, consumer);
 }
@@ -114,7 +114,7 @@ TTo ConvertTo(const T& value)
 
 inline Stroka YsonizeString(const Stroka& string, EYsonFormat format)
 {
-    return ConvertToYsonString(RawString(string), format).Data();
+    return ConvertToYsonString(TRawString(string), format).Data();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,10 +11,10 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Direct convertion from Stroka to Node or Producer is forbidden.
-//! Use RawString wrapper in this case.
-class RawString: public Stroka {
+//! Use TRawString wrapper in this case.
+class TRawString: public Stroka {
 public:
-    RawString(const Stroka& str):
+    TRawString(const Stroka& str):
         Stroka(str)
     { }
 };
