@@ -67,6 +67,7 @@ class TestTxCommands(YTEnvSetup):
 
         remove('//tmp/value')
 
+
     def test_timeout(self):
         tx_id = start_transaction(opt = '/timeout=4000')
 
