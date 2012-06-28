@@ -67,11 +67,11 @@ TEST(TEnumTest, FromString)
 
     returnValue = EColor::FromString("Red", &color);
     EXPECT_EQ(EColor::Red, color);
-    EXPECT_IS_TRUE(returnValue);
+    EXPECT_TRUE(returnValue);
 
     returnValue = EColor::FromString("Pink", &color);
     EXPECT_EQ(EColor::Red, color);
-    EXPECT_IS_FALSE(returnValue);
+    EXPECT_FALSE(returnValue);
 }
 
 TEST(TEnumTest, Ordering)
@@ -81,41 +81,41 @@ TEST(TEnumTest, Ordering)
     ESimple c(ESimple::Y);
     ESimple d(ESimple::Z);
 
-    EXPECT_IS_FALSE(a < a); EXPECT_IS_FALSE(a > a);
-    EXPECT_IS_TRUE (a < b); EXPECT_IS_TRUE (b > a);
-    EXPECT_IS_TRUE (a < c); EXPECT_IS_TRUE (c > a);
-    EXPECT_IS_TRUE (a < d); EXPECT_IS_TRUE (d > a);
+    EXPECT_FALSE(a < a); EXPECT_FALSE(a > a);
+    EXPECT_TRUE (a < b); EXPECT_TRUE (b > a);
+    EXPECT_TRUE (a < c); EXPECT_TRUE (c > a);
+    EXPECT_TRUE (a < d); EXPECT_TRUE (d > a);
 
-    EXPECT_IS_FALSE(b < a); EXPECT_IS_FALSE(a > b);
-    EXPECT_IS_FALSE(b < b); EXPECT_IS_FALSE(b > b);
-    EXPECT_IS_FALSE(b < c); EXPECT_IS_FALSE(c > b);
-    EXPECT_IS_TRUE (b < d); EXPECT_IS_TRUE (d > b);
+    EXPECT_FALSE(b < a); EXPECT_FALSE(a > b);
+    EXPECT_FALSE(b < b); EXPECT_FALSE(b > b);
+    EXPECT_FALSE(b < c); EXPECT_FALSE(c > b);
+    EXPECT_TRUE (b < d); EXPECT_TRUE (d > b);
 
-    EXPECT_IS_FALSE(c < a); EXPECT_IS_FALSE(a > c);
-    EXPECT_IS_FALSE(c < b); EXPECT_IS_FALSE(b > c);
-    EXPECT_IS_FALSE(c < c); EXPECT_IS_FALSE(c > c);
-    EXPECT_IS_TRUE (c < d); EXPECT_IS_TRUE (d > c);
+    EXPECT_FALSE(c < a); EXPECT_FALSE(a > c);
+    EXPECT_FALSE(c < b); EXPECT_FALSE(b > c);
+    EXPECT_FALSE(c < c); EXPECT_FALSE(c > c);
+    EXPECT_TRUE (c < d); EXPECT_TRUE (d > c);
 
-    EXPECT_IS_FALSE(d < a); EXPECT_IS_FALSE(a > d);
-    EXPECT_IS_FALSE(d < b); EXPECT_IS_FALSE(b > d);
-    EXPECT_IS_FALSE(d < c); EXPECT_IS_FALSE(c > d);
-    EXPECT_IS_FALSE(d < d); EXPECT_IS_FALSE(d > d);
+    EXPECT_FALSE(d < a); EXPECT_FALSE(a > d);
+    EXPECT_FALSE(d < b); EXPECT_FALSE(b > d);
+    EXPECT_FALSE(d < c); EXPECT_FALSE(c > d);
+    EXPECT_FALSE(d < d); EXPECT_FALSE(d > d);
 
-    EXPECT_IS_TRUE (a <= b);
-    EXPECT_IS_TRUE (b <= c);
-    EXPECT_IS_TRUE (c <= d);
+    EXPECT_TRUE (a <= b);
+    EXPECT_TRUE (b <= c);
+    EXPECT_TRUE (c <= d);
 
-    EXPECT_IS_TRUE (a == a);
-    EXPECT_IS_FALSE(a == b);
-    EXPECT_IS_TRUE (b == c);
-    EXPECT_IS_FALSE(c == d);
-    EXPECT_IS_FALSE(d == a);
+    EXPECT_TRUE (a == a);
+    EXPECT_FALSE(a == b);
+    EXPECT_TRUE (b == c);
+    EXPECT_FALSE(c == d);
+    EXPECT_FALSE(d == a);
 
-    EXPECT_IS_FALSE(a != a);
-    EXPECT_IS_TRUE (a != b);
-    EXPECT_IS_FALSE(b != c);
-    EXPECT_IS_TRUE (c != d);
-    EXPECT_IS_TRUE (d != a);
+    EXPECT_FALSE(a != a);
+    EXPECT_TRUE (a != b);
+    EXPECT_FALSE(b != c);
+    EXPECT_TRUE (c != d);
+    EXPECT_TRUE (d != a);
 }
 
 TEST(TEnumTest, OrderingWithDomainValues)

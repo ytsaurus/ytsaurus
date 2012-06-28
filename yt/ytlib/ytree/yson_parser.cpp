@@ -120,7 +120,7 @@ private:
     void OnRangeConsumed(const char* begin, const char* end)
     {
         Offset += end - begin;
-        if (EXPECT_FALSE(EnableLinePositionInfo)) { // Performance critical check
+        if (UNLIKELY(EnableLinePositionInfo)) { // Performance critical check
             for (auto current = begin; current != end; ++current) {
                 ++Position;
                 if (*current == '\n') {

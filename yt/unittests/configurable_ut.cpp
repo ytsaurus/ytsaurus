@@ -60,7 +60,7 @@ struct TTestConfig
 void TestCompleteSubconfig(TTestSubconfig* subconfig)
 {
     EXPECT_EQ(99, subconfig->MyInt);
-    EXPECT_IS_TRUE(subconfig->MyBool);
+    EXPECT_TRUE(subconfig->MyBool);
     EXPECT_EQ(3, subconfig->MyStringList.size());
     EXPECT_EQ("ListItem0", subconfig->MyStringList[0]);
     EXPECT_EQ("ListItem1", subconfig->MyStringList[1]);
@@ -142,10 +142,10 @@ TEST(TConfigTest, Complete)
     TestCompleteSubconfig(~config->SubconfigList[1]);
     EXPECT_EQ(2, config->SubconfigMap.size());
     auto it1 = config->SubconfigMap.find("sub1");
-    EXPECT_IS_FALSE(it1 == config->SubconfigMap.end());
+    EXPECT_FALSE(it1 == config->SubconfigMap.end());
     TestCompleteSubconfig(~it1->second);
     auto it2 = config->SubconfigMap.find("sub2");
-    EXPECT_IS_FALSE(it2 == config->SubconfigMap.end());
+    EXPECT_FALSE(it2 == config->SubconfigMap.end());
     TestCompleteSubconfig(~it2->second);
 }
 
@@ -167,7 +167,7 @@ TEST(TConfigTest, MissingParameter)
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(100, config->Subconfig->MyInt);
-    EXPECT_IS_TRUE(config->Subconfig->MyBool);
+    EXPECT_TRUE(config->Subconfig->MyBool);
     EXPECT_EQ(0, config->Subconfig->MyStringList.size());
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
     EXPECT_EQ(0, config->SubconfigList.size());
@@ -189,7 +189,7 @@ TEST(TConfigTest, MissingSubconfig)
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(100, config->Subconfig->MyInt);
-    EXPECT_IS_FALSE(config->Subconfig->MyBool);
+    EXPECT_FALSE(config->Subconfig->MyBool);
     EXPECT_EQ(0, config->Subconfig->MyStringList.size());
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
     EXPECT_EQ(0, config->SubconfigList.size());

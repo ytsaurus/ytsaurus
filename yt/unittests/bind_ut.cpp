@@ -646,18 +646,18 @@ TEST_F(TBindTest, ArrayArgumentBinding)
 //   - Derived class with Ref() and Unref() and a private destructor.
 TEST_F(TBindTest, HasRefAndUnrefMethods)
 {
-    EXPECT_IS_TRUE(NDetail::THasRefAndUnrefMethods<TObjectWithRC>::Value);
-    EXPECT_IS_FALSE(NDetail::THasRefAndUnrefMethods<TObject>::Value);
+    EXPECT_TRUE(NDetail::THasRefAndUnrefMethods<TObjectWithRC>::Value);
+    EXPECT_FALSE(NDetail::THasRefAndUnrefMethods<TObject>::Value);
 
     // StrictMock<T> is a derived class of T.
     // So, we use StrictMock<TObjectWithRC> and StrictMock<TObject> to test that
     // THasRefAndUnrefMethods works over inheritance.
-    EXPECT_IS_TRUE(NDetail::THasRefAndUnrefMethods< StrictMock<TObjectWithRC> >::Value);
-    EXPECT_IS_FALSE(NDetail::THasRefAndUnrefMethods< StrictMock<TObject> >::Value);
+    EXPECT_TRUE(NDetail::THasRefAndUnrefMethods< StrictMock<TObjectWithRC> >::Value);
+    EXPECT_FALSE(NDetail::THasRefAndUnrefMethods< StrictMock<TObject> >::Value);
 
     // This matters because the implementation creates a dummy class that
     // inherits from the template type.
-    EXPECT_IS_TRUE(NDetail::THasRefAndUnrefMethods<TObjectWithRCAndPrivateDtor>::Value);
+    EXPECT_TRUE(NDetail::THasRefAndUnrefMethods<TObjectWithRCAndPrivateDtor>::Value);
 }
 
 // Unretained() wrapper support.
@@ -830,7 +830,7 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
                 Passed(&probe));
 
         // The argument has been passed.
-        EXPECT_IS_FALSE(probe.IsValid());
+        EXPECT_FALSE(probe.IsValid());
         EXPECT_EQ(0, state.Destructors);
         EXPECT_THAT(state, NoCopies());
 
@@ -853,7 +853,7 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
                 Passed(MoveRV(probe)));
         
         // The argument has been passed.
-        EXPECT_IS_FALSE(probe.IsValid());
+        EXPECT_FALSE(probe.IsValid());
         EXPECT_EQ(0, state.Destructors);
         EXPECT_THAT(state, NoCopies());
 
@@ -886,16 +886,16 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
         TCallback<TProbe(TProbe)> cb =
             BIND(&PolymorphicPassThrough<TProbe>);
 
-        EXPECT_IS_TRUE(sender.IsValid());
-        EXPECT_IS_FALSE(receiver.IsValid());
+        EXPECT_TRUE(sender.IsValid());
+        EXPECT_FALSE(receiver.IsValid());
 
         EXPECT_EQ(0, state.Destructors);
         EXPECT_THAT(state, NoCopies());
 
         receiver = cb.Run(MoveRV(sender));
 
-        EXPECT_IS_FALSE(sender.IsValid());
-        EXPECT_IS_TRUE(receiver.IsValid());
+        EXPECT_FALSE(sender.IsValid());
+        EXPECT_TRUE(receiver.IsValid());
 
         EXPECT_EQ(0, state.Destructors);
         EXPECT_THAT(state, NoCopies());

@@ -19,18 +19,18 @@ TEST(TFutureTest, IsNull)
     TFuture<int> empty;
     TFuture<int> nonEmpty = MakeFuture(42);
 
-    EXPECT_IS_TRUE(empty.IsNull());
-    EXPECT_IS_FALSE(nonEmpty.IsNull());
+    EXPECT_TRUE(empty.IsNull());
+    EXPECT_FALSE(nonEmpty.IsNull());
 
     empty = MoveRV(nonEmpty);
 
-    EXPECT_IS_FALSE(empty.IsNull());
-    EXPECT_IS_TRUE(nonEmpty.IsNull());
+    EXPECT_FALSE(empty.IsNull());
+    EXPECT_TRUE(nonEmpty.IsNull());
 
     empty.Swap(nonEmpty);
 
-    EXPECT_IS_TRUE(empty.IsNull());
-    EXPECT_IS_FALSE(nonEmpty.IsNull());
+    EXPECT_TRUE(empty.IsNull());
+    EXPECT_FALSE(nonEmpty.IsNull());
 }
 
 TEST(TFutureTest, IsNullVoid)
@@ -38,36 +38,36 @@ TEST(TFutureTest, IsNullVoid)
     TFuture<void> empty;
     TFuture<void> nonEmpty = MakeFuture();
 
-    EXPECT_IS_TRUE(empty.IsNull());
-    EXPECT_IS_FALSE(nonEmpty.IsNull());
+    EXPECT_TRUE(empty.IsNull());
+    EXPECT_FALSE(nonEmpty.IsNull());
 
     empty = MoveRV(nonEmpty);
 
-    EXPECT_IS_FALSE(empty.IsNull());
-    EXPECT_IS_TRUE(nonEmpty.IsNull());
+    EXPECT_FALSE(empty.IsNull());
+    EXPECT_TRUE(nonEmpty.IsNull());
 
     empty.Swap(nonEmpty);
 
-    EXPECT_IS_TRUE(empty.IsNull());
-    EXPECT_IS_FALSE(nonEmpty.IsNull());
+    EXPECT_TRUE(empty.IsNull());
+    EXPECT_FALSE(nonEmpty.IsNull());
 }
 
 TEST(TFutureTest, Reset)
 {
     TFuture<int> foo = MakeFuture(42);
 
-    EXPECT_IS_FALSE(foo.IsNull());
+    EXPECT_FALSE(foo.IsNull());
     foo.Reset();
-    EXPECT_IS_TRUE(foo.IsNull());
+    EXPECT_TRUE(foo.IsNull());
 }
 
 TEST(TFutureTest, ResetVoid)
 {
     TFuture<void> foo = MakeFuture();
 
-    EXPECT_IS_FALSE(foo.IsNull());
+    EXPECT_FALSE(foo.IsNull());
     foo.Reset();
-    EXPECT_IS_TRUE(foo.IsNull());
+    EXPECT_TRUE(foo.IsNull());
 }
 
 TEST(TFutureTest, IsSet)
@@ -75,11 +75,11 @@ TEST(TFutureTest, IsSet)
     auto promise = NewPromise<int>();
     auto future = promise.ToFuture();
 
-    EXPECT_IS_FALSE(future.IsSet());
-    EXPECT_IS_FALSE(promise.IsSet());
+    EXPECT_FALSE(future.IsSet());
+    EXPECT_FALSE(promise.IsSet());
     promise.Set(42);
-    EXPECT_IS_TRUE(future.IsSet());
-    EXPECT_IS_TRUE(promise.IsSet());
+    EXPECT_TRUE(future.IsSet());
+    EXPECT_TRUE(promise.IsSet());
 }
 
 TEST(TFutureTest, IsSetVoid)
@@ -87,11 +87,11 @@ TEST(TFutureTest, IsSetVoid)
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
 
-    EXPECT_IS_FALSE(future.IsSet());
-    EXPECT_IS_FALSE(promise.IsSet());
+    EXPECT_FALSE(future.IsSet());
+    EXPECT_FALSE(promise.IsSet());
     promise.Set();
-    EXPECT_IS_TRUE(future.IsSet());
-    EXPECT_IS_TRUE(promise.IsSet());
+    EXPECT_TRUE(future.IsSet());
+    EXPECT_TRUE(promise.IsSet());
 }
 
 TEST(TFutureTest, SetAndGet)
@@ -120,14 +120,14 @@ TEST(TFutureTest, SetAndTryGet)
 
     {
         auto result = future.TryGet();
-        EXPECT_IS_FALSE(result);
+        EXPECT_FALSE(result);
     }
 
     promise.Set(42);
 
     {
         auto result = future.TryGet();
-        EXPECT_IS_TRUE(result);
+        EXPECT_TRUE(result);
         EXPECT_EQ(42, *result);
     }
 }
@@ -251,21 +251,21 @@ TEST(TFutureTest, CascadedApply)
     Sleep(TDuration::Seconds(2.0 * SleepQuantum));
 
     // Initial computation condition.
-    EXPECT_IS_FALSE(left.IsSet());  EXPECT_IS_FALSE(leftPrime.IsSet());
-    EXPECT_IS_FALSE(right.IsSet()); EXPECT_IS_FALSE(rightPrime.IsSet());
+    EXPECT_FALSE(left.IsSet());  EXPECT_FALSE(leftPrime.IsSet());
+    EXPECT_FALSE(right.IsSet()); EXPECT_FALSE(rightPrime.IsSet());
     EXPECT_EQ(0, accumulator);
 
     // Kick off!
     kicker.Set(true);
-    EXPECT_IS_FALSE(left.IsSet());  EXPECT_IS_FALSE(leftPrime.IsSet());
-    EXPECT_IS_FALSE(right.IsSet()); EXPECT_IS_FALSE(rightPrime.IsSet());
+    EXPECT_FALSE(left.IsSet());  EXPECT_FALSE(leftPrime.IsSet());
+    EXPECT_FALSE(right.IsSet()); EXPECT_FALSE(rightPrime.IsSet());
     EXPECT_EQ(0, accumulator);
 
     // Kick off!
     right.Set(1);
 
-    EXPECT_IS_FALSE(left.IsSet());  EXPECT_IS_FALSE(leftPrime.IsSet());
-    EXPECT_IS_TRUE(right.IsSet());  EXPECT_IS_TRUE(rightPrime.IsSet());
+    EXPECT_FALSE(left.IsSet());  EXPECT_FALSE(leftPrime.IsSet());
+    EXPECT_TRUE(right.IsSet());  EXPECT_TRUE(rightPrime.IsSet());
     EXPECT_EQ( 5, accumulator);
     EXPECT_EQ( 1, right.Get());
     EXPECT_EQ( 5, rightPrime.Get());
@@ -273,8 +273,8 @@ TEST(TFutureTest, CascadedApply)
     // This will sleep for a while until left branch will be evaluated.
     thread.Join();
 
-    EXPECT_IS_TRUE(left.IsSet());   EXPECT_IS_TRUE(leftPrime.IsSet());
-    EXPECT_IS_TRUE(right.IsSet());  EXPECT_IS_TRUE(rightPrime.IsSet());
+    EXPECT_TRUE(left.IsSet());   EXPECT_TRUE(leftPrime.IsSet());
+    EXPECT_TRUE(right.IsSet());  EXPECT_TRUE(rightPrime.IsSet());
     EXPECT_EQ(55, accumulator);
     EXPECT_EQ(42, left.Get());
     EXPECT_EQ(50, leftPrime.Get());
@@ -291,14 +291,14 @@ TEST(TFutureTest, ApplyVoidToVoid)
         .Apply(BIND([&] () -> void { ++state; }));
 
     EXPECT_EQ(0, state);
-    EXPECT_IS_FALSE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_FALSE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     kicker.Set();
 
     EXPECT_EQ(1, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_TRUE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_TRUE(target.IsSet());
 }
 
 TEST(TFutureTest, ApplyVoidToFutureVoid)
@@ -323,22 +323,22 @@ TEST(TFutureTest, ApplyVoidToFutureVoid)
 
     // Initial computation condition.
     EXPECT_EQ(0, state);
-    EXPECT_IS_FALSE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_FALSE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     // Kick off!
     kicker.Set();
     
     EXPECT_EQ(1, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     // This will sleep for a while until evaluation completion.
     thread.Join();
 
     EXPECT_EQ(1, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_TRUE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_TRUE(target.IsSet());
 }
 
 TEST(TFutureTest, ApplyVoidToInt)
@@ -356,15 +356,15 @@ TEST(TFutureTest, ApplyVoidToInt)
 
     // Initial computation condition.
     EXPECT_EQ(0, state);
-    EXPECT_IS_FALSE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_FALSE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     // Kick off!
     kicker.Set();
     
     EXPECT_EQ(1, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_TRUE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_TRUE(target.IsSet());
 
     EXPECT_EQ(17, target.Get());
 }
@@ -391,22 +391,22 @@ TEST(TFutureTest, ApplyVoidToFutureInt)
 
     // Initial computation condition.
     EXPECT_EQ(0, state);
-    EXPECT_IS_FALSE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_FALSE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     // Kick off!
     kicker.Set();
     
     EXPECT_EQ(1, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     // This will sleep for a while until evaluation completion.
     thread.Join();
 
     EXPECT_EQ(1, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_TRUE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_TRUE(target.IsSet());
 
     EXPECT_EQ(42, target.Get());
 }
@@ -422,14 +422,14 @@ TEST(TFutureTest, ApplyIntToVoid)
         .Apply(BIND([&] (int x) -> void { state += x; }));
 
     EXPECT_EQ(0, state);
-    EXPECT_IS_FALSE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_FALSE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     kicker.Set(21);
 
     EXPECT_EQ(21, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_TRUE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_TRUE(target.IsSet());
 
     EXPECT_EQ(21, source.Get());
 }
@@ -456,15 +456,15 @@ TEST(TFutureTest, ApplyIntToFutureVoid)
 
     // Initial computation condition.
     EXPECT_EQ(0, state);
-    EXPECT_IS_FALSE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_FALSE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     // Kick off!
     kicker.Set(21);
     
     EXPECT_EQ(21, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     EXPECT_EQ(21, source.Get());
 
@@ -472,8 +472,8 @@ TEST(TFutureTest, ApplyIntToFutureVoid)
     thread.Join();
 
     EXPECT_EQ(21, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_TRUE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_TRUE(target.IsSet());
 }
 
 TEST(TFutureTest, ApplyIntToInt)
@@ -490,14 +490,14 @@ TEST(TFutureTest, ApplyIntToInt)
         }));
 
     EXPECT_EQ(0, state);
-    EXPECT_IS_FALSE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_FALSE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     kicker.Set(21);
 
     EXPECT_EQ(21, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_TRUE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_TRUE(target.IsSet());
 
     EXPECT_EQ(21, source.Get());
     EXPECT_EQ(42, target.Get());
@@ -525,15 +525,15 @@ TEST(TFutureTest, ApplyIntToFutureInt)
 
     // Initial computation condition.
     EXPECT_EQ(0, state);
-    EXPECT_IS_FALSE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_FALSE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     // Kick off!
     kicker.Set(21);
     
     EXPECT_EQ(21, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_FALSE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_FALSE(target.IsSet());
 
     EXPECT_EQ(21, source.Get());
 
@@ -541,8 +541,8 @@ TEST(TFutureTest, ApplyIntToFutureInt)
     thread.Join();
 
     EXPECT_EQ(21, state);
-    EXPECT_IS_TRUE(source.IsSet());
-    EXPECT_IS_TRUE(target.IsSet());
+    EXPECT_TRUE(source.IsSet());
+    EXPECT_TRUE(target.IsSet());
 
     EXPECT_EQ(21, source.Get());
     EXPECT_EQ(42, target.Get());

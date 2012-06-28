@@ -10,7 +10,7 @@ namespace NYT {
 TEST(TNullableDeathTest, Uninitialized)
 {
     TNullable<int> nullable;
-    EXPECT_IS_FALSE(nullable.IsInitialized());
+    EXPECT_FALSE(nullable.IsInitialized());
     EXPECT_DEATH(nullable.Get(), ".*");
 }
 
@@ -99,9 +99,9 @@ TEST(TNullableTest, Operators)
         EXPECT_EQ(1, (*nullable).size());
         EXPECT_EQ(1, nullable->size());
         EXPECT_EQ(&nullable.Get(), nullable.GetPtr());
-        EXPECT_IS_TRUE(nullable);
+        EXPECT_TRUE(nullable);
         nullable.Reset();
-        EXPECT_IS_FALSE(nullable);
+        EXPECT_FALSE(nullable);
     }
     {
         EXPECT_EQ(TNullable<int>(1), TNullable<int>(1));

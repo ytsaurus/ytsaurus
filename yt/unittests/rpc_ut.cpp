@@ -226,7 +226,7 @@ public:
 
     void CheckReply(int expected, TMyProxy::TRspSomeCallPtr response)
     {
-        EXPECT_IS_TRUE(response->IsOK());
+        EXPECT_TRUE(response->IsOK());
         EXPECT_EQ(expected, response->b());
 
         --NumRepliesWaiting;
@@ -249,7 +249,7 @@ TEST_F(TRpcTest, Send)
     request->set_a(42);
     auto response = request->Invoke().Get();
 
-    EXPECT_IS_TRUE(response->IsOK());
+    EXPECT_TRUE(response->IsOK());
     EXPECT_EQ(142, response->b());
 }
 
@@ -267,7 +267,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
             BIND(&TResponseHandler::CheckReply, handler, i + 100));
     }
 
-    EXPECT_IS_TRUE(handler->Event_.WaitT(TDuration::Seconds(4))); // assert no timeout
+    EXPECT_TRUE(handler->Event_.WaitT(TDuration::Seconds(4))); // assert no timeout
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,7 +330,7 @@ TEST_F(TRpcTest, Attributes)
     auto response = request->Invoke().Get();
     const auto& attributes = response->Attributes();
 
-    EXPECT_IS_FALSE(attributes.FindYson("value1").IsInitialized());
+    EXPECT_FALSE(attributes.FindYson("value1").IsInitialized());
     EXPECT_EQ(NYTree::TYsonString("another_stroka"), attributes.GetYson("value2"));
     EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
 } 
@@ -417,7 +417,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ("world", attributes.Get<Stroka>("hello"));
     EXPECT_EQ(42, attributes.Get<i64>("value"));
 
-    EXPECT_IS_FALSE(attributes.FindYson("another_value").IsInitialized());
+    EXPECT_FALSE(attributes.FindYson("another_value").IsInitialized());
 
     Event_->Signal();
 }
@@ -440,7 +440,7 @@ TEST_F(TRpcTest, OneWaySend)
     auto response = request->Invoke().Get();
     EXPECT_EQ(TError::OK, response->GetErrorCode());
 
-    EXPECT_IS_TRUE(ReadyEvent.WaitT(TDuration::Seconds(4))); // assert no timeout
+    EXPECT_TRUE(ReadyEvent.WaitT(TDuration::Seconds(4))); // assert no timeout
 }
 
 ////////////////////////////////////////////////////////////////////////////////
