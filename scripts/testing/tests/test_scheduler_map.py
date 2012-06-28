@@ -31,7 +31,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
-    def test_in_equal_to_output(self):
+    def test_in_equal_to_out(self):
         create('table', '//tmp/t1')
         write_str('//tmp/t1', '{foo=bar}')
 

@@ -130,6 +130,9 @@ def track_op(**kw):
 def erase(path, *args, **kw):
     return command('erase', path, *args, **kw)
 
+def sort(**kw):
+    return command('sort', **kw)
+
 #########################################
 
 def get(path, **kw):
