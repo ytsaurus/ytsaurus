@@ -301,7 +301,6 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     // Secondly, try to deduce output format from Accept header.
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
-        header = header.trim();
         for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
             if (utils.accepts(mime, header)) {
                 result_mime = mime;
@@ -338,7 +337,6 @@ YtCommand.prototype._getOutputCompression = function(cb) {
 
     header = this.req.headers["accept-encoding"];
     if (typeof(header) === "string") {
-        header = header.trim();
         for (var encoding in _MAPPING_STREAM_COMPRESSION) {
             if (utils.acceptsEncoding(encoding, header)) {
                 result_mime = encoding;
@@ -528,6 +526,41 @@ YtEioWatcher.prototype.is_choking = function() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+function YtHostDiscovery(hosts) {
+    __DBG("HostDiscovery -> New");
+
+    return function(req, rsp) {
+        var body = shuffle(hosts);
+
+        var header = req.headers["accept"];
+        if (typeof(header) === string) {
+            /****/ if (utils.accepts("application/json", header)) {
+                body = JSON.stringify(body);
+                rsp.writeHead(200, {
+                    "Content-Length" : body.length,
+                    "Content-Type" : "application/json"
+                });
+            } else if (utils.accepts("text/plain", header)) {
+                body = body.toString("\n");
+                rsp.writeHead(200, {
+                    "Content-Length" : body.length,
+                    "Content-Type" : "text/plain"
+                });
+            } else {
+                // Unsupported
+            }
+        } else {
+            body = JSON.stringify(body);
+            rsp.writeHead(200, {
+                "Content-Length" : body.length,
+                "Content-Type" : "application/json"
+            });
+        }
+
+        rsp.end(body);
+    };
+}
+
 function YtApplication(logger, configuration) {
     __DBG("Application -> New");
 
@@ -596,6 +629,7 @@ function YtAssignRequestId() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+exports.YtHostDiscovery = YtHostDiscovery;
 exports.YtApplication = YtApplication;
 exports.YtLogger = YtLogger;
 exports.YtAssignRequestID = YtAssignRequestId;

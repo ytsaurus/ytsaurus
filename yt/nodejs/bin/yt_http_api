@@ -183,14 +183,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
             .use(yt.YtAssignRequestID())
             .use(yt.YtLogger(logger))
             .use("/api", yt.YtApplication(logger, configuration))
-            .use("/hosts", function(req, rsp) {
-                var body = JSON.stringify(shuffle(configuration.neighbours));
-                rsp.writeHead(200, {
-                    "Content-Length" : body.length,
-                    "Content-Type" : "application/json"
-                });
-                rsp.end(body);
-            })
+            .use("/hosts", yt.YtHostDiscovery()) {
             .use("/", function(req, rsp) {
                 rsp.writeHead(303, {
                     "Location" : "/api",
