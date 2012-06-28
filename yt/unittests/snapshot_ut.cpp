@@ -125,7 +125,9 @@ TEST_F(TSnapshotTest, SnapshotStore)
 
     EXPECT_FALSE(store->GetReader(3).IsOK());
 
-    // TODO(ignat): add more tests
+    EXPECT_EQ(NonexistingSnapshotId, store->LookupLatestSnapshot(1));
+    EXPECT_EQ(2, store->LookupLatestSnapshot(2));
+    EXPECT_EQ(2, store->LookupLatestSnapshot(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
