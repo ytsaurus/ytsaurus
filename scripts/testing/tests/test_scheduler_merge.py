@@ -138,4 +138,69 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert result[:2] == [a1, b1]
         self.assertItemsEqual(result[2:5], [a2, a3, b2])
         assert result[5] == b3
-        
+
+    def test_empty_in(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        create('table', '//tmp/t_out')
+
+        v = {'foo': 'bar'}
+        write('//tmp/t1', v)
+
+        merge(mode='ordered',
+               in_=['//tmp/t1', '//tmp/t2'],
+               out='//tmp/t_out')
+       
+        assert read('//tmp/t_out') == [v]
+
+    def test_non_empty_out(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        create('table', '//tmp/t_out')
+
+        v1 = {'value': 1}
+        v2 = {'value': 2}
+        v3 = {'value': 3}
+
+        write('//tmp/t1', v1)
+        write('//tmp/t2', v2)
+        write('//tmp/t_out', v3)
+
+        merge(mode='ordered',
+               in_=['//tmp/t1', '//tmp/t2'],
+               out='//tmp/t_out')
+       
+        assert read('//tmp/t_out') == [v3, v1, v2]
+
+    def test_multiple_in(self):
+        create('table', '//tmp/t_in')
+        create('table', '//tmp/t_out')
+
+        v = {'foo': 'bar'}
+
+        write('//tmp/t_in', v)
+
+        merge(mode='ordered',
+               in_=['//tmp/t_in', '//tmp/t_in', '//tmp/t_in'],
+               out='//tmp/t_out')
+       
+        assert read('//tmp/t_out') == [v, v, v]
+
+    def test_in_equal_to_out(self):
+        create('table', '//tmp/t_in')
+
+        v = {'foo': 'bar'}
+
+        write('//tmp/t_in', v)
+        write('//tmp/t_in', v)
+
+
+        merge('--combine',
+               mode='ordered',
+               in_='//tmp/t_in',
+               out='//tmp/t_in')
+       
+        assert read('//tmp/t_in') == [v, v, v, v]
+        assert get('//tmp/t_in/@chunk_count') == 3 # only result of merge is combined
+
+

@@ -57,7 +57,7 @@ def quote(s):
 
 def run_command(name, *args, **kw):
     all_args = [name] + convert_to_yt_args(*args, **kw)
-    print 'yt' + ' '.join(quote(s) for s in all_args)
+    print 'yt ' + ' '.join(quote(s) for s in all_args)
 
     process = subprocess.Popen([YT] + all_args,
         stdout=subprocess.PIPE,
