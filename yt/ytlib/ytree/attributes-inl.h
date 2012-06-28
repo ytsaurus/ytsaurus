@@ -44,7 +44,7 @@ void IAttributeDictionary::Set(const Stroka& key, const T& value)
 template <>
 inline void IAttributeDictionary::Set(const Stroka& key, const Stroka& value)
 {
-    Set(key, RawString(value));
+    Set(key, TRawString(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
