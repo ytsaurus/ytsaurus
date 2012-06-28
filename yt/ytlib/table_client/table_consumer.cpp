@@ -11,57 +11,69 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableConsumer::TTableConsumer(const TTableConsumerConfigPtr& config, const ISyncWriterPtr& writer)
-    : Config(config)
-    , Writer(writer)
-    , KeyColumns(writer->GetKeyColumns())
+TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
+    : Writer(writer)
+    , Depth(0)
     , InsideRow(false)
-    , ValueConsumer(&RowBuffer)
+    , ValueWriter(&RowBuffer)
+{ }
+
+void TTableConsumer::OnStringScalar(const TStringBuf& value)
 {
-    if (KeyColumns) {
-        for (int index = 0; index < static_cast<int>(KeyColumns.Get().size()); ++index) {
-            KeyColumnToIndex[KeyColumns.Get()[index]] = index;
-        }
+    if (Depth == 0) {
+        ThrowMapExpected();
+    } else {
+        ValueWriter.OnStringScalar(value);
     }
 }
 
-void TTableConsumer::OnMyStringScalar(const TStringBuf& value)
+void TTableConsumer::OnIntegerScalar(i64 value)
 {
-    YASSERT(!InsideRow);
-    ThrowMapExpected();
+    if (Depth == 0) {
+        ThrowMapExpected();
+    } else {
+        ValueWriter.OnIntegerScalar(value);
+    }
 }
 
-void TTableConsumer::OnMyIntegerScalar(i64 value)
+void TTableConsumer::OnDoubleScalar(double value)
 {
-    YASSERT(!InsideRow);
-    ThrowMapExpected();
+    if (Depth == 0) {
+        ThrowMapExpected();
+    } else {
+        ValueWriter.OnDoubleScalar(value);
+    }
 }
 
-void TTableConsumer::OnMyDoubleScalar(double value)
+void TTableConsumer::OnEntity()
 {
-    YASSERT(!InsideRow);
-    ThrowMapExpected();
+    if (Depth == 0) {
+        ThrowMapExpected();
+    } else {
+        ValueWriter.OnEntity();
+    }
 }
 
-void TTableConsumer::OnMyEntity()
+void TTableConsumer::OnBeginList()
 {
-    YASSERT(!InsideRow);
-    ThrowMapExpected();
+    if (Depth == 0) {
+        ThrowMapExpected();
+    } else {
+        ++Depth;
+        ValueWriter.OnBeginList();
+    }
 }
 
-void TTableConsumer::OnMyBeginList()
+void TTableConsumer::OnBeginAttributes()
 {
-    YASSERT(!InsideRow);
-    ThrowMapExpected();
+    if (Depth == 0) {
+        ythrow yexception() <<
+            Sprintf("Invalid row format, attributes are not supported (RowIndex: %"PRId64")", Writer->GetRowCount());
+    } else {
+        ++Depth;
+        ValueWriter.OnBeginAttributes();
+    }
 }
-
-void TTableConsumer::OnMyBeginAttributes()
-{
-    ythrow yexception() << Sprintf(
-        "Invalid row format, attributes are not supported (RowIndex: %" PRId64 ")",
-        Writer->GetRowCount());
-}
-
 
 void TTableConsumer::ThrowMapExpected()
 {
@@ -70,43 +82,50 @@ void TTableConsumer::ThrowMapExpected()
         Writer->GetRowCount());
 }
 
-void TTableConsumer::OnMyListItem()
+void TTableConsumer::OnListItem()
 {
-    YASSERT(!InsideRow);
-    // Row separator, do nothing.
+    if (Depth == 0) {
+        // Row separator, do nothing.
+    } else {
+        ValueWriter.OnListItem();
+    }
 }
 
-void TTableConsumer::OnMyBeginMap()
+void TTableConsumer::OnBeginMap()
 {
-    YASSERT(!InsideRow);
-    InsideRow = true;
+    if (Depth > 0) {
+        ValueWriter.OnBeginMap();
+    }
+
+    ++Depth;
 }
 
-void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
+void TTableConsumer::OnKeyedItem(const TStringBuf& name)
 {
-    YASSERT(InsideRow);
+    YASSERT(Depth > 0);
+    if (Depth == 1) {
 
-    TBlobRange column(RowBuffer.GetBlob(), RowBuffer.GetSize(), name.size());
+        Offsets.push_back(RowBuffer.GetSize());
+        RowBuffer.Write(name);
 
-    Offsets.push_back(RowBuffer.GetSize());
-    RowBuffer.Write(name);
-    Offsets.push_back(RowBuffer.GetSize());
-
-    Forward(&ValueConsumer);
+        Offsets.push_back(RowBuffer.GetSize());
+    } else {
+        ValueWriter.OnKeyedItem(name);
+    }
 }
 
-void TTableConsumer::OnMyEndMap()
+void TTableConsumer::OnEndMap()
 {
-    YASSERT(InsideRow);
-    YASSERT(Offsets.size() % 2 == 0);
+    YASSERT(Depth > 0);
 
-    TNonOwningKey key(KeyColumns.IsInitialized() ? KeyColumns->size() : 0);
-    TRow row;
-    row.reserve(Offsets.size() / 2);
+    --Depth;
+    if (Depth == 0) {
+        YASSERT(Offsets.size() % 2 == 0);
 
-    {
-        // Process records in backwards order to use last value for duplicate columns.
-        UsedColumns.clear();
+        TRow row;
+        row.reserve(Offsets.size() / 2);
+
+        Offsets.push_back();
         int index = Offsets.size();
         int begin = RowBuffer.GetSize();
         while (index > 0) {
@@ -137,23 +156,28 @@ void TTableConsumer::OnMyEndMap()
 
             row.push_back(std::make_pair(name, value));
         }
+
+        Writer->WriteRow(row);
+
+        Offsets.clear();
+        RowBuffer.Clear();
+        InsideRow = false;
     }
+}
 
-    if (KeyColumns) {
-        if (CompareKeys(Writer->GetLastKey(), key) > 0) {
-            ythrow yexception() << Sprintf(
-                "Table data is not sorted (RowIndex: %" PRId64 ", PreviousKey: %s, CurrentKey: %s)", 
-                Writer->GetRowCount(),
-                ~ToString(Writer->GetLastKey()),
-                ~ToString(key));
-        }
-    }
+void TTableConsumer::OnEndList()
+{
+    YUNREACHABLE();
+}
 
-    Writer->WriteRow(row, key);
+void TTableConsumer::OnEndAttributes()
+{
+    YUNREACHABLE();
+}
 
-    Offsets.clear();
-    RowBuffer.Clear();
-    InsideRow = false;
+void TTableConsumer::OnRaw( const TStringBuf& yson, EYsonType type )
+{
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

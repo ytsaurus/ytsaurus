@@ -12,25 +12,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableConsumerConfig
-    : public TYsonSerializable
-{
-    /*! 
-     *  If true consumer fails when encounters repeated column name.
-     *  Otherwise the last feeded value is used.
-     */
-
-    bool Strict;
-
-    TTableConsumerConfig()
-    {
-        Register("strict", Strict).Default(true);
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChunkWriterConfig
     : public TYsonSerializable
 {
