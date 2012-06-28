@@ -32,7 +32,7 @@ bool IsEqual (
     if (lhs.List() != rhs.List()) {
         return false;
     }
-    FOREACH(const auto& key, lhs.List()) {
+    FOREACH (const auto& key, lhs.List()) {
         auto value = rhs.FindYson(key);
         if (!value) {
             return false;
@@ -63,7 +63,7 @@ TEST_F(TAttributesTest, CheckAccessors)
     EXPECT_EQ(70.5, attributes->Get<double>("weight"));
     EXPECT_THROW(attributes->Get<Stroka>("weight"), yexception);
 
-    EXPECT_FALSE(attributes->Find<int>("unknown_key"));
+    EXPECT_IS_FALSE(attributes->Find<int>("unknown_key"));
     EXPECT_EQ(42, attributes->Get<int>("unknown_key", 42));
     EXPECT_THROW(attributes->Get<double>("unknown_key"), yexception);
 }
@@ -96,7 +96,7 @@ TEST_F(TAttributesTest, SerializeToNode)
 
     auto node = ConvertToNode(*attributes);
     auto convertedAttributes = ConvertToAttributes(node);
-    EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
+    EXPECT_IS_TRUE(IsEqual(*attributes, *convertedAttributes));
 }
 
 TEST_F(TAttributesTest, SerializeToProto)
@@ -108,5 +108,5 @@ TEST_F(TAttributesTest, SerializeToProto)
     NYT::NYTree::NProto::TAttributes protoAttributes;
     NYT::NYTree::ToProto(&protoAttributes, *attributes);
     auto convertedAttributes = NYT::NYTree::FromProto(protoAttributes);
-    EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
+    EXPECT_IS_TRUE(IsEqual(*attributes, *convertedAttributes));
 }

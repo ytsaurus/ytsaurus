@@ -390,7 +390,7 @@ private:
                 auto* jobSpecExt = jobSpec.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                 if (Controller->Partitions.size() > 1) {
                     auto* inputSpec = jobSpec.mutable_input_specs(0);
-                    FOREACH(auto& chunk, *inputSpec->mutable_chunks()) {
+                    FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
                         chunk.set_partition_tag(Partition->Index);
                     }
                 }
@@ -622,7 +622,7 @@ private:
 
             if (Controller->Partitions.size() > 1) {
                 auto* inputSpec = jobSpec.mutable_input_specs(0);
-                FOREACH(auto& chunk, *inputSpec->mutable_chunks()) {
+                FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
                     chunk.set_partition_tag(Partition->Index);
                 }
             }

@@ -107,7 +107,7 @@ TEST_F(TSnapshotTest, SnapshotStore)
     TSnapshotStorePtr store = New<TSnapshotStore>(config);
     store->Start();
 
-    EXPECT_FALSE(store->GetReader(1).IsOK());
+    EXPECT_IS_FALSE(store->GetReader(1).IsOK());
 
     auto writer = store->GetWriter(2);
     writer->Open(1, TEpoch());
@@ -123,7 +123,7 @@ TEST_F(TSnapshotTest, SnapshotStore)
     EXPECT_EQ(1, reader->GetPrevRecordCount());
     EXPECT_EQ(TEpoch(), reader->GetEpoch());
 
-    EXPECT_FALSE(store->GetReader(3).IsOK());
+    EXPECT_IS_FALSE(store->GetReader(3).IsOK());
 
     // TODO(ignat): add more tests
 }

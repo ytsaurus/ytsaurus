@@ -12,7 +12,7 @@ namespace  {
 size_t Size(const std::vector<TSharedRef>& refs)
 {
     size_t size = 0;
-    FOREACH(const auto& ref, refs) {
+    FOREACH (const auto& ref, refs) {
         size += ref.Size();
     }
     return size;
