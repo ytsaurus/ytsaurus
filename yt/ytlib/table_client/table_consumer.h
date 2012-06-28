@@ -16,39 +16,36 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableConsumer
-    : public NYTree::TForwardingYsonConsumer
+    : public NYTree::IYsonConsumer
 {
 public:
-    TTableConsumer(const TTableConsumerConfigPtr& config, const ISyncWriterPtr& writer);
+    TTableConsumer(const ISyncWriterPtr& writer);
 
 private:
-    void OnMyStringScalar(const TStringBuf& value);
-    void OnMyIntegerScalar(i64 value);
-    void OnMyDoubleScalar(double value);
-    void OnMyEntity();
-    void OnMyBeginList();
-    void OnMyListItem();
-    void OnMyBeginMap();
-    void OnMyKeyedItem(const TStringBuf& name);
-    void OnMyEndMap();
+    void OnStringScalar(const TStringBuf& value);
+    void OnIntegerScalar(i64 value);
+    void OnDoubleScalar(double value);
+    void OnEntity();
+    void OnBeginList();
+    void OnListItem();
+    void OnBeginMap();
+    void OnKeyedItem(const TStringBuf& name);
+    void OnEndMap();
 
     // XXX(psushin): We currently ignore user attributes.
-     void OnMyBeginAttributes();
+    void OnBeginAttributes();
 
     void OnValueFinished();
 
     void ThrowMapExpected();
 
-    TTableConsumerConfigPtr Config;
+    void OnEndList();
+    void OnEndAttributes();
+    void OnRaw(const TStringBuf& yson, EYsonType type);
+
     ISyncWriterPtr Writer;
 
-    //! Names of key columns.
-    TNullable<TKeyColumns> KeyColumns;
-
-    //! Name-to-index map for #KeyColumns. Actual names are kept in #KeyColumns.
-    yhash_map<TStringBuf, int> KeyColumnToIndex;
-
-    bool InsideRow;
+    int Depth;
 
     //! Keeps the current row data.
     TBlobOutput RowBuffer;
@@ -56,9 +53,7 @@ private:
     //! |(endColumn, endValue)| offsets in #RowBuffer.
     std::vector<size_t> Offsets;
 
-    NYTree::TYsonWriter ValueConsumer;
-    NYTree::TLexer Lexer;
-    yhash_set<TStringBuf> UsedColumns;
+    NYTree::TYsonWriter ValueWriter;
 
 };
 
