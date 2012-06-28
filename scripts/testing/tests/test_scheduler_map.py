@@ -183,3 +183,26 @@ print "tskv" + "\\t" + "hello=world"
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
+    def test_executable_mapper(self):
+        create('table', '//tmp/t_in')
+        write_str('//tmp/t_in', '{foo=bar}')
+
+        mapper =  \
+"""
+#!/bin/sh
+cat > /dev/null; echo {hello=world}
+"""
+        upload('//tmp/mapper.sh', mapper)
+        set('//tmp/mapper.sh/@executable', "true")
+
+        create('table', '//tmp/t_out')
+        map(in_='//tmp/t_in',
+            out='//tmp/t_out',
+            mapper="./mapper.sh",
+            file='//tmp/mapper.sh')
+
+        assert read('//tmp/t_out') == [{'hello': 'world'}]
+
+
+
+
