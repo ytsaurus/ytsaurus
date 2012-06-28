@@ -54,15 +54,25 @@ TOrderedMergeJob::TOrderedMergeJob(
         blockCache,
         inputChunks));
 
-    // ToDo(psushin): estimate row count for writer.
-    auto asyncWriter = New<TTableChunkSequenceWriter>(
-        proxyConfig->JobIO->ChunkSequenceWriter,
-        masterChannel,
-        TTransactionId::FromProto(jobSpec.output_transaction_id()),
-        TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-        ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())));
+    {
+        TNullable<TKeyColumns> keyColumns;
 
-    Writer = CreateSyncWriter(asyncWriter);
+        if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
+            const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
+            keyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
+        }
+
+        // ToDo(psushin): estimate row count for writer.
+        auto asyncWriter = New<TTableChunkSequenceWriter>(
+            proxyConfig->JobIO->ChunkSequenceWriter,
+            masterChannel,
+            TTransactionId::FromProto(jobSpec.output_transaction_id()),
+            TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
+            ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
+            keyColumns);
+
+        Writer = CreateSyncWriter(asyncWriter);
+    }
 }
 
 TJobResult TOrderedMergeJob::Run()

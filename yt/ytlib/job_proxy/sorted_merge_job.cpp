@@ -67,13 +67,16 @@ TSortedMergeJob::TSortedMergeJob(
     }
 
     {
+        const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext); 
+
         // ToDo(psushin): estimate row count for writer.
         auto asyncWriter = New<TTableChunkSequenceWriter>(
             proxyConfig->JobIO->ChunkSequenceWriter,
             ~masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-            ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())));
+            ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
+            FromProto<Stroka>(mergeSpec.key_columns()));
 
         Writer = CreateSyncWriter(asyncWriter);
     }

@@ -1033,7 +1033,7 @@ private:
             *SortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = SortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);          
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
             // Can't fill io_config right away: some sort jobs need output replication
             // while others don't. Leave this customization to #TSortTask::GetJobSpec.
@@ -1042,12 +1042,18 @@ private:
             SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
             *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
+            auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+
             SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(
                 PrepareJobIOConfig(Config->MergeJobIO, true)).Data());
         }
         {
             UnorderedMergeJobSpecTemplate.set_type(EJobType::OrderedMerge);
             *UnorderedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
             UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(
                 PrepareJobIOConfig(Config->MergeJobIO, true)).Data());

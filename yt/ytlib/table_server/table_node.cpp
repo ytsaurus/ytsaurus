@@ -146,7 +146,7 @@ protected:
         
         auto chunkManager = Bootstrap->GetChunkManager();
         auto objectManager = Bootstrap->GetObjectManager();
-      
+
         // Default branch mode is Append.
         branchedNode->SetUpdateMode(ETableUpdateMode::Append);
 

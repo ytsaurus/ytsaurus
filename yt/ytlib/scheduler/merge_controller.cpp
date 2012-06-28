@@ -875,7 +875,7 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
 
-        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TSortJobSpecExt::sort_job_spec_ext);
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TMergeJobSpecExt::merge_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
 
         TMergeControllerBase::InitJobSpecTemplate();
