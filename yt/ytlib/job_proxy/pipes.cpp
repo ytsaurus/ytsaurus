@@ -290,7 +290,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
         if (Position < Buffer->GetSize()) {
             auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
 
-            LOG_TRACE("Written %ld bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
+            LOG_TRACE("Written " PRIPDT " bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
 
             if (res > 0)
                 Position += res;
