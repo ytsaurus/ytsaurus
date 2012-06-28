@@ -110,6 +110,10 @@ def upload(path, data, **kw):
     process =  run_command('upload', path, **kw)
     return send_data(process, data)
 
+def upload_file(path, file_name, **kw):
+    with open(file_name, 'rt') as f:
+        return upload(path, f.read())
+
 def download(path, **kw):
     return command('download', path, **kw)
 

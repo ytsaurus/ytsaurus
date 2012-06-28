@@ -27,7 +27,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
              key_columns='key')
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
-
+        assert get('//tmp/t_out/@sorted') ==  'true'
+        assert get('//tmp/t_out/@key_columns') ==  ['key']
+        
     def test_empty_columns(self):
         create('table', '//tmp/t_in')
         create('table', '//tmp/t_out')
