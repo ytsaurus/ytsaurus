@@ -27,7 +27,9 @@ def send_data(process, data=None):
     stdout, stderr = process.communicate(data)
     if process.returncode != 0:
         print '!process exited with returncode:', process.returncode
-        print '!' + stderr
+        # add '!' before each line in stderr output
+        print '\n'.join('!' + s for s in stderr.strip('\n').split('\n'))
+        print 
         raise YTError(stderr)
     print stdout
     return stdout.strip('\n')
