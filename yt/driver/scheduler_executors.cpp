@@ -48,7 +48,6 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
         ythrow yexception() << response.Error.ToString();
     }
 
-    // TODO(sandello): This is VERY weird.
     auto operationId = ConvertTo<TOperationId>(TYsonString(output.Str()));
     printf("done, %s\n", ~operationId.ToString());
 
@@ -121,7 +120,6 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
-    // TODO(babenko): refactor
     auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
@@ -164,7 +162,6 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
-    // TODO(babenko): refactor
     auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
