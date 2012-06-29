@@ -13,6 +13,7 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/ytree/yson_string.h>
+#include <ytlib/ytree/lexer.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -55,11 +56,9 @@ TOrderedMergeJob::TOrderedMergeJob(
         inputChunks));
 
     {
-        TNullable<TKeyColumns> keyColumns;
-
         if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            keyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
+            KeyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
         }
 
         // ToDo(psushin): estimate row count for writer.
@@ -69,7 +68,7 @@ TOrderedMergeJob::TOrderedMergeJob(
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
             ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
-            keyColumns);
+            KeyColumns);
 
         Writer = CreateSyncWriter(asyncWriter);
     }
@@ -79,7 +78,18 @@ TJobResult TOrderedMergeJob::Run()
 {
     PROFILE_TIMING ("/ordered_merge_time") {
         LOG_INFO("Initializing");
+
+        yhash_map<TStringBuf, int> keyColumnToIndex;
+
         {
+            if (KeyColumns) {
+                // ToDo(psushin): remove this after rewriting chunk_writer.
+                for (int i = 0; i < KeyColumns->size(); ++i) {
+                    TStringBuf name(~KeyColumns->at(i), KeyColumns->at(i).size());
+                    keyColumnToIndex[name] = i;
+                }
+            }
+
             Reader->Open();
             Writer->Open();
         }
@@ -87,10 +97,27 @@ TJobResult TOrderedMergeJob::Run()
 
         LOG_INFO("Merging");
         {
+            NYTree::TLexer lexer;
             // Unsorted write - use dummy key.
             TNonOwningKey key;
+            if (KeyColumns)
+                key.ClearAndResize(KeyColumns->size());
+
             while (Reader->IsValid()) {
-                Writer->WriteRow(Reader->GetRow(), key);
+                TRow& row = Reader->GetRow();
+
+                if (KeyColumns) {
+                    key.Clear();
+
+                    FOREACH(const auto& pair, row) {
+                        auto it = keyColumnToIndex.find(pair.first);
+                        if (it != keyColumnToIndex.end()) {
+                            key.SetKeyPart(it->second, pair.second, lexer);
+                        }
+                    }
+                }
+
+                Writer->WriteRow(row, key);
                 Reader->NextRow();
             }
         }
