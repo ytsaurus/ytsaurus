@@ -415,23 +415,26 @@ YtCommand.prototype._logRequest = function(cb) {
         output_compression      : this.output_compression,
         output_compression_mime : this.output_compression_mime
     });
+
     return cb();
 };
+
+var RE_HOME    = /^\/\/home|^\/\/"home"|^\/\/\x01\x08\x68\x6f\x6d\x65/;
+var RE_TMP     = /^\/\/tmp|^\/\/"tmp"|^\/\/\x01\x06\x74\x6d\x70/;
+var RE_STATBOX = /^\/\/statbox|^\/\/"statbox"|^\/\/\x01\x0e\x73\x74\x61\x74\x62\x6f\x78/;
 
 YtCommand.prototype._checkPermissions = function(cb) {
     this.__DBG("_checkPermissions");
 
-    if (this.parameters.path && /^\/\/sys/.test(this.parameters.path)) {
-        if (this.name !== "get") {
+    if (this.descriptor.is_volatile) {
+        var path = this.parameters.path;
+        if (!path || !(RE_HOME.test(path) || RE_TMP.test(path) || RE_STATBOX.test(path))) {
             this.rsp.statusCode = 403;
-            throw new Error("Any mutating command is prohibited on //sys");
+            throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox");
         }
     }
 
-    if (this.parameters.path && this.parameters.path === "/") {
-        this.rsp.statusCode = 403;
-        throw new Error("Any command is prohibited on /");
-    }
+    return cb();
 };
 
 YtCommand.prototype._addHeaders = function(cb) {
