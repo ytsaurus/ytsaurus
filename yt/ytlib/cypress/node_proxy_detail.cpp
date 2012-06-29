@@ -309,9 +309,10 @@ INodePtr TMapNodeProxy::DoFindChild(const TStringBuf& key, bool skipCurrentTrans
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto cypressManager = Bootstrap->GetCypressManager();
 
+    Stroka keyString(key);
+
     auto transactions = transactionManager->GetTransactionPath(Transaction);
 
-    Stroka keyString(key);
     FOREACH (const auto* transaction, transactions) {
         if (skipCurrentTransaction && transaction == Transaction) {
             continue;
@@ -320,13 +321,10 @@ INodePtr TMapNodeProxy::DoFindChild(const TStringBuf& key, bool skipCurrentTrans
         const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
         auto it = map.find(keyString);
         if (it != map.end()) {
-            if (it->second == NullObjectId) {
-                break;
-            } else {
-                return GetProxy(it->second);
-            }
+            return it->second == NullObjectId ? NULL : GetProxy(it->second);
         }
     }
+
     return NULL;
 }
 

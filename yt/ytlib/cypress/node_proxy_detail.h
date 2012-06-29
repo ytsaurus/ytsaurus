@@ -351,9 +351,9 @@ protected:
                 if (userAttributes) {
                     FOREACH (const auto& pair, userAttributes->Attributes()) {
                         if (pair.second) {
-                            attributes.erase(pair.first);
-                        } else {
                             attributes.insert(pair.first);
+                        } else {
+                            attributes.erase(pair.first);
                         }
                     }
                 }
@@ -371,20 +371,18 @@ protected:
             auto transactionManager = Bootstrap->GetTransactionManager();
 
             auto transactions = transactionManager->GetTransactionPath(Transaction);
+
             FOREACH (const auto* transaction, transactions) {
                 TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
                     if (it != userAttributes->Attributes().end()) {
-                        if (it->second) {
-                            break;
-                        } else {
-                            return it->second;
-                        }
+                        return it->second;
                     }
                 }
             }
+
             return Null;
         }
 
