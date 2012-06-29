@@ -80,6 +80,7 @@ YtCommand.prototype.dispatch = function() {
             this._captureBody,
             this._retainBody),
         this._logRequest,
+        this._checkPermissions,
         this._addHeaders,
         this._execute,
     ],
@@ -293,7 +294,8 @@ YtCommand.prototype._getOutputFormat = function(cb) {
 
     // Firstly, check whether the command produces an octet stream.
     if (this.descriptor.output_type === ytnode_wrappers.EDataType_Binary) {
-        this.output_mime = "application/octet-stream";
+        // XXX(sandello): This is temporary, until I figure out a better solution.
+        this.output_mime = "text/plain";
         this.output_format = "yson";
         return cb();
     }
@@ -414,6 +416,22 @@ YtCommand.prototype._logRequest = function(cb) {
         output_compression_mime : this.output_compression_mime
     });
     return cb();
+};
+
+YtCommand.prototype._checkPermissions = function(cb) {
+    this.__DBG("_checkPermissions");
+
+    if (this.parameters.path && /^\/\/sys/.test(this.parameters.path)) {
+        if (this.name !== "get") {
+            this.rsp.statusCode = 403;
+            throw new Error("Any mutating command is prohibited on //sys");
+        }
+    }
+
+    if (this.parameters.path && this.parameters.path === "/") {
+        this.rsp.statusCode = 403;
+        throw new Error("Any command is prohibited on /");
+    }
 };
 
 YtCommand.prototype._addHeaders = function(cb) {
