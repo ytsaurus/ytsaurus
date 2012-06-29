@@ -52,9 +52,12 @@ public:
         , MaxSortJobCount(0)
         , RunningSortJobCount(0)
         , CompletedSortJobCount(0)
-        , MaxMergeJobCount(0)
-        , RunningMergeJobCount(0)
-        , CompletedMergeJobCount(0)
+        , MaxSortedMergeJobCount(0)
+        , RunningSortedMergeJobCount(0)
+        , CompletedSortedMergeJobCount(0)
+        , TotalUnorderedMergeJobCount(0)
+        , RunningUnorderedMergeJobCount(0)
+        , CompletedUnorderedMergeJobCount(0)
         , SamplesFetcher(New<TSamplesFetcher>(
             Config,
             Spec,
@@ -75,10 +78,14 @@ private:
     int RunningSortJobCount;
     int CompletedSortJobCount;
     TProgressCounter SortWeightCounter;
-    // Merge job counters.
-    int MaxMergeJobCount;
-    int RunningMergeJobCount;
-    int CompletedMergeJobCount;
+    // Sorted merge job counters.
+    int MaxSortedMergeJobCount;
+    int RunningSortedMergeJobCount;
+    int CompletedSortedMergeJobCount;
+    // Unordered merge job counters.
+    int TotalUnorderedMergeJobCount;
+    int RunningUnorderedMergeJobCount;
+    int CompletedUnorderedMergeJobCount;
 
     // Forward declarations.
     class TPartitionTask;
@@ -253,6 +260,11 @@ private:
         virtual void OnTaskCompleted() OVERRIDE
         {
             TTask::OnTaskCompleted();
+
+            // Compute total unordered merge task count.
+            FOREACH (auto partition, Controller->Partitions) {
+                Controller->TotalUnorderedMergeJobCount += partition->UnorderedMergeTask->GetPendingJobCount();
+            }
 
             // Kick-start sort and unordered merge tasks.
             // Mark empty partitions are completed.
@@ -536,7 +548,7 @@ private:
         {
             YCHECK(!Partition->Megalomaniac);
 
-            ++Controller->RunningMergeJobCount;
+            ++Controller->RunningSortedMergeJobCount;
 
             TTask::OnJobStarted(jip);
         }
@@ -545,8 +557,8 @@ private:
         {
             TTask::OnJobCompleted(jip);
 
-            --Controller->RunningMergeJobCount;
-            ++Controller->CompletedMergeJobCount;
+            --Controller->RunningSortedMergeJobCount;
+            ++Controller->CompletedSortedMergeJobCount;
 
             Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
 
@@ -556,7 +568,7 @@ private:
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
-            --Controller->RunningMergeJobCount;
+            --Controller->RunningSortedMergeJobCount;
 
             TTask::OnJobFailed(jip);
         }
@@ -634,7 +646,7 @@ private:
         {
             YCHECK(Partition->Megalomaniac);
 
-            ++Controller->RunningMergeJobCount;
+            ++Controller->RunningUnorderedMergeJobCount;
 
             TTask::OnJobStarted(jip);
         }
@@ -643,8 +655,8 @@ private:
         {
             TTask::OnJobCompleted(jip);
 
-            --Controller->RunningMergeJobCount;
-            ++Controller->CompletedMergeJobCount;
+            --Controller->RunningUnorderedMergeJobCount;
+            ++Controller->CompletedUnorderedMergeJobCount;
 
             Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
 
@@ -655,7 +667,7 @@ private:
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
-            --Controller->RunningMergeJobCount;
+            --Controller->RunningUnorderedMergeJobCount;
 
             TTask::OnJobFailed(jip);
         }
@@ -817,7 +829,7 @@ private:
             Spec->MaxWeightPerSortJob,
             Spec->SortJobCount,
             chunkCount);
-        MaxMergeJobCount = 1;
+        MaxSortedMergeJobCount = 1;
 
         LOG_INFO("Sorting without partitioning");
 
@@ -910,7 +922,7 @@ private:
                 Null,
                 std::numeric_limits<int>::max()) +
             Partitions.size();
-        MaxMergeJobCount = Partitions.size();
+        MaxSortedMergeJobCount = Partitions.size();
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             static_cast<int>(Partitions.size()),
@@ -930,7 +942,7 @@ private:
             ChunkListPool->Allocate(
                 PartitionJobCounter.GetTotal() +
                 MaxSortJobCount +
-                MaxMergeJobCount +
+                MaxSortedMergeJobCount +
                 Config->SpareChunkListCount);
 
             InitJobSpecTemplates();
@@ -950,7 +962,8 @@ private:
             "PartitionWeight = {%s}, "
             "SortJobs = {M: %d, R: %d, C: %d}, "
             "SortWeight = {%s}, "
-            "MergeJobs = {M: %d, R: %d, C: %d}",
+            "SortedMergeJobs = {M: %d, R: %d, C: %d}, "
+            "UnorderedMergeJobs = {T: %d, R: %d, C: %d}",
             // Jobs
             RunningJobCount,
             CompletedJobCount,
@@ -968,10 +981,14 @@ private:
             RunningSortJobCount,
             CompletedSortJobCount,
             ~ToString(SortWeightCounter),
-            // MergeJobs
-            MaxMergeJobCount,
-            RunningMergeJobCount,
-            CompletedMergeJobCount);
+            // SortedMergeJobs
+            MaxSortedMergeJobCount,
+            RunningSortedMergeJobCount,
+            CompletedSortedMergeJobCount,
+            // UnorderedMergeJobs
+            TotalUnorderedMergeJobCount,
+            RunningUnorderedMergeJobCount,
+            CompletedUnorderedMergeJobCount);
     }
 
     virtual void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
@@ -990,10 +1007,15 @@ private:
                 .Item("completed").Scalar(CompletedSortJobCount)
             .EndMap()
             .Item("sort_weight").Do(BIND(&TProgressCounter::ToYson, &SortWeightCounter))
-            .Item("merge_jobs").BeginMap()
-                .Item("max").Scalar(MaxMergeJobCount)
-                .Item("running").Scalar(RunningMergeJobCount)
-                .Item("completed").Scalar(CompletedMergeJobCount)
+            .Item("sorted_merge_jobs").BeginMap()
+                .Item("max").Scalar(MaxSortedMergeJobCount)
+                .Item("running").Scalar(RunningSortedMergeJobCount)
+                .Item("completed").Scalar(CompletedSortedMergeJobCount)
+            .EndMap()
+            .Item("unordered_merge_jobs").BeginMap()
+                .Item("total").Scalar(TotalUnorderedMergeJobCount)
+                .Item("running").Scalar(RunningUnorderedMergeJobCount)
+                .Item("completed").Scalar(CompletedUnorderedMergeJobCount)
             .EndMap();
     }
 
