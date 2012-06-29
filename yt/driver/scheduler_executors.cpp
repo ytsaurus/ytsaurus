@@ -15,6 +15,7 @@
 namespace NYT {
 namespace NDriver {
 
+using namespace NFormats;
 using namespace NYTree;
 using namespace NScheduler;
 using namespace NObjectServer;
@@ -35,9 +36,10 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
 
     printf("Starting %s operation... ", ~GetCommandName().Quote());
 
-    auto requestCopy = request;
+    TDriverRequest requestCopy = request;
 
     TStringStream output;
+    requestCopy.OutputFormat = TFormat(EFormatType::Yson);
     requestCopy.OutputStream = &output;
 
     auto response = Driver->Execute(requestCopy);
@@ -47,7 +49,7 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
     }
 
     // TODO(sandello): This is VERY weird.
-    auto operationId = TOperationId::FromString(output.Str());
+    auto operationId = ConvertTo<TOperationId>(TYsonString(output.Str()));
     printf("done, %s\n", ~operationId.ToString());
 
     TOperationTracker tracker(Config, Driver, operationId);
