@@ -26,6 +26,7 @@ DECLARE_ENUM(EJobType,
     ((Map)(0))
     ((SortedMerge)(1))
     ((OrderedMerge)(2))
+    ((UnorderedMerge)(7))
     ((Partition)(3))
     ((PartitionSort)(4))
     ((SimpleSort)(5))

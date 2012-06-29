@@ -1049,7 +1049,7 @@ private:
                 PrepareJobIOConfig(Config->MergeJobIO, true)).Data());
         }
         {
-            UnorderedMergeJobSpecTemplate.set_type(EJobType::OrderedMerge);
+            UnorderedMergeJobSpecTemplate.set_type(EJobType::UnorderedMerge);
             *UnorderedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);

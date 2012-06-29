@@ -113,6 +113,7 @@ void TJobProxy::Run()
             }
 
             case EJobType::OrderedMerge:
+            case EJobType::UnorderedMerge:
                 Job = new TOrderedMergeJob(Config, jobSpec);
                 break;
 

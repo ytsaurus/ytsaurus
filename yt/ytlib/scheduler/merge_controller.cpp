@@ -499,7 +499,7 @@ private:
 
     void InitJobSpecTemplate() OVERRIDE
     {
-        JobSpecTemplate.set_type(EJobType::OrderedMerge);
+        JobSpecTemplate.set_type(EJobType::UnorderedMerge);
 
         TMergeControllerBase::InitJobSpecTemplate();
     }
