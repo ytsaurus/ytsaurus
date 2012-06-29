@@ -3,8 +3,8 @@ YTMonitor = window.YTMonitor || {};
 YTMonitor.config = {
     requestsTimeout: 30,
     clusters: [
-       {
-            name: "Основной",
+        {
+            name: "Тестовый",
             proxy: "n01-0400g.yt.yandex.net:80",
             masters: [
                 "meta01-001g.yt.yandex.net:10010",
@@ -21,5 +21,5 @@ YTMonitor.config = {
                 "meta01-003g.yt.yandex.net:10000"
             ]
         }
-    ]
+   ]
 }

@@ -11,16 +11,16 @@
             if (m && m[2]) { // show the operation details
                 fillContainer();
                 this.operation = m[2];
-                var url = 'http://' + proxy + '/cypress/sys/operations/%22' + m[2] + '%22?with_attributes=true';
+                var url = 'http://' + proxy + '/api/get?path=//sys/operations/%22' + m[2] + '%22&with_attributes=true';
                 module.addHandler(url, 
                     function(){},
                     drawOperationDetails);
-                url = 'http://' + proxy + '/cypress/sys/operations/%22' + m[2] + '%22/jobs?with_attributes=true';
+                url = 'http://' + proxy + '/api/get?path=//sys/operations/%22' + m[2] + '%22/jobs&with_attributes=true';
                 module.addHandler(url, 
                     function(){},
                     drawJobs);
             } else { // show the operations list
-                var url = 'http://' + proxy + '/cypress/sys/operations?with_attributes=true';
+                var url = 'http://' + proxy + '/api/get?path=//sys/operations&with_attributes=true';
                 module.addHandler(url, 
                     function(){},
                     drawOperationsList);
@@ -124,7 +124,11 @@
             var inputTables = [],
                 outputTables = [];
             $.each(data['$attributes'].spec.input_table_paths, function(){inputTables.push('<li><code>'+this+'</code></li>');});
-            outputTables.push('<li><code>'+data['$attributes'].spec.output_table_path+'</code></li>');
+            if (data['$attributes'].spec.output_table_path) {
+                outputTables.push(data['$attributes'].spec.output_table_path);
+            } else {
+                $.each(data['$attributes'].spec.output_table_paths, function(){outputTables.push('<li><code>'+this+'</code></li>');});
+            }
 
 
             $('.yt-operations-id', tpl).html(module.operation);
