@@ -418,7 +418,7 @@ protected:
 
             bool contains = false;
             FOREACH (const auto* transaction, transactions) {
-                TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(*it));
+                TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
