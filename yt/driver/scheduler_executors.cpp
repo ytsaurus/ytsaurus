@@ -46,7 +46,8 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
         ythrow yexception() << response.Error.ToString();
     }
 
-    auto operationId = ConvertTo<TOperationId>(TYsonString(output.Str()));
+    // TODO(sandello): This is VERY weird.
+    auto operationId = TOperationId::FromString(output.Str());
     printf("done, %s\n", ~operationId.ToString());
 
     TOperationTracker tracker(Config, Driver, operationId);
