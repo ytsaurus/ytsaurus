@@ -263,7 +263,7 @@ private:
 
             // Compute jobs totals.
             FOREACH (auto partition, Controller->Partitions) {
-                Controller->TotalSortedMergeCount += partition->SortedMergeTask->GetPendingJobCount();
+                Controller->TotalSortedMergeJobCount += partition->SortedMergeTask->GetPendingJobCount();
                 Controller->TotalUnorderedMergeJobCount += partition->UnorderedMergeTask->GetPendingJobCount();
             }
 
