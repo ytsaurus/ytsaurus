@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>YT :: Operations</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <!-- Le styles -->
+    <link href="../assets/css/bootstrap.css" rel="stylesheet"/>
+    <link href="style/heimdallr.css" rel="stylesheet"/>
+    <link href="modules/nodesmonitor.css" rel="stylesheet"/>
+
+    <style>
+      body {
+        padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
+      }
+      .footer {
+        margin-top: 15px;
+        padding: 35px 0 36px;
+        border-top: 1px solid #E5E5E5;
+      }
+    </style>
+    <link href="../assets/css/bootstrap-responsive.css" rel="stylesheet">
+
+    <!-- Le HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <!-- Le fav and touch icons -->
+    <link rel="shortcut icon" href="../assets/ico/favicon.ico">
+    <link rel="apple-touch-icon-precomposed" sizes="144x144" href="../assets/ico/apple-touch-icon-144-precomposed.png">
+    <link rel="apple-touch-icon-precomposed" sizes="114x114" href="../assets/ico/apple-touch-icon-114-precomposed.png">
+    <link rel="apple-touch-icon-precomposed" sizes="72x72" href="../assets/ico/apple-touch-icon-72-precomposed.png">
+    <link rel="apple-touch-icon-precomposed" href="../assets/ico/apple-touch-icon-57-precomposed.png">
+  </head>
+
+  <body>
+
+    <div class="navbar navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container">
+          <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </a>
+          <a class="brand" href="#">YT</a>
+          <div class="nav-collapse">
+            <ul class="nav">
+              <li><a href="yt-cluster.html">Состояние кластера</a></li>
+              <li class="active">
+                <a href="yt-operations.html">Операции</a>
+              </li>
+              <li><a href="yt-profiling.html">Профилирование</a></li>
+            </ul>
+          </div>
+          <div class="nav-collapse pull-right">
+            <ul class="nav">
+              <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                  <i class="icon-white icon-home"></i>
+                  <b class="caret"></b>
+                </a>
+                <ul class="dropdown-menu yt-cluster-selector">
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+<div class="container">
+
+<section id="main operations-list">
+  <div class="yt-monitor-container" data-module="Operations">start</div>
+</section>
+
+<footer class="footer">
+  <center><p>YT Heimdallr. <a href="#">Fly me to the moon</a>.</p></center>
+</footer>
+
+</div> <!-- /container -->
+
+<div class="templates" style="display: none">
+    <div class="yt-operations-details">
+          <div class="page-header">
+            <h1>Операция <em class="yt-operations-id"></em></h1>
+          </div>
+          <div class="row">
+            <!-- Left Column -->
+            <div class="span4">
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Статус</strong></p>
+                </div>
+                <div class="span2">
+                  <p class="yt-operations-ico">
+                  </p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Джобы</strong></p>
+                </div>
+                <div class="span2">
+                  <p class="yt-operations-jobs"></p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Начало работы</strong></p>
+                </div>
+                <div class="span2">
+                  <p class="yt-operations-jobs_start"></p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Конец работы</strong></p>
+                </div>
+                <div class="span2">
+                  <p class="yt-operations-jobs_end"></p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Тип</strong></p>
+                </div>
+                <div class="span2">
+                  <p class="yt-operations-type"></p>
+                </div>
+              </div>
+<!--
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Входной объем</strong></p>
+                </div>
+                <div class="yt-operations-incoming_data span2">
+                  <p>1,36&nbsp;Тб <small>(1'499'511'627'776&nbsp;байт)</small></p>
+                  <p>1'000'216 записей</p>
+                  <p>514 чанков</p>
+                </div>
+              </div>
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Выходной объем</strong></p>
+                </div>
+                <div class="yt-operations-outgoing_data span2">
+                  <p>3,02&nbsp;Тб <small>(3'320'679'482'003&nbsp;байт)</small></p>
+                  <p>2'440'913 записи</p>
+                  <p>947 чанков</p>
+                </div>
+              </div>
+-->
+            </div>
+            <!-- Right Column -->
+            <div class="span8">
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Входные таблицы</strong></p>
+                </div>
+                <div class="span6">
+                  <ul class="yt-operations-input_tables">
+                  </ul>
+                </div>
+              </div>
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Выходные таблицы</strong></p>
+                </div>
+                <div class="span6">
+                  <ul class="yt-operations-output_tables">
+                  </ul>
+                </div>
+              </div>
+              <div class="row">
+                <div class="span2" style="text-align: right;">
+                  <p><strong>Команда</strong></p>
+                </div>
+                <div class="span6">
+                  <pre class="yt-operations-command"></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        
+    </div>
+</div>
+
+    <script src="functions.js"></script>
+    <script type="text/javascript" charset="utf-8" src="//yandex.st/jquery/1.7.1/jquery.min.js"></script>
+    <script src="cfg.js"></script>
+    <script src="yt-monitor.js"></script>
+    <script src="modules/operations.js"></script>
+    <script src="../assets/js/bootstrap-dropdown.js"></script>
+  </body>
+</html>
