@@ -526,6 +526,21 @@ YtEioWatcher.prototype.is_choking = function() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+function shuffle(array) {
+    var i = array.length;
+    if (i === 0) {
+        return false;
+    }
+    while (--i) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var lhs = array[i];
+        var rhs = array[j];
+        array[i] = rhs;
+        array[j] = lhs;
+    }
+    return array;
+}
+
 function YtHostDiscovery(hosts) {
     __DBG("HostDiscovery -> New");
 
@@ -533,7 +548,7 @@ function YtHostDiscovery(hosts) {
         var body = shuffle(hosts);
 
         var header = req.headers["accept"];
-        if (typeof(header) === string) {
+        if (typeof(header) === "string") {
             /****/ if (utils.accepts("application/json", header)) {
                 body = JSON.stringify(body);
                 rsp.writeHead(200, {
