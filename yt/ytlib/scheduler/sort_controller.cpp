@@ -52,7 +52,7 @@ public:
         , MaxSortJobCount(0)
         , RunningSortJobCount(0)
         , CompletedSortJobCount(0)
-        , MaxSortedMergeJobCount(0)
+        , TotalSortedMergeJobCount(0)
         , RunningSortedMergeJobCount(0)
         , CompletedSortedMergeJobCount(0)
         , TotalUnorderedMergeJobCount(0)
@@ -79,7 +79,7 @@ private:
     int CompletedSortJobCount;
     TProgressCounter SortWeightCounter;
     // Sorted merge job counters.
-    int MaxSortedMergeJobCount;
+    int TotalSortedMergeJobCount;
     int RunningSortedMergeJobCount;
     int CompletedSortedMergeJobCount;
     // Unordered merge job counters.
@@ -261,8 +261,9 @@ private:
         {
             TTask::OnTaskCompleted();
 
-            // Compute total unordered merge task count.
+            // Compute jobs totals.
             FOREACH (auto partition, Controller->Partitions) {
+                Controller->TotalSortedMergeCount += partition->SortedMergeTask->GetPendingJobCount();
                 Controller->TotalUnorderedMergeJobCount += partition->UnorderedMergeTask->GetPendingJobCount();
             }
 
@@ -823,13 +824,15 @@ private:
             }
         }
 
-        // Init counters.
+        // A pretty accurate estimate.
         MaxSortJobCount = GetJobCount(
             SortWeightCounter.GetTotal(),
             Spec->MaxWeightPerSortJob,
             Spec->SortJobCount,
             chunkCount);
-        MaxSortedMergeJobCount = 1;
+
+        // Can be zero but better be pessimists.
+        TotalSortedMergeJobCount = 1;
 
         LOG_INFO("Sorting without partitioning");
 
@@ -914,7 +917,7 @@ private:
             Spec->PartitionJobCount,
             PartitionTask->ChunkCounter().GetTotal()));
 
-        // Very rough estimates.
+        // Some upper bound.
         MaxSortJobCount =
             GetJobCount(
                 PartitionTask->WeightCounter().GetTotal(),
@@ -922,7 +925,6 @@ private:
                 Null,
                 std::numeric_limits<int>::max()) +
             Partitions.size();
-        MaxSortedMergeJobCount = Partitions.size();
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             static_cast<int>(Partitions.size()),
@@ -939,10 +941,11 @@ private:
             BuildPartitions();
            
             // Allocate some initial chunk lists.
+            // TODO(babenko): reserve chunk lists for unordered merge jobs
             ChunkListPool->Allocate(
                 PartitionJobCounter.GetTotal() +
                 MaxSortJobCount +
-                MaxSortedMergeJobCount +
+                Partitions.size() + // for sorted merge jobs
                 Config->SpareChunkListCount);
 
             InitJobSpecTemplates();
@@ -962,7 +965,7 @@ private:
             "PartitionWeight = {%s}, "
             "SortJobs = {M: %d, R: %d, C: %d}, "
             "SortWeight = {%s}, "
-            "SortedMergeJobs = {M: %d, R: %d, C: %d}, "
+            "SortedMergeJobs = {T: %d, R: %d, C: %d}, "
             "UnorderedMergeJobs = {T: %d, R: %d, C: %d}",
             // Jobs
             RunningJobCount,
@@ -982,7 +985,7 @@ private:
             CompletedSortJobCount,
             ~ToString(SortWeightCounter),
             // SortedMergeJobs
-            MaxSortedMergeJobCount,
+            TotalSortedMergeJobCount,
             RunningSortedMergeJobCount,
             CompletedSortedMergeJobCount,
             // UnorderedMergeJobs
@@ -1008,7 +1011,7 @@ private:
             .EndMap()
             .Item("sort_weight").Do(BIND(&TProgressCounter::ToYson, &SortWeightCounter))
             .Item("sorted_merge_jobs").BeginMap()
-                .Item("max").Scalar(MaxSortedMergeJobCount)
+                .Item("total").Scalar(TotalSortedMergeJobCount)
                 .Item("running").Scalar(RunningSortedMergeJobCount)
                 .Item("completed").Scalar(CompletedSortedMergeJobCount)
             .EndMap()
