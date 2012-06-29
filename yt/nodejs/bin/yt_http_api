@@ -174,7 +174,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
             .use("/", function(req, rsp, next) {
                 if (req.url == "/") {
                     rsp.writeHead(303, {
-                        "Location" : "/api",
+                        "Location" : "/ui/",
                         "Content-Length" : 0,
                         "Content-Type" : "application/json"
                     });
