@@ -822,12 +822,13 @@ void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    MergeNodes(transaction);
     if (transaction->GetParent()) {
         PromoteLocks(transaction);
+        MergeNodes(transaction);
         PromoteCreatedNodes(transaction);
     } else {
         ReleaseLocks(transaction);
+        MergeNodes(transaction);
         ReleaseCreatedNodes(transaction);
     }
 }
