@@ -644,14 +644,10 @@ TLockId TCypressManager::AcquireLock(
     return lockId;
 }
 
-void TCypressManager::ReleaseLock(TLock* lock, ICypressNode* lockedNode)
+void TCypressManager::ReleaseLock(TLock* lock)
 {
-    if (!lockedNode) {
-        // NB: =, not ==; we actually assign here.
-        YCHECK(lockedNode = NodeMap.Get(lock->GetNodeId()));
-    }
-
     // Remove the lock from the node itself.
+    auto* lockedNode = NodeMap.Get(lock->GetNodeId());
     YCHECK(lockedNode->Locks().erase(lock) == 1);
 
     Bootstrap->GetObjectManager()->UnrefObject(lock);
