@@ -7,12 +7,14 @@
 
 namespace NYT {
 
+#ifndef NDEBUG
 TEST(TNullableDeathTest, Uninitialized)
 {
     TNullable<int> nullable;
     EXPECT_FALSE(nullable.IsInitialized());
-    EXPECT_DEATH(nullable.Get(), ".*");
+    ASSERT_DEATH(nullable.Get(), ".*");
 }
+#endif
 
 inline void TestNullable(const TNullable<int>& nullable, bool initialized, int value = 0)
 {
