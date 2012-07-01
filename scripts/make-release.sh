@@ -23,8 +23,12 @@ case "$1" in
         echo "*** Bumping minor version"
         minor=$((${minor} + 1))
         ;;
+    --patch)
+        echo "*** Bumping patch version"
+        patch=$((${patch} + 1))
+        ;;
     *)
-        echo "Don't know what to do; please, specify either --major or --minor"
+        echo "Don't know what to do; please, specify either --major, --minor or --patch"
         exit 1
 esac
 
