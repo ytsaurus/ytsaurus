@@ -376,7 +376,7 @@ YtCommand.prototype._captureBody = function(cb) {
         try {
             var result = buffertools.concat.apply(buffertools, chunks);
             if (result.length) {
-                if (this.input_format !== "json") {
+                if (self.input_format !== "json") {
                     throw new Error("Currently it is only allowed to use JSON in a POST body.");
                 }
                 self.parameters = utils.merge(self.parameters, JSON.parse(result));
