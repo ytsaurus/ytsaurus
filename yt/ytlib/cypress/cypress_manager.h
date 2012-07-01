@@ -168,11 +168,16 @@ private:
 
     static bool IsParentTransaction(NTransactionServer::TTransaction* transaction, NTransactionServer::TTransaction* parent);
 
+    // TODO(sandello): Remove this public declaration once we finally resolve
+    // issues with hanging locks.
+public:
     TLockId AcquireLock(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
     void ReleaseLock(TLock* lock, ICypressNode* lockedNode = 0 /* hint */);
+
+private:
 
    ICypressNode* BranchNode(
        ICypressNode* node,
