@@ -104,6 +104,7 @@ TEST(TFutureTest, SetAndGet)
     EXPECT_EQ(57, future.Get()); // Second Get() should also work.
 }
 
+#ifndef NDEBUG
 TEST(TFutureDeathTest, DoubleSet)
 {
     // Debug-only.
@@ -112,6 +113,7 @@ TEST(TFutureDeathTest, DoubleSet)
     promise.Set(17);
     ASSERT_DEATH({ promise.Set(42); }, ".*");
 }
+#endif
 
 TEST(TFutureTest, SetAndTryGet)
 {
