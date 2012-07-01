@@ -66,6 +66,16 @@ install(
 )
 
 install(
+  DIRECTORY ui/
+  DESTINATION lib/node_modules/yt/ui
+  FILE_PERMISSIONS
+    OWNER_READ OWNER_WRITE
+    GROUP_READ
+    WORLD_READ
+  COMPONENT nodejs
+)
+
+install(
   DIRECTORY lib/
   DESTINATION lib/node_modules/yt/lib
   COMPONENT nodejs

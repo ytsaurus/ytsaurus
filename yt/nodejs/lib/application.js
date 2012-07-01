@@ -80,6 +80,7 @@ YtCommand.prototype.dispatch = function() {
             this._captureBody,
             this._retainBody),
         this._logRequest,
+        this._checkPermissions,
         this._addHeaders,
         this._execute,
     ],
@@ -293,7 +294,8 @@ YtCommand.prototype._getOutputFormat = function(cb) {
 
     // Firstly, check whether the command produces an octet stream.
     if (this.descriptor.output_type === ytnode_wrappers.EDataType_Binary) {
-        this.output_mime = "application/octet-stream";
+        // XXX(sandello): This is temporary, until I figure out a better solution.
+        this.output_mime = "text/plain";
         this.output_format = "yson";
         return cb();
     }
@@ -301,7 +303,6 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     // Secondly, try to deduce output format from Accept header.
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
-        header = header.trim();
         for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
             if (utils.accepts(mime, header)) {
                 result_mime = mime;
@@ -338,7 +339,6 @@ YtCommand.prototype._getOutputCompression = function(cb) {
 
     header = this.req.headers["accept-encoding"];
     if (typeof(header) === "string") {
-        header = header.trim();
         for (var encoding in _MAPPING_STREAM_COMPRESSION) {
             if (utils.acceptsEncoding(encoding, header)) {
                 result_mime = encoding;
@@ -415,6 +415,25 @@ YtCommand.prototype._logRequest = function(cb) {
         output_compression      : this.output_compression,
         output_compression_mime : this.output_compression_mime
     });
+
+    return cb();
+};
+
+var RE_HOME    = /^\/\/home|^\/\/"home"|^\/\/\x01\x08\x68\x6f\x6d\x65/;
+var RE_TMP     = /^\/\/tmp|^\/\/"tmp"|^\/\/\x01\x06\x74\x6d\x70/;
+var RE_STATBOX = /^\/\/statbox|^\/\/"statbox"|^\/\/\x01\x0e\x73\x74\x61\x74\x62\x6f\x78/;
+
+YtCommand.prototype._checkPermissions = function(cb) {
+    this.__DBG("_checkPermissions");
+
+    if (this.descriptor.is_volatile) {
+        var path = this.parameters.path;
+        if (!path || !(RE_HOME.test(path) || RE_TMP.test(path) || RE_STATBOX.test(path))) {
+            this.rsp.statusCode = 403;
+            throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox");
+        }
+    }
+
     return cb();
 };
 
@@ -528,6 +547,56 @@ YtEioWatcher.prototype.is_choking = function() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+function shuffle(array) {
+    var i = array.length;
+    if (i === 0) {
+        return false;
+    }
+    while (--i) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var lhs = array[i];
+        var rhs = array[j];
+        array[i] = rhs;
+        array[j] = lhs;
+    }
+    return array;
+}
+
+function YtHostDiscovery(hosts) {
+    __DBG("HostDiscovery -> New");
+
+    return function(req, rsp) {
+        var body = shuffle(hosts);
+
+        var header = req.headers["accept"];
+        if (typeof(header) === "string") {
+            /****/ if (utils.accepts("application/json", header)) {
+                body = JSON.stringify(body);
+                rsp.writeHead(200, {
+                    "Content-Length" : body.length,
+                    "Content-Type" : "application/json"
+                });
+            } else if (utils.accepts("text/plain", header)) {
+                body = body.toString("\n");
+                rsp.writeHead(200, {
+                    "Content-Length" : body.length,
+                    "Content-Type" : "text/plain"
+                });
+            } else {
+                // Unsupported
+            }
+        } else {
+            body = JSON.stringify(body);
+            rsp.writeHead(200, {
+                "Content-Length" : body.length,
+                "Content-Type" : "application/json"
+            });
+        }
+
+        rsp.end(body);
+    };
+}
+
 function YtApplication(logger, configuration) {
     __DBG("Application -> New");
 
@@ -596,6 +665,7 @@ function YtAssignRequestId() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+exports.YtHostDiscovery = YtHostDiscovery;
 exports.YtApplication = YtApplication;
 exports.YtLogger = YtLogger;
 exports.YtAssignRequestID = YtAssignRequestId;

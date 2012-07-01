@@ -39,14 +39,14 @@ TEST_F(TYsonTest, ConvertToNode)
     NYT::NYTree::INodePtr child;
 
     child = node->AsMap()->FindChild("key");
-    FOREACH(auto format, EYsonFormat::GetDomainValues()) {
+    FOREACH (auto format, EYsonFormat::GetDomainValues()) {
         EXPECT_EQ("value", ConvertTo<Stroka>(child));
         EXPECT_EQ("value", ConvertTo<Stroka>(ConvertToYsonString(child, format)));
     }
     EXPECT_EQ(ConvertTo<Stroka>(ConvertToYsonString(child)), "value");
 
     child = node->AsMap()->FindChild("other_key");
-    FOREACH(auto format, EYsonFormat::GetDomainValues()) {
+    FOREACH (auto format, EYsonFormat::GetDomainValues()) {
         EXPECT_EQ(10, ConvertTo<i32>(child));
         EXPECT_EQ(10, ConvertTo<i32>(ConvertToYsonString(child, format)));
     }

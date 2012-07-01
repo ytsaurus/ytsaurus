@@ -80,10 +80,6 @@ configure_arcadia_mirror contrib-libs-protobuf
 configure_arcadia_mirror contrib-libs-snappy
 configure_arcadia_mirror contrib-libs-zlib
 
-configure_arcadia_mirror library-simplehashtrie
-configure_arcadia_mirror library-binsaver
-configure_arcadia_mirror library-2darray
-
 configure_arcadia_mirror util
 
 configure_github_mirror lloyd-yajl

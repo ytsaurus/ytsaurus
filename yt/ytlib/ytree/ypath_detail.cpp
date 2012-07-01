@@ -399,7 +399,7 @@ void TSupportsAttributes::GetAttribute(
         }
 
         if (userAttributes) {
-            const auto& userAttributeSet = userAttributes->List();
+            auto userAttributeSet = userAttributes->List();
             std::vector<Stroka> userAttributeList(userAttributeSet.begin(), userAttributeSet.end());
             std::sort(userAttributeList.begin(), userAttributeList.end());
             FOREACH (const auto& key, userAttributeList) {
@@ -573,7 +573,7 @@ void TSupportsAttributes::RemoveAttribute(
                 OnUpdateAttribute(key, userAttributes->GetYson(key), Null);
             }
             FOREACH (const auto& key, userKeys) {
-                YVERIFY(userAttributes->Remove(key));
+                YCHECK(userAttributes->Remove(key));
             }
         }
     } else {

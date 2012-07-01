@@ -170,7 +170,7 @@ TEST_F(TMetaStateMapTest, StressSave)
                 TValue* ptr = map.Find(key);
                 auto it = checkMap.find(key);
                 if (it == checkMap.end()) {
-                    EXPECT_IS_TRUE(!ptr);
+                    EXPECT_TRUE(!ptr);
                 } else {
                     EXPECT_EQ(ptr->Value, it->second);
                     it->second = value;
@@ -184,7 +184,7 @@ TEST_F(TMetaStateMapTest, StressSave)
                 if (result) {
                     map.Remove(key);
                 } else {
-                    EXPECT_IS_TRUE(map.Find(key) == NULL);
+                    EXPECT_TRUE(map.Find(key) == NULL);
                 }
             }
         }

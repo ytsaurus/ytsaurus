@@ -62,8 +62,8 @@ private:
 #define LOG_ERROR_AND_THROW(ex, ...)        LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Error, ex, __VA_ARGS__)
 
 #define LOG_FATAL(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Fatal, __VA_ARGS__)
-#define LOG_FATAL_IF(condition, ...)        if ( EXPECT_FALSE(condition)) LOG_FATAL(__VA_ARGS__)
-#define LOG_FATAL_UNLESS(condition, ...)    if ( ! EXPECT_TRUE(condition) ) LOG_FATAL(__VA_ARGS__)
+#define LOG_FATAL_IF(condition, ...)        if ( UNLIKELY(condition)) LOG_FATAL(__VA_ARGS__)
+#define LOG_FATAL_UNLESS(condition, ...)    if ( ! LIKELY(condition) ) LOG_FATAL(__VA_ARGS__)
 
 #define LOG_EVENT(logger, level, ...) \
     if (logger.IsEnabled(level)) { \

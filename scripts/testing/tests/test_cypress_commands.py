@@ -131,6 +131,16 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t/@key1') == "value1"
         assert get('//tmp/t/@key2') == "value2"
 
+    def test_attributes_tx_read(self):
+        set_str('//tmp/t', '<attr=100> 123')
+        assert get('//tmp/t') == 123
+        assert get('//tmp/t/@attr') == 100
+        assert 'attr' in get('//tmp/t/@')
+
+        tx_id = start_transaction()
+        assert get('//tmp/t/@attr', tx = tx_id) == 100
+        assert 'attr' in get('//tmp/t/@', tx = tx_id)
+
     def test_format_json(self):
         # check input format for json
         set_str('//tmp/json_in', '{"list": [1,2,{"string": "this"}]}', format="json")

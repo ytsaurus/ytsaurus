@@ -25,6 +25,8 @@ private:
     NTableClient::ISyncReaderPtr Reader;
     NTableClient::ISyncWriterPtr Writer;
 
+    TNullable<NTableClient::TKeyColumns> KeyColumns;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -210,7 +210,7 @@ private:
             if (!miscExt.sorted()) {
                 LOG_WARNING("Received key range read request for an unsorted chunk");
                 OnFail(
-                    TError("Received key range read request for an unsorted chunk"), 
+                    TError(Sprintf("Received key range read request for an unsorted chunk (ChunkId: %s)", ~AsyncReader->GetChunkId().ToString())), 
                     chunkReader);
                 return;
             }

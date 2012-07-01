@@ -37,9 +37,9 @@ protected:
   void assertEmpty(StringType & v) {
     // Size tests
     EXPECT_EQ(0u, v.size());
-    EXPECT_IS_TRUE(v.empty());
+    EXPECT_TRUE(v.empty());
     // Iterator tests
-    EXPECT_IS_TRUE(v.begin() == v.end());
+    EXPECT_TRUE(v.begin() == v.end());
   }
 };
 
@@ -47,7 +47,7 @@ protected:
 TEST_F(TSmallStringTest, EmptyStringTest) {
   SCOPED_TRACE("EmptyStringTest");
   assertEmpty(theString);
-  EXPECT_IS_TRUE(theString.rbegin() == theString.rend());
+  EXPECT_TRUE(theString.rbegin() == theString.rend());
 }
 
 TEST_F(TSmallStringTest, AssignRepeated) {

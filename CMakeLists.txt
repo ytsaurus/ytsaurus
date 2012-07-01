@@ -5,7 +5,7 @@ project(YT)
 
 # TODO(sandello): Move this version-related stuff into a separate file.
 set(YT_VERSION_MAJOR 0)
-set(YT_VERSION_MINOR 2)
+set(YT_VERSION_MINOR 3)
 set(YT_VERSION_PATCH 0)
 
 if(NOT YT_BUILD_NUMBER)

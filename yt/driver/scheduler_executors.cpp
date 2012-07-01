@@ -15,6 +15,7 @@
 namespace NYT {
 namespace NDriver {
 
+using namespace NFormats;
 using namespace NYTree;
 using namespace NScheduler;
 using namespace NObjectServer;
@@ -35,9 +36,10 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
 
     printf("Starting %s operation... ", ~GetCommandName().Quote());
 
-    auto requestCopy = request;
+    TDriverRequest requestCopy = request;
 
     TStringStream output;
+    requestCopy.OutputFormat = TFormat(EFormatType::Yson);
     requestCopy.OutputStream = &output;
 
     auto response = Driver->Execute(requestCopy);
@@ -118,7 +120,6 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
-    // TODO(babenko): refactor
     auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
@@ -161,7 +162,6 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPath(OutArg.getValue());
-    // TODO(babenko): refactor
     auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)

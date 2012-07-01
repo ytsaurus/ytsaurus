@@ -78,7 +78,7 @@ void* GetRefCountedTrackerCookie(const void* key);
 #define REF_COUNTED_NEW_PROLOGUE() \
     static void* cookie = NULL; \
     do { \
-        if (EXPECT_FALSE(cookie == NULL)) { \
+        if (UNLIKELY(cookie == NULL)) { \
             cookie = ::NYT::NDetail::GetRefCountedTrackerCookie(&typeid(TType)); \
         } \
     } while(0)

@@ -22,7 +22,7 @@ TIntrusivePtr<T> RefCountedSingleton()
     // Failure here means that singleton is requested after it has been destroyed.
     YASSERT(instance != reinterpret_cast<T*>(-1));
 
-    if (EXPECT_TRUE(instance)) {
+    if (LIKELY(instance)) {
         return instance;
     }
 

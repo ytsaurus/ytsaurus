@@ -57,7 +57,7 @@ def quote(s):
 
 def run_command(name, *args, **kw):
     all_args = [name] + convert_to_yt_args(*args, **kw)
-    print 'yt' + ' '.join(quote(s) for s in all_args)
+    print 'yt ' + ' '.join(quote(s) for s in all_args)
 
     process = subprocess.Popen([YT] + all_args,
         stdout=subprocess.PIPE,
@@ -110,6 +110,10 @@ def upload(path, data, **kw):
     process =  run_command('upload', path, **kw)
     return send_data(process, data)
 
+def upload_file(path, file_name, **kw):
+    with open(file_name, 'rt') as f:
+        return upload(path, f.read())
+
 def download(path, **kw):
     return command('download', path, **kw)
 
@@ -129,6 +133,9 @@ def track_op(**kw):
 
 def erase(path, *args, **kw):
     return command('erase', path, *args, **kw)
+
+def sort(**kw):
+    return command('sort', **kw)
 
 #########################################
 

@@ -321,11 +321,11 @@ protected:
     {
     public:
         TVersionedUserAttributeDictionary(
-            TObjectId objectId,
+            const TObjectId& objectId,
             NTransactionServer::TTransaction* transaction,
             NCellMaster::TBootstrap* bootstrap)
             : TUserAttributeDictionary(
-                ~bootstrap->GetObjectManager(),
+                bootstrap->GetObjectManager(),
                 objectId)
             , Transaction(transaction)
             , Bootstrap(bootstrap)
@@ -334,22 +334,26 @@ protected:
         
         virtual yhash_set<Stroka> List() const
         {
-            if (Transaction == NULL) {
+            if (!Transaction) {
                 return TUserAttributeDictionary::List();
             }
 
-            yhash_set<Stroka> attributes;
-            auto transactions = Bootstrap->GetTransactionManager()->GetTransactionPath(Transaction);
             auto objectManager = Bootstrap->GetObjectManager();
-            for (auto it = transactions.rbegin(); it != transactions.rend(); ++it) {
-                TVersionedObjectId parentId(ObjectId, NObjectServer::GetObjectId(Transaction));
-                const auto* userAttributes = objectManager->FindAttributes(parentId);
+            auto transactionManager = Bootstrap->GetTransactionManager();
+
+            auto transactions = transactionManager->GetTransactionPath(Transaction);
+            std::reverse(transactions.begin(), transactions.end());
+
+            yhash_set<Stroka> attributes;
+            FOREACH (const auto* transaction, transactions) {
+                TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     FOREACH (const auto& pair, userAttributes->Attributes()) {
                         if (pair.second) {
-                            attributes.erase(pair.first);
-                        } else {
                             attributes.insert(pair.first);
+                        } else {
+                            attributes.erase(pair.first);
                         }
                     }
                 }
@@ -359,26 +363,26 @@ protected:
 
         virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& name) const
         {
-            if (Transaction == NULL) {
+            if (!Transaction) {
                 return TUserAttributeDictionary::FindYson(name);
             }
 
-            auto transactions = Bootstrap->GetTransactionManager()->GetTransactionPath(Transaction);
             auto objectManager = Bootstrap->GetObjectManager();
-            FOREACH (const auto& transaction, transactions) {
-                TVersionedObjectId parentId(ObjectId, NObjectServer::GetObjectId(transaction));
-                const auto* userAttributes = objectManager->FindAttributes(parentId);
+            auto transactionManager = Bootstrap->GetTransactionManager();
+
+            auto transactions = transactionManager->GetTransactionPath(Transaction);
+
+            FOREACH (const auto* transaction, transactions) {
+                TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
                     if (it != userAttributes->Attributes().end()) {
-                        if (it->second) {
-                            break;
-                        } else {
-                            return it->second;
-                        }
+                        return it->second;
                     }
                 }
             }
+
             return Null;
         }
 
@@ -400,16 +404,20 @@ protected:
                 ->GetVersionedNodeForUpdate(ObjectId, Transaction)
                 ->GetId();
 
-            if (Transaction == NULL) {
+            if (!Transaction) {
                 return TUserAttributeDictionary::Remove(name);
             }
 
-            bool contains = false;
-            auto transactions = Bootstrap->GetTransactionManager()->GetTransactionPath(Transaction);
             auto objectManager = Bootstrap->GetObjectManager();
-            for (auto it = transactions.rbegin() + 1; it != transactions.rend(); ++it) {
-                TVersionedObjectId parentId(ObjectId, NObjectServer::GetObjectId(*it));
-                const auto* userAttributes = objectManager->FindAttributes(parentId);
+            auto transactionManager = Bootstrap->GetTransactionManager();
+
+            auto transactions = transactionManager->GetTransactionPath(Transaction);
+            std::reverse(transactions.begin(), transactions.end());
+
+            bool contains = false;
+            FOREACH (const auto* transaction, transactions) {
+                TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
                     if (it != userAttributes->Attributes().end()) {

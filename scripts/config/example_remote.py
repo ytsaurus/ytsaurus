@@ -67,7 +67,7 @@ class Master(Server):
     address = Subclass(MasterAddresses)
     params = Template('--master --config %(config_path)s')
 
-    log_disk = 'disk2'
+    log_disk = 'disk1'
     log_path = Template("master-%(__name__)s.log")
     debug_log_path = Template("master-%(__name__)s.debug.log")
 
@@ -81,10 +81,10 @@ class Master(Server):
                 'rpc_port' : 9000
             },
             'snapshots' : {
-                'path' : '/yt/disk2/data/snapshots',
+                'path' : '/yt/disk1/data/snapshots',
             },
             'changelogs' : {
-                'path' : '/yt/disk1/data/changelogs',
+                'path' : '/yt/disk2/data/changelogs',
             },
             'max_changes_between_snapshots' : 1000000,
             'changelog_downloader' : {
@@ -114,7 +114,7 @@ class Scheduler(Server):
     address = MasterAddresses[1]
     params = Template('--scheduler --config %(config_path)s')
 
-    log_disk = 'disk2'
+    log_disk = 'disk1'
     log_path = "scheduler.log"
     debug_log_path = "scheduler.debug.log"
 
@@ -136,12 +136,10 @@ DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
 class Holder(Server):
     files = Server.files + [CleanCache, DoCleanCache]
 
-    # XXX(sandello): I have taken one group for my personal experiments
-    # for deploying YT via Chef. Hence nodes 670-699 are unused in this deployment.
-    groupid = Subclass(xrange(9))
+    groupid = Subclass(xrange(10))
     nodeid = Subclass(xrange(30), 1)
 
-    log_disk = 'disk2'
+    log_disk = 'disk1'
     log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
     debug_log_path = Template("holder-%(groupid)d-%(nodeid)d.debug.log")
     
@@ -169,7 +167,7 @@ class Holder(Server):
                 { 'path' : '/yt/disk4/data/chunk_store', 'quota' : storeQuota }
             ],
             'cache_location' : {
-                'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
+                'path' : '/yt/disk2/data/chunk_cache', 'quota' : cacheQuota
             },
             'cache_remote_reader' : { 
                 'publish_peer' : 'true'
@@ -218,7 +216,7 @@ class Driver(Base, RemoteNode):
 
     params = Template('--config %(config_path)s')
 
-    log_disk = 'disk2'
+    log_disk = 'disk1'
     log_path = Template("driver-%(nodeid)d.log")
     debug_log_path = Template("driver-%(nodeid)d.debug.log")
 

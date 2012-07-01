@@ -604,6 +604,8 @@ private:
 
     void RebalanceChunkTreeIfNeeded(TChunkList* root)
     {
+        return;
+
         if (root->Children().size() <= Config->MaxChunkListSize &&
             root->Statistics().Rank <= Config->MaxChunkTreeRank)
         {
@@ -655,10 +657,10 @@ private:
             }
 
             const auto& newStatistics = root->Statistics();
-            YASSERT(newStatistics.RowCount == oldStatistics.RowCount);
-            YASSERT(newStatistics.UncompressedSize == oldStatistics.UncompressedSize);
-            YASSERT(newStatistics.CompressedSize == oldStatistics.CompressedSize);
-            YASSERT(newStatistics.ChunkCount == oldStatistics.ChunkCount);
+            YCHECK(newStatistics.RowCount == oldStatistics.RowCount);
+            YCHECK(newStatistics.UncompressedSize == oldStatistics.UncompressedSize);
+            YCHECK(newStatistics.CompressedSize == oldStatistics.CompressedSize);
+            YCHECK(newStatistics.ChunkCount == oldStatistics.ChunkCount);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list rebalanced (ChunkListId: %s)",
                 ~root->GetId().ToString());

@@ -105,56 +105,56 @@ TEST_F(TCallbackTest, DefaultConstruction)
     TCallback<void(int,int,int,int,int)> c5;
     TCallback<void(int,int,int,int,int,int)> c6;
 
-    EXPECT_IS_TRUE(c0.IsNull());
-    EXPECT_IS_TRUE(c1.IsNull());
-    EXPECT_IS_TRUE(c2.IsNull());
-    EXPECT_IS_TRUE(c3.IsNull());
-    EXPECT_IS_TRUE(c4.IsNull());
-    EXPECT_IS_TRUE(c5.IsNull());
-    EXPECT_IS_TRUE(c6.IsNull());
+    EXPECT_TRUE(c0.IsNull());
+    EXPECT_TRUE(c1.IsNull());
+    EXPECT_TRUE(c2.IsNull());
+    EXPECT_TRUE(c3.IsNull());
+    EXPECT_TRUE(c4.IsNull());
+    EXPECT_TRUE(c5.IsNull());
+    EXPECT_TRUE(c6.IsNull());
 }
 
 TEST_F(TCallbackTest, IsNull)
 {
-    EXPECT_IS_TRUE(NullCallback.IsNull());
-    EXPECT_IS_FALSE(FirstCallback.IsNull());
-    EXPECT_IS_FALSE(SecondCallback.IsNull());
+    EXPECT_TRUE(NullCallback.IsNull());
+    EXPECT_FALSE(FirstCallback.IsNull());
+    EXPECT_FALSE(SecondCallback.IsNull());
 }
 
 TEST_F(TCallbackTest, Move)
 {
-    EXPECT_IS_FALSE(FirstCallback.IsNull());
+    EXPECT_FALSE(FirstCallback.IsNull());
 
     TCallback<void()> localCallback(MoveRV(FirstCallback));
     TCallback<void()> anotherCallback;
 
-    EXPECT_IS_TRUE(FirstCallback.IsNull());
-    EXPECT_IS_FALSE(localCallback.IsNull());
-    EXPECT_IS_TRUE(anotherCallback.IsNull());
+    EXPECT_TRUE(FirstCallback.IsNull());
+    EXPECT_FALSE(localCallback.IsNull());
+    EXPECT_TRUE(anotherCallback.IsNull());
 
     anotherCallback = MoveRV(localCallback);
 
-    EXPECT_IS_TRUE(FirstCallback.IsNull());
-    EXPECT_IS_TRUE(localCallback.IsNull());
-    EXPECT_IS_FALSE(anotherCallback.IsNull());
+    EXPECT_TRUE(FirstCallback.IsNull());
+    EXPECT_TRUE(localCallback.IsNull());
+    EXPECT_FALSE(anotherCallback.IsNull());
 }
 
 TEST_F(TCallbackTest, Equals)
 {
-    EXPECT_IS_TRUE(FirstCallback.Equals(FirstCallback));
-    EXPECT_IS_FALSE(FirstCallback.Equals(SecondCallback));
-    EXPECT_IS_FALSE(SecondCallback.Equals(FirstCallback));
+    EXPECT_TRUE(FirstCallback.Equals(FirstCallback));
+    EXPECT_FALSE(FirstCallback.Equals(SecondCallback));
+    EXPECT_FALSE(SecondCallback.Equals(FirstCallback));
 
     // We should compare based on instance, not type.
     TCallback<void()> localCallback(New<TFakeBindState1>());
     TCallback<void()> anotherCallback = FirstCallback;
    
-    EXPECT_IS_TRUE(FirstCallback.Equals(anotherCallback));
-    EXPECT_IS_FALSE(FirstCallback.Equals(localCallback));
+    EXPECT_TRUE(FirstCallback.Equals(anotherCallback));
+    EXPECT_FALSE(FirstCallback.Equals(localCallback));
 
     // Empty, however, is always equal to empty.
     TCallback<void()> localNullCallback;
-    EXPECT_IS_TRUE(NullCallback.Equals(localNullCallback));
+    EXPECT_TRUE(NullCallback.Equals(localNullCallback));
 }
 
 TEST_F(TCallbackTest, Reset)
@@ -165,8 +165,8 @@ TEST_F(TCallbackTest, Reset)
 
     FirstCallback.Reset();
 
-    EXPECT_IS_TRUE(FirstCallback.IsNull());
-    EXPECT_IS_TRUE(FirstCallback.Equals(NullCallback));
+    EXPECT_TRUE(FirstCallback.IsNull());
+    EXPECT_TRUE(FirstCallback.Equals(NullCallback));
 }
 
 } // namespace

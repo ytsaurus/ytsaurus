@@ -31,7 +31,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
-    def test_in_equal_to_output(self):
+    def test_in_equal_to_out(self):
         create('table', '//tmp/t1')
         write_str('//tmp/t1', '{foo=bar}')
 
@@ -182,4 +182,27 @@ print "tskv" + "\\t" + "hello=world"
                 '/spec/mapper/output_format=<line_prefix=tskv>dsv'])
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
+
+    def test_executable_mapper(self):
+        create('table', '//tmp/t_in')
+        write_str('//tmp/t_in', '{foo=bar}')
+
+        mapper =  \
+"""
+#!/bin/sh
+cat > /dev/null; echo {hello=world}
+"""
+        upload('//tmp/mapper.sh', mapper)
+        set('//tmp/mapper.sh/@executable', "true")
+
+        create('table', '//tmp/t_out')
+        map(in_='//tmp/t_in',
+            out='//tmp/t_out',
+            mapper="./mapper.sh",
+            file='//tmp/mapper.sh')
+
+        assert read('//tmp/t_out') == [{'hello': 'world'}]
+
+
+
 

@@ -135,7 +135,7 @@ struct TExecuteRequest
     TNodeJSDriver* Host;
 
     TGrowingStreamStack<TInputStream, 2> InputStack;
-    TGrowingStreamStack<TOutputStream, 2> OutputStack;
+    TGrowingStreamStack<TOutputStream, 3> OutputStack;
 
     Persistent<Function> Callback;
 
@@ -225,7 +225,6 @@ struct TExecuteRequest
     {
         switch (compression) {
             case ECompression::None:
-                OutputStack.Add<TBufferedOutput>(StreamBufferSize);
                 break;
             case ECompression::Gzip:
                 OutputStack.Add<TZLibCompress>(ZLib::GZip, 4, StreamBufferSize);
@@ -245,6 +244,8 @@ struct TExecuteRequest
             default:
                 YUNREACHABLE();
         }
+
+        OutputStack.Add<TBufferedOutput>(StreamBufferSize);
     }
 
     void SetOutputFormat(INodePtr format)

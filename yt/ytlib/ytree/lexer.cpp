@@ -295,7 +295,7 @@ private:
             }
         }
 
-        if (EXPECT_TRUE(begin != end)) {
+        if (LIKELY(begin != end)) {
             int length = -BytesRead;
             YASSERT(length >= 0);
             bool enough = end >= begin + length;

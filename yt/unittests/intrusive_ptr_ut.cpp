@@ -329,7 +329,7 @@ TEST(TIntrusivePtrTest, UpCast)
 
     foo = baz;
 
-    EXPECT_IS_TRUE(foo == baz);
+    EXPECT_TRUE(foo == baz);
 }
 
 TEST(TIntrusivePtrTest, UnspecifiedBoolType)
@@ -339,8 +339,8 @@ TEST(TIntrusivePtrTest, UnspecifiedBoolType)
     TIntricateObject::TPtr foo;
     TIntricateObject::TPtr bar(&object);
 
-    EXPECT_IS_FALSE(foo);
-    EXPECT_IS_TRUE(bar);
+    EXPECT_FALSE(foo);
+    EXPECT_TRUE(bar);
 }
 
 TEST(TIntrusivePtrTest, NewDoesNotAcquireAdditionalReferences)
@@ -380,30 +380,30 @@ TEST(TIntrusivePtrTest, EqualityOperator)
     TIntricateObject::TPtr samePointer(&object);
     TIntricateObject::TPtr anotherPointer(&anotherObject);
 
-    EXPECT_IS_TRUE(NULL == emptyPointer);
-    EXPECT_IS_TRUE(emptyPointer == NULL);
+    EXPECT_TRUE(NULL == emptyPointer);
+    EXPECT_TRUE(emptyPointer == NULL);
 
-    EXPECT_IS_FALSE(somePointer == NULL);
-    EXPECT_IS_FALSE(samePointer == NULL);
+    EXPECT_FALSE(somePointer == NULL);
+    EXPECT_FALSE(samePointer == NULL);
 
-    EXPECT_IS_TRUE(somePointer != NULL);
-    EXPECT_IS_TRUE(samePointer != NULL);
+    EXPECT_TRUE(somePointer != NULL);
+    EXPECT_TRUE(samePointer != NULL);
 
-    EXPECT_IS_FALSE(somePointer == emptyPointer);
-    EXPECT_IS_FALSE(samePointer == emptyPointer);
+    EXPECT_FALSE(somePointer == emptyPointer);
+    EXPECT_FALSE(samePointer == emptyPointer);
 
-    EXPECT_IS_TRUE(somePointer != emptyPointer);
-    EXPECT_IS_TRUE(samePointer != emptyPointer);
+    EXPECT_TRUE(somePointer != emptyPointer);
+    EXPECT_TRUE(samePointer != emptyPointer);
 
-    EXPECT_IS_TRUE(somePointer == samePointer);
+    EXPECT_TRUE(somePointer == samePointer);
 
-    EXPECT_IS_TRUE(&object == somePointer);
-    EXPECT_IS_TRUE(&object == samePointer);
+    EXPECT_TRUE(&object == somePointer);
+    EXPECT_TRUE(&object == samePointer);
 
-    EXPECT_IS_FALSE(somePointer == anotherPointer);
-    EXPECT_IS_TRUE(somePointer != anotherPointer);
+    EXPECT_FALSE(somePointer == anotherPointer);
+    EXPECT_TRUE(somePointer != anotherPointer);
 
-    EXPECT_IS_TRUE(&anotherObject == anotherPointer);
+    EXPECT_TRUE(&anotherObject == anotherPointer);
 }
 
 TEST(TIntrusivePtrTest, IntrisicRCBehaviour)

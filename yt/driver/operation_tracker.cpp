@@ -187,7 +187,7 @@ EExitCode TOperationTracker::DumpResult()
             printf("Operation completed successfully\n");
             exitCode = EExitCode::OK;
         } else {
-            printf("%s\n", ~error.ToString());
+            fprintf(stderr, "%s\n", ~error.ToString());
             exitCode = EExitCode::Error;
         }
     }

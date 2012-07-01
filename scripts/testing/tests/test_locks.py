@@ -85,6 +85,13 @@ class TestLocks(YTEnvSetup):
                 lock('//tmp/some', mode = 'shared', tx = tx_id)
 
             abort_transaction(tx = tx_id)
+
+    def test_shared_lock_inside_tx(self):
+        tx_outer = start_transaction()
+        create('table', '//tmp/table', tx=tx_outer)
+
+        tx_inner = start_transaction(tx=tx_outer)
+        lock('//tmp/table', mode='shared', tx=tx_inner)
     
     def test_snapshot_lock(self):
         set('//tmp/node', 42)

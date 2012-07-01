@@ -291,7 +291,7 @@ protected:
         Stroka ToString() const \
         { \
             Stroka str = GetLiteralByValue(Value); \
-            if (EXPECT_TRUE(!str.empty())) { \
+            if (LIKELY(!str.empty())) { \
                 return str; \
             } else { \
                 return Stroka(PP_STRINGIZE(name)) + "(" + ::ToString(Value)+ ")"; \

@@ -20,7 +20,7 @@ from collections import defaultdict
 
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
 CONFIGS_ROOTDIR = os.path.abspath('default_configs')
-
+TOOLS_ROOTDIR = os.path.abspath('tools')
 
 def deepupdate(d, other):
     for key, value in other.iteritems():

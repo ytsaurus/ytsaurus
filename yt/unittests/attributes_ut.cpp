@@ -32,7 +32,7 @@ bool IsEqual (
     if (lhs.List() != rhs.List()) {
         return false;
     }
-    FOREACH(const auto& key, lhs.List()) {
+    FOREACH (const auto& key, lhs.List()) {
         auto value = rhs.FindYson(key);
         if (!value) {
             return false;

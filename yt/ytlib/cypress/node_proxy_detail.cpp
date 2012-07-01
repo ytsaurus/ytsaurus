@@ -264,9 +264,12 @@ Stroka TMapNodeProxy::GetChildKey(const INode* child)
 {
     auto* childProxy = ToProxy(child);
 
-    auto transactions = Bootstrap->GetTransactionManager()->GetTransactionPath(Transaction);
     auto cypressManager = Bootstrap->GetCypressManager();
-    FOREACH (const auto& transaction, transactions) {
+    auto transactionManager = Bootstrap->GetTransactionManager();
+
+    auto transactions = transactionManager->GetTransactionPath(Transaction);
+    
+    FOREACH (const auto* transaction, transactions) {
         const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
         const auto& map = static_cast<const TMapNode*>(node)->ChildToKey();
         auto it = map.find(childProxy->GetId());
@@ -280,11 +283,14 @@ Stroka TMapNodeProxy::GetChildKey(const INode* child)
 
 yhash_map<Stroka, ICypressNodeProxyPtr> TMapNodeProxy::DoGetChildren() const
 {
-    yhash_map<Stroka, ICypressNodeProxyPtr> result;
-    auto transactions = Bootstrap->GetTransactionManager()->GetTransactionPath(Transaction);
     auto cypressManager = Bootstrap->GetCypressManager();
-    for (auto it = transactions.rbegin(); it != transactions.rend(); ++it) {
-        const auto* transaction = *it;
+    auto transactionManager = Bootstrap->GetTransactionManager();
+
+    auto transactions = transactionManager->GetTransactionPath(Transaction);
+    std::reverse(transactions.begin(), transactions.end());
+
+    yhash_map<Stroka, ICypressNodeProxyPtr> result;
+    FOREACH (const auto* transaction, transactions) {
         const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
         const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
         FOREACH (const auto& pair, map) {
@@ -300,10 +306,14 @@ yhash_map<Stroka, ICypressNodeProxyPtr> TMapNodeProxy::DoGetChildren() const
 
 INodePtr TMapNodeProxy::DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const
 {
-    auto transactions = Bootstrap->GetTransactionManager()->GetTransactionPath(Transaction);
+    auto transactionManager = Bootstrap->GetTransactionManager();
     auto cypressManager = Bootstrap->GetCypressManager();
+
     Stroka keyString(key);
-    FOREACH (const auto& transaction, transactions) {
+
+    auto transactions = transactionManager->GetTransactionPath(Transaction);
+
+    FOREACH (const auto* transaction, transactions) {
         if (skipCurrentTransaction && transaction == Transaction) {
             continue;
         }
@@ -311,13 +321,10 @@ INodePtr TMapNodeProxy::DoFindChild(const TStringBuf& key, bool skipCurrentTrans
         const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
         auto it = map.find(keyString);
         if (it != map.end()) {
-            if (it->second == NullObjectId) {
-                break;
-            } else {
-                return GetProxy(it->second);
-            }
+            return it->second == NullObjectId ? NULL : GetProxy(it->second);
         }
     }
+
     return NULL;
 }
 

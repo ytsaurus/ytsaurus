@@ -169,21 +169,19 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
             .use(yt.YtAssignRequestID())
             .use(yt.YtLogger(logger))
             .use("/api", yt.YtApplication(logger, configuration))
-            .use("/hosts", function(req, rsp) {
-                var body = JSON.stringify(configuration.neighbours);
-                rsp.writeHead(200, {
-                    "Content-Length" : body.length,
-                    "Content-Type" : "application/json"
-                });
-                rsp.end(body);
-            })
-            .use("/", function(req, rsp) {
-                rsp.writeHead(303, {
-                    "Location" : "/api",
-                    "Content-Length" : 0,
-                    "Content-Type" : "application/json"
-                });
-                rsp.end();
+            .use("/hosts", yt.YtHostDiscovery(configuration.neighbours))
+            .use("/ui", connect.static(__dirname + "/../ui", { maxAge : 900000 }))
+            .use("/", function(req, rsp, next) {
+                if (req.url == "/") {
+                    rsp.writeHead(303, {
+                        "Location" : "/ui/",
+                        "Content-Length" : 0,
+                        "Content-Type" : "application/json"
+                    });
+                    rsp.end();
+                } else {
+                    next();
+                }
             })
             .listen(configuration.port, configuration.address, function() {
                 if (configuration.group) {

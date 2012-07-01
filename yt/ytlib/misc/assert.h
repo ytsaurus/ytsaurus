@@ -12,7 +12,7 @@ namespace NYT {
 //! In debug mode also throws an error if #expr is false.
 #define YVERIFY(expr) \
     do { \
-        if (EXPECT_FALSE( !(expr) )) { \
+        if (UNLIKELY( !(expr) )) { \
             if (YaIsDebuggerPresent()) { \
                 __debugbreak(); \
             } else { \
@@ -59,7 +59,7 @@ namespace NYT {
 #define YCHECK( a ) \
     do { \
         try { \
-            if ( EXPECT_FALSE( !(a) ) ) { \
+            if ( UNLIKELY( !(a) ) ) { \
                 if (YaIsDebuggerPresent()) __debugbreak(); else assert(0&&(a)); \
             } \
         } catch (...) { \
