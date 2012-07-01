@@ -20,15 +20,16 @@ patch=$(get_current_patch)
 
 cause="$1"
 
+echo "*** Current version is '${major}.${minor}.${patch}'"
+
 major=${major}
 minor=${minor}
 patch=$((${patch} + 1))
 version="${major}.${minor}.${patch}"
 
-echo "*** Current version is '${major}.${minor}.${version}'"
-echo "*** New version is '${major}.${minor}.${version}'"
+echo "*** New version is '${major}.${minor}.${patch}'"
 
-git flow hotfix start "${cause}"
+git flow hotfix start "${version}"
 
 update_cmakelists $major $minor $patch
 update_debian_changelog $major $minor $patch "Hotfix '${cause}'"
@@ -39,4 +40,4 @@ git commit -m "Version bump; hotfix ${version} (${cause})"
 
 echo "*** Now you can safely do your fixing!"
 echo "*** Please, finish the hotfix with the following command:"
-echo "\n    git flow hotfix finish ${cause}\n"
+echo -e "\n    git flow hotfix finish ${version}\n"
