@@ -172,7 +172,7 @@ private:
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
-    void ReleaseLock(TLock* lock);
+    void ReleaseLock(TLock* lock, ICypressNode* lockedNode = 0 /* hint */);
 
    ICypressNode* BranchNode(
        ICypressNode* node,
