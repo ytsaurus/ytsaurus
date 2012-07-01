@@ -81,7 +81,6 @@ public:
 
         auto nodeId = objectManager->GenerateId(GetObjectType());
         auto node = Create(nodeId);
-
         cypressManager->RegisterNode(transaction, node);
 
         return nodeId;
@@ -90,19 +89,12 @@ public:
     virtual void Destroy(ICypressNode* node)
     {
         auto id = node->GetId();
-
-        auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
-
-        DoDestroy(dynamic_cast<TImpl*>(node));
-
-        FOREACH (auto* lock, node->Locks()) {
-            cypressManager->ReleaseLock(lock, node);
-        }
-
         if (objectManager->FindAttributes(id)) {
             objectManager->RemoveAttributes(id);
         }
+
+        DoDestroy(dynamic_cast<TImpl*>(node));
     }
 
     virtual bool IsLockModeSupported(ELockMode mode)
