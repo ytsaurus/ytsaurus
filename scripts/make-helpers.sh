@@ -1,10 +1,15 @@
 #!/bin/bash
 
+function get_current_branch()
+{
+    git branch 2> /dev/null | grep -e "^*" | cut -c 3-
+}
+
 function check_current_branch()
 {
     local branch="$1"
 
-    [[ "$(cat .git/HEAD | cut -c 17-)" != "$branch" ]] \
+    [[ "$(get_current_branch)" != "$branch" ]] \
         && echo "*** You have to be on a $branch branch." \
         && exit 1
 }

@@ -45,4 +45,4 @@ git add 'CMakeLists.txt'
 git add 'debian/changelog'
 git commit -m "Version bump; release ${version}"
 
-git flow release finish ${version}
+git flow release finish -s -m 'Happily brought to you by ./make-release.sh' ${version}
