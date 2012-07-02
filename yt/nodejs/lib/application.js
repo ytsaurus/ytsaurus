@@ -61,6 +61,24 @@ function YtCommand(logger, driver, watcher, req, rsp) {
     this.req.parsedUrl = url.parse(this.req.url);
 
     this.__DBG("New");
+
+    // This is a total list of class fields; keep this up to date
+    // to improve V8 performance (hence it JIT relies on class properties).
+    this.bytes_in = null;
+    this.bytes_out = null;
+    this.descriptor = null;
+    this.input_compression = null;
+    this.input_format = null;
+    this.input_stream = null;
+    this.name = null;
+    this.output_compression = null;
+    this.output_compression_mime = null;
+    this.output_format = null;
+    this.output_mime = null;
+    this.output_stream = null;
+    this.parameters = null;
+    this.yt_code = null;
+    this.yt_message = null;
 }
 
 YtCommand.prototype.dispatch = function() {
