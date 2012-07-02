@@ -116,7 +116,7 @@ exports.parseQuality = function(str) {
 
 exports.testAccept = function(type, other) {
     var parts = type.split("/");
-    return (parts[0] == other.type || "*" == other.type) ||
+    return (parts[0] == other.type || "*" == other.type) &&
            (parts[1] == other.subtype || "*" == other.subtype);
 };
 
