@@ -10,7 +10,7 @@ var __EOF = {};
 var __DBG;
 
 if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { console.error("YT Wrappers:", x); };
+    __DBG = function(x) { 'use strict'; console.error("YT Wrappers:", x); };
     __DBG.UUID = require("node-uuid");
 } else {
     __DBG = function( ) { };
@@ -19,6 +19,7 @@ if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtReadableStream() {
+    'use strict';
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG("Readable (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
@@ -70,19 +71,22 @@ function YtReadableStream() {
 util.inherits(YtReadableStream, stream.Stream);
 
 YtReadableStream.prototype._emitData = function(chunk) {
+    'use strict';
     this.__DBG("_emitData");
     this.emit("data", chunk);
 };
 
 YtReadableStream.prototype._emitEnd = function() {
+    'use strict';
     this.__DBG("_emitEnd");
-    if (!this._ended) { 
+    if (!this._ended) {
         this.emit("end");
     }
     this._ended = true;
 };
 
 YtReadableStream.prototype._emitQueue = function() {
+    'use strict';
     this.__DBG("_emitQueue");
 
     if (this._pending.length) {
@@ -105,6 +109,7 @@ YtReadableStream.prototype._emitQueue = function() {
 };
 
 YtReadableStream.prototype._endSoon = function() {
+    'use strict';
     this.__DBG("_endSoon");
 
     if (!this.readable || this._ended) {
@@ -129,11 +134,13 @@ YtReadableStream.prototype._endSoon = function() {
 };
 
 YtReadableStream.prototype.pause = function() {
+    'use strict';
     this.__DBG("pause");
     this._paused = true;
 };
 
 YtReadableStream.prototype.resume = function() {
+    'use strict';
     this.__DBG("resume");
     this._paused = false;
 
@@ -141,6 +148,7 @@ YtReadableStream.prototype.resume = function() {
 };
 
 YtReadableStream.prototype.destroy = function() {
+    'use strict';
     this.__DBG("destroy");
 
     this._binding.Destroy();
@@ -152,6 +160,7 @@ YtReadableStream.prototype.destroy = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtWritableStream(low_watermark, high_watermark) {
+    'use strict';
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG("Writable (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
@@ -184,6 +193,7 @@ function YtWritableStream(low_watermark, high_watermark) {
 util.inherits(YtWritableStream, stream.Stream);
 
 YtWritableStream.prototype._emitClose = function() {
+    'use strict';
     this.__DBG("_emitClose");
     if (!this._closed) {
         this.emit("close");
@@ -192,6 +202,7 @@ YtWritableStream.prototype._emitClose = function() {
 };
 
 YtWritableStream.prototype.write = function(chunk, encoding) {
+    'use strict';
     this.__DBG("write");
 
     if (typeof(chunk) !== "string" && !Buffer.isBuffer(chunk)) {
@@ -215,6 +226,7 @@ YtWritableStream.prototype.write = function(chunk, encoding) {
 };
 
 YtWritableStream.prototype.end = function(chunk, encoding) {
+    'use strict';
     this.__DBG("end");
     if (chunk) {
         this.write(chunk, encoding);
@@ -223,6 +235,7 @@ YtWritableStream.prototype.end = function(chunk, encoding) {
 };
 
 YtWritableStream.prototype.destroy = function() {
+    'use strict';
     this.__DBG("destroy");
 
     this._binding.Destroy();
@@ -233,6 +246,7 @@ YtWritableStream.prototype.destroy = function() {
 };
 
 YtWritableStream.prototype.destroySoon = function() {
+    'use strict';
     this.__DBG("destroySoon");
 
     this._binding.End();
@@ -247,6 +261,7 @@ YtWritableStream.prototype.destroySoon = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtDriver(configuration, low_watermark, high_watermark) {
+    'use strict';
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG("Driver (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
@@ -266,6 +281,7 @@ YtDriver.prototype.execute = function(name,
     output_stream, output_compression, output_format,
     parameters, cb
 ) {
+    'use strict';
     this.__DBG("execute");
 
     var wrapped_input_stream = new YtWritableStream(this._low_watermark, this._high_watermark);
@@ -284,7 +300,7 @@ YtDriver.prototype.execute = function(name,
         wrapped_input_stream.destroy();
         wrapped_output_stream.destroy();
         if (!self_finished) {
-            cb.call(this, new Error("I/O error while executing driver command"));
+            cb.call(self, new Error("I/O error while executing driver command"));
             self_finished = true;
         }
     }
@@ -307,11 +323,13 @@ YtDriver.prototype.execute = function(name,
 };
 
 YtDriver.prototype.find_command_descriptor = function(command_name) {
+    'use strict';
     this.__DBG("find_command_descriptor");
     return this._binding.FindCommandDescriptor(command_name);
 };
 
 YtDriver.prototype.get_command_descriptors = function() {
+    'use strict';
     this.__DBG("get_command_descriptors");
     return this._binding.GetCommandDescriptors();
 };
