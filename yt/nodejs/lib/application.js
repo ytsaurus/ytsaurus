@@ -64,22 +64,22 @@ function YtCommand(logger, driver, watcher, req, rsp) {
     this.__DBG("New");
 
     // This is a total list of class fields; keep this up to date
-    // to improve V8 performance (hence it JIT relies on class properties).
-    this.bytes_in = null;
-    this.bytes_out = null;
-    this.descriptor = null;
-    this.input_compression = null;
-    this.input_format = null;
-    this.input_stream = null;
-    this.name = null;
-    this.output_compression = null;
-    this.output_compression_mime = null;
-    this.output_format = null;
-    this.output_mime = null;
-    this.output_stream = null;
-    this.parameters = null;
-    this.yt_code = null;
-    this.yt_message = null;
+    // to improve V8 performance (hence JIT relies on class properties).
+    this.bytes_in = 0;
+    this.bytes_out = 0;
+    this.descriptor = undefined;
+    this.input_compression = undefined;
+    this.input_format = undefined;
+    this.input_stream = undefined;
+    this.name = undefined;
+    this.output_compression = undefined;
+    this.output_compression_mime = undefined;
+    this.output_format = undefined;
+    this.output_mime = undefined;
+    this.output_stream = undefined;
+    this.parameters = undefined;
+    this.yt_code = undefined;
+    this.yt_message = undefined;
 }
 
 YtCommand.prototype.dispatch = function() {
@@ -142,6 +142,8 @@ YtCommand.prototype._epilogue = function(err) {
 
         this.logger.error("Done (failure)", {
             request_id : this.req.uuid,
+            bytes_in   : this.bytes_in,
+            bytes_out  : this.bytes_out
             error : error
         });
 
