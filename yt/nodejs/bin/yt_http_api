@@ -178,7 +178,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
                     req.url = "index.html";
                 }
                 req.on("end", function() {
-                    staticServer.serve(req, rsp, next);
+                    staticServer.serve(req, rsp);
                 });
             })
             .use("/", function(req, rsp, next) {
