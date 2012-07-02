@@ -406,7 +406,7 @@ public:
             i32 bytesRead;
             try {
                 snapshotFile->Seek(offset, sSet);
-                bytesRead = snapshotFile->Read(data.begin(), length);
+                bytesRead = snapshotFile->Read(&*data.begin(), length);
             } catch (const std::exception& ex) {
                 LOG_FATAL("IO error while reading snapshot %d\n%s",
                     snapshotId,

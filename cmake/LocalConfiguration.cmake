@@ -51,6 +51,12 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   endif()
 endif()
 
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  # XXX(sandello): It's a temporary solution; it works because Clang driver
+  # is compatible to GCC.
+  set( CMAKE_COMPILER_IS_GNUCXX TRUE )
+endif()
+
 ################################################################################
 # Configure compilation flags.
 

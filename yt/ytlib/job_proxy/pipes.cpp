@@ -36,8 +36,10 @@ int SafeDup(int oldFd)
     auto fd = dup(oldFd);
 
     // ToDo: provide proper message.
-    if (fd == -1)
+    if (fd == -1) {
         ythrow yexception() << "dup failed with errno: " << errno;
+    }
+    return fd;
 }
 
 void SafeDup2(int oldFd, int newFd)
@@ -45,17 +47,19 @@ void SafeDup2(int oldFd, int newFd)
     auto res = dup2(oldFd, newFd);
 
     // ToDo: provide proper message.
-    if (res == -1)
+    if (res == -1) {
         ythrow yexception() << "dup2 failed with errno: " << errno;
+    }
 }
 
 void SafeClose(int fd)
 {
     auto res = close(fd);
 
-    if (res == -1) 
-        // ToDo: provide proper message.
+    // ToDo: provide proper message.
+    if (res == -1) {
         ythrow yexception() << "close failed with errno: " << errno;
+    }
 }
 
 int SafePipe(int fd[2])
@@ -63,8 +67,11 @@ int SafePipe(int fd[2])
     auto res = pipe(fd);
 
     // ToDo: provide proper message.
-    if (res == -1)
+    if (res == -1) {
         ythrow yexception() << "pipe failed with errno: " << errno;
+    }
+
+    return res;
 }
 
 void SafeMakeNonblocking(int fd)

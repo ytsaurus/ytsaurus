@@ -76,7 +76,7 @@ const Stroka TNonExistingServiceProxy::ServiceName = "NonExistingService";
 Stroka StringFromSharedRef(const TSharedRef& sharedRef)
 {
     auto blob = sharedRef.ToBlob();
-    return Stroka(blob.begin(), blob.end());
+    return Stroka(&*blob.begin(), &*blob.begin() + (blob.end() - blob.begin()));
 }
 
 

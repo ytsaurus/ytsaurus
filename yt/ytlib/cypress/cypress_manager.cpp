@@ -568,8 +568,8 @@ void TCypressManager::ValidateLock(
             // Check for locks taken by the other transactions.
 
             // Exclusive locks cannot be taken simultaneously with other locks (except for Snapshot).
-            if (requestedMode == ELockMode::Exclusive && lock->GetMode() != ELockMode::Snapshot ||
-                requestedMode != ELockMode::Snapshot  && lock->GetMode() == ELockMode::Exclusive)
+            if ((requestedMode == ELockMode::Exclusive && lock->GetMode() != ELockMode::Snapshot) ||
+                (requestedMode != ELockMode::Snapshot  && lock->GetMode() == ELockMode::Exclusive))
             {
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by transaction %s",
                     ~FormatEnum(requestedMode).Quote(),

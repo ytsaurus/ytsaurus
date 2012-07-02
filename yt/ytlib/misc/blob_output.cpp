@@ -26,7 +26,7 @@ void TBlobOutput::DoWrite(const void* buf, size_t len)
 
 const char* TBlobOutput::Begin() const
 {
-    return Blob.begin();
+    return &*Blob.begin();
 }
 
 size_t TBlobOutput::GetSize() const

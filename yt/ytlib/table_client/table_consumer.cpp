@@ -57,14 +57,17 @@ void TTableConsumer::OnMyBeginList()
 
 void TTableConsumer::OnMyBeginAttributes()
 {
-    ythrow yexception() <<
-        Sprintf("Invalid row format, attributes are not supported (RowIndex: %"PRId64")", Writer->GetRowCount());
+    ythrow yexception() << Sprintf(
+        "Invalid row format, attributes are not supported (RowIndex: %" PRId64 ")",
+        Writer->GetRowCount());
 }
 
 
 void TTableConsumer::ThrowMapExpected()
 {
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
+    ythrow yexception() << Sprintf(
+        "Invalid row format, map expected (RowIndex: %" PRId64 ")",
+        Writer->GetRowCount());
 }
 
 void TTableConsumer::OnMyListItem()
@@ -118,7 +121,7 @@ void TTableConsumer::OnMyEndMap()
             if (!UsedColumns.insert(name).second) {
                 if (Config->Strict) {
                     ythrow yexception() << Sprintf(
-                        "Duplicate column name %s (RowIndex: %"PRId64")", 
+                        "Duplicate column name %s (RowIndex: %" PRId64 ")", 
                         ~ToString(name).Quote(),
                         Writer->GetRowCount());
                 } else {
@@ -139,7 +142,7 @@ void TTableConsumer::OnMyEndMap()
     if (KeyColumns) {
         if (CompareKeys(Writer->GetLastKey(), key) > 0) {
             ythrow yexception() << Sprintf(
-                "Table data is not sorted (RowIndex: %"PRId64", PreviousKey: %s, CurrentKey: %s)", 
+                "Table data is not sorted (RowIndex: %" PRId64 ", PreviousKey: %s, CurrentKey: %s)", 
                 Writer->GetRowCount(),
                 ~ToString(Writer->GetLastKey()),
                 ~ToString(key));

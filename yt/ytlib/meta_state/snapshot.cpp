@@ -73,6 +73,9 @@ TSnapshotReader::TSnapshotReader(
     , EnableCompression(enableCompression)
 { }
 
+TSnapshotReader::~TSnapshotReader()
+{ }
+
 void TSnapshotReader::Open()
 {
     LOG_DEBUG("Opening snapshot reader %s", ~FileName);
@@ -140,6 +143,9 @@ TSnapshotWriter::TSnapshotWriter(
 {
     Header->SegmentId = segmentId;
 }
+
+TSnapshotWriter::~TSnapshotWriter()
+{ }
 
 void TSnapshotWriter::Open(i32 prevRecordCount, const TEpoch& epoch)
 {

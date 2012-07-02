@@ -64,7 +64,7 @@ TVoid ReadRecord(TAsyncChangeLog* asyncChangeLog, ui32 recordId) {
 TSharedRef CreateSharedRef(ui32 data)
 {
     TBlob blob(sizeof(ui32));
-    *reinterpret_cast<ui32*>(blob.begin()) = static_cast<ui32>(data);
+    *reinterpret_cast<ui32*>(&*blob.begin()) = static_cast<ui32>(data);
     return TSharedRef(MoveRV(blob));
 }
 

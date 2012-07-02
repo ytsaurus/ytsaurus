@@ -114,7 +114,7 @@ public:
     const char* Begin() const 
     {
         YASSERT(Type_ == EKeyPartType::String);
-        return StrValue.begin();
+        return &*StrValue.begin();
     }
 
     size_t GetStringSize() const 
@@ -126,7 +126,7 @@ public:
     TStringBuf GetString() const
     {
         YASSERT(Type_ == EKeyPartType::String);
-        return TStringBuf(StrValue.begin(), StrValue.size());
+        return TStringBuf(&*StrValue.begin(), StrValue.size());
     }
 
     size_t GetSize() const
@@ -135,10 +135,15 @@ public:
         switch (Type_) {
             case EKeyPartType::String:
                 result += StrValue.size();
+                break;
             case EKeyPartType::Integer:
                 result += sizeof(i64);
+                break;
             case EKeyPartType::Double:
                 result += sizeof(double);
+                break;
+            default:
+                break;
         }
         return result;
     }
@@ -152,7 +157,7 @@ public:
 
         switch (Type_) {
             case EKeyPartType::String:
-                keyPart.set_str_value(StrValue.begin(), StrValue.size());
+                keyPart.set_str_value(&*StrValue.begin(), StrValue.size());
                 break;
 
             case EKeyPartType::Integer:

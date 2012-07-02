@@ -108,7 +108,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     const auto& blockInfo = blocksExt.blocks(blockIndex);
     TBlob data(blockInfo.size());
     i64 offset = blockInfo.offset();
-    DataFile->Pread(data.begin(), data.size(), offset); 
+    DataFile->Pread(&*data.begin(), data.size(), offset);
 
     TSharedRef result(MoveRV(data));
 

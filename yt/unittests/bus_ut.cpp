@@ -22,7 +22,7 @@ IMessagePtr CreateMessage(int numParts)
     std::vector<TRef> parts;
     parts.reserve(numParts);
     for (int i = 0; i < numParts; ++i) {
-        parts.push_back(TRef(data.begin() + i, 1));
+        parts.push_back(TRef(&*data.begin() + i, 1));
     }
     return CreateMessageFromParts(MoveRV(data), parts);
 }

@@ -153,7 +153,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
             ? writer
             : new TNewlineAppendingConsumer(output, writer, ysonType);
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing YSON output format\n", ex.what());
+        ythrow yexception() << Sprintf("Error parsing YSON output format\n%s", ex.what());
     }
 }
 
