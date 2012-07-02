@@ -143,8 +143,10 @@ YtCommand.prototype._epilogue = function(err) {
         this.logger.error("Done (failure)", {
             request_id : this.req.uuid,
             bytes_in   : this.bytes_in,
-            bytes_out  : this.bytes_out
-            error : error
+            bytes_out  : this.bytes_out,
+            error      : error,
+            yt_code    : this.yt_code,
+            yt_message : this.yt_message
         });
 
         if (!this.rsp._header) {
@@ -156,15 +158,28 @@ YtCommand.prototype._epilogue = function(err) {
 
             this._dispatchJSON(body);
         } else {
+            var trailers = {};
+
+            if (error) {
+                trailers["X-YT-Error"] = JSON.stringify(error);
+            }
+            if (this.yt_code) {
+                trailers["X-YT-Response-Code"] = JSON.stringify(this.yt_code);
+            }
+            if (this.yt_message) {
+                trailers["X-YT-Response-Message"] = JSON.stringify(this.yt_message);
+            }
+
+            this.rsp.addTrailers(trailers);
             this.rsp.end();
         }
+    } else {
+        this.logger.info("Done (success)", {
+            request_id : this.req.uuid,
+            bytes_in   : this.bytes_in,
+            bytes_out  : this.bytes_out
+        });
     }
-
-    this.logger.info("Done (success)", {
-        request_id : this.req.uuid,
-        bytes_in   : this.bytes_in,
-        bytes_out  : this.bytes_out
-    });
 };
 
 YtCommand.prototype._getName = function(cb) {
@@ -527,7 +542,7 @@ YtCommand.prototype._addHeaders = function(cb) {
     this.rsp.setHeader("Content-Type", this.output_mime);
     this.rsp.setHeader("Transfer-Encoding", "chunked");
     this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-    this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
+    this.rsp.setHeader("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
 
     if (this.output_compression !== ytnode_wrappers.ECompression_None) {
         this.rsp.setHeader("Content-Encoding", this.output_compression_mime);
@@ -583,13 +598,6 @@ YtCommand.prototype._execute = function(cb) {
                 self.rsp.statusCode = 500;
             } else if (code > 0) {
                 self.rsp.statusCode = 400;
-            }
-
-            if (code !== 0) {
-                self.rsp.addTrailers({
-                    "X-YT-Response-Code" : JSON.stringify(code),
-                    "X-YT-Response-Message" : JSON.stringify(message)
-                });
             }
 
             return cb();
