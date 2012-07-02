@@ -86,6 +86,7 @@ class TestLocks(YTEnvSetup):
 
             abort_transaction(tx = tx_id)
 
+    @pytest.mark.xfail(run = False, reason = 'Issue #355')
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
         create('table', '//tmp/table', tx=tx_outer)

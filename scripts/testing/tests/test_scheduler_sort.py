@@ -45,10 +45,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create('table', '//tmp/t_in')
         create('table', '//tmp/t_out')
 
-        with pytest.raises(YTError):
-            sort(in_='//tmp/t_in',
+        sort(in_='//tmp/t_in',
              out='//tmp/t_out',
              key_columns='key')
+         
+        assert read('//tmp/t_out') == []
 
     def test_non_empty_out(self):
         create('table', '//tmp/t_in')
