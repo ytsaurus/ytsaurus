@@ -17,7 +17,7 @@ if [[ -z "$1" ]]; then
         git flow hotfix finish -s -m 'Happily brought to you by ./make-release.sh' ${version}
     fi
 fi
-exit
+
 [[ -z "$1" ]] \
     && echo "Please, specify a short hotfix description, like:" \
     && echo "   fix-chunk-replication" \
