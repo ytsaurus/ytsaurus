@@ -940,13 +940,23 @@ void TCypressManager::PromoteLocks(TTransaction* transaction)
 {
     auto* parentTransaction = transaction->GetParent();
     FOREACH (auto* lock, transaction->Locks()) {
-        lock->PromoteToTransaction(parentTransaction);
-        parentTransaction->Locks().push_back(lock);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Promoted lock %s to transaction %s",
-            ~lock->GetId().ToString(),
-            ~parentTransaction->GetId().ToString());
+        if (lock->GetMode() == ELockMode::Snapshot) {
+            ReleaseLock(lock);
+        } else {
+            PromoteLock(lock, parentTransaction);
+        }
     }
     transaction->Locks().clear();
+}
+
+void TCypressManager::PromoteLock(TLock* lock, TTransaction* parentTransaction)
+{
+    lock->PromoteToTransaction(parentTransaction);
+    parentTransaction->Locks().push_back(lock);
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Promoted lock %s to transaction %s",
+        ~lock->GetId().ToString(),
+        ~parentTransaction->GetId().ToString());
 }
 
 void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)

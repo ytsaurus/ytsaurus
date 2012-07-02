@@ -150,6 +150,7 @@ private:
     void PromoteCreatedNodes(NTransactionServer::TTransaction* transaction);
     void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
+    void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
 
     INodeTypeHandlerPtr GetHandler(const ICypressNode* node);
 
