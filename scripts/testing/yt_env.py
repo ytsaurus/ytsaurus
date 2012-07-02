@@ -102,8 +102,7 @@ class YTEnv(unittest.TestCase):
         for p, name in self.process_to_kill:
             p.poll()
             if p.returncode is not None:
-                print '%s (pid %d) is already terminated with exit status %d' % (name, p.pid, p.returncode)
-                continue
+                assert False,  '%s (pid %d) is already terminated with exit status %d' % (name, p.pid, p.returncode)
             os.killpg(p.pid, signal.SIGTERM)
 
             time.sleep(0.250)

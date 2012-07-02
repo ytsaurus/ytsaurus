@@ -39,6 +39,24 @@ describe("http utilities - .parseAccept()", function() {
 });
 
 describe("http utilities - .accepts()", function() {
+    it("should work in a simple case 1", function() {
+        expect(utils.accepts(
+            "text/plain",
+            "text/csv"
+        )).to.be.false;
+    });
+    it("should work in a simple case 2", function() {
+        expect(utils.accepts(
+            "xxxx/csv",
+            "text/csv"
+        )).to.be.false;
+    });
+    it("should work in a simple case 3", function() {
+        expect(utils.accepts(
+            "text/csv",
+            "text/csv"
+        )).to.be.true;
+    });
     it("should correctly deduce output format from Accept header", function() {
         expect(utils.accepts(
             "application/json",

@@ -13,7 +13,7 @@ var ytnode_wrappers = require("./ytnode_wrappers");
 var __DBG;
 
 if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { console.error("YT Application:", x); };
+    __DBG = function(x) { 'use strict'; console.error("YT Application:", x); };
     __DBG.UUID = require("node-uuid");
 } else {
     __DBG = function( ) { };
@@ -42,6 +42,7 @@ var _MAPPING_STREAM_COMPRESSION = {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtCommand(logger, driver, watcher, req, rsp) {
+    'use strict';
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG("Command (" + this.__UUID + ") -> " + x); };
         this.__UUID = __DBG.UUID.v4();
@@ -61,9 +62,28 @@ function YtCommand(logger, driver, watcher, req, rsp) {
     this.req.parsedUrl = url.parse(this.req.url);
 
     this.__DBG("New");
+
+    // This is a total list of class fields; keep this up to date
+    // to improve V8 performance (hence JIT relies on class properties).
+    this.bytes_in = 0;
+    this.bytes_out = 0;
+    this.descriptor = undefined;
+    this.input_compression = undefined;
+    this.input_format = undefined;
+    this.input_stream = undefined;
+    this.name = undefined;
+    this.output_compression = undefined;
+    this.output_compression_mime = undefined;
+    this.output_format = undefined;
+    this.output_mime = undefined;
+    this.output_stream = undefined;
+    this.parameters = undefined;
+    this.yt_code = undefined;
+    this.yt_message = undefined;
 }
 
 YtCommand.prototype.dispatch = function() {
+    'use strict';
     this._prologue();
 
     utils.callSeq(this, [
@@ -82,13 +102,14 @@ YtCommand.prototype.dispatch = function() {
         this._logRequest,
         this._checkPermissions,
         this._addHeaders,
-        this._execute,
+        this._execute
     ],
         this._epilogue
     );
 };
 
-YtCommand.prototype.dispatchJSON = function(object) {
+YtCommand.prototype._dispatchJSON = function(object) {
+    'use strict';
     var body = JSON.stringify(object);
 
     this.rsp.removeHeader("Transfer-Encoding");
@@ -103,12 +124,14 @@ YtCommand.prototype.dispatchJSON = function(object) {
 };
 
 YtCommand.prototype._prologue = function() {
+    'use strict';
     this.__DBG("_prologue");
 
     this.rsp.statusCode = 202;
 };
 
 YtCommand.prototype._epilogue = function(err) {
+    'use strict';
     this.__DBG("_epilogue");
 
     this.watcher.tackle();
@@ -119,7 +142,11 @@ YtCommand.prototype._epilogue = function(err) {
 
         this.logger.error("Done (failure)", {
             request_id : this.req.uuid,
-            error : error
+            bytes_in   : this.bytes_in,
+            bytes_out  : this.bytes_out,
+            error      : error,
+            yt_code    : this.yt_code,
+            yt_message : this.yt_message
         });
 
         if (!this.rsp._header) {
@@ -129,38 +156,53 @@ YtCommand.prototype._epilogue = function(err) {
             if (this.yt_code)    { body.yt_code    = this.yt_code; }
             if (this.yt_message) { body.yt_message = this.yt_message; }
 
-            this.dispatchJSON(body);
+            this._dispatchJSON(body);
         } else {
+            var trailers = {};
+
+            if (error) {
+                trailers["X-YT-Error"] = JSON.stringify(error);
+            }
+            if (this.yt_code) {
+                trailers["X-YT-Response-Code"] = JSON.stringify(this.yt_code);
+            }
+            if (this.yt_message) {
+                trailers["X-YT-Response-Message"] = JSON.stringify(this.yt_message);
+            }
+
+            this.rsp.addTrailers(trailers);
             this.rsp.end();
         }
+    } else {
+        this.logger.info("Done (success)", {
+            request_id : this.req.uuid,
+            bytes_in   : this.bytes_in,
+            bytes_out  : this.bytes_out
+        });
     }
-
-    this.logger.info("Done (success)", {
-        request_id : this.req.uuid,
-        bytes_in   : this.bytes_in,
-        bytes_out  : this.bytes_out
-    });
 };
 
 YtCommand.prototype._getName = function(cb) {
+    'use strict';
     this.__DBG("_getName");
 
     this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
 
     if (!this.name.length) {
-        this.dispatchJSON(this.driver.get_command_descriptors());
+        this._dispatchJSON(this.driver.get_command_descriptors());
         return cb(false);
     }
 
     if (!/^[a-z_]+$/.test(this.name)) {
         this.rsp.statusCode = 400;
-        throw new Error("Malformed command name '" + name + "'.");
+        throw new Error("Malformed command name '" + this.name + "'.");
     }
 
     return cb();
 };
 
 YtCommand.prototype._getDescriptor = function(cb) {
+    'use strict';
     this.__DBG("_getDescriptor");
 
     this.descriptor = this.driver.find_command_descriptor(this.name);
@@ -179,6 +221,7 @@ YtCommand.prototype._getDescriptor = function(cb) {
 };
 
 YtCommand.prototype._checkHttpMethod = function(cb) {
+    'use strict';
     this.__DBG("_checkHttpMethod");
 
     var expected_http_method, actual_http_method = this.req.method;
@@ -193,7 +236,7 @@ YtCommand.prototype._checkHttpMethod = function(cb) {
         }
     }
 
-    if (expected_http_method != actual_http_method) {
+    if (expected_http_method !== actual_http_method) {
         this.rsp.statusCode = 405;
         this.rsp.setHeader("Allow", expected_http_method);
         throw new Error(
@@ -204,6 +247,7 @@ YtCommand.prototype._checkHttpMethod = function(cb) {
 };
 
 YtCommand.prototype._checkHeavy = function(cb) {
+    'use strict';
     this.__DBG("_checkHeavy");
 
     if (this.descriptor.is_heavy && this.watcher.is_choking()) {
@@ -217,6 +261,7 @@ YtCommand.prototype._checkHeavy = function(cb) {
 };
 
 YtCommand.prototype._getParameters = function(cb) {
+    'use strict';
     this.__DBG("_getParameters");
 
     this.parameters = utils.numerify(qs.parse(this.req.parsedUrl.query));
@@ -230,6 +275,7 @@ YtCommand.prototype._getParameters = function(cb) {
 };
 
 YtCommand.prototype._getInputFormat = function(cb) {
+    'use strict';
     this.__DBG("_getInputFormat");
 
     var result, format, header;
@@ -263,6 +309,7 @@ YtCommand.prototype._getInputFormat = function(cb) {
 };
 
 YtCommand.prototype._getInputCompression = function(cb) {
+    'use strict';
     this.__DBG("_getInputCompression");
 
     var result, header;
@@ -288,6 +335,7 @@ YtCommand.prototype._getInputCompression = function(cb) {
 
 // TODO(sandello): 406 Error
 YtCommand.prototype._getOutputFormat = function(cb) {
+    'use strict';
     this.__DBG("_getOutputFormat");
 
     var result_format, result_mime, header;
@@ -333,6 +381,7 @@ YtCommand.prototype._getOutputFormat = function(cb) {
 
 // TODO(sandello): 415 Error
 YtCommand.prototype._getOutputCompression = function(cb) {
+    'use strict';
     this.__DBG("_getOutputCompression");
 
     var result_compression, result_mime, header;
@@ -357,15 +406,17 @@ YtCommand.prototype._getOutputCompression = function(cb) {
     this.output_compression = result_compression;
 
     return cb();
-}
+};
 
 YtCommand.prototype._needToCaptureBody = function(cb) {
+    'use strict';
     this.__DBG("_needToCaptureBody");
 
     return this.req.method === "POST";
 };
 
 YtCommand.prototype._captureBody = function(cb) {
+    'use strict';
     this.__DBG("_captureBody");
 
     var self = this;
@@ -393,6 +444,7 @@ YtCommand.prototype._captureBody = function(cb) {
 };
 
 YtCommand.prototype._retainBody = function(cb) {
+    'use strict';
     this.__DBG("_retainBody");
 
     this.input_stream = this.req;
@@ -402,6 +454,7 @@ YtCommand.prototype._retainBody = function(cb) {
 };
 
 YtCommand.prototype._logRequest = function(cb) {
+    'use strict';
     this.__DBG("_logRequest");
 
     this.logger.debug("Gathered request parameters", {
@@ -424,13 +477,58 @@ var RE_TMP     = /^\/\/tmp|^\/\/"tmp"|^\/\/\x01\x06\x74\x6d\x70/;
 var RE_STATBOX = /^\/\/statbox|^\/\/"statbox"|^\/\/\x01\x0e\x73\x74\x61\x74\x62\x6f\x78/;
 
 YtCommand.prototype._checkPermissions = function(cb) {
+    'use strict';
     this.__DBG("_checkPermissions");
 
     if (this.descriptor.is_volatile) {
-        var path = this.parameters.path;
-        if (!path || !(RE_HOME.test(path) || RE_TMP.test(path) || RE_STATBOX.test(path))) {
-            this.rsp.statusCode = 403;
-            throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox");
+        var object = null;
+        var path = null;
+        var paths = [];
+
+        // Collect all paths mentioned within a request.
+        // This is an approximation, but a decent one.
+        try {
+            paths.push(this.parameters.path);
+        } catch(err) {
+        }
+
+        try {
+            paths.push(this.parameters.spec.input_table_path);
+        } catch(err) {
+        }
+
+        try {
+            object = this.parameters.spec.input_table_paths;
+            for (path in object) {
+                if (object.hasOwnProperty(path)) {
+                    paths.push(path);
+                }
+            }
+        } catch(err) {
+        }
+
+        try {
+            paths.push(this.parameters.spec.output_table_path);
+        } catch(err) {
+        }
+
+        try {
+            object = this.parameters.spec.output_table_paths;
+            for (path in this.parameters.spec.output_table_paths) {
+                if (object.hasOwnProperty(path)) {
+                    paths.push(path);
+                }
+            }
+        } catch(err) {
+        }
+
+        object = null;
+
+        for (path in paths) {
+            if (!(RE_HOME.test(path) || RE_TMP.test(path) || RE_STATBOX.test(path))) {
+                this.rsp.statusCode = 403;
+                throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox");
+            }
         }
     }
 
@@ -438,12 +536,13 @@ YtCommand.prototype._checkPermissions = function(cb) {
 };
 
 YtCommand.prototype._addHeaders = function(cb) {
+    'use strict';
     this.__DBG("_addHeaders");
 
     this.rsp.setHeader("Content-Type", this.output_mime);
     this.rsp.setHeader("Transfer-Encoding", "chunked");
     this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-    this.rsp.setHeader("Trailer", "X-YT-Response-Code, X-YT-Response-Message");
+    this.rsp.setHeader("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
 
     if (this.output_compression !== ytnode_wrappers.ECompression_None) {
         this.rsp.setHeader("Content-Encoding", this.output_compression_mime);
@@ -454,6 +553,7 @@ YtCommand.prototype._addHeaders = function(cb) {
 };
 
 YtCommand.prototype._execute = function(cb) {
+    'use strict';
     this.__DBG("_execute");
 
     var self = this;
@@ -470,13 +570,13 @@ YtCommand.prototype._execute = function(cb) {
                 if (typeof(err) === "string") {
                     self.logger.error(
                         "Command '" + self.name + "' has thrown C++ exception",
-                        { request_id : self.req.uuid, error : error });
+                        { request_id : self.req.uuid, error : err });
                     return cb(new Error(err));
                 }
                 if (err instanceof Error) {
                     self.logger.error(
                         "Command '" + self.name + "' has failed to execute",
-                        { request_id : self.req.uuid, error : error.message });
+                        { request_id : self.req.uuid, error : err.message });
                     return cb(err);
                 }
                 return cb(new Error("Unknown error: " + err.toString()));
@@ -500,13 +600,6 @@ YtCommand.prototype._execute = function(cb) {
                 self.rsp.statusCode = 400;
             }
 
-            if (code !== 0) {
-                self.rsp.addTrailers({
-                    "X-YT-Response-Code" : JSON.stringify(code),
-                    "X-YT-Response-Message" : JSON.stringify(message)
-                });
-            }
-
             return cb();
         });
 };
@@ -514,6 +607,7 @@ YtCommand.prototype._execute = function(cb) {
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtEioWatcher(logger, thread_limit, spare_threads) {
+    'use strict';
     this.logger = logger;
     this.thread_limit = thread_limit;
     this.spare_threads = spare_threads;
@@ -524,18 +618,20 @@ function YtEioWatcher(logger, thread_limit, spare_threads) {
 }
 
 YtEioWatcher.prototype.tackle = function() {
+    'use strict';
     var info = ytnode_wrappers.GetEioInformation();
 
     __DBG("Eio information: " + JSON.stringify(info));
 
-    if (info.nthreads == this.thread_limit &&
-        info.nthreads == info.nreqs && info.nready > 0)
+    if (info.nthreads === this.thread_limit &&
+        info.nthreads === info.nreqs && info.nready > 0)
     {
         this.logger.info("Eio is saturated; consider increasing thread limit", info);
     }
 };
 
 YtEioWatcher.prototype.is_choking = function() {
+    'use strict';
     var info = ytnode_wrappers.GetEioInformation();
 
     if (this.thread_limit - this.spare_threads <= info.nreqs - info.npending) {
@@ -548,6 +644,7 @@ YtEioWatcher.prototype.is_choking = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function shuffle(array) {
+    'use strict';
     var i = array.length;
     if (i === 0) {
         return false;
@@ -563,6 +660,7 @@ function shuffle(array) {
 }
 
 function YtHostDiscovery(hosts) {
+    'use strict';
     __DBG("HostDiscovery -> New");
 
     return function(req, rsp) {
@@ -584,6 +682,7 @@ function YtHostDiscovery(hosts) {
                 });
             } else {
                 // Unsupported
+                (function() {} ());
             }
         } else {
             body = JSON.stringify(body);
@@ -598,10 +697,11 @@ function YtHostDiscovery(hosts) {
 }
 
 function YtApplication(logger, configuration) {
+    'use strict';
     __DBG("Application -> New");
 
-    var low_watermark = parseInt(0.80 * configuration.memory_limit);
-    var high_watermark = parseInt(0.95 * configuration.memory_limit);
+    var low_watermark = parseInt(0.80 * configuration.memory_limit, 10);
+    var high_watermark = parseInt(0.95 * configuration.memory_limit, 10);
 
     __DBG("Application -> low_watermark = " + low_watermark);
     __DBG("Application -> high_watermark = " + high_watermark);
@@ -617,6 +717,7 @@ function YtApplication(logger, configuration) {
 }
 
 function YtLogger(logger) {
+    'use strict';
     return function(req, rsp, next) {
         req._startTime = new Date();
 
@@ -652,6 +753,7 @@ function YtLogger(logger) {
 }
 
 function YtAssignRequestId() {
+    'use strict';
     var buffer = new Buffer(16);
     return function(req, rsp, next) {
         uuid.v4(null, buffer);
@@ -669,3 +771,4 @@ exports.YtHostDiscovery = YtHostDiscovery;
 exports.YtApplication = YtApplication;
 exports.YtLogger = YtLogger;
 exports.YtAssignRequestID = YtAssignRequestId;
+

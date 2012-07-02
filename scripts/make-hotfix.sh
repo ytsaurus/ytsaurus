@@ -15,15 +15,16 @@ if [[ -z "$1" ]]; then
     if $(get_current_branch | grep -q "^hotfix/"); then
         version="${major}.${minor}.${patch}"
         git flow hotfix finish -s -m 'Happily brought to you by ./make-release.sh' ${version}
+        exit
     fi
-fi
 
-[[ -z "$1" ]] \
-    && echo "Please, specify a short hotfix description, like:" \
-    && echo "   fix-chunk-replication" \
-    && echo "   json-not-verified-in-http-proxy" \
-    && echo "   stupid-bug-in-table-writer" \
-    && exit 1
+    echo "Please, specify a short hotfix description, like:"
+    echo "   fix-chunk-replication"
+    echo "   json-not-verified-in-http-proxy"
+    echo "   stupid-bug-in-table-writer"
+
+    exit 1
+fi
 
 cause="$1"
 

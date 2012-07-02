@@ -4,6 +4,7 @@ var cluster = require("cluster");
 var fs = require("fs");
 
 var connect = require("connect");
+var static = require("node-static");
 var winston = require("winston");
 
 var yt = require("yt");
@@ -163,6 +164,8 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
         });
     }
 
+    var staticServer = new static.Server(__dirname + "/../ui", { cache : 4 * 60 * 60 });
+
     try {
         connect()
             .use(connect.favicon())
@@ -170,9 +173,16 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
             .use(yt.YtLogger(logger))
             .use("/api", yt.YtApplication(logger, configuration))
             .use("/hosts", yt.YtHostDiscovery(configuration.neighbours))
-            .use("/ui", connect.static(__dirname + "/../ui", { maxAge : 900000 }))
+            .use("/ui", function(req, rsp, next) {
+                if (req.url === "/") {
+                    req.url = "index.html";
+                }
+                req.on("end", function() {
+                    staticServer.serve(req, rsp, next);
+                });
+            })
             .use("/", function(req, rsp, next) {
-                if (req.url == "/") {
+                if (req.url === "/") {
                     rsp.writeHead(303, {
                         "Location" : "/ui/",
                         "Content-Length" : 0,
