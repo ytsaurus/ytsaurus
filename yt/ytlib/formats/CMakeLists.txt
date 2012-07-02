@@ -6,6 +6,8 @@ set( SRCS
   ${BASE}/format.cpp
   ${BASE}/json_parser.cpp
   ${BASE}/json_writer.cpp
+  ${BASE}/yamr_parser.cpp
+  ${BASE}/yamr_writer.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -15,6 +17,8 @@ set( HDRS
   ${BASE}/json_parser.h
   ${BASE}/json_writer.h
   ${BASE}/public.h
+  ${BASE}/yamr_parser.h
+  ${BASE}/yamr_writer.h
 )
 
 list(APPEND YT_SOURCE_FILES

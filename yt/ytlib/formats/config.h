@@ -49,6 +49,40 @@ struct TJsonFormatConfig
     }
 };
 
+struct TYamrFormatConfig
+    : public TYsonSerializable
+{
+    bool HasSubkey;
+
+    Stroka Key;
+    Stroka Subkey;
+    Stroka Value;
+
+    bool Lenval;
+
+    // Delimited specific options
+    char FieldSeparator;
+    char RowSeparator;
+
+    TYamrFormatConfig()
+    {
+        Register("has_subkey", HasSubkey)
+            .Default(false);
+        Register("key", Key)
+            .Default("k");
+        Register("subkey", Subkey)
+            .Default("sk");
+        Register("value", Value)
+            .Default("v");
+        Register("lenval", Lenval)
+            .Default(false);
+        Register("fs", FieldSeparator)
+            .Default('\t');
+        Register("rs", RowSeparator)
+            .Default('\n');
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

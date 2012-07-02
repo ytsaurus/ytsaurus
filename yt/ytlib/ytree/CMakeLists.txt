@@ -4,7 +4,6 @@ set( SRCS
   ${BASE}/attribute_consumer.cpp
   ${BASE}/attribute_provider_detail.cpp
   ${BASE}/attributes.cpp
-  ${BASE}/yson_serializable.cpp
   ${BASE}/ephemeral.cpp
   ${BASE}/forwarding_yson_consumer.cpp
   ${BASE}/lexer.cpp
@@ -23,6 +22,7 @@ set( SRCS
   ${BASE}/yson_file_service.cpp
   ${BASE}/yson_parser.cpp
   ${BASE}/yson_producer.cpp
+  ${BASE}/yson_serializable.cpp
   ${BASE}/yson_string.cpp
   ${BASE}/yson_writer.cpp
   ${BASE}/ytree.cpp
@@ -33,8 +33,6 @@ set( HDRS
   ${BASE}/attribute_provider_detail.h
   ${BASE}/attributes-inl.h
   ${BASE}/attributes.h
-  ${BASE}/yson_serializable-inl.h
-  ${BASE}/yson_serializable.h
   ${BASE}/convert-inl.h
   ${BASE}/convert.h
   ${BASE}/ephemeral.h
@@ -64,6 +62,8 @@ set( HDRS
   ${BASE}/yson_format.h
   ${BASE}/yson_parser.h
   ${BASE}/yson_producer.h
+  ${BASE}/yson_serializable-inl.h
+  ${BASE}/yson_serializable.h
   ${BASE}/yson_stream.h
   ${BASE}/yson_string.h
   ${BASE}/yson_writer.h
