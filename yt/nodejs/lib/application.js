@@ -431,26 +431,33 @@ YtCommand.prototype._checkPermissions = function(cb) {
 
         // Collect all paths mentioned within a request.
         // This is an approximation, but a decent one.
-        if (this.parameters.path) {
+        try {
             paths.push(this.parameters.path);
+        } catch(err) {
         }
+
         try {
             paths.push(this.parameters.spec.input_table_path);
+        } catch(err) {
         }
+
         try {
             for (var path in this.parameters.spec.input_table_paths) {
                 paths.push(path);
             }
-        } catch() {
+        } catch(err) {
         }
+
         try {
             paths.push(this.parameters.spec.output_table_path);
+        } catch(err) {
         }
+
         try {
             for (var path in this.parameters.spec.output_table_paths) {
                 paths.push(path);
             }
-        } catch() {
+        } catch(err) {
         }
 
         for (var path in paths) {
