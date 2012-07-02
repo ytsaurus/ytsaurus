@@ -21,6 +21,7 @@ TEST(TYamrWriterTest, Simple)
         writer.OnKeyedItem("v");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
+
     writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("k");
@@ -51,6 +52,7 @@ TEST(TYamrWriterTest, SimpleWithSubkey)
         writer.OnKeyedItem("v");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
+
     writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("k");
@@ -79,6 +81,7 @@ TEST(TYamrWriterTest, NonStringValues)
         writer.OnKeyedItem("v");
         writer.OnIntegerScalar(42);
     writer.OnEndMap();
+
     writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("k");
@@ -107,6 +110,7 @@ TEST(TYamrWriterTest, SkippedValues)
         writer.OnKeyedItem("v");
         writer.OnStringScalar("bar");
     writer.OnEndMap();
+
     writer.OnListItem();
     writer.OnBeginMap();
     writer.OnEndMap();
@@ -136,6 +140,7 @@ TEST(TYamrWriterTest, Lenval)
         writer.OnKeyedItem("v");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
+
     writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("k");
@@ -159,8 +164,6 @@ TEST(TYamrWriterTest, Lenval)
 
     EXPECT_EQ(output, outputStream.Str());
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
             

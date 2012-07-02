@@ -27,6 +27,7 @@ TEST(TYamrParserTest, Simple)
         EXPECT_CALL(Mock, OnKeyedItem("v"));
         EXPECT_CALL(Mock, OnStringScalar("value1"));
     EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("k"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
@@ -40,6 +41,42 @@ TEST(TYamrParserTest, Simple)
 
     ParseYamr(input, &Mock);
 }
+
+TEST(TYamrParserTest, SimpleWithSubkey)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnStringScalar("key1"));
+        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnStringScalar("subkey1"));
+        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnStringScalar("value1"));
+    EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnStringScalar("key2"));
+        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnStringScalar("subkey2"));
+        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnStringScalar("value2"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input =
+        "key1\tsubkey1\tvalue1\n"
+        "key2\tsubkey2\tvalue2\n";
+
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+
+    ParseYamr(input, &Mock, config);
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
             
