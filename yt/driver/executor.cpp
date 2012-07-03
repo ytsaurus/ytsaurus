@@ -241,7 +241,7 @@ TInputStream* TExecutor::GetInputStream()
 
 TTransactedExecutor::TTransactedExecutor(bool required)
     : TxArg("", "tx", "set transaction id", required, "", "GUID")
-    , PingAncestorsArg("", "ping_ancestors", "ping ancestors of while executing this command", false)
+    , PingAncestorsArg("", "ping_ancestors", "ping ancestor transactions of while executing this command", false)
 {
     CmdLine.add(TxArg);
     CmdLine.add(PingAncestorsArg);

@@ -31,8 +31,8 @@ public:
 
     //! Starts a new transaction.
     /*!
-     *  If #pingAncestors is True then transaction manager will renew lease
-     *  of all parents of this transaction
+     *  If #pingAncestors is True then the transaction manager will renew leases
+     *  of all ancestors of this transaction.
      *
      *  \note
      *  This call does not block.
@@ -47,8 +47,8 @@ public:
     /*!
      *  The manager will be renewning the lease of time transaction periodically.
      *
-     *  If #pingAncestors is True then transaction manager will renew lease
-     *  of all parents of this transaction
+     *  If #pingAncestors is True then the transaction manager will renew leases
+     *  of all ancestors of this transaction.
      *  
      *  If #takeOwnership is True then the transaction object will be aborted
      *  (if not committed) at the end of its lifetime.

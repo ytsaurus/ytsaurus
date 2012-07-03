@@ -176,7 +176,9 @@ private:
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        context->SetRequestInfo("");
+        bool renewAncestors = request->renew_ancestors();
+        context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
+
         Owner->RenewLease(transaction, request->renew_ancestors());
         context->Reply();
     }
