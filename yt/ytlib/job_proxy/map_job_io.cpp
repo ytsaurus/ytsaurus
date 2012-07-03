@@ -40,7 +40,7 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
 {
     YASSERT(index < GetInputCount());
 
-    auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
+    auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
 
     std::vector<NTableClient::NProto::TInputChunk> chunks(
         JobSpec.input_specs(0).chunks().begin(),

@@ -146,14 +146,14 @@ void TBootstrap::Run()
     ControlQueue = New<TActionQueue>("Control");
     StateQueue = New<TMultiActionQueue>(EStateThreadQueue::GetDomainSize(), "MetaState");
 
-    auto busServer = CreateTcpBusServer(~New<TTcpBusServerConfig>(Config->MetaState->Cell->RpcPort));
+    auto busServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->MetaState->Cell->RpcPort));
 
-    auto rpcServer = CreateRpcServer(~busServer);
+    auto rpcServer = CreateRpcServer(busServer);
 
     MetaStateManager = CreatePersistentStateManager(
         ~Config->MetaState,
-        ~GetControlInvoker(),
-        ~GetStateInvoker(),
+        GetControlInvoker(),
+        GetStateInvoker(),
         ~MetaState,
         ~rpcServer);
 
@@ -167,14 +167,14 @@ void TBootstrap::Run()
     TransactionManager->Init();
 
     auto objectService = New<TObjectService>(this);
-    rpcServer->RegisterService(~objectService);
+    rpcServer->RegisterService(objectService);
 
     HolderAuthority = CreateHolderAuthority(this);
 
     ChunkManager = New<TChunkManager>(Config->Chunks, this);
 
     auto chunkService = New<TChunkService>(this);
-    rpcServer->RegisterService(~chunkService);
+    rpcServer->RegisterService(chunkService);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -194,32 +194,32 @@ void TBootstrap::Run()
         orchidRoot,
         "/profiling",
         CreateVirtualNode(
-            ~TProfilingManager::Get()->GetRoot()
+            TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
     SetNodeByYPath(
         orchidRoot,
         "/config",
         CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
-    SyncYPathSet(~orchidRoot, "/@service_name", TYsonString("master"));
+    SyncYPathSet(orchidRoot, "/@service_name", TYsonString("master"));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
         ~GetControlInvoker());
-    rpcServer->RegisterService(~orchidRpcService);
+    rpcServer->RegisterService(orchidRpcService);
 
-    CypressManager->RegisterHandler(~CreateChunkMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateLostChunkMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateOverreplicatedChunkMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateUnderreplicatedChunkMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateChunkListMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateTransactionMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateNodeMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateLockMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateOrchidTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateHolderTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateHolderMapTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateFileTypeHandler(this));
-    CypressManager->RegisterHandler(~CreateTableTypeHandler(this));
+    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateLostChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateOverreplicatedChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateUnderreplicatedChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateNodeMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateLockMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));
+    CypressManager->RegisterHandler(CreateHolderTypeHandler(this));
+    CypressManager->RegisterHandler(CreateHolderMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateFileTypeHandler(this));
+    CypressManager->RegisterHandler(CreateTableTypeHandler(this));
 
     MetaStateManager->Start();
 
@@ -230,7 +230,7 @@ void TBootstrap::Run()
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~GetControlInvoker())));
+        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
     httpServer->Register(
         "/cypress",
         NMonitoring::GetYPathHttpHandler(CypressManager->GetRootServiceProducer()));

@@ -686,7 +686,7 @@ private:
             return;
         }
 
-        TChunkHolderServiceProxy proxy(~channel);
+        TChunkHolderServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
         auto request = proxy.GetChunkMeta();

@@ -371,7 +371,7 @@ TRecovery::TAsyncResult TLeaderRecovery::Run()
             MakeStrong(this),
             version,
             maxSnapshotId)
-        .AsyncVia(~EpochStateInvoker)
+        .AsyncVia(EpochStateInvoker)
         .Run();
 }
 
@@ -421,7 +421,7 @@ TRecovery::TAsyncResult TFollowerRecovery::Run()
         &TRecovery::RecoverToState,
         MakeStrong(this),
         TargetVersion)
-    .AsyncVia(~EpochStateInvoker)
+    .AsyncVia(EpochStateInvoker)
     .Run()
     .Apply(BIND(
         &TFollowerRecovery::OnSyncReached,
@@ -446,7 +446,7 @@ TRecovery::TAsyncResult TFollowerRecovery::OnSyncReached(EResult result)
     LOG_INFO("Sync reached");
 
     return BIND(&TFollowerRecovery::CapturePostponedChanges, MakeStrong(this))
-           .AsyncVia(~EpochControlInvoker)
+           .AsyncVia(EpochControlInvoker)
            .Run();
 }
 
@@ -468,7 +468,7 @@ TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedChanges()
                &TFollowerRecovery::ApplyPostponedChanges,
                MakeStrong(this),
                Passed(MoveRV(changes)))
-           .AsyncVia(~EpochStateInvoker)
+           .AsyncVia(EpochStateInvoker)
            .Run();
 }
 
@@ -508,7 +508,7 @@ TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedChanges(
     return BIND(
                &TFollowerRecovery::CapturePostponedChanges,
                MakeStrong(this))
-           .AsyncVia(~EpochControlInvoker)
+           .AsyncVia(EpochControlInvoker)
            .Run();
 }
 

@@ -50,9 +50,9 @@ void TFileReaderBase::Open(
     YASSERT(!IsOpen);
 
     auto remoteReader = CreateRemoteReader(
-        ~Config->RemoteReader,
-        ~BlockCache,
-        ~MasterChannel,
+        Config->RemoteReader,
+        BlockCache,
+        MasterChannel,
         chunkId,
         nodeAddresses);
 

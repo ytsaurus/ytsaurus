@@ -59,7 +59,7 @@ void TServiceContextBase::Reply(const TError& error)
         responseMessage = CreateErrorResponseMessage(header);
     }
 
-    DoReply(error, ~responseMessage);
+    DoReply(error, responseMessage);
 }
 
 bool TServiceContextBase::IsOneWay() const

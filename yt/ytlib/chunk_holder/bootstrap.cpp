@@ -91,12 +91,12 @@ void TBootstrap::Init()
     SetNodeByYPath(
         NodeBootstrap->GetOrchidRoot(),
         "/stored_chunks",
-        CreateVirtualNode(~CreateStoredChunkMapService(~ChunkStore)));
+        CreateVirtualNode(CreateStoredChunkMapService(~ChunkStore)));
     SetNodeByYPath(
         NodeBootstrap->GetOrchidRoot(),
         "/cached_chunks",
-        CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
-    SyncYPathSet(~NodeBootstrap->GetOrchidRoot(), "/@service_name", NYTree::TYsonString("node"));
+        CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
+    SyncYPathSet(NodeBootstrap->GetOrchidRoot(), "/@service_name", NYTree::TYsonString("node"));
 
     MasterConnector->Start();
 }

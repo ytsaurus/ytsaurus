@@ -36,22 +36,22 @@ public:
 
     void Set(const TYPath& path, const Stroka& value)
     {
-        SyncYPathSet(~RootService, path, TYsonString(value));
+        SyncYPathSet(RootService, path, TYsonString(value));
     }
 
     void Remove(const TYPath& path)
     {
-        SyncYPathRemove(~RootService, path);
+        SyncYPathRemove(RootService, path);
     }
 
     TYsonString Get(const TYPath& path)
     {
-        return TextifyYson(SyncYPathGet(~RootService, path));
+        return TextifyYson(SyncYPathGet(RootService, path));
     }
 
     std::vector<Stroka> List(const TYPath& path)
     {
-        return SyncYPathList(~RootService, path);
+        return SyncYPathList(RootService, path);
     }
 
     void Check(const TYPath& path, const Stroka& expected)

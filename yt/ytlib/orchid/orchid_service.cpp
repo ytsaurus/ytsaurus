@@ -41,7 +41,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
     UNUSED(response);
 
     auto requestMessage = CreateMessageFromParts(request->Attachments());
-    auto requestHeader = GetRequestHeader(~requestMessage);
+    auto requestHeader = GetRequestHeader(requestMessage);
 
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
@@ -50,9 +50,9 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         ~path,
         ~verb);
 
-    ExecuteVerb(~RootService, ~requestMessage)
+    ExecuteVerb(RootService, requestMessage)
         .Subscribe(BIND([=] (IMessagePtr responseMessage) {
-            auto responseHeader = GetResponseHeader(~responseMessage);
+            auto responseHeader = GetResponseHeader(responseMessage);
             auto error = TError::FromProto(responseHeader.error());
 
             context->SetRequestInfo("Error: %s", ~error.ToString());

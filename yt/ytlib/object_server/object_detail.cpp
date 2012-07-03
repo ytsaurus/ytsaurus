@@ -150,7 +150,7 @@ ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
 TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 {
     return new TUserAttributeDictionary(
-        ~Bootstrap->GetObjectManager(),
+        Bootstrap->GetObjectManager(),
         Id);
 }
 

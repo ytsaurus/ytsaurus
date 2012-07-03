@@ -190,13 +190,13 @@ public:
     {
         auto busConfig = New<NBus::TTcpBusServerConfig>();
         busConfig->Port = 2000;
-        auto busServer = NBus::CreateTcpBusServer(~busConfig);
+        auto busServer = NBus::CreateTcpBusServer(busConfig);
 
-        RpcServer = CreateRpcServer(~busServer);
+        RpcServer = CreateRpcServer(busServer);
 
         Queue = New<TActionQueue>();
 
-        RpcServer->RegisterService(~New<TMyService>(Queue->GetInvoker(), &ReadyEvent));
+        RpcServer->RegisterService(New<TMyService>(Queue->GetInvoker(), &ReadyEvent));
         RpcServer->Start();
     }
 

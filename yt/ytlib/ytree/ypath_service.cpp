@@ -51,7 +51,7 @@ private:
     void ExecuteRequest(NRpc::IServiceContextPtr context)
     {
         try {
-            ExecuteVerb(UnderlyingService, ~context);
+            ExecuteVerb(UnderlyingService, context);
         } catch (const std::exception& ex) {
             context->Reply(TError(ex.what()));
         }
@@ -88,7 +88,7 @@ private:
     virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         auto service = Producer.Run();
-        ExecuteVerb(~service, context);
+        ExecuteVerb(service, context);
     }
 };
 

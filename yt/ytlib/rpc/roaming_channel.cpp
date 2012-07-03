@@ -166,7 +166,7 @@ private:
             auto responseHandlerWrapper = New<TResponseHandler>(
                 ~responseHandler,
                 BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
-            channel->Send(~request, ~responseHandlerWrapper, timeout);
+            channel->Send(request, responseHandlerWrapper, timeout);
         }
     }
 

@@ -230,7 +230,7 @@ ExecuteVerb(
 
     auto asyncResponseMessage = NewPromise<IMessagePtr>();
     auto context = CreateYPathContext(
-        ~updatedRequestMessage,
+        updatedRequestMessage,
         suffixPath,
         verb,
         suffixService->GetLoggingCategory(),

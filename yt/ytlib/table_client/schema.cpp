@@ -249,7 +249,7 @@ TChannel TChannel::CreateEmpty()
 
 TChannel TChannel::FromYson(const NYTree::TYsonString& yson)
 {
-    return FromNode(~ConvertToNode(yson));
+    return FromNode(ConvertToNode(yson));
 }
 
 TChannel TChannel::FromNode(INodePtr node)

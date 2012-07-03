@@ -15,7 +15,7 @@ TMetaStateServiceBase::TMetaStateServiceBase(
     const Stroka& serviceName,
     const Stroka& loggingCategory)
     : NRpc::TServiceBase(
-        ~bootstrap->GetStateInvoker(),
+        bootstrap->GetStateInvoker(),
         serviceName,
         loggingCategory)
     , Bootstrap(bootstrap)

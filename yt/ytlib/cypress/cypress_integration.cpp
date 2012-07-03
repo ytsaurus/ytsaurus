@@ -57,7 +57,7 @@ INodeTypeHandlerPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::NodeMap,
-        ~New<TVirtualNodeMap>(bootstrap));
+        New<TVirtualNodeMap>(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +106,7 @@ INodeTypeHandlerPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::LockMap,
-        ~New<TVirtualLockMap>(bootstrap));
+        New<TVirtualLockMap>(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

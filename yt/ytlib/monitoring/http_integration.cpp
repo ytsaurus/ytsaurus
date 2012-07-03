@@ -101,7 +101,7 @@ TServer::TAsyncHandler GetYPathHttpHandler(IYPathServicePtr service)
 
 TServer::TAsyncHandler GetYPathHttpHandler(TYPathServiceProducer producer)
 {
-    return GetYPathHttpHandler(~IYPathService::FromProducer(producer));
+    return GetYPathHttpHandler(IYPathService::FromProducer(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

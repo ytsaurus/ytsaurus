@@ -355,7 +355,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
                 &TLeaderCommitter::OnBatchTimeout,
                 MakeStrong(this),
                 CurrentBatch)
-            .Via(~EpochControlInvoker),
+            .Via(EpochControlInvoker),
             Config->MaxBatchDelay);
     }
 

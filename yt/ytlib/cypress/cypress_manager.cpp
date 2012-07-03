@@ -197,8 +197,8 @@ private:
 
 TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : TMetaStatePart(
-        ~bootstrap->GetMetaStateManager(),
-        ~bootstrap->GetMetaState())
+        bootstrap->GetMetaStateManager(),
+        bootstrap->GetMetaState())
     , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType)
@@ -216,7 +216,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
         MakeStrong(this)));
 
     auto objectManager = bootstrap->GetObjectManager();
-    objectManager->RegisterHandler(~New<TLockTypeHandler>(this));
+    objectManager->RegisterHandler(New<TLockTypeHandler>(this));
 
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TIntegerNodeTypeHandler>(Bootstrap));
@@ -256,7 +256,7 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
     YASSERT(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
 
-    Bootstrap->GetObjectManager()->RegisterHandler(~New<TNodeTypeHandler>(this, type));
+    Bootstrap->GetObjectManager()->RegisterHandler(New<TNodeTypeHandler>(this, type));
 }
 
 INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)

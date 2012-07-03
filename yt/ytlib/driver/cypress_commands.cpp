@@ -79,7 +79,7 @@ void TListCommand::DoExecute()
         Request->Path,
         GetTransactionId(false)));
 
-    req->Attributes().MergeFrom(~Request->GetOptions());
+    req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
     if (rsp->IsOK()) {

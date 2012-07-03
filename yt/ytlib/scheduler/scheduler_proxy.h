@@ -20,7 +20,7 @@ public:
     }
 
     TSchedulerServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(~channel, GetServiceName())
+        : TProxyBase(channel, GetServiceName())
     { }
 
     // From clients to scheduler.

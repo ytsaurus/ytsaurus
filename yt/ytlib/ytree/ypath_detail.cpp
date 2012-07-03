@@ -853,7 +853,7 @@ public:
             ythrow yexception() << Sprintf("YPath must start with '/'");
         }
 
-        return TResolveResult::There(~UnderlyingService, TYPath(tokenizer.GetCurrentSuffix()));
+        return TResolveResult::There(UnderlyingService, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
     virtual Stroka GetLoggingCategory() const

@@ -259,14 +259,14 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
             NCypress::FromObjectId(ParentChunkList));
         *req->add_children_ids() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
-        batchReq->AddRequest(~req);
+        batchReq->AddRequest(req);
     }
     {
         auto req = NTransactionServer::TTransactionYPathProxy::ReleaseObject(
             NCypress::FromObjectId(TransactionId));
         *req->mutable_object_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
-        batchReq->AddRequest(~req);
+        batchReq->AddRequest(req);
     }
 
     {

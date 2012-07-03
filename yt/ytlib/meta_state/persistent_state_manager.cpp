@@ -142,7 +142,7 @@ public:
             ~New<TElectionCallbacks>(this));
 
         server->RegisterService(this);
-        server->RegisterService(~ElectionManager);
+        server->RegisterService(ElectionManager);
     }
 
     virtual void Start()
@@ -644,7 +644,7 @@ public:
 
                     FollowerRecovery->Run().Subscribe(
                         BIND(&TThis::OnControlFollowerRecoveryFinished, MakeStrong(this))
-                        .Via(~EpochControlInvoker));
+                        .Via(EpochControlInvoker));
                 }
                 break;
 
@@ -902,7 +902,7 @@ public:
             .Run()
             .Subscribe(
                 BIND(&TThis::OnStateLeaderRecoveryFinished, MakeStrong(this))
-                .Via(~EpochStateInvoker));
+                .Via(EpochStateInvoker));
     }
 
     void OnStateLeaderRecoveryFinished(TRecovery::EResult result)

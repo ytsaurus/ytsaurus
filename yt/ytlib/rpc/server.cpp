@@ -141,7 +141,7 @@ private:
             return;
         }
 
-        auto header = GetRequestHeader(~message);
+        auto header = GetRequestHeader(message);
         auto requestId = TRequestId::FromProto(header.request_id());
         Stroka path = header.path();
         Stroka verb = header.verb();

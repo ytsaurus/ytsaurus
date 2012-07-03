@@ -141,10 +141,10 @@ public:
 
     TWriteBackService(
         const Stroka& fileName,
-        INode* root,
+        INodePtr root,
         IYPathServicePtr underlyingService)
         : FileName(fileName)
-        , Root(root)
+        , Root(MoveRV(root))
         , UnderlyingService(underlyingService)
     { }
 
@@ -155,7 +155,7 @@ public:
             return TResolveResult::Here(result.GetPath());
         } else {
             return TResolveResult::There(
-                New<TWriteBackService>(FileName, ~Root, result.GetService()),
+                New<TWriteBackService>(FileName, Root, result.GetService()),
                 result.GetPath());
         }
     }
@@ -168,7 +168,7 @@ public:
                 context,
                 BIND(&TWriteBackService::SaveFile, MakeStrong(this)))
             : context;
-        UnderlyingService->Invoke(~wrappedContext);
+        UnderlyingService->Invoke(wrappedContext);
     }
 
     virtual Stroka GetLoggingCategory() const
@@ -216,7 +216,7 @@ public:
 
         auto root = LoadFile();
         auto service = New<TWriteBackService>(FileName, ~root, ~root);
-        return TResolveResult::There(~service, path);
+        return TResolveResult::There(service, path);
     }
 
     virtual void Invoke(NRpc::IServiceContextPtr context)
