@@ -15,7 +15,7 @@ function tc() {
 
 function usage() {
     echo "$0: effortlessly build yt source tree on TeamCity build farm"
-    echo "$0: <checkout-directory> <working-directory> <build-type> <with-package> <with-deploy>"
+    echo "$0: <checkout-directory> <working-directory> <build-branch> <build-type> <with-package> <with-deploy>"
     echo ""
     echo "<build-type> have to be compliant with CMAKE_BUILD_TYPE"
     echo "<with-package> have to be either YES or NO"
@@ -44,13 +44,14 @@ export LC_CTYPE=C
 [[ -z "$BUILD_NUMBER" ]] && usage && exit 2
 [[ -z "$BUILD_VCS_NUMBER" ]] && usage && exit 2
 
-[[ -z "$1" || -z "$2" || -z "$3" || -z "$4" || -z "$5" ]] && usage && exit 3
+[[ -z "$1" || -z "$2" || -z "$3" || -z "$4" || -z "$5" || -z "$6" ]] && usage && exit 3
 
 CHECKOUT_DIRECTORY=$1
 WORKING_DIRECTORY=$2
-BUILD_TYPE=$3
-WITH_PACKAGE=$4
-WITH_DEPLOY=$5
+BUILD_BRANCH=$3
+BUILD_TYPE=$4
+WITH_PACKAGE=$5
+WITH_DEPLOY=$6
 
 if [[ ( $WITH_PACKAGE != "YES" ) && ( $WITH_PACKAGE != "NO" ) ]]; then
     shout "WITH_PACKAGE have to be either YES or NO."
@@ -102,6 +103,7 @@ cmake \
     -DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON \
     -DYT_BUILD_ENABLE_TESTS:BOOL=ON \
     -DYT_BUILD_ENABLE_NODEJS:BOOL=ON \
+    -DYT_BUILD_BRANCH=$BUILD_BRANCH \
     -DYT_BUILD_NUMBER=$BUILD_NUMBER \
     -DYT_BUILD_TAG=$(echo $BUILD_VCS_NUMBER | cut -c 1-7) \
     $CHECKOUT_DIRECTORY
