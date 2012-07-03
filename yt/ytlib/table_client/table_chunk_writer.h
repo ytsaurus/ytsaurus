@@ -34,6 +34,7 @@ public:
 
     TAsyncError AsyncOpen();
 
+    bool TryWriteRow(TRow& row);
     bool TryWriteRow(TRow& row, const TNonOwningKey& key);
 
     TAsyncError AsyncClose();

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
+#include <ytlib/misc/codec.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -105,10 +106,12 @@ struct TRemoteWriterConfig
 {
     //! Maximum window size (in bytes).
     int WindowSize;
-        
+
     //! Maximum group size (in bytes).
     int GroupSize;
-        
+
+    ECodecId CodecId;
+
     //! RPC requests timeout.
     /*!
      *  This timeout is especially useful for PutBlocks calls to ensure that
@@ -134,6 +137,8 @@ struct TRemoteWriterConfig
             .Default(TDuration::Seconds(30));
         Register("session_ping_interval", SessionPingInterval)
             .Default(TDuration::Seconds(10));
+        Register("codec_id", CodecId)
+            .Default(ECodecId::None);
     }
 
     virtual void DoValidate() const
