@@ -14,7 +14,7 @@ patch=$(get_current_patch)
 if [[ -z "$1" ]]; then
     if $(get_current_branch | grep -q "^hotfix/"); then
         version="${major}.${minor}.${patch}"
-        git flow hotfix finish -s -m 'Happily brought to you by ./make-release.sh' ${version}
+        git flow hotfix finish -F -s -m 'Happily brought to you by ./make-release.sh' ${version}
         exit
     fi
 

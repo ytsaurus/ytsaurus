@@ -39,7 +39,7 @@ esac
 version="${major}.${minor}.${patch}"
 echo "*** New version is '${version}'"
 
-git flow release start ${version}
+git flow release start -F ${version}
 
 update_cmakelists $major $minor $patch
 update_debian_changelog $major $minor $patch
@@ -48,4 +48,4 @@ git add 'CMakeLists.txt'
 git add 'debian/changelog'
 git commit -m "Version bump; release ${version}"
 
-git flow release finish -s -m 'Happily brought to you by ./make-release.sh' ${version}
+git flow release finish -F -s -m 'Happily brought to you by ./make-release.sh' ${version}
