@@ -14,7 +14,6 @@ using namespace NYTree;
 TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
     : Writer(writer)
     , Depth(0)
-    , InsideRow(false)
     , ValueWriter(&RowBuffer)
 { }
 
@@ -119,63 +118,52 @@ void TTableConsumer::OnEndMap()
     YASSERT(Depth > 0);
 
     --Depth;
-    if (Depth == 0) {
-        YASSERT(Offsets.size() % 2 == 0);
 
-        TRow row;
-        row.reserve(Offsets.size() / 2);
-
-        Offsets.push_back();
-        int index = Offsets.size();
-        int begin = RowBuffer.GetSize();
-        while (index > 0) {
-            int end = begin;
-            begin = Offsets[--index];
-            TStringBuf value(RowBuffer.Begin() + begin, end - begin);
-
-            end = begin;
-            begin = Offsets[--index];
-            TStringBuf name(RowBuffer.Begin() + begin, end - begin);
-
-            if (!UsedColumns.insert(name).second) {
-                if (Config->Strict) {
-                    ythrow yexception() << Sprintf(
-                        "Duplicate column name %s (RowIndex: %" PRId64 ")", 
-                        ~ToString(name).Quote(),
-                        Writer->GetRowCount());
-                } else {
-                    // Ignore duplicate columns.
-                    continue;
-                }
-            }
-
-            auto it = KeyColumnToIndex.find(name);
-            if (it != KeyColumnToIndex.end()) {
-                key.SetKeyPart(it->second, value, Lexer);
-            }
-
-            row.push_back(std::make_pair(name, value));
-        }
-
-        Writer->WriteRow(row);
-
-        Offsets.clear();
-        RowBuffer.Clear();
-        InsideRow = false;
+    if (Depth > 0) {
+        ValueWriter.OnEndMap();
+        return;
     }
+
+    YASSERT(Offsets.size() % 2 == 0);
+
+    TRow row;
+    row.reserve(Offsets.size() / 2);
+
+    int index = Offsets.size();
+    int begin = RowBuffer.GetSize();
+    while (index > 0) {
+        int end = begin;
+        begin = Offsets[--index];
+        TStringBuf value(RowBuffer.Begin() + begin, end - begin);
+
+        end = begin;
+        begin = Offsets[--index];
+        TStringBuf name(RowBuffer.Begin() + begin, end - begin);
+
+        row.push_back(std::make_pair(name, value));
+    }
+
+    Writer->WriteRow(row);
+
+    Offsets.clear();
+    RowBuffer.Clear();
 }
 
 void TTableConsumer::OnEndList()
 {
-    YUNREACHABLE();
+    --Depth;
+    YASSERT(Depth > 0);
+    ValueWriter.OnEndList();
 }
 
 void TTableConsumer::OnEndAttributes()
 {
-    YUNREACHABLE();
+    --Depth;
+    YASSERT(Depth > 0);
+    ValueWriter.OnEndList();
 }
 
-void TTableConsumer::OnRaw( const TStringBuf& yson, EYsonType type )
+void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 {
     YUNREACHABLE();
 }

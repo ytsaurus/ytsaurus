@@ -4,7 +4,6 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/misc/codec.h>
 #include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -16,12 +15,11 @@ struct TChunkWriterConfig
     : public TYsonSerializable
 {
     i64 BlockSize;
-    ECodecId CodecId;
 
     //! Fraction of rows data size samples are allowed to occupy.
     double SampleRate;
 
-    //! Fraction of rows data size samples are allowed to occupy.
+    //! Fraction of rows data size chunk index allowed to occupy.
     double IndexRate;
 
     double EstimatedCompressionRatio;
@@ -32,8 +30,6 @@ struct TChunkWriterConfig
         Register("block_size", BlockSize)
             .GreaterThan(1024)
             .Default(1024 * 1024);
-        Register("codec_id", CodecId)
-            .Default(ECodecId::Snappy);
         Register("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThan(0.001)
@@ -82,6 +78,9 @@ struct TChunkSequenceWriterConfig
             .DefaultNew();
         Register("remote_writer", RemoteWriter)
             .DefaultNew();
+
+        // Default codec for table data.
+        RemoteWriter->CodecId = ECodecId::Snappy;
     }
 
     virtual void DoValidate() const

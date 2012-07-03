@@ -15,6 +15,9 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  For performance reasons we don't use ForwardingConsumer.
+ */
 class TTableConsumer
     : public NYTree::IYsonConsumer
 {
@@ -32,16 +35,13 @@ private:
     void OnKeyedItem(const TStringBuf& name);
     void OnEndMap();
 
-    // XXX(psushin): We currently ignore user attributes.
     void OnBeginAttributes();
-
-    void OnValueFinished();
 
     void ThrowMapExpected();
 
     void OnEndList();
     void OnEndAttributes();
-    void OnRaw(const TStringBuf& yson, EYsonType type);
+    void OnRaw(const TStringBuf& yson, NYTree::EYsonType type);
 
     ISyncWriterPtr Writer;
 

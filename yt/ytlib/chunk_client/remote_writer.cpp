@@ -11,6 +11,8 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/misc/codec.h>
+
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <util/generic/yexception.h>
@@ -42,6 +44,8 @@ public:
     void Open();
 
     bool TryWriteBlock(const TSharedRef& block);
+    bool TryWriteBlock(const TSharedRef& block);
+
     TAsyncError GetReadyEvent();
 
     TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
@@ -49,6 +53,10 @@ public:
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
     const TChunkId& GetChunkId() const;
+
+    double GetCompressionRatio() const;
+    i64 GetUncompressedSize() const;
+    i64 GetCompressedSize() const;
 
     Stroka GetDebugInfo();
 
@@ -58,6 +66,8 @@ private:
     TRemoteWriterConfigPtr Config;
     TChunkId ChunkId;
     std::vector<Stroka> Addresses;
+
+    ICodec* Codec;
 
     TAsyncStreamState State;
 
