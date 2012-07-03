@@ -83,7 +83,7 @@ public:
         auto now = TInstant::Now();
         if (now < Deadline) {
             Channel->GetUnderlyingChannel()->Send(
-                ~Request,
+                Request,
                 this,
                 Deadline - now);
         } else {

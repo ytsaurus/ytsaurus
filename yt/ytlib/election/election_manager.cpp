@@ -28,7 +28,7 @@ public:
 
     TFollowerPinger(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
-        , EpochInvoker(~electionManager->ControlEpochInvoker)
+        , EpochInvoker(electionManager->ControlEpochInvoker)
         , Awaiter(New<TParallelAwaiter>(~EpochInvoker))
     { }
 
@@ -174,7 +174,7 @@ public:
 
     explicit TVotingRound(TElectionManager::TPtr electionManager)
         : ElectionManager(electionManager)
-        , EpochInvoker(~electionManager->ControlEpochInvoker)
+        , EpochInvoker(electionManager->ControlEpochInvoker)
         , Awaiter(New<TParallelAwaiter>(~EpochInvoker))
     { }
 
@@ -569,7 +569,7 @@ void TElectionManager::StartVoteForSelf()
     YASSERT(!ControlEpochContext);
     YASSERT(!ControlEpochInvoker);
     ControlEpochContext = New<TCancelableContext>();
-    ControlEpochInvoker = ControlEpochContext->CreateInvoker(~ControlInvoker);
+    ControlEpochInvoker = ControlEpochContext->CreateInvoker(ControlInvoker);
 
     auto priority = ElectionCallbacks->GetPriority();
 
@@ -603,7 +603,7 @@ void TElectionManager::StartFollowing(
     // XXX(sandello): Capture policy here?
     PingTimeoutCookie = TDelayedInvoker::Submit(
         BIND(&TElectionManager::OnLeaderPingTimeout, MakeStrong(this))
-        .Via(~ControlEpochInvoker),
+        .Via(ControlEpochInvoker),
         Config->ReadyToFollowTimeout);
 
     LOG_INFO("Starting following leader %d (Epoch: %s)",
@@ -756,7 +756,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
     // XXX(sandello): Capture policy here?
     PingTimeoutCookie = TDelayedInvoker::Submit(
         BIND(&TElectionManager::OnLeaderPingTimeout, MakeStrong(this))
-        .Via(~ControlEpochInvoker),
+        .Via(ControlEpochInvoker),
         Config->FollowerPingTimeout);
 
     context->Reply();

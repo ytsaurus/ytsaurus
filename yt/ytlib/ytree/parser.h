@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "public.h"
 #include <ytlib/misc/common.h>
 
 namespace NYT {
@@ -18,6 +19,11 @@ struct IParser
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void Parse(TInputStream* input, IYsonConsumer* consumer, IParser* parser);
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYTree
 } // namespace NYT

@@ -55,10 +55,10 @@ void TUploadCommand::DoExecute()
     
     TBlob buffer(config->BlockSize);
     while (true) {
-        size_t bytesRead = input->Read(buffer.begin(), buffer.size());
+        size_t bytesRead = input->Read(&*buffer.begin(), buffer.size());
         if (bytesRead == 0)
             break;
-        TRef block(buffer.begin(), bytesRead);
+        TRef block(&*buffer.begin(), bytesRead);
         writer->Write(block);
     }
 

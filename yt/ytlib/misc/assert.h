@@ -10,6 +10,7 @@ namespace NYT {
 
 //! Evaluates the expression #expr.
 //! In debug mode also throws an error if #expr is false.
+#ifndef __clang__
 #define YVERIFY(expr) \
     do { \
         if (UNLIKELY( !(expr) )) { \
@@ -20,6 +21,14 @@ namespace NYT {
             } \
         } \
     } while (0)
+#else
+#define YVERIFY(expr) \
+    do { \
+        if (UNLIKELY( !(expr) )) { \
+            assert(0&&(expr)); \
+        } \
+    } while (0)
+#endif
 
 // TODO: Add extended diagnostics why the process was terminated.
 

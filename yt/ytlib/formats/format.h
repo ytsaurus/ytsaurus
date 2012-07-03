@@ -25,6 +25,7 @@ DECLARE_ENUM(EFormatType,
     (Yson)
     (Json)
     (Dsv)
+    (Yamr)
 );
 
 class TFormat

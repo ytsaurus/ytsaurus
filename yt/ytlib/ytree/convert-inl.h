@@ -34,12 +34,11 @@ void Consume(const T& value, IYsonConsumer* consumer)
 template <class T>
 TYsonProducer ConvertToProducer(T&& value)
 {
-    EYsonType type = GetYsonType(type);
-    TYsonCallback callback = BIND(
-        [] (const T& value, IYsonConsumer* consumer) {
-            Consume(value, consumer);
-        },
-        ForwardRV<T>(value));
+    EYsonType type = GetYsonType(value);
+    TYsonCallback callback = BIND([] (const T& value, IYsonConsumer* consumer)
+    {
+        Consume(value, consumer);
+    }, ForwardRV<T>(value));
     return TYsonProducer(callback, type);
 }
 

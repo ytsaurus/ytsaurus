@@ -49,7 +49,7 @@ void TChunkStore::Start()
 
             FOREACH (const auto& descriptor, location->Scan()) {
                 auto chunk = New<TStoredChunk>(~location, descriptor);
-                RegisterChunk(~chunk);
+                RegisterChunk(chunk);
             }
         }
     } catch (const std::exception& ex) {
@@ -112,7 +112,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
             minCount = count;
         }
         if (count == minCount) {
-            candidates.push_back(~location);
+            candidates.push_back(location);
         }
     }
 

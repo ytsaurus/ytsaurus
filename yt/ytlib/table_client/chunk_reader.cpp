@@ -146,20 +146,20 @@ public:
 
         std::vector<int> tags;
         tags.reserve(10);
-        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>());
-        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
-        tags.push_back(GetProtoExtensionTag<NProto::TChannelsExt>());
+        tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>::Value);
+        tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TMiscExt>::Value);
+        tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
         HasRangeRequest =
             (StartLimit.has_key() && (StartLimit.key().parts_size() > 0)) ||
             (EndLimit.has_key() && (EndLimit.key().parts_size() > 0));
 
         if (HasRangeRequest) {
-            tags.push_back(GetProtoExtensionTag<NProto::TIndexExt>());
+            tags.push_back(TProtoExtensionTag<NProto::TIndexExt>::Value);
         }
 
         if (HasRangeRequest || chunkReader->Options.ReadKey) {
-            tags.push_back(GetProtoExtensionTag<NProto::TKeyColumnsExt>());
+            tags.push_back(TProtoExtensionTag<NProto::TKeyColumnsExt>::Value);
         }
 
         AsyncReader->AsyncGetChunkMeta(Null, &tags).Subscribe(
@@ -575,9 +575,9 @@ public:
 
         std::vector<int> tags;
         tags.reserve(10);
-        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>());
-        tags.push_back(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
-        tags.push_back(GetProtoExtensionTag<NProto::TChannelsExt>());
+        tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>::Value);
+        tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TMiscExt>::Value);
+        tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
         AsyncReader->AsyncGetChunkMeta(chunkReader->PartitionTag, &tags).Subscribe(BIND(
             &TPartitionInitializer::OnGotMeta, 

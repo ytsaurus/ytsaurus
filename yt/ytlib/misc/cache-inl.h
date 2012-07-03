@@ -186,6 +186,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         auto* item = it->second;
         item->ValueOrError.Set(value);
 
+        // TODO(sandello): Remove tilda from here when we migrate from STLport.
         YCHECK(ValueMap.insert(MakePair(key, ~value)).second);
     
         LruList.PushFront(item);

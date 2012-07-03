@@ -13,6 +13,9 @@ typedef TIntrusivePtr<TDsvFormatConfig> TDsvFormatConfigPtr;
 struct TJsonFormatConfig;
 typedef TIntrusivePtr<TJsonFormatConfig> TJsonFormatConfigPtr;
 
+struct TYamrFormatConfig;
+typedef TIntrusivePtr<TYamrFormatConfig> TYamrFormatConfigPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

@@ -119,26 +119,25 @@ void LoadProto(TInputStream* input, ::google::protobuf::Message& message);
 
 /*
  *  YT Extension Set is a collection of |(tag, data)| pairs.
- *  
+ *
  *  Here |tag| is a unique integer identifier and |data| is a protobuf-serialized
  *  embedded message.
- *  
+ *
  *  In contrast to native Protobuf Extensions, ours are deserialized on-demand.
  */
 
-//! Returns an integer tag for a given type.
+//! Used to obtain an integer tag for a given type.
 /*!
- *  Specialized versions of this function are generated with |DECLARE_PROTO_EXTENSION|.
+ *  Specialized versions of this traits are generated with |DECLARE_PROTO_EXTENSION|.
  */
 template <class T>
-i32 GetProtoExtensionTag();
+struct TProtoExtensionTag;
 
 #define DECLARE_PROTO_EXTENSION(type, tag) \
     template <> \
-    inline i32 GetProtoExtensionTag<type>() \
-    { \
-        return tag; \
-    }
+    struct TProtoExtensionTag<type> \
+        : NMpl::TIntegralConstant<i32, tag> \
+    { };
 
 //! Finds and deserializes an extension of the given type. Fails if no matching
 //! extension is found.

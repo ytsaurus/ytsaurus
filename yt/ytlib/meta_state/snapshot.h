@@ -22,6 +22,7 @@ public:
         const Stroka& fileName,
         i32 snapshotId,
         bool enableCompression);
+    ~TSnapshotReader();
 
     void Open();
 
@@ -54,6 +55,7 @@ public:
         const Stroka& fileName,
         i32 snapshotId,
         bool enableCompression);
+    ~TSnapshotWriter();
 
     void Open(i32 prevRecordCount, const TEpoch& epoch);
 

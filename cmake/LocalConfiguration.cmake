@@ -3,8 +3,8 @@
 #   - ENV[CXX]
 #   - ENV[CFLAGS]
 #   - ENV[CXXFLAGS]
-#   - USER_CMAKE_C_FLAGS
-#   - USER_CMAKE_CXX_FLAGS
+#   - CUSTOM_CMAKE_C_FLAGS
+#   - CUSTOM_CMAKE_CXX_FLAGS
 #   - YT_BUILD_ENABLE_EXPERIMENTS
 #   - YT_BUILD_ENABLE_TESTS
 #   - YT_BUILD_WITH_STLPORT
@@ -51,6 +51,13 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   endif()
 endif()
 
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  # XXX(sandello): It's a temporary solution; it works because Clang driver
+  # is compatible to GCC.
+  set( CMAKE_COMPILER_IS_GNUCXX TRUE )
+  set( CMAKE_COMPILER_IS_CLANG TRUE )
+endif()
+
 ################################################################################
 # Configure compilation flags.
 
@@ -66,7 +73,37 @@ set( CUSTOM_CMAKE_CXX_FLAGS
   CACHE STRING "User-defined C++ compiler flags")
 
 # Now configure compiler options for g++.
-if (CMAKE_COMPILER_IS_GNUCXX)
+if (CMAKE_COMPILER_IS_CLANG)
+   # These are default (basic) compilation flags.
+  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC"
+    CACHE STRING "(Auto-generated) C compiler flags" FORCE)
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -pthread -fPIC"
+    CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
+
+  # These are configuration-specific compilation flags.
+  # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
+  set( CMAKE_CXX_FLAGS_DEBUG "-g -O0"
+    CACHE STRING "" FORCE)
+  set( CMAKE_CXX_FLAGS_RELEASE "-O2"
+    CACHE STRING "" FORCE)
+  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2"
+    CACHE STRING "" FORCE)
+  set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os"
+    CACHE STRING "" FORCE)
+
+  set( CMAKE_C_FLAGS_DEBUG "-g -O0"
+    CACHE STRING "" FORCE)
+  set( CMAKE_C_FLAGS_RELEASE "-O2"
+    CACHE STRING "" FORCE)
+  set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2"
+    CACHE STRING "" FORCE)
+  set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os"
+    CACHE STRING "" FORCE)
+
+  set( CMAKE_EXE_LINKER_FLAGS_RELEASE "" )
+  set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "" )
+  set( CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "" )
+elseif (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
   set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)

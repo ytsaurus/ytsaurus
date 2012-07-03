@@ -15,7 +15,7 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
 {
     // Intentionally complex to take benefit of RVO.
     T result;
-    i32 tag = GetProtoExtensionTag<T>();
+    i32 tag = TProtoExtensionTag<T>::Value;
     bool found = false;
     FOREACH (const auto& extension, extensions.extensions()) {
         if (extension.tag() == tag) {
@@ -33,7 +33,7 @@ template <class T>
 TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
 {
     TNullable<T> result;
-    i32 tag = GetProtoExtensionTag<T>();
+    i32 tag = TProtoExtensionTag<T>::Value;
     FOREACH (const auto& extension, extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
@@ -48,7 +48,7 @@ TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
 template <class T>
 void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 {
-    i32 tag = GetProtoExtensionTag<T>();
+    i32 tag = TProtoExtensionTag<T>::Value;
     FOREACH (const auto& currentExtension, extensions->extensions()) {
         YASSERT(currentExtension.tag() != tag);
     }
@@ -64,7 +64,7 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 template <class T>
 void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 {
-    i32 tag = GetProtoExtensionTag<T>();
+    i32 tag = TProtoExtensionTag<T>::Value;
     NYT::NProto::TExtension* extension = NULL;
     FOREACH (auto& currentExtension, *extensions->mutable_extensions()) {
         if (currentExtension.tag() == tag) {
@@ -86,7 +86,7 @@ void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 template <class T>
 bool RemoveProtoExtension(NProto::TExtensionSet* extensions)
 {
-    i32 tag = GetProtoExtensionTag<T>();
+    i32 tag = TProtoExtensionTag<T>::Value;
     for (int index = 0; index < extensions->extensions_size(); ++index) {
         const auto& currentExtension = extensions->extensions(index);
         if (currentExtension.tag() == tag) {

@@ -18,10 +18,13 @@ case "$1" in
     --major)
         echo "*** Bumping major version"
         major=$((${major} + 1))
+        minor=0
+        patch=0
         ;;
     --minor)
         echo "*** Bumping minor version"
         minor=$((${minor} + 1))
+        patch=0
         ;;
     --patch)
         echo "*** Bumping patch version"

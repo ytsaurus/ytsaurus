@@ -64,7 +64,7 @@ public:
                     ~Location,
                     descriptor,
                     ~Bootstrap->GetChunkCache());
-                Put(~chunk);
+                Put(chunk);
             }
         } catch (const std::exception& ex) {
             LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
@@ -169,9 +169,9 @@ private:
             }
 
             RemoteReader = CreateRemoteReader(
-                ~Owner->Config->CacheRemoteReader,
-                ~Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
-                ~Owner->Bootstrap->GetMasterChannel(),
+                Owner->Config->CacheRemoteReader,
+                Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
+                Owner->Bootstrap->GetMasterChannel(),
                 ChunkId,
                 SeedAddresses);
 
@@ -289,7 +289,7 @@ private:
                 FileWriter->GetChunkInfo(),
                 ~Owner->Bootstrap->GetChunkCache());
             Cookie->EndInsert(chunk);
-            Owner->Register(~chunk);
+            Owner->Register(chunk);
             Cleanup();
         }
 

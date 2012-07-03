@@ -34,7 +34,7 @@ public:
     //! Creates a non-owning reference for a given blob.
     static TRef FromBlob(const TBlob& blob)
     {
-        return TRef(const_cast<char*>(blob.begin()), blob.size());
+        return TRef(const_cast<char*>(&*blob.begin()), blob.size());
     }
 
     //! Creates a non-owning reference for a given string.

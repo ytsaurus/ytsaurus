@@ -469,8 +469,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                 BIND([=] (TChunk::TGetMetaResult result) {
                     if (!result.IsOK()) {
                         LOG_WARNING("GetTableSamples: Error getting meta of chunk %s\n", 
-                            ~chunkId.ToString(),
-                            ~result.ToString());
+                            ~chunkId.ToString());
                         *chunkSamples->mutable_error() = result.ToProto();
                         return;
                     }

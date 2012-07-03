@@ -127,7 +127,6 @@ private:
         (Closed)
     );
 
-    
     EConnectionType Type;
     TConnectionId Id;
     int Socket;

@@ -126,7 +126,7 @@ void TCompositeMetaState::Save(TOutputStream* output)
 {
     i32 size = Savers.size();
     ::Save(output, size);
-    
+ 
     std::vector<TSaverInfo> saverInfos;
     FOREACH (const auto& pair, Savers) {
         saverInfos.push_back(pair.second);
@@ -136,8 +136,7 @@ void TCompositeMetaState::Save(TOutputStream* output)
         saverInfos.end(),
         [] (const TSaverInfo& lhs, const TSaverInfo& rhs) {
             return lhs.Phase < rhs.Phase ||
-                   lhs.Phase == rhs.Phase &&
-                   lhs.Name < rhs.Name;
+                (lhs.Phase == rhs.Phase && lhs.Name < rhs.Name);
         });
 
     FOREACH (const auto& info, saverInfos) {

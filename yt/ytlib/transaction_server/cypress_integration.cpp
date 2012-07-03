@@ -57,7 +57,7 @@ NCypress::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootst
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TransactionMap,
-        ~New<TVirtualTransactionMap>(bootstrap));
+        New<TVirtualTransactionMap>(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

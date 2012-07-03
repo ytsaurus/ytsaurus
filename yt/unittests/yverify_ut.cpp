@@ -36,6 +36,7 @@ public:
     MOCK_METHOD2(F, bool(bool passThrough, const char* comment));
 };
 
+#ifndef NDEBUG
 TEST(TVerifyDeathTest, NoCrashForTruthExpression)
 {
     TMockCallee callee;
@@ -55,6 +56,7 @@ TEST(TVerifyDeathTest, CrashForFalseExpression)
         "Assertion.*Cheshire Cat"
     );
 }
+#endif
 
 #if 0
 // XXX(sandello); This is not a requirement anymore (since 2012-04-05).

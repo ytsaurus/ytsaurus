@@ -110,6 +110,9 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
         case EKeyPartType::Composite:
         case EKeyPartType::Null:
             return 0;
+
+        default:
+        YUNREACHABLE();
     }
 
     YUNREACHABLE();

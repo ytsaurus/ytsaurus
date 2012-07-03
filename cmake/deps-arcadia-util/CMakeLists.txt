@@ -361,6 +361,7 @@ add_library( ytext-arcadia-util STATIC
 if (CMAKE_COMPILER_IS_GNUCXX)
   target_link_libraries ( ytext-arcadia-util
     -ldl
+    -lrt
   )
 endif()
 

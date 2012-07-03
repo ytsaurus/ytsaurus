@@ -62,7 +62,7 @@ void TPeerBlockUpdater::Update()
             if (it != requests.end()) {
                 request = it->second;
             } else {
-                TProxy proxy(~ChannelCache.GetChannel(source));
+                TProxy proxy(ChannelCache.GetChannel(source));
                 request = proxy.UpdatePeer();
                 request->set_peer_address(peerAddress);
                 request->set_peer_expiration_time(expirationTime.GetValue());

@@ -128,7 +128,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
             auto child = FindChild(name);
             if (child) {
                 return IYPathService::TResolveResult::There(
-                    ~child, TYPath(tokenizer.GetCurrentSuffix()));
+                    child, TYPath(tokenizer.GetCurrentSuffix()));
             }
 
             if (verb == "Set" || verb == "Create") {
@@ -196,7 +196,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             } else {
                 auto child = FindChild(index);
                 YASSERT(child);
-                return IYPathService::TResolveResult::There(~child, TYPath(tokenizer.CurrentInput()));
+                return IYPathService::TResolveResult::There(child, TYPath(tokenizer.CurrentInput()));
             }
         }
 

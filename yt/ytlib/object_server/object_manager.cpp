@@ -247,8 +247,8 @@ TObjectManager::TObjectManager(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
-        ~bootstrap->GetMetaStateManager(),
-        ~bootstrap->GetMetaState())
+        bootstrap->GetMetaStateManager(),
+        bootstrap->GetMetaState())
     , Config(config)
     , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)
@@ -605,7 +605,7 @@ void TObjectManager::ExecuteVerb(
         message,
         BIND([=] () -> TVoid {
             PROFILE_TIMING (profilingPath) {
-                action.Run(~wrappedContext);
+                action.Run(wrappedContext);
             }
             return TVoid();
         }));

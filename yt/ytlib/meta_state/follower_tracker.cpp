@@ -122,7 +122,7 @@ void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerStatus status)
         followerState.Lease = TLeaseManager::CreateLease(
             Config->PingTimeout,
             BIND(&TFollowerTracker::OnLeaseExpired, MakeStrong(this), followerId)
-            .Via(~EpochControlInvoker));
+            .Via(EpochControlInvoker));
     } else {
         TLeaseManager::RenewLease(followerState.Lease);
     }

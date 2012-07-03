@@ -41,7 +41,7 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat),
-        ~bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh));
+        bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat));
 }
 

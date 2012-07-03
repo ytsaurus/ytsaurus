@@ -48,7 +48,7 @@ TMasterConnector::TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* boo
 
 void TMasterConnector::Start()
 {
-    Proxy.Reset(new TProxy(~Bootstrap->GetMasterChannel()));
+    Proxy.Reset(new TProxy(Bootstrap->GetMasterChannel()));
 
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
@@ -160,11 +160,11 @@ void TMasterConnector::SendFullHeartbeat()
     *request->mutable_statistics() = ComputeStatistics();
 
     FOREACH (const auto& chunk, Bootstrap->GetChunkStore()->GetChunks()) {
-        *request->add_chunks() = GetAddInfo(~chunk);
+        *request->add_chunks() = GetAddInfo(chunk);
     }
 
     FOREACH (const auto& chunk, Bootstrap->GetChunkCache()->GetChunks()) {
-        *request->add_chunks() = GetAddInfo(~chunk);
+        *request->add_chunks() = GetAddInfo(chunk);
     }
 
     request->Invoke().Subscribe(
@@ -186,11 +186,11 @@ void TMasterConnector::SendIncrementalHeartbeat()
     ReportedRemoved = RemovedSinceLastSuccess;
 
     FOREACH (auto chunk, ReportedAdded) {
-        *request->add_added_chunks() = GetAddInfo(~chunk);
+        *request->add_added_chunks() = GetAddInfo(chunk);
     }
 
     FOREACH (auto chunk, ReportedRemoved) {
-        *request->add_removed_chunks() = GetRemoveInfo(~chunk);
+        *request->add_removed_chunks() = GetRemoveInfo(chunk);
     }
 
     FOREACH (const auto& job, Bootstrap->GetJobExecutor()->GetAllJobs()) {
@@ -277,7 +277,7 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
             continue;
         }
 
-        Bootstrap->GetJobExecutor()->StopJob(~job);
+        Bootstrap->GetJobExecutor()->StopJob(job);
     }
 
     FOREACH (const auto& startInfo, response->jobs_to_start()) {

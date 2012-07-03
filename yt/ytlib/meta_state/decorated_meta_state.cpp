@@ -99,7 +99,7 @@ IInvokerPtr TDecoratedMetaState::GetStateInvoker() const
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Started);
 
-    return ~StateInvoker;
+    return StateInvoker;
 }
 
 IMetaStatePtr TDecoratedMetaState::GetState() const

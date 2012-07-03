@@ -312,8 +312,8 @@ TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
-        ~bootstrap->GetMetaStateManager(),
-        ~bootstrap->GetMetaState())
+        bootstrap->GetMetaStateManager(),
+        bootstrap->GetMetaState())
     , Config(config)
     , Bootstrap(bootstrap)
 {
@@ -345,7 +345,7 @@ TTransactionManager::TTransactionManager(
 void TTransactionManager::Init()
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->RegisterHandler(~New<TTransactionTypeHandler>(this));
+    objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
 }
 
 TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDuration> timeout)

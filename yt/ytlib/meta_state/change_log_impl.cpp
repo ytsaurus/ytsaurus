@@ -493,7 +493,7 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
         recordInfo = ReadRecord(checkableFile);
         if (!recordInfo || recordInfo->Id != RecordCount) {
             // Broken changelog case.
-            LOG_ERROR("Changelog contains incorrect record with id %d at position %"PRIx64,
+            LOG_ERROR("Changelog contains incorrect record with id %d at position %" PRIx64,
                 RecordCount, CurrentFilePosition);
             File->Resize(CurrentFilePosition);
             File->Seek(0, sEnd);
@@ -541,7 +541,10 @@ TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(i32 firstRecord
     {
         TBlob blob(result.Length());
         TGuard<TMutex> guard(Mutex);
-        size_t bytesRead = File->Pread(blob.begin(), result.Length(), result.StartPosition());
+        size_t bytesRead = File->Pread(
+            &*blob.begin(),
+            result.Length(),
+            result.StartPosition());
         YCHECK(bytesRead == result.Length());
         result.Blob = TSharedRef(MoveRV(blob));
     }

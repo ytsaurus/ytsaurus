@@ -34,7 +34,7 @@ TReduceJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
 {
     YASSERT(index < GetInputCount());
 
-    auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
+    auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
 
     std::vector<TChunkSequenceReaderPtr> readers;
     TReaderOptions options;

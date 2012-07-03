@@ -197,8 +197,8 @@ private:
 
 TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : TMetaStatePart(
-        ~bootstrap->GetMetaStateManager(),
-        ~bootstrap->GetMetaState())
+        bootstrap->GetMetaStateManager(),
+        bootstrap->GetMetaState())
     , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType)
@@ -216,7 +216,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
         MakeStrong(this)));
 
     auto objectManager = bootstrap->GetObjectManager();
-    objectManager->RegisterHandler(~New<TLockTypeHandler>(this));
+    objectManager->RegisterHandler(New<TLockTypeHandler>(this));
 
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TIntegerNodeTypeHandler>(Bootstrap));
@@ -256,7 +256,7 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
     YASSERT(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
 
-    Bootstrap->GetObjectManager()->RegisterHandler(~New<TNodeTypeHandler>(this, type));
+    Bootstrap->GetObjectManager()->RegisterHandler(New<TNodeTypeHandler>(this, type));
 }
 
 INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
@@ -568,8 +568,8 @@ void TCypressManager::ValidateLock(
             // Check for locks taken by the other transactions.
 
             // Exclusive locks cannot be taken simultaneously with other locks (except for Snapshot).
-            if (requestedMode == ELockMode::Exclusive && lock->GetMode() != ELockMode::Snapshot ||
-                requestedMode != ELockMode::Snapshot  && lock->GetMode() == ELockMode::Exclusive)
+            if ((requestedMode == ELockMode::Exclusive && lock->GetMode() != ELockMode::Snapshot) ||
+                (requestedMode != ELockMode::Snapshot  && lock->GetMode() == ELockMode::Exclusive))
             {
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by transaction %s",
                     ~FormatEnum(requestedMode).Quote(),

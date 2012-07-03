@@ -481,8 +481,6 @@ YtCommand.prototype._checkPermissions = function(cb) {
     this.__DBG("_checkPermissions");
 
     if (this.descriptor.is_volatile) {
-        var object = null;
-        var path = null;
         var paths = [];
 
         // Collect all paths mentioned within a request.
@@ -498,12 +496,8 @@ YtCommand.prototype._checkPermissions = function(cb) {
         }
 
         try {
-            object = this.parameters.spec.input_table_paths;
-            for (path in object) {
-                if (object.hasOwnProperty(path)) {
-                    paths.push(path);
-                }
-            }
+            this.parameters.spec.input_table_paths.
+                forEach(function(path) { paths.push(path); });
         } catch(err) {
         }
 
@@ -513,23 +507,17 @@ YtCommand.prototype._checkPermissions = function(cb) {
         }
 
         try {
-            object = this.parameters.spec.output_table_paths;
-            for (path in this.parameters.spec.output_table_paths) {
-                if (object.hasOwnProperty(path)) {
-                    paths.push(path);
-                }
-            }
+            this.parameters.spec.output_table_paths.
+                forEach(function(path) { paths.push(path); });
         } catch(err) {
         }
 
-        object = null;
-
-        for (path in paths) {
+        paths.forEach(function(path) {
             if (!(RE_HOME.test(path) || RE_TMP.test(path) || RE_STATBOX.test(path))) {
                 this.rsp.statusCode = 403;
                 throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox");
             }
-        }
+        });
     }
 
     return cb();

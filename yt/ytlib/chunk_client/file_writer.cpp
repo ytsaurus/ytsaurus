@@ -104,7 +104,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
             chunkMetaFileName + NFS::TempFileSuffix,
             CreateAlways | WrOnly | Seq);
         WritePod(chunkMetaFile, header);
-        chunkMetaFile.Write(metaBlob.begin(), metaBlob.size());
+        chunkMetaFile.Write(&*metaBlob.begin(), metaBlob.size());
         chunkMetaFile.Close();
     } catch (const std::exception& ex) {
         return MakeFuture(TError(

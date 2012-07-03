@@ -73,9 +73,9 @@ void TBootstrap::Run()
     auto controlQueue = New<TActionQueue>("Control");
     ControlInvoker = controlQueue->GetInvoker();
 
-    BusServer = CreateTcpBusServer(~New<TTcpBusServerConfig>(Config->RpcPort));
+    BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
-    auto rpcServer = CreateRpcServer(~BusServer);
+    auto rpcServer = CreateRpcServer(BusServer);
 
     TransactionManager = New<TTransactionManager>(
         Config->TransactionManager,
@@ -99,7 +99,7 @@ void TBootstrap::Run()
         orchidRoot,
         "/profiling",
         CreateVirtualNode(
-            ~TProfilingManager::Get()->GetRoot()
+            TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
     SetNodeByYPath(
         orchidRoot,
@@ -109,12 +109,12 @@ void TBootstrap::Run()
         orchidRoot,
         "/scheduler",
         CreateVirtualNode(Scheduler->CreateOrchidProducer()));
-    SyncYPathSet(~orchidRoot, "/@service_name", TYsonString("scheduler"));
+    SyncYPathSet(orchidRoot, "/@service_name", TYsonString("scheduler"));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
         controlQueue->GetInvoker());
-    rpcServer->RegisterService(~orchidService);
+    rpcServer->RegisterService(orchidService);
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(

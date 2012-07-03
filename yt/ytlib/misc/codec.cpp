@@ -7,7 +7,7 @@
 
 namespace NYT {
 
-namespace  {
+namespace {
 
 size_t Size(const std::vector<TSharedRef>& refs)
 {
@@ -105,8 +105,8 @@ public:
         auto maxSize = snappy::MaxCompressedLength(block.Size());
         TBlob blob(maxSize);
         size_t compressedSize;
-        snappy::RawCompress(block.Begin(), block.Size(), blob.begin(), &compressedSize);
-        TRef ref(blob.begin(), compressedSize);
+        snappy::RawCompress(&*block.Begin(), block.Size(), &*blob.begin(), &compressedSize);
+        TRef ref(&*blob.begin(), compressedSize);
         return TSharedRef(MoveRV(blob), ref);
     }
 
@@ -123,7 +123,7 @@ public:
         snappy::UncheckedByteArraySink writer(&*result.begin());
         snappy::Compress(&reader, &writer);
 
-        size_t compressedLength = writer.CurrentDestination() - &(*result.begin());
+        size_t compressedLength = writer.CurrentDestination() - &*result.begin();
         TRef compressedRef(&*result.begin(), compressedLength);
         return TSharedRef(MoveRV(result), compressedRef);
     }
@@ -133,7 +133,7 @@ public:
         size_t size = 0;
         YVERIFY(snappy::GetUncompressedLength(block.Begin(), block.Size(), &size));
         TBlob blob(size);
-        snappy::RawUncompress(block.Begin(), block.Size(), blob.begin());
+        snappy::RawUncompress(&*block.Begin(), block.Size(), &*blob.begin());
         return TSharedRef(MoveRV(blob));
     }
 

@@ -5,11 +5,15 @@ project(YT)
 
 # TODO(sandello): Move this version-related stuff into a separate file.
 set(YT_VERSION_MAJOR 0)
-set(YT_VERSION_MINOR 3)
-set(YT_VERSION_PATCH 6)
+set(YT_VERSION_MINOR 4)
+set(YT_VERSION_PATCH 0)
 
 if(NOT YT_BUILD_NUMBER)
   set(YT_BUILD_NUMBER 0)
+endif()
+
+if(NOT YT_BUILD_BRANCH)
+  set(YT_BUILD_BRANCH "unknown")
 endif()
 
 if(NOT YT_BUILD_TAG)
@@ -17,7 +21,8 @@ if(NOT YT_BUILD_TAG)
 endif()
 
 set(YT_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}.${YT_VERSION_PATCH}")
-set(YT_VERSION "${YT_VERSION}-${YT_BUILD_NUMBER}")
+set(YT_VERSION "${YT_VERSION}-${YT_BUILD_BRANCH}")
+set(YT_VERSION "${YT_VERSION}~${YT_BUILD_NUMBER}")
 set(YT_VERSION "${YT_VERSION}+${YT_BUILD_TAG}")
 
 message(STATUS "Configuring YT ${YT_VERSION}")

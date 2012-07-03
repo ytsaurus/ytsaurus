@@ -235,7 +235,7 @@ private:
         auto bucket = New<TBucket>();
         YCHECK(PathToBucket.insert(MakePair(path, bucket)).second);
 
-        auto node = CreateVirtualNode(~bucket);
+        auto node = CreateVirtualNode(bucket);
         ForceYPath(Root, path);
         SetNodeByYPath(Root, path, node);
 

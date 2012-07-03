@@ -62,7 +62,7 @@ public:
         if (tokenizer.GetCurrentType() == SuppressRedirectToken) {
             return TBase::Resolve(TYPath(tokenizer.GetCurrentSuffix()), verb);
         }
-        return TResolveResult::There(~Service, path);
+        return TResolveResult::There(Service, path);
     }
 
 private:

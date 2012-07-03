@@ -89,14 +89,14 @@ TSharedRef PackRefs(const std::vector<TSharedRef>& refs)
     }
 
     TBlob blob(size);
-    TMemoryOutput output(blob.begin(), blob.size());
-    
+    TMemoryOutput output(&*blob.begin(), blob.size());
+
     WritePod(output, static_cast<i32>(refs.size()));
     FOREACH (const auto& ref, refs) {
         WritePod(output, static_cast<i64>(ref.Size()));
         Write(output, ref);
     }
- 
+
     return TSharedRef(MoveRV(blob));
 }
 

@@ -50,9 +50,9 @@ void TFileReaderBase::Open(
     YASSERT(!IsOpen);
 
     auto remoteReader = CreateRemoteReader(
-        ~Config->RemoteReader,
-        ~BlockCache,
-        ~MasterChannel,
+        Config->RemoteReader,
+        BlockCache,
+        MasterChannel,
         chunkId,
         nodeAddresses);
 
@@ -74,7 +74,7 @@ void TFileReaderBase::Open(
     auto codecId = ECodecId(miscExt.codec_id());
 
     Codec = GetCodec(codecId);
-    LOG_INFO("Chunk info received (BlockCount: %d, Size: %"PRId64", CodecId: %s)",
+    LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ", CodecId: %s)",
         BlockCount,
         Size,
         ~codecId.ToString());

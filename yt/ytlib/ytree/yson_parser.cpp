@@ -482,22 +482,10 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t ParseChunkSize = 1 << 16;
-
 void ParseYson(const TYsonInput& input, IYsonConsumer* consumer, bool enableLinePositionInfo)
 {
     TYsonParser parser(consumer, input.GetType(), enableLinePositionInfo);
-    char chunk[ParseChunkSize];
-    while (true) {
-        // Read a chunk.
-        size_t bytesRead = input.GetStream()->Read(chunk, ParseChunkSize);
-        if (bytesRead == 0) {
-            break;
-        }
-        // Parse the chunk.
-        parser.Read(TStringBuf(chunk, bytesRead));
-    }
-    parser.Finish();
+    Parse(input.GetStream(), consumer, &parser);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

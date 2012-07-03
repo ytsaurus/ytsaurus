@@ -333,7 +333,7 @@ TChunkPtr TSession::OnFileClosed(TVoid)
         ChunkId, 
         Writer->GetChunkMeta(), 
         Writer->GetChunkInfo());
-    SessionManager->ChunkStore->RegisterChunk(~chunk);
+    SessionManager->ChunkStore->RegisterChunk(chunk);
     return chunk;
 }
 
@@ -489,7 +489,7 @@ void TSessionManager::OnLeaseExpired(TSessionPtr session)
 {
     if (SessionMap.find(session->GetChunkId()) != SessionMap.end()) {
         LOG_INFO("Session %s lease expired", ~session->GetChunkId().ToString());
-        CancelSession(~session, TError("Session lease expired"));
+        CancelSession(session, TError("Session lease expired"));
     }
 }
 

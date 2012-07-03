@@ -156,7 +156,7 @@ private:
         const TBlockId& blockId,
         TSharedPtr<TInsertCookie> cookie)
     {
-        auto readerResult = ReaderCache->GetReader(~chunk);
+        auto readerResult = ReaderCache->GetReader(chunk);
         if (!readerResult.IsOK()) {
             cookie->Cancel(readerResult);
             return;
@@ -269,7 +269,7 @@ i64 TBlockStore::GetPendingReadSize() const
 
 IBlockCachePtr TBlockStore::GetBlockCache()
 {
-    return ~CacheImpl;
+    return CacheImpl;
 }
 
 std::vector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const

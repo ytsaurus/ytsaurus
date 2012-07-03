@@ -99,7 +99,7 @@ public:
                 "--job-id", ~JobId.ToString(),
                 (void*) NULL);
 
-            fprintf(stderr, "Failed to exec job proxy (ProxyPath: %s, ProxyConfig: %s, Error: %s)\n",
+            fprintf(stderr, "Failed to exec job proxy (ProxyPath: %s, ProxyConfig: %s, JobId: %s, Error: %s)\n",
                 ~ProxyPath,
                 ~ProxyConfigFileName,
                 ~JobId.ToString(),
@@ -110,7 +110,7 @@ public:
         }
 
         if (ProcessId < 0) {
-            ythrow yexception() << Sprintf("Failed to start job proxy: fork failed (errno: %s)", 
+            ythrow yexception() << Sprintf("Failed to start job proxy: fork failed (Error: %s)",
                 strerror(errno));
         }
 
