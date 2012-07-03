@@ -263,7 +263,7 @@ void TUserJob::StartJob()
 
 void TUserJob::DoJobIO()
 {
-    // TODO(babenko): rewrite using libev
+    // TODO(babenko): rewrite using libuv
     try {
         FOREACH (auto& pipe, Pipes) {
             pipe->PrepareProxyDescriptors();
