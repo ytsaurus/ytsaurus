@@ -126,26 +126,13 @@ const char* TYamrParser::FindEndOfRow(const char* begin, const char* end)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(panin): extract method
-const size_t ParseChunkSize = 1 << 16;
-
 void ParseYamr(
     TInputStream* input,
     NYTree::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config)
 {
     TYamrParser parser(consumer, config);
-    char chunk[ParseChunkSize];
-    while (true) {
-        // Read a chunk.
-        size_t bytesRead = input->Read(chunk, ParseChunkSize);
-        if (bytesRead == 0) {
-            break;
-        }
-        // Parse the chunk.
-        parser.Read(TStringBuf(chunk, bytesRead));
-    }
-    parser.Finish();
+    Parse(input, consumer, &parser);
 }
 
 void ParseYamr(

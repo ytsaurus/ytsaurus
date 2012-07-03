@@ -135,7 +135,7 @@ echo {v = 2} >&7
         assert read(output_tables[1]) == [{'v': 1}]
         assert read(output_tables[2]) == [{'v': 2}]
 
-    def test_tskv_in__format(self):
+    def test_tskv_in_format(self):
         create('table', '//tmp/t_in')
         write_str('//tmp/t_in', '{foo=bar}')
 
@@ -183,6 +183,54 @@ print "tskv" + "\\t" + "hello=world"
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
+    def test_yamr_output_format(self):
+        create('table', '//tmp/t_in')
+        write_str('//tmp/t_in', '{foo=bar}')
+
+        mapper = \
+"""
+import sys
+input = sys.stdin.readline().strip('\\n')
+assert input == '{"foo"="bar"};'
+print "key" + "\\t" + "subkey" + "\\t" + "value" + "\\n"
+
+"""
+        upload('//tmp/mapper.sh', mapper)
+
+        create('table', '//tmp/t_out')
+        map(in_='//tmp/t_in',
+            out='//tmp/t_out',
+            mapper="python mapper.sh",
+            file='//tmp/mapper.sh',
+            opt=[ \
+                '/spec/mapper/input_format=<format=text>yson',
+                '/spec/mapper/output_format=<has_subkey=true>yamr'])
+
+        assert read('//tmp/t_out') == [{'k': 'key', 'sk': 'subkey', 'v': 'value'}]
+
+    def test_yamr_in_format(self):
+        create('table', '//tmp/t_in')
+        write_str('//tmp/t_in', '{v=value;sk=subkey;k=key;a=another}')
+
+        mapper = \
+"""
+import sys
+input = sys.stdin.readline().strip('\\n').split('\\t')
+assert input == ['key', 'subkey', 'value']
+print '{hello=world}'
+
+"""
+        upload('//tmp/mapper.sh', mapper)
+
+        create('table', '//tmp/t_out')
+        map(in_='//tmp/t_in',
+            out='//tmp/t_out',
+            mapper="python mapper.sh",
+            file='//tmp/mapper.sh',
+            opt='/spec/mapper/input_format=<has_subkey=true>yamr')
+
+        assert read('//tmp/t_out') == [{'hello': 'world'}]
+
     def test_executable_mapper(self):
         create('table', '//tmp/t_in')
         write_str('//tmp/t_in', '{foo=bar}')
@@ -202,7 +250,3 @@ cat > /dev/null; echo {hello=world}
             file='//tmp/mapper.sh')
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
-
-
-
-

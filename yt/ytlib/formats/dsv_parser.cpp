@@ -221,22 +221,10 @@ Stroka TDsvParser::GetPositionInfo() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t ParseChunkSize = 1 << 16;
-
 void ParseDsv(TInputStream* input, IYsonConsumer* consumer, TDsvFormatConfigPtr config)
 {
     TDsvParser parser(consumer, config);
-    char chunk[ParseChunkSize];
-    while (true) {
-        // Read a chunk.
-        size_t bytesRead = input->Read(chunk, ParseChunkSize);
-        if (bytesRead == 0) {
-            break;
-        }
-        // Parse the chunk.
-        parser.Read(TStringBuf(chunk, bytesRead));
-    }
-    parser.Finish();
+    Parse(input, consumer, &parser);
 }
 
 void ParseDsv(const TStringBuf& data,

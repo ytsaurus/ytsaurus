@@ -9,6 +9,7 @@ set( SRCS
   ${BASE}/lexer.cpp
   ${BASE}/node_detail.cpp
   ${BASE}/null_yson_consumer.cpp
+  ${BASE}/parser.cpp
   ${BASE}/serialize.cpp
   ${BASE}/token.cpp
   ${BASE}/tokenizer.cpp
