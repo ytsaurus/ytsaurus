@@ -8,7 +8,7 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/ytree/convert.h>
 

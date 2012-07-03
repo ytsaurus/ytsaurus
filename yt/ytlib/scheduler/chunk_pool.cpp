@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "chunk_pool.h"
 
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
 namespace NYT {
 namespace NScheduler {
 

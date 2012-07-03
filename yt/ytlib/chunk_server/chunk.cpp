@@ -6,6 +6,7 @@
 #include "chunk_list.h"
 
 #include <ytlib/cell_master/load_context.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NChunkServer {

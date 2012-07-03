@@ -52,7 +52,7 @@ void TTableReader::Open()
 
     LOG_INFO("Fetching table info");
     auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
-    fetchReq->add_extension_tags(GetProtoExtensionTag<NChunkHolder::NProto::TMiscExt>());
+    fetchReq->add_extension_tags(TProtoExtensionTag<NChunkHolder::NProto::TMiscExt>::Value);
     fetchReq->set_fetch_node_addresses(true);
 
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
