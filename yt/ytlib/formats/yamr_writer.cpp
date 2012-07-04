@@ -121,7 +121,7 @@ void TYamrWriter::WriteRow()
             Stream->Write(Config->FieldSeparator);
         }
         Stream->Write(Value);
-        Stream->Write(Config->RowSeparator);
+        Stream->Write(Config->RecordSeparator);
     } else {
         WriteInLenvalMode(Key);
         if (Config->HasSubkey) {

@@ -8,37 +8,9 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYamrParser
-    : public NYTree::IParser
-{
-public:
-    TYamrParser(
-        NYTree::IYsonConsumer* consumer,
-        TYamrFormatConfigPtr config = NULL);
-
-    virtual void Read(const TStringBuf& data) OVERRIDE;
-    virtual void Finish() OVERRIDE;
-
-private:
-    NYTree::IYsonConsumer* Consumer;
-    TYamrFormatConfigPtr Config;
-
-    Stroka CurrentToken;
-    Stroka Key;
-
-    const char* Consume(const char* begin, const char* end);
-    const char* FindNextStopSymbol(const char* begin, const char* end);
-    const char* FindEndOfRow(const char* begin, const char* end);
-
-    bool IsStopSymbol[256];
-
-    DECLARE_ENUM(EState,
-        (InsideKey)
-        (InsideSubkey)
-        (InsideValue)
-    );
-    EState State;
-};
+TAutoPtr<NYTree::IParser> CreateParserForYamr(
+    NYTree::IYsonConsumer* consumer,
+    TYamrFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 

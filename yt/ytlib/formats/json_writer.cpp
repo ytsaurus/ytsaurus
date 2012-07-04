@@ -54,13 +54,13 @@ bool IsValidUtf8(const unsigned char* buffer, size_t length)
 ////////////////////////////////////////////////////////////////////////////////
 
 TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
-    : UnderlyingJsonWriter(new NJson::TJsonWriter(output, false))
-    , JsonWriter(~UnderlyingJsonWriter)
-    , Config(config)
+    : Config(config)
 {
     if (!Config) {
         Config = New<TJsonFormatConfig>();
     }
+    UnderlyingJsonWriter.Reset(new NJson::TJsonWriter(output, Config->Pretty));
+    JsonWriter = ~UnderlyingJsonWriter;
 }
 
 TJsonWriter::~TJsonWriter()
