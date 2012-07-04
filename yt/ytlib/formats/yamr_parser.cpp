@@ -51,7 +51,7 @@ TYamrDelimitedParser::TYamrDelimitedParser(IYsonConsumer* consumer, TYamrFormatC
     YCHECK(!Config->Lenval);
 
     memset(IsStopSymbol, 0, sizeof(IsStopSymbol));
-    IsStopSymbol[Config->RowSeparator] = true;
+    IsStopSymbol[Config->RecordSeparator] = true;
     IsStopSymbol[Config->FieldSeparator] = true;
 }
 
@@ -81,7 +81,7 @@ const char* TYamrDelimitedParser::Consume(const char* begin, const char* end)
             const char* next = FindNextStopSymbol(begin, end);
             CurrentToken.append(begin, next);
             if (next != end) {
-                if (*next == Config->RowSeparator) {
+                if (*next == Config->RecordSeparator) {
                     CurrentToken.clear();
                     State = EState::InsideKey;
                 } else {
@@ -146,7 +146,7 @@ const char* TYamrDelimitedParser::FindEndOfRow(const char* begin, const char* en
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (*current == Config->RowSeparator) {
+        if (*current == Config->RecordSeparator) {
             return current;
         }
     }
