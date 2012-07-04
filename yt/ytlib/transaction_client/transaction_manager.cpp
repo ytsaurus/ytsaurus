@@ -256,8 +256,6 @@ private:
     TTransactionId Id;
     TPromise<void> Aborted;
 
-    bool PingAncestors;
-
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
 
