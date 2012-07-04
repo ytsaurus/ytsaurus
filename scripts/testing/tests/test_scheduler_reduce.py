@@ -54,3 +54,31 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted') == 'false'
         
+    def test_empty_in(self):
+        create('table', '//tmp/in')
+
+        # TODO(panin): replace it with sort of empty input (when it will be fixed)
+        write('//tmp/in', {'foo': 'bar'}, sorted_by='a')
+        erase('//tmp/in')
+
+        create('table', '//tmp/out')
+
+        reduce(
+            in_ = '//tmp/in',
+            out = '//tmp/out',
+            reducer = 'cat')
+        
+        assert read('//tmp/out') == []
+    
+    def test_unsorted_input(self):
+        create('table', '//tmp/in')
+        create('table', '//tmp/out')
+        write('//tmp/in', {'foo': 'bar'})
+
+        with pytest.raises(YTError):
+            reduce(
+                in_ = '//tmp/in',
+                out = '//tmp/out',
+                reducer = 'cat')
+
+
