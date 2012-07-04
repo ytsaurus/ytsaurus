@@ -297,7 +297,7 @@ TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType
         case EFormatType::Yamr: {
             auto config = New<TYamrFormatConfig>();
             config->Load(ConvertToNode(format.GetAttributes())->AsMap());
-            return new TYamrParser(consumer, config);
+            return CreateParserForYamr(consumer, config);
         }
         default:
             ythrow yexception() << Sprintf("Unsupported input format %s",
