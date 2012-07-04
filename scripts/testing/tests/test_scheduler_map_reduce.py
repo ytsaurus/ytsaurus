@@ -10,6 +10,7 @@ from collections import defaultdict
 
 ##################################################################
 
+@pytest.mark.xfail(run = False, reason = 'Issue #355')
 class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
@@ -48,14 +49,14 @@ Wish you were here.
             write('//tmp/t_in', {'line': line}, tx=tx_id)
         
         upload_file('//tmp/mapper.py', os.path.join(TOOLS_ROOTDIR, 'wc_mapper.py'), tx=tx_id)
-        create('table', '//tmp/t_map_out')
+        create('table', '//tmp/t_map_out', tx=tx_id)
         map(in_='//tmp/t_in',
             out='//tmp/t_map_out',
             mapper='python mapper.py',
             file='//tmp/mapper.py',
             tx=tx_id)
 
-        create('table', '//tmp/t_reduce_in')
+        create('table', '//tmp/t_reduce_in', tx=tx_id)
         sort(in_='//tmp/t_map_out',
              out='//tmp/reduce_in',
              key_columns='word',
