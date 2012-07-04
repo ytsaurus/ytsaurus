@@ -117,7 +117,7 @@ YtCommand.prototype._dispatchJSON = function(object) {
     this.rsp.removeHeader("Vary");
     this.rsp.setHeader("Content-Type", "application/json");
     this.rsp.setHeader("Content-Length", body.length);
-    this.rsp.writeHead(200);
+    this.rsp.writeHead(this.rsp.statusCode);
     this.rsp.end(body);
 
     this.prematurely_completed = true;
@@ -139,18 +139,24 @@ YtCommand.prototype._epilogue = function(err) {
     var failed = !this.prematurely_completed && (err || this.yt_code !== 0);
     if (failed) {
         var error = err ? err.message : this.yt_message;
+        var error_trace = err ? err.stack : undefined;
 
         this.logger.error("Done (failure)", {
-            request_id : this.req.uuid,
-            bytes_in   : this.bytes_in,
-            bytes_out  : this.bytes_out,
-            error      : error,
-            yt_code    : this.yt_code,
-            yt_message : this.yt_message
+            request_id  : this.req.uuid,
+            bytes_in    : this.bytes_in,
+            bytes_out   : this.bytes_out,
+            error       : error,
+            error_trace : error_trace,
+            yt_code     : this.yt_code,
+            yt_message  : this.yt_message
         });
 
         if (!this.rsp._header) {
             var body = {};
+
+            if (!this.rsp.statusCode || (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300)) {
+                this.rsp.statusCode = 400;
+            }
 
             if (error)           { body.error      = error; }
             if (this.yt_code)    { body.yt_code    = this.yt_code; }
@@ -481,40 +487,49 @@ YtCommand.prototype._checkPermissions = function(cb) {
     this.__DBG("_checkPermissions");
 
     if (this.descriptor.is_volatile) {
+        var self = this;
         var paths = [];
 
         // Collect all paths mentioned within a request.
         // This is an approximation, but a decent one.
         try {
-            paths.push(this.parameters.path);
+            if (typeof(this.parameters.path) === "string") {
+                paths.push(this.parameters.path);
+            }
         } catch(err) {
         }
 
         try {
-            paths.push(this.parameters.spec.input_table_path);
+            if (typeof(this.parameters.spec.input_table_path) === "string") {
+                paths.push(this.parameters.spec.input_table_path);
+            }
         } catch(err) {
         }
 
         try {
-            this.parameters.spec.input_table_paths.
-                forEach(function(path) { paths.push(path); });
+            this.parameters.spec.input_table_paths.forEach(function(path) {
+                if (typeof(path) === "string") { paths.push(path); }
+            });
         } catch(err) {
         }
 
         try {
-            paths.push(this.parameters.spec.output_table_path);
+            if (typeof(this.parameters.spec.output_table_path) === "string") {
+                paths.push(this.parameters.spec.output_table_path);
+            }
         } catch(err) {
         }
 
         try {
-            this.parameters.spec.output_table_paths.
-                forEach(function(path) { paths.push(path); });
+            this.parameters.spec.output_table_paths.forEach(function(path) {
+                if (typeof(path) === "string") { paths.push(path); }
+            });
         } catch(err) {
         }
 
         paths.forEach(function(path) {
             if (!(RE_HOME.test(path) || RE_TMP.test(path) || RE_STATBOX.test(path))) {
-                this.rsp.statusCode = 403;
+                self.rsp.statusCode = 403;
                 throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox");
             }
         });
