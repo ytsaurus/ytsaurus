@@ -93,7 +93,7 @@ TEST_F(TYsonTest, ConvertToProducerListFragment)
 {
     {
         auto producer = ConvertToProducer(TYsonString("{a=b}; {c=d}", EYsonType::ListFragment));
-        EXPECT_EQ("{\"a\"=\"b\"};\n{\"c\"=\"d\"}\n",
+        EXPECT_EQ("{\"a\"=\"b\"};\n{\"c\"=\"d\"};\n",
             ConvertToYsonString(producer, EYsonFormat::Text).Data());
     }
 
