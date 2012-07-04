@@ -50,17 +50,48 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read(self.table) == [self.v[3]]
         assert get(self.table + '/@chunk_count') == 1
 
-    def test_combine_no_remove(self):
+    # test combine when actually no data is removed
+    def test_combine_without_remove(self):
         self._prepare_table()
         erase(self.table + '[#10:]', '--combine')
         assert read(self.table) == self.v
         assert get(self.table + '/@chunk_count') == 1
 
+    # test combine when data is removed from the middle
     def test_combine_remove_from_middle(self):
         self._prepare_table()
         erase(self.table + '[#2:#4]', '--combine')
         assert read(self.table) == self.v[:2] + self.v[4:]
         assert get(self.table + '/@chunk_count') == 1
+
+###############################################################
+
+    @pytest.mark.xfail(run = False, reason = 'Issue #372')
+    def test_by_key(self):
+        v = \
+        [
+            {'key': -100, 'value': 20},
+            {'key': -5, 'value': 1},
+            {'key': 0, 'value': 76},
+            {'key': 10, 'value': 10},
+            {'key': 42, 'value': 124},
+            {'key': 100500, 'value': -20},
+        ]
+        create('table', '//tmp/table')
+        write('//tmp/table', v, sorted_by='key')
+
+        erase('//tmp/table[0:42]')
+        assert read('//tmp/table') == v[0:2] + v[4:6]
+        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+
+        erase('//tmp/table[1000:]')
+        assert read('//tmp/table') == v[0:2] + v[4:5]
+        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+
+        erase('//tmp/table[:0]')
+        assert read('//tmp/table') == v[4:5]
+        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+
 
 ###############################################################
 
