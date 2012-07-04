@@ -14,7 +14,7 @@ class TYamrDelimitedParser
 public:
     TYamrDelimitedParser(
         NYTree::IYsonConsumer* consumer,
-        TYamrFormatConfigPtr config = NULL);
+        TYamrFormatConfigPtr config);
 
     virtual void Read(const TStringBuf& data) OVERRIDE;
     virtual void Finish() OVERRIDE;
@@ -47,13 +47,8 @@ TYamrDelimitedParser::TYamrDelimitedParser(IYsonConsumer* consumer, TYamrFormatC
     , Config(config)
     , State(EState::InsideKey)
 {
-    if (!Config) {
-        Config = New<TYamrFormatConfig>();
-    }
-
-    if (Config->Lenval) {
-        YUNIMPLEMENTED();
-    }
+    YCHECK(Config);
+    YCHECK(!Config->Lenval);
 
     memset(IsStopSymbol, 0, sizeof(IsStopSymbol));
     IsStopSymbol[Config->RowSeparator] = true;
@@ -166,7 +161,7 @@ class TYamrLenvalParser
 public:
     TYamrLenvalParser(
         NYTree::IYsonConsumer* consumer,
-        TYamrFormatConfigPtr config = NULL);
+        TYamrFormatConfigPtr config);
 
     virtual void Read(const TStringBuf& data) OVERRIDE;
     virtual void Finish() OVERRIDE;
@@ -203,9 +198,8 @@ TYamrLenvalParser::TYamrLenvalParser(IYsonConsumer* consumer, TYamrFormatConfigP
     , BytesToRead(4)
     , State(EState::InsideKey)
 {
-    if (!Config) {
-        Config = New<TYamrFormatConfig>();
-    }
+    YCHECK(Config);
+    YCHECK(Config->Lenval);
 }
 
 void TYamrLenvalParser::Read(const TStringBuf& data)
