@@ -246,14 +246,18 @@ TYsonProducer CreateProducerForYamr(
     });
 }
 
-
-TYsonProducer CreateProducerForJson(EDataType dataType, TInputStream* input)
+TYsonProducer CreateProducerForJson(
+    EDataType dataType,
+    IAttributeDictionary* attributes,
+    TInputStream* input)
 {
     if (dataType != EDataType::Structured) {
         ythrow yexception() << Sprintf("JSON is only supported only for structured data");
     }
+    auto config = New<TJsonFormatConfig>();
+    config->Load(ConvertToNode(attributes)->AsMap());
     return BIND([=] (IYsonConsumer* consumer) {
-        ParseJson(input, consumer);
+        ParseJson(input, consumer, config);
     });
 }
 
@@ -269,7 +273,7 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
         case EFormatType::Yson:
             return CreateProducerForYson(dataType, input);
         case EFormatType::Json:
-            return CreateProducerForJson(dataType, input);
+            return CreateProducerForJson(dataType, format.GetAttributes(), input);
         case EFormatType::Dsv:
             return CreateProducerForDsv(dataType, format.GetAttributes(), input);
         case EFormatType::Yamr:
@@ -287,8 +291,11 @@ TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType
     switch (format.GetType()) {
         case EFormatType::Yson:
             return new TYsonParser(consumer, DataTypeToYsonType(dataType));
-        case EFormatType::Json:
+        case EFormatType::Json: {
+            auto config = New<TJsonFormatConfig>();
+            config->Load(ConvertToNode(format.GetAttributes())->AsMap());
             return new TJsonParser(consumer);
+        }
         case EFormatType::Dsv: {
             auto config = New<TDsvFormatConfig>();
             config->Load(ConvertToNode(format.GetAttributes())->AsMap());
