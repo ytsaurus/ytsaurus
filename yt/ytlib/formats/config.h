@@ -62,7 +62,7 @@ struct TYamrFormatConfig
 
     // Delimited specific options
     char FieldSeparator;
-    char RowSeparator;
+    char RecordSeparator;
 
     TYamrFormatConfig()
     {
@@ -78,7 +78,7 @@ struct TYamrFormatConfig
             .Default(false);
         Register("fs", FieldSeparator)
             .Default('\t');
-        Register("rs", RowSeparator)
+        Register("rs", RecordSeparator)
             .Default('\n');
     }
 
