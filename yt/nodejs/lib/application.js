@@ -25,9 +25,11 @@ var _MAPPING_MIME_TYPE_TO_FORMAT = {
     "application/x-yt-yson-binary" : "<format=binary>yson",
     "application/x-yt-yson-text"   : "<format=text>yson",
     "application/x-yt-yson-pretty" : "<format=pretty>yson",
-    "text/csv"                     : "csv",
+    "text/csv"                     : "<record_separator=\",\",key_value_separator=\":\">dsv",
     "text/tab-separated-values"    : "dsv",
-    "text/x-tskv"                  : "<line_prefix=tskv>dsv"
+    "text/x-tskv"                  : "<line_prefix=tskv>dsv",
+    "application/x-yamr-delimited" : "<lenval=false>yamr",
+    "application/x-yamr-lenval"    : "<lenval=true>yamr"
 };
 
 // This mapping defines how Content-Encoding and Accept-Encoding map onto YT compressors.
