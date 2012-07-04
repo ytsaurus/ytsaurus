@@ -11,6 +11,13 @@ class TestSchedulerEraseCommands(YTEnvSetup):
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 1
 
+    def test_empty_in(self):
+        create('table', '//tmp/table')
+        erase('//tmp/table[#0:#10]')
+        assert read('//tmp/table') == []
+
+###############################################################
+
     def _prepare_table(self):
         self.table = '//tmp/t_in'
         create('table', self.table)
@@ -92,6 +99,27 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read('//tmp/table') == v[4:5]
         assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
 
+    def test_by_key_from_non_sorted(self):
+        create('table', '//tmp/table')
+        write('//tmp/table', {'v' : 42})
+
+        with pytest.raises(YTError):
+            erase('//tmp/table[:42]')
+
+###############################################################
+
+    def test_by_column(self):
+        create('table', '//tmp/table')
+        write('//tmp/table', {'v' : 42})
+        
+        with pytest.raises(YTError):
+            erase('//tmp/table{v}')
+
+        with pytest.raises(YTError):
+            erase('//tmp/table{non_v}')
+
+        with pytest.raises(YTError):
+            erase('//tmp/table{}')
 
 ###############################################################
 
