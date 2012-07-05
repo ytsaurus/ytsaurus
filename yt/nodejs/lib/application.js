@@ -21,15 +21,17 @@ if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
 
 // This mapping defines how MIME types map onto YT format specifications.
 var _MAPPING_MIME_TYPE_TO_FORMAT = {
-    "application/json"             : "json",
-    "application/x-yt-yson-binary" : "<format=binary>yson",
-    "application/x-yt-yson-text"   : "<format=text>yson",
-    "application/x-yt-yson-pretty" : "<format=pretty>yson",
-    "text/csv"                     : "<record_separator=\",\",key_value_separator=\":\">dsv",
-    "text/tab-separated-values"    : "dsv",
-    "text/x-tskv"                  : "<line_prefix=tskv>dsv",
-    "application/x-yamr-delimited" : "<lenval=false>yamr",
-    "application/x-yamr-lenval"    : "<lenval=true>yamr"
+    "application/json"                    : "json",
+    "application/x-yamr-delimited"        : "<lenval=false;has_subkey=false>yamr",
+    "application/x-yamr-lenval"           : "<lenval=true;has_subkey=false>yamr",
+    "application/x-yamr-subkey-delimited" : "<lenval=false;has_subkey=true>yamr",
+    "application/x-yamr-subkey-lenval"    : "<lenval=true;has_subkey=true>yamr",
+    "application/x-yt-yson-binary"        : "<format=binary>yson",
+    "application/x-yt-yson-text"          : "<format=text>yson",
+    "application/x-yt-yson-pretty"        : "<format=pretty>yson",
+    "text/csv"                            : "<record_separator=\",\";key_value_separator=\":\">dsv",
+    "text/tab-separated-values"           : "dsv",
+    "text/x-tskv"                         : "<line_prefix=tskv>dsv"
 };
 
 // This mapping defines how Content-Encoding and Accept-Encoding map onto YT compressors.
@@ -359,11 +361,18 @@ YtCommand.prototype._getOutputFormat = function(cb) {
     // Secondly, try to deduce output format from Accept header.
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
-        for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
-            if (utils.accepts(mime, header)) {
-                result_mime = mime;
-                result_format = _MAPPING_MIME_TYPE_TO_FORMAT[mime];
-                break;
+        if (header.indexOf("*") === -1) {
+            if (_MAPPING_MIME_TYPE_TO_FORMAT.hasOwnProperty(header)) {
+                result_mime = header;
+                result_format = _MAPPING_MIME_TYPE_TO_FORMAT[header];
+            }
+        } else {
+            for (var mime in _MAPPING_MIME_TYPE_TO_FORMAT) {
+                if (utils.accepts(mime, header)) {
+                    result_mime = mime;
+                    result_format = _MAPPING_MIME_TYPE_TO_FORMAT[mime];
+                    break;
+                }
             }
         }
     }

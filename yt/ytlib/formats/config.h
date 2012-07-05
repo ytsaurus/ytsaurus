@@ -69,11 +69,11 @@ struct TYamrFormatConfig
         Register("has_subkey", HasSubkey)
             .Default(false);
         Register("key", Key)
-            .Default("k");
+            .Default("key");
         Register("subkey", Subkey)
-            .Default("sk");
+            .Default("subkey");
         Register("value", Value)
-            .Default("v");
+            .Default("value");
         Register("lenval", Lenval)
             .Default(false);
         Register("fs", FieldSeparator)
