@@ -181,10 +181,10 @@ class YtCollector(Collector):
         paths = []
         subpaths = []
         for (key, value) in data.items():
-            if '$type' not in value or value['$type'] != 'entity':
-                subpaths = subpaths + YtCollector.get_paths(value, key)
-            else:
+            if value is None:
                 subpaths.append(key)
+            else:
+                subpaths = subpaths + YtCollector.get_paths(value, key)
         for subpath in subpaths:
             paths.append(root + '/' + subpath)
         return paths
