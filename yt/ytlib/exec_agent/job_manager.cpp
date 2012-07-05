@@ -38,6 +38,7 @@ TJobManager::TJobManager(
         auto slotName = ToString(slotIndex);
         auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
         Slots.push_back(New<TSlot>(slotPath, slotIndex));
+        Slots.back()->Clean();
     }
 }
 
