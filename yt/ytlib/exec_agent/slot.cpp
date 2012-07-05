@@ -43,7 +43,9 @@ bool TSlot::IsFree() const
 void TSlot::Clean()
 {
     try {
-        RemoveDirWithContents(SandboxPath);
+        if (isexist(~SandboxPath)) {
+            RemoveDirWithContents(SandboxPath);
+        }
         IsClean = true;
     } catch (const std::exception& ex) {
         LOG_FATAL("Failed to clean sandbox (SandboxPath: %s, Error: %s).", ~SandboxPath, ex.what());
