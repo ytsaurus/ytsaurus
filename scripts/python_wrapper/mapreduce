@@ -6,41 +6,6 @@ from common import flatten, unlist
 import sys
 from argparse import ArgumentParser
 
-# Params:
-# +++ -version
-# -fs
-# -rs
-# -lenval
-# -subkey
-# -src
-# -dst
-# -dstappend
-# -dstsorted
-# -copy
-# -sort
-# -merge
-# -map
-# -reduce
-# -reducews
-# -file
-# -memlimit
-# -timelimit
-# -list
-# -read
-# -write
-# -writesorted
-# -drop
-# -lock
-# -unlock
-# -lowerkey
-# -upperkey
-# -append
-# -jobcount
-# -threadcount
-# -jcmultiplier
-# -chunksize
-# -dynallocmode
-
 def add_store_args(parser, args):
     for arg in flatten(args):
         parser.add_argument("-" + arg)
@@ -54,7 +19,7 @@ def add_multiple_args(parser, args):
 if __name__ == "__main__":
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "map", "reduce", "drop"]
-    action_flags = ["version", "copy", "sort"] #"list"
+    action_flags = ["version", "copy", "sort"]
     
     parser = ArgumentParser()
     add_bool_args(parser, action_flags + ["subkey", "lenval"])
@@ -90,6 +55,4 @@ if __name__ == "__main__":
     if args.sort:
         # TODO(ignat): add using dst here
         yt.sort_table(unlist(args.src))
-    #if args.list:
-    #    yt.
 
