@@ -22,14 +22,14 @@ if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
 // This mapping defines how MIME types map onto YT format specifications.
 var _MAPPING_MIME_TYPE_TO_FORMAT = {
     "application/json"                    : "json",
-    "application/x-yamr-delimited"        : "<lenval=false>yamr",
-    "application/x-yamr-lenval"           : "<lenval=true>yamr",
-    "application/x-yamr-subkey-delimited" : "<lenval=false>yamr",
-    "application/x-yamr-subkey-lenval"    : "<lenval=true>yamr",
+    "application/x-yamr-delimited"        : "<lenval=false;has_subkey=false>yamr",
+    "application/x-yamr-lenval"           : "<lenval=true;has_subkey=false>yamr",
+    "application/x-yamr-subkey-delimited" : "<lenval=false;has_subkey=true>yamr",
+    "application/x-yamr-subkey-lenval"    : "<lenval=true;has_subkey=true>yamr",
     "application/x-yt-yson-binary"        : "<format=binary>yson",
     "application/x-yt-yson-text"          : "<format=text>yson",
     "application/x-yt-yson-pretty"        : "<format=pretty>yson",
-    "text/csv"                            : "<record_separator=\",\",key_value_separator=\":\">dsv",
+    "text/csv"                            : "<record_separator=\",\";key_value_separator=\":\">dsv",
     "text/tab-separated-values"           : "dsv",
     "text/x-tskv"                         : "<line_prefix=tskv>dsv"
 };
