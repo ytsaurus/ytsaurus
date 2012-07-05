@@ -1,4 +1,8 @@
 #include "driver.h"
+#include "input_stream.h"
+#include "input_stack.h"
+#include "output_stream.h"
+#include "output_stack.h"
 
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/ytree/ytree.h>
@@ -6,8 +10,7 @@
 #include <ytlib/driver/driver.h>
 #include <ytlib/formats/format.h>
 
-#include <util/stream/zlib.h>
-#include <util/stream/lz.h>
+#include <util/memory/tempbuf.h>
 
 #include <string>
 
@@ -25,117 +28,14 @@ using namespace NFormats;
 
 namespace {
 
-static const size_t StreamBufferSize = 32 * 1024;
-
-DECLARE_ENUM(ECompression,
-    (None)
-    (Gzip)
-    (Deflate)
-    (LZO)
-    (LZF)
-    (Snappy)
-);
-
-template <class T, size_t N>
-class TGrowingStreamStack
-{
-public:
-    static_assert(N >= 1, "You have to provide a base stream to grow on.");
-
-    TGrowingStreamStack(T* base)
-        : Head(Stack + N - 1)
-    {
-        * Head = base;
-    }
-
-    ~TGrowingStreamStack()
-    {
-        T** end = Stack + N - 1;
-        for (T** current = Head; current != end; ++current) {
-            delete *current;
-        }
-    }
-
-    template <class U>
-    void Add()
-    {
-        static_assert(
-            NMpl::TIsConvertible<U*, T*>::Value,
-            "U* have to be convertible to T*");
-        YASSERT((Head > Stack));
-        T* layer = new U(Top());
-        *--Head = layer;
-    }
-
-    template <class U, class A1>
-    void Add(A1&& a1)
-    {
-        static_assert(
-            NMpl::TIsConvertible<U*, T*>::Value,
-            "U* have to be convertible to T*");
-        YASSERT(Head > Stack);
-        T* layer = new U(Top(), ForwardRV<A1>(a1));
-        *--Head = layer;
-    }
-
-    template <class U, class A1, class A2>
-    void Add(A1&& a1, A2&& a2)
-    {
-        static_assert(
-            NMpl::TIsConvertible<U*, T*>::Value,
-            "U* have to be convertible to T*");
-        YASSERT(Head > Stack);
-        T* layer = new U(Top(), ForwardRV<A1>(a1), ForwardRV<A2>(a2));
-        *--Head = layer;
-    }
-
-    template <class U, class A1, class A2, class A3>
-    void Add(A1&& a1, A2&& a2, A3&& a3)
-    {
-        static_assert(
-            NMpl::TIsConvertible<U*, T*>::Value,
-            "U* have to be convertible to T*");
-        YASSERT(Head > Stack);
-        T* layer = new U(Top(), ForwardRV<A1>(a1), ForwardRV<A2>(a2), ForwardRV<A3>(a3));
-        *--Head = layer;
-    }
-
-
-    T* Top() const
-    {
-        return *(Head);
-    }
-
-    T* Bottom() const
-    {
-        return *(Stack + N - 1);
-    }
-
-    T* const* begin() const
-    {
-        return Head;
-    }
-
-    T* const* end() const
-    {
-        return Stack + N - 1;
-    }
-
-private:
-    typedef T* TPtr;
-
-    TPtr Stack[N];
-    TPtr* Head;
-};
-
 // TODO(sandello): Refactor this huge mess.
 struct TExecuteRequest
 {
     uv_work_t Request;
     TNodeJSDriver* Host;
 
-    TGrowingStreamStack<TInputStream, 2> InputStack;
-    TGrowingStreamStack<TOutputStream, 3> OutputStack;
+    TNodeJSInputStack InputStack;
+    TNodeJSOutputStack OutputStack;
 
     Persistent<Function> Callback;
 
@@ -155,14 +55,8 @@ struct TExecuteRequest
         , Callback(Persistent<Function>::New(callback))
     {
         THREAD_AFFINITY_IS_V8();
-
         YASSERT(Host);
-        YASSERT(inputStream == GetNodeJSInputStream());
-        YASSERT(outputStream == GetNodeJSOutputStream());
-
         Host->Ref();
-        GetNodeJSInputStream()->AsyncRef(true);
-        GetNodeJSOutputStream()->AsyncRef(true);
     }
 
     ~TExecuteRequest()
@@ -172,19 +66,17 @@ struct TExecuteRequest
         Callback.Dispose();
         Callback.Clear();
 
-        GetNodeJSOutputStream()->AsyncUnref();
-        GetNodeJSInputStream()->AsyncUnref();
         Host->Unref();
     }
 
     TNodeJSInputStream* GetNodeJSInputStream()
     {
-        return static_cast<TNodeJSInputStream*>(InputStack.Bottom());
+        return InputStack.GetBaseStream();
     }
 
     TNodeJSOutputStream* GetNodeJSOutputStream()
     {
-        return static_cast<TNodeJSOutputStream*>(OutputStack.Bottom());
+        return OutputStack.GetBaseStream();
     }
 
     void SetCommand(const std::string& commandName, INodePtr arguments)
@@ -195,25 +87,7 @@ struct TExecuteRequest
 
     void SetInputCompression(ECompression compression)
     {
-        switch (compression) {
-            case ECompression::None:
-                break;
-            case ECompression::Gzip:
-            case ECompression::Deflate:
-                InputStack.Add<TZLibDecompress>();
-                break;
-            case ECompression::LZO:
-                InputStack.Add<TLzoDecompress>();
-                break;
-            case ECompression::LZF:
-                InputStack.Add<TLzfDecompress>();
-                break;
-            case ECompression::Snappy:
-                InputStack.Add<TSnappyDecompress>();
-                break;
-            default:
-                YUNREACHABLE();
-        }
+        InputStack.AddCompression(compression);
     }
 
     void SetInputFormat(INodePtr format)
@@ -223,29 +97,7 @@ struct TExecuteRequest
 
     void SetOutputCompression(ECompression compression)
     {
-        switch (compression) {
-            case ECompression::None:
-                break;
-            case ECompression::Gzip:
-                OutputStack.Add<TZLibCompress>(ZLib::GZip, 4, StreamBufferSize);
-                break;
-            case ECompression::Deflate:
-                OutputStack.Add<TZLibCompress>(ZLib::ZLib, 4, StreamBufferSize);
-                break;
-            case ECompression::LZO:
-                OutputStack.Add<TLzoCompress>(StreamBufferSize);
-                break;
-            case ECompression::LZF:
-                OutputStack.Add<TLzfCompress>(StreamBufferSize);
-                break;
-            case ECompression::Snappy:
-                OutputStack.Add<TSnappyCompress>(StreamBufferSize);
-                break;
-            default:
-                YUNREACHABLE();
-        }
-
-        OutputStack.Add<TBufferedOutput>(StreamBufferSize);
+        OutputStack.AddCompression(compression);
     }
 
     void SetOutputFormat(INodePtr format)
@@ -279,19 +131,32 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
     Local<Object> result = Object::New();
     result->Set(
         String::New("name"),
-        String::New(descriptor.CommandName.c_str()));
+        String::New(descriptor.CommandName.c_str()),
+        v8::ReadOnly);
     result->Set(
         String::New("input_type"),
-        Integer::New(descriptor.InputType.ToValue()));
+        String::New(descriptor.InputType.ToString().c_str()),
+        v8::ReadOnly);
+    result->Set(
+        String::New("input_type_as_integer"),
+        Integer::New(descriptor.InputType.ToValue()),
+        v8::ReadOnly | v8::DontEnum);
     result->Set(
         String::New("output_type"),
-        Integer::New(descriptor.OutputType.ToValue()));
+        Integer::New(descriptor.OutputType.ToString().c_str()),
+        v8::ReadOnly);
+    result->Set(
+        String::New("output_type_as_integer"),
+        Integer::New(descriptor.OutputType.ToValue()),
+        v8::ReadOnly | v8::DontEnum);
     result->Set(
         String::New("is_volatile"),
-        Boolean::New(descriptor.IsVolatile));
+        Boolean::New(descriptor.IsVolatile),
+        v8::ReadOnly);
     result->Set(
         String::New("is_heavy"),
-        Boolean::New(descriptor.IsHeavy));
+        Boolean::New(descriptor.IsHeavy),
+        v8::ReadOnly);
     return scope.Close(result);
 }
 
@@ -301,8 +166,9 @@ Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSDriver::TNodeJSDriver(Handle<Object> configObject)
+TNodeJSDriver::TNodeJSDriver(bool echo, Handle<Object> configObject)
     : node::ObjectWrap()
+    , Echo(echo)
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -359,22 +225,18 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
         String::NewSymbol("TNodeJSDriver"),
         ConstructorTemplate->GetFunction());
 
-#define YTNODE_SET_ENUM(object, type, element) \
-    (object)->Set(String::NewSymbol(#type "_" #element), Integer::New(type::element))
+    // === Experimental.
+    auto compressionValues = ECompression::GetDomainValues();
+    FOREACH (auto& value, compressionValues) {
+        Stroka key = Stroka::Join("ECompression_", ECompression::GetLiteralByValue(value));
+        target->Set(String::NewSymbol(~key), Integer::New(value));
+    }
 
-    YTNODE_SET_ENUM(target, ECompression, None);
-    YTNODE_SET_ENUM(target, ECompression, Gzip);
-    YTNODE_SET_ENUM(target, ECompression, Deflate);
-    YTNODE_SET_ENUM(target, ECompression, LZO);
-    YTNODE_SET_ENUM(target, ECompression, LZF);
-    YTNODE_SET_ENUM(target, ECompression, Snappy);
-
-    YTNODE_SET_ENUM(target, EDataType, Null);
-    YTNODE_SET_ENUM(target, EDataType, Binary);
-    YTNODE_SET_ENUM(target, EDataType, Structured);
-    YTNODE_SET_ENUM(target, EDataType, Tabular);
-
-#undef YTNODE_SET_ENUM
+    auto dataTypeValues = EDataType::GetDomainValues();
+    FOREACH (auto& value, dataTypeValues) {
+        Stroka key = Stroka::Join("EDataType_", EDataType::GetLiteralByValue(value));
+        target->Set(String::NewSymbol(~key), Integer::New(value));
+    }
 }
 
 bool TNodeJSDriver::HasInstance(Handle<Value> value)
@@ -392,13 +254,16 @@ Handle<Value> TNodeJSDriver::New(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YASSERT(args.Length() == 2);
 
-    EXPECT_THAT_IS(args[0], Object);
+    EXPECT_THAT_IS(args[0], Boolean);
+    EXPECT_THAT_IS(args[1], Object);
 
     TNodeJSDriver* host = NULL;
     try {
-        host = new TNodeJSDriver(Local<Object>::Cast(args[0]));
+        host = new TNodeJSDriver(
+            args[0]->BooleanValue(),
+            args[1].As<Object>());
         host->Wrap(args.This());
 
         if (host->Driver) {
@@ -562,7 +427,19 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
     try {
-        request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+        if (request->Host->Echo) {
+            TTempBuf buffer;
+            auto inputStream = request->DriverRequest.InputStream;
+            auto outputStream = request->DriverRequest.OutputStream;
+
+            while (size_t bytesRead = inputStream->Read(buffer.Data(), buffer.Size())) {
+                outputStream->Write(buffer.Data(), bytesRead);
+            }
+
+            request->DriverResponse = TDriverResponse();
+        } else {
+            request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+        }
     } catch (const std::exception& ex) {
         request->Exception = ex.what();
     }
@@ -593,8 +470,8 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         } else {
             args[1] = Integer::New(request->DriverResponse.Error.GetCode());
             args[2] = String::New(~request->DriverResponse.Error.GetMessage());
-            args[3] = Integer::NewFromUnsigned(request->GetNodeJSInputStream()->BytesCounter);
-            args[4] = Integer::NewFromUnsigned(request->GetNodeJSOutputStream()->BytesCounter);
+            args[3] = Integer::NewFromUnsigned(request->InputStack.GetBaseStream()->BytesCounter);
+            args[4] = Integer::NewFromUnsigned(request->OutputStack.GetBaseStream()->BytesCounter);
         }
 
         request->Callback->Call(

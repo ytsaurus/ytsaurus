@@ -41,19 +41,9 @@ public:
     void EnqueueOnWrite();
     void DoOnWrite();
 
-    static int AsyncOnFlush(eio_req* request);
-    void EnqueueOnFlush();
-    void DoOnFlush();
-
-    static int AsyncOnFinish(eio_req* request);
-    void EnqueueOnFinish();
-    void DoOnFinish();
-
 protected:
     // C++ API.
-    void DoWrite(const void* buffer, size_t length);
-    void DoFlush();
-    void DoFinish();
+    void DoWrite(const void* buffer, size_t length) OVERRIDE;
 
 private:
     void DisposeBuffers();
@@ -78,24 +68,6 @@ inline void TNodeJSOutputStream::EnqueueOnWrite()
         // Post to V8 thread.
         AsyncRef(false);
         EIO_PUSH(TNodeJSOutputStream::AsyncOnWrite, this);
-    }
-}
-
-inline void TNodeJSOutputStream::EnqueueOnFlush()
-{
-    if (AtomicCas(&FlushRequestPending, 1, 0)) {
-        // Post to V8 thread.
-        AsyncRef(false);
-        EIO_PUSH(TNodeJSOutputStream::AsyncOnFlush, this);
-    }
-}
-
-inline void TNodeJSOutputStream::EnqueueOnFinish()
-{
-    if (AtomicCas(&FinishRequestPending, 1, 0)) {
-        // Post to V8 thread.
-        AsyncRef(false);
-        EIO_PUSH(TNodeJSOutputStream::AsyncOnFinish, this);
     }
 }
 

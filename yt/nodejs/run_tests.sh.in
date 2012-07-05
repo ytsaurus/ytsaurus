@@ -3,16 +3,22 @@
 CMB=@CMAKE_CURRENT_BINARY_DIR@
 CMS=@CMAKE_CURRENT_SOURCE_DIR@
 
-make cmake_check_build_system
-
-export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
+make cmake_check_build_system || (echo "Re-run $0" && exit)
 
 [[ ! -f $CMS/lib/ytnode.node       ]] && ln -s $CMB/ytnode.node $CMS/lib
 [[ ! -f $CMS/lib/ytnode_stubs.node ]] && ln -s $CMB/ytnode_stubs.node $CMS/lib
 
-cd $CMS/lib && mocha -R spec -s 250 -t 2500 $* \
+export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
+
+#export NODE_DEBUG=YTAPP,YTNODE,YTTEST
+
+(cd $CMB && npm install); [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
+(cd $CMS/tests && exec mocha \
+  --reporter "spec" \
+  --require "common.js" \
+  "$@" \
   test_common.js \
   test_streams.js \
   test_utils.js \
-  #test_http.js
-
+  test_command.js \
+  )

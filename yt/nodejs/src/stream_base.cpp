@@ -21,6 +21,8 @@ void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
         if (acquireSyncRef) {
             THREAD_AFFINITY_IS_V8();
             Ref();
+        } else {
+            YUNREACHABLE();
         }
     }
 }

@@ -1,5 +1,6 @@
-/*jshint strict: false, forin: false*/
+/*jshint forin: false*/
 
+////////////////////////////////////////////////////////////////////////////////
 // These functions are mainly from Express framework.
 // http://expressjs.com/
 ////////////////////////////////////////////////////////////////////////////////
@@ -7,41 +8,42 @@
 var util = require("util");
 var stream = require("stream");
 
-/**
- * Check if `type` matches given `str`.
- */
-exports.is = function(type, str) {
-    'use strict';
-    if (!str) {
+exports.matches = function(mime, actual) {
+    "use strict";
+    if (!actual) {
         return false;
     }
 
-    str = str.split(";")[0];
+    actual = actual.split(";")[0];
 
-    if (type.indexOf("*") !== -1) {
-        type = type.split("/");
-        str = str.split("/");
+    if (mime.indexOf("*") !== -1) {
+        mime = mime.split("/");
+        actual = actual.split("/");
 
-        return (type[0] === "*" && type[1] === str[1]) ||
-               (type[1] === "*" && type[0] === str[0]) ||
-               (type[0] === "*" && type[1] === "*");
+        if (mime.length !== 2 || actual.length !== 2) {
+            return false;
+        }
+
+        return (mime[0] === "*" && mime[1] === actual[1]) ||
+               (mime[1] === "*" && mime[0] === actual[0]) ||
+               (mime[0] === "*" && mime[1] === "*");
+    } else {
+        return mime === actual;
     }
-
-    return type === str;
 };
 
-/**
- * Check if `type(s)` are acceptable based on the given `str`.
- */
-exports.accepts = function(mime, str) {
-    'use strict';
-    if (!str) {
+exports.acceptsType = function(mime, header) {
+    "use strict";
+    if (!header) {
         return false;
     }
 
-    var accepted = exports.parseAccept(str);
+    var parts = mime.split("/");
+    var accepted = exports.parseAcceptType(header);
     for (var i = 0, imax = accepted.length; i < imax; ++i) {
-        if (exports.testAccept(mime, accepted[i])) {
+        if ((accepted[i].type    === parts[0] || accepted[i].type    === "*") &&
+            (accepted[i].subtype === parts[1] || accepted[i].subtype === "*"))
+        {
             return true;
         }
     }
@@ -49,15 +51,16 @@ exports.accepts = function(mime, str) {
     return false;
 };
 
-exports.acceptsEncoding = function(encoding, str) {
-    'use strict';
-    if (!str) {
+exports.acceptsEncoding = function(encoding, header) {
+    "use strict";
+    if (!header) {
         return false;
     }
 
-    var accepted = exports.parseAcceptEncoding(str);
+    var accepted = exports.parseAcceptEncoding(header);
     for (var i = 0, imax = accepted.length; i < imax; ++i) {
-        if (accepted[i].value === "*" || accepted[i].value === encoding) {
+        if (accepted[i].value === encoding || accepted[i].value === "*")
+        {
             return true;
         }
     }
@@ -65,51 +68,42 @@ exports.acceptsEncoding = function(encoding, str) {
     return false;
 };
 
-/**
- * Parse Accept `str`, returning an array objects containing
- * `.type` and `.subtype` along with the values provided by
- * `parseQuality()`.
- */
-
-exports.parseAccept = function(str) {
-    'use strict';
-    return str
+exports.parseAcceptType = function(header) {
+    "use strict";
+    return header
         .split(/ *, */)
         .map(exports.parseQuality)
-        .filter(function(obj) {
-            return obj.quality;
+        .filter(function(x) {
+            return x.quality;
         })
         .sort(function(a, b) {
             return b.quality - a.quality;
         })
-        .map(function(obj) {
-            var parts = obj.value.split("/");
-            obj.type = parts[0];
-            obj.subtype = parts[1];
-            return obj;
+        .map(function(x) {
+            var parts = x.value.split("/");
+            x.type    = parts[0];
+            x.subtype = parts[1];
+            return x;
         });
 };
 
-exports.parseAcceptEncoding = function(str) {
-    'use strict';
-    return str
+exports.parseAcceptEncoding = function(header) {
+    "use strict";
+    return header
         .split(/ *, */)
         .map(exports.parseQuality)
-        .filter(function(obj) {
-            return obj.quality;
+        .filter(function(x) {
+            return x.quality;
         })
         .sort(function(a, b) {
             return b.quality - a.quality;
         });
 };
 
-/**
- * Parse quality `str`, returning an object with `.value` and `.quality`.
- */
+exports.parseQuality = function(header) {
+    "use strict";
 
-exports.parseQuality = function(str) {
-    'use strict';
-    var parts = str.split(/ *; */);
+    var parts = header.split(/ *; */);
     var value = parts[0];
 
     var quality = parts[1] ? parseFloat(parts[1].split(/ *= */)[1]) : 1.0;
@@ -118,22 +112,11 @@ exports.parseQuality = function(str) {
 };
 
 /**
- * Check if `type` array is acceptable for `other`.
- */
-
-exports.testAccept = function(type, other) {
-    'use strict';
-    var parts = type.split("/");
-    return (parts[0] === other.type || "*" === other.type) &&
-           (parts[1] === other.subtype || "*" === other.subtype);
-};
-
-/**
  * Recursively traverses non-cyclic structure and replaces everything
  * that looks like a number with a number.
  */
 exports.numerify = function(obj) {
-    'use strict';
+    "use strict";
     if (typeof(obj) === "object") {
         for (var key in obj) {
             if (obj.hasOwnProperty(key)) {
@@ -157,7 +140,7 @@ exports.numerify = function(obj) {
  * A simple control flow function which sequentially calls all functions.
  */
 exports.callSeq = function(context, functions, callback) {
-    'use strict';
+    "use strict";
     return (function inner(context, functions, callback) {
         var nextFunction = functions.shift();
         if (typeof(nextFunction) !== "undefined") {
@@ -173,13 +156,16 @@ exports.callSeq = function(context, functions, callback) {
                 callback.call(context, ex);
             }
         } else {
-            callback.call(context, null);
+            callback.call(context);
         }
     }(context, functions, callback));
 };
 
+/**
+ * A simple control flow conditional branch.
+ */
 exports.callIf = function(context, condition, if_true, if_false) {
-    'use strict';
+    "use strict";
     return function(cb) {
         if (condition.call(context)) {
             if (if_true) {
@@ -193,8 +179,12 @@ exports.callIf = function(context, condition, if_true, if_false) {
     };
 };
 
+/**
+ * Recursively merge properties of two objects.
+ * Preference is given to right-hand side.
+ */
 exports.merge = function (lhs, rhs) {
-    'use strict';
+    "use strict";
     for (var p in rhs) {
         try {
             if (typeof(rhs[p]) !== "undefined") {
@@ -214,7 +204,7 @@ exports.merge = function (lhs, rhs) {
 ////////////////////////////////////////////////////////////////////////////////
 
 exports.NullStream = function() {
-    'use strict';
+    "use strict";
     stream.Stream.call(this);
 
     this.readable = true;
@@ -227,6 +217,6 @@ exports.NullStream = function() {
 
 util.inherits(exports.NullStream, stream.Stream);
 
-exports.NullStream.prototype.pause = function() { };
-exports.NullStream.prototype.resume = function() { };
-exports.NullStream.prototype.destroy = function() { };
+exports.NullStream.prototype.pause = function(){};
+exports.NullStream.prototype.resume = function(){};
+exports.NullStream.prototype.destroy = function(){};

@@ -1,6 +1,8 @@
 #include "common.h"
 #include "input_stream.h"
+#include "input_stub.h"
 #include "output_stream.h"
+#include "output_stub.h"
 #include "driver.h"
 
 namespace NYT {
@@ -20,6 +22,9 @@ void ExportYT(Handle<Object> target)
 
     TNodeJSInputStream::Initialize(target);
     TNodeJSOutputStream::Initialize(target);
+
+    TInputStreamStub::Initialize(target);
+    TOutputStreamStub::Initialize(target);
 
     TNodeJSDriver::Initialize(target);
 }

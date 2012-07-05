@@ -28,22 +28,23 @@ function( NODE target type )
 endfunction()
 
 include_directories(
-  "/usr/local/Cellar/node/0.6.18/include/node"
+  "/usr/local/Cellar/node/0.8.2/include/node"
   "/usr/include/nodejs"
 )
 
 set( SRCS
   src/common.cpp
   src/stream_base.cpp
+  src/input_stack.cpp
   src/input_stream.cpp
+  src/input_stub.cpp
+  src/output_stack.cpp
   src/output_stream.cpp
+  src/output_stub.cpp
   src/driver.cpp
 )
 
 NODE( ytnode SHARED ${SRCS} src/ytnode.cpp )
-NODE( ytnode_stubs MODULE src/ytnode_stubs.cpp )
-
-target_link_libraries( ytnode_stubs ytnode )
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/run_tests.sh.in

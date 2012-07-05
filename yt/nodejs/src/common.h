@@ -94,6 +94,19 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const size_t DefaultStreamBufferSize = 64 * 1024;
+
+DECLARE_ENUM(ECompression,
+    (None)
+    (Gzip)
+    (Deflate)
+    (LZO)
+    (LZF)
+    (Snappy)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 NYTree::INodePtr ConvertV8ValueToNode(v8::Handle<v8::Value> value);
 NYTree::INodePtr ConvertV8StringToNode(v8::Handle<v8::String> string);
 
