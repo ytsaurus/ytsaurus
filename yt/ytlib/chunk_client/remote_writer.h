@@ -34,30 +34,28 @@ public:
 
     virtual void Open();
 
-    virtual bool TryWriteBlock(const TSharedRef& block);
+    bool IsReady() const;
     virtual TAsyncError GetReadyEvent();
+
+    virtual void WriteBlock(const TSharedRef& block);
+    virtual void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
 
     virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
     virtual const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
+
     const TChunkId& GetChunkId() const;
+
+    i64 GetCompressedSize() const;
+    i64 GetUncompressedSize() const;
+    double GetCompressionRatio() const;
 
     Stroka GetDebugInfo();
 
 private:
     class TImpl;
     //! A group is a bunch of blocks that is sent in a single RPC request.
-    class TGroup;
-    typedef TIntrusivePtr<TGroup> TGroupPtr;
-
-    struct TNode;
-    typedef TIntrusivePtr<TNode> TNodePtr;
-
-    typedef ydeque<TGroupPtr> TWindow;
-
-    typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
 
     TIntrusivePtr<TImpl> Impl;
 };

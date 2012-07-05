@@ -135,6 +135,8 @@ public:
 
     IInvokerPtr GetInvoker(int queueIndex);
 
+    static TCallback< TIntrusivePtr<TMultiActionQueue> ()> CreateFactory(int queueCount, const Stroka& threadName);
+
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;

@@ -319,10 +319,17 @@ IInvokerPtr TMultiActionQueue::GetInvoker(int queueIndex)
     return Impl->GetInvoker(queueIndex);
 }
 
-
 void TMultiActionQueue::Shutdown()
 {
     return Impl->Shutdown();
+}
+
+TCallback<TIntrusivePtr<TMultiActionQueue>()> 
+TMultiActionQueue::CreateFactory(int queueCount, const Stroka& threadName)
+{
+    return BIND([=] () {
+        return NYT::New<NYT::TMultiActionQueue>(queueCount, threadName);
+    });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
