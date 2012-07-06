@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "snapshot_lookup.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "meta_state_manager_proxy.h"
 #include <ytlib/election/cell_manager.h>

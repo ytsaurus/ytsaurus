@@ -13,17 +13,18 @@ namespace NMetaState {
 // we try to pass everything by const&.
 
 template <class TResult>
-class TMetaChange
+class TMutation
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TMetaChange> TPtr;
-    typedef TCallback<TResult()> TChangeFunc;
+    typedef TIntrusivePtr<TMutation> TPtr;
+    typedef TCallback<TResult()> TMutationAction;
 
-    TMetaChange(
+    TMutation(
         const IMetaStateManagerPtr& metaStateManager,
-        const TChangeFunc& func,
-        const TSharedRef& changeData);
+        const TMutationAction& mutationAction,
+        const Stroka& mutationType,
+        const TSharedRef& mutationData);
 
     TFuture<TResult> Commit();
 
@@ -32,12 +33,12 @@ public:
     TPtr OnError(const TCallback<void()>& onError);
 
 private:
-    typedef TMetaChange<TResult> TThis;
+    typedef TMutation<TResult> TThis;
 
     IMetaStateManagerPtr MetaStateManager;
-    TChangeFunc Func;
-    TClosure ChangeAction;
-    TSharedRef ChangeData;
+    TMutationAction MutationAction;
+    Stroka MutationType;
+    TSharedRef MutationData;
     bool Started;
     bool Retriable;
 
@@ -49,29 +50,29 @@ private:
     TResult Result;
 
     void DoCommit();
-    void ChangeFuncThunk();
+    void MutationActionThunk();
     void OnCommitted(ECommitResult result);
 
 };
 
 template <class TMessage, class TResult>
-typename TMetaChange<TResult>::TPtr CreateMetaChange(
+typename TMutation<TResult>::TPtr CreateMutation(
     const IMetaStateManagerPtr& metaStateManager,
     const TMessage& message,
-    const TCallback<TResult()>& func);
+    const TCallback<TResult()>& mutationAction);
 
 template <class TMessage, class TResult>
-typename TMetaChange<TResult>::TPtr CreateMetaChange(
+typename TMutation<TResult>::TPtr CreateMutation(
     const IMetaStateManagerPtr& metaStateManager,
-    TRef messageData,
     const TMessage& message,
-    const TCallback<TResult()>& func);
+    const TSharedRef& serializedMessage,
+    const TCallback<TResult()>& mutationAction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NMetaState
 } // namespace NYT
 
-#define META_CHANGE_INL_H_
-#include "meta_change-inl.h"
-#undef META_CHANGE_INL_H_
+#define MUTATION_INL_H_
+#include "mutation-inl.h"
+#undef MUTATION_INL_H_

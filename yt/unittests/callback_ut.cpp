@@ -121,7 +121,7 @@ TEST_F(TCallbackTest, IsNull)
     EXPECT_FALSE(SecondCallback.IsNull());
 }
 
-TEST_F(TCallbackTest, Move)
+TEST_F(TCallbackTest, CheckedMoveFile)
 {
     EXPECT_FALSE(FirstCallback.IsNull());
 

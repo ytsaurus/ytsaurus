@@ -29,11 +29,11 @@ public:
      * \note Thread affinity: ControlThread
      */
     TRecovery(
-        TPersistentStateManagerConfig* config,
-        NElection::TCellManager* cellManager,
-        TDecoratedMetaState* decoratedState,
-        TChangeLogCache* changeLogCache,
-        TSnapshotStore* snapshotStore,
+        TPersistentStateManagerConfigPtr config,
+        NElection::TCellManagerPtr cellManager,
+        TDecoratedMetaStatePtr decoratedState,
+        TChangeLogCachePtr changeLogCache,
+        TSnapshotStorePtr snapshotStore,
         const TEpoch& epoch,
         TPeerId leaderId,
         IInvokerPtr epochControlInvoker,
@@ -95,7 +95,7 @@ protected:
     /*!
      *  The current segment id should match that of #changeLog.
      *  
-     *  The methods ensured that no change is applied twice.
+     *  The methods ensured that no mutation is applied twice.
      *  In particular, if the 'record count' of part the current version is positive, it skips
      *  the suitable prefix of #changeLog.
      *
@@ -135,11 +135,11 @@ public:
      * \note Thread affinity: ControlThread
      */
     TLeaderRecovery(
-        TPersistentStateManagerConfig* config,
-        NElection::TCellManager* cellManager,
-        TDecoratedMetaState* decoratedState,
-        TChangeLogCache* changeLogCache,
-        TSnapshotStore* snapshotStore,
+        TPersistentStateManagerConfigPtr config,
+        NElection::TCellManagerPtr cellManager,
+        TDecoratedMetaStatePtr decoratedState,
+        TChangeLogCachePtr changeLogCache,
+        TSnapshotStorePtr snapshotStore,
         const TEpoch& epoch,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
@@ -167,11 +167,11 @@ public:
      * \note Thread affinity: ControlThread
      */
     TFollowerRecovery(
-        TPersistentStateManagerConfig* config,
-        NElection::TCellManager* cellManager,
-        TDecoratedMetaState* decoratedState,
-        TChangeLogCache* changeLogCache,
-        TSnapshotStore* snapshotStore,
+        TPersistentStateManagerConfigPtr config,
+        NElection::TCellManagerPtr cellManager,
+        TDecoratedMetaStatePtr decoratedState,
+        TChangeLogCachePtr changeLogCache,
+        TSnapshotStorePtr snapshotStore,
         const TEpoch& epoch,
         TPeerId leaderId,
         IInvokerPtr epochControlInvoker,
@@ -195,57 +195,57 @@ public:
 
     //! Postpones incoming changes.
     /*!
-     * \param changes Incoming changes.
+     * \param recordsData Incoming records.
      * \param version Version at which the changes should be applied.
-     * \returns True when the change is coherent with the postponed version.
+     * \returns True when the mutation is coherent with the postponed version.
      * 
      * \note Thread affinity: ControlThread
      */
-    EResult PostponeChanges(
+    EResult PostponeMutations(
         const TMetaVersion& version,
-        const std::vector<TSharedRef>& changes);
+        const std::vector<TSharedRef>& recordsData);
 
 private:
-    struct TPostponedChange
+    struct TPostponedMutation
     {
         DECLARE_ENUM(EType,
-            (Change)
+            (Mutation)
             (SegmentAdvance)
         );
 
         EType Type;
-        TSharedRef ChangeData;
+        TSharedRef RecordData;
 
-        static TPostponedChange CreateChange(const TSharedRef& changeData)
+        static TPostponedMutation CreateMutation(const TSharedRef& recordData)
         {
-            return TPostponedChange(EType::Change, changeData);
+            return TPostponedMutation(EType::Mutation, recordData);
         }
 
-        static TPostponedChange CreateSegmentAdvance()
+        static TPostponedMutation CreateSegmentAdvance()
         {
-            return TPostponedChange(EType::SegmentAdvance, TSharedRef());
+            return TPostponedMutation(EType::SegmentAdvance, TSharedRef());
         }
 
     private:
-        TPostponedChange(EType type, const TSharedRef& changeData)
+        TPostponedMutation(EType type, const TSharedRef& recordData)
             : Type(type)
-            , ChangeData(changeData)
+            , RecordData(recordData)
         { }
     };
 
-    typedef std::vector<TPostponedChange> TPostponedChanges;
+    typedef std::vector<TPostponedMutation> TPostponedMutations;
 
     // Any thread.
     TAsyncPromise Promise;
     TMetaVersion TargetVersion;
 
     // Control thread
-    TPostponedChanges PostponedChanges;
+    TPostponedMutations PostponedMutations;
     TMetaVersion PostponedVersion;
     
     TAsyncResult OnSyncReached(EResult result);
-    TAsyncResult CapturePostponedChanges();
-    TAsyncResult ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
+    TAsyncResult CapturePostponedMutations();
+    TAsyncResult ApplyPostponedMutations(TAutoPtr<TPostponedMutations> changes);
 
     virtual bool IsLeader() const;
 

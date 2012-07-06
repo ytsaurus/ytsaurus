@@ -581,7 +581,7 @@ void TObjectManager::ExecuteVerb(
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
         !isWrite ||
-        MetaStateManager->IsInCommit())
+        MetaStateManager->GetMutationContext())
     {
         PROFILE_TIMING (profilingPath) {
             action.Run(context);
@@ -600,7 +600,7 @@ void TObjectManager::ExecuteVerb(
 
     auto wrappedContext = New<TServiceContextWrapper>(context);
 
-    auto change = CreateMetaChange(
+    auto change = CreateMutation(
         MetaStateManager,
         message,
         BIND([=] () -> TVoid {
@@ -622,9 +622,7 @@ void TObjectManager::ExecuteVerb(
         ->Commit();
 }
 
-TVoid TObjectManager::ReplayVerb(
-    const NMetaState::NProto::TChangeHeader& changeHeader,
-    const TMsgExecuteVerb& message)
+TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
 {
     auto objectId = TObjectId::FromProto(message.object_id());
     auto transactionId = TTransactionId::FromProto(message.transaction_id());

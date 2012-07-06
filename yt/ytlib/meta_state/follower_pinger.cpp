@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "follower_pinger.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "decorated_meta_state.h"
 #include "snapshot_store.h"

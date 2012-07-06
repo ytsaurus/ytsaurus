@@ -2,6 +2,7 @@
 #include "async_change_log.h"
 #include "meta_version.h"
 #include "change_log.h"
+#include "private.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/singleton.h>
@@ -15,8 +16,8 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("/meta_state");
+static NLog::TLogger& Logger = MetaStateLogger;
+static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,8 +25,6 @@ class TAsyncChangeLog::TChangeLogQueue
     : public TRefCounted
 {
 public:
-    typedef TAsyncChangeLog::TAppendResult TAppendResult;
-
     // Guarded by TImpl::SpinLock
     TAtomic UseCount;
 
@@ -33,10 +32,10 @@ public:
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
-        , Promise(NewPromise<TAppendPromise::TValueType>())
+        , Promise(NewPromise<void>())
     { }
 
-    TAppendResult Append(i32 recordId, const TSharedRef& data)
+    TFuture<void> Append(i32 recordId, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -59,7 +58,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(Flush);
 
-        TAppendPromise promise(Null);
+        TPromise<void> promise(Null);
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -69,7 +68,7 @@ public:
 
             YASSERT(!Promise.IsNull());
             promise = Promise;
-            Promise = NewPromise<TAppendPromise::TValueType>();
+            Promise = NewPromise<TPromise<void>::TValueType>();
         }
 
         // In addition to making this code run a tiny bit faster,
@@ -96,7 +95,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         PROFILE_TIMING ("/changelog_flush_wait_time") {
-            TAppendPromise promise(Null);
+            TPromise<void> promise(Null);
             {
                 TGuard<TSpinLock> guard(SpinLock);
                 if (FlushQueue.empty() && AppendQueue.empty()) {
@@ -218,7 +217,7 @@ private:
     i32 FlushedRecordCount;
     std::vector<TSharedRef> AppendQueue;
     std::vector<TSharedRef> FlushQueue;
-    TAppendPromise Promise;
+    TPromise<void> Promise;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
 };
@@ -228,8 +227,6 @@ private:
 class TAsyncChangeLog::TImpl
 {
 public:
-    typedef TAsyncChangeLog::TAppendResult TAppendResult;
-
     static TImpl* Get()
     {
         return Singleton<TImpl>();
@@ -250,7 +247,7 @@ public:
         Shutdown();
     }
 
-    TAppendResult Append(
+    TFuture<void> Append(
         const TChangeLogPtr& changeLog,
         i32 recordId,
         const TSharedRef& data)
@@ -480,7 +477,7 @@ TAsyncChangeLog::TAsyncChangeLog(const TChangeLogPtr& changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
-TAsyncChangeLog::TAppendResult TAsyncChangeLog::Append(
+TFuture<void> TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {

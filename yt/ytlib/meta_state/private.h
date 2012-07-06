@@ -2,6 +2,7 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -9,6 +10,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern NLog::TLogger MetaStateLogger;
+extern NProfiling::TProfiler MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +36,6 @@ const i32 UnknownPrevRecordCount = -2;
 const i32 NonexistingSnapshotId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NMetaState
 } // namespace NYT

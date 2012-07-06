@@ -20,7 +20,7 @@ class TCommitter
 {
 public:
     TCommitter(
-        TDecoratedMetaState* metaState,
+        TDecoratedMetaStatePtr metaState,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
 
@@ -29,8 +29,8 @@ public:
     DECLARE_ENUM(EResult,
         (Committed)
         (MaybeCommitted)
-        (LateChanges)
-        (OutOfOrderChanges)
+        (LateMutations)
+        (OutOfOrderMutations)
     );
 
     typedef TFuture<EResult> TCommitResult;
@@ -58,11 +58,11 @@ class TLeaderCommitter
 public:
     //! Creates an instance.
     TLeaderCommitter(
-        TLeaderCommitterConfig* config,
-        NElection::TCellManager* cellManager,
-        TDecoratedMetaState* metaState,
-        TChangeLogCache* changeLogCache,
-        TFollowerTracker* followerTracker,
+        TLeaderCommitterConfigPtr config,
+        NElection::TCellManagerPtr cellManager,
+        TDecoratedMetaStatePtr metaState,
+        TChangeLogCachePtr changeLogCache,
+        TFollowerTrackerPtr followerTracker,
         const TEpoch& epoch,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
@@ -83,9 +83,9 @@ public:
 
     //! Initiates a new distributed commit.
     /*!
-     *  \param changeAction An action that will be called in the context of
+     *  \param mutationAction An action that will be called in the context of
      *  the state thread and will update the state.
-     *  \param changeData A serialized representation of the change that
+     *  \param mutationData A serialized representation of the mutation that
      *  will be sent down to follower.
      *  \return An asynchronous flag indicating the outcome of the distributed commit.
      *  
@@ -95,18 +95,18 @@ public:
      *  \note Thread affinity: StateThread
      */
     TCommitResult Commit(
-        TClosure changeAction,
-        const TSharedRef& changeData);
+        const TSharedRef& recordData,
+        const TClosure& mutationAction);
 
-    //! Force to send all pending changes.
+    //! Force to send all pending mutations.
     /*!
      *  \param rotateChangeLog True iff the changelog will be rotated immediately.
      *  \note Thread affinity: StateThread
      */
     void Flush(bool rotateChangeLog);
 
-    //! Raised in the state thread each time a change is applied locally.
-    DEFINE_SIGNAL(void(), ChangeApplied);
+    //! Raised in the state thread each time a mutation is applied locally.
+    DEFINE_SIGNAL(void(), MutationApplied);
 
 private:
     class TBatch;
@@ -116,9 +116,9 @@ private:
 
     void OnBatchTimeout(TBatchPtr batch);
     TIntrusivePtr<TBatch> GetOrCreateBatch(const TMetaVersion& version);
-    TCommitResult BatchChange(
+    TCommitResult AddMutationToBatch(
         const TMetaVersion& version,
-        const TSharedRef& changeData,
+        const TSharedRef& recordData,
         TFuture<void> changeLogResult);
     void FlushCurrentBatch(bool rotateChangeLog);
 
@@ -143,16 +143,16 @@ class TFollowerCommitter
 public:
     //! Creates an instance.
     TFollowerCommitter(
-        TDecoratedMetaState* metaState,
+        TDecoratedMetaStatePtr metaState,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
 
     ~TFollowerCommitter();
 
-    //! Commits a bunch of changes at a follower.
+    //! Commits a bunch of mutations at a follower.
     /*!
      *  \param expectedVersion A version that the state is currently expected to have.
-     *  \param changes A bunch of serialized changes to apply.
+     *  \param records A bunch of serialized mutations to apply.
      *  \return An asynchronous flag indicating the outcome of the local commit.
      *  
      *  The current implementation regards a local commit as completed when the update is
@@ -162,12 +162,12 @@ public:
      */
     TCommitResult Commit(
         const TMetaVersion& expectedVersion,
-        const std::vector<TSharedRef>& changes);
+        const std::vector<TSharedRef>& recordsData);
 
 private:
     TCommitResult DoCommit(
         const TMetaVersion& expectedVersion,
-        const std::vector<TSharedRef>& changes);
+        const std::vector<TSharedRef>& recordsData);
 
 };
 

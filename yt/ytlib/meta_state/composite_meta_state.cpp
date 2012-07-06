@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "composite_meta_state.h"
-#include "common.h"
+#include "private.h"
 #include "meta_state_manager.h"
-#include "composite_meta_state_detail.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/actions/bind.h>
@@ -162,21 +161,11 @@ void TCompositeMetaState::Load(TInputStream* input)
     }
 }
 
-void TCompositeMetaState::ApplyChange(const TRef& changeData)
+void TCompositeMetaState::ApplyMutation(const TMutationContext& context)
 {
-    TChangeHeader header;
-    TRef messageData;
-    DeserializeChange(
-        changeData,
-        &header,
-        &messageData);
-
-    Stroka changeType = header.change_type();
-
-    auto it = Methods.find(changeType);
+    auto it = Methods.find(context.GetMutationType());
     YCHECK(it != Methods.end());
-
-    it->second.Run(header, messageData);
+    it->second.Run(context);
 }
 
 void TCompositeMetaState::Clear()

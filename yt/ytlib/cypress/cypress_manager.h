@@ -16,7 +16,7 @@
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
-#include <ytlib/meta_state/meta_change.h>
+#include <ytlib/meta_state/mutation.h>
 #include <ytlib/object_server/object_manager.h>
 
 namespace NYT {

@@ -139,7 +139,7 @@ struct TChangeLogCacheConfig
     //! Maximum number of cached changelogs.
     int MaxSize;
 
-    //! Minimum size of records between consecutive index records in changelog.
+    //! Minimum total index records size between consecutive index records.
     i64 IndexBlockSize;
 
     TChangeLogCacheConfig()

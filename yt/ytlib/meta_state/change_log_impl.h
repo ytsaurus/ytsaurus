@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "private.h"
 #include "file_helpers.h"
 #include "change_log.h"
 
@@ -12,6 +12,8 @@
 
 namespace NYT {
 namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Binary Structures {{{
 
@@ -229,7 +231,7 @@ private:
     //! Protects file resources.
     TMutex Mutex;
     NLog::TTaggedLogger Logger;
-}; // class TChangeLog::TImpl
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
