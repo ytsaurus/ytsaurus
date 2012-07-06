@@ -25,7 +25,6 @@ public:
         ((NotEnoughHolders)(3))
         ((InvalidState)(4))
         ((NotAuthorized)(5))
-        ((PoisonPill)(6))
     );
 
     TChunkServiceProxy(NRpc::IChannelPtr channel)

@@ -1325,7 +1325,7 @@ private:
                 ~holder->GetAddress(),
                 holder->GetId());
             LOG_ERROR("%s", ~message);
-            ythrow NRpc::TServiceException(TError(TChunkServiceProxy::EErrorCode::PoisonPill, message));
+            ythrow NRpc::TServiceException(TError(NRpc::EErrorCode::PoisonPill, message));
         }
         chunk->ChunkInfo() = chunkAddInfo.chunk_info();
 

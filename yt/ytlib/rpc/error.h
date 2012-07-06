@@ -16,6 +16,7 @@ DECLARE_ENUM(EErrorCode,
     ((Timeout)(-5))
     ((ServiceError)(-6))
     ((Unavailable)(-7))
+    ((PoisonPill)(-8))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
