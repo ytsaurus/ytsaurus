@@ -305,6 +305,7 @@ void TDecoratedMetaState::EnterMutation(const TSharedRef& recordData)
     TSharedRef mutationData;
     DeserializeMutationRecord(recordData, &mutationHeader, &mutationData);
     MutationContext.Reset(new TMutationContext(
+        Version,
         mutationHeader.mutation_type(),
         mutationData,
         TInstant(mutationHeader.timestamp()),

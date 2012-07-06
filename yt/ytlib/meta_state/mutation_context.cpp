@@ -7,15 +7,22 @@ namespace NMetaState {
 ///////////////////////////////////////////////////////////////////////////////
 
 TMutationContext::TMutationContext(
+    const TMetaVersion& version,
     const Stroka& mutationType,
     const TSharedRef& mutationData,
     TInstant timestamp,
     ui64 randomSeed)
-    : MutationType(mutationType)
+    : Version(version)
+    , MutationType(mutationType)
     , MutationData(mutationData)
     , Timestamp(timestamp)
     , RandomGenerator_(randomSeed)
 { }
+
+const TMetaVersion& TMutationContext::GetVersion() const
+{
+    return Version;
+}
 
 const Stroka& TMutationContext::GetMutationType() const
 {
