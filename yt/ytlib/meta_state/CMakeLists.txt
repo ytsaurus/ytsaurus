@@ -1,15 +1,16 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state )
 set( SRCS
+  ${BASE}/mutation_context.cpp
   ${BASE}/async_change_log.cpp
-  ${BASE}/change_committer.cpp
+  ${BASE}/mutation_committer.cpp
   ${BASE}/change_log.cpp
   ${BASE}/change_log_cache.cpp
   ${BASE}/change_log_downloader.cpp
   ${BASE}/change_log_impl.cpp
-  ${BASE}/common.cpp
+  ${BASE}/private.cpp
   ${BASE}/composite_meta_state.cpp
-  ${BASE}/composite_meta_state_detail.cpp
+  ${BASE}/serialize.cpp
   ${BASE}/decorated_meta_state.cpp
   ${BASE}/file_helpers.cpp
   ${BASE}/follower_pinger.cpp
@@ -24,17 +25,17 @@ set( SRCS
   ${BASE}/snapshot_store.cpp
 )
 set( HDRS
+  ${BASE}/mutation_context.h
   ${BASE}/async_change_log.h
-  ${BASE}/change_committer.h
+  ${BASE}/mutation_committer.h
   ${BASE}/change_log.h
   ${BASE}/change_log_cache.h
   ${BASE}/change_log_downloader.h
   ${BASE}/change_log_impl.h
-  ${BASE}/common.h
+  ${BASE}/private.h
   ${BASE}/composite_meta_state-inl.h
   ${BASE}/composite_meta_state.h
-  ${BASE}/composite_meta_state_detail-inl.h
-  ${BASE}/composite_meta_state_detail.h
+  ${BASE}/serialize.h
   ${BASE}/config.h
   ${BASE}/decorated_meta_state.h
   ${BASE}/file_helpers.h
@@ -42,8 +43,8 @@ set( HDRS
   ${BASE}/follower_tracker.h
   ${BASE}/map-inl.h
   ${BASE}/map.h
-  ${BASE}/meta_change-inl.h
-  ${BASE}/meta_change.h
+  ${BASE}/mutation-inl.h
+  ${BASE}/mutation.h
   ${BASE}/meta_state.h
   ${BASE}/meta_state_manager.h
   ${BASE}/meta_state_manager_proxy.h

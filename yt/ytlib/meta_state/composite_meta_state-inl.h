@@ -11,52 +11,25 @@ namespace NMetaState {
 
 template <class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(
-    TCallback<TResult(const NProto::TChangeHeader& header, const TMessage&)> changeMethod)
+    TCallback<TResult(const TMessage&)> handler)
 {
-    Stroka changeType = TMessage().GetTypeName();
-    auto action = BIND(
-        &TMetaStatePart::MethodThunkWithHeader<TMessage, TResult>,
+    Stroka mutationType = TMessage().GetTypeName();
+    auto wrappedHandler = BIND(
+        &TMetaStatePart::MethodThunk<TMessage, TResult>,
         Unretained(this),
-        MoveRV(changeMethod));
-    YCHECK(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
+        MoveRV(handler));
+    YCHECK(MetaState->Methods.insert(MakePair(mutationType, wrappedHandler)).second);
 }
 
 template <class TMessage, class TResult>
-void TMetaStatePart::RegisterMethod(
-    TCallback<TResult(const TMessage&)> changeMethod)
-{
-    Stroka changeType = TMessage().GetTypeName();
-    auto action = BIND(
-        &TMetaStatePart::MethodThunkWithoutHeader<TMessage, TResult>,
-        Unretained(this),
-        MoveRV(changeMethod));
-    YCHECK(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
-}
-
-template <class TMessage, class TResult>
-void TMetaStatePart::MethodThunkWithHeader(
-    TCallback<TResult(const NProto::TChangeHeader& header, const TMessage& message)> changeMethod,
-    const NProto::TChangeHeader& header,
-    const TRef& changeData)
+void TMetaStatePart::MethodThunk(
+    TCallback<TResult(const TMessage& message)> handler,
+    const TMutationContext& context)
 {
     TMessage message;
-    YCHECK(DeserializeFromProto(&message, changeData));
+    YCHECK(DeserializeFromProto(&message, context.GetMutationData()));
 
-    changeMethod.Run(header, message);
-}
-
-template <class TMessage, class TResult>
-void TMetaStatePart::MethodThunkWithoutHeader(
-    TCallback<TResult(const TMessage& message)> changeMethod,
-    const NProto::TChangeHeader& header,
-    const TRef& changeData)
-{
-    UNUSED(header);
-
-    TMessage message;
-    YCHECK(DeserializeFromProto(&message, changeData));
-
-    changeMethod.Run(message);
+    handler.Run(message);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

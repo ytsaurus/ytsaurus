@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "snapshot.h"
-#include "common.h"
+#include "private.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/common.h>
@@ -187,7 +187,7 @@ void TSnapshotWriter::Close()
     WritePod(*File, *Header);
     File->Close();
 
-    Move(TempFileName, FileName);
+    CheckedMoveFile(TempFileName, FileName);
 }
 
 TChecksum TSnapshotWriter::GetChecksum() const

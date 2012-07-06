@@ -3,9 +3,6 @@
 #include "public.h"
 #include "meta_version.h"
 
-// TODO(babenko): get rid of this
-#include "async_change_log.h"
-
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/ref.h>
 #include <ytlib/actions/callback_forward.h>
@@ -73,7 +70,7 @@ public:
     /*!
      *  During recovery this is equal to the reachable version.
      *  After recovery this is equal to the version resulting from applying all
-     *  changes in the latest batch.
+     *  mutations in the latest batch.
      *
      *  \note Thread affinity: ControlThread
      */
@@ -109,25 +106,27 @@ public:
      */
     void Load(i32 segmentId, TInputStream* input);
 
-    //! Delegates the call to IMetaState::ApplyChange and updates the version.
+    //! Delegates the call to IMetaState::ApplyMutation and updates the version.
     /*!
      * \note Thread affinity: StateThread
      */
-    void ApplyChange(const TSharedRef& changeData);
+    void ApplyMutation(const TSharedRef& recordData);
 
     //! Executes a given action and updates the version.
     /*!
      * \note Thread affinity: StateThread
      */
-    void ApplyChange(const TClosure& changeAction);
+    void ApplyMutation(
+        const TSharedRef& recordData,
+        const TClosure& mutationAction);
 
     //! Appends a new record into an appropriate changelog.
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncChangeLog::TAppendResult LogChange(
+    TFuture<void> LogMutation(
         const TMetaVersion& version,
-        const TSharedRef& changeData);
+        const TSharedRef& recordData);
 
     //! Finalizes the current changelog, advances the segment, and creates a new changelog.
     /*!
@@ -140,6 +139,9 @@ public:
      * \note Thread affinity: StateThread
      */
     void AdvanceSegment();
+
+    //! Returns the current mutation context or NULL if no mutation is currently being applied.
+    TMutationContext* GetMutationContext();
 
 private:
     IMetaStatePtr State;
@@ -156,10 +158,15 @@ private:
     TMetaVersion ReachableVersion;
     TMetaVersion PingVersion;
 
+    TAutoPtr<TMutationContext> MutationContext;
+
     void IncrementRecordCount();
     void ComputeReachableVersion();
     void UpdateVersion(const TMetaVersion& newVersion);
     TCachedAsyncChangeLogPtr GetCurrentChangeLog();
+
+    void EnterMutation(const TSharedRef& recordData);
+    void LeaveMutation();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

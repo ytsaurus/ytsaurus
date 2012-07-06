@@ -6,7 +6,7 @@
 #include <ytlib/chunk_server/chunk_manager.pb.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/meta_change.h>
+#include <ytlib/meta_state/mutation.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/rpc/service.h>
@@ -31,21 +31,21 @@ public:
 
     ~TChunkManager();
 
-    NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
+    NMetaState::TMutation<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
+    NMetaState::TMutation<TVoid>::TPtr InitiateUnregisterHolder(
         const NProto::TMsgUnregisterHolder& message);
 
     // Pass RPC service context to full heartbeat handler to avoid copying request message.
     typedef NRpc::TTypedServiceContext<NProto::TReqFullHeartbeat, NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
+    NMetaState::TMutation<TVoid>::TPtr InitiateFullHeartbeat(
         TCtxFullHeartbeat::TPtr context);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateIncrementalHeartbeat(
+    NMetaState::TMutation<TVoid>::TPtr InitiateIncrementalHeartbeat(
         const NProto::TMsgIncrementalHeartbeat& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateUpdateJobs(
+    NMetaState::TMutation<TVoid>::TPtr InitiateUpdateJobs(
         const NProto::TMsgUpdateJobs& message);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);

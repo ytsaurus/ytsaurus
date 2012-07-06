@@ -23,8 +23,8 @@ public:
     );
 
     TChangeLogDownloader(
-        TChangeLogDownloaderConfig* config,
-        NElection::TCellManager* cellManager);
+        TChangeLogDownloaderConfigPtr config,
+        NElection::TCellManagerPtr cellManager);
 
     EResult Download(TMetaVersion version, TAsyncChangeLog& changeLog);
 

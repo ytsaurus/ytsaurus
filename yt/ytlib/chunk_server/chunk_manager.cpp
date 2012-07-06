@@ -180,47 +180,47 @@ public:
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
     }
 
-    TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
+    TMutation<THolderId>::TPtr InitiateRegisterHolder(
         const TMsgRegisterHolder& message)
     {
-        return CreateMetaChange(
+        return CreateMutation(
             MetaStateManager,
             message,
             BIND(&TThis::RegisterHolder, Unretained(this), message));
     }
 
-    TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
+    TMutation<TVoid>::TPtr InitiateUnregisterHolder(
         const TMsgUnregisterHolder& message)
     {
-        return CreateMetaChange(
+        return CreateMutation(
             MetaStateManager,
             message,
             BIND(&TThis::UnregisterHolder, Unretained(this), message));
     }
 
-    TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
+    TMutation<TVoid>::TPtr InitiateFullHeartbeat(
         TCtxFullHeartbeat::TPtr context)
     {
-        return CreateMetaChange(
+        return CreateMutation(
             MetaStateManager,
-            context->GetUntypedContext()->GetRequestBody(),
             context->Request(),
+            context->GetUntypedContext()->GetRequestBody(),
             BIND(&TThis::FullHeartbeatWithContext, Unretained(this), context));
     }
 
-    TMetaChange<TVoid>::TPtr InitiateIncrementalHeartbeat(
+    TMutation<TVoid>::TPtr InitiateIncrementalHeartbeat(
         const TMsgIncrementalHeartbeat& message)
     {
-        return CreateMetaChange(
+        return CreateMutation(
             MetaStateManager,
             message,
             BIND(&TThis::IncrementalHeartbeat, Unretained(this), message));
     }
 
-    TMetaChange<TVoid>::TPtr InitiateUpdateJobs(
+    TMutation<TVoid>::TPtr InitiateUpdateJobs(
         const TMsgUpdateJobs& message)
     {
-        return CreateMetaChange(
+        return CreateMutation(
             MetaStateManager,
             message,
             BIND(&TThis::UpdateJobs, Unretained(this), message));
@@ -1213,11 +1213,13 @@ private:
 
     void AddJob(THolder* holder, const TJobStartInfo& jobInfo)
     {
+        auto metaStateManager = Bootstrap->GetMetaStateManager();
+        auto* mutationContext = metaStateManager->GetMutationContext();
+
         auto chunkId = TChunkId::FromProto(jobInfo.chunk_id());
         auto jobId = TJobId::FromProto(jobInfo.job_id());
         auto targetAddresses = FromProto<Stroka>(jobInfo.target_addresses());
         auto jobType = EJobType(jobInfo.type());
-        auto startTime = TInstant(jobInfo.start_time());
 
         auto* job = new TJob(
             jobType,
@@ -1225,7 +1227,7 @@ private:
             chunkId,
             holder->GetAddress(),
             targetAddresses,
-            startTime);
+            mutationContext->GetTimestamp());
         JobMap.Insert(jobId, job);
 
         auto* jobList = GetOrCreateJobList(chunkId);
@@ -2045,31 +2047,31 @@ std::vector<THolder*> TChunkManager::AllocateUploadTargets(
     return Impl->AllocateUploadTargets(nodeCount, preferredHostName);
 }
 
-TMetaChange<THolderId>::TPtr TChunkManager::InitiateRegisterHolder(
+TMutation<THolderId>::TPtr TChunkManager::InitiateRegisterHolder(
     const TMsgRegisterHolder& message)
 {
     return Impl->InitiateRegisterHolder(message);
 }
 
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateUnregisterHolder(
+TMutation<TVoid>::TPtr TChunkManager::InitiateUnregisterHolder(
     const TMsgUnregisterHolder& message)
 {
     return Impl->InitiateUnregisterHolder(message);
 }
 
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateFullHeartbeat(
+TMutation<TVoid>::TPtr TChunkManager::InitiateFullHeartbeat(
     TCtxFullHeartbeat::TPtr context)
 {
     return Impl->InitiateFullHeartbeat(context);
 }
 
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateIncrementalHeartbeat(
+TMutation<TVoid>::TPtr TChunkManager::InitiateIncrementalHeartbeat(
     const TMsgIncrementalHeartbeat& message)
 {
     return Impl->InitiateIncrementalHeartbeat(message);
 }
 
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateUpdateJobs(
+TMutation<TVoid>::TPtr TChunkManager::InitiateUpdateJobs(
     const TMsgUpdateJobs& message)
 {
     return Impl->InitiateUpdateJobs(message);

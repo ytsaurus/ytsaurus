@@ -4,7 +4,7 @@ from cfglib.ytwin import *
 import cfglib.opts as opts
 import socket
 
-build_dir = r'C:\Projects\yt-new-build\build'
+build_dir = os.environ['YT_BUILD_DIR']
 
 
 Logging = {
@@ -41,7 +41,7 @@ Logging = {
 }
 
 MasterAddresses = opts.limit_iter('--masters',
-        ['%s:%d' % ('psushin-nb-w7', port) for port in xrange(8001, 8004)])
+        ['%s:%d' % (socket.gethostname(), port) for port in xrange(8001, 8004)])
 
 class Base(AggrBase):
         path = opts.get_string('--name', 'control')

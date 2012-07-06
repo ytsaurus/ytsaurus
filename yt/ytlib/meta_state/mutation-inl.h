@@ -1,13 +1,10 @@
-#ifndef META_CHANGE_INL_H_
-#error "Direct inclusion of this file is not allowed, include meta_change.h"
+#ifndef MUTATION_INL_H_
+#error "Direct inclusion of this file is not allowed, include mutation.h"
 #endif
 
-#include "composite_meta_state_detail.h"
 #include "meta_state_manager.h"
 
 #include <ytlib/misc/delayed_invoker.h>
-
-#include <util/random/random.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -15,20 +12,22 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TResult>
-TMetaChange<TResult>::TMetaChange(
+TMutation<TResult>::TMutation(
     const IMetaStateManagerPtr& metaStateManager,
-    const TChangeFunc& func,
-    const TSharedRef& changeData)
+    const TMutationAction& mutationAction,
+    const Stroka& mutationType,
+    const TSharedRef& mutationData)
     : MetaStateManager(metaStateManager)
-    , Func(func)
-    , ChangeData(changeData)
+    , MutationAction(mutationAction)
+    , MutationType(mutationType)
+    , MutationData(mutationData)
     , Started(false)
     , Retriable(false)
     , Promise(Null)
 { }
 
 template <class TResult>
-TFuture<TResult> TMetaChange<TResult>::Commit()
+TFuture<TResult> TMutation<TResult>::Commit()
 {
     YASSERT(!Started);
     Started = true;
@@ -40,19 +39,20 @@ TFuture<TResult> TMetaChange<TResult>::Commit()
 }
 
 template <class TResult>
-void TMetaChange<TResult>::DoCommit()
+void TMutation<TResult>::DoCommit()
 {
     YASSERT(Started);
     MetaStateManager
-        ->CommitChange(
-            ChangeData,
-            BIND(&TThis::ChangeFuncThunk, MakeStrong(this)))
+        ->CommitMutation(
+            MutationType,
+            MutationData,
+            BIND(&TThis::MutationActionThunk, MakeStrong(this)))
         .Subscribe(
             BIND(&TThis::OnCommitted, MakeStrong(this)));
 }
 
 template <class TResult>
-typename TMetaChange<TResult>::TPtr TMetaChange<TResult>::SetRetriable(TDuration backoffTime)
+typename TMutation<TResult>::TPtr TMutation<TResult>::SetRetriable(TDuration backoffTime)
 {
     Retriable = true;
     BackoffTime = backoffTime;
@@ -60,8 +60,8 @@ typename TMetaChange<TResult>::TPtr TMetaChange<TResult>::SetRetriable(TDuration
 }
 
 template <class TResult>
-typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnSuccess(const TCallback<void(TResult)>& onSuccess)
+typename TMutation<TResult>::TPtr
+TMutation<TResult>::OnSuccess(const TCallback<void(TResult)>& onSuccess)
 {
     YASSERT(OnSuccess_.IsNull());
     OnSuccess_ = onSuccess;
@@ -69,8 +69,8 @@ TMetaChange<TResult>::OnSuccess(const TCallback<void(TResult)>& onSuccess)
 }
 
 template <class TResult>
-typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnError(const TClosure& onError)
+typename TMutation<TResult>::TPtr
+TMutation<TResult>::OnError(const TClosure& onError)
 {
     YASSERT(OnError_.IsNull());
     OnError_ = onError;
@@ -78,13 +78,13 @@ TMetaChange<TResult>::OnError(const TClosure& onError)
 }
 
 template <class TResult>
-void TMetaChange<TResult>::ChangeFuncThunk()
+void TMutation<TResult>::MutationActionThunk()
 {
-    Result = Func.Run();
+    Result = MutationAction.Run();
 }
 
 template <class TResult>
-void TMetaChange<TResult>::OnCommitted(ECommitResult result)
+void TMutation<TResult>::OnCommitted(ECommitResult result)
 {
     if (result == ECommitResult::Committed) {
         if (!OnSuccess_.IsNull()) {
@@ -107,49 +107,39 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TMessage>
-NProto::TChangeHeader GetMetaChangeHeader(const TMessage& message)
+template <class TMessage, class TResult>
+typename TMutation<TResult>::TPtr CreateMutation(
+    const IMetaStateManagerPtr& metaStateManager,
+    const TMessage& message,
+    const TCallback<TResult()>& mutationAction)
 {
-    NProto::TChangeHeader header;
-    header.set_change_type(message.GetTypeName());
-    header.set_timestamp(TInstant::Now().GetValue());
-    header.set_random_seed(RandomNumber<ui32>());
-    return header;
+    YASSERT(metaStateManager);
+    YASSERT(!mutationAction.IsNull());
+
+    TBlob serializedMessage;
+    YCHECK(SerializeToProto(&message, &serializedMessage));
+
+    return New< TMutation<TResult> >(
+        metaStateManager,
+        mutationAction,
+        message.GetTypeName(),
+        TSharedRef(MoveRV(serializedMessage)));
 }
 
 template <class TMessage, class TResult>
-typename TMetaChange<TResult>::TPtr CreateMetaChange(
+typename TMutation<TResult>::TPtr CreateMutation(
     const IMetaStateManagerPtr& metaStateManager,
     const TMessage& message,
-    const TCallback<TResult()>& func)
+    const TSharedRef& serializedMessage,
+    const TCallback<TResult()>& mutationAction)
 {
     YASSERT(metaStateManager);
-    YASSERT(!func.IsNull());
 
-    auto changeData = SerializeChange(GetMetaChangeHeader(message), message);
-
-    return New< TMetaChange<TResult> >(
+    return New< TMutation<TResult> >(
         metaStateManager,
-        func,
-        TSharedRef(MoveRV(changeData)));
-}
-
-template <class TMessage, class TResult>
-typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    const IMetaStateManagerPtr& metaStateManager,
-    TRef messageData,
-    const TMessage& message,
-    const TCallback<TResult()>& func)
-{
-    YASSERT(metaStateManager);
-    YASSERT(!func.IsNull());
-
-    auto changeData = SerializeChange(GetMetaChangeHeader(message), messageData);
-
-    return New< TMetaChange<TResult> >(
-        metaStateManager,
-        func,
-        TSharedRef(MoveRV(changeData)));
+        mutationAction,
+        message.GetTypeName(),
+        serializedMessage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

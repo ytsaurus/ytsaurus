@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "recovery.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "snapshot_lookup.h"
 #include "snapshot_downloader.h"
@@ -25,16 +25,16 @@ using namespace NElection;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
-static NProfiling::TProfiler Profiler("/meta_state");
+static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TRecovery::TRecovery(
-    TPersistentStateManagerConfig* config,
-    TCellManager* cellManager,
-    TDecoratedMetaState* decoratedState,
-    TChangeLogCache* changeLogCache,
-    TSnapshotStore* snapshotStore,
+    TPersistentStateManagerConfigPtr config,
+    TCellManagerPtr cellManager,
+    TDecoratedMetaStatePtr decoratedState,
+    TChangeLogCachePtr changeLogCache,
+    TSnapshotStorePtr snapshotStore,
     const TEpoch& epoch,
     TPeerId leaderId,
     IInvokerPtr epochControlInvoker,
@@ -235,7 +235,7 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
             // Check if the current state contains some changes that are not present in the remote changelog.
             // If so, clear the state and restart recovery.
             if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
-                LOG_INFO("Current version is %s while only %d changes are expected, forcing clear restart",
+                LOG_INFO("Current version is %s while only %d mutations are expected, forcing clear restart",
                     ~currentVersion.ToString(),
                     remoteRecordCount);
                 DecoratedState->Clear();
@@ -250,8 +250,8 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
             
             if (localRecordCount < desiredRecordCount) {
                 TChangeLogDownloader changeLogDownloader(
-                    ~Config->ChangeLogDownloader,
-                    ~CellManager);
+                    Config->ChangeLogDownloader,
+                    CellManager);
                 auto changeLogResult = changeLogDownloader.Download(
                     TMetaVersion(segmentId, desiredRecordCount),
                     *changeLog);
@@ -321,12 +321,12 @@ void TRecovery::ReplayChangeLog(
     Profiler.Enqueue("/replay_change_count", recordCount);
 
     PROFILE_TIMING ("/replay_time") {
-        FOREACH (const auto& changeData, records)  {
+        FOREACH (const auto& recordData, records)  {
             auto version = DecoratedState->GetVersion();
             try {
-                DecoratedState->ApplyChange(changeData);
+                DecoratedState->ApplyMutation(recordData);
             } catch (const std::exception& ex) {
-                LOG_DEBUG("Failed to apply the change during recovery (Version: %s)\n%s",
+                LOG_DEBUG("Failed to apply the mutation during recovery (Version: %s)\n%s",
                     ~version.ToString(),
                     ex.what());
             }
@@ -339,11 +339,11 @@ void TRecovery::ReplayChangeLog(
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderRecovery::TLeaderRecovery(
-    TPersistentStateManagerConfig* config,
-    TCellManager* cellManager,
-    TDecoratedMetaState* decoratedState,
-    TChangeLogCache* changeLogCache,
-    TSnapshotStore* snapshotStore,
+    TPersistentStateManagerConfigPtr config,
+    TCellManagerPtr cellManager,
+    TDecoratedMetaStatePtr decoratedState,
+    TChangeLogCachePtr changeLogCache,
+    TSnapshotStorePtr snapshotStore,
     const TEpoch& epoch,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
@@ -385,11 +385,11 @@ bool TLeaderRecovery::IsLeader() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerRecovery::TFollowerRecovery(
-    TPersistentStateManagerConfig* config,
-    TCellManager* cellManager,
-    TDecoratedMetaState* decoratedState,
-    TChangeLogCache* changeLogCache,
-    TSnapshotStore* snapshotStore,
+    TPersistentStateManagerConfigPtr config,
+    TCellManagerPtr cellManager,
+    TDecoratedMetaStatePtr decoratedState,
+    TChangeLogCachePtr changeLogCache,
+    TSnapshotStorePtr snapshotStore,
     const TEpoch& epoch,
     TPeerId leaderId,
     IInvokerPtr epochControlInvoker,
@@ -414,7 +414,7 @@ TRecovery::TAsyncResult TFollowerRecovery::Run()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     PostponedVersion = TargetVersion;
-    YASSERT(PostponedChanges.empty());
+    YASSERT(PostponedMutations.empty());
 
     auto this_ = MakeStrong(this);
     BIND(
@@ -445,56 +445,56 @@ TRecovery::TAsyncResult TFollowerRecovery::OnSyncReached(EResult result)
 
     LOG_INFO("Sync reached");
 
-    return BIND(&TFollowerRecovery::CapturePostponedChanges, MakeStrong(this))
+    return BIND(&TFollowerRecovery::CapturePostponedMutations, MakeStrong(this))
            .AsyncVia(EpochControlInvoker)
            .Run();
 }
 
-TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedChanges()
+TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedMutations()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (PostponedChanges.empty()) {
+    if (PostponedMutations.empty()) {
         LOG_INFO("No postponed changes left");
         return MakeFuture(EResult(EResult::OK));
     }
 
-    THolder<TPostponedChanges> changes(new TPostponedChanges());
-    changes->swap(PostponedChanges);
+    THolder<TPostponedMutations> changes(new TPostponedMutations());
+    changes->swap(PostponedMutations);
 
     LOG_INFO("Captured %" PRISZT " postponed changes", changes->size());
 
     return BIND(
-               &TFollowerRecovery::ApplyPostponedChanges,
+               &TFollowerRecovery::ApplyPostponedMutations,
                MakeStrong(this),
                Passed(MoveRV(changes)))
            .AsyncVia(EpochStateInvoker)
            .Run();
 }
 
-TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedChanges(
-    TAutoPtr<TPostponedChanges> changes)
+TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedMutations(
+    TAutoPtr<TPostponedMutations> mutations)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LOG_INFO("Applying %" PRISZT " postponed changes", changes->size());
+    LOG_INFO("Applying %" PRISZT " postponed mutations", mutations->size());
     
-    FOREACH (const auto& change, *changes) {
-        switch (change.Type) {
-            case TPostponedChange::EType::Change: {
+    FOREACH (const auto& mutation, *mutations) {
+        switch (mutation.Type) {
+            case TPostponedMutation::EType::Mutation: {
                 auto version = DecoratedState->GetVersion();
-                DecoratedState->LogChange(version, change.ChangeData);
+                DecoratedState->LogMutation(version, mutation.RecordData);
                 try {
-                    DecoratedState->ApplyChange(change.ChangeData);
+                    DecoratedState->ApplyMutation(mutation.RecordData);
                 } catch (const std::exception& ex) {
-                    LOG_DEBUG("Failed to apply the change during recovery at version %s\n%s",
+                    LOG_DEBUG("Failed to apply the mutation during recovery at version %s\n%s",
                         ~version.ToString(),
                         ex.what());
                 }
                 break;
             }
 
-            case TPostponedChange::EType::SegmentAdvance:
+            case TPostponedMutation::EType::SegmentAdvance:
                 DecoratedState->RotateChangeLog();
                 break;
 
@@ -503,10 +503,10 @@ TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedChanges(
         }
     }
    
-    LOG_INFO("Finished applying postponed changes");
+    LOG_INFO("Finished applying postponed mutations");
 
     return BIND(
-               &TFollowerRecovery::CapturePostponedChanges,
+               &TFollowerRecovery::CapturePostponedMutations,
                MakeStrong(this))
            .AsyncVia(EpochControlInvoker)
            .Run();
@@ -531,7 +531,7 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
         return EResult::Failed;
     }
 
-    PostponedChanges.push_back(TPostponedChange::CreateSegmentAdvance());
+    PostponedMutations.push_back(TPostponedMutation::CreateSegmentAdvance());
     
     LOG_DEBUG("Postponing segment advance at version %s", ~PostponedVersion.ToString());
 
@@ -541,35 +541,35 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
     return EResult::OK;
 }
 
-TRecovery::EResult TFollowerRecovery::PostponeChanges(
+TRecovery::EResult TFollowerRecovery::PostponeMutations(
     const TMetaVersion& version,
-    const std::vector<TSharedRef>& changes)
+    const std::vector<TSharedRef>& recordsData)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (PostponedVersion > version) {
-        LOG_WARNING("Late changes received during recovery, ignored: expected %s but received %s",
+        LOG_WARNING("Late mutations received during recovery, ignored: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::OK;
     }
 
     if (PostponedVersion != version) {
-        LOG_WARNING("Out-of-order changes received during recovery: expected %s but received %s",
+        LOG_WARNING("Out-of-order mutations received during recovery: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
     }
 
-    LOG_DEBUG("Postponing %" PRISZT " changes at version %s",
-        changes.size(),
+    LOG_DEBUG("Postponing %" PRISZT " mutations at version %s",
+        recordsData.size(),
         ~PostponedVersion.ToString());
 
-    FOREACH (const auto& change, changes) {
-        PostponedChanges.push_back(TPostponedChange::CreateChange(change));
+    FOREACH (const auto& recordData, recordsData) {
+        PostponedMutations.push_back(TPostponedMutation::CreateMutation(recordData));
     }
     
-    PostponedVersion.RecordCount += changes.size();
+    PostponedVersion.RecordCount += recordsData.size();
 
     return EResult::OK;
 }

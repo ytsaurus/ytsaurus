@@ -4,11 +4,11 @@ import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TChangeHeader
+message TMutationHeader
 {
-    required bytes change_type = 1;
+    required string mutation_type = 1;
     optional uint64 timestamp = 2;
-    optional uint32 random_seed = 3;
+    optional uint64 random_seed = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,15 +80,15 @@ message TRspPingFollower
                                                                               
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqApplyChanges
+message TReqApplyMutations
 {
     required int32 segment_id = 1;
     required int32 record_count = 2;
     required NYT.NProto.TGuid epoch = 3;
-    // Changes data is passed via attachments.
+    // Records data is passed via attachments.
 }
 
-message TRspApplyChanges
+message TRspApplyMutations
 {
     optional bool committed = 1;
 }

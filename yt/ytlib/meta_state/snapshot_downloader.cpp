@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "snapshot_downloader.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "snapshot.h"
 #include "meta_state_manager_proxy.h"

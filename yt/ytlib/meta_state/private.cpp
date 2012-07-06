@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "common.h"
+#include "private.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -7,6 +7,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 NLog::TLogger MetaStateLogger("MetaState");
+NProfiling::TProfiler MetaStateProfiler("/meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 

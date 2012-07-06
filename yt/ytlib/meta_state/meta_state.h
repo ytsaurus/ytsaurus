@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "mutation_context.h"
 
 #include <ytlib/actions/future.h>
 #include <ytlib/misc/ref.h>
@@ -19,7 +20,7 @@ struct IMetaState
     virtual void Save(TOutputStream* output) = 0;
     virtual void Load(TInputStream* input) = 0;
 
-    virtual void ApplyChange(const TRef& changeData) = 0;
+    virtual void ApplyMutation(const TMutationContext& context) = 0;
     virtual void Clear() = 0;
 };
 

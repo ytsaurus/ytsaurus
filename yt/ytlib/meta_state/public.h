@@ -13,6 +13,8 @@ namespace NMetaState {
 struct IMetaState;
 typedef TIntrusivePtr<IMetaState> IMetaStatePtr;
 
+struct TMutationContext;
+
 struct IMetaStateManager;
 typedef TIntrusivePtr<IMetaStateManager> IMetaStateManagerPtr;
 
@@ -40,7 +42,7 @@ class TFollowerPinger;
 typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
 
 template <class TResult>
-class TMetaChange;
+class TMutation;
 
 struct TMetaVersion;
 

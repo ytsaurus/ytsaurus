@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "snapshot_builder.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "meta_state_manager_proxy.h"
 #include "meta_version.h"
@@ -32,8 +32,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("/meta_state");
+static NLog::TLogger& Logger = MetaStateLogger;
+static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

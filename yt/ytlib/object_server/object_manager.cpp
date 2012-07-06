@@ -18,8 +18,6 @@
 
 #include <ytlib/profiling/profiler.h>
 
-#include <util/digest/murmur.h>
-
 namespace NYT {
 namespace NObjectServer {
 
@@ -252,7 +250,6 @@ TObjectManager::TObjectManager(
     , Config(config)
     , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)
-    , TypeToCounter(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
 {
     YASSERT(config);
@@ -305,7 +302,6 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
     YASSERT(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
-    TypeToCounter[typeValue] = TIdGenerator<ui64>();
 }
 
 IObjectTypeHandler* TObjectManager::FindHandler(EObjectType type) const
@@ -345,23 +341,23 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    auto metaStateManager = Bootstrap->GetMetaStateManager();
+    auto* mutationContext = metaStateManager->GetMutationContext();
+
+    const auto& version = mutationContext->GetVersion();
+
+    auto random = mutationContext->RandomGenerator().GetNext<ui64>();
+
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
 
-    ui64 counter = TypeToCounter[typeValue].Next();
     auto cellId = GetCellId();
 
-    char data[12];
-    *reinterpret_cast<ui64*>(&data[ 0]) = counter;
-    *reinterpret_cast<ui16*>(&data[ 8]) = typeValue;
-    *reinterpret_cast<ui16*>(&data[10]) = cellId;
-    ui32 hash = MurmurHash<ui32>(&data, sizeof (data), 0);
-
     TObjectId id(
-        hash,
+        random,
         (cellId << 16) + type.ToValue(),
-        counter & 0xffffffff,
-        counter >> 32);
+        version.RecordCount,
+        version.SegmentId);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object id generated (Type: %s, Id: %s)",
         ~type.ToString(),
@@ -444,7 +440,6 @@ void TObjectManager::SaveValues(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Save(output, TypeToCounter);
     Attributes.SaveValues(output);
 }
 
@@ -459,8 +454,6 @@ void TObjectManager::LoadValues(TLoadContext context, TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Load(input, TypeToCounter);
-
     Attributes.LoadValues(context, input);
 }
 
@@ -468,18 +461,13 @@ void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    for (int i = 0; i < MaxObjectType; ++i) {
-        TypeToCounter[i].Reset();
-    }
+    Attributes.Clear();
 }
 
 bool TObjectManager::ObjectExists(const TObjectId& id)
 {
     auto handler = FindHandler(TypeFromId(id));
-    if (!handler) {
-        return false;
-    }
-    return handler->Exists(id);
+    return handler ? handler->Exists(id) : false;
 }
 
 IObjectProxyPtr TObjectManager::FindProxy(
@@ -581,7 +569,7 @@ void TObjectManager::ExecuteVerb(
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
         !isWrite ||
-        MetaStateManager->IsInCommit())
+        MetaStateManager->GetMutationContext())
     {
         PROFILE_TIMING (profilingPath) {
             action.Run(context);
@@ -600,7 +588,7 @@ void TObjectManager::ExecuteVerb(
 
     auto wrappedContext = New<TServiceContextWrapper>(context);
 
-    auto change = CreateMetaChange(
+    auto change = CreateMutation(
         MetaStateManager,
         message,
         BIND([=] () -> TVoid {
@@ -622,9 +610,7 @@ void TObjectManager::ExecuteVerb(
         ->Commit();
 }
 
-TVoid TObjectManager::ReplayVerb(
-    const NMetaState::NProto::TChangeHeader& changeHeader,
-    const TMsgExecuteVerb& message)
+TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
 {
     auto objectId = TObjectId::FromProto(message.object_id());
     auto transactionId = TTransactionId::FromProto(message.transaction_id());

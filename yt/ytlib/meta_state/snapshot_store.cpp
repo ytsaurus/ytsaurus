@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "common.h"
+#include "private.h"
 #include "snapshot_store.h"
 #include "snapshot.h"
 #include "config.h"

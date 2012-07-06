@@ -30,9 +30,6 @@ public:
     TAsyncChangeLog(const TChangeLogPtr& changeLog);
     ~TAsyncChangeLog();
 
-    typedef TFuture<void> TAppendResult;
-    typedef TPromise<void> TAppendPromise;
-
     //! Enqueues record to be appended to the changelog.
     /*!
      * Internally, asynchronous append to the changelog goes as follows.
@@ -50,7 +47,7 @@ public:
      *
      * \see TChangeLog::Append
      */
-    TAppendResult Append(i32 recordId, const TSharedRef& data);
+    TFuture<void> Append(i32 recordId, const TSharedRef& data);
 
     //! Flushes the changelog.
     //! \see TChangeLog::Flush

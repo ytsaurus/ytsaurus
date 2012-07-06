@@ -3,6 +3,7 @@
 #include "change_log_downloader.h"
 #include "async_change_log.h"
 #include "meta_version.h"
+#include "private.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/election/cell_manager.h>
@@ -16,14 +17,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("/meta_state");
+static NLog::TLogger& Logger = MetaStateLogger;
+static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 //////////////////////////////////////////////////////////////////////////////////
 
 TChangeLogDownloader::TChangeLogDownloader(
-    TChangeLogDownloaderConfig* config,
-    TCellManager* cellManager)
+    TChangeLogDownloaderConfigPtr config,
+    TCellManagerPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
 {
@@ -181,10 +182,10 @@ void TChangeLogDownloader::OnResponse(
     TProxy::TRspGetChangeLogInfoPtr response)
 {
     if (!response->IsOK()) {
-        LOG_INFO("Error %s requesting info on changelog %d from peer %d",
-            ~response->GetError().ToString(),
+        LOG_WARNING("Error requesting changelog %d info from peer %d\n%s",
             version.SegmentId,
-            peerId);
+            peerId,
+            ~response->GetError().ToString());
         return;
     }
 

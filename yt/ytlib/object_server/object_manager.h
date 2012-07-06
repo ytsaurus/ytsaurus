@@ -5,7 +5,6 @@
 #include "type_handler.h"
 
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/id_generator.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
@@ -131,7 +130,6 @@ private:
 
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
-    std::vector< TIdGenerator<ui64> > TypeToCounter;
     std::vector<IObjectTypeHandlerPtr> TypeToHandler;
     TIntrusivePtr<TRootService> RootService;
 
@@ -142,11 +140,10 @@ private:
     void SaveValues(TOutputStream* output);
     void LoadKeys(TInputStream* input);
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
-    virtual void Clear();
+    
+    virtual void Clear() OVERRIDE;
 
-    TVoid ReplayVerb(
-        const NMetaState::NProto::TChangeHeader& changeHeader,
-        const NProto::TMsgExecuteVerb& message);
+    TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
