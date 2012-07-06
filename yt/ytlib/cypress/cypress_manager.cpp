@@ -677,7 +677,7 @@ void TCypressManager::RegisterNode(
     YASSERT(node->GetId().TransactionId == NullTransactionId);
     
     auto metaStateManager = Bootstrap->GetMetaStateManager();
-    auto mutationContext = metaStateManager->GetMutationContext();
+    auto* mutationContext = metaStateManager->GetMutationContext();
 
     node->SetCreationTime(mutationContext->GetTimestamp());
 
