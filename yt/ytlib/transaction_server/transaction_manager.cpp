@@ -455,20 +455,27 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
 void TTransactionManager::RenewLease(const TTransaction* transaction, bool renewAncestors)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    DoRenewLease(transaction);
 
+    if (renewAncestors) {
+        auto parentTransaction = transaction->GetParent();
+        while (parentTransaction) {
+            DoRenewLease(parentTransaction);
+            parentTransaction = parentTransaction->GetParent();
+        }
+    }
+}
+
+void TTransactionManager::DoRenewLease(const TTransaction* transaction)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(transaction->IsActive());
 
     auto it = LeaseMap.find(transaction->GetId());
     YCHECK(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
-
-    if (renewAncestors) {
-        TTransaction* parentTransaction = transaction->GetParent();
-        if (parentTransaction) {
-            RenewLease(parentTransaction, true);
-        }
-    }
 }
+
 
 void TTransactionManager::SaveKeys(TOutputStream* output)
 {

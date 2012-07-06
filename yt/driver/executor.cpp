@@ -241,10 +241,10 @@ TInputStream* TExecutor::GetInputStream()
 
 TTransactedExecutor::TTransactedExecutor(bool required)
     : TxArg("", "tx", "set transaction id", required, "", "GUID")
-    , PingAncestorsArg("", "ping_ancestors", "ping ancestor transactions of while executing this command", false)
+    , PingAncestorTxsArg("", "ping_ancestor_txs", "ping ancestor transactions while executing this command", false)
 {
     CmdLine.add(TxArg);
-    CmdLine.add(PingAncestorsArg);
+    CmdLine.add(PingAncestorTxsArg);
 }
 
 void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -253,7 +253,7 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
         .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
             fluent.Item("transaction_id").Scalar(TxArg.getValue());
         })
-        .Item("ping_ancestors").Scalar(PingAncestorsArg.getValue());
+        .Item("ping_ancestor_transactions").Scalar(PingAncestorTxsArg.getValue());
 
     TExecutor::BuildArgs(consumer);
 }

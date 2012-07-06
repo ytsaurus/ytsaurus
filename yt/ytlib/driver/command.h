@@ -36,13 +36,13 @@ struct TTransactedRequest
     : public TRequestBase
 {
     NObjectServer::TTransactionId TransactionId;
-    bool PingAncestors;
+    bool PingAncestorTransactions;
 
     TTransactedRequest()
     {
         Register("transaction_id", TransactionId)
             .Default(NObjectServer::NullTransactionId);
-        Register("ping_ancestors", PingAncestors)
+        Register("ping_ancestor_transactions", PingAncestorTransactions)
             .Default(false);
     }
 };
@@ -156,8 +156,8 @@ protected:
         if (transactionId == NTransactionClient::NullTransactionId) {
             return NULL;
         }
-        bool pingAncestors = this->Request->PingAncestors;
-        return this->Context->GetTransactionManager()->Attach(transactionId, false, pingAncestors);
+        bool pingAncestorTransactions = this->Request->PingAncestorTransactions;
+        return this->Context->GetTransactionManager()->Attach(transactionId, false, pingAncestorTransactions);
     }
 
 };
