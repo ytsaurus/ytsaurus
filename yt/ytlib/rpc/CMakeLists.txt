@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/rpc )
 set( SRCS
   ${BASE}/bus_channel.cpp
-  ${BASE}/channel.cpp
   ${BASE}/channel_cache.cpp
   ${BASE}/client.cpp
   ${BASE}/message.cpp
