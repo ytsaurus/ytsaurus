@@ -26,14 +26,31 @@ class TestTableCommands(YTEnvSetup):
 
         assert read('//tmp/table') == []
         assert get('//tmp/table/@row_count') == 0
+        assert get('//tmp/table/@chunk_count') == 0
 
         write_str('//tmp/table', '{b="hello"}')
         assert read('//tmp/table') == [{"b":"hello"}]
         assert get('//tmp/table/@row_count') == 1
+        assert get('//tmp/table/@chunk_count') == 1
 
         write_str('//tmp/table', '{b="2";a="1"};{x="10";y="20";a="30"}')
         assert read('//tmp/table') == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get('//tmp/table/@row_count') == 3
+        assert get('//tmp/table/@chunk_count') == 2
+
+    def test_sorted_write(self):
+        create('table', '//tmp/table')
+
+        write_str('//tmp/table', '{key = 0}; {key = 1}; {key = 2}; {key = 3}', sorted_by='key')
+
+        assert get('//tmp/table/@sorted') ==  'true'
+        assert get('//tmp/table/@key_columns') ==  ['key']
+        assert get('//tmp/table/@row_count') ==  4
+
+        # sorted flag is discarded when writing to sorted table
+        write_str('//tmp/table', '{key = 4}')
+        assert get('//tmp/table/@sorted') ==  'false'
+        with pytest.raises(YTError): get('//tmp/table/@key_columns')
 
     def test_invalid_cases(self):
         create('table', '//tmp/table')
@@ -43,6 +60,12 @@ class TestTableCommands(YTEnvSetup):
         with pytest.raises(YTError): write_str('//tmp/table', '100')
         with pytest.raises(YTError): write_str('//tmp/table', '3.14')
         with pytest.raises(YTError): write_str('//tmp/table', '<>')
+
+        # we can write sorted data only to empty table
+        write('//tmp/table', {'foo': 'bar'}, sorted_by='foo')
+        with pytest.raises(YTError):
+            write('//tmp/table', {'foo': 'zzz_bar'}, sorted_by='foo')
+       
 
     def test_row_index_selector(self):
         create('table', '//tmp/table')
@@ -65,15 +88,6 @@ class TestTableCommands(YTEnvSetup):
 
         # reading key selectors from unsorted table
         with pytest.raises(YTError): read('//tmp/table[:a]')
-
-    def test_sorted_write(self):
-        create('table', '//tmp/table')
-
-        write_str('//tmp/table', '{key = 0}; {key = 1}; {key = 2}; {key = 3}', sorted_by='key')
-
-        assert get('//tmp/table/@sorted') ==  'true'
-        assert get('//tmp/table/@key_columns') ==  ['key']
-        assert get('//tmp/table/@row_count') ==  4
 
     def test_row_key_selector(self):
         create('table', '//tmp/table')
