@@ -91,7 +91,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
     UpdateProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
     
     TBlob metaBlob;
-    YVERIFY(SerializeToProto(&ChunkMeta, &metaBlob));
+    YCHECK(SerializeToProto(&ChunkMeta, &metaBlob));
 
     TChunkMetaHeader header;
     header.Signature = header.ExpectedSignature;
