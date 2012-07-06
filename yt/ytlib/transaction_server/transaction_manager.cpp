@@ -367,17 +367,19 @@ TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
         objectManager->RefObject(id);
     }
 
+    auto actualTimeout = GetActualTimeout(timeout);
     if (IsLeader()) {
-        CreateLease(transaction, timeout);
+        CreateLease(transaction, actualTimeout);
     }
 
     transaction->SetState(ETransactionState::Active);
 
     TransactionStarted_.Fire(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Started transaction %s (ParentId: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Started transaction %s (ParentId: %s, Timeout: %" PRIu64 ")",
         ~id.ToString(),
-        ~GetObjectId(parent).ToString());
+        ~GetObjectId(parent).ToString(),
+        actualTimeout.MilliSeconds());
 
     return transaction;
 }
@@ -495,6 +497,13 @@ void TTransactionManager::Clear()
     TransactionMap.Clear();
 }
 
+TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
+{
+    return Min(
+        timeout.Get(Config->DefaultTransactionTimeout),
+        Config->MaximumTransactionTimeout);
+}
+
 void TTransactionManager::OnLeaderRecoveryComplete()
 {
     auto objectManager = Bootstrap->GetObjectManager();
@@ -503,7 +512,7 @@ void TTransactionManager::OnLeaderRecoveryComplete()
         const auto* transaction = pair.second;
         auto proxy = objectManager->GetProxy(id, NULL);
         auto timeout = proxy->Attributes().Find<TDuration>("timeout");
-        CreateLease(transaction, timeout);
+        CreateLease(transaction, GetActualTimeout(timeout));
     }
 }
 
@@ -515,13 +524,10 @@ void TTransactionManager::OnStopLeading()
     LeaseMap.clear();
 }
 
-void TTransactionManager::CreateLease(const TTransaction* transaction, TNullable<TDuration> timeout)
+void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration timeout)
 {
-    auto actualTimeout = Min(
-        timeout.Get(Config->DefaultTransactionTimeout),
-        Config->MaximumTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
-        actualTimeout,
+        timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
         .Via(
             Bootstrap->GetStateInvoker(),

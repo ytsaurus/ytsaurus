@@ -72,7 +72,7 @@ private:
 
     void OnTransactionExpired(const TTransactionId& id);
 
-    void CreateLease(const TTransaction* transaction, TNullable<TDuration> timeout);
+    void CreateLease(const TTransaction* transaction, TDuration timeout);
     void CloseLease(const TTransaction* transaction);
     void FinishTransaction(TTransaction* transaction);
 
@@ -82,6 +82,8 @@ private:
     void LoadKeys(TInputStream* input);
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
     virtual void Clear();
+
+    TDuration GetActualTimeout(TNullable<TDuration> timeout);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
