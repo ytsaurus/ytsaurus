@@ -566,7 +566,7 @@ void TSupportsAttributes::RemoveAttribute(
     
     TTokenizer tokenizer(path);
 
-    if (!tokenizer.ParseNext()) {
+    if (!tokenizer.ParseNext() || tokenizer.CurrentToken().GetType() == RemoveAllToken) {
         if (userAttributes) {
             auto userKeys = userAttributes->List();
             FOREACH (const auto& key, userKeys) {
