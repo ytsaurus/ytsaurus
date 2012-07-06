@@ -231,6 +231,9 @@ private:
             if (error.IsOK()) {
                 responseHandler->OnResponse(message);
             } else {
+                if (error.GetCode() == EErrorCode::PoisonPill) {
+                    LOG_FATAL("Poison pill received\n%s", ~error.ToString());
+                }
                 responseHandler->OnError(error);
             }
         }

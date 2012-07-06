@@ -306,11 +306,7 @@ void TMasterConnector::OnHeartbeatError(const TError& error)
 {
     auto errorCode = error.GetCode();
 
-    if (errorCode == TProxy::EErrorCode::PoisonPill) {
-        LOG_FATAL("Poison pill received from master\n%s", ~error.ToString());
-    } else {
-        LOG_WARNING("Error sending heartbeat to master\n%s", ~error.ToString());
-    }
+    LOG_WARNING("Error sending heartbeat to master\n%s", ~error.ToString());
 
     // Don't panic upon getting Timeout, TransportError or Unavailable.
     if (errorCode != NRpc::EErrorCode::Timeout && 
