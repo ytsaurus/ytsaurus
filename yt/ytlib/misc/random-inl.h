@@ -8,19 +8,19 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-double TRandomGenerator::GetNext()
+inline double TRandomGenerator::GetNext()
 {
     return Generator.GenRandReal2();
 }
 
 template <>
-float TRandomGenerator::GetNext()
+inline float TRandomGenerator::GetNext()
 {
     return Generator.GenRandReal2();
 }
 
 template <>
-long double TRandomGenerator::GetNext()
+inline long double TRandomGenerator::GetNext()
 {
     return Generator.GenRandReal2();
 }
