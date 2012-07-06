@@ -165,3 +165,9 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/list') == []
         assert get('//tmp/list/@count') == 0
 
+        # remove items from attributes
+        set_str('//tmp/attr', '<_foo=bar;_key=value>42');
+        remove('//tmp/attr/@*')
+        with pytest.raises(YTError): get('//tmp/attr/@_foo')
+        with pytest.raises(YTError): get('//tmp/attr/@_key')
+
