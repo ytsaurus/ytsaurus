@@ -740,7 +740,7 @@ private:
             if (chunkCount == 0) {
                 LOG_INFO("Empty input");
                 OnOperationCompleted();
-                return MakeFuture();
+                return NewPromise< TValueOrError<void> >();
             }
 
             LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ")",
