@@ -1,9 +1,9 @@
 #pragma once
 
 #include "common.h"
-#include <ytlib/chunk_server/chunk_service.pb.h>
 
 #include <ytlib/rpc/client.h>
+#include <ytlib/chunk_server/chunk_service.pb.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -25,6 +25,7 @@ public:
         ((NotEnoughHolders)(3))
         ((InvalidState)(4))
         ((NotAuthorized)(5))
+        ((PoisonPill)(6))
     );
 
     TChunkServiceProxy(NRpc::IChannelPtr channel)

@@ -304,10 +304,15 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
 
 void TMasterConnector::OnHeartbeatError(const TError& error)
 {
-    LOG_WARNING("Error sending heartbeat to master\n%s", ~error.ToString());
+    auto errorCode = error.GetCode();
+
+    if (errorCode == TProxy::EErrorCode::PoisonPill) {
+        LOG_FATAL("Poison pill received from master\n%s", ~error.ToString());
+    } else {
+        LOG_WARNING("Error sending heartbeat to master\n%s", ~error.ToString());
+    }
 
     // Don't panic upon getting Timeout, TransportError or Unavailable.
-    auto errorCode = error.GetCode();
     if (errorCode != NRpc::EErrorCode::Timeout && 
         errorCode != NRpc::EErrorCode::TransportError && 
         errorCode != NRpc::EErrorCode::Unavailable)

@@ -1317,13 +1317,15 @@ private:
 
         // Use the size reported by the holder, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
-            LOG_FATAL("Mismatched chunk size reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, Address: %s, HolderId: %d)",
+            auto message = Sprintf("Mismatched chunk size reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~ToString(cached),
                 ~chunk->ChunkInfo().DebugString(),
                 ~chunkAddInfo.chunk_info().DebugString(),
                 ~holder->GetAddress(),
                 holder->GetId());
+            LOG_ERROR("%s", message);
+            ythrow NRpc::TServiceException(TError(TChunkServiceProxy::EErrorCode::PoisonPill, message));
         }
         chunk->ChunkInfo() = chunkAddInfo.chunk_info();
 
