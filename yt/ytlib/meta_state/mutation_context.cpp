@@ -14,6 +14,7 @@ TMutationContext::TMutationContext(
     : MutationType(mutationType)
     , MutationData(mutationData)
     , Timestamp(timestamp)
+    , RandomGenerator_(randomSeed)
 { }
 
 const Stroka& TMutationContext::GetMutationType() const
@@ -29,6 +30,11 @@ TSharedRef TMutationContext::GetMutationData() const
 TInstant TMutationContext::GetTimestamp() const
 {
     return Timestamp;
+}
+
+TRandomGenerator& TMutationContext::RandomGenerator()
+{
+    return RandomGenerator_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

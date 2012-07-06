@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/ref.h>
+#include <ytlib/misc/random.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -22,14 +23,13 @@ public:
     TSharedRef GetMutationData() const;
     TInstant GetTimestamp() const;
 
-    template <class T>
-    T GenerateRandom();
+    TRandomGenerator& RandomGenerator();
 
 private:
     Stroka MutationType;
     TSharedRef MutationData;
     TInstant Timestamp;
-    // TODO: place random generator here
+    TRandomGenerator RandomGenerator_;
 
 };
 
@@ -37,3 +37,4 @@ private:
 
 } // namespace NMetaState
 } // namespace NYT
+
