@@ -39,7 +39,6 @@ message TJobStartInfo
     required NYT.NProto.TGuid job_id = 2;
     required NYT.NProto.TGuid chunk_id = 3;
     repeated bytes target_addresses = 4;
-    required uint64 start_time = 5;
 }
 
 message TJobStopInfo

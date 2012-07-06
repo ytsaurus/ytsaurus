@@ -266,7 +266,6 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
     startInfo.set_type(EJobType::Replicate);
     *startInfo.mutable_chunk_id() = chunkId.ToProto();
     ToProto(startInfo.mutable_target_addresses(), targetAddresses);
-    startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
     LOG_DEBUG("Job %s is scheduled on %s: replicate chunk %s to [%s]",
@@ -314,7 +313,6 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleBalancingJob(
     startInfo.set_type(EJobType::Replicate);
     *startInfo.mutable_chunk_id() = chunkId.ToProto();
     startInfo.add_target_addresses(targetHolder->GetAddress());
-    startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
     LOG_DEBUG("Job %s is scheduled on %s: balance chunk %s to [%s]",
@@ -343,7 +341,6 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleRemovalJob(
     *startInfo.mutable_job_id() = jobId.ToProto();
     startInfo.set_type(EJobType::Remove);
     *startInfo.mutable_chunk_id() = chunkId.ToProto();
-    startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
     LOG_DEBUG("Job %s is scheduled on %s: chunk %s will be removed",

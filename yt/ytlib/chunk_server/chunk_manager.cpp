@@ -1213,11 +1213,13 @@ private:
 
     void AddJob(THolder* holder, const TJobStartInfo& jobInfo)
     {
+        auto metaStateManager = Bootstrap->GetMetaStateManager();
+        auto* mutationContext = metaStateManager->GetMutationContext();
+
         auto chunkId = TChunkId::FromProto(jobInfo.chunk_id());
         auto jobId = TJobId::FromProto(jobInfo.job_id());
         auto targetAddresses = FromProto<Stroka>(jobInfo.target_addresses());
         auto jobType = EJobType(jobInfo.type());
-        auto startTime = TInstant(jobInfo.start_time());
 
         auto* job = new TJob(
             jobType,
@@ -1225,7 +1227,7 @@ private:
             chunkId,
             holder->GetAddress(),
             targetAddresses,
-            startTime);
+            mutationContext->GetTimestamp());
         JobMap.Insert(jobId, job);
 
         auto* jobList = GetOrCreateJobList(chunkId);
