@@ -41,7 +41,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out='//tmp/t_out',
              key_columns='')
        
-    #@pytest.mark.xfail(run = False, reason = 'Issue #353')
     def test_empty_in(self):
         create('table', '//tmp/t_in')
         create('table', '//tmp/t_out')
