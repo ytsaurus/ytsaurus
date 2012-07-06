@@ -132,7 +132,7 @@ class TestTxCommands(YTEnvSetup):
 
         time.sleep(2)
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
-        renew_transaction('--ping_ancestors', tx = tx_inner)
+        renew_transaction('--ping_ancestor_txs', tx = tx_inner)
 
         time.sleep(3)
         # check that all tx are still alive
