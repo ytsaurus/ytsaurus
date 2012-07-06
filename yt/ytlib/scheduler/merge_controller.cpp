@@ -280,7 +280,7 @@ protected:
         if (InputTables.empty()) {
             // At least one table is needed for sorted merge to figure out the key columns.
             // To be consistent, we don't allow empty set of input tables in for any merge type.
-            ythrow yexception() << "At least more input table must be given";
+            ythrow yexception() << "At least one input table must be given";
         }
     }
 
