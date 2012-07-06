@@ -250,7 +250,6 @@ TObjectManager::TObjectManager(
     , Config(config)
     , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)
-    , TypeToCounter(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
 {
     YASSERT(config);
@@ -303,7 +302,6 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
     YASSERT(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
-    TypeToCounter[typeValue] = TIdGenerator<ui64>();
 }
 
 IObjectTypeHandler* TObjectManager::FindHandler(EObjectType type) const
@@ -442,7 +440,6 @@ void TObjectManager::SaveValues(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Save(output, TypeToCounter);
     Attributes.SaveValues(output);
 }
 
@@ -457,8 +454,6 @@ void TObjectManager::LoadValues(TLoadContext context, TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Load(input, TypeToCounter);
-
     Attributes.LoadValues(context, input);
 }
 
@@ -466,18 +461,13 @@ void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    for (int i = 0; i < MaxObjectType; ++i) {
-        TypeToCounter[i].Reset();
-    }
+    Attributes.Clear();
 }
 
 bool TObjectManager::ObjectExists(const TObjectId& id)
 {
     auto handler = FindHandler(TypeFromId(id));
-    if (!handler) {
-        return false;
-    }
-    return handler->Exists(id);
+    return handler ? handler->Exists(id) : false;
 }
 
 IObjectProxyPtr TObjectManager::FindProxy(
