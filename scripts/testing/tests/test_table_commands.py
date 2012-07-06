@@ -220,4 +220,35 @@ class TestTableCommands(YTEnvSetup):
         commit_transaction(tx = tx1)
         assert read('//tmp/table') == [{'a' : 1}, {'c': 3}, {'d' : 4}, {'b' : 2}]
 
-        
+    def test_shared_locks_nested_tx(self):
+        create('table', '//tmp/table')
+
+        v1 = {'k' : 1}
+        v2 = {'k' : 2}
+        v3 = {'k' : 3}
+        v4 = {'k' : 4}
+
+        outer_tx = start_transaction()
+
+        write('//tmp/table', v1, tx=outer_tx)
+
+        inner_tx = start_transaction(tx=outer_tx)
+
+        write('//tmp/table', v2, tx=inner_tx)
+        assert read('//tmp/table', tx=outer_tx) == [v1]
+        assert read('//tmp/table', tx=inner_tx) == [v1, v2]
+
+        write('//tmp/table', v3, tx=outer_tx) # this won't be seen from inner
+        assert read('//tmp/table', tx=outer_tx) == [v1, v3]
+        assert read('//tmp/table', tx=inner_tx) == [v1, v2]
+
+        write('//tmp/table', v4, tx=inner_tx)
+        assert read('//tmp/table', tx=outer_tx) == [v1, v3]
+        assert read('//tmp/table', tx=inner_tx) == [v1, v2, v4]
+
+        commit_transaction(tx=inner_tx)
+        self.assertItemsEqual(read('//tmp/table', tx=outer_tx), [v1, v2, v4, v3]) # order is not specified
+
+        commit_transaction(tx=outer_tx)
+
+
