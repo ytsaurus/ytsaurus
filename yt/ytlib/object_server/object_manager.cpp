@@ -356,8 +356,8 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     TObjectId id(
         random,
         (cellId << 16) + type.ToValue(),
-        version.SegmentId,
-        version.RecordCount);
+        version.RecordCount,
+        version.SegmentId);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object id generated (Type: %s, Id: %s)",
         ~type.ToString(),
