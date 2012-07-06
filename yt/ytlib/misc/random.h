@@ -6,11 +6,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Note: this generator deterministic (doesn't use global seed)
+// Note: this generator is deterministic (doesn't use global seed).
 class TRandomGenerator
 {
 public:
-    TRandomGenerator(ui64 seed)
+    explicit TRandomGenerator(ui64 seed)
         : Generator(seed)
     { }
 
@@ -23,30 +23,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <>
-double TRandomGenerator::GetNext()
-{
-    return Generator.GenRandReal2();
-}
-
-template <>
-float TRandomGenerator::GetNext()
-{
-    return Generator.GenRandReal2();
-}
-
-template <>
-long double TRandomGenerator::GetNext()
-{
-    return Generator.GenRandReal2();
-}
-
-template<class T>
-T TRandomGenerator::GetNext()
-{
-    return static_cast<T>(Generator.GenRand());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT
+
+#define RANDOM_INL_H_
+#include "random-inl.h"
+#undef RANDOM_INL_H_
