@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Note: this generator is deterministic (doesn't use global seed).
+//! A fully deterministic pseudo-random number generator.
 class TRandomGenerator
 {
 public:
