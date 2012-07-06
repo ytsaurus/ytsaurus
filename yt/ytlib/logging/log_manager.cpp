@@ -287,7 +287,7 @@ public:
             TIFStream configStream(fileName);
             INodePtr root = ConvertToNode(&configStream);
             INodePtr configNode = GetNodeByYPath(root, path);
-            Configure(~configNode, path);
+            Configure(configNode, path);
         } catch (const std::exception& ex) {
             LOG_ERROR("Error while configuring logging\n%s", ex.what())
         }
@@ -439,7 +439,7 @@ TLogManager* TLogManager::Get()
     return Singleton<TLogManager>();
 }
 
-void TLogManager::Configure(INode* node)
+void TLogManager::Configure(INodePtr node)
 {
     Impl->Configure(node);
 }

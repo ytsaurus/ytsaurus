@@ -303,7 +303,7 @@ EExitCode TTrackOpExecutor::Execute(const std::vector<std::string>& args)
 
     InitConfig();
 
-    NLog::TLogManager::Get()->Configure(~Config->Logging);
+    NLog::TLogManager::Get()->Configure(Config->Logging);
 
     Driver = CreateDriver(Config);
 
