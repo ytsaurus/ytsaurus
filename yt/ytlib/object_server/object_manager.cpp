@@ -18,8 +18,6 @@
 
 #include <ytlib/profiling/profiler.h>
 
-#include <util/digest/murmur.h>
-
 namespace NYT {
 namespace NObjectServer {
 
@@ -345,23 +343,23 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    auto metaStateManager = Bootstrap->GetMetaStateManager();
+    auto* mutationContext = metaStateManager->GetMutationContext();
+
+    const auto& version = mutationContext->GetVersion();
+
+    auto random = mutationContext->RandomGenerator().GetNext<ui64>();
+
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
 
-    ui64 counter = TypeToCounter[typeValue].Next();
     auto cellId = GetCellId();
 
-    char data[12];
-    *reinterpret_cast<ui64*>(&data[ 0]) = counter;
-    *reinterpret_cast<ui16*>(&data[ 8]) = typeValue;
-    *reinterpret_cast<ui16*>(&data[10]) = cellId;
-    ui32 hash = MurmurHash<ui32>(&data, sizeof (data), 0);
-
     TObjectId id(
-        hash,
+        random,
         (cellId << 16) + type.ToValue(),
-        counter & 0xffffffff,
-        counter >> 32);
+        version.SegmentId,
+        version.RecordCount);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object id generated (Type: %s, Id: %s)",
         ~type.ToString(),
