@@ -76,6 +76,8 @@ private:
     void CloseLease(const TTransaction* transaction);
     void FinishTransaction(TTransaction* transaction);
 
+    void DoRenewLease(const TTransaction* transaction);
+
     // TMetaStatePart overrides
     void SaveKeys(TOutputStream* output);
     void SaveValues(TOutputStream* output);
