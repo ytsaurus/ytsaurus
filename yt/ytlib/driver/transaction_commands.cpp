@@ -24,7 +24,8 @@ void TStartTransactionCommand::DoExecute()
     auto transactionManager = Context->GetTransactionManager();
     auto newTransaction = transactionManager->Start(
         ~attributes,
-        Request->TransactionId);
+        Request->TransactionId,
+        Request->PingAncestors);
 
     BuildYsonFluently(~Context->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
@@ -37,7 +38,9 @@ void TStartTransactionCommand::DoExecute()
 void TRenewTransactionCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(GetTransactionId(true)));
+    auto req = TTransactionYPathProxy::RenewLease(
+        FromObjectId(GetTransactionId(true)));
+    req->set_renew_ancestors(Request->PingAncestors);
     auto rsp = proxy.Execute(req).Get();
 
     if (!rsp->IsOK()) {

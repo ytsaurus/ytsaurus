@@ -171,14 +171,15 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RenewLease)
     {
-        UNUSED(request);
         UNUSED(response);
 
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        context->SetRequestInfo("");
-        Owner->RenewLease(transaction);
+        bool renewAncestors = request->renew_ancestors();
+        context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
+
+        Owner->RenewLease(transaction, request->renew_ancestors());
         context->Reply();
     }
 
@@ -451,7 +452,7 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
     objectManager->UnrefObject(transaction);
 }
 
-void TTransactionManager::RenewLease(const TTransaction* transaction)
+void TTransactionManager::RenewLease(const TTransaction* transaction, bool renewAncestors)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -460,6 +461,13 @@ void TTransactionManager::RenewLease(const TTransaction* transaction)
     auto it = LeaseMap.find(transaction->GetId());
     YCHECK(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
+
+    if (renewAncestors) {
+        TTransaction* parentTransaction = transaction->GetParent();
+        if (parentTransaction) {
+            RenewLease(parentTransaction, true);
+        }
+    }
 }
 
 void TTransactionManager::SaveKeys(TOutputStream* output)

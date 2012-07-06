@@ -31,17 +31,24 @@ public:
 
     //! Starts a new transaction.
     /*!
+     *  If #pingAncestors is True then the transaction manager will renew leases
+     *  of all ancestors of this transaction.
+     *
      *  \note
      *  This call does not block.
      *  Thread affinity: any.
      */
     ITransactionPtr Start(
         NYTree::IAttributeDictionary* attributes = NULL,
-        const TTransactionId& parentId = NullTransactionId);
+        const TTransactionId& parentId = NullTransactionId,
+        bool pingAncestors = false);
 
     //! Attaches to an existing transaction.
     /*!
      *  The manager will be renewning the lease of time transaction periodically.
+     *
+     *  If #pingAncestors is True then the transaction manager will renew leases
+     *  of all ancestors of this transaction.
      *  
      *  If #takeOwnership is True then the transaction object will be aborted
      *  (if not committed) at the end of its lifetime.
@@ -52,7 +59,8 @@ public:
      */
     ITransactionPtr Attach(
         const TTransactionId& id,
-        bool takeOwnership);
+        bool takeOwnership,
+        bool pingAncestors = false);
 
 private:
     class TTransaction;
