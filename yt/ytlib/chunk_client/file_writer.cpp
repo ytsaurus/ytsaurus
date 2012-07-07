@@ -155,7 +155,6 @@ void TFileWriter::Abort()
     RemoveFile(FileName + NFS::TempFileSuffix);
 }
 
-
 const TChunkInfo& TFileWriter::GetChunkInfo() const
 {
     YASSERT(IsClosed);
