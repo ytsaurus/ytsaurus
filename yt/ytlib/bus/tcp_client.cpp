@@ -12,6 +12,7 @@
 #include <ytlib/misc/thread_affinity.h>
 
 #include <util/network/socket.h>
+#include <util/network/address.h>
 #include <util/system/error.h>
 
 #include <errno.h>
@@ -59,7 +60,7 @@ public:
         }
     }
 
-    void Open(const sockaddr_in6& sockAddress)
+    void Open(const sockaddr_storage& sockAddress)
     {
         VERIFY_THREAD_AFFINITY_ANY();
     
@@ -111,9 +112,9 @@ private:
     TConnectionId Id;
     int Socket;
 
-    void OpenSocket(const sockaddr_in6& sockAddress)
+    void OpenSocket(const sockaddr_storage& sockAddress)
     {
-        bool isIPV6 = sockAddress.sin6_family == AF_INET6;
+        bool isIPV6 = sockAddress.ss_family == AF_INET6;
         Socket = socket(isIPV6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (Socket == INVALID_SOCKET) {
             int error = LastSystemError();
@@ -161,11 +162,11 @@ private:
         Socket = INVALID_SOCKET;
     }
 
-    void ConnectSocket(const sockaddr_in6& sockAddress)
+    void ConnectSocket(const sockaddr_storage& sockAddress)
     {
         int result;
         PROFILE_TIMING ("/connect_time") {
-            result = connect(Socket, reinterpret_cast<const sockaddr*>(&sockAddress), sizeof (sockaddr_in6));
+            result = connect(Socket, reinterpret_cast<const sockaddr*>(&sockAddress), sizeof (sockAddress));
         }
         
         if (result != 0) {
@@ -218,7 +219,7 @@ public:
 
 private:
     TTcpBusClientConfigPtr Config;
-    sockaddr_in6 SockAddress;
+    sockaddr_storage SockAddress;
 
     void ResolveAddress()
     {
@@ -229,13 +230,28 @@ private:
             &hostName,
             &port);
 
+        LOG_DEBUG("Resolving %s", ~hostName);
+
         // TODO(babenko): get rid of this util stuff
+
         TNetworkAddress networkAddress(Stroka(hostName), port);
         for (auto it = networkAddress.Begin(); it != networkAddress.End(); ++it) {
-            sockaddr *addr = it->ai_addr;
+            sockaddr* addr = it->ai_addr;
             if (addr && (addr->sa_family == AF_INET || addr->sa_family == AF_INET6)) {
-                SockAddress = *reinterpret_cast<sockaddr_in6*>(addr);
-                SockAddress.sin6_port = htons(port);
+                NAddr::TOpaqueAddr opaqueAddr;
+                memcpy(
+                    opaqueAddr.Addr(),
+                    addr,
+                    addr->sa_family == AF_INET ? sizeof (sockaddr_in) : sizeof (sockaddr_in6));
+                memcpy(
+                    &SockAddress,
+                    opaqueAddr.Addr(),
+                    sizeof (sockaddr_storage));
+
+                auto addressStr = ToString(static_cast<const NAddr::IRemoteAddr&>(opaqueAddr));
+                LOG_DEBUG("Resolved %s to %s",
+                    ~hostName,
+                    ~addressStr);
                 return;
             }
         }
