@@ -38,13 +38,13 @@ public:
     void RegisterHandler(IObjectTypeHandlerPtr handler);
 
     //! Returns the handler for a given type or NULL if the type is unknown.
-    IObjectTypeHandler* FindHandler(EObjectType type) const;
+    IObjectTypeHandlerPtr FindHandler(EObjectType type) const;
 
     //! Returns the handler for a given type.
-    IObjectTypeHandler* GetHandler(EObjectType type) const;
+    IObjectTypeHandlerPtr GetHandler(EObjectType type) const;
     
     //! Returns the handler for a given id.
-    IObjectTypeHandler* GetHandler(const TObjectId& id) const;
+    IObjectTypeHandlerPtr GetHandler(const TObjectId& id) const;
 
     //! Returns the cell id.
     TCellId GetCellId() const;

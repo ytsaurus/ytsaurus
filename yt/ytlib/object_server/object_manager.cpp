@@ -304,7 +304,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     TypeToHandler[typeValue] = handler;
 }
 
-IObjectTypeHandler* TObjectManager::FindHandler(EObjectType type) const
+IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -316,7 +316,7 @@ IObjectTypeHandler* TObjectManager::FindHandler(EObjectType type) const
     return ~TypeToHandler[typeValue];
 }
 
-IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
+IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -325,7 +325,7 @@ IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
     return handler;
 }
 
-IObjectTypeHandler* TObjectManager::GetHandler(const TObjectId& id) const
+IObjectTypeHandlerPtr TObjectManager::GetHandler(const TObjectId& id) const
 {
     return GetHandler(TypeFromId(id));
 }
