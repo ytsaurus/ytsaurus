@@ -28,7 +28,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TJob::TJob(
     TJobExecutorPtr owner,
-    IInvokerPtr serviceInvoker,
+    IInvokerPtr controlInvoker,
     EJobType jobType,
     const TJobId& jobId,
     TStoredChunkPtr chunk,
@@ -40,11 +40,11 @@ TJob::TJob(
     , Chunk(chunk)
     , TargetAddresses(targetAddresses)
     , CancelableContext(New<TCancelableContext>())
-    , CancelableInvoker(CancelableContext->CreateInvoker(serviceInvoker))
+    , CancelableInvoker(CancelableContext->CreateInvoker(controlInvoker))
     , Logger(ChunkHolderLogger)
 {
-    YASSERT(serviceInvoker);
-    YASSERT(chunk);
+    YCHECK(controlInvoker);
+    YCHECK(chunk);
 
     Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
 }
@@ -100,13 +100,16 @@ void TJob::Start()
                 ->GetMeta()
                 .Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
                     if (!result.IsOK()) {
-                        LOG_WARNING("Error getting chunk info (ChunkId: %s)\n%s",
+                        LOG_WARNING("Error getting chunk meta (ChunkId: %s)\n%s",
                             ~Chunk->GetId().ToString(),
                             ~result.ToString());
 
                         this_->State = EJobState::Failed;
                         return;
                     }
+
+                    LOG_INFO("Received chunk meta for replication (ChunkId: %s)",
+                        ~Chunk->GetId().ToString());
 
                     this_->ChunkMeta = result.Value();
 
@@ -206,15 +209,15 @@ TJobExecutor::TJobExecutor(
     TChunkHolderConfigPtr config,
     TChunkStorePtr chunkStore,
     TBlockStorePtr blockStore,
-    IInvokerPtr serviceInvoker)
+    IInvokerPtr controlInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
     , BlockStore(blockStore)
-    , ServiceInvoker(serviceInvoker)
+    , ControlInvoker(controlInvoker)
 {
-    YASSERT(chunkStore);
-    YASSERT(blockStore);
-    YASSERT(serviceInvoker);
+    YCHECK(chunkStore);
+    YCHECK(blockStore);
+    YCHECK(controlInvoker);
 }
 
 TJobPtr TJobExecutor::StartJob(
@@ -225,7 +228,7 @@ TJobPtr TJobExecutor::StartJob(
 {
     auto job = New<TJob>(
         this,
-        ServiceInvoker,
+        ControlInvoker,
         jobType,
         jobId,
         chunk,

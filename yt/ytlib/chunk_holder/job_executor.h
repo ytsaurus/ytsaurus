@@ -25,7 +25,7 @@ class TJob
 public:
     TJob(
         TJobExecutorPtr owner,
-        IInvokerPtr serviceInvoker,
+        IInvokerPtr controlInvoker,
         EJobType jobType,
         const TJobId& jobId,
         TStoredChunkPtr chunk,
@@ -99,7 +99,7 @@ public:
         TChunkHolderConfigPtr config,
         TChunkStorePtr chunkStore,
         TBlockStorePtr blockStore,
-        IInvokerPtr serviceInvoker);
+        IInvokerPtr controlInvoker);
     
     //! Starts a new job with the given parameters.
     TJobPtr StartJob(
@@ -129,7 +129,7 @@ private:
 
     TChunkStorePtr ChunkStore;
     TBlockStorePtr BlockStore;
-    IInvokerPtr ServiceInvoker;
+    IInvokerPtr ControlInvoker;
 
     TJobMap Jobs;
 
