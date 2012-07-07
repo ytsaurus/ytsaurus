@@ -79,8 +79,6 @@ TStoredChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 
 void TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
 {
-    // Hold the chunk during removal.
-    TStoredChunkPtr chunk_ = chunk;
     auto chunkId = chunk->GetId();
 
     YVERIFY(ChunkMap.erase(chunkId) == 1);
