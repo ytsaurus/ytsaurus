@@ -26,21 +26,21 @@ class TChunk
     //! Chunk id.
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, Id);
     //! Chunk location.
-    DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TLocation>, Location);
+    DEFINE_BYVAL_RO_PROPERTY(TLocationPtr, Location);
     //! The physical chunk size (including data and meta).
     DEFINE_BYVAL_RO_PROPERTY(NProto::TChunkInfo, Info);
 
 public:
     //! Constructs a chunk for which its meta is already known.
     TChunk(
-        TLocation* location,
+        TLocationPtr location,
         const TChunkId& chunkId,
         const NProto::TChunkMeta& chunkMeta,
         const NProto::TChunkInfo& chunkInfo);
 
     //! Constructs a chunk for which no info is loaded.
     TChunk(
-        TLocation* location,
+        TLocationPtr location,
         const TChunkDescriptor& descriptor);
 
     ~TChunk();
