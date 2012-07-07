@@ -47,7 +47,7 @@ class TReaderCache::TImpl
     : public TSizeLimitedCache<TChunkId, TCachedReader>
 {
 public:
-    TImpl(TChunkHolderConfigPtr config)
+    explicit TImpl(TChunkHolderConfigPtr config)
         : TSizeLimitedCache<TChunkId, TCachedReader>(config->MaxCachedReaders)
     { }
 
