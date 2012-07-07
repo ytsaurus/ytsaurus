@@ -22,7 +22,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunk::TChunk(
-    TLocation* location, 
+    TLocationPtr location, 
     const TChunkId& id, 
     const TChunkMeta& chunkMeta, 
     const TChunkInfo& chunkInfo)
@@ -33,7 +33,9 @@ TChunk::TChunk(
     , Meta(chunkMeta)
 { }
 
-TChunk::TChunk(TLocation* location, const TChunkDescriptor& descriptor)
+TChunk::TChunk(
+    TLocationPtr location,
+    const TChunkDescriptor& descriptor)
     : Id_(descriptor.Id)
     , Location_(location)
     , HasMeta(false)
@@ -71,7 +73,8 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
             if (!error.IsOK()) {
                 return error;
             }
-            YASSERT(HasMeta);
+            
+            YCHECK(HasMeta);
             return tags_
                 ? FilterChunkMetaExtensions(Meta, tags_.Get())
                 : Meta;
@@ -83,10 +86,16 @@ TFuture<TError> TChunk::ReadMeta()
     auto this_ = MakeStrong(this);
     auto invoker = Location_->GetInvoker();
     auto readerCache = Location_->GetReaderCache();
+
+    LOG_DEBUG("Reading chunk meta (ChunkId: %s)", ~Id_.ToString());
+
     return
         BIND([=] () -> TError {
             auto result = readerCache->GetReader(this_);
             if (!result.IsOK()) {
+                LOG_WARNING("Error reading chunk meta (ChunkId: %s)\n%s",
+                    ~this_->Id_.ToString(),
+                    ~result.ToString());
                 return TError(result);
             }
 
@@ -99,6 +108,8 @@ TFuture<TError> TChunk::ReadMeta()
                 Info_ = reader->GetChunkInfo();
                 HasMeta = true;
             }
+
+            LOG_DEBUG("Chunk meta is read (ChunkId: %s)", ~this_->Id_.ToString());
 
             return TError();
         })
