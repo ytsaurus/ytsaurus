@@ -5,6 +5,10 @@
 
 #include <actions/future.h>
 
+#ifndef _WIN32
+    #include <sys/socket.h>
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,12 +59,21 @@ Stroka ToString(const TNetworkAddress& address, bool withPort = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Performs asynchronous host name resolution.
 class TAddressResolver
 {
 public:
+    //! Returns the singleton instance.
     static TAddressResolver* Get();
 
+    //! Resolves #hostName asynchronously.
+    /*!
+     *  Calls |getaddrinfo| and returns the first entry belonging to |AF_INET| or |AF_INET6| family.
+     *  Caches successful resolutions.
+     */
     TFuture< TValueOrError<TNetworkAddress> > Resolve(const Stroka& hostName);
+
+    //! Removes all cached resolutions.
     void PurgeCache();
 
 private:
