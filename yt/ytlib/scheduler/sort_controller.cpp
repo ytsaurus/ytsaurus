@@ -810,9 +810,12 @@ private:
         // Otherwise use size estimates.
         int partitionCount = Spec->PartitionCount
             ? Spec->PartitionCount.Get()
-            : static_cast<int>(ceil((double) SortWeightCounter.GetTotal() / Spec->MaxWeightPerSortJob));
+            : static_cast<int>(ceil(
+                (double) SortWeightCounter.GetTotal() /
+                Spec->MaxWeightPerSortJob *
+                Spec->PartitionCountBoostFactor));
 
-        // Don't create more partitions than we have samples.
+        // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
 
         // Don't create more partitions than allowed by the global config.

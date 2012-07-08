@@ -219,10 +219,17 @@ struct TSortOperationSpec
     TNullable<int> SortJobCount;
 
     //! Maximum amount of (uncompressed) data to be given to a single sort job.
-    //! By default, the controller computes the number of partitions by dividing
-    //! the total input size by this number. The user, however, may specify a custom
-    //! number of partitions.
+    //! By default, the number of partitions is computed as follows:
+    //! \code
+    //! partitionCount = ceil(totalWeight / MaxWeightPerSortJob * PartitionCountBoostFactor)
+    //! \endcode
+    //! The user, however, may override this by specifying #PartitionCount explicitly.
+    //! Here #PartitionCountBoostFactor accounts for uneven partition sizes and
+    //! enables to fit most of sort jobs into #MaxWeightPerSortJob.
     i64 MaxWeightPerSortJob;
+
+    //! See comments for #MaxWeightPerSortJob.
+    double PartitionCountBoostFactor;
 
     //! Maximum amount of (uncompressed) data to be given to a single unordered merge job
     //! that takes care of a megalomaniac partition.
@@ -243,10 +250,13 @@ struct TSortOperationSpec
         Register("sort_job_count", SortJobCount)
             .Default()
             .GreaterThan(0);
-        // TODO(babenko): update when the sort gets optimized
+        // TODO(babenko): update when sort job gets optimized
         Register("max_weight_per_sort_job", MaxWeightPerSortJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("partition_count_boost_factor", PartitionCountBoostFactor)
+            .Default(1.5)
+            .GreaterThanOrEqual(1.0);
         Register("max_weight_per_unordered_merge_job", MaxWeightPerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
