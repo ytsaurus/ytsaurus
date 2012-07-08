@@ -42,9 +42,10 @@ TTcpConnection::TTcpConnection(
     : Type(type)
     , Id(id)
     , Socket(socket)
+    , Fd(INVALID_SOCKET)
     , Address(address)
     , Handler(handler)
-    , State(EState::Opening)
+    , Port(0)
     , ReadBuffer(ReadChunkSize)
     , TerminatedPromise(NewPromise<TError>())
 {
@@ -55,11 +56,20 @@ TTcpConnection::TTcpConnection(
     // This looks like a reasonable estimate.
     SendVector.reserve(FragmentCountThreshold * 2);
 
-#ifdef _WIN32
-    Fd = _open_osfhandle(Socket, 0);
-#else
-    Fd = Socket;
-#endif
+    switch (Type) {
+        case EConnectionType::Client:
+            YCHECK(Socket == INVALID_SOCKET);
+            State = EState::Resolving;
+            break;
+
+        case EConnectionType::Server:
+            YCHECK(Socket != INVALID_SOCKET);
+            State = EState::Opening;
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
 
     UpdateConnectionCount(+1);
 }
@@ -93,7 +103,6 @@ void TTcpConnection::Cleanup()
 void TTcpConnection::SyncInitialize()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(State == EState::Opening);
 
     const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
     
@@ -101,16 +110,25 @@ void TTcpConnection::SyncInitialize()
     TerminationWatcher->set<TTcpConnection, &TTcpConnection::OnTerminated>(this);
     TerminationWatcher->start();
 
-    SocketWatcher.Reset(new ev::io(eventLoop));
-    SocketWatcher->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
-    SocketWatcher->start(Fd, ev::READ|ev::WRITE);
-
     OutcomingMessageWatcher.Reset(new ev::async(eventLoop));
     OutcomingMessageWatcher->set<TTcpConnection, &TTcpConnection::OnOutcomingMessage>(this);
     OutcomingMessageWatcher->start();
 
-    if (Type == EConnectionType::Server) {
-        SyncOpen();
+    switch (Type) {
+        case EConnectionType::Client:
+            ResolveWatcher.Reset(new ev::async(eventLoop));
+            ResolveWatcher->set<TTcpConnection, &TTcpConnection::OnResolved>(this);
+            ResolveWatcher->start();
+            SyncResolve();
+            break;
+
+        case EConnectionType::Server:
+            InitFd();
+            SyncOpen();
+            break;
+
+        default:
+            YUNREACHABLE();
     }
 }
 
@@ -185,6 +203,52 @@ void TTcpConnection::SyncOpen()
     UpdateSocketWatcher();
 }
 
+void TTcpConnection::SyncResolve()
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    TStringBuf hostName;
+    try {
+        ParseServiceAddress(Address, &hostName, &Port);
+    } catch (const std::exception& ex) {
+        SyncClose(TError(ex.what()));
+        return;
+    }
+
+    AsyncAddress = TAddressResolver::Get()->Resolve(Stroka(hostName));
+
+    auto this_ = MakeStrong(this);
+    AsyncAddress.Subscribe(BIND([=] (TValueOrError<TNetworkAddress>) {
+        this_->ResolveWatcher->send();
+    }));
+}
+
+void TTcpConnection::OnResolved(ev::async&, int)
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    auto result = AsyncAddress.Get();
+    if (!result.IsOK()) {
+        SyncClose(result);
+        return;
+    }
+
+    TNetworkAddress netAddress(result.Value(), Port);
+    try {
+        ConnectSocket(netAddress);
+    } catch (const std::exception& ex) {
+        SyncClose(TError(ex.what()));
+        return;
+    }
+
+    InitFd();
+
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        State = EState::Opening;
+    }
+}
+
 void TTcpConnection::SyncClose(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
@@ -200,6 +264,7 @@ void TTcpConnection::SyncClose(const TError& error)
     }
 
     // Stop all watchers.
+    ResolveWatcher.Destroy();
     TerminationWatcher.Destroy();
     SocketWatcher.Destroy();
     OutcomingMessageWatcher.Destroy();
@@ -238,6 +303,21 @@ void TTcpConnection::SyncClose(const TError& error)
     TTcpDispatcher::TImpl::Get()->AsyncUnregister(this);
 }
 
+void TTcpConnection::InitFd()
+{
+#ifdef _WIN32
+    Fd = _open_osfhandle(Socket, 0);
+#else
+    Fd = Socket;
+#endif
+
+    const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
+
+    SocketWatcher.Reset(new ev::io(eventLoop));
+    SocketWatcher->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
+    SocketWatcher->start(Fd, ev::READ|ev::WRITE);
+}
+
 void TTcpConnection::CloseSocket()
 {
     if (Fd != INVALID_SOCKET) {
@@ -245,6 +325,59 @@ void TTcpConnection::CloseSocket()
     }
     Socket = INVALID_SOCKET;
     Fd = INVALID_SOCKET;
+}
+
+void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
+{
+    bool isIPV6 = netAddress.GetSockAddr()->sa_family == AF_INET6;
+    Socket = socket(isIPV6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (Socket == INVALID_SOCKET) {
+        int error = LastSystemError();
+        ythrow yexception() << Sprintf("Failed to create client socket (ErrorCode: %d)\n%s",
+            error,
+            LastSystemErrorText(error));
+    }
+
+    // TODO(babenko): check results
+    if (isIPV6) {
+        int flag = 0;
+        setsockopt(Socket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag));
+    }
+
+    {
+        int flag = 1;
+        setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &flag, sizeof(flag));
+    }
+
+#if !defined(_WIN32) && !defined(__APPLE__)
+    {
+        int priority = Config->Priority;
+        setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
+    }
+#endif
+
+#ifdef _WIN32
+    unsigned long dummy = 1;
+    ioctlsocket(Socket, FIONBIO, &dummy);
+#else
+    fcntl(Socket, F_SETFL, O_NONBLOCK);
+    fcntl(Socket, F_SETFD, FD_CLOEXEC);
+#endif
+
+    int result;
+    PROFILE_TIMING ("/connect_time") {
+        result = connect(Socket, netAddress.GetSockAddr(), netAddress.GetLength());
+    }
+
+    if (result != 0) {
+        int error = LastSystemError();
+        if (IsSocketError(error)) {
+            ythrow yexception() << Sprintf("Error connecting to %s (ErrorCode: %d)\n%s",
+                ~Address,
+                error,
+                LastSystemErrorText(error));
+        }
+    }
 }
 
 IBus::TSendResult TTcpConnection::Send(IMessagePtr message)

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cell_manager.h"
 
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/rpc/channel.h>
 
 namespace NYT {
@@ -24,7 +24,7 @@ TCellManager::TCellManager(TCellConfigPtr config)
     OrderedAddresses = Config->Addresses;
     std::sort(OrderedAddresses.begin(), OrderedAddresses.end());
     
-    SelfAddress_ = BuildServiceAddress(GetHostName(), Config->RpcPort);
+    SelfAddress_ = BuildServiceAddress(GetLocalHostName(), Config->RpcPort);
     SelfId_ = std::distance(
         OrderedAddresses.begin(),
         std::find(OrderedAddresses.begin(), OrderedAddresses.end(), SelfAddress_));

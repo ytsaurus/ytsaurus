@@ -123,6 +123,7 @@ private:
 
         void Init(IBusPtr bus)
         {
+            YCHECK(bus);
             Bus = bus;
         }
 
@@ -358,7 +359,7 @@ private:
                 return TError("Channel terminated");
             }
 
-            Session = session = New<TSession>(DefaultTimeout);
+            session = New<TSession>(DefaultTimeout);
             auto messageHandler = New<TMessageHandler>(session);
 
             try {
@@ -366,7 +367,9 @@ private:
             } catch (const std::exception& ex) {
                 return TError(ex.what());
             }
+
             session->Init(bus);
+            Session = session;
         }
 
         bus->SubscribeTerminated(BIND(

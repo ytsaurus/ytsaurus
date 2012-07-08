@@ -7,7 +7,7 @@
 #include "schema.h"
 
 #include <ytlib/misc/string.h>
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
@@ -66,7 +66,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     req->set_type(NObjectServer::EObjectType::Chunk);
 
     auto* reqExt = req->MutableExtension(NChunkServer::NProto::TReqCreateChunkExt::create_chunk);
-    reqExt->set_preferred_host_name(Stroka(GetHostName()));
+    reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
 

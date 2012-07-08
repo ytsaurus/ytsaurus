@@ -7,6 +7,7 @@
 #include "message.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/actions/future.h>
 
@@ -122,6 +123,7 @@ private:
     };
 
     DECLARE_ENUM(EState,
+        (Resolving)
         (Opening)
         (Open)
         (Closed)
@@ -134,10 +136,15 @@ private:
     Stroka Address;
     IMessageHandlerPtr Handler;
 
+    // Only used for client sockets.
+    int Port;
+    TFuture< TValueOrError<TNetworkAddress> > AsyncAddress;
+
     TSpinLock SpinLock;
     EState State;
     TError TerminationError;
 
+    THolder<ev::async> ResolveWatcher;
     THolder<ev::async> TerminationWatcher;
     THolder<ev::io> SocketWatcher;
 
@@ -162,8 +169,14 @@ private:
     void Cleanup();
 
     void SyncOpen();
+    void SyncResolve();
     void SyncClose(const TError& error);
+
+    void InitFd();
+    void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
+
+    void OnResolved(ev::async&, int);
 
     void OnSocket(ev::io&, int revents);
 

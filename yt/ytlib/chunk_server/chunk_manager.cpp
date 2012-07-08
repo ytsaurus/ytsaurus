@@ -33,7 +33,7 @@
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
@@ -61,6 +61,7 @@ using namespace NYTree;
 using namespace NCellMaster;
 using namespace NChunkHolder::NProto;
 using namespace NCypress;
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 

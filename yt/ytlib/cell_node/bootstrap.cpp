@@ -2,7 +2,7 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/actions/action_queue.h>
@@ -70,7 +70,7 @@ TBootstrap::~TBootstrap()
 void TBootstrap::Run()
 {
     IncarnationId = TIncarnationId::Create();
-    PeerAddress = BuildServiceAddress(GetHostName(), Config->RpcPort);
+    PeerAddress = BuildServiceAddress(GetLocalHostName(), Config->RpcPort);
 
     LOG_INFO("Starting node (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
         ~IncarnationId.ToString(),

@@ -9,7 +9,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/chunk_server/block_id.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
@@ -30,6 +30,7 @@ using namespace NChunkServer;
 using namespace NChunkServer::NProto;
 using namespace NObjectServer;
 using namespace NCypress;
+using ::ToString;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -290,7 +291,7 @@ protected:
     {
         // Prefer local node if in seeds.
         for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it) {
-            if (GetServiceHostName(*it) == GetHostName()) {
+            if (GetServiceHostName(*it) == GetLocalHostName()) {
                 auto localSeed = *it;
                 SeedAddresses.erase(it);
                 SeedAddresses.insert(SeedAddresses.begin(), localSeed);
