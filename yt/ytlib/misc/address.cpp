@@ -14,6 +14,7 @@
 #else
     #include <netdb.h>
     #include <netinet/in.h>
+    #include <arpa/inet.h>
 #endif
 
 namespace NYT {
