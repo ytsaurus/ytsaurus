@@ -11,6 +11,7 @@ namespace NRpc {
 using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 IMessagePtr CreateRequestMessage(
     const NProto::TRequestHeader& header,
     TBlob&& body,
