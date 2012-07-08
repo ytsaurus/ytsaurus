@@ -5,7 +5,9 @@
 
 #include <actions/future.h>
 
-#ifndef _WIN32
+#ifdef _WIN32
+    #include <ws2tcpip.h>
+#else
     #include <sys/socket.h>
 #endif
 
@@ -46,12 +48,12 @@ public:
 
     sockaddr* GetSockAddr();
     const sockaddr* GetSockAddr() const;
-    int GetLength() const;
+    socklen_t GetLength() const;
 
 private:
     sockaddr_storage Storage;
 
-    static int GetLength(const sockaddr& sockAddr);
+    static socklen_t GetLength(const sockaddr& sockAddr);
 
 };
 

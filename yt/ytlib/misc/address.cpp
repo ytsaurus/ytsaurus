@@ -10,7 +10,6 @@
 
 #ifdef _WIN32
     #include <ws2ipdef.h>
-    #include <ws2tcpip.h>
 #else
     #include <netdb.h>
     #include <netinet/in.h>
@@ -116,7 +115,7 @@ const sockaddr* TNetworkAddress::GetSockAddr() const
     return reinterpret_cast<const sockaddr*>(&Storage);
 }
 
-int TNetworkAddress::GetLength(const sockaddr& sockAddr)
+socklen_t TNetworkAddress::GetLength(const sockaddr& sockAddr)
 {
     switch (sockAddr.sa_family) {
         case AF_INET:
@@ -129,7 +128,7 @@ int TNetworkAddress::GetLength(const sockaddr& sockAddr)
     }
 }
 
-int TNetworkAddress::GetLength() const
+socklen_t TNetworkAddress::GetLength() const
 {
     return GetLength(*reinterpret_cast<const sockaddr*>(&Storage));
 }

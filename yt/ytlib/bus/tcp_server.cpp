@@ -10,6 +10,8 @@
 #include <ytlib/misc/address.h>
 #include <ytlib/logging/tagged_logger.h>
 
+#include <errno.h>
+
 #ifndef _WIN32
     #include <netinet/tcp.h>
     #include <sys/socket.h>
@@ -197,7 +199,7 @@ private:
 
         while (true) {
             TNetworkAddress clientAddress;
-            int clientAddressLen = clientAddress.GetLength();
+            socklen_t clientAddressLen = clientAddress.GetLength();
             SOCKET clientSocket;
             PROFILE_AGGREGATED_TIMING (AcceptTime) {
                 clientSocket = accept(ServerSocket, clientAddress.GetSockAddr(), &clientAddressLen);
