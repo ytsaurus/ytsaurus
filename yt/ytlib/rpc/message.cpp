@@ -11,13 +11,7 @@ namespace NRpc {
 using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// XXX(babenko): why client?
-static NLog::TLogger& Logger = RpcClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-NBus::IMessagePtr CreateRequestMessage(
+IMessagePtr CreateRequestMessage(
     const NProto::TRequestHeader& header,
     TBlob&& body,
     const std::vector<TSharedRef>& attachments)
@@ -37,7 +31,7 @@ NBus::IMessagePtr CreateRequestMessage(
     return CreateMessageFromParts(MoveRV(parts));
 }
 
-NBus::IMessagePtr CreateResponseMessage(
+IMessagePtr CreateResponseMessage(
     const NProto::TResponseHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
@@ -57,18 +51,15 @@ NBus::IMessagePtr CreateResponseMessage(
     return CreateMessageFromParts(MoveRV(parts));
 }
 
-NBus::IMessagePtr CreateErrorResponseMessage(
+IMessagePtr CreateErrorResponseMessage(
     const NProto::TResponseHeader& header)
 {
     TBlob headerBlob;
-    if (!SerializeToProto(&header, &headerBlob)) {
-        LOG_FATAL("Error serializing error response header");
-    }
-
+    YCHECK(SerializeToProto(&header, &headerBlob));
     return CreateMessageFromPart(MoveRV(headerBlob));
 }
 
-NBus::IMessagePtr CreateErrorResponseMessage(
+IMessagePtr CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error)
 {
@@ -78,7 +69,7 @@ NBus::IMessagePtr CreateErrorResponseMessage(
     return CreateErrorResponseMessage(header);
 }
 
-NBus::IMessagePtr CreateErrorResponseMessage(
+IMessagePtr CreateErrorResponseMessage(
     const TError& error)
 {
     NProto::TResponseHeader header;
