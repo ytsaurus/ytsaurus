@@ -43,6 +43,7 @@ public:
         const TConnectionId& id,
         int socket,
         const Stroka& address,
+        int priority,
         IMessageHandlerPtr handler);
 
     ~TTcpConnection();
@@ -134,6 +135,7 @@ private:
     int Socket;
     int Fd;
     Stroka Address;
+    int Priority;
     IMessageHandlerPtr Handler;
 
     // Only used for client sockets.

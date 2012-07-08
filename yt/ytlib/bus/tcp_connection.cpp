@@ -42,12 +42,14 @@ TTcpConnection::TTcpConnection(
     const TConnectionId& id,
     int socket,
     const Stroka& address,
+    int priority,
     IMessageHandlerPtr handler)
     : Type(type)
     , Id(id)
     , Socket(socket)
     , Fd(INVALID_SOCKET)
     , Address(address)
+    , Priority(priority)
     , Handler(handler)
     , Port(0)
     , ReadBuffer(ReadChunkSize)
@@ -355,8 +357,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
 
 #if !defined(_WIN32) && !defined(__APPLE__)
     {
-        int priority = Config->Priority;
-        setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
+        setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority));
     }
 #endif
 

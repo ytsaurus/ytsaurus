@@ -11,15 +11,11 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
 
-//#include <util/network/socket.h>
-//#include <util/network/address.h>
-//#include <util/system/error.h>
-
 #include <errno.h>
 
 #ifndef _WIN32
-#include <netinet/tcp.h>
-#include <sys/socket.h>
+    #include <netinet/tcp.h>
+    #include <sys/socket.h>
 #endif
 
 namespace NYT {
@@ -72,6 +68,7 @@ public:
             Id,
             INVALID_SOCKET,
             Config->Address,
+            Config->Priority,
             Handler);
         TTcpDispatcher::TImpl::Get()->AsyncRegister(Connection);
     }
