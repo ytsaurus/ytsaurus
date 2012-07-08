@@ -263,8 +263,15 @@ private:
 
             // Compute jobs totals.
             FOREACH (auto partition, Controller->Partitions) {
-                Controller->TotalSortedMergeJobCount += partition->SortedMergeTask->GetPendingJobCount();
-                Controller->TotalUnorderedMergeJobCount += partition->UnorderedMergeTask->GetPendingJobCount();
+                if (partition->Megalomaniac) {
+                    ++Controller->TotalUnorderedMergeJobCount;
+                } else {
+                    if (partition->SortTask->WeightCounter().Total > Controller->Spec->MaxWeightPerSortJob) {
+                        // This is still an estimate: sort job may occasionally get more input that
+                        // dictated by MaxWeightPerSortJob bound.
+                        ++Controller->TotalSortedMergeJobCount;
+                    }
+                }
             }
 
             // Kick-start sort and unordered merge tasks.
