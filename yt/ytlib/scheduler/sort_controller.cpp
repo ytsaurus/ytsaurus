@@ -109,7 +109,6 @@ private:
             , Completed(false)
             , SortedMergeNeeded(false)
             , Megalomaniac(false)
-            , Empty(true)
             , SortTask(New<TSortTask>(controller, this))
             , SortedMergeTask(New<TSortedMergeTask>(controller, this))
             , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
@@ -127,8 +126,8 @@ private:
         //! Does the partition consist of rows with the same key?
         bool Megalomaniac;
 
-        //! Is there any data here?
-        bool Empty;
+        //! Accumulated attributes.
+        NTableClient::NProto::TPartitionsExt::TPartitionAttributes TotalAttributes;
 
         TSortTaskPtr SortTask;
         TSortedMergeTaskPtr SortedMergeTask;
@@ -230,17 +229,22 @@ private:
                 RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.mutable_extensions());
 
                 YCHECK(partitionsExt.partitions_size() == Controller->Partitions.size());
-                LOG_TRACE("Partition attributes are:");
+                LOG_TRACE("Job partition attributes are:");
                 for (int index = 0; index < partitionsExt.partitions_size(); ++index) {
-                    const auto& partitionAttributes = partitionsExt.partitions(index);
-                    LOG_TRACE("Partition[%d] = {%s}", index, ~partitionAttributes.DebugString());
-                    if (partitionAttributes.data_weight() > 0) {
+                    const auto& jobPartitionAttributes = partitionsExt.partitions(index);
+                    LOG_TRACE("Partition[%d] = {%s}", index, ~jobPartitionAttributes.DebugString());
+
+                    // Add up attributes.
+                    auto partition = Controller->Partitions[index];
+                    auto& totalAttributes = partition->TotalAttributes;
+                    totalAttributes.set_data_weight(totalAttributes.data_weight() + jobPartitionAttributes.data_weight());
+                    totalAttributes.set_row_count(totalAttributes.row_count() + jobPartitionAttributes.row_count());
+
+                    if (jobPartitionAttributes.data_weight() > 0) {
                         auto stripe = New<TChunkStripe>(
                             partitionChunk,
-                            partitionAttributes.data_weight(),
-                            partitionAttributes.row_count());
-                        auto partition = Controller->Partitions[index];
-                        partition->Empty = false;
+                            jobPartitionAttributes.data_weight(),
+                            jobPartitionAttributes.row_count());
                         auto destinationTask = partition->Megalomaniac
                             ? TTaskPtr(partition->UnorderedMergeTask)
                             : TTaskPtr(partition->SortTask);
@@ -266,7 +270,7 @@ private:
                 if (partition->Megalomaniac) {
                     ++Controller->TotalUnorderedMergeJobCount;
                 } else {
-                    if (partition->SortTask->WeightCounter().Total > Controller->Spec->MaxWeightPerSortJob) {
+                    if (partition->SortTask->WeightCounter().GetTotal() > Controller->Spec->MaxWeightPerSortJob) {
                         // This is still an estimate: sort job may occasionally get more input that
                         // dictated by MaxWeightPerSortJob bound.
                         ++Controller->TotalSortedMergeJobCount;
@@ -274,10 +278,18 @@ private:
                 }
             }
 
+            // Dump totals.
+            LOG_DEBUG("Total partition attributes are:");
+            for (int index = 0; index < static_cast<int>(Controller->Partitions.size()); ++index) {
+                LOG_DEBUG("Partition[%d] = {%s}",
+                    index,
+                    ~Controller->Partitions[index]->TotalAttributes.DebugString());
+            }
+
             // Kick-start sort and unordered merge tasks.
             // Mark empty partitions are completed.
             FOREACH (auto partition, Controller->Partitions) {
-                if (partition->Empty) {
+                if (partition->TotalAttributes.data_weight() == 0) {
                     LOG_DEBUG("Partition is empty (Partition: %d)", partition->Index);
                     Controller->OnPartitionCompeted(partition);
                 } else {
