@@ -8,6 +8,10 @@
 
 #include <errno.h>
 
+#ifndef _WIN32
+    #include <netinet/tcp.h>
+#endif
+
 namespace NYT {
 namespace NBus {
 
