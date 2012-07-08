@@ -68,7 +68,7 @@ public:
 
             YASSERT(!Promise.IsNull());
             promise = Promise;
-            Promise = NewPromise<TPromise<void>::TValueType>();
+            Promise = NewPromise<void>();
         }
 
         // In addition to making this code run a tiny bit faster,
