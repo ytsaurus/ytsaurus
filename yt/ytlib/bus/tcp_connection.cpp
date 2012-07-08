@@ -940,9 +940,16 @@ int TTcpConnection::GetSocketError() const
 bool TTcpConnection::IsSocketError(ssize_t result)
 {
 #ifdef _WIN32
-    return result != WSAEWOULDBLOCK && result != WSAEINTR;
+    return
+        result != WSAEWOULDBLOCK &&
+        result != WSAEINTR &&
+        result != WSAEINPROGRESS;
 #else
-    return result != EWOULDBLOCK && result != EAGAIN && result != EINTR;
+    return
+        result != EWOULDBLOCK &&
+        result != EAGAIN &&
+        result != EINTR &&
+        result != EINPROGRESS;
 #endif
 }
 
