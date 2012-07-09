@@ -73,32 +73,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
 ###############################################################
 
-    #@pytest.mark.xfail(run = False, reason = 'Issue #372')
-    def test_by_key(self):
-        v = \
-        [
-            {'key': -100, 'value': 20},
-            {'key': -5, 'value': 1},
-            {'key': 0, 'value': 76},
-            {'key': 10, 'value': 10},
-            {'key': 42, 'value': 124},
-            {'key': 100500, 'value': -20},
-        ]
-        create('table', '//tmp/table')
-        write('//tmp/table', v, sorted_by='key')
-
-        erase('//tmp/table[0:42]')
-        assert read('//tmp/table') == v[0:2] + v[4:6]
-        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
-
-        erase('//tmp/table[1000:]')
-        assert read('//tmp/table') == v[0:2] + v[4:5]
-        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
-
-        erase('//tmp/table[:0]')
-        assert read('//tmp/table') == v[4:5]
-        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
-
     def test_by_key_from_non_sorted(self):
         create('table', '//tmp/table')
         write('//tmp/table', {'v' : 42})
@@ -156,5 +130,34 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         erase(self.table + '[#1:#3]')
         assert read(self.table) == [self.v[0]] + self.v[3:]
         assert get(self.table + '/@chunk_count') == 3 # side chunks are united
+
+###############################################################
+
+    #@pytest.mark.xfail(run = False, reason = 'Issue #372')
+    def test_by_key(self):
+        v = \
+        [
+            {'key': -100, 'value': 20},
+            {'key': -5, 'value': 1},
+            {'key': 0, 'value': 76},
+            {'key': 10, 'value': 10},
+            {'key': 42, 'value': 124},
+            {'key': 100500, 'value': -20},
+        ]
+        create('table', '//tmp/table')
+        write('//tmp/table', v, sorted_by='key')
+
+        erase('//tmp/table[0:42]')
+        assert read('//tmp/table') == v[0:2] + v[4:6]
+        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+
+        erase('//tmp/table[1000:]')
+        assert read('//tmp/table') == v[0:2] + v[4:5]
+        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+
+        erase('//tmp/table[:0]')
+        assert read('//tmp/table') == v[4:5]
+        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+
 
 
