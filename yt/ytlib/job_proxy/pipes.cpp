@@ -10,10 +10,12 @@
 
 #include <errno.h>
 
-#ifdef _linux_
+#if defined(_linux_) || defined(_darwin_)
     #include <unistd.h>
     #include <fcntl.h>
+#if defined(_linux_)
     #include <sys/epoll.h>
+#endif
 #else
     #include <io.h>
 #endif

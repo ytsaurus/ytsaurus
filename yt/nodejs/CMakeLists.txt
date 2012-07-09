@@ -8,7 +8,7 @@ function( NODE target type )
     "")
 
   if (APPLE)
-    set( _node_link_flags "${_node_link_flags} -bundle -undefined dynamic_lookup" )
+    set( _node_link_flags "${_node_link_flags} -undefined dynamic_lookup" )
   endif()
 
   set_target_properties( ${target}

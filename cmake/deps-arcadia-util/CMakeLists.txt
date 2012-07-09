@@ -359,9 +359,9 @@ add_library( ytext-arcadia-util STATIC
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
-  target_link_libraries( ytext-arcadia-util -ldl )
+  target_link_libraries ( ytext-arcadia-util -ldl )
   if (NOT APPLE)
-    target_link_libraries( ytext-arcadia-util -lrt )
+    target_link_libraries ( ytext-arcadia-util -lrt)
   endif()
 endif()
 

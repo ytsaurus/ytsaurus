@@ -128,6 +128,7 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
+
     Local<Object> result = Object::New();
     result->Set(
         String::New("name"),
@@ -140,15 +141,15 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
     result->Set(
         String::New("input_type_as_integer"),
         Integer::New(descriptor.InputType.ToValue()),
-        v8::ReadOnly | v8::DontEnum);
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
         String::New("output_type"),
-        Integer::New(descriptor.OutputType.ToString().c_str()),
+        String::New(descriptor.OutputType.ToString().c_str()),
         v8::ReadOnly);
     result->Set(
         String::New("output_type_as_integer"),
         Integer::New(descriptor.OutputType.ToValue()),
-        v8::ReadOnly | v8::DontEnum);
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
         String::New("is_volatile"),
         Boolean::New(descriptor.IsVolatile),
