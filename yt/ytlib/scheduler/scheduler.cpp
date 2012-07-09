@@ -224,7 +224,7 @@ private:
             TInstant::Now());
 
         LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s)",
-            ~FormatEnum(type).Quote(),
+            ~type.ToString(),
             ~operationId.ToString(),
             ~transactionId.ToString());
 
