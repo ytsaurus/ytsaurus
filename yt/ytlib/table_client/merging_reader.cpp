@@ -37,11 +37,17 @@ void TMergingReader::Open()
     }
 
     std::make_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
-    std::pop_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+
+    if (!ReaderHeap.empty()) {
+        std::pop_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+    }
 }
 
 void TMergingReader::NextRow()
 {
+    if (ReaderHeap.empty())
+        return;
+
     Sync(ReaderHeap.back(), &TChunkSequenceReader::AsyncNextRow);
     if (ReaderHeap.back()->IsValid()) {
         std::push_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
