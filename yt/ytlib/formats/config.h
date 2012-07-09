@@ -20,6 +20,12 @@ struct TDsvFormatConfig
     bool EnableEscaping;
     char EscapingSymbol;
 
+    // Escaping rules (is EscapingSymbol is '\\')
+    //  * '\0' ---> "\0"
+    //  * '\n' ---> "\n"
+    //  * '\t' ---> "\t"
+    //  * 'X'  ---> "\X" if X not in ['\0', '\n', '\t']
+
     TDsvFormatConfig()
     {
         Register("record_separator", RecordSeparator)

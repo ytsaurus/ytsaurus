@@ -21,7 +21,6 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     }
     State = GetStartState();
 
-    // TODO(panin): unite with next
     memset(IsKeyStopSymbol, 0, sizeof(IsKeyStopSymbol));
     IsKeyStopSymbol[Config->EscapingSymbol] = true;
     IsKeyStopSymbol[Config->KeyValueSeparator] = true;
@@ -32,6 +31,13 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
     IsValueStopSymbol[Config->EscapingSymbol] = true;
     IsValueStopSymbol[Config->FieldSeparator] = true;
     IsValueStopSymbol[Config->RecordSeparator] = true;
+
+    for (int i = 0; i < 256; ++i) {
+        UnEscapingTable[i] = i;
+    }
+    UnEscapingTable['0'] = '\0';
+    UnEscapingTable['t'] = '\t';
+    UnEscapingTable['n'] = '\n';
 }
 
 void TDsvParser::Read(const TStringBuf& data)
@@ -77,7 +83,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
     }
 
     if (ExpectingEscapedChar) {
-        CurrentToken.append(*begin);
+        CurrentToken.append(UnEscapingTable[*begin]);
         ++begin;
         ExpectingEscapedChar = false;
         if (begin == end) {
