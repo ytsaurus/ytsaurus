@@ -128,7 +128,7 @@ class TMultiActionQueue
     : public TRefCounted
 {
 public:
-    TMultiActionQueue(int queueCount, const Stroka& threadName);
+    TMultiActionQueue(int queueCount = 1, const Stroka& threadName = "<ActionQueue>");
     virtual ~TMultiActionQueue();
 
     void Shutdown();

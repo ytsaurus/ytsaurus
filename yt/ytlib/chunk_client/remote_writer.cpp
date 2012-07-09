@@ -31,9 +31,7 @@ typedef TProxy::EErrorCode EErrorCode;
 
 namespace {
 
-///////////////////////////////////////////////////////////////////////////////
-
-class TNode
+struct TNode
     : public TRefCounted
 {
     int Index;
@@ -52,11 +50,17 @@ class TNode
 
 typedef TIntrusivePtr<TNode> TNodePtr;
 
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TRemoteWriter::TImpl
     : public TRefCounted
 {
+    DEFINE_BYVAL_RO_PROPERTY(i64, CompressedSize);
+    DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedSize);
+    DEFINE_BYVAL_RO_PROPERTY(i64, CompressionRatio);
+
 public:
     TImpl(
         const TRemoteWriterConfigPtr& config,
@@ -67,19 +71,18 @@ public:
 
     void Open();
 
-    virtual void WriteBlock(const TSharedRef& block);
-    virtual void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
+    TAsyncError GetReadyEvent();
+    bool IsReady() const;
 
-    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+    void WriteBlock(const TSharedRef& block);
+    void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
 
-    virtual const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+    TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+
+    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
 
     const TChunkId& GetChunkId() const;
-
-    i64 GetCompressedSize() const;
-    i64 GetUncompressedSize() const;
-    double GetCompressionRatio() const;
 
     Stroka GetDebugInfo();
 
@@ -122,6 +125,7 @@ private:
 
     //! Number of blocks that are already added via #AddBlock.
     int BlockCount;
+    int GroupedBlocksCount;
 
     //! Returned from node in Finish.
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
@@ -176,7 +180,11 @@ private:
         TMetric* metric,
         TIntrusivePtr<TResponse> rsp);
 
-    void AddBlock(const TSharedRef& block);
+    void CompressBlock(const TSharedRef& block);
+    void CompressVectorizedBlock(const std::vector<TSharedRef>& block);
+
+    void AddNewBlock(const TSharedRef& block, i64 sizeDelta);
+    void AddBlockToCurrentGroup(const TSharedRef& block);
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
@@ -184,14 +192,14 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 //! A group is a bunch of blocks that is sent in a single RPC request.
-class TGroup 
+class TRemoteWriter::TGroup 
     : public TRefCounted
 {
 public:
     TGroup(
         int nodeCount, 
         int startBlockIndex, 
-        TRemoteWriter::TImpl* writer)
+        TImpl* writer)
         : IsFlushing_(false)
         , IsSent(nodeCount, false)
         , StartBlockIndex(startBlockIndex)
@@ -437,13 +445,13 @@ private:
             StartBlockIndex, 
             GetEndBlockIndex(),
             ~srcNode->Address,
-            ~dstNod->Address);
+            ~dstNode->Address);
 
         auto req = srcNode->Proxy.SendBlocks();
         *req->mutable_chunk_id() = writer->ChunkId.ToProto();
         req->set_start_block_index(StartBlockIndex);
         req->set_block_count(Blocks.size());
-        req->set_address(dstNod->Address);
+        req->set_address(dstNode->Address);
         return req->Invoke();
     }
 
@@ -460,7 +468,7 @@ private:
             return;
 
         if (rsp->GetErrorCode() == EErrorCode::PutBlocksFailed) {
-            writer->OnNodeFailed(dstNod);
+            writer->OnNodeFailed(dstNode);
             return;
         }
 
@@ -468,9 +476,9 @@ private:
             &TGroup::OnSentBlocks, 
             Unretained(this), // No need for a smart pointer here -- we're invoking action directly.
             srcNode, 
-            dstNod);
+            dstNode);
 
-        writer->CheckResponse<TRemoteWriter::TProxy::TRspSendBlocks>(
+        writer->CheckResponse<TProxy::TRspSendBlocks>(
             srcNode, 
             onSuccess,
             &writer->SendBlocksTiming,
@@ -516,12 +524,16 @@ TRemoteWriter::TImpl::TImpl(
     , AliveNodeCount(addresses.size())
     , CurrentGroup(New<TGroup>(AliveNodeCount, 0, this))
     , BlockCount(0)
+    , GroupedBlocksCount(0)
     , StartChunkTiming(0, 1000, 20)
     , PutBlocksTiming(0, 1000, 20)
     , SendBlocksTiming(0, 1000, 20)
     , FlushBlockTiming(0, 1000, 20)
     , FinishChunkTiming(0, 1000, 20)
     , Logger(ChunkWriterLogger)
+    , UncompressedSize_(0)
+    , CompressedSize_(0)
+    , CompressionRatio_(Config->DefaultCompressionRatio)
 {
     YCHECK(AliveNodeCount > 0);
 
@@ -623,7 +635,7 @@ void TRemoteWriter::TImpl::ShiftWindow()
         lastFlushableBlock));
 }
 
-TRemoteWriter::TProxy::TInvFlushBlock
+TProxy::TInvFlushBlock
 TRemoteWriter::TImpl::FlushBlock(TNodePtr node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -669,8 +681,18 @@ void TRemoteWriter::TImpl::OnWindowShifted(int lastFlushedBlock)
             group->GetEndBlockIndex(),
             group->GetSize());
 
-        WindowSlots.Release(group->GetSize());
         Window.pop_front();
+        WindowSize -= group->GetSize();
+        WindowSemaphore.Release(group->GetSize());
+
+        if (WindowSize < Config->WindowSize && !CurrentGroup) {
+            CurrentGroup = New<TGroup>(Nodes.size(), GroupedBlocksCount, this);
+        }
+
+        while (WindowSize < Config->WindowSize && !PendingBlocks.empty()) {
+            AddBlockToCurrentGroup(PendingBlocks.front());
+            PendingBlocks.pop_front();
+        }
     }
 
     if (State.IsActive() && IsCloseRequested) {
@@ -691,6 +713,7 @@ void TRemoteWriter::TImpl::AddGroup(TGroupPtr group)
         group->GetStartBlockIndex(),
         group->GetEndBlockIndex());
 
+    WindowSize += group->GetSize();
     Window.push_back(group);
 
     if (IsInitComplete) {
@@ -742,7 +765,7 @@ void TRemoteWriter::TImpl::CheckResponse(
     }
 }
 
-TRemoteWriter::TProxy::TInvStartChunk
+TProxy::TInvStartChunk
 TRemoteWriter::TImpl::StartChunk(TNodePtr node)
 {
     LOG_DEBUG("Starting chunk session at %s", ~node->Address);
@@ -835,7 +858,7 @@ void TRemoteWriter::TImpl::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChun
     }
 }
 
-TRemoteWriter::TProxy::TInvFinishChunk
+TProxy::TInvFinishChunk
 TRemoteWriter::TImpl::FinishChunk(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -909,11 +932,9 @@ void TRemoteWriter::TImpl::WriteBlock(const TSharedRef& block)
 
     WindowSemaphore.Acquire(block.Size());
     WriterThread->GetInvoker(1)->Invoke(BIND(
-        &TImpl::ProcessBlock, 
+        &TImpl::CompressBlock, 
         MakeWeak(this), 
         block));
-
-    return true;
 }
 
 void TRemoteWriter::TImpl::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
@@ -923,18 +944,16 @@ void TRemoteWriter::TImpl::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
     YASSERT(!State.IsClosed());
 
     size_t size = 0;
-    FOREACH(part, vectorizedBlock) {
+    FOREACH(const auto& part, vectorizedBlock) {
         size += part.Size();
     }
-    WindowSlots.Acquire(size);
+    WindowSemaphore.Acquire(size);
 
     // Use invoker for compression
     WriterThread->GetInvoker(1)->Invoke(BIND(
-        &TImpl::ProcessVectorizedBlock, 
+        &TImpl::CompressVectorizedBlock, 
         MakeWeak(this), 
         vectorizedBlock));
-
-    return true;
 }
 
 TAsyncError TRemoteWriter::TImpl::GetReadyEvent()
@@ -944,11 +963,11 @@ TAsyncError TRemoteWriter::TImpl::GetReadyEvent()
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
-    if (!WindowSlots.IsReady()) {
+    if (!WindowSemaphore.IsReady()) {
         State.StartOperation();
 
         auto this_ = MakeStrong(this);
-        WindowSlots.GetReadyEvent().Subscribe(BIND([=] () {
+        WindowSemaphore.GetReadyEvent().Subscribe(BIND([=] () {
             this_->State.FinishOperation(TError());
         }));
     }
@@ -956,7 +975,12 @@ TAsyncError TRemoteWriter::TImpl::GetReadyEvent()
     return State.GetOperationError();
 }
 
-void TRemoteWriter::TImpl::AddBlock(const TSharedRef& block)
+bool TRemoteWriter::TImpl::IsReady() const
+{
+    return State.IsActive() && WindowSemaphore.IsReady();
+}
+
+void TRemoteWriter::TImpl::CompressVectorizedBlock(const std::vector<TSharedRef>& vectorizedBlock)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YCHECK(!IsCloseRequested);
@@ -964,19 +988,74 @@ void TRemoteWriter::TImpl::AddBlock(const TSharedRef& block)
     if (!State.IsActive())
         return;
 
+    auto oldSize = UncompressedSize_;
+    FOREACH(const auto& part, vectorizedBlock) {
+        UncompressedSize_ += part.Size();
+    }
+
+    auto data = Codec->Compress(vectorizedBlock);
+    CompressedSize_ += data.Size();
+    CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
+
+    i64 delta = UncompressedSize_ - oldSize - data.Size();
+
+    AddNewBlock(data, delta);
+}
+
+void TRemoteWriter::TImpl::CompressBlock(const TSharedRef& block)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+    YCHECK(!IsCloseRequested);
+
+    if (!State.IsActive())
+        return;
+
+    UncompressedSize_ += block.Size();
+    auto data = Codec->Compress(block);
+    CompressedSize_ += data.Size();
+    CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
+
+    i64 delta = i64(block.Size()) - data.Size();
+
+    AddNewBlock(data, delta);
+}
+
+void TRemoteWriter::TImpl::AddBlockToCurrentGroup(const TSharedRef& block)
+{
+    ++GroupedBlocksCount;
     CurrentGroup->AddBlock(block);
-
-    LOG_DEBUG("Added block %d (Group: %p, Size: %" PRISZT ")",
-        BlockCount,
-        ~CurrentGroup,
-        block.Size());
-
-    ++BlockCount;
 
     if (CurrentGroup->GetSize() >= Config->GroupSize) {
         AddGroup(CurrentGroup);
-        // Construct a new (empty) group.
-        CurrentGroup = New<TGroup>(Nodes.size(), BlockCount, this);
+
+        if (WindowSize < Config->WindowSize) {
+            // Construct a new (empty) group.
+            CurrentGroup = New<TGroup>(Nodes.size(), GroupedBlocksCount, this);
+        }
+    }
+}
+
+void TRemoteWriter::TImpl::AddNewBlock(const TSharedRef& block, i64 sizeDelta)
+{
+    if (sizeDelta > 0) {
+        WindowSemaphore.Release(sizeDelta);
+    } else {
+        WindowSemaphore.Acquire(sizeDelta);
+    }
+
+    ++BlockCount;
+
+    if (CurrentGroup) {
+        LOG_DEBUG("Added block %d (Group: %p, Size: %" PRISZT ")",
+            BlockCount,
+            ~CurrentGroup,
+            block.Size());
+        AddBlockToCurrentGroup(block);
+    } else {
+        LOG_DEBUG("Block %d is pending (Size: %" PRISZT ")",
+            BlockCount,
+            block.Size());
+        PendingBlocks.push_back(block);
     }
 }
 
@@ -1078,9 +1157,19 @@ void TRemoteWriter::Open()
     Impl->Open();
 }
 
-bool TRemoteWriter::TryWriteBlock(const TSharedRef& block)
+void TRemoteWriter::WriteBlock(const TSharedRef& block)
 {
-    return Impl->TryWriteBlock(block);
+    Impl->WriteBlock(block);
+}
+
+void TRemoteWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
+{
+    Impl->WriteBlock(MoveRV(vectorizedBlock));
+}
+
+bool TRemoteWriter::IsReady() const
+{
+    return Impl->IsReady();
 }
 
 TAsyncError TRemoteWriter::GetReadyEvent()
@@ -1106,6 +1195,21 @@ const std::vector<Stroka> TRemoteWriter::GetNodeAddresses() const
 const TChunkId& TRemoteWriter::GetChunkId() const
 {
     return Impl->GetChunkId();
+}
+
+i64 TRemoteWriter::GetCompressedSize() const
+{
+    return Impl->GetCompressedSize();
+}
+
+i64 TRemoteWriter::GetUncompressedSize() const
+{
+    return Impl->GetUncompressedSize();
+}
+
+double TRemoteWriter::GetCompressionRatio() const
+{
+    return Impl->GetCompressionRatio();
 }
 
 Stroka TRemoteWriter::GetDebugInfo()
