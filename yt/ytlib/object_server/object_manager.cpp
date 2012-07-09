@@ -313,7 +313,7 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
         return NULL;
     }
 
-    return ~TypeToHandler[typeValue];
+    return TypeToHandler[typeValue];
 }
 
 IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
