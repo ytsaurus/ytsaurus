@@ -27,6 +27,7 @@ using namespace NFormats;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTableClient::NProto;
+using NTableClient::ToString;
 using ::ToString;
 
 ////////////////////////////////////////////////////////////////////
