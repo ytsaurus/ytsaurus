@@ -867,7 +867,7 @@ private:
         int index = static_cast<int>(Partitions.size());
         LOG_DEBUG("Partition %d has starting key %s",
             index,
-            ~ToString(TNonOwningKey::FromProto(key)));
+            ~ToString(key));
 
         YCHECK(PartitionKeys.empty() || CompareKeys(PartitionKeys.back(), key) < 0);
 

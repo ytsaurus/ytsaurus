@@ -797,7 +797,7 @@ protected:
                     auto nextBreakpoint = GetSuccessorKey(endpoint.Key);
                     LOG_DEBUG("Task is too large, flushing %" PRISZT " chunks at key {%s}",
                         openedChunks.size(),
-                        ~nextBreakpoint.DebugString());
+                        ~ToString(nextBreakpoint));
                     FOREACH (const auto& pair, openedChunks) {
                         AddPendingChunk(
                             SliceChunk(*pair.second->InputChunk, lastBreakpoint, nextBreakpoint),

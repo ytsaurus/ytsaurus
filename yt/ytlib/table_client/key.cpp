@@ -110,6 +110,11 @@ NProto::TInputChunk SliceChunk(
     return result;
 }
 
+Stroka ToString(const NProto::TKey& key)
+{
+    return ToString(TNonOwningKey::FromProto(key));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
