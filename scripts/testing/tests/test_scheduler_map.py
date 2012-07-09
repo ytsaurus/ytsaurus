@@ -206,11 +206,11 @@ print "key" + "\\t" + "subkey" + "\\t" + "value" + "\\n"
                 '/spec/mapper/input_format=<format=text>yson',
                 '/spec/mapper/output_format=<has_subkey=true>yamr'])
 
-        assert read('//tmp/t_out') == [{'k': 'key', 'sk': 'subkey', 'v': 'value'}]
+        assert read('//tmp/t_out') == [{'key': 'key', 'subkey': 'subkey', 'value': 'value'}]
 
     def test_yamr_in_format(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{v=value;sk=subkey;k=key;a=another}')
+        write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
 
         mapper = \
 """

@@ -16,17 +16,17 @@ TEST(TYamrWriterTest, Simple)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key2");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value2");
     writer.OnEndMap();
 
@@ -45,21 +45,21 @@ TEST(TYamrWriterTest, SimpleWithSubkey)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
-        writer.OnKeyedItem("sk");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey1");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key2");
-        writer.OnKeyedItem("sk");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value2");
     writer.OnEndMap();
 
@@ -76,17 +76,17 @@ TEST(TYamrWriterTest, NonStringValues)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("integer");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnIntegerScalar(42);
     writer.OnEndMap();
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("double");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnDoubleScalar(10);
     writer.OnEndMap();
 
@@ -105,9 +105,9 @@ TEST(TYamrWriterTest, SkippedValues)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("foo");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("bar");
     writer.OnEndMap();
 
@@ -133,21 +133,21 @@ TEST(TYamrWriterTest, Lenval)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
-        writer.OnKeyedItem("sk");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey1");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key2");
-        writer.OnKeyedItem("sk");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value2");
     writer.OnEndMap();
 

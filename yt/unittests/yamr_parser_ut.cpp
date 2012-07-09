@@ -22,16 +22,16 @@ TEST(TYamrParserTest, Simple)
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key1"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value1"));
     EXPECT_CALL(Mock, OnEndMap());
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
@@ -49,20 +49,20 @@ TEST(TYamrParserTest, SimpleWithSubkey)
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key1"));
-        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
         EXPECT_CALL(Mock, OnStringScalar("subkey1"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value1"));
     EXPECT_CALL(Mock, OnEndMap());
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
-        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
         EXPECT_CALL(Mock, OnStringScalar("subkey2"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
@@ -83,20 +83,20 @@ TEST(TYamrParserTest, SkippingRows)
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key1"));
-        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
         EXPECT_CALL(Mock, OnStringScalar("subkey1"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value1"));
     EXPECT_CALL(Mock, OnEndMap());
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
-        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
         EXPECT_CALL(Mock, OnStringScalar("subkey2"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
@@ -122,17 +122,17 @@ TEST(TYamrLenvalParserTest, Simple)
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key1"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value1"));
     EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
@@ -159,21 +159,21 @@ TEST(TYamrLenvalParserTest, SimpleWithSubkey)
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key1"));
-        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
         EXPECT_CALL(Mock, OnStringScalar("subkey1"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value1"));
     EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
-        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
         EXPECT_CALL(Mock, OnStringScalar("subkey2"));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
@@ -202,11 +202,11 @@ TEST(TYamrLenvalParserTest, EmptyFields)
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("k"));
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar(""));
-        EXPECT_CALL(Mock, OnKeyedItem("sk"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
         EXPECT_CALL(Mock, OnStringScalar(""));
-        EXPECT_CALL(Mock, OnKeyedItem("v"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar(""));
     EXPECT_CALL(Mock, OnEndMap());
 
