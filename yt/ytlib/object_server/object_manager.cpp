@@ -355,7 +355,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     TObjectId id(
         random,
-        (cellId << 16) + type.ToValue(),
+        (cellId << 16) + typeValue,
         version.RecordCount,
         version.SegmentId);
 
