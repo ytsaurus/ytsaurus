@@ -1,5 +1,6 @@
-from common import add_quotes, parse_bool, bool_to_string, flatten, require, YtError
+from common import add_quotes, parse_bool, flatten, require, YtError
 from record import Record
+from format import DsvFormat, YamrFormat
 
 import os
 import sys
@@ -14,7 +15,42 @@ from time import sleep
 
 WAIT_TIMEOUT = 2.0
 DEFAULT_PROXY = "proxy.yt.yandex.net"
+DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 #DEFAULT_PROXY = "n01-0400g.yt.yandex.net"
+
+class WaitStrategy(object):
+    def __init__(self, check_result=True, print_progress=True, progress_timeout=10.0):
+        self.check_result = check_result
+        self.print_progress = True
+
+    def process_operation(self, type, operation):
+        # TODO(ignat): add printing of progress 
+        state = wait_operation(operation, check_failed=False)
+        operation_result = make_request(
+            "GET", "get", {"path": "//sys/operations/%s/@result" % operation}, None, check_errors=False)
+        stderr = get_stderr(operation)
+        if self.check_result and state in ["aborted", "failed"]:
+            raise YtError(
+                "Operation %s failed!\n"
+                "Operation result: {1}\n"
+                "Job results: {2}\n"
+                "Stderr: {3}\n".format(
+                    operation,
+                    operation_result,
+                    get_job_results(operation),
+                    stderr))
+        return operation_result, stderr
+
+class AsyncStrategy(object):
+    def __init__(self):
+        self.operations = []
+
+    def process_operation(self, type, operation):
+        self.operations.append(operation)
+
+
+DEFAULT_STRATEGY = WaitStrategy()
+
 
 class Buffer(object):
     """ Reads line iterator by chunks """
@@ -44,42 +80,9 @@ class Buffer(object):
         return self._empty
 
 
-# TODO(ignat): Add custom field separator
-class Format(object):
-    pass
-
-class DsvFormat(Format):
-    def __init__(self):
-        pass
-
-    def to_mime_type(self):
-        return "text/tab-separated-values"
-
-    def to_json(self):
-        return "dsv"
-
-class YamrFormat(Format):
-    def __init__(self, has_subkey, lenval):
-        self.has_subkey = has_subkey
-        self.lenval = lenval
-
-    def to_mime_type(self):
-        return "application/x-yamr%s-%s" % \
-            ("-subkey" if self.has_subkey else "",
-             "lenval" if self.lenval else "delimited")
-
-    def to_json(self):
-        return {"$value": "yamr",
-                "$attributes":
-                    {"has_subkey": bool_to_string(self.has_subkey),
-                     "lenval": bool_to_string(self.lenval)}}
-
-Format.default = YamrFormat(has_subkey=True, lenval=False)
-   
-
 """ Methods for records convertion """
 def record_to_line(rec, eoln=True, format=None):
-    if format is None: format = Format.default
+    if format is None: format = DEFAULT_FORMAT
     
     if isinstance(format, YamrFormat):
         require(not format.lenval, YtError("Lenval convertion is not supported now."))
@@ -93,7 +96,7 @@ def record_to_line(rec, eoln=True, format=None):
     return "%s%s" % (body, "\n" if eoln else "")
 
 def line_to_record(line, format=None):
-    if format is None: format = Format.default
+    if format is None: format = DEFAULT_FORMAT
     
     if isinstance(format, YamrFormat):
         return Record(*line.strip("\n").split("\t", 1 + (1 if format.has_subkey else 0)))
@@ -175,12 +178,14 @@ def dirname(path):
 def basename(path):
     return path.rsplit("/", 1)[1]
 
-def exists(path):
+def exists(path, hint=""):
     # TODO(ignat): use here not already existed function 'exists' from http
     names = path.strip().split("/")[1:]
     check_path = ""
     for current_name, check_name in izip(names, names[1:]):
         check_path += "/" + current_name
+        if hint.startswith(check_path + "/" + check_name):
+            continue
         if check_name.strip("\"") not in list(check_path, check_existance=False, quoted=False):
             return False
     return True
@@ -209,7 +214,7 @@ def create_table(path, make_it_empty=True):
     return path
 
 def write_table(table, lines, format=None, append=False):
-    if format is None: format = Format.default
+    if format is None: format = DEFAULT_FORMAT
     create_table(table, not append)
     buffer = Buffer(lines)
     while not buffer.empty():
@@ -219,7 +224,7 @@ def write_table(table, lines, format=None, append=False):
 def read_table(table, format=None):
     def add_eoln(str):
         return str + "\n"
-    if format is None: format = Format.default
+    if format is None: format = DEFAULT_FORMAT
     response = make_request("GET", "read", {"path": table}, format=format)
     return imap(add_eoln, ifilter(None, response.strip().split("\n")))
 
@@ -232,7 +237,9 @@ def remove_table(table):
 #    response = make_request("GET", "read", {"path": table + "[(%s):(%s)]" % (lower, upper)}, format="dsv")
 #    return imap(yt_to_record, (line for line in response.split("\n") if line))
 
-def copy_table(source_table, destination_table, append=False):
+def copy_table(source_table, destination_table, append=False, strategy=None):
+    if strategy is None:
+        strategy = DEFAULT_STRATEGY
     source_table = flatten(source_table)
     require(destination_table not in source_table,
             YtError("Destination should differ from source tables in copy operation"))
@@ -244,7 +251,7 @@ def copy_table(source_table, destination_table, append=False):
              "output_table_path": destination_table,
              "mode": mode}})
     operation = add_quotes(make_request("POST", "merge", None, params))
-    wait_operation(operation)
+    strategy.process_operation("merge", operation)
 
 def move_table(source_table, destination_table, append=False):
     copy_table(source_table, destination_table, append)
@@ -258,7 +265,9 @@ def is_sorted(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
     return parse_bool(get_attribute(table, "sorted"))
 
-def sort_table(table, key_columns=None):
+def sort_table(table, key_columns=None, strategy=None):
+    if strategy is None:
+        strategy = DEFAULT_STRATEGY
     if key_columns is None:
         key_columns= ["key", "subkey"]
     temp_table = create_temp_table(dirname(table), basename(table))
@@ -268,7 +277,7 @@ def sort_table(table, key_columns=None):
              "output_table_path": temp_table,
              "key_columns": key_columns}})
     operation = add_quotes(make_request("POST", "sort", None, params))
-    wait_operation(operation)
+    strategy.process_operation("sort", operation)
     move_table(temp_table, table)
 
 def create_temp_table(path, prefix=None):
@@ -277,31 +286,69 @@ def create_temp_table(path, prefix=None):
     char_set = string.ascii_lowercase + string.ascii_uppercase + string.digits
     while True:
         name = "%s/%s%s" % (path, prefix, "".join(random.sample(char_set, LENGTH)))
-        if not exists(name):
+        if not exists(name, hint=path):
             create_table(name)
             return name
 
 
-""" Operation is methods """
+""" Operation info methods """
 def get_operation_state(operation):
     require(exists("//sys/operations/" + operation),
             YtError("Operation %s doesn't exist" % operation))
     return get("//sys/operations/%s/@state" % operation)
 
-def wait_operation(operation, check_failed=True, timeout=None):
+def jobs_count(operation):
+    def to_list(iter):
+        return [x for x in iter]
+    return len(to_list(list("//sys/operations/%s/jobs" % operation)))
+
+def jobs_completed(operation):
+    jobs = list("//sys/operations/%s/jobs" % operation)
+    return len([1 for job in jobs if get_attribute("//sys/operations/%s/jobs/%s" % (operation, job), "state") == "completed"])
+
+# TODO(ignat): move it to strategies
+def wait_operation(operation, check_failed=True, timeout=None, keyboard_abort=True, print_info=True):
     if timeout is None:
         timeout = WAIT_TIMEOUT
-    while True:
-        state = get_operation_state(operation)
-        if state in ["completed", "aborted", "failed"]:
-            require(not check_failed or (state != "failed" and state != "aborted"),
-                    YtError("Operation %s completed unsuccessfully" % operation))
-            return state
-        sleep(timeout)
+    try:
+        while True:
+            completed_jobs = None
+            total_jobs = None
+            state = get_operation_state(operation)
+            if state in ["completed", "aborted", "failed"]:
+                require(not check_failed or (state != "failed" and state != "aborted"),
+                        YtError("Operation %s completed unsuccessfully" % operation))
+                return state
+            if state == "running":
+                if total_jobs is None:
+                    total_jobs = jobs_count(operation)
+                current_jobs = jobs_completed(operation)
+                if current_jobs != completed_jobs:
+                    completed_jobs = current_jobs
+                    if total_jobs > 0:
+                        print >>sys.stderr, "Completed %d from %d jobs." % \
+                                (completed_jobs, total_jobs)
+                        sleep(5.0)
+            sleep(timeout)
+    except KeyboardInterrupt:
+        if keyboard_abort:
+            abort_operation(operation)
+        raise
+    except:
+        raise
 
 def abort_operation(operation):
     if get_operation_state(operation) not in ["completed", "aborted", "failed"]:
-        make_request("POST", "abort_op", dict(operation_id=operation))
+        make_request("POST", "abort_op", {"operation_id": operation.strip('"')})
+
+def get_stderr(operation):
+    jobs = list("//sys/operations/%s/jobs" % operation)
+    stderr_paths = ("//sys/operations/{0}/jobs/{1}/stderr".format(operation, job) for job in jobs)
+    return "\n\n".join(download_file(path) for path in stderr_paths if exists(path, hint=os.path.dirname(path)))
+
+def get_job_results(operation):
+    jobs = list("//sys/operations/%s/jobs" % operation)
+    return "\n\n".join(get_attribute(job, "result") for job in jobs)
 
 """ File methods """
 def download_file(path):
@@ -323,20 +370,18 @@ def upload_file(file, destination=None, replace=False):
     return destination
 
 
-""" Operation methods """
-def get_stderr(operation):
-    jobs = list("//sys/operations/%s/jobs" % operation)
-    stderr_paths = ("//sys/operations/{0}/jobs/{1}/stderr".format(operation, job) for job in jobs)
-    return "\n\n".join(download_file(path) for path in stderr_paths if exists(path))
-
-def run_operation(binary, source_table, destination_table, files, replace_files, format, append, check_result, op_type):
+""" Operation run methods """
+def run_operation(binary, source_table, destination_table, files, replace_files, format, append, check_result, strategy, op_type, key_columns=None):
     source_table = flatten(source_table)
     destination_table = flatten(destination_table)
     # TODO(ignat): support multiple output tables and different strategies of append
     require(len(destination_table) == 1, YtError("Multiple output tables are not supported yet"))
+    if strategy is None:
+        strategy = DEFAULT_STRATEGY
     if format is None:
-        format = Format.default
-
+        format = DEFAULT_FORMAT
+    if key_columns is None:
+        key_columns = "key"
     if files is None:
         files = []
     files = flatten(files)
@@ -355,9 +400,8 @@ def run_operation(binary, source_table, destination_table, files, replace_files,
                 {"command": binary,
                  "format": format.to_json(),
                  "file_paths": file_paths}
-    # TODO(ignat): move it to method parameters
     if op_type == "reducer":
-        operation_descr.update({"key_columns": "key"})
+        operation_descr.update({"key_columns": key_columns})
     
     params = json.dumps(
         {"spec":
@@ -365,26 +409,15 @@ def run_operation(binary, source_table, destination_table, files, replace_files,
              "output_table_paths": destination_table,
              op_key[op_type]: operation_descr}})
     operation = add_quotes(make_request("POST", op_type, None, params))
-    
-    state = wait_operation(operation, check_failed=False)
-    operation_result = make_request(
-        "GET", "get", {"path": "//sys/operations/%s/@result" % operation}, None, check_errors=False)
-    stderr = get_stderr(operation)
-    # TODO(ignat): add parsing of jobs results
-    if check_result and state in ["aborted", "failed"]:
-        print >>sys.stderr, "Operation %s failed!" % operation
-        print >>sys.stderr, "Result:", operation_result
-        print >>sys.stderr, "Stderr:", stderr
-        exit(1)
-    return destination_table, operation_result, stderr
+    return flatten([destination_table, strategy.process_operation(op_type, operation)])
 
-def run_map(binary, source_table, destination_table, files=None, replace_files=True, format=None, append=False, check_result=True):
+def run_map(binary, source_table, destination_table, files=None, replace_files=True, format=None, append=False, check_result=True, strategy=None):
     run_operation(binary, source_table, destination_table,
-                  files=files, replace_files=replace_files, format=format, append=append, check_result=check_result, op_type="map")
+                  files=files, replace_files=replace_files, format=format, append=append, check_result=check_result, strategy=strategy, op_type="map")
 
-def run_reduce(binary, source_table, destination_table, files=None, replace_files=True, format=None, append=False, check_result=True):
+def run_reduce(binary, source_table, destination_table, files=None, replace_files=True, format=None, append=False, check_result=True, strategy=None, key_columns=None):
     run_operation(binary, source_table, destination_table,
-                  files=files, replace_files=replace_files, format=format, append=append, check_result=check_result, op_type="reduce")
+                  files=files, replace_files=replace_files, format=format, append=append, check_result=check_result, key_columns=key_columns, strategy=strategy, op_type="reduce")
 
 
 if __name__ == "__main__":

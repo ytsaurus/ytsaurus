@@ -115,7 +115,7 @@ class YtTest(unittest.TestCase):
         self.assertEqual(list(yt.read_table(other_table)),
                          sorted(list(self.temp_records())))
 
-        self.assertRaises(YtError, yt.copy_table(table, table))
+        self.assertRaises(YtError, lambda: yt.copy_table(table, table))
 
     def test_sort(self):
         table = self.create_temp_table()
@@ -148,9 +148,23 @@ class YtTest(unittest.TestCase):
                       table, other_table,
                       files="test/cpp_bin")
 
+    def test_abort_operation(self):
+        strategy = yt.AsyncStrategy()
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+        yt.run_map("PYTHONPATH=. ./my_op.py 10.0",
+                   table, other_table,
+                   files=["test/my_op.py", "test/helpers.py"],
+                   strategy=strategy)
+
+        operation = strategy.operations[-1]
+        yt.abort_operation(operation)
+        self.assertEqual(yt.get_operation_state(operation), "aborted")
+
+
     def test_dsv(self):
-        old_format = yt.Format.default
-        yt.Format.default = yt.DsvFormat()
+        old_format = yt.DEFAULT_FORMAT
+        yt.DEFAULT_FORMAT = yt.DsvFormat()
 
         table = TEST_DIR + "/dsv"
         other_table = TEST_DIR + "/dsv_capital"
@@ -166,16 +180,16 @@ class YtTest(unittest.TestCase):
                  [{"a": 12, "b": "ignat"},
                            {"b": "max",  "c": 17.5}]))
         yt.run_map("PYTHONPATH=. ./capitilize_b.py", table, other_table,
-               files=["yt.py", "common.py", "record.py", "test/capitilize_b.py"])
+               files=["yt.py", "common.py", "record.py", "format.py", "test/capitilize_b.py"])
         self.assertEqual(
             sorted([rec["b"] for rec in map(line_to_record, yt.read_table(other_table))]),
             ["IGNAT", "MAX"]) 
         
-        yt.Format.default = old_format
+        yt.DEFAULT_FORMAT= old_format
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_dsv"))
+    #suite.addTest(YtTest("test_abort_operation"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 

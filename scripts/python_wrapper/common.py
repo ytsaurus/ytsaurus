@@ -1,5 +1,6 @@
 import types
 
+
 class YtError(Exception):
     pass
 
@@ -45,6 +46,3 @@ def bool_to_string(bool_value):
         return "true"
     else:
         return "false"
-
-def unlist(l):
-    return l[0] if len(l) == 1 else l
