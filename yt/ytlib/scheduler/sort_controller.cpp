@@ -28,6 +28,7 @@ using namespace NObjectServer;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTableClient::NProto;
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////
 
