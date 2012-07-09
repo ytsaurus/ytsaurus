@@ -238,7 +238,7 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
     auto input = PreprocessYPaths(InArg.getValue());
     auto output = PreprocessYPaths(OutArg.getValue());
     auto files = PreprocessYPaths(FilesArg.getValue());
-    auto keyColumns = KeyColumnsArg.getValue();
+    auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()

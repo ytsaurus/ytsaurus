@@ -81,4 +81,15 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 out = '//tmp/out',
                 reducer = 'cat')
 
+    def test_non_prefix(self):
+        create('table', '//tmp/in')
+        create('table', '//tmp/out')
+        write('//tmp/in', {'key': '1', 'subkey': '2'}, sorted_by='key;subkey')
+
+        with pytest.raises(YTError):
+            reduce(
+                in_ = '//tmp/in',
+                out = '//tmp/out',
+                reducer = 'cat',
+                key_columns='subkey')
 
