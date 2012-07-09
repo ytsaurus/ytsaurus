@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "private.h"
-#include "async_writer.h"
 #include <ytlib/chunk_server/chunk_service.pb.h>
 
 #include <ytlib/misc/metric.h>
@@ -22,7 +21,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TRemoteWriter
-    : public IAsyncWriter
+    : public TRefCounted
 {
 public:
     TRemoteWriter(
@@ -32,17 +31,17 @@ public:
 
     ~TRemoteWriter();
 
-    virtual void Open();
+    void Open();
 
     bool IsReady() const;
-    virtual TAsyncError GetReadyEvent();
+    TAsyncError GetReadyEvent();
 
-    virtual void WriteBlock(const TSharedRef& block);
-    virtual void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
+    void WriteBlock(const TSharedRef& block);
+    void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
 
-    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+    TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
-    virtual const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
 
     const TChunkId& GetChunkId() const;
@@ -54,8 +53,8 @@ public:
     Stroka GetDebugInfo();
 
 private:
+    class TGroup;
     class TImpl;
-    //! A group is a bunch of blocks that is sent in a single RPC request.
 
     TIntrusivePtr<TImpl> Impl;
 };

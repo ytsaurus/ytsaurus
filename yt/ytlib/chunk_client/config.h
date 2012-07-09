@@ -125,6 +125,8 @@ struct TRemoteWriterConfig
      */
     TDuration SessionPingInterval;
 
+    double DefaultCompressionRatio;
+
     TRemoteWriterConfig()
     {
         Register("window_size", WindowSize)
@@ -139,6 +141,8 @@ struct TRemoteWriterConfig
             .Default(TDuration::Seconds(10));
         Register("codec_id", CodecId)
             .Default(ECodecId::None);
+        Register("default_compression_ration", DefaultCompressionRatio)
+            .Default(0.2);
     }
 
     virtual void DoValidate() const

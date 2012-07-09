@@ -9,9 +9,9 @@ namespace NChunkClient {
 NLog::TLogger ChunkReaderLogger("ChunkReader");
 NLog::TLogger ChunkWriterLogger("ChunkWriter");
 
-// The first queue is for compression tasks and the second one is for 
+// One queue (1) is for compression tasks and another one (0) is for 
 // serving RemoteWriter RPC requests and responses.
-TLazyPtr<TActionQueue> WriterThread(TMultiActionQueue::CreateFactory(2, "ChunkWriter"));
+TLazyPtr<TMultiActionQueue> WriterThread(TMultiActionQueue::CreateFactory(2, "ChunkWriter"));
 
 TLazyPtr<TActionQueue> ReaderThread(TActionQueue::CreateFactory("ChunkReader"));
 
