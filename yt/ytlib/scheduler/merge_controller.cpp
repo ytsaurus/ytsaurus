@@ -27,6 +27,7 @@ using namespace NFormats;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTableClient::NProto;
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -793,9 +794,14 @@ protected:
                     endpoint.TableIndex);
                 YCHECK(openedChunks.erase(endpoint.InputChunk) == 1);
                 LOG_DEBUG("Chunk interval closed (ChunkId: %s)", ~chunkId.ToString());
-                if (HasLargeActiveTask()) {
+                if (!openedChunks.empty() &&
+                    HasLargeActiveTask() &&
+                    // Avoid producing empty slices.
+                    index < endIndex - 1 &&
+                    endpoint.Key < Endpoints[index + 1].Key)
+                {
                     auto nextBreakpoint = GetSuccessorKey(endpoint.Key);
-                    LOG_DEBUG("Task is too large, flushing %" PRISZT " chunks at key {%s}",
+                    LOG_DEBUG("Task is too large, flushing %" PRISZT " chunks at key %s",
                         openedChunks.size(),
                         ~ToString(nextBreakpoint));
                     FOREACH (const auto& pair, openedChunks) {
