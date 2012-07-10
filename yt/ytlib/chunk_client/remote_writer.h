@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "private.h"
+#include "async_writer.h"
 #include <ytlib/chunk_server/chunk_service.pb.h>
 
 #include <ytlib/misc/metric.h>
@@ -21,7 +22,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TRemoteWriter
-    : public TRefCounted
+    : public IAsyncWriter
 {
 public:
     TRemoteWriter(
@@ -31,30 +32,32 @@ public:
 
     ~TRemoteWriter();
 
-    void Open();
+    virtual void Open();
 
-    bool IsReady() const;
-    TAsyncError GetReadyEvent();
+    virtual bool TryWriteBlock(const TSharedRef& block);
+    virtual TAsyncError GetReadyEvent();
 
-    void WriteBlock(const TSharedRef& block);
-    void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
+    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
-    TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
-
-    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+    virtual const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
-
     const TChunkId& GetChunkId() const;
-
-    i64 GetCompressedSize() const;
-    i64 GetUncompressedSize() const;
-    double GetCompressionRatio() const;
 
     Stroka GetDebugInfo();
 
 private:
-    class TGroup;
     class TImpl;
+    //! A group is a bunch of blocks that is sent in a single RPC request.
+    class TGroup;
+    typedef TIntrusivePtr<TGroup> TGroupPtr;
+
+    struct TNode;
+    typedef TIntrusivePtr<TNode> TNodePtr;
+
+    typedef ydeque<TGroupPtr> TWindow;
+
+    typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
+    typedef TProxy::EErrorCode EErrorCode;
 
     TIntrusivePtr<TImpl> Impl;
 };

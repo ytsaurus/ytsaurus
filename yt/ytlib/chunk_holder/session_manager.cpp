@@ -104,6 +104,11 @@ i64 TSession::GetSize() const
     return Size;
 }
 
+int TSession::GetBlockCount() const
+{
+    return Window.size();
+}
+
 TChunkInfo TSession::GetChunkInfo() const
 {
     return Writer->GetChunkInfo();

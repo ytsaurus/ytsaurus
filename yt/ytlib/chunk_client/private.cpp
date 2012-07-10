@@ -11,7 +11,7 @@ NLog::TLogger ChunkWriterLogger("ChunkWriter");
 
 // One queue (1) is for compression tasks and another one (0) is for 
 // serving RemoteWriter RPC requests and responses.
-TLazyPtr<TMultiActionQueue> WriterThread(TMultiActionQueue::CreateFactory(2, "ChunkWriter"));
+TLazyPtr<TActionQueue> WriterThread(TActionQueue::CreateFactory("ChunkWriter"));
 
 TLazyPtr<TActionQueue> ReaderThread(TActionQueue::CreateFactory("ChunkReader"));
 
