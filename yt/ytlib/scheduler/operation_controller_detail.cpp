@@ -308,13 +308,15 @@ TFuture<void> TOperationControllerBase::Commit()
         ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
         ->Run()
-        .Apply(BIND([=] (TValueOrError<void> result) {
+        .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
             Active = false;
             if (result.IsOK()) {
                 LOG_INFO("Operation committed");
+                return MakeFuture();
             } else {
                 LOG_WARNING("Operation has failed to commit\n%s", ~result.ToString());
                 this_->Host->OnOperationFailed(this_->Operation, result);
+                return NewPromise<void>();
             }
         }));
 }
