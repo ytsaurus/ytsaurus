@@ -38,7 +38,7 @@ struct INode
      *  
      *  Note that each call may produce a new factory instance.
      *  This is used in Cypress where the factory instance acts as a container holding
-     *  temporary referencing to newly created nodes.
+     *  temporary references to newly created nodes.
      *  Each created node must be somehow attached to the tree before
      *  the factory dies. Otherwise the node also gets disposed.
      */
@@ -72,7 +72,7 @@ struct INode
     virtual void SetParent(ICompositeNode* parent) = 0;
 
     //! A helper method for retrieving a scalar value from a node.
-    //! Invokes an appropriate "AsSomething" call followed by "GetValue".
+    //! Invokes the appropriate |AsSomething| followed by |GetValue|.
     template <class T>
     T GetValue() const
     {
@@ -80,7 +80,7 @@ struct INode
     }
 
     //! A helper method for assigning a scalar value to a node.
-    //! Invokes an appropriate "AsSomething" call followed by "SetValue".
+    //! Invokes the appropriate |AsSomething| followed by |SetValue|.
     template <class T>
     void SetValue(typename NDetail::TScalarTypeTraits<T>::TParamType value)
     {
