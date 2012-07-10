@@ -9,15 +9,17 @@ import sys
 import time
 import traceback
 import urllib2
+import os
 
 class YtCollector(object):
-    def __init__(self):
+    def __init__(self, config_json):
         self.config = {
-            'interval': 30, # collector invocation period
-            'sources': [ 'meta01-001g.yt:10010' ],
-            'window': 30, # aggregation window size in seconds
-            'metric_sync_period': 10 # reload metric names each N collect cycles
+            u'interval': 30, # collector invocation period
+            u'sources': [ ],
+            u'window': 30, # aggregation window size in seconds
+            u'metric_sync_period': 10 # reload metric names each N collect cycles
         }
+        self.config.update(json.loads(config_json))
 
         endpoints = [self.get_endpoint(source) for source in self.config['sources']]
 
@@ -50,8 +52,8 @@ class YtCollector(object):
 
         for path in metric_paths:
             cleaned_path = self.regex.sub('_', path).replace('/', '.')
-            g_metric = 'yt.%s.%s.%s%s' % (host, service, port, cleaned_path)
-            new_metrics[g_metric] = {'path': self.quote_path(path), 'last_time': 0, 'tail': []}
+            g_metric = 'yt' + cleaned_path
+            new_metrics[g_metric] = {'service': service, 'port': port, 'path': self.quote_path(path), 'last_time': 0, 'tail': []}
 
         # update existing metrics
         if len(new_metrics) > 0:
@@ -72,12 +74,12 @@ class YtCollector(object):
         for (name, metric) in source['metrics'].items():
             vals = self.get_metric_values(source, metric)
             for v in vals:
-                self.publish_with_timestamp(name + '.avg', int(v['avg']), v['time'])
-                self.publish_with_timestamp(name + '.max', int(v['max']), v['time'])
+                self.publish_with_timestamp(name + '.avg', int(v['avg']), v['time'], service=metric['service'], port=metric['port'])
+                self.publish_with_timestamp(name + '.max', int(v['max']), v['time'], service=metric['service'], port=metric['port'])
                 value_count += 2
 
-        print "yt.collector.collect_count %d %d what=values" % (time.time(), value_count)
-        print "yt.collector.collect_count %d %d what=metrics" % (time.time(), len(source['metrics']))
+        self.publish_with_timestamp('yt.collector.collect_count', value_count, int(time.time()), what="values")
+        self.publish_with_timestamp('yt.collector.collect_count', len(source['metrics']), int(time.time()), what="metrics")
 
     def get_metric_values(self, source, metric):
         metric_url = 'http://' + source['endpoint'] + '/orchid/profiling' + metric['path']
@@ -110,8 +112,11 @@ class YtCollector(object):
             print >>sys.stderr, 'YtCollector: Unexpected reply from %s' % metric_url
             return []
 
-    def publish_with_timestamp(self, name, value, timestamp, precision=0):
-        print ("%%s %%d %%.%df" % precision) % (name, timestamp, value)
+    def publish_with_timestamp(self, name, value, timestamp, precision=0, **kwargs):
+        fstring = "%%s %%d %%.%df" % precision
+        sstring = fstring % (name, timestamp, value)
+        tstring = " ".join("%s=%s" % (k,v) for (k, v) in kwargs.items())
+        print sstring + " " + tstring
 
     def collect(self):
         iter_start = time.time()
@@ -176,5 +181,12 @@ class YtCollector(object):
         return (path.replace('/', '"/"') + '"')[1:]
 
 if __name__ == "__main__":
-    collector = YtCollector()
-    collector.collect()
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'etc', 'yt_collector.json')
+    config_path = os.path.normpath(config_path)
+    config_json = open(config_path, "r").read()
+
+    collector = YtCollector(config_json)
+
+    while True:
+        collector.collect()
+        time.sleep(collector.config['interval'])
