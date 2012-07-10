@@ -36,7 +36,7 @@ extern TLazyPtr<TActionQueue> ReaderThread;
  *  One queue (0) is used for control tasks (e.g. serving RPC requests and responses)
  *  and another one (1) is for compression tasks.
  */
-extern TLazyPtr<TMultiActionQueue> WriterThread;
+extern TLazyPtr<TActionQueue> WriterThread;
 
 ////////////////////////////////////////////////////////////////////////////////
 

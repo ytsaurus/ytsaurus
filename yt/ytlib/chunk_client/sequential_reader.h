@@ -9,6 +9,7 @@
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/codec.h>
 #include <ytlib/misc/ref.h>
 
 namespace NYT {
@@ -30,7 +31,8 @@ public:
         const std::vector<int>& blockIndexes,
         IAsyncReaderPtr chunkReader,
         // ToDo: use move semantics
-        const NChunkHolder::NProto::TBlocksExt& blocksExt);
+        const NChunkHolder::NProto::TBlocksExt& blocksExt,
+        ECodecId codecId);
 
     bool HasNext() const;
 
@@ -58,6 +60,11 @@ private:
         const std::vector<int>& blockIndexes,
         int groupSize);
 
+    void DecompressBlock(
+        int firstSequenceIndex,
+        int blockIndex,
+        const IAsyncReader::TReadResult& readResult);
+
     const std::vector<int> BlockIndexSequence;
     NChunkHolder::NProto::TBlocksExt BlocksExt;
 
@@ -73,6 +80,7 @@ private:
     int NextUnfetchedIndex;
 
     TAsyncStreamState State;
+    ICodec* Codec;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };

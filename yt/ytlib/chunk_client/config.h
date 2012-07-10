@@ -110,8 +110,6 @@ struct TRemoteWriterConfig
     //! Maximum group size (in bytes).
     int GroupSize;
 
-    ECodecId CodecId;
-
     //! RPC requests timeout.
     /*!
      *  This timeout is especially useful for PutBlocks calls to ensure that
@@ -125,8 +123,6 @@ struct TRemoteWriterConfig
      */
     TDuration SessionPingInterval;
 
-    double DefaultCompressionRatio;
-
     TRemoteWriterConfig()
     {
         Register("window_size", WindowSize)
@@ -139,10 +135,6 @@ struct TRemoteWriterConfig
             .Default(TDuration::Seconds(30));
         Register("session_ping_interval", SessionPingInterval)
             .Default(TDuration::Seconds(10));
-        Register("codec_id", CodecId)
-            .Default(ECodecId::None);
-        Register("default_compression_ration", DefaultCompressionRatio)
-            .Default(0.2);
     }
 
     virtual void DoValidate() const
@@ -152,6 +144,45 @@ struct TRemoteWriterConfig
         }
     }
 };
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TEncodingWriterConfig 
+    : public TYsonSerializable
+{
+    int WindowSize;
+
+    ECodecId CodecId;
+
+    double DefaultCompressionRatio;
+
+    TEncodingWriterConfig()
+    {
+        Register("window_size", WindowSize)
+            .Default(4 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("codec_id", CodecId)
+            .Default(ECodecId::None);
+        Register("default_compression_ratio", DefaultCompressionRatio)
+            .Default(0.2);
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TDecodingReaderConfig
+    : public TYsonSerializable
+{
+    int WindowSize;
+
+    TDecodingReaderConfig()
+    {
+        Register("window_size", WindowSize)
+            .Default(16 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
