@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     if args.server is not None:
         yt.DEFAULT_PROXY = args.server
-    yt.Format.default = yt.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
+    yt.default_format = yt.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
     if args.read is not None:
         sys.stdout.writelines(yt.read_table(args.read))
     if args.write is not None:

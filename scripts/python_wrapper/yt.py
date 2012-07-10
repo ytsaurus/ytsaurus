@@ -15,8 +15,8 @@ from time import sleep
 
 WAIT_TIMEOUT = 2.0
 DEFAULT_PROXY = "proxy.yt.yandex.net"
-DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 #DEFAULT_PROXY = "n01-0400g.yt.yandex.net"
+DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 
 class WaitStrategy(object):
     def __init__(self, check_result=True, print_progress=True, progress_timeout=10.0):
@@ -31,7 +31,7 @@ class WaitStrategy(object):
         stderr = get_stderr(operation)
         if self.check_result and state in ["aborted", "failed"]:
             raise YtError(
-                "Operation %s failed!\n"
+                "Operation {0} failed!\n"
                 "Operation result: {1}\n"
                 "Job results: {2}\n"
                 "Stderr: {3}\n".format(
@@ -210,6 +210,9 @@ def create_table(path, make_it_empty=True):
         else:
             create = False
     if create:
+        dirname = os.path.dirname(path)
+        if not exists(dirname):
+            set(dirname, "{}")
         make_request("POST", "create", {"path": path, "type": "table"})
     return path
 
@@ -326,8 +329,8 @@ def wait_operation(operation, check_failed=True, timeout=None, keyboard_abort=Tr
                 if current_jobs != completed_jobs:
                     completed_jobs = current_jobs
                     if total_jobs > 0:
-                        print >>sys.stderr, "Completed %d from %d jobs." % \
-                                (completed_jobs, total_jobs)
+                        print >>sys.stderr, "Operation %s: completed %d from %d jobs." % \
+                                (operation, completed_jobs, total_jobs)
                         sleep(5.0)
             sleep(timeout)
     except KeyboardInterrupt:
@@ -348,7 +351,8 @@ def get_stderr(operation):
 
 def get_job_results(operation):
     jobs = list("//sys/operations/%s/jobs" % operation)
-    return "\n\n".join(get_attribute(job, "result") for job in jobs)
+    jobs_paths = ("//sys/operations/{0}/jobs/{1}".format(operation, job) for job in jobs)
+    return "\n\n".join(get_attribute(job, "error/message") for job in jobs_paths if "error" in list(job + "/@"))
 
 """ File methods """
 def download_file(path):
@@ -423,7 +427,6 @@ def run_reduce(binary, source_table, destination_table, files=None, replace_file
 if __name__ == "__main__":
     def to_list(iter):
         return [x for x in iter]
-
 
     """ Some tests """
     table = "//home/ignat/temp"

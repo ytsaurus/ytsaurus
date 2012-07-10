@@ -181,6 +181,9 @@ class YtTest(unittest.TestCase):
                            {"b": "max",  "c": 17.5}]))
         yt.run_map("PYTHONPATH=. ./capitilize_b.py", table, other_table,
                files=["yt.py", "common.py", "record.py", "format.py", "test/capitilize_b.py"])
+        yt.DEFAULT_FORMAT = old_format
+        print list(yt.read_table(other_table, format=yt.DsvFormat()))
+        yt.DEFAULT_FORMAT = yt.DsvFormat()
         self.assertEqual(
             sorted([rec["b"] for rec in map(line_to_record, yt.read_table(other_table))]),
             ["IGNAT", "MAX"]) 
@@ -189,7 +192,7 @@ class YtTest(unittest.TestCase):
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_abort_operation"))
+    #suite.addTest(YtTest("test_dsv"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 

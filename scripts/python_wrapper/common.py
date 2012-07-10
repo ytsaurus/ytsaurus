@@ -29,6 +29,9 @@ def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
 def require(condition, exception):
     if not condition: raise exception
 
+def unlist(l):
+    return l[0] if len(l) == 1 else l
+
 def add_quotes(name):
     return '"%s"' % name
 
