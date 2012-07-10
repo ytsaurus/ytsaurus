@@ -209,12 +209,12 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     return result;
 }
 
-void TLocation::RemoveChunk(TChunkPtr chunk)
+void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 {
+    auto id = chunk->GetId();
+    Stroka fileName = chunk->GetFileName();
     GetInvoker()->Invoke(BIND([=] () {
         // TODO: retry on failure
-        auto id = chunk->GetId();
-        Stroka fileName = chunk->GetFileName();
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
         RemoveFile(fileName);
         RemoveFile(fileName + ChunkMetaSuffix);

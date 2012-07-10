@@ -39,7 +39,9 @@ public:
     void UpdateUsedSpace(i64 size);
 
     //! Schedules physical removal of a chunk.
-    void RemoveChunk(TChunkPtr chunk);
+    // NB: Don't try replacing TChunk with TChunkPtr since
+    // this method is called from TCachedChunk::dtor.
+    void ScheduleChunkRemoval(TChunk* chunk);
 
     //! Updates #AvailalbleSpace with a system call and returns the result.
     i64 GetAvailableSpace() const;

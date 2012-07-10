@@ -85,9 +85,9 @@ void TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
     
     auto location = chunk->GetLocation();
     location->UpdateUsedSpace(-chunk->GetInfo().size());
-    location->RemoveChunk(chunk);
+    location->ScheduleChunkRemoval(~chunk);
 
-    LOG_INFO("Chunk removed (ChunkId: %s)", ~chunkId.ToString());
+    LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~chunkId.ToString());
 
     ChunkRemoved_.Fire(chunk);
 }
