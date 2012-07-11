@@ -12,6 +12,11 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLock
+{
+    ELockMode Mode;
+};
+
 //! Provides a common interface for all persistent nodes.
 struct ICypressNode
     : private TNonCopyable
@@ -52,10 +57,12 @@ struct ICypressNode
     //! Sets the parent node id.
     virtual void SetParentId(TNodeId value) = 0;
 
-    //! Gets an immutable reference to the node's locks.††
-    virtual const yhash_set<TLock*>& Locks() const = 0;
-    //! Gets an mutable reference to the node's locks.
-    virtual yhash_set<TLock*>& Locks() = 0;
+    typedef yhash_map<NTransactionServer::TTransaction*, TLock> TLockMap;
+
+    //! Gets an immutable reference to the node's locks.
+    virtual const TLockMap& Locks() const = 0;
+    //! Gets a mutable reference to the node's locks.
+    virtual TLockMap& Locks() = 0;
 
     virtual TInstant GetCreationTime() const = 0;
     virtual void SetCreationTime(TInstant value) = 0;

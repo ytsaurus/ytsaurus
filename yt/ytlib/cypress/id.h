@@ -15,8 +15,6 @@ using NObjectServer::TVersionedObjectId;
 
 // TODO(roizner): move to public.h
 typedef TObjectId TNodeId;
-typedef TObjectId TLockId;
-extern TLockId NullLockId;
 typedef TVersionedObjectId TVersionedNodeId;
 
 // TODO(roizner): move to common.h

@@ -7,12 +7,13 @@
 #include "job.h"
 #include "job_list.h"
 #include "chunk_placement.h"
-#include "chunk_balancer.h"
+#include "chunk_replicator.h"
 #include "holder_lease_tracker.h"
 #include "holder_statistics.h"
 #include "chunk_service_proxy.h"
 #include "holder_authority.h"
 #include "holder_statistics.h"
+#include "chunk_tree_balancer.h"
 
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
@@ -48,8 +49,6 @@
 
 #include <ytlib/logging/log.h>
 
-#include <ytlib/profiling/profiler.h>
-
 namespace NYT {
 namespace NChunkServer {
 
@@ -65,7 +64,7 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChunkServer");
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,8 +137,9 @@ public:
             bootstrap->GetMetaState())
         , Config(config)
         , Bootstrap(bootstrap)
+        , ChunkTreeBalancer(Bootstrap, Config->ChunkTreeBalancer)
         , ChunkReplicaCount(0)
-        , Profiler("/chunk_server")
+        , Profiler(ChunkServerProfiler)
         , AddChunkCounter("/add_chunk_rate")
         , RemoveChunkCounter("/remove_chunk_rate")
         , AddChunkReplicaCounter("/add_chunk_replica_rate")
@@ -155,6 +155,7 @@ public:
         RegisterMethod(BIND(&TImpl::UpdateJobs, Unretained(this)));
         RegisterMethod(BIND(&TImpl::RegisterHolder, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UnregisterHolder, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::RebalanceChunkTree, Unretained(this)));
 
         TLoadContext context(bootstrap);
 
@@ -227,6 +228,15 @@ public:
             BIND(&TThis::UpdateJobs, Unretained(this), message));
     }
 
+    TMutation<TVoid>::TPtr InitiateRebalanceChunkTree(
+        const TMsgRebalanceChunkTree& message)
+    {
+        return CreateMutation(
+            MetaStateManager,
+            message,
+            BIND(&TThis::RebalanceChunkTree, Unretained(this), message));
+    }
+
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -294,8 +304,8 @@ public:
         const TChunkTreeRef* childrenEnd)
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        TChunkTreeStatistics accumulatedDelta;
 
+        TChunkTreeStatistics accumulatedDelta;
         for (auto it = childrenBegin; it != childrenEnd; ++it) {
             auto childRef = *it;
             if (!chunkList->Children().empty()) {
@@ -322,7 +332,17 @@ public:
         }
 
         UpdateStatistics(chunkList, accumulatedDelta);
-        RebalanceChunkTreeIfNeeded(chunkList);
+        ScheduleChunkTreeRebalanceIfNeeded(chunkList);
+    }
+
+    void ScheduleChunkTreeRebalanceIfNeeded(TChunkList* chunkList)
+    {
+        TMsgRebalanceChunkTree message;
+        if (ChunkTreeBalancer.CheckRebalanceNeeded(chunkList, &message)) {
+            // Don't retry in case of failure.
+            // Balancing will happen eventually.
+            InitiateRebalanceChunkTree(message)->PostCommit();
+        }
     }
 
     void AttachToChunkList(
@@ -333,6 +353,13 @@ public:
             chunkList,
             &*children.begin(),
             &*children.begin() + children.size());
+    }
+
+    void AttachToChunkList(
+        TChunkList* chunkList,
+        TChunkTreeRef childRef)
+    {
+        AttachToChunkList(chunkList, &childRef, &childRef + 1);
     }
 
 
@@ -354,6 +381,43 @@ public:
         LOG_DEBUG("Chunk list cleared (ChunkListId: %s)", ~chunkList->GetId().ToString());
     }
 
+    void SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
+    {
+        switch (childRef.GetType()) {
+            case EObjectType::Chunk:
+                childRef.AsChunk()->Parents().push_back(parent);
+                break;
+            case EObjectType::ChunkList:
+                childRef.AsChunkList()->Parents().insert(parent);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
+    {
+        switch (childRef.GetType()) {
+            case EObjectType::Chunk: {
+                auto& parents = childRef.AsChunk()->Parents();
+                auto it = std::find(parents.begin(), parents.end(), parent);
+                YASSERT(it != parents.end());
+                parents.erase(it);
+                break;
+            }
+            case EObjectType::ChunkList: {
+                auto& parents = childRef.AsChunkList()->Parents();
+                auto it = parents.find(parent);
+                YASSERT(it != parents.end());
+                parents.erase(it);
+                break;
+            }
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+
 
     void ScheduleJobs(
         THolder* holder,
@@ -361,7 +425,7 @@ public:
         std::vector<TJobStartInfo>* jobsToStart,
         std::vector<TJobStopInfo>* jobsToStop)
     {
-        ChunkBalancer->ScheduleJobs(
+        ChunkReplicator->ScheduleJobs(
             holder,
             runningJobs,
             jobsToStart,
@@ -415,9 +479,9 @@ public:
         return ChunkReplicaCount;
     }
 
-    bool IsBalancerEnabled()
+    bool IsReplicatorEnabled()
     {
-        return ChunkBalancer->IsEnabled();
+        return ChunkReplicator->IsEnabled();
     }
 
     TChunkTreeRef GetChunkTree(const TChunkTreeId& id)
@@ -450,10 +514,12 @@ private:
 
     TChunkManagerConfigPtr Config;
     TBootstrap* Bootstrap;
+
+    TChunkTreeBalancer ChunkTreeBalancer;
     
     i32 ChunkReplicaCount;
 
-    NProfiling::TProfiler Profiler;
+    NProfiling::TProfiler& Profiler;
     NProfiling::TRateCounter AddChunkCounter;
     NProfiling::TRateCounter RemoveChunkCounter;
     NProfiling::TRateCounter AddChunkReplicaCounter;
@@ -462,7 +528,7 @@ private:
     NProfiling::TRateCounter StopJobCounter;
 
     TChunkPlacementPtr ChunkPlacement;
-    TChunkBalancerPtr ChunkBalancer;
+    TChunkReplicatorPtr ChunkReplicator;
     THolderLeaseTrackerPtr HolderLeaseTracker;
     
     TIdGenerator<THolderId> HolderIdGenerator;
@@ -479,6 +545,7 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
+
     void UpdateStatistics(TChunkList* chunkList, const TChunkTreeStatistics& statisticsDelta)
     {
         // Go upwards and apply delta.
@@ -487,9 +554,9 @@ private:
         auto statisticsCopy = statisticsDelta;
         while (true) {
             ++statisticsCopy.Rank;
+
             chunkList->Statistics().Accumulate(statisticsCopy);
-            chunkList->SetSorted(false);
-            chunkList->KeyColumns().clear();
+            chunkList->ResetSorted();
 
             const auto& parents = chunkList->Parents();
             if (parents.empty()) {
@@ -501,208 +568,6 @@ private:
         }
     }
 
-
-    // TODO(roizner): consider extracting TChunkBalancer
-    // TODO(roizner): reuse chunklists with ref-count = 1
-
-    void MergeChunkRef(std::vector<TChunkTreeRef>* children, TChunkTreeRef child)
-    {
-        // We are trying to add the child to the last chunk list.
-        auto* lastChunkList = children->back().AsChunkList();
-        YASSERT(lastChunkList->GetObjectRefCounter() == 0);
-        YASSERT(lastChunkList->Statistics().Rank <= 1);
-        YASSERT(lastChunkList->Children().size() < Config->MinChunkListSize);
-        switch (child.GetType()) {
-            case EObjectType::Chunk: {
-                // Just adding the chunk to the last chunk list.
-                AttachToChunkList(lastChunkList, &child, &child + 1);
-                break;
-            }
-            case EObjectType::ChunkList: {
-                const auto* chunkList = child.AsChunkList();
-                if (lastChunkList->Children().size() + chunkList->Children().size() <=
-                    Config->MaxChunkListSize)
-                {
-                    // Just appending the chunk list to the last chunk list.
-                    AttachToChunkList(lastChunkList, chunkList->Children());
-                } else {
-                    // The chunk list is too large. We have to copy chunks by blocks.
-                    int mergedCount = 0;
-                    while (mergedCount < chunkList->Children().size()) {
-                        if (lastChunkList->Children().size() >= Config->MinChunkListSize) {
-                            // The last chunk list is too large. Creating a new one.
-                            YASSERT(lastChunkList->Children().size() == Config->MinChunkListSize);
-                            lastChunkList = CreateChunkList();
-                            children->push_back(TChunkTreeRef(lastChunkList));
-                        }
-                        int count = Min(
-                            Config->MinChunkListSize - lastChunkList->Children().size(),
-                            chunkList->Children().size() - mergedCount);
-                        AttachToChunkList(
-                            lastChunkList,
-                            &*chunkList->Children().begin() + mergedCount,
-                            &*chunkList->Children().begin() + mergedCount + count);
-                        mergedCount += count;
-                    }
-                }
-                break;
-            }
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    void AddChunkRef(std::vector<TChunkTreeRef>* children, TChunkTreeRef child)
-    {
-        // Expand child if it has high rank.
-        if (child.GetType() == EObjectType::ChunkList) {
-            const auto* chunkList = child.AsChunkList();
-            if (chunkList->Statistics().Rank > 1) {
-                FOREACH (const auto& childRef, chunkList->Children()) {
-                    AddChunkRef(children, childRef);
-                }
-                return;
-            }
-        }
-
-        // Can we reuse the last chunk list?
-        bool merge = false;
-        if (!children->empty()) {
-            auto* lastChild = children->back().AsChunkList();
-            if (lastChild->Children().size() < Config->MinChunkListSize) {
-                YASSERT(lastChild->Statistics().Rank == 1);
-                YASSERT(lastChild->Children().size() <= Config->MaxChunkListSize);
-                if (lastChild->GetObjectRefCounter() > 0) {
-                    // We want to merge to this chunk list but it is shared.
-                    // Copy on write.
-                    children->pop_back();
-                    auto* newChunkList = CreateChunkList();
-                    AttachToChunkList(newChunkList, lastChild->Children());
-                    children->push_back(TChunkTreeRef(newChunkList));
-                }
-                merge = true;
-            }
-        }
-
-        // Try to add the child as is.
-        if (!merge) {
-            if (child.GetType() == EObjectType::ChunkList &&
-                child.AsChunkList()->Children().size() <= Config->MaxChunkListSize)
-            {
-                YASSERT(child.AsChunkList()->GetObjectRefCounter() > 0);
-                children->push_back(child);
-                return;
-            }
-
-            // We need to split the child. So we use usual merging.
-            auto* newChunkList = CreateChunkList();
-            children->push_back(TChunkTreeRef(newChunkList));
-        }
-
-        // Merge!
-        MergeChunkRef(children, child);
-    }
-
-    void RebalanceChunkTreeIfNeeded(TChunkList* root)
-    {
-        return;
-
-        if (root->Children().size() <= Config->MaxChunkListSize &&
-            root->Statistics().Rank <= Config->MaxChunkTreeRank)
-        {
-            return;
-        }
-
-        PROFILE_TIMING ("/chunk_tree_rebalancing_time") {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Starting rebalancing chunk list (ChunkListId: %s)",
-                ~root->GetId().ToString());
-
-            YASSERT(root->Parents().empty());
-            auto objectManager = Bootstrap->GetObjectManager();
-            auto oldStatistics = root->Statistics();
-
-            // Create new children list.
-            YASSERT(root->Statistics().Rank > 1); // Can't put root into new children.
-            std::vector<TChunkTreeRef> newChildren;
-
-            TChunkTreeRef rootRef(root);
-            if (root->GetBranchedRoot())  {
-                // We have to add first child as is.
-                YCHECK(!root->Children().empty());
-                auto it = root->Children().begin();
-                newChildren.push_back(*it);
-                ++it;
-                while (it != root->Children().end()) {
-                    AddChunkRef(&newChildren, *it);
-                    ++it;
-                }
-            } else {
-                AddChunkRef(&newChildren, rootRef);
-            }
-            YASSERT(!newChildren.empty());
-            YASSERT(newChildren.front() != rootRef);
-
-            // Rewrite root.
-            auto oldChildren = root->Children();
-            root->Children().clear(); // We'll drop the references later.
-            root->RowCountSums().clear();
-            FOREACH (auto childRef, oldChildren) {
-                ResetChunkTreeParent(root, childRef);
-            }
-            root->Statistics() = TChunkTreeStatistics();
-            AttachToChunkList(root, newChildren);
-
-            // Drop old references to children.
-            FOREACH (auto childRef, oldChildren) {
-                objectManager->UnrefObject(childRef.GetId());
-            }
-
-            const auto& newStatistics = root->Statistics();
-            YCHECK(newStatistics.RowCount == oldStatistics.RowCount);
-            YCHECK(newStatistics.UncompressedSize == oldStatistics.UncompressedSize);
-            YCHECK(newStatistics.CompressedSize == oldStatistics.CompressedSize);
-            YCHECK(newStatistics.ChunkCount == oldStatistics.ChunkCount);
-
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list rebalanced (ChunkListId: %s)",
-                ~root->GetId().ToString());
-        }
-    }
-
-    void SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
-    {
-        switch (childRef.GetType()) {
-            case EObjectType::Chunk:
-                childRef.AsChunk()->Parents().push_back(parent);
-                break;
-            case EObjectType::ChunkList:
-                childRef.AsChunkList()->Parents().insert(parent);
-                break;
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    void ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
-    {
-        switch (childRef.GetType()) {
-            case EObjectType::Chunk: {
-                auto& parents = childRef.AsChunk()->Parents();
-                auto it = std::find(parents.begin(), parents.end(), parent);
-                YASSERT(it != parents.end());
-                parents.erase(it);
-                break;
-            }
-            case EObjectType::ChunkList: {
-                auto& parents = childRef.AsChunkList()->Parents();
-                auto it = parents.find(parent);
-                YASSERT(it != parents.end());
-                parents.erase(it);
-                break;
-            }
-            default:
-                YUNREACHABLE();
-        }
-    }
 
     void OnChunkDestroyed(TChunk* chunk)
     {
@@ -729,8 +594,8 @@ private:
         }
 
         // Notify the balancer about chunk's death.
-        if (ChunkBalancer) {
-            ChunkBalancer->OnChunkRemoved(chunk);
+        if (ChunkReplicator) {
+            ChunkReplicator->OnChunkRemoved(chunk);
         }
 
         Profiler.Increment(RemoveChunkCounter);
@@ -916,6 +781,27 @@ private:
         return TVoid();
     }
 
+    TVoid RebalanceChunkTree(const TMsgRebalanceChunkTree& message)
+    {
+        PROFILE_TIMING ("/chunk_tree_rebalance_time") {
+            auto rootId = TChunkListId::FromProto(message.root_id());
+            auto* root = FindChunkList(rootId);
+            if (!root) {
+                return TVoid();
+            }
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %s)",
+                ~rootId.ToString());
+
+            if (ChunkTreeBalancer.RebalanceChunkTree(root, message)) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
+            } else {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing canceled");
+            }
+        }
+        return TVoid();
+    }
+
 
     void SaveKeys(TOutputStream* output) const
     {
@@ -1014,7 +900,7 @@ private:
 
         HolderLeaseTracker = New<THolderLeaseTracker>(Config, Bootstrap);
 
-        ChunkBalancer = New<TChunkBalancer>(Config, Bootstrap, ChunkPlacement, HolderLeaseTracker);
+        ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement, HolderLeaseTracker);
 
         // Assign initial leases to holders.
         // NB: Holders will remain unconfirmed until the first heartbeat.
@@ -1024,7 +910,7 @@ private:
 
         PROFILE_TIMING ("/full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
-            ChunkBalancer->RefreshAllChunks();
+            ChunkReplicator->RefreshAllChunks();
             LOG_INFO("Full chunk refresh completed");
         }
     }
@@ -1032,7 +918,7 @@ private:
     virtual void OnStopLeading()
     {
         ChunkPlacement.Reset();
-        ChunkBalancer.Reset();
+        ChunkReplicator.Reset();
         HolderLeaseTracker.Reset();
     }
 
@@ -1046,7 +932,7 @@ private:
 
         ChunkPlacement->OnHolderRegistered(holder);
         
-        ChunkBalancer->OnHolderRegistered(holder);
+        ChunkReplicator->OnHolderRegistered(holder);
 
         HolderRegistered_.Fire(holder);
     }
@@ -1055,7 +941,7 @@ private:
     {
         HolderLeaseTracker->OnHolderUnregistered(holder);
         ChunkPlacement->OnHolderUnregistered(holder);
-        ChunkBalancer->OnHolderUnregistered(holder);
+        ChunkReplicator->OnHolderUnregistered(holder);
 
         HolderUnregistered_.Fire(holder);
     }
@@ -1139,7 +1025,7 @@ private:
         }
 
         if (!cached && IsLeader()) {
-            ChunkBalancer->ScheduleChunkRefresh(chunk->GetId());
+            ChunkReplicator->ScheduleChunkRefresh(chunk->GetId());
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
@@ -1154,7 +1040,7 @@ private:
         holder->RemoveChunk(chunk, cached);
 
         if (!cached && IsLeader()) {
-            ChunkBalancer->ScheduleChunkRemoval(holder, chunkId);
+            ChunkReplicator->ScheduleChunkRemoval(holder, chunkId);
         }
     }
 
@@ -1205,7 +1091,7 @@ private:
         }
 
         if (!cached && IsLeader()) {
-            ChunkBalancer->ScheduleChunkRefresh(chunkId);
+            ChunkReplicator->ScheduleChunkRefresh(chunkId);
         }
 
         Profiler.Increment(RemoveChunkReplicaCounter);
@@ -1267,7 +1153,7 @@ private:
         }
 
         if (IsLeader()) {
-            ChunkBalancer->ScheduleChunkRefresh(job->GetChunkId());
+            ChunkReplicator->ScheduleChunkRefresh(job->GetChunkId());
         }
 
         UnregisterReplicationSinks(job);
@@ -1302,7 +1188,7 @@ private:
                 ~FormatBool(cached));
 
             if (IsLeader()) {
-                ChunkBalancer->ScheduleChunkRemoval(holder, chunkId);
+                ChunkReplicator->ScheduleChunkRemoval(holder, chunkId);
             }
 
             return;
@@ -1456,7 +1342,7 @@ private:
         switch (chunkRef.GetType()) {
             case EObjectType::Chunk: {
                 FOREACH (auto* parent, chunkRef.AsChunk()->Parents()) {
-                    GetChunkRefOwningNodes(TChunkTreeRef(parent), visitedRefs, owningNodes);
+                    GetChunkRefOwningNodes(parent, visitedRefs, owningNodes);
                 }
                 break;
             }
@@ -1464,7 +1350,7 @@ private:
                 auto* chunkList = chunkRef.AsChunkList();
                 owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
                 FOREACH (auto* parent, chunkList->Parents()) {
-                    GetChunkRefOwningNodes(TChunkTreeRef(parent), visitedRefs, owningNodes);
+                    GetChunkRefOwningNodes(parent, visitedRefs, owningNodes);
                 }
                 break;
             }
@@ -1504,9 +1390,9 @@ DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Holder, THolder, THolderId, Holde
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *ChunkBalancer);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *ChunkBalancer);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *ChunkBalancer);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *ChunkReplicator);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1846,13 +1732,14 @@ private:
         attributes->push_back("compressed_size");
         attributes->push_back("chunk_count");
         attributes->push_back("rank");
-        attributes->push_back("branched_root");
+        attributes->push_back("mutable");
+        attributes->push_back("rigid");
         attributes->push_back(TAttributeInfo("tree", true, true));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         TBase::GetSystemAttributes(attributes);
     }
 
-    void BuildTree(TChunkTreeRef ref, IYsonConsumer* consumer)
+    void TraverseTree(TChunkTreeRef ref, IYsonConsumer* consumer)
     {
         switch (ref.GetType()) {
             case EObjectType::Chunk:
@@ -1870,7 +1757,7 @@ private:
                 consumer->OnBeginList();
                 FOREACH (auto childRef, chunkList->Children()) {
                     consumer->OnListItem();
-                    BuildTree(childRef, consumer);
+                    TraverseTree(childRef, consumer);
                 }
                 consumer->OnEndList();
                 break;
@@ -1932,19 +1819,19 @@ private:
             return true;
         }
 
-        if (name == "branched_root") {
+        if (name == "rigid") {
             BuildYsonFluently(consumer)
-                .Scalar(chunkList->GetBranchedRoot());
+                .Scalar(chunkList->GetRigid());
             return true;
         }
 
         if (name == "tree") {
-            BuildTree(TChunkTreeRef(const_cast<TChunkList*>(chunkList)), consumer);
+            TraverseTree(const_cast<TChunkList*>(chunkList), consumer);
             return true;
         }
 
         if (name == "owning_nodes") {
-            Owner->GetChunkRefOwningNodes(TChunkTreeRef(const_cast<TChunkList*>(chunkList)), consumer);
+            Owner->GetChunkRefOwningNodes(const_cast<TChunkList*>(chunkList), consumer);
             return true;
         }
 
@@ -1966,17 +1853,17 @@ private:
         context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
 
         auto objectManager = Bootstrap->GetObjectManager();
-        std::vector<TChunkTreeRef> children;
+        std::vector<TChunkTreeRef> childrenRefs;
         FOREACH (const auto& childId, childrenIds) {
             if (!objectManager->ObjectExists(childId)) {
-                ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
+                ythrow yexception() << Sprintf("Chunk tree %s does not exist", ~childId.ToString());
             }
             auto chunkRef = Owner->GetChunkTree(childId);
-            children.push_back(chunkRef);
+            childrenRefs.push_back(chunkRef);
         }
 
         auto* chunkList = GetTypedImpl();
-        Owner->AttachToChunkList(chunkList, children);
+        Owner->AttachToChunkList(chunkList, childrenRefs);
 
         context->Reply();
     }
@@ -2103,9 +1990,26 @@ void TChunkManager::AttachToChunkList(
     Impl->AttachToChunkList(chunkList, children);
 }
 
+void TChunkManager::AttachToChunkList(
+    TChunkList* chunkList,
+    const TChunkTreeRef childRef)
+{
+    Impl->AttachToChunkList(chunkList, childRef);
+}
+
 void TChunkManager::ClearChunkList(TChunkList* chunkList)
 {
     Impl->ClearChunkList(chunkList);
+}
+
+void TChunkManager::SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
+{
+    return Impl->SetChunkTreeParent(parent, childRef);
+}
+
+void TChunkManager::ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
+{
+    return Impl->ResetChunkTreeParent(parent, childRef);
 }
 
 void TChunkManager::ScheduleJobs(
@@ -2121,9 +2025,9 @@ void TChunkManager::ScheduleJobs(
         jobsToStop);
 }
 
-bool TChunkManager::IsBalancerEnabled()
+bool TChunkManager::IsReplicatorEnabled()
 {
-    return Impl->IsBalancerEnabled();
+    return Impl->IsReplicatorEnabled();
 }
 
 void TChunkManager::FillNodeAddresses(

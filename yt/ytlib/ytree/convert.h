@@ -10,12 +10,14 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Direct convertion from Stroka to Node or Producer is forbidden.
-//! Use TRawString wrapper in this case.
-class TRawString: public Stroka {
+//! Direct conversion from Stroka to Node or Producer is forbidden.
+//! For this case, use TRawString wrapper.
+class TRawString
+    : public Stroka
+{
 public:
-    TRawString(const Stroka& str):
-        Stroka(str)
+    TRawString(const Stroka& str)
+        : Stroka(str)
     { }
 };
 

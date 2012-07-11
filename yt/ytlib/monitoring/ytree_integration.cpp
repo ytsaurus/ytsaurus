@@ -13,11 +13,10 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TYPathServiceProducer CreateMonitoringProducer(
-    TMonitoringManager* monitoringManager)
+    TMonitoringManager::TPtr monitoringManager)
 {
-    auto monitoringManager_ = MakeStrong(monitoringManager);
     return BIND([=] () -> IYPathServicePtr {
-    	return monitoringManager_->GetRoot();
+    	return monitoringManager->GetRoot();
     });
 }
 

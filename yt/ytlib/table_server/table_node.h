@@ -28,7 +28,6 @@ public:
     virtual NCypress::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
-    
     virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 };
 

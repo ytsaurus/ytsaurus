@@ -69,6 +69,7 @@ public:
 
     //! Returns a holder registered at the given address (|NULL| if none).
     THolder* FindHolderByAddress(const Stroka& address);
+
     //! Returns an arbitrary holder registered at the host (|NULL| if none).
     THolder* FindHolderByHostName(const Stroka& hostName);
 
@@ -88,8 +89,15 @@ public:
     void AttachToChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTreeRef>& children);
+    void AttachToChunkList(
+        TChunkList* chunkList,
+        const TChunkTreeRef childRef);
 
     void ClearChunkList(TChunkList* chunkList);
+
+    // TODO(babenko): consider making private
+    void SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef);
+    void ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef);
 
     void ScheduleJobs(
         THolder* holder,
@@ -97,7 +105,7 @@ public:
         std::vector<NProto::TJobStartInfo>* jobsToStart,
         std::vector<NProto::TJobStopInfo>* jobsToStop);
 
-    bool IsBalancerEnabled();
+    bool IsReplicatorEnabled();
 
     //! Fills a given protobuf structure with the list of data node addresses.
     /*!

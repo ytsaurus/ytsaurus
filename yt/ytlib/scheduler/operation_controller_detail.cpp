@@ -666,6 +666,13 @@ void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecu
         }
     }
 
+    {
+        auto rsps = batchRsp->GetResponses("set_out_sorted");
+        FOREACH (auto rsp, rsps) {
+            CheckResponse(rsp, "Error marking output table as sorted");
+        }
+    }
+
     OnCustomOutputsCommitted(batchRsp);
 
     {
@@ -883,19 +890,18 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "get_out_channels");
         }
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(ypath, OutputTransaction->GetId()));
-            batchReq->AddRequest(req, "get_out_chunk_list");
-        }
-        {
             auto req = TYPathProxy::Get(WithTransaction(ypath, OutputTransaction->GetId()) + "/@row_count");
             batchReq->AddRequest(req, "get_out_row_count");
         }
         {
             auto req = TTableYPathProxy::Clear(WithTransaction(ypath, OutputTransaction->GetId()));
-            // If |Clear| is false then we add a dummy request to keep "clear_out" requests aligned with output tables.
-            batchReq->AddRequest(
-                table.Clear ? req : NULL,
-                "clear_out");
+            // Even if |Clear| is False we still add a dummy request
+            // to keep "clear_out" requests aligned with output tables.
+            batchReq->AddRequest(table.Clear ? req : NULL, "clear_out");
+        }
+        {
+            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(ypath, OutputTransaction->GetId()));
+            batchReq->AddRequest(req, "get_out_chunk_list");
         }
     }
 
@@ -999,7 +1005,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.Channels = TYsonString(rsp->value());
                 LOG_INFO("Output table %s has channels %s",
                     ~table.Path,
-                    // TODO(babenko): refactor
                     ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data());
             }
             {
@@ -1008,6 +1013,14 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error getting \"row_count\" attribute for output table %s", ~table.Path));
                 table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
+            }
+            if (table.Clear) {
+                auto rsp = clearOutRsps[index];
+                CheckResponse(
+                    rsp,
+                    Sprintf("Error clearing output table %s", ~table.Path));
+                LOG_INFO("Output table %s was cleared successfully",
+                    ~table.Path);
             }
             {
                 auto rsp = getOutChunkListRsps[index];
@@ -1018,14 +1031,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 LOG_INFO("Output table %s has output chunk list %s",
                     ~table.Path,
                     ~table.OutputChunkListId.ToString());
-            }
-            if (table.Clear) {
-                auto rsp = clearOutRsps[index];
-                CheckResponse(
-                    rsp,
-                    Sprintf("Error clearing output table %s", ~table.Path));
-                LOG_INFO("Output table %s was cleared successfully",
-                    ~table.Path);
             }
         }
     }
@@ -1178,7 +1183,14 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
     }
 }
 
-void TOperationControllerBase::SetOutputTablesSorted(const std::vector<Stroka>& keyColumns)
+void TOperationControllerBase::ScheduleClearOutputTables()
+{
+    FOREACH (auto& table, OutputTables) {
+        table.Clear = true;
+    }
+}
+
+void TOperationControllerBase::ScheduleSetOutputTablesSorted(const std::vector<Stroka>& keyColumns)
 {
     FOREACH (auto& table, OutputTables) {
         table.SetSorted = true;

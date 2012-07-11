@@ -29,7 +29,7 @@ struct TCellConfig
     virtual void DoValidate() const
     {
         if (Addresses.size() % 2 != 1) {
-            ythrow yexception() << Sprintf("Cell should consist of odd number of masters");
+            ythrow yexception() << "Number of masters must be odd";
         }
     }
 };

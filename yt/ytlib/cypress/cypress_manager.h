@@ -4,7 +4,6 @@
 #include "node.h"
 #include "type_handler.h"
 #include "node_proxy.h"
-#include "lock.h"
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -80,7 +79,7 @@ public:
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction = NULL);
 
-    TLockId LockVersionedNode(
+    void LockVersionedNode(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode = ELockMode::Exclusive);
@@ -95,12 +94,9 @@ public:
         NTransactionServer::TTransaction* transaction);
     NYTree::TYPath GetNodePath(const TVersionedNodeId& id);
 
-    DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
     DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
 
 private:
-    class TLockTypeHandler;
-    class TLockProxy;
     class TNodeTypeHandler;
     class TYPathProcessor;
     class TRootProxy;
@@ -119,7 +115,6 @@ private:
     NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TVersionedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
-    NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
     std::vector<INodeTypeHandlerPtr> TypeToHandler;
 
@@ -147,7 +142,6 @@ private:
         NTransactionServer::TTransaction* transaction,
         ICypressNode* branchedNode);
     void RemoveBranchedNodes(NTransactionServer::TTransaction* transaction);
-    void PromoteCreatedNodes(NTransactionServer::TTransaction* transaction);
     void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
@@ -167,13 +161,24 @@ private:
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode);
 
-    static bool IsParentTransaction(NTransactionServer::TTransaction* transaction, NTransactionServer::TTransaction* parent);
+    static bool IsParentTransaction(
+        NTransactionServer::TTransaction* transaction,
+        NTransactionServer::TTransaction* parent);
+    static bool IsConcurrentTransaction(
+        NTransactionServer::TTransaction* transaction1,
+        NTransactionServer::TTransaction* transaction2);
 
-    TLockId AcquireLock(
+    void AcquireLock(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
-    void ReleaseLock(TLock* lock);
+    TLock* DoAcquireLock(
+        ICypressNode* trunkNode,
+        NTransactionServer::TTransaction* transaction,
+        ELockMode mode);
+    void ReleaseLock(
+        ICypressNode* trunkNode,
+        NTransactionServer::TTransaction* transaction);
 
    ICypressNode* BranchNode(
        ICypressNode* node,

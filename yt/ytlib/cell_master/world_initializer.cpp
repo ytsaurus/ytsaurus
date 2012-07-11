@@ -175,11 +175,6 @@ private:
 
             SyncYPathCreate(
                 service,
-                WithTransaction("//sys/locks", transactionId),
-                EObjectType::LockMap);
-
-            SyncYPathCreate(
-                service,
                 WithTransaction("//sys/transactions", transactionId),
                 EObjectType::TransactionMap);
 

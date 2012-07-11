@@ -16,11 +16,11 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkBalancer
+class TChunkReplicator
     : public TRefCounted
 {
 public:
-    TChunkBalancer(
+    TChunkReplicator(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement,

@@ -15,7 +15,7 @@ using namespace NCellMaster;
 TChunkList::TChunkList(const TChunkListId& id)
     : TObjectWithIdBase(id)
     , Sorted_(false)
-    , BranchedRoot_(false)
+    , Rigid_(false)
 { }
 
 void TChunkList::Save(TOutputStream* output) const
@@ -27,7 +27,7 @@ void TChunkList::Save(TOutputStream* output) const
     ::Save(output, Statistics_);
     ::Save(output, Sorted_);
     ::Save(output, KeyColumns_);
-    ::Save(output, BranchedRoot_);
+    ::Save(output, Rigid_);
     ::Save(output, RowCountSums_);
 }
 
@@ -41,8 +41,26 @@ void TChunkList::Load(const TLoadContext& context, TInputStream* input)
     ::Load(input, Statistics_);
     ::Load(input, Sorted_);
     ::Load(input, KeyColumns_);
-    ::Load(input, BranchedRoot_);
+    ::Load(input, Rigid_);
     ::Load(input, RowCountSums_);
+}
+
+void TChunkList::SetSorted(const std::vector<Stroka>& keyColumns)
+{
+    KeyColumns_ = keyColumns;
+    Sorted_ = true;
+}
+
+void TChunkList::ResetSorted()
+{
+    KeyColumns_.clear();
+    Sorted_ = false;
+}
+
+void TChunkList::CopySortAttributesTo(TChunkList* other)
+{
+    other->KeyColumns_ = KeyColumns_;
+    other->Sorted_ = Sorted_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

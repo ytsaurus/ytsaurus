@@ -37,6 +37,12 @@ void Serialize(i64 value, IYsonConsumer* consumer)
     consumer->OnIntegerScalar(value);
 }
 
+// ui64
+void Serialize(ui64 value, IYsonConsumer* consumer)
+{
+    consumer->OnIntegerScalar(value);
+}
+
 // i32
 void Serialize(i32 value, IYsonConsumer* consumer)
 {
@@ -65,6 +71,18 @@ void Serialize(double value, IYsonConsumer* consumer)
 void Serialize(const Stroka& value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value);
+}
+
+// TStringBuf
+void Serialize(const TStringBuf& value, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(value);
+}
+
+// const char*
+void Serialize(const char* value, IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(TStringBuf(value));
 }
 
 // bool

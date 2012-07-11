@@ -5,7 +5,6 @@ set( SRCS
   ${BASE}/cypress_manager.cpp
   ${BASE}/cypress_ypath_proxy.cpp
   ${BASE}/id.cpp
-  ${BASE}/lock.cpp
   ${BASE}/node.cpp
   ${BASE}/node_detail.cpp
   ${BASE}/node_proxy.cpp
@@ -17,7 +16,6 @@ set( HDRS
   ${BASE}/cypress_manager.h
   ${BASE}/cypress_ypath_proxy.h
   ${BASE}/id.h
-  ${BASE}/lock.h
   ${BASE}/node.h
   ${BASE}/node_detail.h
   ${BASE}/node_proxy.h

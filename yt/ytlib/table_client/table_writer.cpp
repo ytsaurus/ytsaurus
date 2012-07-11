@@ -77,15 +77,8 @@ void TTableWriter::Open()
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
         if (KeyColumns.IsInitialized()) {
-            {
-                auto req = TCypressYPathProxy::Lock(WithTransaction(Path, UploadTransaction->GetId()));
-                req->set_mode(ELockMode::Exclusive);
-                batchReq->AddRequest(req, "lock");
-            }
-            {
-                auto req = TYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@row_count");
-                batchReq->AddRequest(req, "get_row_count");
-            }
+            auto req = TTableYPathProxy::Clear(WithTransaction(Path, UploadTransaction->GetId()));
+            batchReq->AddRequest(req, "clear");
         }
 
         {
@@ -104,23 +97,10 @@ void TTableWriter::Open()
         }
 
         if (KeyColumns.IsInitialized()) {
-            {
-                auto rsp = batchRsp->GetResponse("lock");
-                if (!rsp->IsOK()) {
-                    LOG_ERROR_AND_THROW(yexception(), "Error locking table for sorted write\n%s",
-                        ~rsp->GetError().ToString());
-                }
-            }
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_row_count");
-                if (!rsp->IsOK()) {
-                    LOG_ERROR_AND_THROW(yexception(), "Error getting table row count\n%s",
-                        ~rsp->GetError().ToString());
-                }
-                auto rowCount = ConvertTo<i64>(TYsonString(rsp->value()));
-                if (rowCount > 0) {
-                    LOG_ERROR_AND_THROW(yexception(), "Cannot perform sorted write to a nonempty table");
-                }
+            auto rsp = batchRsp->GetResponse("clear");
+            if (!rsp->IsOK()) {
+                LOG_ERROR_AND_THROW(yexception(), "Error clearing table for sorted write\n%s",
+                    ~rsp->GetError().ToString());
             }
         }
 

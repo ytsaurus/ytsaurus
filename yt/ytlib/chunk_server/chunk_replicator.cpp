@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "chunk_balancer.h"
+#include "chunk_replicator.h"
 #include "holder_lease_tracker.h"
 #include "chunk_placement.h"
 #include "holder.h"
@@ -30,7 +30,7 @@ static NProfiling::TProfiler Profiler("/chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkBalancer::TChunkBalancer(
+TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
     TChunkPlacementPtr chunkPlacement,
@@ -49,7 +49,7 @@ TChunkBalancer::TChunkBalancer(
     ScheduleNextRefresh();
 }
 
-void TChunkBalancer::ScheduleJobs(
+void TChunkReplicator::ScheduleJobs(
     THolder* holder,
     const std::vector<TJobInfo>& runningJobs,
     std::vector<TJobStartInfo>* jobsToStart,
@@ -69,13 +69,13 @@ void TChunkBalancer::ScheduleJobs(
     if (IsEnabled()) {
         ScheduleNewJobs(
             holder,
-            Max(0, Config->Balancer->MaxReplicationFanOut - replicationJobCount),
-            Max(0, Config->Balancer->MaxRemovalJobsPerHolder - removalJobCount),
+            Max(0, Config->ChunkReplicator->MaxReplicationFanOut - replicationJobCount),
+            Max(0, Config->ChunkReplicator->MaxRemovalJobsPerHolder - removalJobCount),
             jobsToStart);
     }
 }
 
-void TChunkBalancer::OnHolderRegistered(const THolder* holder)
+void TChunkReplicator::OnHolderRegistered(const THolder* holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -86,14 +86,14 @@ void TChunkBalancer::OnHolderRegistered(const THolder* holder)
     }
 }
 
-void TChunkBalancer::OnHolderUnregistered(const THolder* holder)
+void TChunkReplicator::OnHolderUnregistered(const THolder* holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YCHECK(HolderInfoMap.erase(holder->GetId()) == 1);
 }
 
-void TChunkBalancer::OnChunkRemoved(const TChunk* chunk)
+void TChunkReplicator::OnChunkRemoved(const TChunk* chunk)
 {
     auto chunkId = chunk->GetId();
     LostChunkIds_.erase(chunkId);
@@ -101,14 +101,14 @@ void TChunkBalancer::OnChunkRemoved(const TChunk* chunk)
     OverreplicatedChunkIds_.erase(chunkId);
 }
 
-void TChunkBalancer::ScheduleChunkRemoval(const THolder* holder, const TChunkId& chunkId)
+void TChunkReplicator::ScheduleChunkRemoval(const THolder* holder, const TChunkId& chunkId)
 {
     auto* holderInfo = GetHolderInfo(holder->GetId());
     holderInfo->ChunksToReplicate.erase(chunkId);
     holderInfo->ChunksToRemove.insert(chunkId);
 }
 
-void TChunkBalancer::ProcessExistingJobs(
+void TChunkReplicator::ProcessExistingJobs(
     const THolder* holder,
     const std::vector<TJobInfo>& runningJobs,
     std::vector<TJobStopInfo>* jobsToStop,
@@ -155,7 +155,7 @@ void TChunkBalancer::ProcessExistingJobs(
                     ~jobId.ToString(),
                     ~holder->GetAddress());
 
-                if (TInstant::Now() - job->GetStartTime() > Config->Balancer->JobTimeout) {
+                if (TInstant::Now() - job->GetStartTime() > Config->ChunkReplicator->JobTimeout) {
                     TJobStopInfo stopInfo;
                     *stopInfo.mutable_job_id() = jobId.ToProto();
                     jobsToStop->push_back(stopInfo);
@@ -202,12 +202,12 @@ void TChunkBalancer::ProcessExistingJobs(
     }
 }
 
-bool TChunkBalancer::IsRefreshScheduled(const TChunkId& chunkId)
+bool TChunkReplicator::IsRefreshScheduled(const TChunkId& chunkId)
 {
     return RefreshSet.find(chunkId) != RefreshSet.end();
 }
 
-TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
+TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     THolder* sourceHolder,
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
@@ -281,7 +281,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleReplicationJob(
         : (EScheduleFlags) EScheduleFlags::Scheduled;
 }
 
-TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleBalancingJob(
+TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     THolder* sourceHolder,
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
@@ -297,7 +297,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleBalancingJob(
 
     double maxFillCoeff =
         ChunkPlacement->GetFillCoeff(sourceHolder) -
-        Config->Balancer->MinBalancingFillCoeffDiff;
+        Config->ChunkReplicator->MinBalancingFillCoeffDiff;
     auto targetHolder = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolder == NULL) {
         LOG_DEBUG("No suitable target holders for balancing of chunk %s",
@@ -325,7 +325,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleBalancingJob(
     return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
-TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleRemovalJob(
+TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
     THolder* holder,
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
@@ -352,7 +352,7 @@ TChunkBalancer::EScheduleFlags TChunkBalancer::ScheduleRemovalJob(
     return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
-void TChunkBalancer::ScheduleNewJobs(
+void TChunkReplicator::ScheduleNewJobs(
     THolder* holder,
     int maxReplicationJobsToStart,
     int maxRemovalJobsToStart,
@@ -386,7 +386,7 @@ void TChunkBalancer::ScheduleNewJobs(
 
     // Schedule balancing jobs.
     if (maxReplicationJobsToStart > 0 &&
-        ChunkPlacement->GetFillCoeff(holder) > Config->Balancer->MinBalancingFillCoeff)
+        ChunkPlacement->GetFillCoeff(holder) > Config->ChunkReplicator->MinBalancingFillCoeff)
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
         if (!chunksToBalance.empty()) {
@@ -429,7 +429,7 @@ void TChunkBalancer::ScheduleNewJobs(
     }
 }
 
-void TChunkBalancer::GetReplicaStatistics(
+void TChunkReplicator::GetReplicaStatistics(
     const TChunk* chunk,
     int* replicationFactor,
     int* storedCount,
@@ -480,12 +480,12 @@ void TChunkBalancer::GetReplicaStatistics(
     }
 }
 
-int TChunkBalancer::GetReplicationFactor(const TChunk* chunk)
+int TChunkReplicator::GetReplicationFactor(const TChunk* chunk)
 {
     return chunk->GetReplicationFactor();
 }
 
-void TChunkBalancer::Refresh(const TChunk* chunk)
+void TChunkReplicator::Refresh(const TChunk* chunk)
 {
     int replicationFactor;
     int storedCount;
@@ -584,7 +584,7 @@ void TChunkBalancer::Refresh(const TChunk* chunk)
     }
  }
 
-void TChunkBalancer::ScheduleChunkRefresh(const TChunkId& chunkId)
+void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 {
     if (RefreshSet.find(chunkId) != RefreshSet.end())
         return;
@@ -596,7 +596,7 @@ void TChunkBalancer::ScheduleChunkRefresh(const TChunkId& chunkId)
     RefreshSet.insert(chunkId);
 }
 
-void TChunkBalancer::RefreshAllChunks()
+void TChunkReplicator::RefreshAllChunks()
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto* chunk, chunkManager->GetChunks()) {
@@ -605,20 +605,20 @@ void TChunkBalancer::RefreshAllChunks()
     }
 }
 
-void TChunkBalancer::ScheduleNextRefresh()
+void TChunkReplicator::ScheduleNextRefresh()
 {
     auto context = Bootstrap->GetMetaStateManager()->GetEpochContext();
     if (!context)
         return;
     TDelayedInvoker::Submit(
-        BIND(&TChunkBalancer::OnRefresh, MakeStrong(this))
+        BIND(&TChunkReplicator::OnRefresh, MakeStrong(this))
         .Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             context),
         Config->ChunkRefreshQuantum);
 }
 
-void TChunkBalancer::OnRefresh()
+void TChunkReplicator::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -646,24 +646,24 @@ void TChunkBalancer::OnRefresh()
     ScheduleNextRefresh();
 }
 
-TChunkBalancer::THolderInfo* TChunkBalancer::FindHolderInfo(THolderId holderId)
+TChunkReplicator::THolderInfo* TChunkReplicator::FindHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     return it == HolderInfoMap.end() ? NULL : &it->second;
 }
 
-TChunkBalancer::THolderInfo* TChunkBalancer::GetHolderInfo(THolderId holderId)
+TChunkReplicator::THolderInfo* TChunkReplicator::GetHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     YASSERT(it != HolderInfoMap.end());
     return &it->second;
 }
 
-bool TChunkBalancer::IsEnabled()
+bool TChunkReplicator::IsEnabled()
 {
     // This method also logs state changes.
 
-    auto config = Config->Balancer;
+    auto config = Config->ChunkReplicator;
     if (config->MinOnlineHolderCount) {
         int needOnline = config->MinOnlineHolderCount.Get();
         int gotOnline = HolderLeaseTracker->GetOnlineHolderCount();
