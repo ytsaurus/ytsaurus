@@ -128,7 +128,7 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, int delta)
 
 void TEncodingWriter::WritePendingBlocks(TError error)
 {
-    if (error.IsOK()) {
+    if (!error.IsOK()) {
         State.Fail(error);
         return;
     }
