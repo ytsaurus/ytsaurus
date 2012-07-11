@@ -10,6 +10,7 @@
 #include <ytlib/profiling/timing.h>
 
 #include <util/thread/lfqueue.h>
+#include <util/system/sigset.h>
 
 namespace NYT {
 
@@ -166,7 +167,14 @@ bool TActionQueueBase::IsRunning() const
 }
 
 void TActionQueueBase::OnThreadStart()
-{ }
+{
+#ifdef _unix_
+    // basically set empty sigmask to all threads
+    sigset_t sigset;
+    SigEmptySet(&sigset);
+    SigProcMask(SIG_SETMASK, &sigset, NULL);
+#endif
+}
 
 void TActionQueueBase::OnThreadShutdown()
 { }

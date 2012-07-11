@@ -5,10 +5,13 @@
 //
 
 #include "stdafx.h"
+#include "errortrace.h"
+
 #include <typeinfo>
 #include <exception>
+
 #include <util/system/platform.h>
-#include "errortrace.h"
+#include <util/system/sigset.h>
 
 namespace NYT {
 
@@ -282,6 +285,14 @@ int SetupErrorHandler()
     a.sa_flags = SA_SIGINFO;
 
     int sig[] = {SIGILL, SIGFPE, SIGSEGV, SIGBUS, SIGABRT};
+    // Unblock signals
+    sigset_t sigset;
+    SigEmptySet(&sigset);
+    for (size_t i = 0; i < sizeof(sig)/sizeof(sig[0]); ++i) {
+        SigAddSet(&sigset, sig[i]);
+    }
+    SigProcMask(SIG_UNBLOCK, &sigset, NULL);
+
     for (size_t i = 0; i < sizeof(sig)/sizeof(sig[0]); ++i) {
         if (sigaction(sig[i], &a, 0) < 0) {
             perror("sigaction");
