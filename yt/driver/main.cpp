@@ -24,6 +24,7 @@
 #include <ytlib/misc/thread.h>
 
 #include <util/stream/pipe.h>
+#include <util/system/sigset.h>
 
 #include <build.h>
 
@@ -37,6 +38,18 @@ using namespace NYTree;
 static NLog::TLogger& Logger = DriverLogger;
 
 /////////////////////////////////////////////////////////////////////////////
+
+void SigPipeHandler(int signum)
+{
+    UNUSED(signum);
+    // TODO: refactor system shutdown
+    // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
+    NLog::TLogManager::Get()->Shutdown();
+    NBus::TTcpDispatcher::Get()->Shutdown();
+    NProfiling::TProfilingManager::Get()->Shutdown();
+    TDelayedInvoker::Shutdown();
+    exit(0);
+}
 
 class TDriverProgram
 {
@@ -75,6 +88,20 @@ public:
     {
         NYT::SetupErrorHandler();
         NYT::NThread::SetCurrentThreadName("Driver");
+
+        // set handler for SIGPIPE
+#ifdef _unix_
+        // Set mask.
+        sigset_t sigset;
+        SigEmptySet(&sigset);
+        SigAddSet(&sigset, SIGPIPE);
+        SigProcMask(SIG_UNBLOCK, &sigset, NULL);
+
+        // Set handler.
+        struct sigaction newAction;
+        newAction.sa_handler = SigPipeHandler;
+        sigaction(SIGPIPE, &newAction, NULL);
+#endif
 
         try {
             if (argc < 2) {
