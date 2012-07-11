@@ -1,4 +1,5 @@
 #!/bin/sh -eu
 
-./mapreduce -server $SERVER -src "$OUTPUT" -dst "$OUTPUT" -subkey -sort
+echo "./mapreduce -server "$SERVER" $PARAMS -src "$OUTPUT" -dst "$OUTPUT" -subkey -sort"
+./mapreduce -server "$SERVER" $PARAMS -src "$OUTPUT" -dst "$OUTPUT" -subkey -sort
 
