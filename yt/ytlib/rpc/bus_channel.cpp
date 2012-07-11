@@ -29,6 +29,7 @@ static NProfiling::TProfiler& Profiler = RpcClientProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
 class TChannel
     : public IChannel
 {
@@ -129,9 +130,25 @@ private:
 
         void Terminate(const TError& error)
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            Terminated = true;
-            TerminationError = error;
+            // Mark the channel as terminated to disallow any further usage.
+            // Swap out all active requests and mark them as failed.
+            TRequestMap activeRequests;
+
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                Terminated = true;
+                TerminationError = error;
+                activeRequests.swap(ActiveRequests);
+            }
+
+            FOREACH (auto& pair, activeRequests) {
+                const auto& requestId = pair.first;
+                auto& request = pair.second;
+                LOG_DEBUG("Request failed due to channel termination (RequestId: %s)",
+                    ~requestId.ToString());
+                FinalizeRequest(request);
+                request.ResponseHandler->OnError(error);
+            }
         }
 
         void Send(
@@ -225,7 +242,7 @@ private:
                 Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
                 responseHandler = activeRequest.ResponseHandler;
 
-                CompleteRequest(it);
+                UnregisterRequest(it);
             }
 
             auto error = TError::FromProto(header.error());
@@ -280,7 +297,7 @@ private:
             Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
 
             if (sendResult == ESendResult::Failed) {
-                CompleteRequest(it);
+                UnregisterRequest(it);
 
                 // Don't need the guard anymore.
                 guard.Release();
@@ -290,7 +307,7 @@ private:
                     "Unable to deliver the message"));
             } else {
                 if (activeRequest.ClientRequest->IsOneWay()) {
-                    CompleteRequest(it);
+                    UnregisterRequest(it);
                 }
 
                 // Don't need the guard anymore.
@@ -319,19 +336,23 @@ private:
                 Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
                 responseHandler = activeRequest.ResponseHandler;
 
-                CompleteRequest(it);
+                UnregisterRequest(it);
             }
 
             responseHandler->OnError(TError(EErrorCode::Timeout, "Request timed out"));
         }
 
-        void CompleteRequest(TRequestMap::iterator it)
+        void FinalizeRequest(TActiveRequest& request)
+        {
+            TDelayedInvoker::CancelAndClear(request.TimeoutCookie);
+            Profiler.TimingStop(request.Timer);
+        }
+
+        void UnregisterRequest(TRequestMap::iterator it)
         {
             VERIFY_SPINLOCK_AFFINITY(SpinLock);
 
-            auto& activeRequest = it->second;
-            TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
-            Profiler.TimingStop(activeRequest.Timer);
+            FinalizeRequest(it->second);
             ActiveRequests.erase(it);
         }
 
