@@ -14,8 +14,8 @@ class TChunkTreeRef
 {
 public:
     TChunkTreeRef();
-    explicit TChunkTreeRef(TChunk* chunk);
-    explicit TChunkTreeRef(TChunkList* chunkList);
+    TChunkTreeRef(TChunk* chunk);
+    TChunkTreeRef(TChunkList* chunkList);
 
     bool operator == (const TChunkTreeRef& other) const;
     bool operator != (const TChunkTreeRef& other) const;

@@ -10,8 +10,6 @@ namespace NCypress {
 
 NCypress::INodeTypeHandlerPtr CreateNodeMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-NCypress::INodeTypeHandlerPtr CreateLockMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress

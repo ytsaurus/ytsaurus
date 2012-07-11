@@ -27,6 +27,7 @@ public:
         const TSharedRef& mutationData);
 
     TFuture<TResult> Commit();
+    TFuture<TResult> PostCommit();
 
     TPtr SetRetriable(TDuration backoffTime);
     TPtr OnSuccess(const TCallback<void(TResult)>& onSuccess);

@@ -129,11 +129,7 @@ void TLockCommand::DoExecute()
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-        auto lockId = TLockId::FromProto(rsp->lock_id());
-        BuildYsonFluently(~Context->CreateOutputConsumer())
-            .Scalar(lockId.ToString());
-    } else {
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
     }
 }

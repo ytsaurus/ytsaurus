@@ -27,6 +27,22 @@ TMutation<TResult>::TMutation(
 { }
 
 template <class TResult>
+TFuture<TResult> TMutation<TResult>::PostCommit()
+{
+    auto this_ = MakeStrong(this);
+    auto context = MetaStateManager->GetEpochContext();
+    return
+        BIND([=] () -> TFuture<TResult> {
+            if (context->IsCanceled()) {
+                return NewPromise<TResult>();
+            }
+            return this_->Commit();
+        })
+        .AsyncVia(MetaStateManager->GetStateInvoker())
+        .Run();
+}
+
+template <class TResult>
 TFuture<TResult> TMutation<TResult>::Commit()
 {
     YASSERT(!Started);

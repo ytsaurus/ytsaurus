@@ -369,7 +369,8 @@ protected:
 
     std::vector<Stroka> CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns);
     void CheckOutputTablesEmpty();
-    void SetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
+    void ScheduleClearOutputTables();
+    void ScheduleSetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
     void RegisterOutputChunkTree(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,

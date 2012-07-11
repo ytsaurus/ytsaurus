@@ -47,10 +47,10 @@ inline void SetObjectRefImpl(
     auto type = NObjectServer::TypeFromId(id);
     switch (type) {
         case NObjectServer::EObjectType::Chunk:
-            object = NChunkServer::TChunkTreeRef(context.Get<NChunkServer::TChunk>(id));
+            object = context.Get<NChunkServer::TChunk>(id);
             break;
         case NObjectServer::EObjectType::ChunkList:
-            object = NChunkServer::TChunkTreeRef(context.Get<NChunkServer::TChunkList>(id));
+            object = context.Get<NChunkServer::TChunkList>(id);
             break;
         default:
             YUNREACHABLE();

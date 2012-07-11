@@ -151,15 +151,15 @@ void TBootstrap::Run()
     auto rpcServer = CreateRpcServer(busServer);
 
     MetaStateManager = CreatePersistentStateManager(
-        ~Config->MetaState,
+        Config->MetaState,
         GetControlInvoker(),
         GetStateInvoker(),
-        ~MetaState,
-        ~rpcServer);
+        MetaState,
+        rpcServer);
 
-    TransactionManager = New<TTransactionManager>(~Config->Transactions, this);
+    TransactionManager = New<TTransactionManager>(Config->Transactions, this);
 
-    ObjectManager = New<TObjectManager>(~Config->Objects, this);
+    ObjectManager = New<TObjectManager>(Config->Objects, this);
 
     CypressManager = New<TCypressManager>(this);
 
@@ -189,7 +189,7 @@ void TBootstrap::Run()
     SetNodeByYPath(
         orchidRoot,
         "/monitoring",
-        CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
+        CreateVirtualNode(CreateMonitoringProducer(monitoringManager)));
     SetNodeByYPath(
         orchidRoot,
         "/profiling",
@@ -203,8 +203,8 @@ void TBootstrap::Run()
     SyncYPathSet(orchidRoot, "/@service_name", TYsonString("master"));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
-        ~orchidRoot,
-        ~GetControlInvoker());
+        orchidRoot,
+        GetControlInvoker());
     rpcServer->RegisterService(orchidRpcService);
 
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this));
@@ -214,7 +214,6 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateNodeMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateLockMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));
     CypressManager->RegisterHandler(CreateHolderTypeHandler(this));
     CypressManager->RegisterHandler(CreateHolderMapTypeHandler(this));

@@ -18,8 +18,6 @@ class TFileNodeProxy
     : public NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode>
 {
 public:
-    typedef TIntrusivePtr<TFileNodeProxy> TPtr;
-
     TFileNodeProxy(
         NCypress::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
@@ -34,7 +32,6 @@ private:
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
-
     virtual void OnUpdateAttribute(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/logging/log.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -8,6 +9,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern NLog::TLogger ChunkServerLogger;
+extern NProfiling::TProfiler ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

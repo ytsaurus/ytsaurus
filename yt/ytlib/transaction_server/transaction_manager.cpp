@@ -63,7 +63,7 @@ private:
         attributes->push_back("created_object_ids");
         attributes->push_back("created_node_ids");
         attributes->push_back("branched_node_ids");
-        attributes->push_back("lock_ids");
+        attributes->push_back("locked_node_ids");
         TBase::GetSystemAttributes(attributes);
     }
 
@@ -115,11 +115,11 @@ private:
             return true;
         }
 
-        if (name == "lock_ids") {
+        if (name == "locked_node_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
-                    fluent.Item().Scalar(lock->GetId().ToString());
-                });
+                .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
+                    fluent.Item().Scalar(node->GetId().ObjectId.ToString());
+            });
             return true;
         }
 

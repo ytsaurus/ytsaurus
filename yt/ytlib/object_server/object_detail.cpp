@@ -22,11 +22,12 @@ TObjectBase::TObjectBase()
 { }
 
 TObjectBase::TObjectBase(const TObjectBase& other)
-    : RefCounter(other.RefCounter)
+    : RefCounter(-1)
 { }
 
 i32 TObjectBase::RefObject()
 {
+    YASSERT(RefCounter >= 0);
     return ++RefCounter;
 }
 

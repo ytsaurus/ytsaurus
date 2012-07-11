@@ -18,8 +18,6 @@ class TTableNodeProxy
     : public NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode>
 {
 public:
-    typedef TIntrusivePtr<TTableNodeProxy> TPtr;
-
     TTableNodeProxy(
         NCypress::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
@@ -34,6 +32,10 @@ private:
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
+    virtual void OnUpdateAttribute(
+        const Stroka& key,
+        const TNullable<NYTree::TYsonString>& oldValue,
+        const TNullable<NYTree::TYsonString>& newValue);
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
 
@@ -58,6 +60,9 @@ private:
         NTableClient::TChannel* channel,
         NTableClient::NProto::TReadLimit* lowerBound,
         NTableClient::NProto::TReadLimit* upperBound);
+
+    NChunkServer::TChunkList* EnsureNodeMutable(TTableNode* node);
+    void ClearNode(TTableNode* node);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);

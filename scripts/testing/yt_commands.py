@@ -112,7 +112,7 @@ def upload(path, data, **kw):
 
 def upload_file(path, file_name, **kw):
     with open(file_name, 'rt') as f:
-        return upload(path, f.read())
+        return upload(path, f.read(), **kw)
 
 def download(path, **kw):
     return command('download', path, **kw)

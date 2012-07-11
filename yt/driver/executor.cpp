@@ -180,10 +180,20 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     // GetArgs() must be called before GetInputStream()
     request.Arguments = GetArgs();
     request.CommandName = GetCommandName();
+
     request.InputStream = GetInputStream();
-    request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
+    try {
+        request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing input format\n%s", ex.what());
+    }
+
     request.OutputStream = &outputStream;
-    request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);;
+    try {
+        request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing output format\n%s", ex.what());
+    }
 
     return DoExecute(request);
 }

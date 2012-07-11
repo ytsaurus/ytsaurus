@@ -49,9 +49,6 @@ DECLARE_ENUM(EObjectType,
     ((Chunk)(100))
     ((ChunkList)(101))
 
-    // For internal use, don't create yourself.
-    ((Lock)(200))
-
     // The following are versioned objects AKA Cypress nodes.
     // These must be created by calling TCypressYPathProxy::Create.
 
@@ -72,7 +69,6 @@ DECLARE_ENUM(EObjectType,
     ((ChunkListMap)(406))
     ((TransactionMap)(407))
     ((NodeMap)(408))
-    ((LockMap)(409))
     ((Holder)(410))
     ((HolderMap)(411))
     ((Orchid)(412))

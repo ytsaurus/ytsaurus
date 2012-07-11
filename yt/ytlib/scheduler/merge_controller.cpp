@@ -93,7 +93,7 @@ protected:
             ChunkPool = CreateAtomicChunkPool();
         }
 
-        Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const OVERRIDE
         {
             return
                 PartitionIndex < 0
@@ -101,12 +101,12 @@ protected:
                 : Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
         }
 
-        int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const OVERRIDE
         {
             return ChunkPool->IsPending() ? 1 : 0;
         }
 
-        TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
         {
             // TODO(babenko): make configurable
             return TDuration::Seconds(5);
@@ -124,17 +124,17 @@ protected:
         int PartitionIndex;
 
 
-        int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const OVERRIDE
         {
             return 1;
         }
 
-        TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
         {
             return Null;
         }
 
-        TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
         {
             auto jobSpec = Controller->JobSpecTemplate;
             AddParallelInputSpec(&jobSpec, jip);
@@ -142,7 +142,7 @@ protected:
             return jobSpec;
         }
 
-        void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
             TTask::OnJobStarted(jip);
 
@@ -150,7 +150,7 @@ protected:
             Controller->WeightCounter.Start(jip->PoolResult->TotalChunkWeight);
         }
 
-        void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             TTask::OnJobCompleted(jip);
 
@@ -275,7 +275,7 @@ protected:
 
     // Init/finish.
 
-    void DoInitialize() OVERRIDE
+    virtual void DoInitialize() OVERRIDE
     {
         TOperationControllerBase::DoInitialize();
 
@@ -288,7 +288,7 @@ protected:
 
     // Custom bits of preparation pipeline.
 
-    TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
     {
         return pipeline->Add(BIND(&TMergeControllerBase::ProcessInputs, MakeStrong(this)));
     }
@@ -365,7 +365,7 @@ protected:
 
     // Progress reporting.
 
-    void LogProgress() OVERRIDE
+    virtual void LogProgress() OVERRIDE
     {
         LOG_DEBUG("Progress: "
             "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
@@ -380,7 +380,7 @@ protected:
             ~ToString(WeightCounter));
     }
 
-    void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
+    virtual void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
     {
         BuildYsonMapFluently(consumer)
             .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &ChunkCounter))
@@ -459,24 +459,24 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
     {
         return Spec->CombineChunks ? IsLargeCompleteChunk(chunk) : IsCompleteChunk(chunk);
     }
 
-    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         return Spec->InputTablePaths;
     }
 
-    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
 
-    void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
 
@@ -494,12 +494,12 @@ private:
         EndTaskIfLarge();
     }
 
-    i64 GetMaxTaskWeight() OVERRIDE
+    virtual i64 GetMaxTaskWeight() OVERRIDE
     {
         return Spec->MaxWeightPerJob;
     }
 
-    void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::UnorderedMerge);
 
@@ -522,7 +522,7 @@ public:
     { }
 
 private:
-    void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
 
@@ -559,12 +559,12 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         return Spec->InputTablePaths;
     }
 
-    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
@@ -576,12 +576,12 @@ private:
         return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
     }
 
-    i64 GetMaxTaskWeight() OVERRIDE
+    virtual i64 GetMaxTaskWeight() OVERRIDE
     {
         return Spec->MaxWeightPerJob;
     }
 
-    void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
 
@@ -608,51 +608,53 @@ public:
 private:
     TEraseOperationSpecPtr Spec;
 
-    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         std::vector<TYPath> result;
         result.push_back(Spec->TablePath);
         return result;
     }
 
-    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         std::vector<TYPath> result;
         result.push_back(Spec->TablePath);
         return result;
     }
 
-    bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
     {
         return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
     }
 
-    void DoInitialize() OVERRIDE
+    virtual void DoInitialize() OVERRIDE
     {
         TOperationControllerBase::DoInitialize();
 
         // For erase operation the rowset specified by the user must actually be removed...
         InputTables[0].NegateFetch = true;
         // ...and the output table must be cleared.
-        OutputTables[0].Clear = true;
+        ScheduleClearOutputTables();
     }
 
-    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
     {
         UNUSED(batchRsp);
 
         // If the input is sorted then the output is marked as sorted as well
         if (InputTables[0].Sorted) {
-            SetOutputTablesSorted(InputTables[0].KeyColumns);
+            // TODO(babenko): unless overwrite mode is ON
+            CheckOutputTablesEmpty();
+            ScheduleSetOutputTablesSorted(InputTables[0].KeyColumns);
         }
     }
 
-    i64 GetMaxTaskWeight() OVERRIDE
+    virtual i64 GetMaxTaskWeight() OVERRIDE
     {
         return Spec->MaxWeightPerJob;
     }
 
-    void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
 
@@ -691,7 +693,7 @@ protected:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
-    void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
     {
         auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
         YCHECK(miscExt.sorted());
@@ -716,7 +718,7 @@ protected:
         }
     }
 
-    void EndInputChunks() OVERRIDE
+    virtual void EndInputChunks() OVERRIDE
     {
         // Sort earlier collected endpoints to figure out overlapping chunks.
         // Sort endpoints by keys, in case of a tie left endpoints go first.
@@ -821,7 +823,7 @@ protected:
         EndTaskIfLarge();
     }
 
-    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
     {
         UNUSED(batchRsp);
 
@@ -851,34 +853,39 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual void DoInitialize() OVERRIDE
+    {
+        ScheduleClearOutputTables();
+    }
+
+    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         return Spec->InputTablePaths;
     }
 
-    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
 
-    bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
     {
         return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
     }
 
-    TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
+    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
     {
         return Spec->KeyColumns;
     }
 
-    i64 GetMaxTaskWeight() OVERRIDE
+    virtual i64 GetMaxTaskWeight() OVERRIDE
     {
         return Spec->MaxWeightPerJob;
     }
 
-    void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
 
@@ -888,12 +895,11 @@ private:
         TMergeControllerBase::InitJobSpecTemplate();
     }
 
-    void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
     {
         TSortedMergeControllerBase::OnCustomInputsRecieved(batchRsp);
 
-        SetOutputTablesSorted(KeyColumns);
-        CheckOutputTablesEmpty();
+        ScheduleSetOutputTablesSorted(KeyColumns);
     }
 };
 
@@ -915,38 +921,38 @@ public:
 private:
     TReduceOperationSpecPtr Spec;
 
-    std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         return Spec->InputTablePaths;
     }
 
-    std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         return Spec->OutputTablePaths;
     }
 
-    std::vector<TYPath> GetFilePaths() OVERRIDE
+    virtual std::vector<TYPath> GetFilePaths() OVERRIDE
     {
         return Spec->Reducer->FilePaths;
     }
 
-    bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
     {
         UNUSED(chunk);
         return false;
     }
 
-    TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
+    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
     {
         return Spec->KeyColumns;
     }
 
-    i64 GetMaxTaskWeight() OVERRIDE
+    virtual i64 GetMaxTaskWeight() OVERRIDE
     {
         return Spec->MaxWeightPerJob;
     }
 
-    void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::Reduce);
 

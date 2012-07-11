@@ -377,11 +377,7 @@ private:
 
     TOperationPtr ParseOperationYson(const TOperationId& operationId, const TYsonString& yson)
     {
-        // TODO(babenko): simplify
-        auto node = ConvertToNode(yson)->AsMap();
-        auto attributes = CreateEphemeralAttributes();
-        attributes->MergeFrom(node);
-
+        auto attributes = ConvertToAttributes(yson);
         return New<TOperation>(
             operationId,
             attributes->Get<EOperationType>("operation_type"),

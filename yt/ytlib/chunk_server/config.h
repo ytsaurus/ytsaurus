@@ -10,7 +10,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkBalancerConfig
+struct TChunkReplicatorConfig
     : public TYsonSerializable
 {
     //! Minimum number of holders the cell must have online to enable starting new jobs.
@@ -37,7 +37,7 @@ struct TChunkBalancerConfig
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
 
-    TChunkBalancerConfig()
+    TChunkReplicatorConfig()
     {
         Register("min_online_holder_count", MinOnlineHolderCount)
             .GreaterThan(0);
@@ -58,6 +58,34 @@ struct TChunkBalancerConfig
     }
 };
 
+struct TChunkTreeBalancerConfig
+    : public TYsonSerializable
+{
+    int MaxChunkTreeRank;
+    int MinChunkListSize;
+    int MaxChunkListSize;
+
+    TChunkTreeBalancerConfig()
+    {
+        Register("max_chunk_tree_rank", MaxChunkTreeRank)
+            .GreaterThanOrEqual(2)
+            .Default(10);
+        Register("min_chunk_list_size", MinChunkListSize)
+            .GreaterThan(0)
+            .Default(1024);
+        Register("max_chunk_list_size", MaxChunkListSize)
+            .GreaterThan(0)
+            .Default(2048);
+    }
+
+    virtual void DoValidate() const
+    {
+        if (MaxChunkListSize <= MinChunkListSize) {
+            ythrow yexception() << "\"max_chunk_list_size\" must be greater than \"min_chunk_list_size\"";
+        }
+    }
+};
+
 struct TChunkManagerConfig
     : public TYsonSerializable
 {
@@ -73,11 +101,8 @@ struct TChunkManagerConfig
     double MaxHolderFillCoeff;
     i64 MinHolderFreeSpace;
     double ActiveSessionsPenalityCoeff;
-    TChunkBalancerConfigPtr Balancer;
-
-    i32 MaxChunkTreeRank;
-    i32 MinChunkListSize;
-    i32 MaxChunkListSize;
+    TChunkReplicatorConfigPtr ChunkReplicator;
+    TChunkTreeBalancerConfigPtr ChunkTreeBalancer;
 
     TChunkManagerConfig()
     {
@@ -97,24 +122,10 @@ struct TChunkManagerConfig
             .Default(10000);
         Register("active_sessions_penality_coeff", ActiveSessionsPenalityCoeff)
             .Default(0.1);
-        Register("balancer", Balancer)
+        Register("chunk_replicator", ChunkReplicator)
             .DefaultNew();
-        Register("max_chunk_tree_rank", MaxChunkTreeRank)
-            .GreaterThanOrEqual(2)
-            .Default(10);
-        Register("min_chunk_list_size", MinChunkListSize)
-            .GreaterThan(0)
-            .Default(1024);
-        Register("max_chunk_list_size", MaxChunkListSize)
-            .GreaterThan(0)
-            .Default(2048);
-    }
-
-    virtual void DoValidate() const
-    {
-        if (MaxChunkListSize <= MinChunkListSize) {
-            ythrow yexception() << "\"max_chunk_list_size\" must be greater than \"min_chunk_list_size\"";
-        }
+        Register("chunk_tree_balancer", ChunkTreeBalancer)
+            .DefaultNew();
     }
 };
 

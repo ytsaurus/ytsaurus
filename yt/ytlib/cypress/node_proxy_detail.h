@@ -59,8 +59,6 @@ class TCypressNodeProxyBase
     , public virtual IBase
 {
 public:
-    typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
-
     TCypressNodeProxyBase(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
@@ -159,8 +157,8 @@ protected:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
-        attributes->push_back("lock_ids");
-        attributes->push_back(TAttributeInfo("lock_mode", Transaction));
+        attributes->push_back("locks");
+        attributes->push_back("lock_mode");
         attributes->push_back(TAttributeInfo("path", true, true));
         attributes->push_back("creation_time");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
@@ -169,8 +167,9 @@ protected:
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
         const auto* node = GetImpl();
-        // NB: Locks are stored in originating nodes.
-        const auto* origniatingNode = Bootstrap->GetCypressManager()->GetNode(Id);
+
+        // NB: Locks are stored in trunk nodes (TransactionId == Null).
+        const auto* trunkNode = Bootstrap->GetCypressManager()->GetNode(Id);
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
@@ -178,20 +177,22 @@ protected:
             return true;
         }
 
-        if (name == "lock_ids") {
+        if (name == "locks") {
             BuildYsonFluently(consumer)
-                .DoListFor(origniatingNode->Locks(), [=] (NYTree::TFluentList fluent, TLock* lock) {
-                    fluent.Item().Scalar(lock->GetId().ToString());
-                });
+                .DoListFor(trunkNode->Locks(), [=] (NYTree::TFluentList fluent, const ICypressNode::TLockMap::value_type& pair) {
+                    fluent.Item()
+                        .BeginMap()
+                            .Item("type").Scalar(pair.second.Mode)
+                            .Item("transaction_id").Scalar(pair.first->GetId())
+                        .EndMap();
+                 });
             return true;
         }
 
-        if (Transaction) {
-            if (name == "lock_mode") {
-                BuildYsonFluently(consumer)
-                    .Scalar(FormatEnum(node->GetLockMode()));
-                return true;
-            }
+        if (name == "lock_mode") {
+            BuildYsonFluently(consumer)
+                .Scalar(FormatEnum(node->GetLockMode()));
+            return true;
         }
 
         if (name == "path") {
@@ -232,11 +233,7 @@ protected:
                 ~CamelCaseToUnderscoreCase(mode.ToString()).Quote());
         }
 
-        auto lockId = Bootstrap->GetCypressManager()->LockVersionedNode(NodeId, Transaction, mode);
-
-        *response->mutable_lock_id() = lockId.ToProto();
-
-        context->SetResponseInfo("LockId: %s", ~lockId.ToString());
+        Bootstrap->GetCypressManager()->LockVersionedNode(NodeId, Transaction, mode);
 
         context->Reply();
     }
@@ -614,6 +611,7 @@ protected:
             nodeId,
             this->Transaction);
 
+        // TODO(babenko): fixme! this may throw an exception!
         proxy->Attributes().MergeFrom(request->Attributes());
 
         CreateRecursive(NYTree::TYPath(tokenizer.GetCurrentSuffix()), ~proxy);

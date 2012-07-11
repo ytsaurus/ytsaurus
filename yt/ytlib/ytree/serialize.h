@@ -52,6 +52,13 @@ void Serialize(T* value, IYsonConsumer* consumer);
 template <class T>
 void Serialize(const TIntrusivePtr<T>& value, IYsonConsumer* consumer);
 
+#ifndef _WIN32
+
+// size_t
+void Serialize(size_t value, IYsonConsumer* consumer);
+
+#endif
+
 // i64
 void Serialize(i64 value, IYsonConsumer* consumer);
 
@@ -69,6 +76,12 @@ void Serialize(double value, IYsonConsumer* consumer);
 
 // Stroka
 void Serialize(const Stroka& value, IYsonConsumer* consumer);
+
+// TStringBuf
+void Serialize(const TStringBuf& value, IYsonConsumer* consumer);
+
+// const char*
+void Serialize(const char* value, IYsonConsumer* consumer);
 
 // bool
 void Serialize(bool value, IYsonConsumer* consumer);

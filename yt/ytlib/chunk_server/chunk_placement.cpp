@@ -269,7 +269,7 @@ bool TChunkPlacement::IsValidBalancingTarget(THolder* targetHolder, TChunk* chun
 
     auto* sink = chunkManager->FindReplicationSink(targetHolder->GetAddress());
     if (sink) {
-        if (static_cast<int>(sink->Jobs().size()) >= Config->Balancer->MaxReplicationFanIn) {
+        if (static_cast<int>(sink->Jobs().size()) >= Config->ChunkReplicator->MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
             return false;
         }

@@ -456,7 +456,7 @@ private:
         attributes->push_back("chunk_count");
         attributes->push_back("session_count");
         attributes->push_back("online_holder_count");
-        attributes->push_back("chunk_balancer_enabled");
+        attributes->push_back("chunk_replicator_enabled");
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -527,9 +527,9 @@ private:
             return true;
         }
 
-        if (name == "chunk_balancer_enabled") {
+        if (name == "chunk_replicator_enabled") {
             BuildYsonFluently(consumer)
-                .Scalar(chunkManager->IsBalancerEnabled());
+                .Scalar(chunkManager->IsReplicatorEnabled());
             return true;
         }
 

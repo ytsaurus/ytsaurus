@@ -698,6 +698,11 @@ private:
 
     // Init/finish.
 
+    virtual void DoInitialize() OVERRIDE
+    {
+        ScheduleClearOutputTables();
+    }
+
     void RegisterOutputChunkTree(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
     {
         TOperationControllerBase::RegisterOutputChunkTree(chunkTreeId, partition->Index, 0);
@@ -776,8 +781,9 @@ private:
     {
         UNUSED(batchRsp);
 
+        // TODO(babenko): unless overwrite mode is ON
         CheckOutputTablesEmpty();
-        SetOutputTablesSorted(Spec->KeyColumns);
+        ScheduleSetOutputTablesSorted(Spec->KeyColumns);
     }
 
     void SortSamples()
