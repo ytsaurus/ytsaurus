@@ -170,6 +170,8 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("output_table_path").Scalar(output)
             .Item("key_columns").List(keyColumns)
         .EndMap();
+
+    TTransactedExecutor::BuildArgs(consumer);
 }
 
 Stroka TSortExecutor::GetCommandName() const
