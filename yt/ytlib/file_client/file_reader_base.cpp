@@ -72,7 +72,7 @@ void TFileReaderBase::Open(
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkMeta.extensions());
     Size = miscExt.uncompressed_data_size();
 
-    LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ", CodecId: %s)",
+    LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ")",
         BlockCount,
         Size);
 
