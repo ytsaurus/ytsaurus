@@ -104,9 +104,9 @@ i64 TSession::GetSize() const
     return Size;
 }
 
-int TSession::GetBlockCount() const
+int TSession::GetWrittenBlockCount() const
 {
-    return Window.size();
+    return WindowStart;
 }
 
 TChunkInfo TSession::GetChunkInfo() const
@@ -385,10 +385,6 @@ TSession::TSlot& TSession::GetSlot(i32 blockIndex)
         // Newly added slots must get a fresh copy of IsWritten promise.
         // Using resize would cause all of these slots to share a single promise.
         Window.push_back(TSlot());
-    }
-
-    if (Window.size() <= blockIndex) {
-        Window.resize(1 + blockIndex);
     }
 
     return Window[blockIndex];

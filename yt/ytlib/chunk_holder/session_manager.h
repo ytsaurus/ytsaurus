@@ -36,7 +36,7 @@ public:
     //! Returns the total data size received so far.
     i64 GetSize() const;
 
-    int GetBlockCount() const;
+    int GetWrittenBlockCount() const;
 
     //! Returns the info of the just-uploaded chunk
     NProto::TChunkInfo GetChunkInfo() const;

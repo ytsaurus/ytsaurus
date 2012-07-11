@@ -143,7 +143,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
 
     auto session = GetSession(chunkId);
 
-    YCHECK(session->GetBlockCount() == request->block_count());
+    YCHECK(session->GetWrittenBlockCount() == request->block_count());
 
     Bootstrap
         ->GetSessionManager()
