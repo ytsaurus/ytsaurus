@@ -10,7 +10,6 @@ from collections import defaultdict
 
 ##################################################################
 
-@pytest.mark.xfail(run = False, reason = 'Issue #355')
 class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
@@ -73,7 +72,7 @@ Wish you were here.
                out='//tmp/t_out',
                reducer='python reducer.py',
                file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
-               opt='/spec/mapper/format=dsv',
+               opt='/spec/reducer/format=dsv',
                tx=tx_id)
 
         commit_transaction(tx=tx_id)
@@ -83,4 +82,8 @@ Wish you were here.
         for word in text.split():
             expected[word] += 1
 
-        assert read('//tmp/t_out') == [expected]
+        output = []
+        for word, count in expected.items():
+            output.append( {'word': word, 'count': str(count)} )
+
+        self.assertItemsEqual(read('//tmp/t_out'), output)
