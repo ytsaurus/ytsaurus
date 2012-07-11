@@ -9,58 +9,25 @@ namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChannelWriter::TChannelWriter(
-    const TChannel& channel,
-    const yhash_map<TStringBuf, int>& chunkColumnIndexes)
-    : Channel(channel)
-    , FixedColumns(Channel.GetColumns().size())
-    , IsColumnUsed(Channel.GetColumns().size())
+TChannelWriter::TChannelWriter(int fixedColumnCount)
+    : FixedColumns(fixedColumnCount)
+    , IsColumnUsed(fixedColumnCount)
     , CurrentRowCount(0)
 {
-    ColumnIndexMapping.resize(chunkColumnIndexes.size(), UnknownIndex);
-
-    for (int i = 0; i < Channel.GetColumns().size(); ++i) {
-        auto& column = Channel.GetColumns()[i];
-        auto it = chunkColumnIndexes.find(column);
-        YASSERT(chunkColumnIndexes.end() != it);
-
-        ColumnIndexMapping[it->second] = i;
-    }
-
-    FOREACH (auto& item, chunkColumnIndexes) {
-        if ((ColumnIndexMapping[item.second] < 0) &&
-            Channel.ContainsInRanges(item.first))
-        {
-            ColumnIndexMapping[item.second] = RangeIndex;
-        }
-    }
-
     CurrentSize = GetEmptySize();
 }
 
-void TChannelWriter::Write(
-    int chunkColumnIndex, 
-    const TStringBuf& column, 
-    const TStringBuf& value)
+void TChannelWriter::WriteFixed(int columnIndex, const TStringBuf& value)
 {
-    if (chunkColumnIndex > UnknownIndex) {
-        int columnIndex = ColumnIndexMapping[chunkColumnIndex];
-        if (columnIndex == UnknownIndex)
-            return;
+    auto& columnOutput = FixedColumns[columnIndex];
+    CurrentSize += TValue(value).Save(&columnOutput);
+    IsColumnUsed[columnIndex] = true;
+}
 
-        if (columnIndex == RangeIndex) {
-            CurrentSize += TValue(column).Save(&RangeColumns);
-            CurrentSize += TValue(value).Save(&RangeColumns);
-        } else {
-            YASSERT(columnIndex > UnknownIndex);
-            auto& columnOutput = FixedColumns[columnIndex];
-            CurrentSize += TValue(value).Save(&columnOutput);
-            IsColumnUsed[columnIndex] = true;
-        }
-    } else if (Channel.ContainsInRanges(column)) {
-        CurrentSize += TValue(column).Save(&RangeColumns);
-        CurrentSize += TValue(value).Save(&RangeColumns);
-    }
+void TChannelWriter::WriteRange(const TStringBuf& name, const TStringBuf& value)
+{
+    CurrentSize += TValue(name).Save(&RangeColumns);
+    CurrentSize += TValue(value).Save(&RangeColumns);
 }
 
 void TChannelWriter::EndRow()
@@ -90,35 +57,38 @@ size_t TChannelWriter::GetEmptySize() const
     return FixedColumns.size() * sizeof(i32);
 }
 
-TSharedRef TChannelWriter::FlushBlock()
+std::vector<TSharedRef> TChannelWriter::FlushBlock()
 {
-    TBlobOutput blockStream(CurrentSize);
+    TBlobOutput sizeOutput(8 * FixedColumns.size());
 
     FOREACH (const auto& column, FixedColumns) {
-        WriteVarUInt64(&blockStream, column.GetSize());
+        WriteVarUInt64(&sizeOutput, column.GetSize());
     }
+
+    std::vector<TSharedRef> result;
+    result.reserve(FixedColumns.size() + 2);
+    result.push_back(sizeOutput.Flush());
 
     FOREACH (auto& column, FixedColumns) {
-        blockStream.Write(column.Begin(), column.GetSize());
-        column.Clear();
+        auto capacity = column.GetBlob()->capacity();
+        result.push_back(column.Flush());
+        column.Reserve(capacity);
     }
 
-    blockStream.Write(RangeColumns.Begin(), RangeColumns.GetSize());
-    RangeColumns.Clear();
+    auto capacity = RangeColumns.GetBlob()->capacity();
+    result.push_back(RangeColumns.Flush());
+    RangeColumns.Reserve(capacity);
 
     CurrentSize = GetEmptySize();
     CurrentRowCount = 0;
 
-    return blockStream.Flush();
+    return result;
 }
 
 int TChannelWriter::GetCurrentRowCount() const
 {
     return CurrentRowCount;
 }
-
-const int TChannelWriter::UnknownIndex = -1;
-const int TChannelWriter::RangeIndex = -2;
 
 ///////////////////////////////////////////////////////////////////////////////
 

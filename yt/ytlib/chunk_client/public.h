@@ -13,11 +13,11 @@ typedef TIntrusivePtr<TRemoteReaderConfig> TRemoteReaderConfigPtr;
 struct TClientBlockCacheConfig;
 typedef TIntrusivePtr<TClientBlockCacheConfig> TClientBlockCacheConfigPtr;
 
-struct TDecodingReaderConfig;
-typedef TIntrusivePtr<TDecodingReaderConfig> TDecodingReaderConfigPtr;
-
 struct TEncodingWriterConfig;
 typedef TIntrusivePtr<TEncodingWriterConfig> TEncodingWriterConfigPtr;
+
+class TEncodingWriter;
+typedef TIntrusivePtr<TEncodingWriter> TEncodingWriterPtr;
 
 struct IAsyncWriter;
 typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;

@@ -34,22 +34,46 @@ public:
 
     TAsyncError AsyncOpen();
 
-    bool TryWriteRow(TRow& row);
-    bool TryWriteRow(TRow& row, const TNonOwningKey& key);
+    // Used by client facade (e.g. TableConsumer).
+    bool TryWriteRow(const TRow& row);
+
+    // Used internally by jobs that generate sorted output.
+    bool TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
+    bool TryWriteRowUnsafe(const TRow& row);
 
     TAsyncError AsyncClose();
 
+    void SetLastKey(const TOwningKey& key);
     const TOwningKey& GetLastKey() const;
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
     i64 GetRowCount() const;
 
     i64 GetCurrentSize() const;
     NChunkHolder::NProto::TChunkMeta GetMasterMeta() const;
+    NChunkHolder::NProto::TChunkMeta GetSchedulerMeta() const;
 
     i64 GetMetaSize() const;
 
 private:
-    friend class TTableChunkSequenceWriter;
+    struct TChannelColumn {
+        int ColumnIndex;
+        TChannelWriterPtr Writer;
+
+        TChannelColumn(const TChannelWriterPtr& channelWriter, int columnIndex) 
+            : ColumnIndex(columnIndex)
+            , Writer(channelWriter)
+        {}
+    };
+
+    struct TColumnInfo {
+        i64 LastRow;
+        int KeyColumnIndex;
+        std::vector<TChannelColumn> Channels;
+
+        TColumnInfo()
+            : LastRow(-1)
+            , KeyColumnIndex(-1)
+        { }
+    };
 
     std::vector<TChannel> Channels;
     //! If not null chunk is expected to be sorted.
@@ -58,18 +82,14 @@ private:
     bool IsOpen;
 
     //! Stores mapping from all key columns and channel non-range columns to indexes.
-    yhash_map<TStringBuf, int> ColumnIndexes;
+    yhash_map<TStringBuf, TColumnInfo> ColumnMap;
+    std::vector<Stroka> ColumnNames;
 
-    //! Current size of written data.
-    /*!
-     *  - This counter is updated every #AsyncEndRow call.
-     *  - This is an upper bound approximation of the size of written data.
-     *    (Indeed, the counter includes compressed size of complete blocks and
-     *    uncompressed size of incomplete blocks.)
-     */
-    i64 CurrentSize;
+    // Used for key creation.
+    NYTree::TLexer Lexer;
 
-    TKey<TBlobOutput> LastKey;
+    TNonOwningKey CurrentKey;
+    TOwningKey LastKey;
 
     //! Approximate size of collected samples.
     i64 SamplesSize;
@@ -88,10 +108,17 @@ private:
 
     void PrepareBlock(int channelIndex);
 
-    void OnFinalBlocksWritten();
+    void OnFinalBlocksWritten(TError error);
 
     void EmitIndexEntry();
-    void EmitSample(TRow& row);
+    void EmitSample(const TRow& row);
+
+    void SelectChannels(const TStringBuf& name, TColumnInfo& columnInfo);
+    void FinalizeRow(const TRow& row);
+    void ProcessKey();
+    TColumnInfo& GetColumnInfo(const TStringBuf& name);
+    void WriteValue(const std::pair<TStringBuf, TStringBuf>& value, const TColumnInfo& columnInfo);
+
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

@@ -24,6 +24,10 @@ struct TChunkWriterConfig
 
     double EstimatedCompressionRatio;
 
+    NChunkClient::TEncodingWriterConfigPtr EncodingWriter;
+
+    bool Strict;
+
     TChunkWriterConfig()
     {
         // Block less than 1Kb is nonsense.
@@ -42,6 +46,8 @@ struct TChunkWriterConfig
             .GreaterThan(0)
             .LessThan(1)
             .Default(0.2);
+        Register("encoding_writer", EncodingWriter).DefaultNew();
+        Register("strict", Strict).Default(false);
     }
 };
 
@@ -78,9 +84,6 @@ struct TChunkSequenceWriterConfig
             .DefaultNew();
         Register("remote_writer", RemoteWriter)
             .DefaultNew();
-
-        // Default codec for table data.
-        RemoteWriter->CodecId = ECodecId::Snappy;
     }
 
     virtual void DoValidate() const
