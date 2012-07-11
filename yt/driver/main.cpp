@@ -42,13 +42,18 @@ static NLog::TLogger& Logger = DriverLogger;
 void SigPipeHandler(int signum)
 {
     UNUSED(signum);
-    // TODO: refactor system shutdown
-    // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
-    NLog::TLogManager::Get()->Shutdown();
-    NBus::TTcpDispatcher::Get()->Shutdown();
-    NProfiling::TProfilingManager::Get()->Shutdown();
-    TDelayedInvoker::Shutdown();
-    exit(0);
+    static volatile sig_atomic_t handling_in_progress = 0;
+    if (handling_in_progress == 0) {
+        handling_in_progress = 1;
+
+        // TODO: refactor system shutdown
+        // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
+        NLog::TLogManager::Get()->Shutdown();
+        NBus::TTcpDispatcher::Get()->Shutdown();
+        NProfiling::TProfilingManager::Get()->Shutdown();
+        TDelayedInvoker::Shutdown();
+        exit(0);
+    }
 }
 
 class TDriverProgram
