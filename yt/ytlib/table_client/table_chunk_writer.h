@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_writer_base.h"
+#include "channel_writer.h"
 
 #include "schema.h"
 #include "key.h"

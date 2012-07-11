@@ -70,40 +70,40 @@ TSortedMergeJob::TSortedMergeJob(
         const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext); 
 
         // ToDo(psushin): estimate row count for writer.
-        auto asyncWriter = New<TTableChunkSequenceWriter>(
+        Writer = New<TTableChunkSequenceWriter>(
             proxyConfig->JobIO->ChunkSequenceWriter,
             ~masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
             ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
             FromProto<Stroka>(mergeSpec.key_columns()));
-
-        Writer = CreateSyncWriter(asyncWriter);
     }
 }
 
 TJobResult TSortedMergeJob::Run()
 {
     PROFILE_TIMING ("/sorted_merge_time") {
+        auto writer = CreateSyncWriter(Writer);
+
         // Open readers, remove invalid ones, and create the initial heap.
         LOG_INFO("Initializing");
         {
             Reader->Open();
-            Writer->Open();
+            writer->Open();
         }
         PROFILE_TIMING_CHECKPOINT("init");
 
         // Run the actual merge.
         LOG_INFO("Merging");
         while (Reader->IsValid()) {
-            Writer->WriteRow(Reader->GetRow(), Reader->GetKey());
+            writer->WriteRowUnsafe(Reader->GetRow(), Reader->GetKey());
             Reader->NextRow();
         }
         PROFILE_TIMING_CHECKPOINT("merge");
 
         LOG_INFO("Finalizing");
         {
-            Writer->Close();
+            writer->Close();
 
             TJobResult result;
             *result.mutable_error() = TError().ToProto();

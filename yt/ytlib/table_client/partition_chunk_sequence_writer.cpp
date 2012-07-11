@@ -49,23 +49,6 @@ void TPartitionChunkSequenceWriter::PrepareChunkWriter(TSession& newSession)
         PartitionKeys);
 }
 
-bool TPartitionChunkSequenceWriter::TryWriteRow(const TRow& row)
-{
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
-    if (!CurrentSession.ChunkWriter) {
-        return false;
-    }
-
-    if (!CurrentSession.ChunkWriter->TryWriteRow(row)) {
-        return false;
-    }
-
-    OnRowWritten();
-
-    return true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT 

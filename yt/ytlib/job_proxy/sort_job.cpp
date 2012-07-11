@@ -10,6 +10,7 @@
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/sync_writer.h>
 #include <ytlib/ytree/lexer.h>
 
 namespace NYT {
@@ -251,7 +252,8 @@ TJobResult TSortJob::Run()
 
         LOG_INFO("Writing");
         {
-            Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
+            auto writer = CreateSyncWriter(Writer);
+            writer->Open();
 
             TRow row;
             TNonOwningKey key(keyColumnCount);
@@ -292,16 +294,14 @@ TJobResult TSortJob::Run()
                     }
                 }
 
-                while (!Writer->TryWriteRow(row, key)) {
-                    Sync(~Writer, &TTableChunkSequenceWriter::GetReadyEvent);
-                }
+                writer->WriteRowUnsafe(row, key);
 
                 if (progressIndex % 1000 == 0) {
                     Writer->SetProgress(double(progressIndex) / rowIndexBuffer.size());
                 }
             }
 
-            Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
+            writer->Close();
         }
 
         PROFILE_TIMING_CHECKPOINT("write");

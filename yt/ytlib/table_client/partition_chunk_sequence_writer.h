@@ -24,8 +24,6 @@ public:
 
     ~TPartitionChunkSequenceWriter();
 
-    bool TryWriteRow(const TRow& row);
-
 private:
     void PrepareChunkWriter(TSession& newSession);
 

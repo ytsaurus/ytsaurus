@@ -222,7 +222,8 @@ private:
                 ~Owner->Config->CacheSequentialReader,
                 blockIndexes,
                 ~RemoteReader,
-                blocksExt);
+                blocksExt,
+                ECodecId::None);
 
             BlockIndex = 0;
             FetchNextBlock();

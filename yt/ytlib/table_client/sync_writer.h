@@ -22,7 +22,7 @@ struct ISyncWriter
      *  \param key is used only if the table is sorted, e.g. GetKeyColumns
      *  returns not null.
      */
-    virtual void WriteRow(TRow& row, const TNonOwningKey& key) = 0;
+    virtual void WriteRow(const TRow& row) = 0;
 
     //! Returns all key columns seen so far.
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
@@ -51,9 +51,23 @@ public:
     }
 
 
-    void WriteRow(TRow& row, const TNonOwningKey& key)
+    void WriteRow(const TRow& row)
     {
-        while (!Writer->TryWriteRow(row, key)) {
+        while (!Writer->TryWriteRow(row)) {
+            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
+        }
+    }
+
+    void WriteRowUnsafe(const TRow& row)
+    {
+        while (!Writer->TryWriteRowUnsafe(row)) {
+            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
+        }
+    }
+
+    void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
+    {
+        while (!Writer->TryWriteRowUnsafe(row, key)) {
             Sync(~Writer, &TAsyncWriter::GetReadyEvent);
         }
     }
@@ -85,7 +99,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////s
 
 template <class TAsyncWriter>
-ISyncWriterPtr CreateSyncWriter(TIntrusivePtr<TAsyncWriter> asyncWriter)
+TIntrusivePtr< TSyncWriterAdapter<TAsyncWriter> > CreateSyncWriter(TIntrusivePtr<TAsyncWriter> asyncWriter)
 {
     return New< TSyncWriterAdapter<TAsyncWriter> >(asyncWriter);
 }

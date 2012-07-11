@@ -38,6 +38,7 @@ public:
 
     TAsyncError GetReadyEvent();
 
+    bool TryWriteRow(const TRow& row);
     void SetProgress(double progress);
 
     /*! 
@@ -98,6 +99,8 @@ protected:
 
     TChunkSequenceWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
+
+    i64 RowCount;
 
     volatile double Progress;
 
