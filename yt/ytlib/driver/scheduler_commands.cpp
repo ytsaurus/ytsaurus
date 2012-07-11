@@ -29,15 +29,13 @@ TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
 
 void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
-    auto transaction = GetTransaction(false);
-
     TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
 
     TOperationId operationId;
     {
         auto startOpReq = proxy.StartOperation();
         startOpReq->set_type(type);
-        *startOpReq->mutable_transaction_id() = (transaction ? transaction->GetId() : NullTransactionId).ToProto();
+        *startOpReq->mutable_transaction_id() = GetTransactionId(false).ToProto();
         startOpReq->set_spec(ConvertToYsonString(Request->Spec).Data());
 
         auto startOpRsp = startOpReq->Invoke().Get();
