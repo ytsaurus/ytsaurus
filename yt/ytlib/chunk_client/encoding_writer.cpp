@@ -10,6 +10,10 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = ChunkWriterLogger;
+
+///////////////////////////////////////////////////////////////////////////////
+
 TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPtr asyncWriter)
     : Config(config)
     , AsyncWriter(asyncWriter)
@@ -77,6 +81,8 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
     UncompressedSize_ += block.Size();
     CompressedSize_ += compressedBlock.Size();
 
+    LOG_DEBUG("Compressing block.");
+
     int delta = block.Size();
     delta -= compressedBlock.Size();
 
@@ -91,6 +97,8 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
     FOREACH(const auto& part, vectorizedBlock) {
         UncompressedSize_ += part.Size();
     }
+
+    LOG_DEBUG("Compressing block.");
 
     CompressedSize_ += compressedBlock.Size();
 
@@ -111,6 +119,7 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, int delta)
     }
 
     PendingBlocks.push_back(block);
+    LOG_DEBUG("Add pending block.");
 
     if (PendingBlocks.size() == 1) {
         AsyncWriter->GetReadyEvent().Subscribe(WritePending);
@@ -125,12 +134,14 @@ void TEncodingWriter::WritePendingBlocks(TError error)
     }
 
     while (!PendingBlocks.empty()) {
+        LOG_DEBUG("Writing pending block.");
         auto& front = PendingBlocks.front();
         if (AsyncWriter->TryWriteBlock(front)) {
             Semaphore.Release(front.Size());
             PendingBlocks.pop_front();
         } else {
             AsyncWriter->GetReadyEvent().Subscribe(WritePending);
+            return;
         };
     }
 }
