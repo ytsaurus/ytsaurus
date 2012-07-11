@@ -32,23 +32,25 @@ EExitCode TOperationTracker::Run()
 {
     OperationType = GetOperationType(OperationId);
     TSchedulerServiceProxy proxy(Driver->GetSchedulerChannel());
-    while (true)  {
-        auto waitOpReq = proxy.WaitForOperation();
-        *waitOpReq->mutable_operation_id() = OperationId.ToProto();
-        waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
+    if (!OperationFinished()) {
+        while (true)  {
+            auto waitOpReq = proxy.WaitForOperation();
+            *waitOpReq->mutable_operation_id() = OperationId.ToProto();
+            waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
 
-        // Override default timeout.
-        waitOpReq->SetTimeout(Config->OperationWaitTimeout * 2);
-        auto waitOpRsp = waitOpReq->Invoke().Get();
+            // Override default timeout.
+            waitOpReq->SetTimeout(Config->OperationWaitTimeout * 2);
+            auto waitOpRsp = waitOpReq->Invoke().Get();
 
-        if (!waitOpRsp->IsOK()) {
-            ythrow yexception() << waitOpRsp->GetError().ToString();
+            if (!waitOpRsp->IsOK()) {
+                ythrow yexception() << waitOpRsp->GetError().ToString();
+            }
+
+            if (waitOpRsp->finished())
+                break;
+
+            DumpProgress();
         }
-
-        if (waitOpRsp->finished())
-            break;
-
-        DumpProgress();
     }
 
     return DumpResult();
@@ -287,6 +289,24 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
     auto rsp = proxy.Execute(req).Get();
     CheckResponse(rsp, "Error getting operation type");
     return ConvertTo<EOperationType>(TYsonString(rsp->value()));
+}
+
+bool TOperationTracker::OperationFinished()
+{
+    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    auto operationPath = GetOperationPath(OperationId);
+    auto req = TYPathProxy::Get(operationPath + "/@state");
+    auto rsp = proxy.Execute(req).Get();
+    if (rsp->IsOK()) {
+        auto state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
+        if (state == EOperationState::Completed ||
+            state == EOperationState::Aborted ||
+            state == EOperationState::Failed)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
