@@ -21,7 +21,6 @@ struct TDriverConfig
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;
     NFileClient::TFileWriterConfigPtr FileWriter;
-    NTableClient::TTableConsumerConfigPtr TableConsumer;
     NTableClient::TChunkSequenceReaderConfigPtr ChunkSequenceReader;
     NTableClient::TChunkSequenceWriterConfigPtr ChunkSequenceWriter;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
@@ -34,8 +33,6 @@ struct TDriverConfig
         Register("file_reader", FileReader)
             .DefaultNew();
         Register("file_writer", FileWriter)
-            .DefaultNew();
-        Register("table_consumer", TableConsumer)
             .DefaultNew();
         Register("chunk_sequence_reader", ChunkSequenceReader)
             .DefaultNew();

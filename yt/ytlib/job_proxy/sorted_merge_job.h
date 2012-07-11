@@ -23,7 +23,7 @@ public:
 
 private:
     NTableClient::TMergingReaderPtr Reader;
-    NTableClient::ISyncWriterPtr Writer;
+    NTableClient::TTableChunkSequenceWriterPtr Writer;
 
 };
 

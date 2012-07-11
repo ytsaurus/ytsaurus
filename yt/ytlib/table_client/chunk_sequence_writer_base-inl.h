@@ -28,6 +28,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     const NChunkServer::TChunkListId& parentChunkList)
     : Config(config)
     , MasterChannel(masterChannel)
+    , RowCount(0)
     , Progress(0)
     , CompleteChunkSize(0)
     , TransactionId(transactionId)
@@ -46,6 +47,24 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
 template <class TChunkWriter>
 TChunkSequenceWriterBase<TChunkWriter>::~TChunkSequenceWriterBase()
 { }
+
+template <class TChunkWriter>
+bool TChunkSequenceWriterBase<TChunkWriter>::TryWriteRow(const TRow& row)
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+
+    if (!CurrentSession.ChunkWriter) {
+        return false;
+    }
+
+    if (!CurrentSession.ChunkWriter->TryWriteRow(row)) {
+        return false;
+    }
+
+    OnRowWritten();
+
+    return true;
+}
 
 template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
@@ -155,6 +174,8 @@ template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    ++RowCount;
 
     if (CurrentSession.ChunkWriter->GetMetaSize() > Config->MaxMetaSize) {
         LOG_DEBUG("Switching to next chunk: too big chunk meta (TransactionId: %s, ChunkMetaSize: %" PRId64,
@@ -278,7 +299,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
 
         ToProto(inputChunk.mutable_node_addresses(), currentSession.RemoteWriter->GetNodeAddresses());
         *inputChunk.mutable_channel() = TChannel::CreateUniversal().ToProto();
-        *inputChunk.mutable_extensions() = currentSession.ChunkWriter->GetMasterMeta().extensions();
+        *inputChunk.mutable_extensions() = currentSession.ChunkWriter->GetSchedulerMeta().extensions();
 
         TGuard<TSpinLock> guard(WrittenChunksGuard);
         WrittenChunks.push_back(inputChunk);

@@ -47,11 +47,23 @@ public:
     i64 GetRowCount() const;
 
 private:
+    struct TColumnInfo
+    {
+        int KeyIndex;
+        bool InChannel;
+        i64 RowIndex;
+
+        TColumnInfo()
+            : KeyIndex(-1)
+            , InChannel(false)
+            , RowIndex(-1)
+        { }
+    };
+
     class TKeyValidator;
     template <template <typename T> class TComparator>
     struct TIndexComparator;
 
-    ICodec* Codec;
     NChunkClient::TSequentialReaderPtr SequentialReader;
     TChannel Channel;
 
@@ -64,6 +76,8 @@ private:
         TError error);
 
     void MakeCurrentRow();
+
+    TColumnInfo& GetColumnInfo(const TStringBuf& column);
 
     class IInitializer;
     TIntrusivePtr<IInitializer> Initializer;
@@ -81,21 +95,8 @@ private:
 
     NYTree::TLexer Lexer;
 
-    struct TColumnInfo
-    {
-        int KeyIndex;
-        bool InChannel;
-        bool Used;
-
-        TColumnInfo()
-            : KeyIndex(-1)
-            , InChannel(false)
-            , Used(false)
-        { }
-    };
-
-    yhash_map<TStringBuf, TColumnInfo> FixedColumns;
-    yhash_set<TStringBuf> UsedRangeColumns;
+    yhash_map<TStringBuf, TColumnInfo> ColumnsMap;
+    std::vector<Stroka> ColumnNames;
 
     i64 CurrentRowIndex;
     i64 StartRowIndex;

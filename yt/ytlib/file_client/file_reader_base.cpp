@@ -71,13 +71,10 @@ void TFileReaderBase::Open(
 
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkMeta.extensions());
     Size = miscExt.uncompressed_data_size();
-    auto codecId = ECodecId(miscExt.codec_id());
 
-    Codec = GetCodec(codecId);
     LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ", CodecId: %s)",
         BlockCount,
-        Size,
-        ~codecId.ToString());
+        Size);
 
     // Take all blocks.
     std::vector<int> blockIndexes;
@@ -90,7 +87,8 @@ void TFileReaderBase::Open(
         Config->SequentialReader,
         blockIndexes,
         remoteReader,
-        blocksExt);
+        blocksExt,
+        ECodecId(miscExt.codec_id()));
 
     LOG_INFO("File reader opened");
 
@@ -110,8 +108,7 @@ TSharedRef TFileReaderBase::Read()
 
     LOG_INFO("Reading block (BlockIndex: %d)", BlockIndex);
     Sync(~SequentialReader, &TSequentialReader::AsyncNextBlock);
-    auto compressedBlock = SequentialReader->GetBlock();
-    auto block = Codec->Decompress(compressedBlock);
+    auto block = SequentialReader->GetBlock();
     ++BlockIndex;
     LOG_INFO("Block read (BlockIndex: %d)", BlockIndex);
 

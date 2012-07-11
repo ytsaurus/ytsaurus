@@ -54,7 +54,7 @@ void TWriteCommand::DoExecute()
 
     writer->Open();
 
-    TTableConsumer consumer(Context->GetConfig()->TableConsumer, writer);
+    TTableConsumer consumer(writer);
 
     auto driverRequest = Context->GetRequest();
     auto producer = CreateProducerForFormat(

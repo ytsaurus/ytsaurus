@@ -189,7 +189,7 @@ private:
         LOG_DEBUG("Chunk meta received");
 
         FOREACH (const auto& column, Channel.GetColumns()) {
-            auto& columnInfo = chunkReader->FixedColumns[TStringBuf(column)];
+            auto& columnInfo = chunkReader->ColumnsMap[TStringBuf(column)];
             columnInfo.InChannel = true;
         }
 
@@ -222,7 +222,7 @@ private:
             for (int i = 0; i < chunkReader->KeyColumnsExt.values_size(); ++i) {
                 const auto& column = chunkReader->KeyColumnsExt.values(i);
                 Channel.AddColumn(column);
-                auto& columnInfo = chunkReader->FixedColumns[TStringBuf(column)];
+                auto& columnInfo = chunkReader->ColumnsMap[TStringBuf(column)];
                 columnInfo.KeyIndex = i;
                 if (chunkReader->Channel.Contains(column))
                     columnInfo.InChannel = true;
@@ -281,8 +281,6 @@ private:
             return;
         }
 
-        chunkReader->Codec = GetCodec(ECodecId(miscExt.codec_id()));
-
         ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
 
         SelectChannels(chunkReader);
@@ -297,7 +295,8 @@ private:
             blockIndexSequence,
             AsyncReader,
             GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(
-                result.Value().extensions()));
+                result.Value().extensions()),
+            ECodecId(miscExt.codec_id()));
 
         LOG_DEBUG("Reading blocks [%s]", ~JoinToString(blockIndexSequence));
 
@@ -459,8 +458,7 @@ private:
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(ChunkChannels[channelIdx]));
 
         auto& channelReader = chunkReader->ChannelReaders.back();
-        auto compressedBlock = chunkReader->SequentialReader->GetBlock();
-        auto decompressedBlock = chunkReader->Codec->Decompress(compressedBlock);
+        auto decompressedBlock = chunkReader->SequentialReader->GetBlock();
         if (chunkReader->Options.KeepBlocks)
             chunkReader->FetchedBlocks.push_back(decompressedBlock);
         channelReader->SetBlock(decompressedBlock);
@@ -603,7 +601,6 @@ public:
 
         YASSERT(miscExt.row_count() > 0);
 
-        chunkReader->Codec = GetCodec(ECodecId(miscExt.codec_id()));
 
         auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
 
@@ -634,7 +631,8 @@ public:
             SequentialConfig,
             blockIndexSequence,
             AsyncReader,
-            GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(result.Value().extensions()));
+            GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(result.Value().extensions()),
+            ECodecId(miscExt.codec_id()));
 
         LOG_DEBUG("Reading blocks [%s] for partition %d", 
             ~JoinToString(blockIndexSequence),
@@ -666,8 +664,7 @@ TChunkReader::TChunkReader(TSequentialReaderConfigPtr config,
     const NYTree::TYsonString& rowAttributes,
     int partitionTag,
     TReaderOptions options)
-    : Codec(NULL)
-    , SequentialReader(NULL)
+    : SequentialReader(NULL)
     , Channel(channel)
     , CurrentRowIndex(-1)
     , PartitionTag(partitionTag)
@@ -742,10 +739,6 @@ TAsyncError TChunkReader::DoNextRow()
          return SuccessResult;
     }
 
-    UsedRangeColumns.clear();
-    FOREACH (auto& it, FixedColumns) {
-        it.second.Used = false;
-    }
     CurrentRow.clear();
     CurrentKey.Clear();
 
@@ -765,7 +758,7 @@ TAsyncError TChunkReader::ContinueNextRow(
 
     if (channelIndex >= 0) {
         auto& channel = ChannelReaders[channelIndex];
-        auto decompressedBlock = Codec->Decompress(SequentialReader->GetBlock());
+        auto decompressedBlock = SequentialReader->GetBlock();
         if (Options.KeepBlocks)
             FetchedBlocks.push_back(decompressedBlock);
         channel->SetBlock(decompressedBlock);
@@ -803,31 +796,41 @@ TAsyncError TChunkReader::ContinueNextRow(
     return result;
 }
 
+auto TChunkReader::GetColumnInfo(const TStringBuf& column) -> TColumnInfo&
+{
+    auto it = ColumnsMap.find(column);
+
+    if (it == ColumnsMap.end()) {
+        ColumnNames.push_back(column.ToString());
+        auto& columnInfo = ColumnsMap[ColumnNames.back()];
+        if (Channel.ContainsInRanges(column)) {
+            columnInfo.InChannel = true;
+        }
+        return columnInfo;
+    } else
+        return it->second;
+}
+
 void TChunkReader::MakeCurrentRow()
 {
     FOREACH (const auto& reader, ChannelReaders) {
         while (reader->NextColumn()) {
             auto column = reader->GetColumn();
-            auto fixedColumnsIt = FixedColumns.find(column);
-            if (fixedColumnsIt != FixedColumns.end()) {
-                auto& columnInfo = fixedColumnsIt->second;
-                if (!columnInfo.Used) {
-                    columnInfo.Used = true;
+            auto& columnInfo = GetColumnInfo(column);
+            if (columnInfo.RowIndex < CurrentRowIndex) {
+                columnInfo.RowIndex = CurrentRowIndex;
 
-                    if (columnInfo.KeyIndex >= 0) {
-                        // Use first token to create key part.
-                        CurrentKey.SetKeyPart(
-                            columnInfo.KeyIndex,
-                            reader->GetValue(),
-                            Lexer);
-                    }
-
-                    if (columnInfo.InChannel) {
-                        CurrentRow.push_back(std::make_pair(column, reader->GetValue()));
-                    }
+                if (columnInfo.KeyIndex >= 0) {
+                    // Use first token to create key part.
+                    CurrentKey.SetKeyPart(
+                        columnInfo.KeyIndex,
+                        reader->GetValue(),
+                        Lexer);
                 }
-            } else if (UsedRangeColumns.insert(column).second && Channel.ContainsInRanges(column)) {
-                CurrentRow.push_back(std::make_pair(column, reader->GetValue()));
+
+                if (columnInfo.InChannel) {
+                    CurrentRow.push_back(std::make_pair(column, reader->GetValue()));
+                }
             }
         }
     }

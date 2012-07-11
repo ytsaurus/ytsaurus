@@ -168,13 +168,13 @@ void TTableWriter::Open()
     LOG_INFO("Table writer opened");
 }
 
-void TTableWriter::WriteRow(TRow& row, const TNonOwningKey& key)
+void TTableWriter::WriteRow(const TRow& row)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YVERIFY(IsOpen);
 
     CheckAborted();
-    while (!Writer->TryWriteRow(row, key)) {
+    while (!Writer->TryWriteRow(row)) {
         Sync(~Writer, &TTableChunkSequenceWriter::GetReadyEvent);
     }
 }

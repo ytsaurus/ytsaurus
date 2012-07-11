@@ -23,7 +23,7 @@ public:
 
 private:
     NTableClient::ISyncReaderPtr Reader;
-    NTableClient::ISyncWriterPtr Writer;
+    NTableClient::TTableChunkSequenceWriterPtr Writer;
 
     TNullable<NTableClient::TKeyColumns> KeyColumns;
 

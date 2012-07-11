@@ -64,15 +64,13 @@ TOrderedMergeJob::TOrderedMergeJob(
         }
 
         // ToDo(psushin): estimate row count for writer.
-        auto asyncWriter = New<TTableChunkSequenceWriter>(
+        Writer = New<TTableChunkSequenceWriter>(
             proxyConfig->JobIO->ChunkSequenceWriter,
             masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
             ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
             KeyColumns);
-
-        Writer = CreateSyncWriter(asyncWriter);
     }
 }
 
@@ -83,6 +81,7 @@ TJobResult TOrderedMergeJob::Run()
 
         yhash_map<TStringBuf, int> keyColumnToIndex;
 
+        auto writer = CreateSyncWriter(Writer);
         {
             if (KeyColumns) {
                 // ToDo(psushin): remove this after rewriting chunk_writer.
@@ -93,7 +92,7 @@ TJobResult TOrderedMergeJob::Run()
             }
 
             Reader->Open();
-            Writer->Open();
+            writer->Open();
         }
         PROFILE_TIMING_CHECKPOINT("init");
 
@@ -117,9 +116,11 @@ TJobResult TOrderedMergeJob::Run()
                             key.SetKeyPart(it->second, pair.second, lexer);
                         }
                     }
+                    writer->WriteRowUnsafe(row, key);
+                } else {
+                    writer->WriteRowUnsafe(row);
                 }
 
-                Writer->WriteRow(row, key);
                 Reader->NextRow();
             }
         }
@@ -127,7 +128,7 @@ TJobResult TOrderedMergeJob::Run()
 
         LOG_INFO("Finalizing");
         {
-            Writer->Close();
+            writer->Close();
 
             TJobResult result;
             *result.mutable_error() = TError().ToProto();

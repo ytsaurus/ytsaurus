@@ -23,7 +23,9 @@ public:
 
     ~TTableChunkSequenceWriter();
 
-    bool TryWriteRow(TRow& row, const TNonOwningKey& key);
+    // Used internally by jobs that generate sorted output.
+    bool TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
+    bool TryWriteRowUnsafe(const TRow& row);
 
     const TOwningKey& GetLastKey() const;
     const TNullable<TKeyColumns>& GetKeyColumns() const;

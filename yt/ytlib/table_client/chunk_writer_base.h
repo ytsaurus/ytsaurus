@@ -20,7 +20,9 @@ namespace NTableClient {
 class TChunkWriterBase
     : public virtual TRefCounted
 {
+public:
     TAsyncError GetReadyEvent();
+
 protected:
     TChunkWriterBase(
         NChunkClient::IAsyncWriterPtr chunkWriter,

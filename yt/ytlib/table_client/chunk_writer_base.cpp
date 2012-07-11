@@ -61,7 +61,7 @@ TAsyncError TChunkWriterBase::GetReadyEvent()
 {
     State.StartOperation();
 
-    auto this_ = MakeStrong(this_);
+    auto this_ = MakeStrong(this);
     EncodingWriter->GetReadyEvent().Subscribe(BIND([=](TError error){
         this_->State.FinishOperation(error);
     }));
