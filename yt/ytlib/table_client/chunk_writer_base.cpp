@@ -6,6 +6,7 @@
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
@@ -22,82 +23,14 @@ TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config)
     : Config(config)
     , ChunkWriter(chunkWriter)
+    , EncodingWriter(New<TEncodingWriter>(Config->EncodingWriter, chunkWriter))
     , CurrentBlockIndex(0)
-    , UncompressedSize(0)
-    , SentSize(0)
-    , CompressionRatio(0)
     , DataWeight(0)
     , RowCount(0)
     , ValueCount(0)
-    , PendingSemaphore(2)
+    , CurrentSize(0)
 {
     VERIFY_INVOKER_AFFINITY(WriterThread->GetInvoker(), WriterThread);
-    CompressionRatio = config->EstimatedCompressionRatio;
-    Codec = GetCodec(Config->CodecId);
-}
-
-void TChunkWriterBase::CompressAndWriteBlock(const TSharedRef& block, NTableClient::NProto::TBlockInfo* blockInfo)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
-    blockInfo->set_block_index(CurrentBlockIndex);
-    UncompressedSize += block.Size();
-
-    auto data = Codec->Compress(block);
-
-    SentSize += data.Size();
-
-    CompressionRatio = SentSize / double(DataWeight + 1);
-
-    ++CurrentBlockIndex;
-
-    if (PendingBlocks.empty()) {
-        if (ChunkWriter->TryWriteBlock(data)) {
-            PendingSemaphore.Release();
-            return;
-        }
-
-        ChunkWriter->GetReadyEvent().Subscribe(BIND(
-            &TChunkWriterBase::WritePendingBlock,
-            MakeWeak(this)));
-    }
-
-    PendingBlocks.push_back(data);
-}
-
-void TChunkWriterBase::WritePendingBlock(TError error)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-    YCHECK(!PendingBlocks.empty());
-
-    if (!error.IsOK()) {
-        // ToDo(psushin): add additional diagnostic message.
-        State.Fail(error);
-    }
-
-    if (ChunkWriter->TryWriteBlock(PendingBlocks.front())) {
-        PendingBlocks.pop_front();
-        PendingSemaphore.Release();
-    }
-
-    if (!PendingBlocks.empty()) {
-        ChunkWriter->GetReadyEvent().Subscribe(BIND(
-            &TChunkWriterBase::WritePendingBlock,
-            MakeWeak(this)));
-    }
-}
-
-TAsyncError TChunkWriterBase::GetReadyEvent()
-{
-    if (!PendingSemaphore.IsReady()) {
-        State.StartOperation();
-        auto this_ = MakeStrong(this);
-        PendingSemaphore.GetReadyEvent().Subscribe(BIND([=] () {
-            this->State.FinishOperation();
-        }));
-    }
-
-    return State.GetOperationError();
 }
 
 void TChunkWriterBase::FinalizeWriter()
@@ -107,10 +40,10 @@ void TChunkWriterBase::FinalizeWriter()
     SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
 
     {
-        MiscExt.set_uncompressed_data_size(UncompressedSize);
-        MiscExt.set_compressed_data_size(SentSize);
+        MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
+        MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
         MiscExt.set_meta_size(Meta.ByteSize());
-        MiscExt.set_codec_id(Config->CodecId);
+        MiscExt.set_codec_id(Config->EncodingWriter->CodecId);
         MiscExt.set_data_weight(DataWeight);
         MiscExt.set_row_count(RowCount);
         MiscExt.set_value_count(ValueCount);
@@ -122,6 +55,18 @@ void TChunkWriterBase::FinalizeWriter()
         // ToDo(psushin): more verbose diagnostic.
         this_->State.Finish(error);
     }));
+}
+
+TAsyncError TChunkWriterBase::GetReadyEvent()
+{
+    State.StartOperation();
+
+    auto this_ = MakeStrong(this_);
+    EncodingWriter->GetReadyEvent().Subscribe(BIND([=](TError error){
+        this_->State.FinishOperation(error);
+    }));
+
+    return State.GetOperationError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
