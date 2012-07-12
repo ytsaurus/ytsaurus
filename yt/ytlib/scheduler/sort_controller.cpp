@@ -864,21 +864,19 @@ private:
         auto partition = Partitions[0] = New<TPartition>(this, 0);
 
         // Put all input chunks into this unique partition.
-        int chunkCount = 0;
-        FOREACH (const auto& table, InputTables) {
-            FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
-                auto stripe = New<TChunkStripe>(chunk);
-                partition->SortTask->AddStripe(stripe);
-                ++chunkCount;
-            }
-        }
+        auto inputChunks = CollectInputTablesChunks();
+        auto stripes = PrepareChunkStripes(
+            inputChunks,
+            Spec->SortJobCount,
+            Spec->MaxWeightPerSortJob);
+        partition->SortTask->AddStripes(stripes);
 
         // A pretty accurate estimate.
         MaxSortJobCount = GetJobCount(
             SortWeightCounter.GetTotal(),
             Spec->MaxWeightPerSortJob,
             Spec->SortJobCount,
-            chunkCount);
+            partition->SortTask->ChunkCounter().GetTotal());
 
         // Can be zero but better be pessimists.
         TotalSortedMergeJobCount = 1;
@@ -952,12 +950,12 @@ private:
         }
 
         // Populate the partition pool.
-        FOREACH (const auto& table, InputTables) {
-            FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
-                auto stripe = New<TChunkStripe>(chunk);
-                PartitionTask->AddStripe(stripe);
-            }
-        }
+        auto inputChunks = CollectInputTablesChunks();
+        auto stripes = PrepareChunkStripes(
+            inputChunks,
+            Spec->SortJobCount,
+            Spec->MaxWeightPerPartitionJob);
+        PartitionTask->AddStripes(stripes);
 
         // Init counters.
         PartitionJobCounter.Set(GetJobCount(

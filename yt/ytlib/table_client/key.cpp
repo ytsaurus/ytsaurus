@@ -2,6 +2,7 @@
 #include "key.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -107,6 +108,44 @@ NProto::TInputChunk SliceChunk(
         *result.mutable_slice()->mutable_end_limit()->mutable_key() = endKey.Get();
     }
 
+    return result;
+}
+
+std::vector<NProto::TInputChunk> SliceChunkEvenly(const NProto::TInputChunk& inputChunk, int count)
+{
+    YASSERT(count > 0);
+
+    std::vector<NProto::TInputChunk> result;
+
+    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
+
+    const auto& startLimit = inputChunk.slice().start_limit();
+    // Inclusive.
+    i64 startRowIndex = startLimit.has_row_index() ? startLimit.row_index() : 0;
+
+    const auto& endLimit = inputChunk.slice().end_limit();
+    // Not inclusive.
+    i64 endRowIndex = endLimit.has_row_index() ? endLimit.row_index() : miscExt.row_count();
+
+    i64 rowCount = endRowIndex - startRowIndex;
+
+    for (int i = 0; i < count; ++i) {
+        i64 sliceStartRowIndex = startRowIndex + rowCount * i / count;
+        i64 sliceEndRowIndex = startRowIndex + rowCount * (i + 1) / count;
+        if (sliceStartRowIndex < sliceEndRowIndex) {
+            NProto::TInputChunk slicedChunk(inputChunk);
+            slicedChunk.mutable_slice()->mutable_start_limit()->set_row_index(sliceStartRowIndex);
+            slicedChunk.mutable_slice()->mutable_end_limit()->set_row_index(sliceEndRowIndex);
+            
+            // This is merely an approximation.
+            slicedChunk.set_data_weight(inputChunk.data_weight() / count + 1);
+            slicedChunk.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
+         
+            result.push_back(slicedChunk);
+        }
+    }
+
+    
     return result;
 }
 

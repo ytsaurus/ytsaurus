@@ -516,6 +516,15 @@ NProto::TInputChunk SliceChunk(
     const TNullable<NProto::TKey>& startKey = Null,
     const TNullable<NProto::TKey>& endKey = Null);
 
+//! Tries to split the given chunk into #count
+//! parts of almost equal size.
+/*!
+ *  May return less parts than requested.
+ */
+std::vector<NProto::TInputChunk> SliceChunkEvenly(
+    const NProto::TInputChunk& chunk,
+    int count);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

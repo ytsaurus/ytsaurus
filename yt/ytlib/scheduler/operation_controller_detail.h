@@ -186,6 +186,7 @@ protected:
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
 
         void AddStripe(TChunkStripePtr stripe);
+        void AddStripes(const std::vector<TChunkStripePtr>& stripes);
 
         TJobPtr ScheduleJob(TExecNodePtr node);
 
@@ -368,7 +369,8 @@ protected:
 
     // Unsorted helpers.
 
-    std::vector<Stroka> CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns);
+    std::vector<Stroka> CheckInputTablesSorted(
+        const TNullable< std::vector<Stroka> >& keyColumns);
     void CheckOutputTablesEmpty();
     void ScheduleClearOutputTables();
     void ScheduleSetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
@@ -381,6 +383,18 @@ protected:
 
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
+
+    //! Returns the list of all input chunks collected from all input tables.
+    std::vector<NTableClient::NProto::TInputChunk> CollectInputTablesChunks();
+
+    //! Converts a list of input chunks into a list of chunk stripes for further
+    //! processing. Each stripe receives exactly one chunk (as suitable for most
+    //! jobs except merge). Tries to slice chunks into smaller parts if
+    //! sees necessary based on #desiredJobCount and #maxWeightPerJob.
+    std::vector<TChunkStripePtr> PrepareChunkStripes(
+        const std::vector<NTableClient::NProto::TInputChunk>& inputChunks,
+        TNullable<int> jobCount,
+        i64 maxWeightPerJob);
 
     static int GetJobCount(
         i64 totalWeight,

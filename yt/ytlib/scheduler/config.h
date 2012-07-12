@@ -84,14 +84,9 @@ struct TSchedulerConfig
 struct TOperationSpecBase
     : public TYsonSerializable
 {
-    TNullable<int> JobCount;
-
     TOperationSpecBase()
     {
         SetKeepOptions(true);
-        Register("job_count", JobCount)
-            .Default()
-            .GreaterThan(0);
     }
 };
 
@@ -128,6 +123,7 @@ struct TMapOperationSpec
     TUserJobSpecPtr Mapper;   
     std::vector<NYTree::TYPath> InputTablePaths;
     std::vector<NYTree::TYPath> OutputTablePaths;
+    TNullable<int> JobCount;
     i64 MaxWeightPerJob;
 
     TMapOperationSpec()
@@ -135,6 +131,9 @@ struct TMapOperationSpec
         Register("mapper", Mapper);
         Register("input_table_paths", InputTablePaths);
         Register("output_table_paths", OutputTablePaths);
+        Register("job_count", JobCount)
+            .Default()
+            .GreaterThan(0);
         Register("max_weight_per_job", MaxWeightPerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
@@ -218,6 +217,9 @@ struct TSortOperationSpec
     //! Only used if no partitioning is done.
     TNullable<int> SortJobCount;
 
+    //! Maximum amount of (uncompressed) data to be given to a single partition job.
+    i64 MaxWeightPerPartitionJob;
+
     //! Maximum amount of (uncompressed) data to be given to a single sort job.
     //! By default, the number of partitions is computed as follows:
     //! \code
@@ -250,7 +252,9 @@ struct TSortOperationSpec
         Register("sort_job_count", SortJobCount)
             .Default()
             .GreaterThan(0);
-        // TODO(babenko): update when sort job gets optimized
+        Register("max_weight_per_partition_job", MaxWeightPerPartitionJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);        // TODO(babenko): update when sort job gets optimized
         Register("max_weight_per_sort_job", MaxWeightPerSortJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);

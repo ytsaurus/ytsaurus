@@ -149,42 +149,24 @@ private:
         return pipeline->Add(BIND(&TMapController::ProcessInputs, MakeStrong(this)));
     }
 
-    void ProcessInputs()
+    TFuture<void> ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
             
             // Compute statistics and populate the pool.
-            for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
-                const auto& table = InputTables[tableIndex];
-
-                TNullable<TYsonString> rowAttributes;
-                if (InputTables.size() > 1) {
-                    rowAttributes = BuildYsonFluently()
-                        .BeginMap()
-                            .Item("table_index").Scalar(tableIndex)
-                        .EndMap().GetYsonString();
-                }
-
-                FOREACH (auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
-                    // Currently fetch never returns row attributes.
-                    YCHECK(!inputChunk.has_row_attributes());
-
-                    if (rowAttributes) {
-                        inputChunk.set_row_attributes(rowAttributes->Data());
-                    }
-
-                    // TODO(babenko): make customizable: choose either data_weight or row_count as weight
-                    auto stripe = New<TChunkStripe>(inputChunk);
-                    MapTask->AddStripe(stripe);
-                }
-            }
+            auto inputChunks = CollectInputTablesChunks();
+            auto stripes = PrepareChunkStripes(
+                inputChunks,
+                Spec->JobCount,
+                Spec->MaxWeightPerJob);
+            MapTask->AddStripes(stripes);
 
             // Check for empty inputs.
             if (MapTask->IsCompleted()) {
                 LOG_INFO("Empty input");
                 OnOperationCompleted();
-                return;
+                return NewPromise<void>();
             }
 
             TotalJobCount = GetJobCount(
@@ -206,6 +188,8 @@ private:
             // Kick-start the map task.
             AddTaskPendingHint(MapTask);
         }
+
+        return MakeFuture();
     }
 
 
