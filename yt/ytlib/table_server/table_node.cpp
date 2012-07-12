@@ -31,12 +31,6 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     , UpdateMode_(ETableUpdateMode::None)
 { }
 
-TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
-    : TCypressNodeBase(id, other)
-    , ChunkList_(other.ChunkList_)
-    , UpdateMode_(other.UpdateMode_)
-{ }
-
 EObjectType TTableNode::GetObjectType() const
 {
     return EObjectType::Table;
@@ -137,15 +131,13 @@ protected:
 
     virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode) OVERRIDE
     {
-        // branchedNode is a copy of originatingNode.
-
         auto objectManager = Bootstrap->GetObjectManager();
 
+        auto* chunkList = originatingNode->GetChunkList();
+
+        branchedNode->SetChunkList(chunkList);
         objectManager->RefObject(branchedNode->GetChunkList());
-
         YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
-
-        branchedNode->SetUpdateMode(ETableUpdateMode::None);
         
         LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, ChunkListId: %s)",
             ~branchedNode->GetId().ToString(),

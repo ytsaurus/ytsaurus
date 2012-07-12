@@ -22,15 +22,6 @@ public:
     explicit TVirtualNode(const TVersionedNodeId& id)
         : TCypressNodeBase(id)
     { }
-
-    TVirtualNode(const TVersionedNodeId& id, const TVirtualNode& other)
-        : TCypressNodeBase(id, other)
-    { }
-
-    virtual TAutoPtr<ICypressNode> Clone() const
-    {
-        return new TVirtualNode(Id, *this);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,6 @@ class TTableNode
 
 public:
     explicit TTableNode(const NCypress::TVersionedNodeId& id);
-    TTableNode(const NCypress::TVersionedNodeId& id, const TTableNode& other);
 
     virtual NCypress::EObjectType GetObjectType() const;
 

@@ -16,7 +16,6 @@ class TFileNode
 
 public:
     explicit TFileNode(const NCypress::TVersionedNodeId& id);
-    TFileNode(const NCypress::TVersionedNodeId& id, const TFileNode& other);
 
     virtual NCypress::EObjectType GetObjectType() const;
 

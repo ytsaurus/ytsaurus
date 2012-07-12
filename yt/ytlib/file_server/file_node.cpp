@@ -29,11 +29,6 @@ TFileNode::TFileNode(const TVersionedNodeId& id)
     , ChunkList_(NULL)
 { }
 
-TFileNode::TFileNode(const TVersionedNodeId& id, const TFileNode& other)
-    : TCypressNodeBase(id, other)
-    , ChunkList_(other.ChunkList_)
-{ }
-
 EObjectType TFileNode::GetObjectType() const
 {
     return EObjectType::File;
@@ -135,11 +130,8 @@ protected:
 
     virtual void DoBranch(const TFileNode* originatingNode, TFileNode* branchedNode)
     {
-        UNUSED(originatingNode);
-
-        // branchedNode is a copy of originatingNode.
-        // Reference the list chunk from branchedNode.
-        auto* chunkList = branchedNode->GetChunkList();
+        auto* chunkList = originatingNode->GetChunkList();
+        branchedNode->SetChunkList(chunkList);
         Bootstrap->GetObjectManager()->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
     }
@@ -148,7 +140,6 @@ protected:
     {
         UNUSED(originatingNode);
 
-        // Drop the reference from branchedNode.
         auto* chunkList = branchedNode->GetChunkList();
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
         YVERIFY(chunkList->OwningNodes().erase(branchedNode) == 1);

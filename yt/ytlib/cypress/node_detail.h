@@ -109,20 +109,20 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode mode)
     {
-        const auto* typedOriginatingNode = dynamic_cast<const TImpl*>(originatingNode);
-
         auto originatingId = originatingNode->GetId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
 
         // Create a branched copy.
-        TAutoPtr<TImpl> branchedNode(new TImpl(branchedId, *typedOriginatingNode));
+        TAutoPtr<TImpl> branchedNode(new TImpl(branchedId));
+        branchedNode->SetParentId(originatingNode->GetParentId());
+        branchedNode->SetCreationTime(originatingNode->GetCreationTime());
         branchedNode->SetLockMode(mode);
 
         // Branch user attributes.
         Bootstrap->GetObjectManager()->BranchAttributes(originatingId, branchedId);
         
         // Run custom branching.
-        DoBranch(typedOriginatingNode, ~branchedNode);
+        DoBranch(dynamic_cast<const TImpl*>(originatingNode), ~branchedNode);
 
         return branchedNode.Release();
     }
@@ -201,7 +201,6 @@ class TCypressNodeBase
 
 public:
     explicit TCypressNodeBase(const TVersionedNodeId& id);
-    TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other);
 
     virtual EObjectType GetObjectType() const;
     virtual TVersionedNodeId GetId() const;
@@ -266,11 +265,6 @@ public:
         , Value_()
     { }
 
-    TScalarNode(const TVersionedNodeId& id, const TThis& other)
-        : TCypressNodeBase(id, other)
-        , Value_(other.Value_)
-    { }
-
     virtual void Save(TOutputStream* output) const
     {
         TCypressNodeBase::Save(output);
@@ -314,6 +308,13 @@ public:
         NTransactionServer::TTransaction* transaction);
 
 protected:
+    virtual void DoBranch(
+        const TScalarNode<TValue>* originatingNode,
+        TScalarNode<TValue>* branchedNode)
+    {
+        branchedNode->Value() = originatingNode->Value();
+    }
+
     virtual void DoMerge(
         TScalarNode<TValue>* originatingNode,
         TScalarNode<TValue>* branchedNode)
@@ -341,7 +342,6 @@ class TMapNode
 
 public:
     explicit TMapNode(const TVersionedNodeId& id);
-    TMapNode(const TVersionedNodeId& id, const TMapNode& other);
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
@@ -389,7 +389,6 @@ class TListNode
 
 public:
     explicit TListNode(const TVersionedNodeId& id);
-    TListNode(const TVersionedNodeId& id, const TListNode& other);
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

@@ -37,14 +37,7 @@ namespace NCypress {
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : ParentId_(NullObjectId)
     , LockMode_(ELockMode::None)
-    , Id(id)
-{ }
-
-TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
-    : TObjectBase(other)
-    , ParentId_(other.ParentId_)
-    , LockMode_(other.LockMode_)
-    , CreationTime_(other.CreationTime_)
+    , CreationTime_(0)
     , Id(id)
 { }
 
@@ -107,11 +100,6 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
 TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChildCountDelta_(0)
-{ }
-
-TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
-    : TCypressNodeBase(id, other)
-    , ChildCountDelta_(0) // Branched node has 0 delta
 { }
 
 void TMapNode::Save(TOutputStream* output) const
@@ -238,13 +226,6 @@ TListNode::TListNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 { }
 
-TListNode::TListNode(const TVersionedNodeId& id, const TListNode& other)
-    : TCypressNodeBase(id, other)
-{
-    IndexToChild_ = other.IndexToChild_;
-    ChildToIndex_ = other.ChildToIndex_;
-}
-
 void TListNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
@@ -300,7 +281,8 @@ void TListNodeTypeHandler::DoBranch(
     const TListNode* originatingNode,
     TListNode* branchedNode)
 {
-    UNUSED(branchedNode);
+    branchedNode->IndexToChild() = originatingNode->IndexToChild();
+    branchedNode->ChildToIndex() = originatingNode->ChildToIndex();
 
     // Reference all children.
     auto objectManager = Bootstrap->GetObjectManager();
