@@ -101,7 +101,7 @@ TChunkPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
     return chunk;
 }
 
-void TChunkHolderService::OnGetMeta(TCtxGetChunkMetaPtr context, TNullable<int> partitionTag, TChunk::TGetMetaResult result)
+void TChunkHolderService::OnGotMeta(TCtxGetChunkMetaPtr context, TNullable<int> partitionTag, TChunk::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         context->Reply(result);
@@ -408,7 +408,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         ? NULL
         : &extensionTags);
 
-    asyncChunkMeta.Subscribe(BIND(&TChunkHolderService::OnGetMeta,
+    asyncChunkMeta.Subscribe(BIND(&TChunkHolderService::OnGotMeta,
         Unretained(this),
         context,
         partitionTag));

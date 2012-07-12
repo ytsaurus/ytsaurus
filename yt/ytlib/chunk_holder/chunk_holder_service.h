@@ -44,7 +44,7 @@ private:
     TIntrusivePtr<TSession> GetSession(const TChunkId& chunkId);
     TIntrusivePtr<TChunk> GetChunk(const TChunkId& chunkId);
 
-    void OnGetMeta(TCtxGetChunkMetaPtr context, TNullable<int> artitionTag, TChunk::TGetMetaResult result);
+    void OnGotMeta(TCtxGetChunkMetaPtr context, TNullable<int> artitionTag, TChunk::TGetMetaResult result);
 
     bool CheckThrottling() const;
 };
