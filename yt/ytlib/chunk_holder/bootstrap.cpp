@@ -103,7 +103,7 @@ void TBootstrap::Init()
         CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("node"));
 
-    SyncYPathSet(orchidRoot, "/@build_version", ConvertToYsonString(YT_VERSION));
+    SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
     SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
     SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
     SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
