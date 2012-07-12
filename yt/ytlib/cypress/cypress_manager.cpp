@@ -651,13 +651,6 @@ void TCypressManager::RegisterNode(
     auto node_ = node.Get();
     NodeMap.Insert(nodeId, node.Release());
 
-    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
-        ~node_->GetId().ToString(),
-        ~TypeFromId(nodeId).ToString());
-
-    // Make an additional fake reference.
-    RefNode(nodeId);
-
     // TODO(babenko): setting attributes here, in RegisterNode
     // is somewhat weird. Moving this logic to some other place, however,
     // complicates the code since we need to worry about possible
@@ -667,9 +660,8 @@ void TCypressManager::RegisterNode(
         try {
             proxy->Attributes().MergeFrom(*attributes);
         } catch (...) {
-            // This will invoke all relevant destruction logic.
-            YCHECK(GetNodeRefCounter(nodeId) == 1);
-            UnrefNode(nodeId);
+            GetHandler(node_)->Destroy(node_);
+            NodeMap.Remove(nodeId);
             throw;
         }
     }
@@ -679,12 +671,13 @@ void TCypressManager::RegisterNode(
         Bootstrap->GetObjectManager()->RefObject(nodeId);
     }
 
+    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
+        ~node_->GetId().ToString(),
+        ~TypeFromId(nodeId).ToString());
+
     if (IsLeader()) {
         CreateNodeBehavior(nodeId);
     }
-
-    // Drop the fake reference.
-    UnrefNode(nodeId);
 }
 
 ICypressNode* TCypressManager::BranchNode(
