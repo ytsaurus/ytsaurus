@@ -398,6 +398,7 @@ IBus::TSendResult TTcpConnection::Send(IMessagePtr message)
     {
         TGuard<TSpinLock> guard(SpinLock);
         switch (State) {
+            case EState::Resolving:
             case EState::Opening:
                 break;
 
