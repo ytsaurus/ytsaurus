@@ -326,7 +326,7 @@ ICypressNode* TCypressManager::FindVersionedNode(
             return NULL;
         }
 
-        // Move to the parent transaction->
+        // Move to the parent transaction.
         currentTransaction = currentTransaction->GetParent();
     }
 }
@@ -660,7 +660,7 @@ void TCypressManager::RegisterNode(
 
     // TODO(babenko): setting attributes here, in RegisterNode
     // is somewhat weird. Moving this logic to some other place, however,
-    // complicates the code since we needs to worry about possible
+    // complicates the code since we need to worry about possible
     // exceptions thrown from custom attribute validators.
     if (attributes) {
         auto proxy = GetVersionedNodeProxy(nodeId, transaction);
