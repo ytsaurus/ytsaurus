@@ -66,8 +66,9 @@ void TTableConsumer::OnBeginList()
 void TTableConsumer::OnBeginAttributes()
 {
     if (Depth == 0) {
-        ythrow yexception() <<
-            Sprintf("Invalid row format, attributes are not supported (RowIndex: %"PRId64")", Writer->GetRowCount());
+        ythrow yexception() << Sprintf(
+            "Invalid row format, attributes are not supported (RowIndex: %" PRId64 ")",
+            Writer->GetRowCount());
     } else {
         ++Depth;
         ValueWriter.OnBeginAttributes();

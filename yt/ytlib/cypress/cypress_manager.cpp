@@ -435,8 +435,8 @@ void TCypressManager::ValidateLock(
         auto it = trunkNode->Locks().find(transaction);
         if (it != trunkNode->Locks().end()) {
             const auto& existingLock = it->second;
-            if (existingLock.Mode == requestedMode ||
-                existingLock.Mode > requestedMode && requestedMode != ELockMode::Snapshot)
+            if ((existingLock.Mode == requestedMode) ||
+                (existingLock.Mode > requestedMode && requestedMode != ELockMode::Snapshot))
             {
                 *isMandatory = false;
                 return;
