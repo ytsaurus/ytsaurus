@@ -174,7 +174,7 @@ bool TTableChunkWriter::TryWriteRow(const TRow& row)
 
         if (columnInfo.LastRow == RowCount) {
             if (Config->Strict) {
-                State.Fail(TError(Sprintf("Duplicate column name \"%s\"", pair.first)));
+                State.Fail(TError(Sprintf("Duplicate column name \"%s\"", ~pair.first)));
                 return false;
             } else {
                 // Ignore second and subsequent values with the same column name.
