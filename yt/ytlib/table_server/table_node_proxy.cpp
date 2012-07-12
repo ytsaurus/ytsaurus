@@ -609,6 +609,7 @@ TChunkList* TTableNodeProxy::EnsureNodeMutable(TTableNode* node)
             YCHECK(newChunkList->OwningNodes().insert(node).second);
             newChunkList->SetRigid(true);
 
+            YCHECK(snapshotChunkList->OwningNodes().erase(node) == 1);
             node->SetChunkList(newChunkList);
             objectManager->RefObject(newChunkList);
 
