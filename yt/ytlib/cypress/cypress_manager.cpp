@@ -544,7 +544,8 @@ void TCypressManager::AcquireLock(
             }
         }
     } else {
-        branchedNode->SetLockMode(lock->Mode);
+        YASSERT(branchedNode->GetLockMode() < mode);
+        branchedNode->SetLockMode(mode);
     }
 }
 
@@ -570,11 +571,13 @@ TLock* TCypressManager::DoAcquireLock(
         return &lock;
     } else {
         auto& lock = it->second;
-        lock.Mode = mode;
+        if (lock.Mode < mode) {
+            lock.Mode = mode;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
-            ~versionedId.ToString(),
-            ~mode.ToString());
+            LOG_INFO_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
+                ~versionedId.ToString(),
+                ~mode.ToString());
+        }
 
         return &lock;
     }
