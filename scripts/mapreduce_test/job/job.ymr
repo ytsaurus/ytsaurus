@@ -6,5 +6,5 @@ time $MR -map ./map.pl -src access-log/2012-07-04 -dst usr/proskurnev/tmp/st1 -f
 time $MR -reduce ./reduce.pl -src usr/proskurnev/tmp/st1 -dst usr/proskurnev/tmp/st2 -file reduce.pl
 time $MR -reduce ./finalize.pl -src usr/proskurnev/tmp/st2 -dst usr/proskurnev/result -file finalize.pl
 time $MR -sort -src usr/proskurnev/result -dst usr/proskurnev/result
-time $MR read -table usr/proskurnev/result > result
+time $MR -read usr/proskurnev/result > result
 

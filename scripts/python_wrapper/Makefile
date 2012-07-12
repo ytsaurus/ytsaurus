@@ -1,6 +1,8 @@
 all:
-	g++ -O2 -static-libgcc -L. -o test/cpp_bin test/bin.cpp
+	g++ -O2 -static-libgcc -L. -o tests/cpp_bin tests/bin.cpp
 
 clean:
-	rm -f *.pyc test/*.pyc test/cpp_bin
+	rm -f *.pyc tests/*.pyc tests/cpp_bin
 
+test: all
+	PYTHONPATH=. python tests/test.py

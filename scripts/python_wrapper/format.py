@@ -14,6 +14,18 @@ class DsvFormat(Format):
     def to_json(self):
         return "dsv"
 
+class YsonFormat(Format):
+    def __init__(self):
+        pass
+
+    def to_mime_type(self):
+        return "application/x-yt-yson-text"
+
+    def to_json(self):
+        return {"$value": "yson",
+                "$attributes":
+                    {"format": "text" }}
+
 class YamrFormat(Format):
     def __init__(self, has_subkey, lenval):
         self.has_subkey = has_subkey
@@ -24,6 +36,7 @@ class YamrFormat(Format):
             ("-subkey" if self.has_subkey else "",
              "lenval" if self.lenval else "delimited")
 
+    # TODO(ignat): rename this method for more appropriate
     def to_json(self):
         return {"$value": "yamr",
                 "$attributes":

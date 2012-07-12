@@ -1,3 +1,4 @@
+import copy
 import types
 
 
@@ -25,6 +26,11 @@ def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
         return res
     else:
         return [obj]
+
+def union(dictA, dictB):
+    result = copy.deepcopy(dictA)
+    result.update(dictB)
+    return result
 
 def require(condition, exception):
     if not condition: raise exception

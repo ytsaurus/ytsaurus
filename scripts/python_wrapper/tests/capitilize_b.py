@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from yt import line_to_record, record_to_line, DsvFormat
+from record import line_to_record, record_to_line
+from format import DsvFormat
 from common import partial
 
 import sys

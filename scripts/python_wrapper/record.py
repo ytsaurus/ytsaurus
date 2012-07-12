@@ -1,4 +1,9 @@
-""" Old style mapreduce records """
+import config
+from common import require, YtError
+from format import DsvFormat, YamrFormat
+
+""" Old style mapreduce records.
+    Copy-pasted from mapreducelib.py with some additions"""
 class SimpleRecord:
     def __init__(self, key, value, tableIndex=0):
         self.key = key
@@ -41,3 +46,25 @@ def Record(*args, **kws):
         return SimpleRecord(*args, **kws)
     return SubkeyedRecord(*args[:3], **kws)
 
+""" Methods for records convertion """
+def record_to_line(rec, eoln=True, format=None):
+    if format is None: format = config.DEFAULT_FORMAT
+    
+    if isinstance(format, YamrFormat):
+        require(not format.lenval, YtError("Lenval convertion is not supported now."))
+        if format.has_subkey:
+            fields = [rec.key, rec.subkey, rec.value]
+        else:
+            fields = [rec.key, rec.value]
+        body = "\t".join(fields)
+    else:
+        body = "\t".join("=".join(map(str, item)) for item in rec.iteritems())
+    return "%s%s" % (body, "\n" if eoln else "")
+
+def line_to_record(line, format=None):
+    if format is None: format = config.DEFAULT_FORMAT
+    
+    if isinstance(format, YamrFormat):
+        return Record(*line.strip("\n").split("\t", 1 + (1 if format.has_subkey else 0)))
+    else:
+        return dict(field.split("=") for field in line.strip("\n").split("\t"))

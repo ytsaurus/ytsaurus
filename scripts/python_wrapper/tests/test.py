@@ -1,7 +1,8 @@
 #!/usr/bin/python
 
 import yt
-from yt import Record, YtError, record_to_line, line_to_record
+import config
+from yt import Record, YtError, record_to_line, line_to_record, Table
 
 from common import flatten
 
@@ -9,33 +10,57 @@ import os
 import random
 import string
 from itertools import imap, izip, starmap
+from functools import partial
 
 import unittest
     
 TEST_DIR = "//home/tests"
 
 class YtTest(unittest.TestCase):
+    # TODO(ignat): test with local host instead of testing claster
     def setUp(self):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
         if not yt.exists(TEST_DIR):
             yt.set(TEST_DIR, "{}")
 
-        self.old_timeout = yt.WAIT_TIMEOUT
-        yt.WAIT_TIMEOUT = 0.2
+        config.WAIT_TIMEOUT = 0.2
+        config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
 
     def tearDown(self):
         yt.remove(TEST_DIR)
-        yt.WAIT_ITMEOUT = self.old_timeout
 
+    def read_records(self, table, format=None):
+        return map(
+            partial(line_to_record, format=format),
+            yt.read_table(table, format))
 
     def temp_records(self):
         columns = [string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase[:10]]
         return map(record_to_line, starmap(Record, imap(flatten, reduce(izip, columns))))
 
+
     def create_temp_table(self):
-        return yt.write_table(
-            TEST_DIR + "/temp",
-            self.temp_records())
+        table = TEST_DIR + "/temp"
+        yt.write_table(table, self.temp_records())
+        return table
+
+    def dsv_records(self):
+        return map(
+            partial(record_to_line, format=yt.DsvFormat()), 
+                [{"a": 12,  "b": "ignat"},
+                           {"b": "max",  "c": 17.5},
+                 {"a": "x", "b": "name", "c": 0.5}])
+
+    def create_dsv_table(self):
+        table = TEST_DIR + "/dsv"
+        yt.write_table(table, self.dsv_records(), format=yt.DsvFormat())
+        return table
+
+    def run_capitilize_b(self, src, dst):
+        yt.run_map("PYTHONPATH=. ./capitilize_b.py", src, dst,
+                   files=["config.py", "common.py", "record.py", "format.py", "tests/capitilize_b.py"],
+                   format=yt.DsvFormat())
+
 
     def random_string(self, length):
         char_set = string.ascii_uppercase + string.digits
@@ -75,7 +100,7 @@ class YtTest(unittest.TestCase):
         self.assertEqual(sorted(yt.read_table(table)), sorted(records))
 
         # check rewrite case
-        yt.write_table(table, records, append=True)
+        yt.write_table(Table(table, append=True), records)
         self.assertEqual(sorted(yt.read_table(table)), sorted(records + records))
     
     def test_huge_table(self):
@@ -106,7 +131,7 @@ class YtTest(unittest.TestCase):
         self.assertEqual(sorted(self.temp_records()),
                          sorted(yt.read_table(other_table)))
 
-        yt.copy_table(table, other_table, append=True)
+        yt.copy_table(table, Table(other_table, append=True))
         self.assertEqual(sorted(list(self.temp_records()) + list(self.temp_records())),
                          sorted(yt.read_table(other_table)))
 
@@ -122,13 +147,13 @@ class YtTest(unittest.TestCase):
         files_count = len(list(yt.list(TEST_DIR)))
         yt.sort_table(table)
         self.assertEqual(len(list(yt.list(TEST_DIR))), files_count)
-        self.assertEqual(line_to_record(list(yt.read_table(table))[0]).key, "0")
+        self.assertEqual(self.read_records(table)[0].key, "0")
         self.assertEqual(sorted(list(self.temp_records())), 
                          list(yt.read_table(table)))
         self.assertTrue(yt.is_sorted(table))
 
-        yt.sort_table(table, key_columns=["subkey"])
-        self.assertEqual(line_to_record(list(yt.read_table(table))[0]).subkey, "a")
+        yt.sort_table(table, columns=["subkey"])
+        self.assertEqual(self.read_records(table)[0].subkey, "a")
 
     def test_attributes(self):
         table = self.create_temp_table()
@@ -140,13 +165,13 @@ class YtTest(unittest.TestCase):
         other_table = TEST_DIR + "/temp_other"
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    table, other_table,
-                   files=["test/my_op.py", "test/helpers.py"])
+                   files=["tests/my_op.py", "tests/helpers.py"])
         self.assertEqual(2 * yt.records_count(table), yt.records_count(other_table))
 
         yt.sort_table(table)
         yt.run_reduce("./cpp_bin",
                       table, other_table,
-                      files="test/cpp_bin")
+                      files="tests/cpp_bin")
 
     def test_abort_operation(self):
         strategy = yt.AsyncStrategy()
@@ -154,7 +179,7 @@ class YtTest(unittest.TestCase):
         other_table = TEST_DIR + "/temp_other"
         yt.run_map("PYTHONPATH=. ./my_op.py 10.0",
                    table, other_table,
-                   files=["test/my_op.py", "test/helpers.py"],
+                   files=["tests/my_op.py", "tests/helpers.py"],
                    strategy=strategy)
 
         operation = strategy.operations[-1]
@@ -163,36 +188,71 @@ class YtTest(unittest.TestCase):
 
 
     def test_dsv(self):
-        old_format = yt.DEFAULT_FORMAT
-        yt.DEFAULT_FORMAT = yt.DsvFormat()
-
-        table = TEST_DIR + "/dsv"
+        table = self.create_dsv_table()
         other_table = TEST_DIR + "/dsv_capital"
-
-        #data = [{"a": 12, "b": "ignat"},
-        #                   {"b": "max",  "c": 17.5}]
-        #print data
-        #print list(imap(record_to_line, data))
-        #print list(imap(line_to_record, imap(record_to_line, data)))
-
-        yt.write_table(table, 
-            imap(record_to_line,
-                 [{"a": 12, "b": "ignat"},
-                           {"b": "max",  "c": 17.5}]))
-        yt.run_map("PYTHONPATH=. ./capitilize_b.py", table, other_table,
-               files=["yt.py", "common.py", "record.py", "format.py", "test/capitilize_b.py"])
-        yt.DEFAULT_FORMAT = old_format
-        print list(yt.read_table(other_table, format=yt.DsvFormat()))
-        yt.DEFAULT_FORMAT = yt.DsvFormat()
-        self.assertEqual(
-            sorted([rec["b"] for rec in map(line_to_record, yt.read_table(other_table))]),
-            ["IGNAT", "MAX"]) 
+        self.run_capitilize_b(table, other_table)
         
-        yt.DEFAULT_FORMAT= old_format
+        recs = self.read_records(other_table, format=yt.DsvFormat())
+        self.assertEqual(
+            sorted([rec["b"] for rec in recs]),
+            ["IGNAT", "MAX", "NAME"]) 
+        self.assertEqual(
+            sorted([rec["c"] for rec in recs if "c" in rec]),
+            ["0.5", "17.5"]) 
+
+    def test_many_output_tables(self):
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+        another_table = TEST_DIR + "/temp_another" 
+        yt.copy_table(table, another_table)
+        
+        yt.run_map("PYTHONPATH=. ./many_output.py",
+                   table,
+                   [other_table, Table(another_table, append=True)],
+                   files="tests/many_output.py")
+        self.assertEqual(yt.records_count(other_table), 1)
+        self.assertEqual(yt.records_count(another_table), 11)
+
+    def test_range_operations(self):
+        table = self.create_dsv_table()
+        other_table = TEST_DIR + "/dsv_capital"
+        
+        self.run_capitilize_b(Table(table, columns=["b"]), other_table)
+        recs = self.read_records(other_table, format=yt.DsvFormat())
+        
+        self.assertEqual(
+            sorted([rec["b"] for rec in recs]),
+            ["IGNAT", "MAX", "NAME"]) 
+        self.assertEqual(
+            sorted([rec["c"] for rec in recs if "c" in rec]),
+            []) 
+
+        yt.sort_table(table, columns=["b", "c"])
+        self.assertEqual( 
+            self.read_records(Table(table, lower_key="a", upper_key="n", columns=["b"]),
+                              format=yt.DsvFormat()),
+            [{"b": "ignat"}, {"b": "max"}])
+        self.assertEqual( 
+            self.read_records(Table(table, columns=["c"]),
+                              format=yt.DsvFormat()),
+            [{"c": "17.5"}, {"c": "0.5"}])
+
+    def test_merge(self):
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+        another_table = TEST_DIR + "/temp_another"
+        yt.sort_table(table)
+        self.assertTrue(yt.is_sorted(table))
+        yt.merge_tables(table, other_table, mode="sorted")
+        self.assertTrue(yt.is_sorted(other_table))
+        yt.merge_tables([table, other_table], another_table, mode="sorted")
+        self.assertTrue(yt.is_sorted(another_table))
+        self.assertEqual(yt.records_count(another_table), 20)
+
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_dsv"))
+    #suite.addTest(YtTest("test_range_operations"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 
