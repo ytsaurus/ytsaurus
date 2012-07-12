@@ -283,13 +283,13 @@ protected:
     static TIntrusivePtr<ICypressNodeProxy> ToProxy(NYTree::INodePtr node)
     {
         YASSERT(node);
-        return dynamic_cast<ICypressNodeProxy*>(node);
+        return dynamic_cast<ICypressNodeProxy*>(~node);
     }
 
     static TIntrusivePtr<const ICypressNodeProxy> ToProxy(NYTree::IConstNodePtr node)
     {
         YASSERT(node);
-        return dynamic_cast<const ICypressNodeProxy*>(node);
+        return dynamic_cast<const ICypressNodeProxy*>(~node);
     }
 
 

@@ -589,10 +589,10 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         };
 
         if (!request->Exception.empty()) {
-            args[0] = String::New(request->Exception);
+            args[0] = String::New(~request->Exception);
         } else {
             args[1] = Integer::New(request->DriverResponse.Error.GetCode());
-            args[2] = String::New(request->DriverResponse.Error.GetMessage());
+            args[2] = String::New(~request->DriverResponse.Error.GetMessage());
             args[3] = Integer::NewFromUnsigned(request->GetNodeJSInputStream()->BytesCounter);
             args[4] = Integer::NewFromUnsigned(request->GetNodeJSOutputStream()->BytesCounter);
         }

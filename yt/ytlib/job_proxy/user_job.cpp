@@ -180,7 +180,7 @@ void TUserJob::InitPipes()
 
 
     ErrorOutput = JobIO->CreateErrorOutput();
-    Pipes.push_back(New<TOutputPipe>(ErrorOutput, STDERR_FILENO));
+    Pipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
     ++ActivePipeCount;
 
     // Make pipe for each input and each output table.
@@ -212,7 +212,7 @@ void TUserJob::InitPipes()
             TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(writer));
             auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
             TableOutput[i] = new TTableOutput(parser, consumer, writer);
-            Pipes.push_back(New<TOutputPipe>(TableOutput[i], 3 * i + 1));
+            Pipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
         }
     }
 
