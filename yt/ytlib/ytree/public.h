@@ -38,6 +38,7 @@ struct IParser;
 
 struct INode;
 typedef TIntrusivePtr<INode> INodePtr;
+typedef TIntrusivePtr<const INode> IConstNodePtr;
 
 struct ICompositeNode;
 typedef TIntrusivePtr<ICompositeNode> ICompositeNodePtr;

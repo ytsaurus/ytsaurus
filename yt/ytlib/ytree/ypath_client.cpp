@@ -398,9 +398,9 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
             auto mapNode = currentNode->AsMap();
             auto child = mapNode->FindChild(key);
             if (child) {
-                mapNode->ReplaceChild(~child, ~value);
+                mapNode->ReplaceChild(child, value);
             } else {
-                mapNode->AddChild(~value, key);
+                mapNode->AddChild(value, key);
             }
             break;
         }
@@ -408,7 +408,7 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
         case ETokenType::Integer: {
             auto listNode = currentNode->AsList();
             auto child = listNode->GetChild(currentToken.GetIntegerValue());
-            listNode->ReplaceChild(~child, ~value);
+            listNode->ReplaceChild(child, value);
             break;
         }
 
@@ -454,7 +454,7 @@ void ForceYPath(INodePtr root, const TYPath& path)
                 if (!child) {
                     auto factory = currentNode->CreateFactory();
                     child = factory->CreateMap();
-                    YCHECK(currentNode->AsMap()->AddChild(~child, key));
+                    YCHECK(currentNode->AsMap()->AddChild(child, key));
                 }
                 break;
             }

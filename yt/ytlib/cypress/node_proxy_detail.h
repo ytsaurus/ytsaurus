@@ -115,11 +115,11 @@ public:
         return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
     }
 
-    virtual void SetParent(NYTree::ICompositeNode* parent)
+    virtual void SetParent(NYTree::ICompositeNodePtr parent)
     {
         GetImplForUpdate()->SetParentId(
             parent
-            ? ToProxy(parent)->GetId()
+            ? ToProxy(NYTree::INodePtr(parent))->GetId()
             : NullObjectId);
     }
 
@@ -280,16 +280,16 @@ protected:
         return Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, Transaction);
     }
 
-    static ICypressNodeProxy* ToProxy(INode* node)
+    static TIntrusivePtr<ICypressNodeProxy> ToProxy(NYTree::INodePtr node)
     {
         YASSERT(node);
-        return dynamic_cast<ICypressNodeProxy*>(node);
+        return dynamic_cast<ICypressNodeProxy*>(~node);
     }
 
-    static const ICypressNodeProxy* ToProxy(const INode* node)
+    static TIntrusivePtr<const ICypressNodeProxy> ToProxy(NYTree::IConstNodePtr node)
     {
         YASSERT(node);
-        return dynamic_cast<const ICypressNodeProxy*>(node);
+        return dynamic_cast<const ICypressNodeProxy*>(~node);
     }
 
 
@@ -551,7 +551,7 @@ protected:
 
     virtual void CreateRecursive(
         const NYTree::TYPath& path,
-        NYTree::INode* value) = 0;
+        NYTree::INodePtr value) = 0;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
@@ -614,7 +614,7 @@ protected:
         // TODO(babenko): fixme! this may throw an exception!
         proxy->Attributes().MergeFrom(request->Attributes());
 
-        CreateRecursive(NYTree::TYPath(tokenizer.GetCurrentSuffix()), ~proxy);
+        CreateRecursive(NYTree::TYPath(tokenizer.GetCurrentSuffix()), proxy);
 
         *response->mutable_object_id() = nodeId.ToProto();
 
@@ -643,17 +643,17 @@ public:
     virtual std::vector< TPair<Stroka, NYTree::INodePtr> > GetChildren() const;
     virtual std::vector<Stroka> GetKeys() const;
     virtual NYTree::INodePtr FindChild(const TStringBuf& key) const;
-    virtual bool AddChild(NYTree::INode* child, const TStringBuf& key);
+    virtual bool AddChild(NYTree::INodePtr child, const TStringBuf& key);
     virtual bool RemoveChild(const TStringBuf& key);
-    virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
-    virtual void RemoveChild(NYTree::INode* child);
-    virtual Stroka GetChildKey(const INode* child);
+    virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild);
+    virtual void RemoveChild(NYTree::INodePtr child);
+    virtual Stroka GetChildKey(NYTree::IConstNodePtr child);
 
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
-    virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
+    virtual void CreateRecursive(const NYTree::TYPath& path, NYTree::INodePtr value);
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
 
     yhash_map<Stroka, ICypressNodeProxyPtr> DoGetChildren() const;
@@ -679,18 +679,18 @@ public:
     virtual int GetChildCount() const;
     virtual std::vector<NYTree::INodePtr> GetChildren() const;
     virtual NYTree::INodePtr FindChild(int index) const;
-    virtual void AddChild(NYTree::INode* child, int beforeIndex = -1);
+    virtual void AddChild(NYTree::INodePtr child, int beforeIndex = -1);
     virtual bool RemoveChild(int index);
-    virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
-    virtual void RemoveChild(NYTree::INode* child);
-    virtual int GetChildIndex(const NYTree::INode* child);
+    virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild);
+    virtual void RemoveChild(NYTree::INodePtr child);
+    virtual int GetChildIndex(NYTree::IConstNodePtr child);
 
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
 
     virtual void CreateRecursive(
         const NYTree::TYPath& path,
-        INode* value);
+        NYTree::INodePtr value);
     virtual IYPathService::TResolveResult ResolveRecursive(
         const NYTree::TYPath& path,
         const Stroka& verb);

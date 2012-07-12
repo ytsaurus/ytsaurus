@@ -693,7 +693,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
+TNodeSetterBase::TNodeSetterBase(INodePtr node, ITreeBuilder* builder)
     : Node(node)
     , TreeBuilder(builder)
     , NodeFactory(node->CreateFactory())

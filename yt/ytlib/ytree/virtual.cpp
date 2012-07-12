@@ -138,9 +138,9 @@ public:
         return Parent;
     }
 
-    virtual void SetParent(ICompositeNode* parent)
+    virtual void SetParent(ICompositeNodePtr parent)
     {
-        Parent = parent;
+        Parent = ~parent;
     }
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)

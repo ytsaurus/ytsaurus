@@ -132,7 +132,7 @@ class TNodeSetterBase
     : public TForwardingYsonConsumer
 {
 protected:
-    TNodeSetterBase(INode* node, ITreeBuilder* builder);
+    TNodeSetterBase(INodePtr node, ITreeBuilder* builder);
     ~TNodeSetterBase();
 
     void ThrowInvalidType(ENodeType actualType);
@@ -237,7 +237,7 @@ private:
 
     void OnForwardingFinished()
     {
-        YCHECK(Map->AddChild(~TreeBuilder->EndTree(), ItemKey));
+        YCHECK(Map->AddChild(TreeBuilder->EndTree(), ItemKey));
         ItemKey.clear();
     }
 
@@ -282,12 +282,11 @@ private:
 
     void OnForwardingFinished()
     {
-        List->AddChild(~TreeBuilder->EndTree());
+        List->AddChild(TreeBuilder->EndTree());
     }
 
     virtual void OnMyEndList()
     {
-
         // Just do nothing.
     }
 };

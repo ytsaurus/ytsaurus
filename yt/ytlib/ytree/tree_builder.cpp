@@ -38,7 +38,7 @@ public:
         return ResultNode;
     }
 
-    virtual void OnNode(INode* node)
+    virtual void OnNode(INodePtr node)
     {
         AddNode(node, false);
     }
@@ -125,7 +125,7 @@ private:
     THolder<TAttributeConsumer> AttributeConsumer;
     THolder<IAttributeDictionary> Attributes;
 
-    void AddNode(INode* node, bool push)
+    void AddNode(INodePtr node, bool push)
     {
         if (Attributes.Get()) {
             node->Attributes().MergeFrom(*Attributes);

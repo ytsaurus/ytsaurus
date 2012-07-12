@@ -146,7 +146,7 @@ INodePtr TMapNodeProxy::FindChild(const TStringBuf& key) const
     return DoFindChild(key, false);
 }
 
-bool TMapNodeProxy::AddChild(INode* child, const TStringBuf& key)
+bool TMapNodeProxy::AddChild(INodePtr child, const TStringBuf& key)
 {
     YASSERT(!key.empty());
 
@@ -156,7 +156,7 @@ bool TMapNodeProxy::AddChild(INode* child, const TStringBuf& key)
 
     auto* impl = GetTypedImplForUpdate();
 
-    auto* childProxy = ToProxy(child);
+    auto childProxy = ToProxy(child);
     auto* childImpl = childProxy->GetImplForUpdate();
 
     auto childId = childProxy->GetId();
@@ -205,11 +205,11 @@ bool TMapNodeProxy::RemoveChild(const TStringBuf& key)
     return true;
 }
 
-void TMapNodeProxy::RemoveChild(INode* child)
+void TMapNodeProxy::RemoveChild(INodePtr child)
 {
     auto* impl = GetTypedImplForUpdate();
     
-    auto* childProxy = ToProxy(child);
+    auto childProxy = ToProxy(child);
     auto* childImpl = childProxy->GetImplForUpdate();
 
     auto it = impl->ChildToKey().find(childProxy->GetId());
@@ -229,17 +229,17 @@ void TMapNodeProxy::RemoveChild(INode* child)
     --impl->ChildCountDelta();
 }
 
-void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
+void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 {
     if (oldChild == newChild)
         return;
 
     auto* impl = GetTypedImplForUpdate();
 
-    auto* oldChildProxy = ToProxy(oldChild);
+    auto oldChildProxy = ToProxy(oldChild);
     auto* oldChildImpl = oldChildProxy->GetImplForUpdate();
 
-    auto* newChildProxy = ToProxy(newChild);
+    auto newChildProxy = ToProxy(newChild);
     auto* newChildImpl = newChildProxy->GetImplForUpdate();
 
     Stroka key;
@@ -260,9 +260,9 @@ void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
     AttachChild(newChildImpl);
 }
 
-Stroka TMapNodeProxy::GetChildKey(const INode* child)
+Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
 {
-    auto* childProxy = ToProxy(child);
+    auto childProxy = ToProxy(child);
 
     auto cypressManager = Bootstrap->GetCypressManager();
     auto transactionManager = Bootstrap->GetTransactionManager();
@@ -335,7 +335,7 @@ void TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     TBase::DoInvoke(context);
 }
 
-void TMapNodeProxy::CreateRecursive(const TYPath& path, INode* value)
+void TMapNodeProxy::CreateRecursive(const TYPath& path, INodePtr value)
 {
     TMapNodeMixin::SetRecursive(path, value);
 }
@@ -401,12 +401,12 @@ INodePtr TListNodeProxy::FindChild(int index) const
     return index >= 0 && index < list.size() ? GetProxy(list[index]) : NULL;
 }
 
-void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
+void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
 {
     auto* impl = GetTypedImplForUpdate();
     auto& list = impl->IndexToChild();
 
-    auto* childProxy = ToProxy(child);
+    auto childProxy = ToProxy(child);
     auto childId = childProxy->GetId();
     auto* childImpl = childProxy->GetImplForUpdate();
 
@@ -452,23 +452,23 @@ bool TListNodeProxy::RemoveChild(int index)
     return true;
 }
 
-void TListNodeProxy::RemoveChild(INode* child)
+void TListNodeProxy::RemoveChild(INodePtr child)
 {
     int index = GetChildIndex(child);
     YCHECK(RemoveChild(index));
 }
 
-void TListNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
+void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 {
     if (oldChild == newChild)
         return;
 
     auto* impl = GetTypedImplForUpdate();
 
-    auto* oldChildProxy = ToProxy(oldChild);
+    auto oldChildProxy = ToProxy(oldChild);
     auto* oldChildImpl = oldChildProxy->GetImplForUpdate();
 
-    auto* newChildProxy = ToProxy(newChild);
+    auto newChildProxy = ToProxy(newChild);
     auto* newChildImpl = newChildProxy->GetImplForUpdate();
 
     auto it = impl->ChildToIndex().find(oldChildProxy->GetId());
@@ -484,7 +484,7 @@ void TListNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
     AttachChild(newChildImpl);
 }
 
-int TListNodeProxy::GetChildIndex(const INode* child)
+int TListNodeProxy::GetChildIndex(IConstNodePtr child)
 {
     auto* impl = GetTypedImpl();
 
@@ -496,7 +496,7 @@ int TListNodeProxy::GetChildIndex(const INode* child)
     return it->second;
 }
 
-void TListNodeProxy::CreateRecursive(const TYPath& path, INode* value)
+void TListNodeProxy::CreateRecursive(const TYPath& path, INodePtr value)
 {
     TListNodeMixin::SetRecursive(path, value);
 }

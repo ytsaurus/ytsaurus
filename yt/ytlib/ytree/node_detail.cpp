@@ -74,7 +74,7 @@ void TCompositeNodeMixin::SetRecursive(
 
     auto factory = CreateFactory();
     auto value = ConvertToNode(TYsonString(request->value()), ~factory);
-    SetRecursive(path, ~value);
+    SetRecursive(path, value);
     context->Reply();
 }
 
@@ -156,9 +156,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* co
     context->Reply();
 }
 
-void TMapNodeMixin::SetRecursive(
-    const TYPath& path,
-    INode* value)
+void TMapNodeMixin::SetRecursive(const TYPath& path, INodePtr value)
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
@@ -216,7 +214,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 
 void TListNodeMixin::SetRecursive(
     const TYPath& path,
-    INode* value)
+    INodePtr value)
 {
     int beforeIndex = -1;
 

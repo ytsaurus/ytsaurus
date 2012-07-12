@@ -69,7 +69,7 @@ struct INode
      *  
      *  This method must not be called explicitly.
      */
-    virtual void SetParent(ICompositeNode* parent) = 0;
+    virtual void SetParent(ICompositeNodePtr parent) = 0;
 
     //! A helper method for retrieving a scalar value from a node.
     //! Invokes the appropriate |AsSomething| followed by |GetValue|.
@@ -120,12 +120,12 @@ struct IScalarNode
         \
         static const ENodeType::EDomain NodeType; \
         \
-        static type GetValue(const INode* node) \
+        static type GetValue(IConstNodePtr node) \
         { \
             return node->As##name()->GetValue(); \
         } \
         \
-        static void SetValue(INode* node, TParamType value) \
+        static void SetValue(INodePtr node, TParamType value) \
         { \
             node->As##name()->SetValue(TType(value)); \
         } \
@@ -152,10 +152,10 @@ struct ICompositeNode
     virtual int GetChildCount() const = 0;
     //! Replaces one child by the other.
     //! #newChild must be a root.
-    virtual void ReplaceChild(INode* oldChild, INode* newChild) = 0;
+    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild) = 0;
     //! Removes a child.
     //! The removed child becomes a root.
-    virtual void RemoveChild(INode* child) = 0;
+    virtual void RemoveChild(INodePtr child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,7 +194,7 @@ struct IMapNode
      *  \note
      *  #child must be a root.
      */
-    virtual bool AddChild(INode* child, const TStringBuf& key) = 0;
+    virtual bool AddChild(INodePtr child, const TStringBuf& key) = 0;
 
     //! Removes a child by its key.
     /*!
@@ -216,7 +216,7 @@ struct IMapNode
      *  \param child A node that must be a child.
      *  \return Child's key.
      */
-    virtual Stroka GetChildKey(const INode* child) = 0;
+    virtual Stroka GetChildKey(IConstNodePtr child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,7 +247,7 @@ struct IListNode
      *  #child must be a root.
      */
 
-    virtual void AddChild(INode* child, int beforeIndex = -1) = 0;
+    virtual void AddChild(INodePtr child, int beforeIndex = -1) = 0;
     
     //! Removes a child by its index.
     /*!
@@ -269,7 +269,7 @@ struct IListNode
      *  \param child A node that must be a child.
      *  \return Child's index.
      */
-    virtual int GetChildIndex(const INode* child) = 0;
+    virtual int GetChildIndex(IConstNodePtr child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

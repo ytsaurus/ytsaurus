@@ -86,7 +86,7 @@ protected:
 
     virtual void SetRecursive(
         const TYPath& path,
-        INode* value) = 0;
+        INodePtr value) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ protected:
 
     virtual void SetRecursive(
         const TYPath& path,
-        INode* value);
+        INodePtr value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,7 +124,7 @@ protected:
 
     virtual void SetRecursive(
         const TYPath& path,
-        INode* value);
+        INodePtr value);
 
     i64 NormalizeAndCheckIndex(i64 index) const;
 };
