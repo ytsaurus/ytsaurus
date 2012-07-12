@@ -474,7 +474,7 @@ IObjectProxyPtr TObjectManager::FindProxy(
     const TObjectId& id,
     TTransaction* transaction)
 {
-    // (NullObjectId, NullTransaction) means the root transaction->
+    // (NullObjectId, NullTransaction) means the root transaction.
     if (id == NullObjectId && !transaction) {
         return Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
     }
