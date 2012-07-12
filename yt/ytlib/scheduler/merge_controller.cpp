@@ -643,8 +643,6 @@ private:
 
         // If the input is sorted then the output is marked as sorted as well
         if (InputTables[0].Sorted) {
-            // TODO(babenko): unless overwrite mode is ON
-            CheckOutputTablesEmpty();
             ScheduleSetOutputTablesSorted(InputTables[0].KeyColumns);
         }
     }
