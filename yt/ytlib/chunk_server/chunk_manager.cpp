@@ -1331,7 +1331,7 @@ private:
         }
     }
 
-    void GetChunkRefOwningNodes(
+    static void GetOwningNodes(
         TChunkTreeRef chunkRef,
         yhash_set<TChunkTreeRef>& visitedRefs,
         yhash_set<ICypressNode*>* owningNodes)
@@ -1342,7 +1342,7 @@ private:
         switch (chunkRef.GetType()) {
             case EObjectType::Chunk: {
                 FOREACH (auto* parent, chunkRef.AsChunk()->Parents()) {
-                    GetChunkRefOwningNodes(parent, visitedRefs, owningNodes);
+                    GetOwningNodes(parent, visitedRefs, owningNodes);
                 }
                 break;
             }
@@ -1350,7 +1350,7 @@ private:
                 auto* chunkList = chunkRef.AsChunkList();
                 owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
                 FOREACH (auto* parent, chunkList->Parents()) {
-                    GetChunkRefOwningNodes(parent, visitedRefs, owningNodes);
+                    GetOwningNodes(parent, visitedRefs, owningNodes);
                 }
                 break;
             }
@@ -1359,12 +1359,12 @@ private:
         }
     }
 
-    void GetChunkRefOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
+    void GetOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         yhash_set<ICypressNode*> owningNodes;
         yhash_set<TChunkTreeRef> visitedRefs;
-        GetChunkRefOwningNodes(chunkRef, visitedRefs, &owningNodes);
+        GetOwningNodes(chunkRef, visitedRefs, &owningNodes);
 
         // Converting ids to paths
         std::vector<TYPath> paths;
@@ -1553,7 +1553,7 @@ private:
         }
 
         if (name == "owning_nodes") {
-            Owner->GetChunkRefOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)), consumer);
+            Owner->GetOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)), consumer);
             return true;
         }
 
@@ -1831,7 +1831,7 @@ private:
         }
 
         if (name == "owning_nodes") {
-            Owner->GetChunkRefOwningNodes(const_cast<TChunkList*>(chunkList), consumer);
+            Owner->GetOwningNodes(const_cast<TChunkList*>(chunkList), consumer);
             return true;
         }
 
