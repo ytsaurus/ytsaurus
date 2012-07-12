@@ -22,7 +22,7 @@ class Table(object):
         def key_to_str(key):
             if key is None:
                 return ""
-            return "(%s)" % ",".join(flatten(key))
+            return '("%s")' % ",".join(flatten(key))
         
         name = self.name
         if self.columns is not None:

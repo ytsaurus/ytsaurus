@@ -156,8 +156,7 @@ def merge_tables(source_table, destination_table, mode, strategy=None, spec=None
 """ Map and reduce methods """
 def run_operation(binary, source_table, destination_table,
                   files, format, strategy, spec, op_type,
-                  columns=None, replace_files=True,
-                  append=False, check_result=True):
+                  columns=None, replace_files=True):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if format is None: format = config.DEFAULT_FORMAT
     if columns is None: columns = "key"
@@ -170,6 +169,9 @@ def run_operation(binary, source_table, destination_table,
        file_paths.append(upload_file(file, replace=True))
 
     source_table = map(to_table, flatten(source_table))
+    for table in source_table:
+        if config.FORCE_SORT_IN_REDUCE and not is_sorted(table.name):
+            sort_table(table.name)
     destination_table = map(to_table, flatten(destination_table))
     for table in destination_table:
         create_table(table.name, not table.append)
