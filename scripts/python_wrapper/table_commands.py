@@ -2,7 +2,7 @@ import config
 from common import flatten, require, YtError, parse_bool, add_quotes, union
 from http import make_request
 from table import get_yson_name, to_table
-from tree_commands import exists, remove, get_attribute
+from tree_commands import exists, remove, get_attribute, set
 from file_commands import upload_file
 from operation_commands import \
         get_operation_stderr, get_operation_result, get_jobs_errors
@@ -85,6 +85,8 @@ def read_table(table, format=None):
         return str + "\n"
     if format is None: format = config.DEFAULT_FORMAT
     table = to_table(table)
+    if not exists(table.name):
+        return []
     response = make_request("GET", "read",
                             {"path": get_yson_name(table)}, format=format,
                             raw_response=True)
@@ -114,10 +116,21 @@ def sort_table(table, destination_table=None, columns=None, strategy=None, spec=
     # TODO(ignat): support list of input tables
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if columns is None: columns= ["key", "subkey"]
-    if destination_table is None: destination_table = to_table(table)
     if spec is None: spec = {}
 
-    in_place = destination_table.name == table
+    in_place = False
+
+    table = flatten(table)
+    if destination_table is None:
+        require(len(table) == 1,
+                YtError("You must specify destination sort table "
+                        "in case of multiple source tables"))
+        table = table[0]
+        destination_table = to_table(table)
+        in_place = destination_table.name == table
+    else:
+        destination_table = to_table(destination_table)
+
     if in_place:
         output_table = create_temp_table(os.path.dirname(table),
                                          os.path.basename(table))
@@ -126,7 +139,7 @@ def sort_table(table, destination_table=None, columns=None, strategy=None, spec=
         create_table(output_table, not destination_table.append)
     params = json.dumps(
         {"spec": union(spec,
-            {"input_table_paths": [table],
+            {"input_table_paths": flatten(table),
              "output_table_path": output_table,
              "key_columns": columns})})
     operation = add_quotes(make_request("POST", "sort", None, params))
@@ -170,7 +183,9 @@ def run_operation(binary, source_table, destination_table,
 
     source_table = map(to_table, flatten(source_table))
     for table in source_table:
-        if config.FORCE_SORT_IN_REDUCE and not is_sorted(table.name):
+        if not exists(table.name):
+            create_table(table.name)
+        if op_type == "reduce" and config.FORCE_SORT_IN_REDUCE and not is_sorted(table.name):
             sort_table(table.name)
     destination_table = map(to_table, flatten(destination_table))
     for table in destination_table:

@@ -2,20 +2,20 @@
 
 echo -e "4\t5\t6\n1\t2\t3\n" > table_file
 ./mapreduce -list
-./mapreduce -drop "//home/ignat/temp"
-./mapreduce -write "//home/ignat/temp" <table_file 
-./mapreduce -copy -src "//home/ignat/temp" -dst "//home/ignat/other_table"
-./mapreduce -read "//home/ignat/other_table"
-./mapreduce -drop "//home/ignat/temp"
-./mapreduce -sort  -src "//home/ignat/other_table"
-./mapreduce -read "//home/ignat/other_table"
-./mapreduce -read "//home/ignat/other_table" -lowerkey 3
-./mapreduce -map "cat" -src "//home/ignat/other_table" -dst "//home/ignat/mapped"
-./mapreduce -read "//home/ignat/mapped"
+./mapreduce -drop "ignat/temp"
+./mapreduce -write "ignat/temp" <table_file
+./mapreduce -copy -src "ignat/temp" -dst "ignat/other_table"
+./mapreduce -read "ignat/other_table"
+./mapreduce -drop "ignat/temp"
+./mapreduce -sort  -src "ignat/other_table"
+./mapreduce -read "ignat/other_table"
+./mapreduce -read "ignat/other_table" -lowerkey 3
+./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped"
+./mapreduce -read "ignat/mapped"
 for (( i=1 ; i <= 2 ; i++ )); do
-    ./mapreduce -map "cat" -src "//home/ignat/other_table" -src "//home/ignat/mapped" \
-        -dstappend "//home/ignat/temp"
+    ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
+        -dstappend "ignat/temp"
 done
-./mapreduce -read "//home/ignat/temp" | wc -l 
+./mapreduce -read "ignat/temp" | wc -l
 
-./mapreduce -write "//home/ignat/temp" -chunksize 1 <table_file 
+./mapreduce -write "ignat/temp" -chunksize 1 <table_file

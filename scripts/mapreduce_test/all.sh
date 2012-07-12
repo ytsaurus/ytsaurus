@@ -1,6 +1,7 @@
 #!/bin/sh -eu
 
 export SERVER="n01-0449g.yt.yandex.net:8013"
+export MAPREDUCE="/home/ignat/yt/scripts/python_wrapper/mapreduce"
 #export PARAMS="-jobcount 1000 -opt cpu.intensive.mode=1"
 export PARAMS=""
 rm -f err
@@ -26,8 +27,8 @@ do
     echo "Merge sorted tables"
     time ./merge.sh "speed_test/output10000" "speed_test/output20000" "speed_test/merged" 2>>err
 
-    echo "Statistic task"
-    export PATH=.:$PATH
-    cd job && ./job.ymr
+    #echo "Statistic task"
+    #export PATH=.:$PATH
+    #cd job && ./job.ymr
 done
 

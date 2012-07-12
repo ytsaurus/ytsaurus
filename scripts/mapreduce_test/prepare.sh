@@ -10,4 +10,4 @@ do
     echo -e "$i\t\t" >> input
 done
 
-./mapreduce -server $SERVER -write "$INPUT" -chunksize 1 <input
+$MAPREDUCE -server $SERVER -write "$INPUT" -chunksize 1 <input

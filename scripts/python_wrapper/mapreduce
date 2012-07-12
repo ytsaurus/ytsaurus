@@ -30,10 +30,11 @@
 # -upperkey
 # +++ -append
 # +++ -jobcount
-# -threadcount
+# -threadcount    IS IGNORED
 # -jcmultiplier
 # +++ -chunksize
 # -dynallocmode
+# -opt  IS IGNORED
 
 import yt
 import config
@@ -43,6 +44,19 @@ import sys
 from argparse import ArgumentParser
 from functools import partial
 from itertools import imap
+
+PREFIXES = ["//{0}statbox{0}/".format(quote) for quote in ['', '"']]
+
+def add_prefix(table):
+    return PREFIXES[0] + table
+
+def remove_prefix(tables):
+    result = []
+    for table in tables:
+        for prefix in PREFIXES:
+            if table.startswith(prefix):
+                result.append(table[len(prefix):])
+    return result
 
 def list_all_tables():
     result = []
@@ -55,7 +69,7 @@ def list_all_tables():
             if attributes.get("type", None) == "table":
                 result.append(path)
     walk("/", yt.get("/"))
-    return result
+    return remove_prefix(result)
 
 def add_eoln(str):
     return str + "\n"
@@ -84,8 +98,8 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey"])
-    add_multiple_args(parser, ["src", "dst", "dstappend", "file"])
-    add_integer_args(parser, ["jobcount", "chunksize"])
+    add_multiple_args(parser, ["src", "dst", "dstappend", "file"] + ["opt"])
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize"])
     args = parser.parse_args()
 
     actions_count = sum([vars(args)[arg] is not None for arg in action_stores]) + \
@@ -103,7 +117,16 @@ if __name__ == "__main__":
 
     spec = {}
     if args.jobcount is not None:
-        spec.update({"jobcount", args.jobcount})
+        spec.update({"jobcount": args.jobcount})
+
+    # Fix table names
+    for option in ["src", "dst", "dstappend"]:
+        if vars(args)[option] is not None:
+            vars(args)[option] = map(add_prefix, vars(args)[option])
+    for option in ["read", "write", "writesorted", "drop"]:
+        if vars(args)[option] is not None:
+            vars(args)[option] = add_prefix(vars(args)[option])
+
 
     dst = []
     if args.dst is not None:
@@ -137,6 +160,6 @@ if __name__ == "__main__":
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.sort_table(unlist(args.src), dst, spec=spec)
+        yt.sort_table(unlist(args.src), unlist(dst), spec=spec)
     if args.merge:
-        yt.merge_tables(args.src, dst, mode="sorted", spec=spec)
+        yt.merge_tables(args.src, unlist(dst), mode="sorted", spec=spec)
