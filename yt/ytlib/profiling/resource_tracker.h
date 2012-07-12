@@ -27,7 +27,7 @@ private:
 
     void EnqueueUsage();
 
-    void EnqueMemoryUsage();
+    void EnqueueMemoryUsage();
 
 };
 

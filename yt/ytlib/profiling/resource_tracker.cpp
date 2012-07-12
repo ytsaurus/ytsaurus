@@ -41,7 +41,7 @@ void TResourceTracker::EnqueueUsage()
     PeriodicInvoker->ScheduleNext();
 
     int pid = getpid();
-    EnqueMemoryUsage();
+    EnqueueMemoryUsage();
 
 
     // update proc ticks
@@ -108,7 +108,7 @@ void TResourceTracker::EnqueueUsage()
     PreviousProcTicks = procTicks;
 }
 
-void TResourceTracker::EnqueMemoryUsage()
+void TResourceTracker::EnqueueMemoryUsage()
 {
     int pid = getpid();
     VectorStrok memoryStatFields;
