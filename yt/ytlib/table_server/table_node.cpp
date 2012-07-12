@@ -187,7 +187,11 @@ protected:
         auto originatingMode = originatingNode->GetUpdateMode();
         auto branchedMode = branchedNode->GetUpdateMode();
 
+        YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
+
         if (branchedMode == ETableUpdateMode::None) {
+            objectManager->UnrefObject(branchedChunkList);
+
             return;
         }
 
@@ -195,8 +199,6 @@ protected:
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(branchedChunkList);
-
-            YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
             objectManager->UnrefObject(originatingChunkList);
 
@@ -222,8 +224,6 @@ protected:
          
             chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
             chunkManager->AttachToChunkList(newOriginatingChunkList, branchedChunkList->Children()[1]);
-
-            YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
@@ -257,8 +257,6 @@ protected:
 
             chunkManager->AttachToChunkList(newDeltaChunkList, originatingChunkList->Children()[1]);
             chunkManager->AttachToChunkList(newDeltaChunkList, branchedChunkList->Children()[1]);
-
-            YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
