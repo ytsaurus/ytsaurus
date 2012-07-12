@@ -953,7 +953,7 @@ private:
         auto inputChunks = CollectInputTablesChunks();
         auto stripes = PrepareChunkStripes(
             inputChunks,
-            Spec->SortJobCount,
+            Spec->PartitionJobCount,
             Spec->MaxWeightPerPartitionJob);
         PartitionTask->AddStripes(stripes);
 
