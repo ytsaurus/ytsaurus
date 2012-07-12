@@ -651,9 +651,17 @@ void TCypressManager::RegisterNode(
     auto node_ = node.Get();
     NodeMap.Insert(nodeId, node.Release());
 
+    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
+        ~node_->GetId().ToString(),
+        ~TypeFromId(nodeId).ToString());
+
     // Make an additional fake reference.
     RefNode(nodeId);
 
+    // TODO(babenko): setting attributes here, in RegisterNode
+    // is somewhat weird. Moving this logic to some other place, however,
+    // complicates the code since we needs to worry about possible
+    // exceptions thrown from custom attribute validators.
     if (attributes) {
         auto proxy = GetVersionedNodeProxy(nodeId, transaction);
         try {
@@ -670,10 +678,6 @@ void TCypressManager::RegisterNode(
         transaction->CreatedNodes().push_back(node_);
         Bootstrap->GetObjectManager()->RefObject(nodeId);
     }
-
-    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
-        ~node_->GetId().ToString(),
-        ~TypeFromId(nodeId).ToString());
 
     if (IsLeader()) {
         CreateNodeBehavior(nodeId);
