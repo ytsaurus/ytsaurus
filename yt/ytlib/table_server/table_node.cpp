@@ -102,7 +102,6 @@ public:
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
         YCHECK(chunkList->OwningNodes().insert(~node).second);
-
         objectManager->RefObject(chunkList);
 
         cypressManager->RegisterNode(transaction, node.Release());
@@ -124,10 +123,12 @@ public:
 protected:
     virtual void DoDestroy(TTableNode* node) OVERRIDE
     {
-        YCHECK(node->GetChunkList()->OwningNodes().erase(node) == 1);
-        Bootstrap->GetObjectManager()->UnrefObject(node->GetChunkList());
-    }
+        auto objectManager = Bootstrap->GetObjectManager();
 
+        auto* chunkList = node->GetChunkList();
+        YCHECK(chunkList->OwningNodes().erase(node) == 1);
+        objectManager->UnrefObject(chunkList);
+    }
 
     virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode) OVERRIDE
     {
