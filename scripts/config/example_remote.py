@@ -136,8 +136,8 @@ DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
 class Holder(Server):
     files = Server.files + [CleanCache, DoCleanCache]
 
-    groupid = Subclass(xrange(10))
-    nodeid = Subclass(xrange(30), 1)
+    groupid = Subclass(xrange(5))
+    nodeid = Subclass(xrange(10), 1)
 
     log_disk = 'disk1'
     log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
@@ -145,7 +145,7 @@ class Holder(Server):
     
     @propmethod
     def host(cls):
-        return 'n01-0%dg' % (400 + 30 * cls.groupid + cls.nodeid)
+        return 'n01-0%dg' % (650 + 10 * cls.groupid + cls.nodeid)
     
     params = Template('--node --config %(config_path)s')
 
