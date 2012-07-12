@@ -12,6 +12,8 @@
 
 #include <library/json/json_writer.h>
 
+#include <util/string/vector.h>
+
 namespace NYT {
 namespace NMonitoring {
 
@@ -40,9 +42,7 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
 
 void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 {
-    // Split works with yvector
-    yvector<Stroka> params;
-    Split(query, "&", params);
+    auto params = splitStroku(query, "&");
     FOREACH (const auto& param, params) {
         auto eqIndex = param.find_first_of('=');
         if (eqIndex == Stroka::npos) {
