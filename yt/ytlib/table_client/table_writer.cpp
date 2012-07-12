@@ -68,21 +68,29 @@ void TTableWriter::Open()
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());
     }
+    auto uploadTransactionId = UploadTransaction->GetId();
     ListenTransaction(UploadTransaction);
-    LOG_INFO("Upload transaction created (TransactionId: %s)", ~UploadTransaction->GetId().ToString());
+    LOG_INFO("Upload transaction created (TransactionId: %s)", ~uploadTransactionId.ToString());
 
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
     std::vector<TChannel> channels;
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
+
         if (KeyColumns.IsInitialized()) {
-            auto req = TTableYPathProxy::Clear(WithTransaction(Path, UploadTransaction->GetId()));
-            batchReq->AddRequest(req, "clear");
+            {
+                auto req = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@row_count");
+                batchReq->AddRequest(req, "get_row_count");
+            }
+            {
+                auto req = TTableYPathProxy::Clear(WithTransaction(Path, uploadTransactionId));
+                batchReq->AddRequest(req, "clear");
+            }
         }
 
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, UploadTransaction->GetId()));
+            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, uploadTransactionId));
             batchReq->AddRequest(req, "get_chunk_list_for_update");
         }
         {
@@ -97,10 +105,23 @@ void TTableWriter::Open()
         }
 
         if (KeyColumns.IsInitialized()) {
-            auto rsp = batchRsp->GetResponse("clear");
-            if (!rsp->IsOK()) {
-                LOG_ERROR_AND_THROW(yexception(), "Error clearing table for sorted write\n%s",
-                    ~rsp->GetError().ToString());
+            {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_row_count");
+                if (!rsp->IsOK()) {
+                    LOG_ERROR_AND_THROW(yexception(), "Error requesting table row count\n%s",
+                        ~rsp->GetError().ToString());
+                }
+                i64 rowCount = ConvertTo<i64>(TYsonString(rsp->value()));
+                if (rowCount > 0) {
+                    LOG_ERROR_AND_THROW(yexception(), "Cannot write sorted data into a non-empty table");
+                }
+            }
+            {
+                auto rsp = batchRsp->GetResponse("clear");
+                if (!rsp->IsOK()) {
+                    LOG_ERROR_AND_THROW(yexception(), "Error clearing table for sorted write\n%s",
+                        ~rsp->GetError().ToString());
+                }
             }
         }
 
@@ -132,7 +153,7 @@ void TTableWriter::Open()
     Writer = New<TTableChunkSequenceWriter>(
         Config, 
         MasterChannel,
-        UploadTransaction->GetId(),
+        uploadTransactionId,
         chunkListId,
         channels,
         KeyColumns);
