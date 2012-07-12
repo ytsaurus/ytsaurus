@@ -101,6 +101,39 @@ TChunkPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
     return chunk;
 }
 
+void TChunkHolderService::OnGetMeta(TCtxGetChunkMetaPtr context, TNullable<int> partitionTag, TChunk::TGetMetaResult result)
+{
+    if (!result.IsOK()) {
+        context->Reply(result);
+        return;
+    }
+
+    *context->Response().mutable_chunk_meta() = result.Value();
+
+    if (partitionTag) {
+        std::vector<NTableClient::NProto::TBlockInfo> filteredBlocks;
+        auto channelsExt = GetProtoExtension<NTableClient::NProto::TChannelsExt>(
+            result.Value().extensions());
+        // Partition chunks must have only one channel.
+        YCHECK(channelsExt.items_size() == 1);
+
+        FOREACH (const auto& blockInfo, channelsExt.items(0).blocks()) {
+            YCHECK(blockInfo.partition_tag() != NTableClient::DefaultPartitionTag);
+            if (blockInfo.partition_tag() == partitionTag.Get()) {
+                filteredBlocks.push_back(blockInfo);
+            }
+        }
+
+        ToProto(channelsExt.mutable_items(0)->mutable_blocks(), filteredBlocks);
+        UpdateProtoExtension(
+            context->Response().mutable_chunk_meta()->mutable_extensions(),
+            channelsExt);
+    }
+
+    context->Reply();
+}
+
+
 bool TChunkHolderService::CheckThrottling() const
 {
     i64 responseDataSize = NBus::TTcpDispatcher::Get()->GetStatistics().PendingOutSize;
@@ -375,38 +408,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         ? NULL
         : &extensionTags);
 
-    asyncChunkMeta.Subscribe(BIND([=] (TChunk::TGetMetaResult result) {
-        if (!result.IsOK()) {
-            context->Reply(result);
-            return;
-        }
-
-        *response->mutable_chunk_meta() = result.Value();
-
-        if (partitionTag) {
-            // XXX(psushin): Don't use std::vector!
-            // std::vector here causes MSVC internal compiler error :)
-            yvector<NTableClient::NProto::TBlockInfo> filteredBlocks;
-            auto channelsExt = GetProtoExtension<NTableClient::NProto::TChannelsExt>(
-                result.Value().extensions());
-            // Partition chunks must have only one channel.
-            YCHECK(channelsExt.items_size() == 1);
-
-            FOREACH (const auto& blockInfo, channelsExt.items(0).blocks()) {
-                YCHECK(blockInfo.partition_tag() != NTableClient::DefaultPartitionTag);
-                if (blockInfo.partition_tag() == partitionTag.Get()) {
-                    filteredBlocks.push_back(blockInfo);
-                }
-            }
-
-            ToProto(channelsExt.mutable_items(0)->mutable_blocks(), filteredBlocks);
-            UpdateProtoExtension(
-                response->mutable_chunk_meta()->mutable_extensions(), 
-                channelsExt);
-        }
-
-        context->Reply();
-    }));
+    asyncChunkMeta.Subscribe(BIND(&TChunkHolderService::OnGetMeta,
+        Unretained(this),
+        context,
+        partitionTag));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
