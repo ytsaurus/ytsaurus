@@ -12,10 +12,16 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes a lock held by a transaction of some Cypress node.
 struct TLock
 {
     ELockMode Mode;
 };
+
+void Save(TOutputStream* output, const TLock& lock);
+void Load(TInputStream* input, TLock& lock);
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a common interface for all persistent nodes.
 struct ICypressNode
@@ -36,18 +42,7 @@ struct ICypressNode
     //! Returns the composite (versioned) id of the node.
     virtual TVersionedObjectId GetId() const = 0;
 
-    //! Replaces transaction id part in the versioned id.
-    virtual void PromoteToTransaction(const NTransactionServer::TTransaction* transaction) = 0;
-
     //! Gets the lock mode.
-    /*!
-     *  When a node gets branched a lock is created. This property contains the corresponding lock mode.
-     *  It is used to validate subsequent access attempts (e.g. if the mode is #ELockMode::Snapshot then
-     *  all access must be read-only). The mode may be updated if lock is upgraded (e.g. from
-     *  #ELockMode::Shared to #ELockMode::Exclusive).
-     *  
-     *  #ELockMode::None is only possible for non-branched nodes.
-     */
     virtual ELockMode GetLockMode() const = 0;
     //! Sets the lock mode.
     virtual void SetLockMode(ELockMode mode) = 0;

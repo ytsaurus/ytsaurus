@@ -204,7 +204,6 @@ public:
 
     virtual EObjectType GetObjectType() const;
     virtual TVersionedNodeId GetId() const;
-    virtual void PromoteToTransaction(const NTransactionServer::TTransaction* transaction);
 
     virtual i32 RefObject();
     virtual i32 UnrefObject();
