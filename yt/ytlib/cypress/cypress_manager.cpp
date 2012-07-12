@@ -207,7 +207,7 @@ ICypressNode* TCypressManager::CreateDynamicNode(
     auto node_ = ~node;
     RegisterNode(transaction, node, attributes);
 
-    auto nodeId = node->GetId().ObjectId;
+    auto nodeId = node_->GetId().ObjectId;
     *response->mutable_object_id() = nodeId.ToProto();
 
     return node_;
