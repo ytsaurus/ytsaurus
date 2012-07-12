@@ -80,7 +80,7 @@ public:
             mode == ELockMode::Snapshot;
     }
 
-    virtual TNodeId CreateDynamic(
+    virtual TAutoPtr<ICypressNode> CreateDynamic(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) OVERRIDE
@@ -104,9 +104,8 @@ public:
         YCHECK(chunkList->OwningNodes().insert(~node).second);
         objectManager->RefObject(chunkList);
 
-        cypressManager->RegisterNode(transaction, node.Release());
-
-        return nodeId;
+        // TODO(babenko): Release is needed due to cast to ICypressNode.
+        return node.Release();
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(

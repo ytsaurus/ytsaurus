@@ -101,11 +101,6 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)
-    {
-        return new TVirtualNode(id);
-    }
-
 private:
     TYPathServiceProducer Producer;
     EObjectType ObjectType;

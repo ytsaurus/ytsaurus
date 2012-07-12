@@ -68,7 +68,7 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual TNodeId CreateDynamic(
+    virtual TAutoPtr<ICypressNode> CreateDynamic(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response)
@@ -104,9 +104,8 @@ public:
         children.push_back(TChunkTreeRef(chunk));
         chunkManager->AttachToChunkList(chunkList, children);
 
-        cypressManager->RegisterNode(transaction, node.Release());
-
-        return nodeId;
+        // TODO(babenko): Release is needed due to cast to ICypressNode.
+        return node.Release();
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(

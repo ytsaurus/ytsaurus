@@ -549,7 +549,7 @@ protected:
             nodeId)
     { }
 
-    virtual void CreateRecursive(
+    virtual void SetRecursive(
         const NYTree::TYPath& path,
         NYTree::INodePtr value) = 0;
 
@@ -602,21 +602,18 @@ protected:
             ythrow yexception() << "Unknown object type";
         }
 
-        auto nodeId = handler->CreateDynamic(
+        auto* node = cypressManager->CreateDynamicNode(
+            handler,
             this->Transaction,
             request,
-            response);
+            response,
+            &request->Attributes());
 
         auto proxy = cypressManager->GetVersionedNodeProxy(
-            nodeId,
+            node->GetId().ObjectId,
             this->Transaction);
-
-        // TODO(babenko): fixme! this may throw an exception!
-        proxy->Attributes().MergeFrom(request->Attributes());
-
-        CreateRecursive(NYTree::TYPath(tokenizer.GetCurrentSuffix()), proxy);
-
-        *response->mutable_object_id() = nodeId.ToProto();
+        
+        SetRecursive(NYTree::TYPath(tokenizer.GetCurrentSuffix()), proxy);
 
         context->Reply();
     }
@@ -653,7 +650,7 @@ protected:
     typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
-    virtual void CreateRecursive(const NYTree::TYPath& path, NYTree::INodePtr value);
+    virtual void SetRecursive(const NYTree::TYPath& path, NYTree::INodePtr value);
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
 
     yhash_map<Stroka, ICypressNodeProxyPtr> DoGetChildren() const;
@@ -688,7 +685,7 @@ public:
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
 
-    virtual void CreateRecursive(
+    virtual void SetRecursive(
         const NYTree::TYPath& path,
         NYTree::INodePtr value);
     virtual IYPathService::TResolveResult ResolveRecursive(

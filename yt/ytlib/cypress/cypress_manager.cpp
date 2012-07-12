@@ -187,6 +187,32 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const ICypressNode* node)
     return GetHandler(node->GetObjectType());
 }
 
+ICypressNode* TCypressManager::CreateDynamicNode(
+    INodeTypeHandlerPtr handler,
+    NTransactionServer::TTransaction* transaction,
+    TReqCreate* request,
+    TRspCreate* response,
+    IAttributeDictionary* attributes)
+{
+    YASSERT(handler);
+    YASSERT(request);
+    YASSERT(response);
+
+    auto node = handler->CreateDynamic(
+        transaction,
+        request,
+        response);
+    
+    // Make a rawptr copy, next call will transfer the ownership.
+    auto node_ = ~node;
+    RegisterNode(transaction, node, attributes);
+
+    auto nodeId = node->GetId().ObjectId;
+    *response->mutable_object_id() = nodeId.ToProto();
+
+    return node_;
+}
+
 void TCypressManager::CreateNodeBehavior(const TNodeId& id)
 {
     auto handler = GetHandler(TypeFromId(id));
@@ -611,7 +637,8 @@ void TCypressManager::LockVersionedNode(
 
 void TCypressManager::RegisterNode(
     TTransaction* transaction,
-    TAutoPtr<ICypressNode> node)
+    TAutoPtr<ICypressNode> node,
+    IAttributeDictionary* attributes)
 {
     auto nodeId = node->GetId().ObjectId;
     YASSERT(node->GetId().TransactionId == NullTransactionId);
@@ -624,19 +651,36 @@ void TCypressManager::RegisterNode(
     auto node_ = node.Get();
     NodeMap.Insert(nodeId, node.Release());
 
+    // Make an additional fake reference.
+    RefNode(nodeId);
+
+    if (attributes) {
+        auto proxy = GetVersionedNodeProxy(nodeId, transaction);
+        try {
+            proxy->Attributes().MergeFrom(*attributes);
+        } catch (...) {
+            // This will invoke all relevant destruction logic.
+            YCHECK(GetNodeRefCounter(nodeId) == 1);
+            UnrefNode(nodeId);
+            throw;
+        }
+    }
+
     if (transaction) {
         transaction->CreatedNodes().push_back(node_);
         Bootstrap->GetObjectManager()->RefObject(nodeId);
     }
 
-    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s, TransactionId: %s)",
-        ~nodeId.ToString(),
-        ~TypeFromId(nodeId).ToString(),
-        ~GetObjectId(transaction).ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
+        ~node_->GetId().ToString(),
+        ~TypeFromId(nodeId).ToString());
 
     if (IsLeader()) {
         CreateNodeBehavior(nodeId);
     }
+
+    // Drop the fake reference.
+    UnrefNode(nodeId);
 }
 
 ICypressNode* TCypressManager::BranchNode(
@@ -850,7 +894,7 @@ DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TVersionedNodeId, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
+TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManagerPtr cypressManager)
     : CypressManager(cypressManager)
 { }
 

@@ -29,14 +29,22 @@ class TCypressManager
     : public NMetaState::TMetaStatePart
 {
 public:
-    typedef TCypressManager TThis;
-    typedef TIntrusivePtr<TThis> TPtr;
-
     explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
 
     void RegisterHandler(INodeTypeHandlerPtr handler);
     INodeTypeHandlerPtr FindHandler(EObjectType type);
     INodeTypeHandlerPtr GetHandler(EObjectType type);
+
+    typedef NRpc::TTypedServiceRequest<NCypress::NProto::TReqCreate> TReqCreate;
+    typedef NRpc::TTypedServiceResponse<NCypress::NProto::TRspCreate> TRspCreate;
+
+    //! Creates a new dynamic node, sets its attributes, and also registers it.
+    ICypressNode* CreateDynamicNode(
+        INodeTypeHandlerPtr handler,
+        NTransactionServer::TTransaction* transaction,
+        TReqCreate* request,
+        TRspCreate* response,
+        NYTree::IAttributeDictionary* attributes);
 
     //! Returns the id of the root node.
     /*!
@@ -86,7 +94,8 @@ public:
 
     void RegisterNode(
         NTransactionServer::TTransaction* transaction,
-        TAutoPtr<ICypressNode> node);
+        TAutoPtr<ICypressNode> node,
+        NYTree::IAttributeDictionary* attributes = NULL);
 
     NYTree::TYPath GetNodePath(ICypressNodeProxyPtr proxy);
     NYTree::TYPath GetNodePath(
@@ -97,6 +106,8 @@ public:
     DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
 
 private:
+    typedef TCypressManager TThis;
+
     class TNodeTypeHandler;
     class TYPathProcessor;
     class TRootProxy;
@@ -104,12 +115,12 @@ private:
     class TNodeMapTraits
     {
     public:
-        explicit TNodeMapTraits(TCypressManager* cypressManager);
+        explicit TNodeMapTraits(TCypressManagerPtr cypressManager);
 
         TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) const;
 
     private:
-        TCypressManager::TPtr CypressManager;
+        TCypressManagerPtr CypressManager;
     };
     
     NCellMaster::TBootstrap* Bootstrap;

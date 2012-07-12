@@ -328,14 +328,13 @@ INodePtr TMapNodeProxy::DoFindChild(const TStringBuf& key, bool skipCurrentTrans
     return NULL;
 }
 
-
 void TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(List);
     TBase::DoInvoke(context);
 }
 
-void TMapNodeProxy::CreateRecursive(const TYPath& path, INodePtr value)
+void TMapNodeProxy::SetRecursive(const TYPath& path, INodePtr value)
 {
     TMapNodeMixin::SetRecursive(path, value);
 }
@@ -496,7 +495,7 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
     return it->second;
 }
 
-void TListNodeProxy::CreateRecursive(const TYPath& path, INodePtr value)
+void TListNodeProxy::SetRecursive(const TYPath& path, INodePtr value)
 {
     TListNodeMixin::SetRecursive(path, value);
 }

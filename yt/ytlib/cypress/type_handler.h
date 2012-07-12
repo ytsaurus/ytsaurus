@@ -68,7 +68,7 @@ struct INodeTypeHandler
     /*!
      *  This is called during |Create|.
      */
-    virtual TNodeId CreateDynamic(
+    virtual TAutoPtr<ICypressNode> CreateDynamic(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) = 0;

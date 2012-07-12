@@ -67,7 +67,7 @@ public:
         return new TImpl(id);
     }
 
-    virtual TNodeId CreateDynamic(
+    virtual TAutoPtr<ICypressNode> CreateDynamic(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response)
@@ -80,10 +80,7 @@ public:
         auto cypressManager = Bootstrap->GetCypressManager();
 
         auto nodeId = objectManager->GenerateId(GetObjectType());
-        auto node = Create(nodeId);
-        cypressManager->RegisterNode(transaction, node);
-
-        return nodeId;
+        return new TImpl(nodeId);
     }
 
     virtual void Destroy(ICypressNode* node)
