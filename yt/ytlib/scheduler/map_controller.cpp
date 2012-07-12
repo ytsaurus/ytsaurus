@@ -80,8 +80,7 @@ private:
 
         virtual TDuration GetLocalityTimeout() const
         {
-            // TODO(babenko): make configurable
-            return TDuration::Seconds(5);
+            return Controller->Spec->LocalityTimeout;
         }
 
     private:

@@ -187,8 +187,7 @@ private:
 
         virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
-            // TODO(babenko): make customizable
-            return TDuration::Seconds(5);
+            return Controller->Spec->PartitionLocalityTimeout;
         }
 
     private:
@@ -349,9 +348,11 @@ private:
 
         virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
-            // TODO(babenko): make customizable
             // If no primary node is chosen yet then start the job immediately.
-            return AddressToOutputLocality.empty() ? TDuration::Zero() : TDuration::Seconds(30);
+            return
+                AddressToOutputLocality.empty()
+                ? TDuration::Zero()
+                : Controller->Spec->SortLocalityTimeout;
         }
 
         virtual i64 GetLocality(const Stroka& address) const OVERRIDE
@@ -554,8 +555,7 @@ private:
 
         virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
-            // TODO(babenko): make configurable
-            return TDuration::Seconds(30);
+            return Controller->Spec->MergeLocalityTimeout;
         }
 
     private:

@@ -125,6 +125,7 @@ struct TMapOperationSpec
     std::vector<NYTree::TYPath> OutputTablePaths;
     TNullable<int> JobCount;
     i64 MaxWeightPerJob;
+    TDuration LocalityTimeout;
 
     TMapOperationSpec()
     {
@@ -137,6 +138,8 @@ struct TMapOperationSpec
         Register("max_weight_per_job", MaxWeightPerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("locality_timeout", LocalityTimeout)
+            .Default(TDuration::Seconds(5));
     }
 };
 
@@ -163,6 +166,8 @@ struct TMergeOperationSpec
     //! be larger.
     i64 MaxWeightPerJob;
 
+    TDuration LocalityTimeout;
+
     TMergeOperationSpec()
     {
         Register("input_table_paths", InputTablePaths);
@@ -176,6 +181,8 @@ struct TMergeOperationSpec
         Register("max_weight_per_job", MaxWeightPerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("locality_timeout", LocalityTimeout)
+            .Default(TDuration::Seconds(5));
     }
 };
 
@@ -187,6 +194,7 @@ struct TEraseOperationSpec
     NYTree::TYPath TablePath;
     bool CombineChunks;
     i64 MaxWeightPerJob;
+    TDuration LocalityTimeout;
 
     TEraseOperationSpec()
     {
@@ -196,6 +204,8 @@ struct TEraseOperationSpec
         Register("max_weight_per_job", MaxWeightPerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("locality_timeout", LocalityTimeout)
+            .Default(TDuration::Seconds(5));
     }
 };
 
@@ -237,6 +247,10 @@ struct TSortOperationSpec
     //! that takes care of a megalomaniac partition.
     i64 MaxWeightPerUnorderedMergeJob;
 
+    TDuration PartitionLocalityTimeout;
+    TDuration SortLocalityTimeout;
+    TDuration MergeLocalityTimeout;
+
     TSortOperationSpec()
     {
         Register("input_table_paths", InputTablePaths);
@@ -264,6 +278,12 @@ struct TSortOperationSpec
         Register("max_weight_per_unordered_merge_job", MaxWeightPerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("partition_locality_timeout", PartitionLocalityTimeout)
+            .Default(TDuration::Seconds(5));
+        Register("sort_locality_timeout", SortLocalityTimeout)
+            .Default(TDuration::Seconds(30));
+        Register("merge_locality_timeout", SortLocalityTimeout)
+            .Default(TDuration::Seconds(30));
     }
 };
 
@@ -277,6 +297,7 @@ struct TReduceOperationSpec
     std::vector<NYTree::TYPath> OutputTablePaths;
     TNullable< std::vector<Stroka> > KeyColumns;
     i64 MaxWeightPerJob;
+    TDuration LocalityTimeout;
 
     TReduceOperationSpec()
     {
@@ -288,6 +309,8 @@ struct TReduceOperationSpec
         Register("max_weight_per_job", MaxWeightPerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("locality_timeout", LocalityTimeout)
+            .Default(TDuration::Seconds(5));
     }
 };
 

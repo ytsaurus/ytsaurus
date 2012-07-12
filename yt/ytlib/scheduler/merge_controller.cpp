@@ -108,8 +108,7 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
-            // TODO(babenko): make configurable
-            return TDuration::Seconds(5);
+            return Controller->GetJobLocalityTimeout();
         }
 
 
@@ -430,6 +429,9 @@ protected:
     //! Returns the maximum desired weight of a single task.
     virtual i64 GetMaxTaskWeight() = 0;
 
+    //! Returns the maximum time to wait for a local job.
+    virtual TDuration GetJobLocalityTimeout() = 0;
+
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate()
     {
@@ -497,6 +499,11 @@ private:
     virtual i64 GetMaxTaskWeight() OVERRIDE
     {
         return Spec->MaxWeightPerJob;
+    }
+
+    virtual TDuration GetJobLocalityTimeout() OVERRIDE
+    {
+        return Spec->LocalityTimeout;
     }
 
     virtual void InitJobSpecTemplate() OVERRIDE
@@ -581,6 +588,11 @@ private:
         return Spec->MaxWeightPerJob;
     }
 
+    virtual TDuration GetJobLocalityTimeout() OVERRIDE
+    {
+        return Spec->LocalityTimeout;
+    }
+
     virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
@@ -651,6 +663,11 @@ private:
     virtual i64 GetMaxTaskWeight() OVERRIDE
     {
         return Spec->MaxWeightPerJob;
+    }
+
+    virtual TDuration GetJobLocalityTimeout() OVERRIDE
+    {
+        return Spec->LocalityTimeout;
     }
 
     virtual void InitJobSpecTemplate() OVERRIDE
@@ -893,6 +910,11 @@ private:
         return Spec->MaxWeightPerJob;
     }
 
+    virtual TDuration GetJobLocalityTimeout() OVERRIDE
+    {
+        return Spec->LocalityTimeout;
+    }
+
     virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
@@ -958,6 +980,11 @@ private:
     virtual i64 GetMaxTaskWeight() OVERRIDE
     {
         return Spec->MaxWeightPerJob;
+    }
+
+    virtual TDuration GetJobLocalityTimeout() OVERRIDE
+    {
+        return Spec->LocalityTimeout;
     }
 
     virtual void InitJobSpecTemplate() OVERRIDE
