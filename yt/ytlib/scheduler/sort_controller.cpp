@@ -172,6 +172,11 @@ private:
             return "Partition";
         }
 
+        virtual int GetPriority() const OVERRIDE
+        {
+            return 2;
+        }
+
         virtual int GetPendingJobCount() const OVERRIDE
         {
             return
@@ -180,7 +185,7 @@ private:
                 : Controller->PartitionJobCounter.GetPending();
         }
 
-        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
             // TODO(babenko): make customizable
             return TDuration::Seconds(5);
@@ -326,6 +331,10 @@ private:
             return Sprintf("Sort(%d)", Partition->Index);
         }
 
+        virtual int GetPriority() const OVERRIDE
+        {
+            return 1;
+        }
 
         virtual int GetPendingJobCount() const OVERRIDE
         {
@@ -338,7 +347,7 @@ private:
                 : static_cast<int>(floor(fractionalJobCount));
         }
 
-        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
             // TODO(babenko): make customizable
             // If no primary node is chosen yet then start the job immediately.
@@ -528,6 +537,11 @@ private:
             return Sprintf("SortedMerge(%d)", Partition->Index);
         }
 
+        virtual int GetPriority() const OVERRIDE
+        {
+            return 0;
+        }
+
         virtual int GetPendingJobCount() const OVERRIDE
         {
             return
@@ -538,7 +552,7 @@ private:
                 ? 1 : 0;
         }
 
-        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
             // TODO(babenko): make configurable
             return TDuration::Seconds(30);
@@ -615,6 +629,11 @@ private:
             return Sprintf("UnorderedMerge(%d)", Partition->Index);
         }
 
+        virtual int GetPriority() const OVERRIDE
+        {
+            return 0;
+        }
+
         virtual int GetPendingJobCount() const OVERRIDE
         {
             if (!Partition->Megalomaniac ||
@@ -628,7 +647,7 @@ private:
             return static_cast<int>(ceil((double) weight / weightPerJob));
         }
 
-        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
             // Unordered merge will fetch all partitions so the locality is not an issue here.
             return TDuration::Zero();

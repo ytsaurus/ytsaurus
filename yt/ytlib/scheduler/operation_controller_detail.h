@@ -177,9 +177,10 @@ protected:
         explicit TTask(TOperationControllerBase* controller);
 
         virtual Stroka GetId() const = 0;
+        virtual int GetPriority() const;
         virtual int GetPendingJobCount() const = 0;
         virtual int GetChunkListCountPerJob() const = 0;
-        virtual TDuration GetMaxLocalityDelay() const = 0;
+        virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);

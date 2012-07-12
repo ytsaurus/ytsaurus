@@ -106,7 +106,7 @@ protected:
             return ChunkPool->IsPending() ? 1 : 0;
         }
 
-        virtual TDuration GetMaxLocalityDelay() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
             // TODO(babenko): make configurable
             return TDuration::Seconds(5);

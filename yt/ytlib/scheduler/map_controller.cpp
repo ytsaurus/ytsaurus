@@ -78,7 +78,7 @@ private:
                 : 0;
         }
 
-        virtual TDuration GetMaxLocalityDelay() const
+        virtual TDuration GetLocalityTimeout() const
         {
             // TODO(babenko): make configurable
             return TDuration::Seconds(5);

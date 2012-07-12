@@ -39,6 +39,11 @@ i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
     return ChunkPool->GetLocality(address);
 }
 
+int TOperationControllerBase::TTask::GetPriority() const
+{
+    return 0;
+}
+
 void TOperationControllerBase::TTask::AddStripe(TChunkStripePtr stripe)
 {
     ChunkPool->Add(stripe);
@@ -462,23 +467,27 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 
 TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
 {
+    typedef std::pair<int, i64> TWeightedLocality;
+
     // Look for local tasks first.
     auto address = node->GetAddress();
     auto localIt = AddressToLocalTasks.find(address);
     if (localIt != AddressToLocalTasks.end()) {
-        // Find the best with max locality among hinted ones.
+        // Find the task with max (weighted) locality among hinted ones.
         // Perform lazy cleanup of locality hints.
+        TTaskPtr bestTask;
+        TWeightedLocality bestLocality(-1, -1);
+
         auto& candidates = localIt->second;
-        TTaskPtr bestTask = NULL;
-        i64 bestLocality = 0;
         auto it = candidates.begin();
         while (it != candidates.end()) {
             auto jt = it++;
             const auto& candidate = *jt;
-            bool isValid = false;
             if (candidate->GetPendingJobCount() > 0) {
-                i64 locality = candidate->GetLocality(address);
-                if (locality > 0) {
+                TWeightedLocality locality(
+                    candidate->GetPriority(),
+                    candidate->GetLocality(address));
+                if (locality.second > 0) {
                     if (locality > bestLocality) {
                         bestTask = candidate;
                         bestLocality = locality;
@@ -493,21 +502,24 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
         }
 
         if (bestTask) {
-            // Reset locality timestamp and run custom scheduling.
+            // Reset locality timestamp.
             bestTask->SetNonLocalRequestTime(Null);
-            LOG_DEBUG("Scheduling a local job (Task: %s, Address: %s, Locality: %" PRId64 ")",
+            LOG_DEBUG("Scheduling a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ")",
                 ~bestTask->GetId(),
                 ~node->GetAddress(),
-                bestLocality);
+                bestLocality.first,
+                bestLocality.second);
             return bestTask->ScheduleJob(node);
         }
     }
 
-    // Examine all (potentially) pending tasks.
+    // Examine all (potentially) pending tasks, pick one with the best priority.
     // Perform lazy cleanup of pending hints.
     {
+        TTaskPtr bestTask;
+        int bestPriority = -1;
+
         auto now = TInstant::Now();
-        TTaskPtr feasibleTask = NULL;
         auto it = PendingTasks.begin();
         while (it != PendingTasks.end()) {
             auto jt = it++;
@@ -518,8 +530,12 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                 if (!candidate->GetNonLocalRequestTime()) {
                     candidate->SetNonLocalRequestTime(now);
                 }
-                if (candidate->GetNonLocalRequestTime().Get() + candidate->GetMaxLocalityDelay() <= now) {
-                    feasibleTask = candidate;
+                if (candidate->GetNonLocalRequestTime().Get() + candidate->GetLocalityTimeout() <= now) {
+                    int priority = candidate->GetPriority();
+                    if (priority > bestPriority) {
+                        bestTask = candidate;
+                        bestPriority = priority;
+                    }
                 }
             } else {
                 LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
@@ -527,14 +543,15 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
             }
         }
 
-        if (feasibleTask) {
-            LOG_DEBUG("Scheduling a non-local job (Task: %s, Address: %s, LocalityDelay: %s)",
-                ~feasibleTask->GetId(),
+        if (bestTask) {
+            LOG_DEBUG("Scheduling a non-local job (Task: %s, Address: %s, Priority: %d, LocalityDelay: %s)",
+                ~bestTask->GetId(),
                 ~node->GetAddress(),
-                ~ToString(now - feasibleTask->GetNonLocalRequestTime().Get()));
-            auto job = feasibleTask->ScheduleJob(node);
+                bestPriority,
+                ~ToString(now - bestTask->GetNonLocalRequestTime().Get()));
+            auto job = bestTask->ScheduleJob(node);
             if (job) {
-                feasibleTask->SetNonLocalRequestTime(Null);
+                bestTask->SetNonLocalRequestTime(Null);
                 return job;
             }
         }
