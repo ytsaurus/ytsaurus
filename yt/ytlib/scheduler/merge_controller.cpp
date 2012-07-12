@@ -641,9 +641,10 @@ private:
     {
         UNUSED(batchRsp);
 
-        // If the input is sorted then the output is marked as sorted as well
-        if (InputTables[0].Sorted) {
-            ScheduleSetOutputTablesSorted(InputTables[0].KeyColumns);
+        // If the input is sorted then the output chunk tree must also be marked as sorted.
+        const auto& table = InputTables[0];
+        if (table.Sorted) {
+            ScheduleSetOutputTablesSorted(table.KeyColumns);
         }
     }
 
@@ -655,6 +656,15 @@ private:
     virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
+
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TMergeJobSpecExt::merge_job_spec_ext);
+
+        // If the input is sorted then the output must also be sorted.
+        // For this, the job needs key columns.
+        const auto& table = InputTables[0];
+        if (table.Sorted) {
+            ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns);
+        }
 
         TMergeControllerBase::InitJobSpecTemplate();
     }
