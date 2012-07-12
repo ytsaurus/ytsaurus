@@ -643,14 +643,15 @@ void TTableNodeProxy::ClearNode(TTableNode* node)
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto* oldChunkList = node->GetChunkList();
+    YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
+    objectManager->UnrefObject(oldChunkList);
 
     auto* newChunkList = chunkManager->CreateChunkList();
     YCHECK(newChunkList->OwningNodes().insert(node).second);
-
     node->SetChunkList(newChunkList);
-    node->SetUpdateMode(ETableUpdateMode::Overwrite);
     objectManager->RefObject(newChunkList);
-    objectManager->UnrefObject(oldChunkList);
+
+    node->SetUpdateMode(ETableUpdateMode::Overwrite);
 
     LOG_DEBUG_UNLESS(Bootstrap->GetMetaStateManager()->IsRecovery(),
         "Table node is cleared and switched to overwrite mode (NodeId: %s, NewChunkListId: %s)",
