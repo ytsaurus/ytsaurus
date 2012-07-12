@@ -544,8 +544,9 @@ void TCypressManager::AcquireLock(
             }
         }
     } else {
-        YASSERT(branchedNode->GetLockMode() < mode);
-        branchedNode->SetLockMode(mode);
+        if (branchedNode->GetLockMode() < mode) {
+            branchedNode->SetLockMode(mode);
+        }
     }
 }
 
