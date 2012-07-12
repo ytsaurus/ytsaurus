@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MR="$HOME/bin/mapreduce -server n01-0449g.yt.yandex.net:8013 -jobcount 19200 -threadcount 16"
+MR="../mapreduce -server n01-0449g.yt.yandex.net:8013 -jobcount 19200 -threadcount 16"
 
 time $MR -map ./map.pl -src access-log/2012-07-04 -dst usr/proskurnev/tmp/st1 -file map.pl
 time $MR -reduce ./reduce.pl -src usr/proskurnev/tmp/st1 -dst usr/proskurnev/tmp/st2 -file reduce.pl

@@ -26,7 +26,8 @@ do
     echo "Merge sorted tables"
     time ./merge.sh "speed_test/output10000" "speed_test/output20000" "speed_test/merged" 2>>err
 
-    #echo "Statistic task"
-    #time job/job.ymr 2>err
+    echo "Statistic task"
+    export PATH=.:$PATH
+    cd job && ./job.ymr
 done
 
