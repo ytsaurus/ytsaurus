@@ -48,6 +48,8 @@
 
 #include <ytlib/profiling/profiling_manager.h>
 
+#include <build.h>
+
 namespace NYT {
 namespace NCellMaster {
 
@@ -200,7 +202,12 @@ void TBootstrap::Run()
         orchidRoot,
         "/config",
         CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
-    SyncYPathSet(orchidRoot, "/@service_name", TYsonString("master"));
+    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
+
+    SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
+    SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
+    SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
+    SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         orchidRoot,

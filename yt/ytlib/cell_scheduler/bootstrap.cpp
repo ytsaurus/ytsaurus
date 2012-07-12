@@ -31,6 +31,8 @@
 
 #include <ytlib/job_proxy/config.h>
 
+#include <build.h>
+
 namespace NYT {
 namespace NCellScheduler {
 
@@ -109,7 +111,12 @@ void TBootstrap::Run()
         orchidRoot,
         "/scheduler",
         CreateVirtualNode(Scheduler->CreateOrchidProducer()));
-    SyncYPathSet(orchidRoot, "/@service_name", TYsonString("scheduler"));
+    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("scheduler"));
+
+    SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
+    SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
+    SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
+    SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,

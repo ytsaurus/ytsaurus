@@ -25,12 +25,15 @@
 #include <ytlib/rpc/server.h>
 #include <ytlib/rpc/channel_cache.h>
 
+#include <build.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NBus;
 using namespace NRpc;
 using namespace NChunkServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,15 +91,22 @@ void TBootstrap::Init()
     auto chunkHolderService = New<TChunkHolderService>(Config, this);
     NodeBootstrap->GetRpcServer()->RegisterService(chunkHolderService);
 
+    auto orchidRoot = NodeBootstrap->GetOrchidRoot();
+
     SetNodeByYPath(
-        NodeBootstrap->GetOrchidRoot(),
+        orchidRoot,
         "/stored_chunks",
         CreateVirtualNode(CreateStoredChunkMapService(~ChunkStore)));
     SetNodeByYPath(
-        NodeBootstrap->GetOrchidRoot(),
+        orchidRoot,
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
-    SyncYPathSet(NodeBootstrap->GetOrchidRoot(), "/@service_name", NYTree::TYsonString("node"));
+    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("node"));
+
+    SyncYPathSet(orchidRoot, "/@build_version", ConvertToYsonString(YT_VERSION));
+    SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
+    SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
+    SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
 
     MasterConnector->Start();
 }
