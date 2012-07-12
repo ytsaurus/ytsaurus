@@ -484,12 +484,12 @@ TYPath GetYPath(INodePtr node, INodePtr* root)
         TYPath token;
         switch (parent->GetType()) {
             case ENodeType::List: {
-                auto index = parent->AsList()->GetChildIndex(~node);
+                auto index = parent->AsList()->GetChildIndex(node);
                 token = EscapeYPathToken(index);
                 break;
             }
             case ENodeType::Map: {
-                auto key = parent->AsMap()->GetChildKey(~node);
+                auto key = parent->AsMap()->GetChildKey(node);
                 token = EscapeYPathToken(key);
                 break;
             }

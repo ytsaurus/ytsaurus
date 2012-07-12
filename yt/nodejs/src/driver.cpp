@@ -318,14 +318,14 @@ TNodeJSDriver::TNodeJSDriver(Handle<Object> configObject)
     try {
         // Qualify namespace to avoid collision with class method New().
         config = ::NYT::New<NDriver::TDriverConfig>();
-        config->Load(~configNode);
+        config->Load(configNode);
     } catch (const std::exception& ex) {
         Message = Sprintf("Error loading configuration\n%s", ex.what());
         return;
     }
 
     try {
-        NLog::TLogManager::Get()->Configure(~configNode->AsMap()->GetChild("logging"));
+        NLog::TLogManager::Get()->Configure(configNode->AsMap()->GetChild("logging"));
         Driver = CreateDriver(config);
     } catch (const std::exception& ex) {
         Message = Sprintf("Error initializing driver instance\n%s", ex.what());
@@ -589,10 +589,10 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         };
 
         if (!request->Exception.empty()) {
-            args[0] = String::New(~request->Exception);
+            args[0] = String::New(request->Exception);
         } else {
             args[1] = Integer::New(request->DriverResponse.Error.GetCode());
-            args[2] = String::New(~request->DriverResponse.Error.GetMessage());
+            args[2] = String::New(request->DriverResponse.Error.GetMessage());
             args[3] = Integer::NewFromUnsigned(request->GetNodeJSInputStream()->BytesCounter);
             args[4] = Integer::NewFromUnsigned(request->GetNodeJSOutputStream()->BytesCounter);
         }

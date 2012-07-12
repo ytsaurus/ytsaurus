@@ -142,7 +142,7 @@ Handle<Value> GetYsonRepresentation(const Arguments& args)
     YASSERT(args.Length() == 1);
 
     TYsonString yson = ConvertToYsonString(ConvertV8ValueToNode(args[0]), EYsonFormat::Text);
-    return scope.Close(String::New(~yson.Data()));
+    return scope.Close(String::New(yson.Data()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

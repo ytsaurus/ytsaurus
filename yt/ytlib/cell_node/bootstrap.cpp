@@ -98,7 +98,7 @@ void TBootstrap::Run()
     SetNodeByYPath(
         OrchidRoot,
         "/monitoring",
-        CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
+        CreateVirtualNode(CreateMonitoringProducer(monitoringManager)));
     SetNodeByYPath(
         OrchidRoot,
         "/profiling",

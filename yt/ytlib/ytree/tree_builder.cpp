@@ -47,7 +47,7 @@ public:
     {
         auto node = Factory->CreateString();
         node->SetValue(Stroka(value));
-        AddNode(~node, false);
+        AddNode(node, false);
     }
 
     virtual void OnMyIntegerScalar(i64 value)
@@ -55,25 +55,25 @@ public:
 
         auto node = Factory->CreateInteger();
         node->SetValue(value);
-        AddNode(~node, false);
+        AddNode(node, false);
     }
 
     virtual void OnMyDoubleScalar(double value)
     {
         auto node = Factory->CreateDouble();
         node->SetValue(value);
-        AddNode(~node, false);
+        AddNode(node, false);
     }
 
     virtual void OnMyEntity()
     {
-        AddNode(~Factory->CreateEntity(), false);
+        AddNode(Factory->CreateEntity(), false);
     }
 
 
     virtual void OnMyBeginList()
     {
-        AddNode(~Factory->CreateList(), true);
+        AddNode(Factory->CreateList(), true);
     }
 
     virtual void OnMyListItem()
@@ -89,7 +89,7 @@ public:
 
     virtual void OnMyBeginMap()
     {
-        AddNode(~Factory->CreateMap(), true);
+        AddNode(Factory->CreateMap(), true);
     }
 
     virtual void OnMyKeyedItem(const TStringBuf& key)
