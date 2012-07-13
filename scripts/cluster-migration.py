@@ -221,7 +221,6 @@ def migrate_map_node(from_path, to_path, migrate_from, migrate_to):
 def migrate_table(from_path, to_path, migrate_from, migrate_to):
     ask_yt(migrate_to, "create", "table", ypath_join(to_path))
 
-    return
     copy_attributes([ "channels" ], from_path, to_path, migrate_from, migrate_to)
 
     st = time.time()
