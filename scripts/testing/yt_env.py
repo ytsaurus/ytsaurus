@@ -76,9 +76,9 @@ class YTEnv(unittest.TestCase):
 
     def my_setUp(self, path_to_run):
         # TODO(panin): add option for this
-        os.system('killall MasterMain')
-        os.system('killall NodeMain')
-        os.system('killall SchedulerMain')
+        # os.system('killall MasterMain')
+        # os.system('killall NodeMain')
+        # os.system('killall SchedulerMain')
         
         print 'Setting up configuration with %s masters, %s holders, %s schedulers' % (
             self.NUM_MASTERS, self.NUM_HOLDERS, self.NUM_SCHEDULERS
@@ -99,10 +99,13 @@ class YTEnv(unittest.TestCase):
 
     def my_tearDown(self):
         print 'Tearing down'
+        ok = True
+        message = ""
         for p, name in self.process_to_kill:
             p.poll()
             if p.returncode is not None:
-                assert False,  '%s (pid %d) is already terminated with exit status %d' % (name, p.pid, p.returncode)
+                ok = False
+                message = '%s (pid %d) is already terminated with exit status %d' % (name, p.pid, p.returncode)
             os.killpg(p.pid, signal.SIGTERM)
 
             time.sleep(0.250)
@@ -118,7 +121,10 @@ class YTEnv(unittest.TestCase):
                 time.sleep(0.100)
 
             if p.returncode is None:
-                assert False, 'Alarm! %s (pid %d) was not killed after 50 iterations' % (name, p. pid)
+                ok = False
+                message = 'Alarm! %s (pid %d) was not killed after 50 iterations' % (name, p. pid)
+
+        assert ok, message
 
     def _set_path(self, path_to_run):
         path_to_run = os.path.abspath(path_to_run)
