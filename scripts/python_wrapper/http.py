@@ -6,13 +6,14 @@ import requests
 import simplejson as json
 
 def make_request(http_method, request_type, params,
-                 data=None, format=None, verbose=False, proxy=None, check_errors=True,
+                 data=None, format=None, verbose=True, proxy=None, check_errors=True,
                  raw_response=False):
     """ Makes request to yt proxy.
         http_method may be equal to GET, POST or PUT
         type may be equal to  get, read, write, create ...
         Returns response content, raw_response option force
         to return request.Response instance"""
+
 
     # Prepare request url.
     if proxy is None:
