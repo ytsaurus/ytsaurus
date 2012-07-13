@@ -16,7 +16,7 @@ struct TWeightedChunk
 {
     TWeightedChunk();
 
-    NTableClient::NProto::TInputChunk InputChunk;
+    NTableClient::TRefCountedInputChunkPtr InputChunk;
     i64 Weight;
     i64 DataWeightOverride;
     i64 RowCountOverride;
@@ -28,14 +28,15 @@ struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     TChunkStripe();
-    TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk);
-    TChunkStripe(const NTableClient::NProto::TInputChunk& inputChunk,
+    TChunkStripe(NTableClient::TRefCountedInputChunkPtr inputChunk);
+    TChunkStripe(
+        NTableClient::TRefCountedInputChunkPtr inputChunk,
         i64 weight,
         i64 rowCount);
 
-    void AddChunk(const NTableClient::NProto::TInputChunk& inputChunk);
+    void AddChunk(NTableClient::TRefCountedInputChunkPtr inputChunk);
     void AddChunk(
-        const NTableClient::NProto::TInputChunk& inputChunk,
+        NTableClient::TRefCountedInputChunkPtr inputChunk,
         i64 dataWeightOverride,
         i64 rowCountOverride);
 

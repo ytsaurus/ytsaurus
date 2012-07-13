@@ -190,7 +190,7 @@ void TOperationControllerBase::TTask::AddInputChunks(
 {
     FOREACH (const auto& weightedChunk, stripe->Chunks) {
         auto* inputChunk = inputSpec->add_chunks();
-        *inputChunk = weightedChunk.InputChunk;
+        *inputChunk = *weightedChunk.InputChunk;
         inputChunk->set_data_weight(weightedChunk.DataWeightOverride);
         inputChunk->set_row_count(weightedChunk.RowCountOverride);
     }
@@ -469,7 +469,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 {
     FOREACH (const auto& chunk, stripe->Chunks) {
         const auto& inputChunk = chunk.InputChunk;
-        FOREACH (const auto& address, inputChunk.node_addresses()) {
+        FOREACH (const auto& address, inputChunk->node_addresses()) {
             AddTaskLocalityHint(task, address);
         }
     }
@@ -1149,21 +1149,20 @@ void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExe
     }
 }
 
-std::vector<NTableClient::NProto::TInputChunk> TOperationControllerBase::CollectInputTablesChunks()
+std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTablesChunks()
 {
     // TODO(babenko): set row_attributes
-    std::vector<NTableClient::NProto::TInputChunk> result;
+    std::vector<TRefCountedInputChunkPtr> result;
     FOREACH (const auto& table, InputTables) {
-        result.insert(
-            result.end(),
-            table.FetchResponse->chunks().begin(),
-            table.FetchResponse->chunks().end());
+        FOREACH (const auto& inputChunk, table.FetchResponse->chunks()) {
+            result.push_back(New<TRefCountedInputChunk>(inputChunk));
+        }
     }
     return result;
 }
 
 std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
-    const std::vector<NTableClient::NProto::TInputChunk>& inputChunks,
+    const std::vector<TRefCountedInputChunkPtr>& inputChunks,
     TNullable<int> jobCount,
     i64 maxWeightPerJob)
 {
@@ -1171,8 +1170,8 @@ std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
     i64 weightPerJob;
     if (jobCount) {
         i64 totalWeight = 0;
-        FOREACH (const auto& inputChunk, inputChunks) {
-            auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
+        FOREACH (auto inputChunk, inputChunks) {
+            auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk->extensions());
             totalWeight += miscExt.data_weight();
         }
         weightPerJob = totalWeight / jobCount.Get();
@@ -1189,13 +1188,13 @@ std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
     std::vector<TChunkStripePtr> result;
 
     // Ensure that no input chunk has weight much larger than weightPerJob.
-    FOREACH (const auto& inputChunk, inputChunks) {
-        auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
+    FOREACH (auto inputChunk, inputChunks) {
+        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk->extensions());
         if (miscExt.data_weight() > weightPerJob * 1.3) {
             int sliceCount = (int) std::ceil((double) miscExt.data_weight() / (double) weightPerJob);
-            auto slicedInputChunks = SliceChunkEvenly(inputChunk, sliceCount);
-            FOREACH (const auto& slicedInputChunk, slicedInputChunks) {
+            auto slicedInputChunks = SliceChunkEvenly(*inputChunk, sliceCount);
+            FOREACH (auto slicedInputChunk, slicedInputChunks) {
                 auto stripe = New<TChunkStripe>(slicedInputChunk);
                 result.push_back(stripe);
             }

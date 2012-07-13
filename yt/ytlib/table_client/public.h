@@ -82,6 +82,9 @@ class TKeyPart;
 typedef TKey<TBlobOutput> TOwningKey;
 typedef TKey<TFakeStringBufStore> TNonOwningKey;
 
+struct TRefCountedInputChunk;
+typedef TIntrusivePtr<TRefCountedInputChunk> TRefCountedInputChunkPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

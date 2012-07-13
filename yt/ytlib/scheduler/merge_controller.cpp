@@ -25,8 +25,8 @@ using namespace NTableClient;
 using namespace NTableServer;
 using namespace NFormats;
 using namespace NScheduler::NProto;
-using namespace NChunkHolder::NProto;
 using namespace NTableClient::NProto;
+using namespace NChunkHolder::NProto;
 using NTableClient::ToString;
 using ::ToString;
 
@@ -229,10 +229,10 @@ protected:
     }
 
     //! Add chunk to the current task's pool.
-    void AddPendingChunk(const TInputChunk& chunk, int tableIndex)
+    void AddPendingChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex)
     {
         // Merge is IO-bound, use data size as weight.
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         i64 weight = miscExt.data_weight();
         i64 rowCount = miscExt.row_count();
 
@@ -244,10 +244,10 @@ protected:
         WeightCounter.Increment(weight);
         ChunkCounter.Increment(1);
         CurrentTaskWeight += weight;
-        stripe->AddChunk(chunk, weight, rowCount);
+        stripe->AddChunk(inputChunk, weight, rowCount);
 
         auto& table = OutputTables[0];
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, Weight: %" PRId64 ", RowCount: %" PRId64 ")",
             ~chunkId.ToString(),
             PartitionCount,
@@ -258,10 +258,10 @@ protected:
     }
 
     //! Add chunk directly to the output.
-    void AddPassthroughChunk(const TInputChunk& chunk)
+    void AddPassthroughChunk(TRefCountedInputChunkPtr inputChunk)
     {
         auto& table = OutputTables[0];
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         LOG_DEBUG("Added passthrough chunk (ChunkId: %s, Partition: %d)",
             ~chunkId.ToString(),
             PartitionCount);
@@ -302,16 +302,16 @@ protected:
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
-                FOREACH (auto& chunk, *table.FetchResponse->mutable_chunks()) {
-                    auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                FOREACH (auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
+                    auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+                    auto miscExt = GetProtoExtension<TMiscExt>(inputChunk.extensions());
                     i64 weight = miscExt.data_weight();
                     i64 rowCount = miscExt.row_count();
                     LOG_DEBUG("Processing chunk (ChunkId: %s, DataWeight: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
                         weight,
                         rowCount);
-                    ProcessInputChunk(chunk, tableIndex);
+                    ProcessInputChunk(New<TRefCountedInputChunk>(inputChunk), tableIndex);
                 }
             }
 
@@ -350,7 +350,7 @@ protected:
     { }
 
     //! Called for each input chunk.
-    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) = 0;
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) = 0;
 
     //! Called at the end of input chunks scan.
     virtual void EndInputChunks()
@@ -391,26 +391,26 @@ protected:
 
     //! Returns True iff the chunk has nontrivial limits.
     //! Such chunks are always pooled.
-    static bool IsCompleteChunk(const TInputChunk& chunk)
+    static bool IsCompleteChunk(TRefCountedInputChunkPtr inputChunk)
     {
         return
-            !chunk.slice().start_limit().has_row_index() &&
-            !chunk.slice().start_limit().has_key () &&
-            !chunk.slice().end_limit().has_row_index() &&
-            !chunk.slice().end_limit().has_key ();
+            !inputChunk->slice().start_limit().has_row_index() &&
+            !inputChunk->slice().start_limit().has_key () &&
+            !inputChunk->slice().end_limit().has_row_index() &&
+            !inputChunk->slice().end_limit().has_key ();
     }
 
     //! Returns True if the chunk can be included into the output as-is.
-    virtual bool IsPassthroughChunk(const TInputChunk& chunk) = 0;
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) = 0;
 
     //! Returns True iff the chunk is complete and is large enough.
-    bool IsLargeCompleteChunk(const TInputChunk& chunk)
+    bool IsLargeCompleteChunk(TRefCountedInputChunkPtr inputChunk)
     {
-        if (!IsCompleteChunk(chunk)) {
+        if (!IsCompleteChunk(inputChunk)) {
             return false;
         }
 
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
         if (0.9 * miscExt.compressed_data_size() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
@@ -421,9 +421,9 @@ protected:
     }
 
     //! A typical implementation of #IsPassthroughChunk that depends on whether chunks must be combined or not.
-    bool IsPassthroughChunkImpl(const TInputChunk& chunk, bool combineChunks)
+    bool IsPassthroughChunkImpl(TRefCountedInputChunkPtr inputChunk, bool combineChunks)
     {
-        return combineChunks ? IsLargeCompleteChunk(chunk) : IsCompleteChunk(chunk);
+        return combineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
 
     //! Returns the maximum desired weight of a single task.
@@ -461,9 +461,9 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
     {
-        return Spec->CombineChunks ? IsLargeCompleteChunk(chunk) : IsCompleteChunk(chunk);
+        return Spec->CombineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
 
     virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
@@ -478,21 +478,21 @@ private:
         return result;
     }
 
-    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
 
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (IsPassthroughChunk(chunk)) {
+        if (IsPassthroughChunk(inputChunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
-            AddPassthroughChunk(chunk);
+            AddPassthroughChunk(inputChunk);
             return;
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(chunk, 0);
+        AddPendingChunk(inputChunk, 0);
         EndTaskIfLarge();
     }
 
@@ -529,21 +529,21 @@ public:
     { }
 
 private:
-    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) OVERRIDE
     {
         UNUSED(tableIndex);
 
-        if (IsPassthroughChunk(chunk)) {
+        if (IsPassthroughChunk(inputChunk)) {
             // Merge is not needed. Copy the chunk directly to the output.
             if (HasActiveTask()) {
                 EndTask();
             }
-            AddPassthroughChunk(chunk);
+            AddPassthroughChunk(inputChunk);
             return;
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(chunk, 0);
+        AddPendingChunk(inputChunk, 0);
         EndTaskIfLarge();
     }
 };
@@ -578,9 +578,9 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
     {
-        return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
+        return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
     virtual i64 GetMaxTaskWeight() OVERRIDE
@@ -634,9 +634,9 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
     {
-        return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
+        return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
     virtual void DoInitialize() OVERRIDE
@@ -708,7 +708,7 @@ protected:
         bool Left;
         int TableIndex;
         NTableClient::NProto::TKey Key;
-        const TInputChunk* InputChunk;
+        TRefCountedInputChunkPtr InputChunk;
     };
 
     std::vector<TKeyEndpoint> Endpoints;
@@ -718,19 +718,19 @@ protected:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
-    virtual void ProcessInputChunk(const TInputChunk& chunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) OVERRIDE
     {
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         YCHECK(miscExt.sorted());
 
         // Construct endpoints and place them into the list.
-        auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk.extensions());
+        auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(inputChunk->extensions());
         {
             TKeyEndpoint endpoint;
             endpoint.Left = true;
             endpoint.TableIndex = tableIndex;
             endpoint.Key = boundaryKeysExt.start();
-            endpoint.InputChunk = &chunk;
+            endpoint.InputChunk = inputChunk;
             Endpoints.push_back(endpoint);
         }
         {
@@ -738,7 +738,7 @@ protected:
             endpoint.Left = false;
             endpoint.TableIndex = tableIndex;
             endpoint.Key = boundaryKeysExt.end();
-            endpoint.InputChunk = &chunk;
+            endpoint.InputChunk = inputChunk;
             Endpoints.push_back(endpoint);
         }
     }
@@ -796,19 +796,19 @@ protected:
 
         // Check for trivial components.
         {
-            const auto& chunk = *Endpoints[startIndex].InputChunk;
-            if (chunkCount == 1 && IsPassthroughChunk(chunk)) {
+            auto inputChunk = Endpoints[startIndex].InputChunk;
+            if (chunkCount == 1 && IsPassthroughChunk(inputChunk)) {
                 // No merge is needed. Copy the chunk directly to the output.
                 if (HasActiveTask()) {
                     EndTask();
                 }
-                AddPassthroughChunk(chunk);
+                AddPassthroughChunk(inputChunk);
                 return;
             }
         }
 
         TNullable<NTableClient::NProto::TKey> lastBreakpoint;
-        yhash_map<const TInputChunk*, TKeyEndpoint*> openedChunks;
+        yhash_map<TRefCountedInputChunkPtr, TKeyEndpoint*> openedChunks;
 
         for (int index = startIndex; index < endIndex; ++index) {
             auto& endpoint = Endpoints[index];
@@ -895,9 +895,9 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
     {
-        return IsPassthroughChunkImpl(chunk, Spec->CombineChunks);
+        return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
@@ -966,9 +966,9 @@ private:
         return Spec->Reducer->FilePaths;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& chunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
     {
-        UNUSED(chunk);
+        UNUSED(inputChunk);
         return false;
     }
 

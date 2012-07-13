@@ -81,6 +81,11 @@ bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs)
     return CompareKeys(lhs, rhs) == 0;
 }
 
+Stroka ToString(const NProto::TKey& key)
+{
+    return ToString(TNonOwningKey::FromProto(key));
+}
+
 NProto::TKey GetSuccessorKey(const NProto::TKey& key)
 {
     NProto::TKey result;
@@ -90,32 +95,38 @@ NProto::TKey GetSuccessorKey(const NProto::TKey& key)
     return result;
 }
 
-NProto::TInputChunk SliceChunk(
+////////////////////////////////////////////////////////////////////////////////
+
+TRefCountedInputChunk::TRefCountedInputChunk(const NProto::TInputChunk& other)
+{
+    CopyFrom(other);
+}
+
+TRefCountedInputChunkPtr SliceChunk(
     const NProto::TInputChunk& chunk,
     const TNullable<NProto::TKey>& startKey /*= Null*/,
     const TNullable<NProto::TKey>& endKey /*= Null*/)
 {
-    NProto::TInputChunk result;
-    result.CopyFrom(chunk);
+    auto result = New<TRefCountedInputChunk>(chunk);
 
     const auto& slice = chunk.slice();
 
     if (startKey && (!slice.start_limit().has_key() || slice.start_limit().key() < startKey.Get())) {
-        *result.mutable_slice()->mutable_start_limit()->mutable_key() = startKey.Get();
+        *result->mutable_slice()->mutable_start_limit()->mutable_key() = startKey.Get();
     }
 
     if (endKey && (!slice.end_limit().has_key() || slice.end_limit().key() > endKey.Get())) {
-        *result.mutable_slice()->mutable_end_limit()->mutable_key() = endKey.Get();
+        *result->mutable_slice()->mutable_end_limit()->mutable_key() = endKey.Get();
     }
 
     return result;
 }
 
-std::vector<NProto::TInputChunk> SliceChunkEvenly(const NProto::TInputChunk& inputChunk, int count)
+std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk& inputChunk, int count)
 {
     YASSERT(count > 0);
 
-    std::vector<NProto::TInputChunk> result;
+    std::vector<TRefCountedInputChunkPtr> result;
 
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
 
@@ -133,13 +144,13 @@ std::vector<NProto::TInputChunk> SliceChunkEvenly(const NProto::TInputChunk& inp
         i64 sliceStartRowIndex = startRowIndex + rowCount * i / count;
         i64 sliceEndRowIndex = startRowIndex + rowCount * (i + 1) / count;
         if (sliceStartRowIndex < sliceEndRowIndex) {
-            NProto::TInputChunk slicedChunk(inputChunk);
-            slicedChunk.mutable_slice()->mutable_start_limit()->set_row_index(sliceStartRowIndex);
-            slicedChunk.mutable_slice()->mutable_end_limit()->set_row_index(sliceEndRowIndex);
+            auto slicedChunk = New<TRefCountedInputChunk>(inputChunk);
+            slicedChunk->mutable_slice()->mutable_start_limit()->set_row_index(sliceStartRowIndex);
+            slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(sliceEndRowIndex);
             
             // This is merely an approximation.
-            slicedChunk.set_data_weight(inputChunk.data_weight() / count + 1);
-            slicedChunk.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
+            slicedChunk->set_data_weight(inputChunk.data_weight() / count + 1);
+            slicedChunk->set_row_count(sliceEndRowIndex - sliceStartRowIndex);
          
             result.push_back(slicedChunk);
         }
@@ -147,11 +158,6 @@ std::vector<NProto::TInputChunk> SliceChunkEvenly(const NProto::TInputChunk& inp
 
     
     return result;
-}
-
-Stroka ToString(const NProto::TKey& key)
-{
-    return ToString(TNonOwningKey::FromProto(key));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -385,14 +385,14 @@ protected:
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
 
     //! Returns the list of all input chunks collected from all input tables.
-    std::vector<NTableClient::NProto::TInputChunk> CollectInputTablesChunks();
+    std::vector<NTableClient::TRefCountedInputChunkPtr> CollectInputTablesChunks();
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
     //! jobs except merge). Tries to slice chunks into smaller parts if
     //! sees necessary based on #desiredJobCount and #maxWeightPerJob.
     std::vector<TChunkStripePtr> PrepareChunkStripes(
-        const std::vector<NTableClient::NProto::TInputChunk>& inputChunks,
+        const std::vector<NTableClient::TRefCountedInputChunkPtr>& inputChunks,
         TNullable<int> jobCount,
         i64 maxWeightPerJob);
 

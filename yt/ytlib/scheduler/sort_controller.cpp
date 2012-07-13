@@ -27,7 +27,6 @@ using namespace NJobProxy;
 using namespace NObjectServer;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
-using namespace NTableClient::NProto;
 using NTableClient::ToString;
 using ::ToString;
 
@@ -234,6 +233,8 @@ private:
                 auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
                 RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.mutable_extensions());
 
+                auto rcPartitionChunk = New<TRefCountedInputChunk>(partitionChunk);
+
                 YCHECK(partitionsExt.partitions_size() == Controller->Partitions.size());
                 LOG_TRACE("Job partition attributes are:");
                 for (int index = 0; index < partitionsExt.partitions_size(); ++index) {
@@ -248,7 +249,7 @@ private:
 
                     if (jobPartitionAttributes.data_weight() > 0) {
                         auto stripe = New<TChunkStripe>(
-                            partitionChunk,
+                            rcPartitionChunk,
                             jobPartitionAttributes.data_weight(),
                             jobPartitionAttributes.row_count());
                         auto destinationTask = partition->Megalomaniac
@@ -479,8 +480,8 @@ private:
             // Construct a stripe consisting of sorted chunks.
             const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
             auto stripe = New<TChunkStripe>();
-            FOREACH (const auto& chunk, resultExt.chunks()) {
-                stripe->AddChunk(chunk);
+            FOREACH (const auto& inputChunk, resultExt.chunks()) {
+                stripe->AddChunk(New<TRefCountedInputChunk>(inputChunk));
             }
 
             // Put the stripe into the pool.

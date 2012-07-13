@@ -10,6 +10,7 @@
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/transaction_client/transaction.h>
+#include <ytlib/table_client/key.h>
 
 #include <cmath>
 
@@ -19,8 +20,6 @@ namespace NScheduler {
 using namespace NYTree;
 using namespace NChunkServer;
 using namespace NScheduler::NProto;
-using namespace NChunkHolder::NProto;
-using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 

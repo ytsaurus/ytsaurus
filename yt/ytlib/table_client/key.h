@@ -509,9 +509,18 @@ bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 //! obtained from |key| by appending a sentinel part.
 NProto::TKey GetSuccessorKey(const NProto::TKey& key);
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRefCountedInputChunk
+    : public TIntrinsicRefCounted
+    , public NTableClient::NProto::TInputChunk
+{
+    TRefCountedInputChunk(const NProto::TInputChunk& other);
+};
+
 //! Constructs a new chunk by slicing the original one and restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
-NProto::TInputChunk SliceChunk(
+TRefCountedInputChunkPtr SliceChunk(
     const NProto::TInputChunk& chunk,
     const TNullable<NProto::TKey>& startKey = Null,
     const TNullable<NProto::TKey>& endKey = Null);
@@ -521,7 +530,7 @@ NProto::TInputChunk SliceChunk(
 /*!
  *  May return less parts than requested.
  */
-std::vector<NProto::TInputChunk> SliceChunkEvenly(
+std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(
     const NProto::TInputChunk& chunk,
     int count);
 

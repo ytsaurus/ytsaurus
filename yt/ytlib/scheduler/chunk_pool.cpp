@@ -2,12 +2,13 @@
 #include "chunk_pool.h"
 
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/table_client/key.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NChunkServer;
-using namespace NTableClient::NProto;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -23,28 +24,28 @@ TChunkStripe::TChunkStripe()
     : Weight(0)
 { }
 
-TChunkStripe::TChunkStripe(const TInputChunk& inputChunk)
+TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk)
     : Weight(0)
 {
     AddChunk(inputChunk);
 }
 
-TChunkStripe::TChunkStripe(const TInputChunk& inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
+TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
     : Weight(0)
 {
     AddChunk(inputChunk, dataWeightOverride, rowCountOverride);
 }
 
-void TChunkStripe::AddChunk(const TInputChunk& inputChunk)
+void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk)
 {
-    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
+    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk->extensions());
     AddChunk(
         inputChunk,
         miscExt.data_weight(),
         miscExt.row_count());
 }
 
-void TChunkStripe::AddChunk(const TInputChunk& inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
+void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
 {
     Chunks.push_back(TWeightedChunk());
     auto& weightedChunk = Chunks.back();
@@ -62,7 +63,7 @@ std::vector<NChunkServer::TChunkId> TChunkStripe::GetChunkIds() const
 {
     std::vector<NChunkServer::TChunkId> result;
     FOREACH (const auto& chunk, Chunks) {
-        result.push_back(TChunkId::FromProto(chunk.InputChunk.slice().chunk_id()));
+        result.push_back(TChunkId::FromProto(chunk.InputChunk->slice().chunk_id()));
     }
     return result;
 }
@@ -81,13 +82,13 @@ void TPoolExtractionResult::Add(TChunkStripePtr stripe, const Stroka& address)
     Stripes.push_back(stripe);
     TotalChunkWeight += stripe->Weight;
     FOREACH (const auto& chunk, stripe->Chunks) {
-        const auto& inputChunk = chunk.InputChunk;
+        const auto& chunkAddresses = chunk.InputChunk->node_addresses();
         ++TotalChunkCount;
         if (std::find_if(
-            inputChunk.node_addresses().begin(),
-            inputChunk.node_addresses().end(),
-            [&] (const Stroka& chunkAddress) { return address == chunkAddress; })
-            != inputChunk.node_addresses().end())
+            chunkAddresses.begin(),
+            chunkAddresses.end(),
+            [=] (const Stroka& chunkAddress) { return address == chunkAddress; })
+            != chunkAddresses.end())
         {
             ++LocalChunkCount;
         } else {
@@ -230,7 +231,7 @@ private:
     {
         FOREACH (const auto& chunk, stripe->Chunks) {
             const auto& inputChunk = chunk.InputChunk;
-            FOREACH (const auto& address, inputChunk.node_addresses()) {
+            FOREACH (const auto& address, inputChunk->node_addresses()) {
                 auto& entry = LocalChunks[address];
                 YVERIFY(entry.Stripes.insert(stripe).second);
                 entry.TotalWeight += chunk.Weight;
@@ -244,7 +245,7 @@ private:
     {
         FOREACH (const auto& chunk, stripe->Chunks) {
             const auto& inputChunk = chunk.InputChunk;
-            FOREACH (const auto& address, inputChunk.node_addresses()) {
+            FOREACH (const auto& address, inputChunk->node_addresses()) {
                 auto& entry = LocalChunks[address];
                 YVERIFY(entry.Stripes.erase(stripe) == 1);
                 entry.TotalWeight -= chunk.Weight;
@@ -298,7 +299,7 @@ public:
         
         FOREACH (const auto& chunk, stripe->Chunks) {
             const auto& inputChunk = chunk.InputChunk;
-            FOREACH (const auto& address, inputChunk.node_addresses()) {
+            FOREACH (const auto& address, inputChunk->node_addresses()) {
                 AddressToLocality[address] += chunk.Weight;
             }
         }
