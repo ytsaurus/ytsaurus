@@ -94,7 +94,7 @@ class YTEnv(unittest.TestCase):
             self._run_schedulers()
             self._wait_for_ready_schedulers()
         except:
-            self.tearDown()
+            self.my_tearDown()
             raise
 
     def my_tearDown(self):
