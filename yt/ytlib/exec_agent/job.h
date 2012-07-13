@@ -14,6 +14,7 @@
 #include <ytlib/job_proxy/public.h>
 #include <ytlib/file_server/file_ypath.pb.h>
 #include <ytlib/scheduler/job.pb.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -73,6 +74,8 @@ private:
 
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
+
+    NLog::TTaggedLogger Logger;
 
     NScheduler::EJobState JobState;
     NScheduler::EJobProgress JobProgress;
