@@ -136,9 +136,13 @@ class TUnorderedChunkPool
     : public TChunkPoolBase
 {
 public:
+    explicit TUnorderedChunkPool(bool trackLocality)
+        : TrackLocality(trackLocality)
+    { }
+
     virtual void Add(TChunkStripePtr stripe)
     {
-        YCHECK(stripe->Weight > 0);
+        YASSERT(stripe->Weight > 0);
 
         WeightCounter_.Increment(stripe->Weight);
         ChunkCounter_.Increment(stripe->Chunks.size());
@@ -152,23 +156,25 @@ public:
     {
         auto result = New<TPoolExtractionResult>();
 
-        // Take local chunks first.
-        auto addressIt = LocalChunks.find(address);
-        if (addressIt != LocalChunks.end()) {
-            const auto& entry = addressIt->second;
-            AddStripes(
-                result,
-                entry.Stripes.begin(),
-                entry.Stripes.end(),
-                weightThreshold,
-                address);
-        }
+        if (TrackLocality) {
+            // Take local chunks first.
+            auto addressIt = LocalChunks.find(address);
+            if (addressIt != LocalChunks.end()) {
+                const auto& entry = addressIt->second;
+                AddStripes(
+                    result,
+                    entry.Stripes.begin(),
+                    entry.Stripes.end(),
+                    weightThreshold,
+                    address);
+            }
 
-        // Unregister taken local chunks.
-        // We have to do this right away, otherwise we risk getting same chunks
-        // in the next phase.
-        for (int index = 0; index < result->LocalChunkCount; ++index) {
-            Unregister(result->Stripes[index]);
+            // Unregister taken local chunks.
+            // We have to do this right away, otherwise we risk getting same chunks
+            // in the next phase.
+            for (int index = 0; index < result->LocalChunkCount; ++index) {
+                Unregister(result->Stripes[index]);
+            }
         }
 
         // Take remote chunks.
@@ -195,7 +201,7 @@ public:
         WeightCounter_.Failed(result->TotalChunkWeight);
         ChunkCounter_.Failed(result->TotalChunkCount);
 
-        FOREACH (const auto& stripe, result->Stripes) {
+        FOREACH (auto stripe, result->Stripes) {
             Register(stripe);
         }
     }
@@ -208,11 +214,14 @@ public:
 
     virtual i64 GetLocality(const Stroka& address) const
     {
+        YASSERT(TrackLocality);
         auto it = LocalChunks.find(address);
         return it == LocalChunks.end() ? 0 : it->second.TotalWeight;
     }
 
 private:
+    bool TrackLocality;
+
     yhash_set<TChunkStripePtr> GlobalChunks;
 
     struct TLocalityEntry
@@ -229,12 +238,14 @@ private:
 
     void Register(TChunkStripePtr stripe)
     {
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            const auto& inputChunk = chunk.InputChunk;
-            FOREACH (const auto& address, inputChunk->node_addresses()) {
-                auto& entry = LocalChunks[address];
-                YVERIFY(entry.Stripes.insert(stripe).second);
-                entry.TotalWeight += chunk.Weight;
+        if (TrackLocality) {
+            FOREACH (const auto& chunk, stripe->Chunks) {
+                auto inputChunk = chunk.InputChunk;
+                FOREACH (const auto& address, inputChunk->node_addresses()) {
+                    auto& entry = LocalChunks[address];
+                    YVERIFY(entry.Stripes.insert(stripe).second);
+                    entry.TotalWeight += chunk.Weight;
+                }
             }
         }
 
@@ -243,12 +254,14 @@ private:
 
     void Unregister(TChunkStripePtr stripe)
     {
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            const auto& inputChunk = chunk.InputChunk;
-            FOREACH (const auto& address, inputChunk->node_addresses()) {
-                auto& entry = LocalChunks[address];
-                YVERIFY(entry.Stripes.erase(stripe) == 1);
-                entry.TotalWeight -= chunk.Weight;
+        if (TrackLocality) {
+            FOREACH (const auto& chunk, stripe->Chunks) {
+                auto inputChunk = chunk.InputChunk;
+                FOREACH (const auto& address, inputChunk->node_addresses()) {
+                    auto& entry = LocalChunks[address];
+                    YVERIFY(entry.Stripes.erase(stripe) == 1);
+                    entry.TotalWeight -= chunk.Weight;
+                }
             }
         }
 
@@ -272,9 +285,9 @@ private:
     }
 };
 
-TAutoPtr<IChunkPool> CreateUnorderedChunkPool()
+TAutoPtr<IChunkPool> CreateUnorderedChunkPool(bool trackLocality)
 {
-    return new TUnorderedChunkPool();
+    return new TUnorderedChunkPool(trackLocality);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -298,7 +311,7 @@ public:
         Stripes.push_back(stripe);
         
         FOREACH (const auto& chunk, stripe->Chunks) {
-            const auto& inputChunk = chunk.InputChunk;
+            auto inputChunk = chunk.InputChunk;
             FOREACH (const auto& address, inputChunk->node_addresses()) {
                 AddressToLocality[address] += chunk.Weight;
             }
@@ -313,7 +326,7 @@ public:
         YCHECK(!Extracted);
 
         auto result = New<TPoolExtractionResult>();
-        FOREACH (const auto& stripe, Stripes) {
+        FOREACH (auto stripe, Stripes) {
             result->Add(stripe, address);
         }
 

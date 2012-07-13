@@ -89,7 +89,7 @@ struct IChunkPool
 
 ////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IChunkPool> CreateUnorderedChunkPool();
+TAutoPtr<IChunkPool> CreateUnorderedChunkPool(bool trackLocality = true);
 TAutoPtr<IChunkPool> CreateAtomicChunkPool();
 
 ////////////////////////////////////////////////////////////////////
