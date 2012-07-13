@@ -343,9 +343,9 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
         try {
             LOG_INFO("Killing job");
             ProxyController->Kill(error);
-        } catch (const std::exception& e) {
+        } catch (const std::exception& ex) {
             //NB: retries should be done inside proxy controller (if makes sense).
-            LOG_FATAL("Failed to kill job");
+            LOG_FATAL("Failed to kill job\n%s", ex.what());
         }
     }
 
