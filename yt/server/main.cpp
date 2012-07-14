@@ -123,6 +123,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // Configure logging.
         NLog::TLogManager::Get()->Configure(configFileName, "/logging");
 
+        if (configFileName.empty()) {
+            ythrow yexception() << "Missing --config option";
+        }
+
         // Parse configuration file.
         try {
             TIFStream configStream(configFileName);
