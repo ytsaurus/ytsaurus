@@ -993,12 +993,11 @@ private:
 
     void OnSamplesReceived()
     {
-        PROFILE_TIMING ("/samples_processing_time") {
-            SamplesFetcher.Reset();
-            
+        PROFILE_TIMING ("/samples_processing_time") {          
             SortSamples();
             BuildPartitions();
 
+            SamplesFetcher.Reset();
             SortedSamples.clear();
            
             // Allocate some initial chunk lists.
