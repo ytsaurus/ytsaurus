@@ -501,10 +501,10 @@ private:
         }
     }
 
-    void OnJobCompleted(TJobPtr job, const NProto::TJobResult& result)
+    void OnJobCompleted(TJobPtr job, NProto::TJobResult* result)
     {
         job->SetState(EJobState::Completed);
-        job->Result() = result;
+        job->Result().Swap(result);
 
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
@@ -514,10 +514,10 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobFailed(TJobPtr job, const NProto::TJobResult& result)
+    void OnJobFailed(TJobPtr job, NProto::TJobResult* result)
     {
         job->SetState(EJobState::Failed);
-        job->Result() = result;
+        job->Result().Swap(result);
 
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
@@ -531,7 +531,8 @@ private:
     {
         NProto::TJobResult result;
         *result.mutable_error() = error.ToProto();
-        OnJobFailed(job, result);
+
+        OnJobFailed(job, &result);
     }
 
     void UpdateJobNodeOnFinish(TJobPtr job)
@@ -887,11 +888,11 @@ private:
         PROFILE_TIMING ("/analysis_time") {
             auto missingJobs = node->Jobs();
 
-            FOREACH (const auto& jobStatus, request->jobs()) {
+            FOREACH (auto& jobStatus, *request->mutable_jobs()) {
                 auto job = ProcessJobHeartbeat(
                     request,
                     response,
-                    jobStatus);
+                    &jobStatus);
                 if (job) {
                     YCHECK(missingJobs.erase(job) == 1);
                 }
@@ -944,11 +945,11 @@ private:
     TJobPtr ProcessJobHeartbeat(
         NProto::TReqHeartbeat* request,
         NProto::TRspHeartbeat* response,
-        const NProto::TJobStatus& jobStatus)
+        NProto::TJobStatus* jobStatus)
     {
         auto address = request->address();
-        auto jobId = TJobId::FromProto(jobStatus.job_id());
-        auto state = EJobState(jobStatus.state());
+        auto jobId = TJobId::FromProto(jobStatus->job_id());
+        auto state = EJobState(jobStatus->state());
             
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("Address: %s, JobId: %s",
@@ -1014,14 +1015,14 @@ private:
         switch (state) {
             case EJobState::Completed:
                 LOG_INFO("Job completed, removal scheduled");
-                OnJobCompleted(job, jobStatus.result());
+                OnJobCompleted(job, jobStatus->mutable_result());
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 break;
 
             case EJobState::Failed:
                 LOG_INFO("Job failed, removal scheduled\n%s",
-                    ~TError::FromProto(jobStatus.result().error()).ToString());
-                OnJobFailed(job, jobStatus.result());
+                    ~TError::FromProto(jobStatus->result().error()).ToString());
+                OnJobFailed(job, jobStatus->mutable_result());
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 break;
 
