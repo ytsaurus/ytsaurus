@@ -157,7 +157,8 @@ class Holder(Server):
     cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
         'masters' : {
-            'addresses' : MasterAddresses
+            'addresses' : MasterAddresses,
+            'rpc_timeout' : 20000
         },
         'chunk_holder' : {
             'store_locations' : [
@@ -187,6 +188,7 @@ class Holder(Server):
             },
             'job_manager': {
                 'slot_location' : '%(work_dir)s/slots',
+                'slot_count' : 12
             },
             'job_proxy_logging' : proxyLogging,
         },
