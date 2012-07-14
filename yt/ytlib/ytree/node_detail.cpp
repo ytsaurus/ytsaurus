@@ -256,9 +256,7 @@ i64 TListNodeMixin::NormalizeAndCheckIndex(i64 index) const
         result += count;
     }
     if (result < 0 || result >= count) {
-        ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId32 ")",
-            index,
-            count);
+        ythrow yexception() << Sprintf("Index %" PRId64 " is out of range", index);
     }
     return result;
 }
