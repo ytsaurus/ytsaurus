@@ -99,14 +99,15 @@ private:
                 WeightCounter().GetPending());
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip)
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) OVERRIDE
         {
-            auto jobSpec = Controller->JobSpecTemplate;
-            AddSequentialInputSpec(&jobSpec, jip);
+            jobSpec->CopyFrom(Controller->JobSpecTemplate);
+            AddSequentialInputSpec(jobSpec, jip);
             for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
-                AddTabularOutputSpec(&jobSpec, jip, index);
+                AddTabularOutputSpec(jobSpec, jip, index);
             }
-            return jobSpec;
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip)

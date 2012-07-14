@@ -644,8 +644,7 @@ private:
     TJobPtr CreateJob(
         EJobType type,
         TOperationPtr operation,
-        TExecNodePtr node,
-        const NProto::TJobSpec& spec) OVERRIDE
+        TExecNodePtr node) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -656,7 +655,6 @@ private:
             type,
             operation.Get(),
             node,
-            spec,
             TInstant::Now());
     }
 
@@ -924,8 +922,7 @@ private:
             
             auto* jobInfo = response->add_jobs_to_start();
             *jobInfo->mutable_job_id() = job->GetId().ToProto();
-            *jobInfo->mutable_spec() = job->Spec();
-            job->Spec().Clear();
+            jobInfo->mutable_spec()->Swap(&job->Spec());
 
             RegisterJob(job);
             MasterConnector->CreateJobNode(job);

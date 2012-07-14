@@ -210,7 +210,9 @@ protected:
 
         virtual TNullable<i64> GetJobWeightThreshold() const = 0;
 
-        virtual NScheduler::NProto::TJobSpec GetJobSpec(TJobInProgressPtr jip) = 0;
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) = 0;
 
         virtual void OnJobStarted(TJobInProgressPtr jip);
 

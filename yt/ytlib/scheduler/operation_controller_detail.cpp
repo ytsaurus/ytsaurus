@@ -80,12 +80,15 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
         jip->PoolResult->TotalChunkWeight,
         ~ToString(weightThreshold));
 
-    auto jobSpec = GetJobSpec(jip);
+    NProto::TJobSpec jobSpec;
+    BuildJobSpec(jip, &jobSpec);
+
     jip->Job = Controller->Host->CreateJob(
         EJobType(jobSpec.type()),
         Controller->Operation,
-        node,
-        jobSpec);
+        node);
+    jip->Job->Spec().Swap(&jobSpec);
+
     Controller->RegisterJobInProgress(jip);
 
     OnJobStarted(jip);

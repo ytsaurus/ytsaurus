@@ -61,8 +61,7 @@ struct IOperationHost
     virtual TJobPtr CreateJob(
         EJobType type,
         TOperationPtr operation,
-        TExecNodePtr node,
-        const NProto::TJobSpec& spec) = 0;
+        TExecNodePtr node) = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.

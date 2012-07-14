@@ -133,12 +133,13 @@ protected:
             return Null;
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) OVERRIDE
         {
-            auto jobSpec = Controller->JobSpecTemplate;
-            AddParallelInputSpec(&jobSpec, jip);
-            AddTabularOutputSpec(&jobSpec, jip, 0);
-            return jobSpec;
+            jobSpec->CopyFrom(Controller->JobSpecTemplate);
+            AddParallelInputSpec(jobSpec, jip);
+            AddTabularOutputSpec(jobSpec, jip, 0);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE

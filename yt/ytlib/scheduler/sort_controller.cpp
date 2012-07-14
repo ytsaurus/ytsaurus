@@ -204,12 +204,13 @@ private:
                 WeightCounter().GetPending());
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) OVERRIDE
         {
-            auto jobSpec = Controller->PartitionJobSpecTemplate;
-            AddSequentialInputSpec(&jobSpec, jip);
-            AddTabularOutputSpec(&jobSpec, jip, 0);
-            return jobSpec;
+            jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
+            AddSequentialInputSpec(jobSpec, jip);
+            AddTabularOutputSpec(jobSpec, jip, 0);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
@@ -417,31 +418,31 @@ private:
             return Controller->Spec->MaxWeightPerSortJob;
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) OVERRIDE
         {
-            auto jobSpec = Controller->SortJobSpecTemplate;
+            jobSpec->CopyFrom(Controller->SortJobSpecTemplate);
 
-            AddSequentialInputSpec(&jobSpec, jip);
-            AddTabularOutputSpec(&jobSpec, jip, 0);
+            AddSequentialInputSpec(jobSpec, jip);
+            AddTabularOutputSpec(jobSpec, jip, 0);
 
             {
                 // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
                 // Don't use replication for sort jobs in large partitions since their chunks will be merged.
                 auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, !CheckSortedMergeNeeded());
-                jobSpec.set_io_config(ConvertToYsonString(ioConfig).Data());
+                jobSpec->set_io_config(ConvertToYsonString(ioConfig).Data());
             }
 
             {
-                auto* jobSpecExt = jobSpec.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+                auto* jobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                 if (Controller->Partitions.size() > 1) {
-                    auto* inputSpec = jobSpec.mutable_input_specs(0);
+                    auto* inputSpec = jobSpec->mutable_input_specs(0);
                     FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
                         chunk.set_partition_tag(Partition->Index);
                     }
                 }
             }
-
-            return jobSpec;
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
@@ -573,12 +574,13 @@ private:
             return Null;
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) OVERRIDE
         {
-            auto jobSpec = Controller->SortedMergeJobSpecTemplate;
-            AddParallelInputSpec(&jobSpec, jip);
-            AddTabularOutputSpec(&jobSpec, jip, 0);
-            return jobSpec;
+            jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
+            AddParallelInputSpec(jobSpec, jip);
+            AddTabularOutputSpec(jobSpec, jip, 0);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
@@ -668,20 +670,20 @@ private:
             return Controller->Spec->MaxWeightPerUnorderedMergeJob;
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip) OVERRIDE
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) OVERRIDE
         {
-            auto jobSpec = Controller->UnorderedMergeJobSpecTemplate;
-            AddSequentialInputSpec(&jobSpec, jip);
-            AddTabularOutputSpec(&jobSpec, jip, 0);
+            jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
+            AddSequentialInputSpec(jobSpec, jip);
+            AddTabularOutputSpec(jobSpec, jip, 0);
 
             if (Controller->Partitions.size() > 1) {
-                auto* inputSpec = jobSpec.mutable_input_specs(0);
+                auto* inputSpec = jobSpec->mutable_input_specs(0);
                 FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
                     chunk.set_partition_tag(Partition->Index);
                 }
             }
-
-            return jobSpec;
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
