@@ -39,7 +39,9 @@ EExitCode TOperationTracker::Run()
             waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
 
             // Override default timeout.
-            waitOpReq->SetTimeout(Config->OperationWaitTimeout * 2);
+            waitOpReq->SetTimeout(
+                Config->OperationWaitTimeout +
+                proxy.GetDefaultTimeout().Get(TDuration::Zero()));
             auto waitOpRsp = waitOpReq->Invoke().Get();
 
             if (!waitOpRsp->IsOK()) {
