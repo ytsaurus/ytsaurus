@@ -723,6 +723,15 @@ private:
         ScheduleClearOutputTables();
     }
 
+    virtual void Cleanup() OVERRIDE
+    {
+        Partitions.clear();
+        PartitionTask.Reset();
+        PartitionKeys.clear();
+        SortedSamples.clear();
+        SamplesFetcher.Reset();
+    }
+
     void RegisterOutputChunkTree(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
     {
         TOperationControllerBase::RegisterOutputChunkTree(chunkTreeId, partition->Index, 0);
@@ -985,8 +994,12 @@ private:
     void OnSamplesReceived()
     {
         PROFILE_TIMING ("/samples_processing_time") {
+            SamplesFetcher.Reset();
+            
             SortSamples();
             BuildPartitions();
+
+            SortedSamples.clear();
            
             // Allocate some initial chunk lists.
             // TODO(babenko): reserve chunk lists for unordered merge jobs

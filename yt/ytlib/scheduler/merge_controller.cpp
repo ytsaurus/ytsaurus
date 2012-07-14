@@ -285,6 +285,11 @@ protected:
         }
     }
 
+    virtual void Cleanup() OVERRIDE
+    {
+        MergeTasks.clear();
+    }
+
     // Custom bits of preparation pipeline.
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
@@ -316,6 +321,8 @@ protected:
             }
 
             EndInputChunks();
+
+            YCHECK(CurrentTaskStripes.empty());
 
             // Check for trivial inputs.
             if (ChunkCounter.GetTotal() == 0) {

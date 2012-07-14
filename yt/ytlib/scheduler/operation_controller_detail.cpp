@@ -262,6 +262,21 @@ void TOperationControllerBase::Initialize()
 void TOperationControllerBase::DoInitialize()
 { }
 
+void TOperationControllerBase::Cleanup()
+{
+    PrimaryTransaction.Reset();
+    InputTransaction.Reset();
+    OutputTransaction.Reset();
+    ChunkListPool.Reset();
+    InputTables.clear();
+    OutputTables.clear();
+    Files.clear();
+    JobsInProgress.clear();
+    InputChunkIds.clear();
+    PendingTasks.clear();
+    AddressToLocalTasks.clear();
+}
+
 TFuture<void> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -419,6 +434,7 @@ void TOperationControllerBase::Abort()
     Active = false;
 
     AbortTransactions();
+    Cleanup();
 
     LOG_INFO("Operation aborted");
 }
@@ -599,6 +615,7 @@ void TOperationControllerBase::OnOperationCompleted()
     YCHECK(Active);
     LOG_INFO("Operation completed");
 
+    Cleanup();
     Running = false;
 
     Host->OnOperationCompleted(Operation);
@@ -613,6 +630,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
 
     LOG_INFO("Operation failed\n%s", ~error.ToString());
 
+    Cleanup();
     Running = false;
     Active = false;
 
