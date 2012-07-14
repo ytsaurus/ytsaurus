@@ -318,8 +318,6 @@ protected:
 
             EndInputChunks();
 
-            YCHECK(CurrentTaskStripes.empty());
-
             // Check for trivial inputs.
             if (ChunkCounter.GetTotal() == 0) {
                 LOG_INFO("Trivial merge");
