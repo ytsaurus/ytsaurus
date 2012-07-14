@@ -336,7 +336,7 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
                 currentNode = currentNode->AsMap()->FindChild(key);
                 if (!currentNode) {
                     ythrow yexception() << Sprintf("Key %s is not found",
-                        YsonizeString(key, EYsonFormat::Text));
+                        ~YsonizeString(key, EYsonFormat::Text));
                 }
                 break;
             }
