@@ -350,7 +350,10 @@ private:
                     .Item("opaque").Scalar("true")
                 .EndAttributes()
                 .BeginMap()
-                    .Item("jobs").BeginMap()
+                    .Item("jobs").BeginAttributes()
+                        .Item("opaque").Scalar("true")
+                    .EndAttributes()
+                    .BeginMap()
                     .EndMap()
                 .EndMap().GetYsonString();
     }
