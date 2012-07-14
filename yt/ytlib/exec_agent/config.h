@@ -72,7 +72,7 @@ struct TSchedulerConnectorConfig
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
-    //! Random delay before first heartbeat
+    //! Random delay before first heartbeat.
     TDuration HeartbeatSplay;
 
     TSchedulerConnectorConfig()
