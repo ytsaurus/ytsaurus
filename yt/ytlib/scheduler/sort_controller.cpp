@@ -1002,11 +1002,10 @@ private:
             SortedSamples.clear();
            
             // Allocate some initial chunk lists.
-            // TODO(babenko): reserve chunk lists for unordered merge jobs
             ChunkListPool->Allocate(
                 PartitionJobCounter.GetTotal() +
                 MaxSortJobCount +
-                Partitions.size() + // for sorted merge jobs
+                Partitions.size() + // for merge jobs
                 Config->SpareChunkListCount);
 
             InitJobSpecTemplates();
