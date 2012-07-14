@@ -27,6 +27,12 @@ class TJob
 
     DEFINE_BYREF_RW_PROPERTY(NProto::TJobResult, Result);
 
+    //! A spec to be passed to the exec node.
+    /*!
+     *  Since the spec might be relatively heavy,
+     *  it is cleared immediately after constructing the scheduling
+     *  request.
+     */
     DEFINE_BYREF_RW_PROPERTY(NProto::TJobSpec, Spec);
 
     //! Some rough approximation that is updated with every heartbeat.

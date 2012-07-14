@@ -923,8 +923,6 @@ private:
             auto* jobInfo = response->add_jobs_to_start();
             *jobInfo->mutable_job_id() = job->GetId().ToProto();
             *jobInfo->mutable_spec() = job->Spec();
-
-            // TODO(babenko): trying to reduce memory footprint
             job->Spec().Clear();
 
             RegisterJob(job);
