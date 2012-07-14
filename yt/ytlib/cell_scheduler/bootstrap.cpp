@@ -22,6 +22,7 @@
 #include <ytlib/monitoring/http_integration.h>
 
 #include <ytlib/ytree/virtual.h>
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/yson_file_service.h>
 
 #include <ytlib/profiling/profiling_manager.h>
@@ -30,6 +31,8 @@
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/job_proxy/config.h>
+
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <build.h>
 
