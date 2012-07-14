@@ -316,13 +316,13 @@ void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
         path.append(tokenizer.CurrentToken().ToString());
     }
 
-    //! TODO: or ConvertToYsonString?
     auto value = TYsonString(Stroka(tokenizer.GetCurrentSuffix()));
 
     ForceYPath(root, path);
     SyncYPathSet(root, path, value);
 }
 
+// TOOD(babenko): add better diagnostics
 INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
 {
     INodePtr currentNode = root;
@@ -333,12 +333,20 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String: {
                 Stroka key(tokenizer.CurrentToken().GetStringValue());
-                currentNode = currentNode->AsMap()->GetChild(key);
+                currentNode = currentNode->AsMap()->FindChild(key);
+                if (!currentNode) {
+                    ythrow yexception() << Sprintf("Key %s is not found",
+                        YsonizeString(key, EYsonFormat::Text));
+                }
                 break;
             }
 
             case ETokenType::Integer: {
-                currentNode = currentNode->AsList()->GetChild(tokenizer.CurrentToken().GetIntegerValue());
+                i64 index = tokenizer.CurrentToken().GetIntegerValue();
+                currentNode = currentNode->AsList()->FindChild(index);
+                if (!currentNode) {
+                    ythrow yexception() << Sprintf("Index %" PRId64 " is out of range", index);
+                }
                 break;
             }
 
