@@ -285,11 +285,6 @@ protected:
         }
     }
 
-    virtual void Cleanup() OVERRIDE
-    {
-        MergeTasks.clear();
-    }
-
     // Custom bits of preparation pipeline.
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE

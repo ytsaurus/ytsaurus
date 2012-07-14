@@ -327,7 +327,6 @@ protected:
 
 
     virtual void DoInitialize();
-    virtual void Cleanup();
     virtual void LogProgress() = 0;
     virtual void DoGetProgress(NYTree::IYsonConsumer* consumer) = 0;
 

@@ -125,13 +125,6 @@ private:
     TJobSpec JobSpecTemplate;
 
 
-    // Init/finish.
-
-    virtual void Cleanup() OVERRIDE
-    {
-        MapTask.Reset();
-    }
-
     // Custom bits of preparation pipeline.
 
     virtual std::vector<TYPath> GetInputTablePaths()

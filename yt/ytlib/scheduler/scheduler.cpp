@@ -715,6 +715,7 @@ private:
         UNUSED(finalizeError);
 
         operation->SetFinished();
+        operation->SetController(NULL);
     }
 
 
@@ -758,6 +759,7 @@ private:
 
         operation->GetController()->Abort();
         operation->SetFinished();
+        operation->SetController(NULL);
     }
 
 
