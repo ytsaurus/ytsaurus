@@ -59,6 +59,7 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual TJobPtr CreateJob(
+        EJobType type,
         TOperationPtr operation,
         TExecNodePtr node,
         const NProto::TJobSpec& spec) = 0;

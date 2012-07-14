@@ -65,7 +65,7 @@ void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
     auto state = job->GetState();
     auto error = TError::FromProto(job->Result().error());
     BuildYsonMapFluently(consumer)
-        .Item("job_type").Scalar(FormatEnum(EJobType(job->Spec().type())))
+        .Item("job_type").Scalar(FormatEnum(job->GetType()))
         .Item("state").Scalar(FormatEnum(state))
         .Item("address").Scalar(job->GetNode()->GetAddress())
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {

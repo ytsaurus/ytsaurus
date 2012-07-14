@@ -16,6 +16,8 @@ class TJob
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
+    DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
+
     //! The operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperation*, Operation);
     
@@ -41,6 +43,7 @@ class TJob
 public:
     TJob(
         const TJobId& id,
+        EJobType type,
         TOperation* operation,
         TExecNodePtr node,
         const NProto::TJobSpec& spec,

@@ -81,7 +81,11 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
         ~ToString(weightThreshold));
 
     auto jobSpec = GetJobSpec(jip);
-    jip->Job = Controller->Host->CreateJob(Controller->Operation, node, jobSpec);
+    jip->Job = Controller->Host->CreateJob(
+        EJobType(jobSpec.type()),
+        Controller->Operation,
+        node,
+        jobSpec);
     Controller->RegisterJobInProgress(jip);
 
     OnJobStarted(jip);

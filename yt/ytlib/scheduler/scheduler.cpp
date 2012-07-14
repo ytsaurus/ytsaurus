@@ -476,9 +476,9 @@ private:
             ~job->GetOperation()->GetOperationId().ToString());
     }
 
-    void UpdateJobCounters(TJobPtr changedJob, int delta)
+    void UpdateJobCounters(TJobPtr job, int delta)
     {
-        auto jobType = EJobType(changedJob->Spec().type());
+        auto jobType = job->GetType();
         JobTypeCounters[jobType] += delta;
 
         Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
@@ -642,6 +642,7 @@ private:
     }
 
     TJobPtr CreateJob(
+        EJobType type,
         TOperationPtr operation,
         TExecNodePtr node,
         const NProto::TJobSpec& spec) OVERRIDE
@@ -652,6 +653,7 @@ private:
         // Instead we wait until this job is returned back to us by the strategy.
         return New<TJob>(
             TJobId::Create(),
+            type,
             operation.Get(),
             node,
             spec,
@@ -916,13 +918,14 @@ private:
         FOREACH (auto job, jobsToStart) {
             LOG_INFO("Starting job on %s (JobType: %s, JobId: %s, OperationId: %s)",
                 ~address,
-                ~EJobType(job->Spec().type()).ToString(),
+                ~job->GetType().ToString(),
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
             
             auto* jobInfo = response->add_jobs_to_start();
             *jobInfo->mutable_job_id() = job->GetId().ToProto();
             *jobInfo->mutable_spec() = job->Spec();
+            job->Spec().Clear();
 
             RegisterJob(job);
             MasterConnector->CreateJobNode(job);
@@ -991,7 +994,7 @@ private:
         auto operation = job->GetOperation();
         
         Logger.AddTag(Sprintf("JobType: %s, State: %s, OperationId: %s",
-            ~EJobType(job->Spec().type()).ToString(),
+            ~job->GetType().ToString(),
             ~state.ToString(),
             ~operation->GetOperationId().ToString()));
 
