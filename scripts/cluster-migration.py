@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 
 import atexit
 import sys
@@ -6,6 +6,9 @@ import time
 import json
 import subprocess
 import hashlib
+
+sys.stdout = os.fdopen(sys.stdout.fileno(), "w", 0)
+sys.stderr = os.fdopen(sys.stderr.fileno(), "w", 0)
 
 OPTS = {
     "src" : {
@@ -232,7 +235,7 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
             "./migrator_config",
             shell_quote(ypath_join(to_path))),
         "--opt", "/spec/job_count=100",
-        stdout=sys.stderr, stderr=sys.stderr)
+        stdout=sys.stdout, stderr=sys.stdout)
     dt = time.time() - st
 
     REMOTE_STATISTICS.update(
