@@ -22,6 +22,7 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkHolderLogger;
+static NProfiling::TProfiler& Profiler = ChunkHolderProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,8 +125,8 @@ TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Trying to retrieve a block %d that is not received yet (WindowStart: %d)",
-            blockIndex,
-            WindowStart);
+                blockIndex,
+                WindowStart);
     }
 
     LOG_DEBUG("Chunk block %d retrieved", blockIndex);
@@ -148,17 +149,15 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        return;
-        // TODO(babenko): switched off for now
-        //if (TRef::CompareContent(slot.Block->GetData(), data)) {
-        //    LOG_WARNING("Block %d is already received", blockIndex);
-        //    return;
-        //}
+        if (TRef::CompareContent(slot.Block->GetData(), data)) {
+            LOG_WARNING("Block %d is already received", blockIndex);
+            return;
+        }
 
-        //ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
-        //    Sprintf("Block %d with a different content already received (WindowStart: %d)",
-        //        blockIndex,
-        //        WindowStart);
+        ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
+            Sprintf("Block %d with a different content already received (WindowStart: %d)",
+                blockIndex,
+                WindowStart);
     }
 
     slot.State = ESlotState::Received;
@@ -203,8 +202,12 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
     LOG_DEBUG("Start writing chunk block %d",
         blockIndex);
 
+    auto profilingPathPrefix = Sprintf("/chunk_io/%s", Location->GetId());
+    auto timer = Profiler.TimingStart(profilingPathPrefix + "/write_time");
+    auto data = block->GetData();
+
     try {
-        if (!Writer->TryWriteBlock(block->GetData())) {
+        if (!Writer->TryWriteBlock(data)) {
             Sync(~Writer, &TFileWriter::GetReadyEvent);
             YUNREACHABLE();
         }
@@ -215,6 +218,10 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
     }
 
     LOG_DEBUG("Chunk block %d written", blockIndex);
+
+    auto readTime = Profiler.TimingStop(timer);
+    Profiler.Enqueue(profilingPathPrefix + "/write_size", data.Size());
+    Profiler.Enqueue(profilingPathPrefix + "/write_throughput", data.Size() / readTime.SecondsFloat());
 
     return TVoid();
 }
@@ -334,7 +341,7 @@ TChunkPtr TSession::OnFileClosed(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
     auto chunk = New<TStoredChunk>(
-        ~Location, 
+        Location, 
         ChunkId, 
         Writer->GetChunkMeta(), 
         Writer->GetChunkInfo());
@@ -428,7 +435,7 @@ TSessionPtr TSessionManager::StartSession(
 {
     auto location = ChunkStore->GetNewChunkLocation();
 
-    auto session = New<TSession>(this, chunkId, ~location);
+    auto session = New<TSession>(this, chunkId, location);
     session->Start();
 
     auto lease = TLeaseManager::CreateLease(
@@ -443,7 +450,7 @@ TSessionPtr TSessionManager::StartSession(
     AtomicIncrement(SessionCount);
     YCHECK(SessionMap.insert(MakePair(chunkId, session)).second);
 
-    LOG_INFO("Session %s started at %s",
+    LOG_INFO("Session started (ChunkId: %s, Path: %s)",
         ~chunkId.ToString(),
         ~location->GetPath().Quote());
     return session;
@@ -482,7 +489,7 @@ TFuture<TChunkPtr> TSessionManager::FinishSession(
 
 TChunkPtr TSessionManager::OnSessionFinished(TSessionPtr session, TChunkPtr chunk)
 {
-    LOG_INFO("Session %s finished", ~session->GetChunkId().ToString());
+    LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
     return chunk;
 }
 

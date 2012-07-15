@@ -42,13 +42,13 @@ void TChunkStore::Start()
 
             auto location = New<TLocation>(
                 ELocationType::Store,
-                ~locationConfig,
-                ~Bootstrap->GetReaderCache(),
-                Sprintf("ChunkStore_%d", i));
+                "store" + ToString(i),
+                locationConfig,
+                Bootstrap->GetReaderCache());
             Locations_.push_back(location);
 
             FOREACH (const auto& descriptor, location->Scan()) {
-                auto chunk = New<TStoredChunk>(~location, descriptor);
+                auto chunk = New<TStoredChunk>(location, descriptor);
                 RegisterChunk(chunk);
             }
         }

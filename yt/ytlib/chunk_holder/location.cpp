@@ -23,15 +23,16 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TLocation::TLocation(
     ELocationType type,
+    const Stroka& id,
     TLocationConfigPtr config,
-    TReaderCachePtr readerCache,
-    const Stroka& threadName)
+    TReaderCachePtr readerCache)
     : Type(type)
+    , Id(id)
     , Config(config)
     , ReaderCache(readerCache)
     , AvailableSpace(0)
     , UsedSpace(0)
-    , ActionQueue(New<TActionQueue>(threadName))
+    , ActionQueue(New<TActionQueue>("ChunkIO:%s", ~id))
     , SessionCount(0)
     , Logger(ChunkHolderLogger)
 {
@@ -44,6 +45,11 @@ TLocation::~TLocation()
 ELocationType TLocation::GetType() const
 {
     return Type;
+}
+
+Stroka TLocation::GetId() const
+{
+    return Id;
 }
 
 void TLocation::UpdateUsedSpace(i64 size)

@@ -54,16 +54,16 @@ public:
 
         Location = New<TLocation>(
             ELocationType::Cache,
-            ~Config->CacheLocation,
-            ~Bootstrap->GetReaderCache(),
-            "ChunkCache");
+            "cache",
+            Config->CacheLocation,
+            Bootstrap->GetReaderCache());
 
         try {
             FOREACH (const auto& descriptor, Location->Scan()) {
                 auto chunk = New<TCachedChunk>(
-                    ~Location,
+                    Location,
                     descriptor,
-                    ~Bootstrap->GetChunkCache());
+                    Bootstrap->GetChunkCache());
                 Put(chunk);
             }
         } catch (const std::exception& ex) {

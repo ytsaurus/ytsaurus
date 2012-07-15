@@ -18,6 +18,7 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkHolderLogger;
+static NProfiling::TProfiler& Profiler = ChunkHolderProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,11 +87,12 @@ TFuture<TError> TChunk::ReadMeta()
     auto this_ = MakeStrong(this);
     auto invoker = Location_->GetInvoker();
     auto readerCache = Location_->GetReaderCache();
+    auto timer = Profiler.TimingStart(Sprintf("/chunk_io/%s/meta_read_time", Location_->GetId()));
 
     LOG_DEBUG("Reading chunk meta (ChunkId: %s)", ~Id_.ToString());
 
     return
-        BIND([=] () -> TError {
+        BIND([=] () mutable -> TError {
             auto result = readerCache->GetReader(this_);
             if (!result.IsOK()) {
                 LOG_WARNING("Error reading chunk meta (ChunkId: %s)\n%s",
@@ -109,6 +111,8 @@ TFuture<TError> TChunk::ReadMeta()
                 HasMeta = true;
             }
 
+            Profiler.TimingStop(timer);
+
             LOG_DEBUG("Chunk meta is read (ChunkId: %s)", ~this_->Id_.ToString());
 
             return TError();
@@ -120,14 +124,14 @@ TFuture<TError> TChunk::ReadMeta()
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoredChunk::TStoredChunk(
-    TLocation* location,
+    TLocationPtr location,
     const TChunkId& chunkId,
     const TChunkMeta& chunkMeta,
     const TChunkInfo& chunkInfo)
     : TChunk(location, chunkId, chunkMeta, chunkInfo)
 { }
 
-TStoredChunk::TStoredChunk(TLocation* location, const TChunkDescriptor& descriptor)
+TStoredChunk::TStoredChunk(TLocationPtr location, const TChunkDescriptor& descriptor)
     : TChunk(location, descriptor)
 { }
 
@@ -137,17 +141,20 @@ TStoredChunk::~TStoredChunk()
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedChunk::TCachedChunk(
-    TLocation* location,
+    TLocationPtr location,
     const TChunkId& chunkId,
     const TChunkMeta& chunkMeta,
     const TChunkInfo& chunkInfo,
-    TChunkCache* chunkCache)
+    TChunkCachePtr chunkCache)
     : TChunk(location, chunkId, chunkMeta, chunkInfo)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
     , ChunkCache(chunkCache)
 { }
 
-TCachedChunk::TCachedChunk(TLocation* location, const TChunkDescriptor& descriptor, TChunkCache* chunkCache)
+TCachedChunk::TCachedChunk(
+    TLocationPtr location,
+    const TChunkDescriptor& descriptor,
+    TChunkCachePtr chunkCache)
     : TChunk(location, descriptor)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
     , ChunkCache(chunkCache)

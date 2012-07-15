@@ -23,14 +23,17 @@ class TLocation
 public:
     TLocation(
         ELocationType type,
+        const Stroka& id,
         TLocationConfigPtr config,
-        TReaderCachePtr readerCache,
-        const Stroka& threadName);
+        TReaderCachePtr readerCache);
 
     ~TLocation();
 
     //! Returns the type.
     ELocationType GetType() const;
+
+    //! Returns string id.
+    Stroka GetId() const;
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     std::vector<TChunkDescriptor> Scan();
@@ -86,6 +89,7 @@ public:
 
 private:
     ELocationType Type;
+    Stroka Id;
     TLocationConfigPtr Config;
     TReaderCachePtr ReaderCache;
     mutable i64 AvailableSpace;

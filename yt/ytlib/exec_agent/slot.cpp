@@ -20,7 +20,7 @@ TSlot::TSlot(const Stroka& path, int id)
     : IsFree_(true)
     , IsClean(true)
     , Path(path)
-    , SlotThread(New<TActionQueue>(Sprintf("ExecSlot_%d", id)))
+    , SlotThread(New<TActionQueue>(Sprintf("ExecSlot:%d", id)))
 {
     try {
         NFS::ForcePath(Path);

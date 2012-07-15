@@ -77,13 +77,13 @@ class TStoredChunk
 {
 public:
     TStoredChunk(
-        TLocation* location,
+        TLocationPtr location,
         const TChunkId& chunkId,
         const NProto::TChunkMeta& chunkMeta,
         const NProto::TChunkInfo& chunkInfo);
 
     TStoredChunk(
-        TLocation* location,
+        TLocationPtr location,
         const TChunkDescriptor& descriptor);
 
     ~TStoredChunk();
@@ -100,16 +100,16 @@ class TCachedChunk
 {
 public:
     TCachedChunk(
-        TLocation* location,
+        TLocationPtr location,
         const TChunkId& chunkId,
         const NProto::TChunkMeta& chunkMeta,
         const NProto::TChunkInfo& chunkInfo,
-        TChunkCache* chunkCache);
+        TChunkCachePtr chunkCache);
 
     TCachedChunk(
-        TLocation* location,
+        TLocationPtr location,
         const TChunkDescriptor& descriptor,
-        TChunkCache* chunkCache);
+        TChunkCachePtr chunkCache);
 
     ~TCachedChunk();
 
