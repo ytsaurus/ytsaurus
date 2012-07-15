@@ -24,7 +24,7 @@ struct TCellNodeConfig
     NElection::TLeaderLookup::TConfigPtr Masters;
 
     //! Data node configuration part.
-    NChunkHolder::TChunkHolderConfigPtr ChunkHolder;
+    NChunkHolder::TChunkHolderConfigPtr DataNode;
 
     //! Exec node configuration part.
     NExecAgent::TExecAgentConfigPtr ExecAgent;
@@ -37,7 +37,7 @@ struct TCellNodeConfig
             .Default(10000);
         Register("masters", Masters)
             .DefaultNew();
-        Register("chunk_holder", ChunkHolder)
+        Register("data_node", DataNode)
             .DefaultNew();
         Register("exec_agent", ExecAgent)
             .DefaultNew();

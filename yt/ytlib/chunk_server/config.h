@@ -91,10 +91,10 @@ struct TChunkTreeBalancerConfig
 struct TChunkManagerConfig
     : public TYsonSerializable
 {
-    TDuration OnlineHolderTimeout;
-    TDuration RegisteredHolderTimeout;
-    TDuration UnconfirmedHolderTimeout;
-    TDuration HolderExpirationBackoffTime;
+    TDuration OnlineNodeTimeout;
+    TDuration RegisteredNodeTimeout;
+    TDuration UnconfirmedNodeTimeout;
+    TDuration NodeExpirationBackoffTime;
 
     TDuration ChunkRefreshDelay;
     TDuration ChunkRefreshQuantum;
@@ -108,13 +108,13 @@ struct TChunkManagerConfig
 
     TChunkManagerConfig()
     {
-        Register("online_holder_timeout", OnlineHolderTimeout)
+        Register("online_node_timeout", OnlineNodeTimeout)
             .Default(TDuration::Seconds(20));
-        Register("registered_holder_timeout", RegisteredHolderTimeout)
+        Register("registered_node_timeout", RegisteredNodeTimeout)
             .Default(TDuration::Seconds(60));
-        Register("unconfirmed_holder_timeout", UnconfirmedHolderTimeout)
+        Register("unconfirmed_node_timeout", UnconfirmedNodeTimeout)
             .Default(TDuration::Seconds(30));
-        Register("holder_expiration_backoff_time", HolderExpirationBackoffTime)
+        Register("node_expiration_backoff_time", NodeExpirationBackoffTime)
             .Default(TDuration::Seconds(5));
         Register("chunk_refresh_delay", ChunkRefreshDelay)
             .Default(TDuration::Seconds(15));

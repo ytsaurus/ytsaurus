@@ -92,8 +92,8 @@ class Master(Server):
             },
         },
         'chunks' : {
-            'registered_holder_timeout' : 180000,
-            'balancer' : {
+            'registered_node_timeout' : 180000,
+            'chunk_replicator' : {
                 'max_lost_chunk_fraction' : 0.01
             }
         },
@@ -139,8 +139,8 @@ class Holder(Server):
     nodeid = Subclass(xrange(10), 1)
 
     log_disk = 'disk1'
-    log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
-    debug_log_path = Template("holder-%(groupid)d-%(nodeid)d.debug.log")
+    log_path = Template("node-%(groupid)d-%(nodeid)d.log")
+    debug_log_path = Template("node-%(groupid)d-%(nodeid)d.debug.log")
     
     @propmethod
     def host(cls):
@@ -159,7 +159,7 @@ class Holder(Server):
             'addresses' : MasterAddresses,
             'rpc_timeout' : 20000
         },
-        'chunk_holder' : {
+        'data_node' : {
             'store_locations' : [
                 { 'path' : '/yt/disk1/data/chunk_store', 'quota' : storeQuota },
                 { 'path' : '/yt/disk2/data/chunk_store', 'quota' : storeQuota },
@@ -200,13 +200,13 @@ class Holder(Server):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
         print >>fd, 'rm -f %s' % cls.debug_log_path
-        for location in cls.config['chunk_holder']['store_locations']:
+        for location in cls.config['data_node']['store_locations']:
             print >>fd, 'rm -rf %s' % location['path']
-        print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['data_node']['cache_location']['path']
 
     def do_clean_cache(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['data_node']['cache_location']['path']
 
 
 class Driver(Base, RemoteNode):

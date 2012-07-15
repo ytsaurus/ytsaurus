@@ -120,7 +120,7 @@ void TBootstrap::Run()
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
-    ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->ChunkHolder, this));
+    ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->DataNode, this));
     ChunkHolderBootstrap->Init();
 
     ExecAgentBootstrap.Reset(new NExecAgent::TBootstrap(Config->ExecAgent, this));
