@@ -5,7 +5,6 @@ import sys
 import time
 import json
 import subprocess
-import pickle
 import hashlib
 
 OPTS = {
@@ -244,8 +243,7 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
 def main():
     st = time.time()
 
-    #plan = build_migration_plan()
-    plan = pickle.load(open("mig_plan"))
+    plan = build_migration_plan()
     prepare_migration_plan(plan)
     execute_migration_plan(plan)
 
