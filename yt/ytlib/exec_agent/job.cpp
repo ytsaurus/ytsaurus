@@ -175,9 +175,7 @@ void TJob::OnChunkDownloaded(
             ~fileName,
             ~result.ToString());
         LOG_WARNING("%s", ~message);
-        SetResult(TError(message));
-        JobProgress = NScheduler::EJobProgress::Failed;
-        JobState = EJobState::Failed;
+        DoAbort(TError(message), EJobState::Failed, false);
         return;
     }
 
@@ -194,9 +192,7 @@ void TJob::OnChunkDownloaded(
             ~fileName,
             ex.what());
         LOG_ERROR("%s", ~message);
-        SetResult(TError(message));
-        JobProgress = NScheduler::EJobProgress::Failed;
-        JobState = EJobState::Failed;
+        DoAbort(TError(message), EJobState::Failed, false);
         return;
     }
 
