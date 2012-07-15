@@ -14,7 +14,7 @@ struct TChunkReplicatorConfig
     : public TYsonSerializable
 {
     //! Minimum number of holders the cell must have online to enable starting new jobs.
-    TNullable<int> MinOnlineHolderCount;
+    TNullable<int> MinOnlineNodeCount;
     
     //! Max lost chunk fraction the cell is allowed to have to enable starting new jobs.
     TNullable<double> MaxLostChunkFraction;
@@ -26,7 +26,7 @@ struct TChunkReplicatorConfig
     int MaxReplicationFanIn;
     
     //! Maximum number of concurrent removal jobs that can be scheduled to a holder.
-    int MaxRemovalJobsPerHolder;
+    int MaxRemovalJobsPerNode;
     
     //! Minimum difference in fill coefficient (between the most and the least loaded holders) to start balancing.
     double MinBalancingFillCoeffDiff;
@@ -39,7 +39,7 @@ struct TChunkReplicatorConfig
 
     TChunkReplicatorConfig()
     {
-        Register("min_online_holder_count", MinOnlineHolderCount)
+        Register("min_online_node_count", MinOnlineNodeCount)
             .GreaterThan(0)
             .Default();
         Register("max_lost_chunk_fraction", MaxLostChunkFraction)
@@ -49,7 +49,7 @@ struct TChunkReplicatorConfig
             .Default(4);
         Register("max_replication_fan_in", MaxReplicationFanIn)
             .Default(8);
-        Register("max_removal_jobs_per_holder", MaxRemovalJobsPerHolder)
+        Register("max_removal_jobs_per_node", MaxRemovalJobsPerNode)
             .Default(16);
         Register("min_chunk_balancing_fill_coeff_diff", MinBalancingFillCoeffDiff)
             .Default(0.2);

@@ -70,7 +70,7 @@ void TChunkReplicator::ScheduleJobs(
         ScheduleNewJobs(
             holder,
             Max(0, Config->ChunkReplicator->MaxReplicationFanOut - replicationJobCount),
-            Max(0, Config->ChunkReplicator->MaxRemovalJobsPerHolder - removalJobCount),
+            Max(0, Config->ChunkReplicator->MaxRemovalJobsPerNode - removalJobCount),
             jobsToStart);
     }
 }
