@@ -664,12 +664,12 @@ bool TChunkReplicator::IsEnabled()
     // This method also logs state changes.
 
     auto config = Config->ChunkReplicator;
-    if (config->MinOnlineHolderCount) {
-        int needOnline = config->MinOnlineHolderCount.Get();
+    if (config->MinOnlineNodeCount) {
+        int needOnline = config->MinOnlineNodeCount.Get();
         int gotOnline = HolderLeaseTracker->GetOnlineHolderCount();
         if (gotOnline < needOnline) {
             if (!LastEnabled || LastEnabled.Get()) {
-                LOG_INFO("Chunk balancer disabled: too few online nodes, needed >= %d but got %d",
+                LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %d but got %d",
                     needOnline,
                     gotOnline);
                 LastEnabled = false;
@@ -685,7 +685,7 @@ bool TChunkReplicator::IsEnabled()
         double gotFraction = (double) chunkManager->LostChunkIds().size() / chunkManager->GetChunkCount();
         if (gotFraction > needFraction) {
             if (!LastEnabled || LastEnabled.Get()) {
-                LOG_INFO("Chunk balancer disabled: too many lost chunks, needed <= %lf but got %lf",
+                LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %lf but got %lf",
                     needFraction,
                     gotFraction);
                 LastEnabled = false;
@@ -695,7 +695,7 @@ bool TChunkReplicator::IsEnabled()
     }
 
     if (!LastEnabled || !LastEnabled.Get()) {
-        LOG_INFO("Chunk balancer enabled");
+        LOG_INFO("Chunk replicator enabled");
         LastEnabled = true;
     }
 
