@@ -75,8 +75,7 @@ TAsyncError TSequentialReader::AsyncNextBlock()
     YASSERT(!State.HasRunningOperation());
 
     if (NextSequenceIndex > 0) {
-        AsyncSemaphore.Release(BlocksExt.blocks(
-            BlockIndexSequence[NextSequenceIndex - 1]).size());
+        AsyncSemaphore.Release(BlockWindow[NextSequenceIndex - 1].Get().Size());
         BlockWindow[NextSequenceIndex - 1].Reset();
     }
 
