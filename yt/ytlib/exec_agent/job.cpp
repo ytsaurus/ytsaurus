@@ -329,8 +329,10 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobProgress > EJobProgress::Cleanup)
+    if (JobProgress > EJobProgress::Cleanup) {
+        JobState = resultState;
         return;
+    }
 
     YASSERT(JobProgress < EJobProgress::Cleanup);
 
