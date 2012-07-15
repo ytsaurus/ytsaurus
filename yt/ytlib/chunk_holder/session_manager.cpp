@@ -202,7 +202,7 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
     LOG_DEBUG("Start writing chunk block %d",
         blockIndex);
 
-    auto profilingPathPrefix = Sprintf("/chunk_io/%s", Location->GetId());
+    auto profilingPathPrefix = Sprintf("/chunk_io/%s", ~Location->GetId());
     auto timer = Profiler.TimingStart(profilingPathPrefix + "/write_time");
     auto data = block->GetData();
 

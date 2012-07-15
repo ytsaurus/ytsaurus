@@ -175,7 +175,7 @@ private:
             blockSize,
             PendingReadSize_);
 
-        auto profilingPathPrefix = Sprintf("/chunk_io/%s", chunk->GetLocation()->GetId());
+        auto profilingPathPrefix = Sprintf("/chunk_io/%s", ~chunk->GetLocation()->GetId());
         auto timer = Profiler.TimingStart(profilingPathPrefix + "/read_time");
 
         TSharedRef data;

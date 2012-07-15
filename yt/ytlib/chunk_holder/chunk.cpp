@@ -87,7 +87,7 @@ TFuture<TError> TChunk::ReadMeta()
     auto this_ = MakeStrong(this);
     auto invoker = Location_->GetInvoker();
     auto readerCache = Location_->GetReaderCache();
-    auto timer = Profiler.TimingStart(Sprintf("/chunk_io/%s/meta_read_time", Location_->GetId()));
+    auto timer = Profiler.TimingStart(Sprintf("/chunk_io/%s/meta_read_time", ~Location_->GetId()));
 
     LOG_DEBUG("Reading chunk meta (ChunkId: %s)", ~Id_.ToString());
 
