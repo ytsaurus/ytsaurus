@@ -70,7 +70,7 @@ def spawn_yt(which, command, *args, **kwargs):
     execa = { "shell" : False, "stdout" : subprocess.PIPE, "stderr" : subprocess.PIPE }
     execa.update(kwargs)
 
-    #print >>sys.stderr, "Running", repr(execv)
+    #print "Running", repr(execv)
 
     return subprocess.Popen(execv, **execa)
 
@@ -97,9 +97,9 @@ def traverse_cypress(which, path_tokens=[]):
                 yield item
 
 def build_migration_plan(migrate_from="src", migrate_to="dst"):
-    print >>sys.stderr, "*" * 80
-    print >>sys.stderr, "*** Building migration plan..."
-    print >>sys.stderr, "*" * 80
+    print "*" * 80
+    print "*** Building migration plan..."
+    print "*" * 80
 
     plan = []
 
@@ -113,17 +113,17 @@ def build_migration_plan(migrate_from="src", migrate_to="dst"):
     number_of_tables = sum(1 for t, x, y in plan if t == "table")
     number_of_nodes  = len(plan) - number_of_files - number_of_tables
 
-    print >>sys.stderr, "*" * 80
-    print >>sys.stderr, "*** Migration plan was built in %.2fs (%d files, %d tables, %d nodes)" % \
+    print "*" * 80
+    print "*** Migration plan was built in %.2fs (%d files, %d tables, %d nodes)" % \
         (dt, number_of_files, number_of_tables, number_of_nodes)
-    print >>sys.stderr, "*" * 80
+    print "*" * 80
 
     return plan
 
 def prepare_migration_plan(plan, migrate_from="src", migrate_to="dst"):
-    print >>sys.stderr, "*" * 80
-    print >>sys.stderr, "*** Preparing for migration..."
-    print >>sys.stderr, "*" * 80
+    print "*" * 80
+    print "*** Preparing for migration..."
+    print "*" * 80
 
     st = time.time()
 
@@ -157,9 +157,9 @@ def prepare_migration_plan(plan, migrate_from="src", migrate_to="dst"):
 
     dt = time.time() - st
 
-    print >>sys.stderr, "*" * 80
-    print >>sys.stderr, "*** Preparation was done in %.2fs" % dt
-    print >>sys.stderr, "*" * 80
+    print "*" * 80
+    print "*** Preparation was done in %.2fs" % dt
+    print "*" * 80
 
 def execute_migration_plan(plan, migrate_from="src", migrate_to="dst"):
     migrators = {
@@ -168,24 +168,24 @@ def execute_migration_plan(plan, migrate_from="src", migrate_to="dst"):
         "table"    : migrate_table
     }
 
-    print >>sys.stderr, "*" * 80
-    print >>sys.stderr, "*** Executing migration plan..."
-    print >>sys.stderr, "*" * 80
+    print "*" * 80
+    print "*** Executing migration plan..."
+    print "*" * 80
 
     st = time.time()
     for ctype, from_path, to_path in plan:
-        print >>sys.stderr, "-" * 80
-        print >>sys.stderr, " " * 3, "Migrating " + ctype
-        print >>sys.stderr, " " * 3, "  from " + ypath_join(from_path)
-        print >>sys.stderr, " " * 3, "    to " + ypath_join(to_path)
-        print >>sys.stderr
+        print "-" * 80
+        print " " * 3, "Migrating " + ctype
+        print " " * 3, "  from " + ypath_join(from_path)
+        print " " * 3, "    to " + ypath_join(to_path)
+        print
         migrators[ctype](from_path, to_path, migrate_from, migrate_to)
-        print >>sys.stderr
+        print
     dt = time.time() - st
 
-    print >>sys.stderr, "*" * 80
-    print >>sys.stderr, "*** Migration plan was executed in %.2fs" % dt
-    print >>sys.stderr, "*" * 80
+    print "*" * 80
+    print "*** Migration plan was executed in %.2fs" % dt
+    print "*" * 80
 
 def copy_attributes(attributes, from_path, to_path, migrate_from, migrate_to):
     for attribute in attributes:
@@ -210,12 +210,12 @@ def migrate_file(from_path, to_path, migrate_from, migrate_to):
         ask_yt(migrate_from, "get", ypath_join(from_path) + "/@size"),
         dt)
 
-    print >>sys.stderr, " " * 3, "Done in %.2fs" % dt
+    print " " * 3, "Done in %.2fs" % dt
 
 def migrate_map_node(from_path, to_path, migrate_from, migrate_to):
     ask_yt(migrate_to, "create", "map_node", ypath_join(to_path))
 
-    print >>sys.stderr, " " * 3, "Done"
+    print " " * 3, "Done"
 
 def migrate_table(from_path, to_path, migrate_from, migrate_to):
     ask_yt(migrate_to, "create", "table", ypath_join(to_path))
@@ -231,6 +231,7 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
             "./migrator_binary",
             "./migrator_config",
             shell_quote(ypath_join(to_path))),
+        "--opt", "/spec/job_count=100",
         stdout=sys.stderr, stderr=sys.stderr)
     dt = time.time() - st
 
@@ -238,7 +239,7 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
         ask_yt(migrate_from, "get", ypath_join(from_path) + "/@uncompressed_data_size"),
         dt)
 
-    print >>sys.stderr, "Done in %.2fs" % dt
+    print "Done in %.2fs" % dt
 
 def main():
     st = time.time()
@@ -249,12 +250,12 @@ def main():
 
     dt = time.time() - st
 
-    print >>sys.stderr
-    print >>sys.stderr, "Migrated in %.2fs" % dt
-    print >>sys.stderr
-    print >>sys.stderr, " Local statistics: %d bytes transferred in %.2fs (%.3f MiB/s)" % \
+    print
+    print "Migrated in %.2fs" % dt
+    print
+    print " Local statistics: %d bytes transferred in %.2fs (%.3f MiB/s)" % \
         (LOCAL_STATISTICS.bytes, LOCAL_STATISTICS.seconds, LOCAL_STATISTICS.mibps())
-    print >>sys.stderr, "Remote statistics: %d bytes transferred in %.2fs (%.3f MiB/s)" % \
+    print "Remote statistics: %d bytes transferred in %.2fs (%.3f MiB/s)" % \
         (REMOTE_STATISTICS.bytes, REMOTE_STATISTICS.seconds, REMOTE_STATISTICS.mibps())
 
 if __name__ == "__main__":
