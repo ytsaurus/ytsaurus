@@ -38,7 +38,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     const std::vector<NProto::TKey>& partitionKeys)
     : TChunkWriterBase(chunkWriter, config)
     , Channel(TChannel::CreateUniversal())
-    , KeyColumns(keyColumns.size())
+    , KeyColumns(keyColumns)
     , CurrentSize(0)
     , BasicMetaSize(0)
 {
@@ -76,12 +76,10 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
         return false;
 
     TNonOwningKey key(KeyColumns.size());
-    {
-        FOREACH (const auto& pair, row) {
-            auto it = KeyColumnIndexes.find(pair.first);
-            if (it != KeyColumnIndexes.end()) {
-                key.SetKeyPart(it->second, pair.second, Lexer);
-            }
+    FOREACH (const auto& pair, row) {
+        auto it = KeyColumnIndexes.find(pair.first);
+        if (it != KeyColumnIndexes.end()) {
+            key.SetKeyPart(it->second, pair.second, Lexer);
         }
     }
 
