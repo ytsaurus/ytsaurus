@@ -89,13 +89,14 @@ TTimer TProfiler::TimingStart(const TYPath& path, ETimerMode mode)
     return TTimer(path, GetCpuInstant(), mode);
 }
 
-void TProfiler::TimingStop(TTimer& timer)
+TDuration TProfiler::TimingStop(TTimer& timer)
 {
     // Failure here means that the timer was not started or already stopped.
     YASSERT(timer.Start != 0);
 
     auto now = GetCpuInstant();
-    auto value = CpuDurationToValue(now - timer.Start);
+    auto cpuDuration = now - timer.Start;
+    auto value = CpuDurationToValue(cpuDuration);
     YASSERT(value >= 0);
 
     switch (timer.Mode) {
@@ -113,9 +114,11 @@ void TProfiler::TimingStop(TTimer& timer)
     }
 
     timer.Start = 0;
+
+    return CpuDurationToDuration(cpuDuration);
 }
 
-void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
+TDuration TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
 {
     // Failure here means that the timer was not started or already stopped.
     YASSERT(timer.Start != 0);
@@ -136,14 +139,14 @@ void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
             YASSERT(duration >= 0);
             Enqueue(path, duration);
             timer.LastCheckpoint = now;
-            break;
+            return CpuDurationToDuration(duration);
         }
 
         case ETimerMode::Parallel: {
             auto duration = CpuDurationToValue(now - timer.Start);
             YASSERT(duration >= 0);
             Enqueue(path, duration);
-            break;
+            return CpuDurationToDuration(duration);
         }
 
         default:
