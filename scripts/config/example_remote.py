@@ -122,7 +122,12 @@ class Scheduler(Server):
             'addresses' : MasterAddresses
         },
         'scheduler' : {   
-            'strategy' : 'fifo'
+            'strategy' : 'fifo',
+			'sort_job_io' : {
+				'chunk_sequence_reader' : {
+					'prefetch_window' : 100
+				}
+			}
         },
         'rpc_port' : 9001,
         'monitoring_port' : 10001, 
