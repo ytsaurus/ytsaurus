@@ -57,7 +57,8 @@ protected:
         return records;
     }
 
-    i64 GetFileSize() const {
+    i64 GetFileSize() const
+    {
         TFile changeLogFile(TemporaryFile->Name(), RdWr);
         return changeLogFile.GetLength();
     }
