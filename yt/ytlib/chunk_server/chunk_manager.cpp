@@ -1181,7 +1181,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s)",
                 ~holder->GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
@@ -1612,14 +1612,14 @@ private:
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolderByAddresss(address);
             if (!holder) {
-                LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown holder %s",
+                LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown node %s",
                     ~Id.ToString(),
                     ~address);
                 continue;
             }
 
             if (holder->GetState() != EHolderState::Online) {
-                LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Tried to confirm chunk %s at holder %s with invalid state %s",
+                LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Tried to confirm chunk %s at node %s with invalid state %s",
                     ~Id.ToString(),
                     ~address,
                     ~FormatEnum(holder->GetState()));

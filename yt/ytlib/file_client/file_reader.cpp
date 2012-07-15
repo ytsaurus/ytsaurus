@@ -48,12 +48,12 @@ void TFileReader::Open()
             ~fetchRsp->GetError().ToString());
     }
     auto chunkId = TChunkId::FromProto(fetchRsp->chunk_id());
-    auto holderAddresses = FromProto<Stroka>(fetchRsp->node_addresses());
-    LOG_INFO("File info received (ChunkId: %s, HolderAddresses: [%s])",
+    auto addresses = FromProto<Stroka>(fetchRsp->node_addresses());
+    LOG_INFO("File info received (ChunkId: %s, Addresses: [%s])",
         ~chunkId.ToString(),
-        ~JoinToString(holderAddresses));
+        ~JoinToString(addresses));
 
-    TFileReaderBase::Open(chunkId, holderAddresses);
+    TFileReaderBase::Open(chunkId, addresses);
 
     if (Transaction) {
         ListenTransaction(Transaction);

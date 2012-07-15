@@ -295,8 +295,8 @@ class YTEnv(unittest.TestCase):
             chunk_store = os.path.join(current, 'chunk_store')
             slot_location = os.path.join(current, 'slot')
 
-            holder_config['chunk_holder']['cache_location']['path'] = chunk_cache
-            holder_config['chunk_holder']['store_locations'].append( {'path': chunk_store})
+            holder_config['data_node']['cache_location']['path'] = chunk_cache
+            holder_config['data_node']['store_locations'].append( {'path': chunk_store})
             holder_config['exec_agent']['job_manager']['slot_location'] = slot_location
 
             init_logging(holder_config['logging'], current, 'holder-%d' % i)

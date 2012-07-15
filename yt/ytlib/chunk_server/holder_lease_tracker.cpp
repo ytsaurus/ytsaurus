@@ -91,7 +91,7 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
     if (!holderInfo)
         return;
 
-    LOG_INFO("Holder expired (HolderId: %d)", holderId);
+    LOG_INFO("Node expired (HolderId: %d)", holderId);
 
     TMsgUnregisterHolder message;
     message.set_holder_id(holderId);
@@ -100,10 +100,10 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
         ->InitiateUnregisterHolder(message)
         ->SetRetriable(Config->NodeExpirationBackoffTime)
         ->OnSuccess(BIND([=] (TVoid) {
-            LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
+            LOG_INFO("Node expiration commit success (HolderId: %d)", holderId);
         }))
         ->OnError(BIND([=] () {
-            LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
+            LOG_INFO("Node expiration commit failed (HolderId: %d)", holderId);
         }))
         ->Commit();
 }

@@ -57,7 +57,7 @@ class TestResourceLeak(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 3
 
-    DELTA_HOLDER_CONFIG = {'chunk_holder' : {'session_timeout': 100}}
+    DELTA_HOLDER_CONFIG = {'data_node' : {'session_timeout': 100}}
 
     def _check_no_temp_file(self, chunk_store):
         for root, dirs, files in os.walk(chunk_store):
@@ -78,7 +78,7 @@ class TestResourceLeak(YTEnvSetup):
         for i in xrange(self.NUM_HOLDERS):
             # TODO(panin): refactor
             holder_config = self.Env.configs['holder'][i]
-            chunk_store_path = holder_config['chunk_holder']['store_locations'][0]['path']
+            chunk_store_path = holder_config['data_node']['store_locations'][0]['path']
             self._check_no_temp_file(chunk_store_path)
 
 # TODO(panin): check chunks

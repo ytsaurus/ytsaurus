@@ -249,7 +249,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 
     auto targets = ChunkPlacement->GetReplicationTargets(chunk, replicasNeeded);
     if (targets.empty()) {
-        LOG_TRACE("No suitable target holders for replication of chunk %s",
+        LOG_TRACE("No suitable target nodes to replicate chunk %s",
             ~chunkId.ToString());
         return EScheduleFlags::None;
     }
@@ -300,7 +300,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         Config->ChunkReplicator->MinBalancingFillCoeffDiff;
     auto targetHolder = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolder == NULL) {
-        LOG_DEBUG("No suitable target holders for balancing of chunk %s",
+        LOG_DEBUG("No suitable target nodes to balance chunk %s",
             ~chunkId.ToString());
         return EScheduleFlags::None;
     }

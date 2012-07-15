@@ -113,22 +113,22 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
     auto chunkId = NChunkServer::TChunkId::FromProto(rsp->object_id());
     const auto& rspExt = rsp->GetExtension(
         NChunkServer::NProto::TRspCreateChunkExt::create_chunk);
-    auto holderAddresses = FromProto<Stroka>(rspExt.node_addresses());
+    auto addresses = FromProto<Stroka>(rspExt.node_addresses());
 
-    if (holderAddresses.size() < Config->UploadReplicationFactor) {
-        State.Fail(TError("Not enough holders available"));
+    if (addresses.size() < Config->UploadReplicationFactor) {
+        State.Fail(TError("Not enough data nodes available"));
         return;
     }
 
     LOG_DEBUG("Chunk created (Addresses: [%s], ChunkId: %s)",
-        ~JoinToString(holderAddresses),
+        ~JoinToString(addresses),
         ~chunkId.ToString());
 
     TSession session;
     session.RemoteWriter = New<NChunkClient::TRemoteWriter>(
         Config->RemoteWriter,
         chunkId,
-        holderAddresses);
+        addresses);
     session.RemoteWriter->Open();
 
     PrepareChunkWriter(session);
