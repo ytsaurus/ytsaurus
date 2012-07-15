@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/meta_state/change_log.h>
-#include <ytlib/profiling/single_timer.h>
+#include <ytlib/profiling/scoped_timer.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
@@ -280,44 +280,44 @@ TEST_F(TChangeLogTest, DISABLED_Profiling)
         int recordsCount;
         if (i == 0) { // A lot of small records
             recordsCount = 10000000;
-            NProfiling::TSingleTimer timer;
+            NProfiling::TScopedTimer timer;
             TChangeLogPtr changeLog = CreateChangeLog<ui32>(recordsCount);
             std::cerr << "Make changelog of size " << recordsCount <<
                 ", with blob of size " << sizeof(ui32) <<
-                ", time " << timer.ElapsedTimeAsString() << std::endl;
+                ", time " << ToString(timer.GetElapsed()) << std::endl;
         }
         else {
             recordsCount = 50;
-            NProfiling::TSingleTimer timer;
+            NProfiling::TScopedTimer timer;
             TChangeLogPtr changeLog = CreateChangeLog<BigStruct>(recordsCount);
             std::cerr << "Make changelog of size " << recordsCount <<
                 ", with blob of size " << sizeof(BigStruct) <<
-                ", time " << timer.ElapsedTimeAsString() << std::endl;
+                ", time " << ToString(timer.GetElapsed()) << std::endl;
         }
 
         {
-            NProfiling::TSingleTimer timer;
+            NProfiling::TScopedTimer timer;
             TChangeLogPtr changeLog = OpenChangeLog();
             std::cerr << "Open changelog of size " << recordsCount <<
-                ", time " << timer.ElapsedTimeAsString() << std::endl;
+                ", time " << ToString(timer.GetElapsed()) << std::endl;
         }
         {
             TChangeLogPtr changeLog = OpenChangeLog();
-            NProfiling::TSingleTimer timer;
+            NProfiling::TScopedTimer timer;
             std::vector<TSharedRef> records;
             changeLog->Read(0, recordsCount, &records);
             std::cerr << "Read full changelog of size " << recordsCount <<
-                ", time " << timer.ElapsedTimeAsString() << std::endl;
+                ", time " << ToString(timer.GetElapsed()) << std::endl;
 
             timer.Restart();
             changeLog->Truncate(recordsCount / 2);
             std::cerr << "Truncating changelog of size " << recordsCount <<
-                ", time " << timer.ElapsedTimeAsString() << std::endl;
+                ", time " << ToString(timer.GetElapsed()) << std::endl;
 
             timer.Restart();
             changeLog->Finalize();
             std::cerr << "Finalizing changelog of size " << recordsCount / 2 <<
-                ", time " << timer.ElapsedTimeAsString() << std::endl;
+                ", time " << ToString(timer.GetElapsed()) << std::endl;
         }
     }
     SUCCEED();
