@@ -91,7 +91,7 @@ class Holder(WinNode, Server):
             'masters' : {
               'addresses' : MasterAddresses
             },
-            'chunk_holder' : {
+            'data_node' : {
                 'store_locations' : [
                     { 'path' : r'%(work_dir)s\chunk_store.0' }
                 ],
@@ -119,8 +119,8 @@ class Holder(WinNode, Server):
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
-                for location in cls.config['chunk_holder']['store_locations']:
+                for location in cls.config['data_node']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
-                print >>fd, 'rmdir /S /Q   %s' % cls.config['chunk_holder']['cache_location']['path']
+                print >>fd, 'rmdir /S /Q   %s' % cls.config['data_node']['cache_location']['path']
 
 configure(Base)
