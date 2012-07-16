@@ -170,7 +170,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
 
     if (withPort) {
         result.append(':');
-        result.append(ntohs(port));
+        result.append(ToString(ntohs(port)));
     }
 
     return result;
