@@ -13,7 +13,7 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////

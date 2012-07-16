@@ -1,4 +1,4 @@
-package NYT.NCypress.NProto;
+package NYT.NCypressClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 

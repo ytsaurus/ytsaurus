@@ -8,7 +8,7 @@
 #include <ytlib/object_server/id.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +72,7 @@ struct ICypressNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressClient
 } // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +83,7 @@ namespace NYT {
 namespace NObjectServer {
 
 template <>
-struct TObjectIdTraits<NCypress::ICypressNode*, void>
+struct TObjectIdTraits<NCypressClient::ICypressNode*, void>
 {
     typedef TVersionedObjectId TId;
 };
@@ -91,7 +91,7 @@ struct TObjectIdTraits<NCypress::ICypressNode*, void>
 template <class T>
 TVersionedObjectId GetObjectId(
     T object,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, NCypress::ICypressNode*>, void* >::TType = NULL)
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, NCypressClient::ICypressNode*>, void* >::TType = NULL)
 {
     return object->GetId();
 }

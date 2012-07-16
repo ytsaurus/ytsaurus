@@ -151,7 +151,7 @@ Stroka TCreateExecutor::GetCommandName() const
 TLockExecutor::TLockExecutor()
     : TTransactedExecutor(true)
     , PathArg("path", "path to an object in Cypress that must be locked", true, "", "YPATH")
-    , ModeArg("", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive")
+    , ModeArg("", "mode", "lock mode", false, NCypressClient::ELockMode::Exclusive, "snapshot, shared, exclusive")
 {
     CmdLine.add(PathArg);
     CmdLine.add(ModeArg);

@@ -18,6 +18,7 @@ namespace NCellMaster {
 using namespace NMetaState;
 using namespace NYTree;
 using namespace NCypress;
+using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 

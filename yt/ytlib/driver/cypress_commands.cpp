@@ -9,7 +9,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////

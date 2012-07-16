@@ -10,6 +10,14 @@
 namespace NYT {
 namespace NCypress {
 
+// TODO(panin): move somewhere
+using NCypressClient::ELockMode;
+using NCypressClient::TNodeId;
+using NCypressClient::TVersionedNodeId;
+
+using NObjectServer::EObjectType;
+using NObjectServer::TVersionedObjectId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes a lock held by a transaction of some Cypress node.

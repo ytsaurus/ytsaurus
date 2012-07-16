@@ -8,7 +8,7 @@
 #include <ytlib/transaction_server/public.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressClient {
 
 struct ICypressNode;
 struct ICypressNodeProxy;
@@ -62,8 +62,8 @@ struct INodeTypeHandler
      */
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) = 0;
 
-    typedef NRpc::TTypedServiceRequest<NCypress::NProto::TReqCreate> TReqCreate;
-    typedef NRpc::TTypedServiceResponse<NCypress::NProto::TRspCreate> TRspCreate;
+    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
+    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
     //! Creates and registers a dynamic node.
     /*!
      *  This is called during |Create|.
@@ -123,5 +123,5 @@ struct INodeTypeHandler
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressClient
 } // namespace NYT

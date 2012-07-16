@@ -23,7 +23,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NMetaState;
-using namespace NProto;
+using namespace NCypressClient::NProto;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////

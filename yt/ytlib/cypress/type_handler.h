@@ -9,6 +9,12 @@
 namespace NYT {
 namespace NCypress {
 
+using NCypressClient::TNodeId;
+using NCypressClient::ELockMode;
+using NCypressClient::TVersionedNodeId;
+
+using NObjectServer::EObjectType;
+
 struct ICypressNode;
 struct ICypressNodeProxy;
 
@@ -61,8 +67,8 @@ struct INodeTypeHandler
      */
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) = 0;
 
-    typedef NRpc::TTypedServiceRequest<NCypress::NProto::TReqCreate> TReqCreate;
-    typedef NRpc::TTypedServiceResponse<NCypress::NProto::TRspCreate> TRspCreate;
+    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
+    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
     //! Creates and registers a dynamic node.
     /*!
      *  This is called during |Create|.

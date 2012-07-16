@@ -159,13 +159,13 @@ struct TLockRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NCypress::ELockMode Mode;
+    NCypressClient::ELockMode Mode;
 
     TLockRequest()
     {
         Register("path", Path);
         Register("mode", Mode)
-            .Default(NCypress::ELockMode::Exclusive);
+            .Default(NCypressClient::ELockMode::Exclusive);
     }
 };
 

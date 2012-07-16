@@ -9,7 +9,7 @@ import "yt/ytlib/cypress_client/cypress_ypath.proto";
 
 message TReqCreateFileExt
 {
-    extend NYT.NCypress.NProto.TReqCreate
+    extend NYT.NCypressClient.NProto.TReqCreate
     {
         optional TReqCreateFileExt create_file = 100;
     }

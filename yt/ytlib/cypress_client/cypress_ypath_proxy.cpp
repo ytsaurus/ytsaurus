@@ -2,7 +2,7 @@
 #include "cypress_ypath_proxy.h"
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressClient {
 
 using namespace NYTree;
 
@@ -23,6 +23,6 @@ TYPath WithTransaction(const TYPath& path, const TTransactionId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressClient
 } // namespace NYT
 

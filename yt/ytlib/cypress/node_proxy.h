@@ -8,6 +8,8 @@
 namespace NYT {
 namespace NCypress {
 
+using NObjectServer::TTransactionId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Extends NYTree::INode by adding functionality that is common to all

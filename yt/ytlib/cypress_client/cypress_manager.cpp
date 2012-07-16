@@ -15,7 +15,7 @@
 #include <ytlib/object_server/object_service_proxy.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressClient {
 
 using namespace NCellMaster;
 using namespace NBus;
@@ -928,5 +928,5 @@ TYPath TCypressManager::GetNodePath(const TVersionedNodeId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressClient
 } // namespace NYT

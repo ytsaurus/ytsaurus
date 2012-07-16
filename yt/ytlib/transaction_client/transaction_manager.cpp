@@ -14,7 +14,7 @@
 namespace NYT {
 namespace NTransactionClient {
 
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;

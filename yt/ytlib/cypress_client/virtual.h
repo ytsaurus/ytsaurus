@@ -6,7 +6,7 @@
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,5 +26,5 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressClient
 } // namespace NYT

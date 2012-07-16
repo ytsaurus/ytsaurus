@@ -16,7 +16,7 @@ using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkServer;
 using namespace NTransactionServer;
-using namespace NCypress::NProto;
+using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

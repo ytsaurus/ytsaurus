@@ -9,7 +9,7 @@
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressClient {
 
 using namespace NYTree;
 using namespace NCellMaster;

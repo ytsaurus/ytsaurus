@@ -19,7 +19,7 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NFileServer;
 using namespace NTableServer;

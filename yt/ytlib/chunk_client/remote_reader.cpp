@@ -29,7 +29,7 @@ using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
 using namespace NChunkServer::NProto;
 using namespace NObjectServer;
-using namespace NCypress;
+using namespace NCypressClient;
 using ::ToString;
 
 ///////////////////////////////////////////////////////////////////////////////

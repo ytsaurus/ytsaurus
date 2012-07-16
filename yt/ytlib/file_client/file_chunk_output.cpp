@@ -20,7 +20,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NTransactionServer;
 using namespace NObjectServer;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer::NProto;
 

@@ -19,7 +19,7 @@
 #include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,8 +35,8 @@ public:
     INodeTypeHandlerPtr FindHandler(EObjectType type);
     INodeTypeHandlerPtr GetHandler(EObjectType type);
 
-    typedef NRpc::TTypedServiceRequest<NCypress::NProto::TReqCreate> TReqCreate;
-    typedef NRpc::TTypedServiceResponse<NCypress::NProto::TRspCreate> TRspCreate;
+    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
+    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
 
     //! Creates a new dynamic node, sets its attributes, and also registers it.
     ICypressNode* CreateDynamicNode(
@@ -202,5 +202,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressClient
 } // namespace NYT

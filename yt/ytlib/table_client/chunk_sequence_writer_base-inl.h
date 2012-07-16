@@ -81,7 +81,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     NObjectServer::TObjectServiceProxy objectProxy(MasterChannel);
 
     auto req = NTransactionServer::TTransactionYPathProxy::CreateObject(
-        NCypress::FromObjectId(TransactionId));
+        NCypressClient::FromObjectId(TransactionId));
     req->set_type(NObjectServer::EObjectType::Chunk);
 
     auto* reqExt = req->MutableExtension(NChunkServer::NProto::TReqCreateChunkExt::create_chunk);
@@ -268,7 +268,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     auto batchReq = objectProxy.ExecuteBatch();
     {
         auto req = NChunkServer::TChunkYPathProxy::Confirm(
-            NCypress::FromObjectId(currentSession.RemoteWriter->GetChunkId()));
+            NCypressClient::FromObjectId(currentSession.RemoteWriter->GetChunkId()));
         *req->mutable_chunk_info() = currentSession.RemoteWriter->GetChunkInfo();
         ToProto(req->mutable_node_addresses(), currentSession.RemoteWriter->GetNodeAddresses());
         *req->mutable_chunk_meta() = currentSession.ChunkWriter->GetMasterMeta();
@@ -277,14 +277,14 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     }
     {
         auto req = NChunkServer::TChunkListYPathProxy::Attach(
-            NCypress::FromObjectId(ParentChunkList));
+            NCypressClient::FromObjectId(ParentChunkList));
         *req->add_children_ids() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(req);
     }
     {
         auto req = NTransactionServer::TTransactionYPathProxy::ReleaseObject(
-            NCypress::FromObjectId(TransactionId));
+            NCypressClient::FromObjectId(TransactionId));
         *req->mutable_object_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(req);

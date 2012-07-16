@@ -18,7 +18,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 using namespace NChunkServer;
 

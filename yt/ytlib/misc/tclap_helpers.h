@@ -28,7 +28,7 @@ struct ArgTraits< ::NYT::NObjectServer::TTransactionId >
 };
 
 template <>
-struct ArgTraits< ::NYT::NCypress::ELockMode >
+struct ArgTraits< ::NYT::NCypressClient::ELockMode >
 {
     typedef ValueLike ValueCategory;
 };

@@ -40,7 +40,7 @@ public:
     //! Closes the writer.
     virtual void Close();
 
-    NCypress::TNodeId GetNodeId() const;
+    NCypressClient::TNodeId GetNodeId() const;
 
 private:
     TFileWriterConfigPtr Config;
@@ -55,7 +55,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    NCypress::TNodeId NodeId;
+    NCypressClient::TNodeId NodeId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

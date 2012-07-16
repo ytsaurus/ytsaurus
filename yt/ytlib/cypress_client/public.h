@@ -3,7 +3,7 @@
 #include <ytlib/misc/common.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +23,5 @@ typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
             
-} // namespace NCypress
+} // namespace NCypressClient
 } // namespace NYT

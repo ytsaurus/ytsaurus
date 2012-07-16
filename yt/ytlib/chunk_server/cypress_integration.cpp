@@ -20,6 +20,7 @@ namespace NChunkServer {
 
 using namespace NYTree;
 using namespace NCypress;
+using namespace NCypressClient;
 using namespace NMetaState;
 using namespace NOrchid;
 using namespace NObjectServer;

@@ -99,7 +99,7 @@ public:
 private:
     TUnlabeledStringArg PathArg;
 
-    typedef TCLAP::ValueArg<NCypress::ELockMode> TModeArg;
+    typedef TCLAP::ValueArg<NCypressClient::ELockMode> TModeArg;
     TModeArg ModeArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);

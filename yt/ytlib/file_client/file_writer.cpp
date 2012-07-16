@@ -14,7 +14,7 @@ namespace NYT {
 namespace NFileClient {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -112,7 +112,7 @@ void TFileWriter::Close()
     LOG_INFO("Upload transaction committed");
 }
 
-NCypress::TNodeId TFileWriter::GetNodeId() const
+NCypressClient::TNodeId TFileWriter::GetNodeId() const
 {
     return NodeId;
 }

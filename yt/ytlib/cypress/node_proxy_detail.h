@@ -22,6 +22,9 @@
 namespace NYT {
 namespace NCypress {
 
+using NObjectServer::TObjectId;
+using NObjectServer::NullObjectId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
@@ -220,7 +223,7 @@ protected:
         TNodeBase::DoInvoke(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Lock)
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock)
     {
         auto mode = ELockMode(request->mode());
 
@@ -238,7 +241,7 @@ protected:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create)
     {
         UNUSED(request);
         UNUSED(response);
@@ -583,7 +586,7 @@ protected:
         return TBase::GetSystemAttribute(name, consumer);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create)
     {
         auto type = EObjectType(request->type());
 

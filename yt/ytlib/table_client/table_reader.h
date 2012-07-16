@@ -66,7 +66,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     TChunkSequenceReaderPtr Reader;
-    NCypress::TNodeId NodeId;
+    NCypressClient::TNodeId NodeId;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 

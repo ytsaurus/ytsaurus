@@ -17,7 +17,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NScheduler;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,7 +44,7 @@ namespace NScheduler {
 
 using namespace NCellScheduler;
 using namespace NTransactionClient;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NYTree;
 using namespace NObjectServer;
 using namespace NProto;
