@@ -289,6 +289,8 @@ def migrate_table_inner(from_path, to_path, migrate_from, migrate_to):
         dt)
 
 def main():
+    global WORKER_POOL
+
     st = time.time()
 
     WORKER_POOL = ThreadPool(5)
