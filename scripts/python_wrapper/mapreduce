@@ -91,6 +91,7 @@ def add_integer_args(parser, args):
 
 if __name__ == "__main__":
     config.FORCE_SORT_IN_REDUCE = True
+    config.USE_MAPREDUCE_STYLE_DST_TABLES = True
 
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop"]

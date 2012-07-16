@@ -208,7 +208,10 @@ def run_operation(binary, source_table, destination_table,
         "map": "mapper",
         "reduce": "reducer"}
 
-    #if config.USE_MAPREDUCE_STYLE_DST_TABLES:
+    if config.USE_MAPREDUCE_STYLE_DST_TABLES and len(destination_table) > 1:
+        for fd in xrange(3, 3 + len(destination_table)):
+            yt_fd = 1 + (fd - 3) * 3
+            binary = binary + " %d>&%d" % (fd, yt_fd)
 
     operation_descr = \
                 {"command": binary,
@@ -222,7 +225,7 @@ def run_operation(binary, source_table, destination_table,
             {"input_table_paths": map(get_yson_name, source_table),
              "output_table_paths": map(get_yson_name, destination_table),
              op_key[op_type]: operation_descr})})
-    operation = add_quotes(make_request("POST", op_type, None, params))
+    operation = add_quotes(make_request("POST", op_type, None, params, verbose=True))
     strategy.process_operation(op_type, operation)
 
 def run_map(binary, source_table, destination_table,
