@@ -6,7 +6,7 @@ import requests
 import simplejson as json
 
 def make_request(http_method, request_type, params,
-                 data=None, format=None, verbose=False, proxy=None, check_errors=True,
+                 data=None, format=None, verbose=True, proxy=None, check_errors=True,
                  raw_response=False):
     """ Makes request to yt proxy.
         http_method may be equal to GET, POST or PUT
@@ -51,9 +51,10 @@ def make_request(http_method, request_type, params,
 
     if verbose:
         print >>sys.stderr, "Response header", response.headers
-        print >>sys.stderr, "Response body", response.content
 
     if response.headers["content-type"] == "application/json":
+        if verbose:
+            print >>sys.stderr, "Response body", response.content
         if response.content:
             result = json.loads(response.content)
         else:

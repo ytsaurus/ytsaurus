@@ -197,6 +197,8 @@ def run_operation(binary, source_table, destination_table,
         "map": "mapper",
         "reduce": "reducer"}
 
+    #if config.USE_MAPREDUCE_STYLE_DST_TABLES:
+
     operation_descr = \
                 {"command": binary,
                  "format": format.to_json(),

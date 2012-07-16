@@ -45,8 +45,8 @@ from argparse import ArgumentParser
 from functools import partial
 from itertools import imap
 
-PREFIXES = ["//tmp/"]
-#PREFIXES = ["//{0}statbox{0}/".format(quote) for quote in ['', '"']]
+#PREFIXES = ["//tmp/"]
+PREFIXES = ["//{0}statbox{0}/".format(quote) for quote in ['', '"']]
 
 def add_prefix(table):
     return PREFIXES[0] + table
@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
     if args.server is not None:
         config.DEFAULT_PROXY = args.server
-    yt.default_format = yt.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
+    config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))
     if args.read is not None:
@@ -163,6 +163,6 @@ if __name__ == "__main__":
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.sort_table(unlist(args.src), unlist(dst), spec=spec)
+        yt.sort_table(args.src, unlist(dst), spec=spec)
     if args.merge:
         yt.merge_tables(args.src, unlist(dst), mode="sorted", spec=spec)
