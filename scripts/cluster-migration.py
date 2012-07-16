@@ -29,7 +29,7 @@ OPTS = {
 
 class Statistics(object):
     def __init__(self):
-        self.__lock = threading.Lock()
+        self.__lock = Lock()
         self.bytes = 0L
         self.seconds = 0.0
 
