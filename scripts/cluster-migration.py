@@ -6,6 +6,7 @@ import time
 import json
 import subprocess
 import hashlib
+import os
 
 sys.stdout = os.fdopen(sys.stdout.fileno(), "w", 0)
 sys.stderr = os.fdopen(sys.stderr.fileno(), "w", 0)
