@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "node_proxy_detail.h"
+#include "cypress_ypath_proxy.h"
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {

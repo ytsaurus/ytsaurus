@@ -9,7 +9,7 @@
 #include <ytlib/cell_scheduler/bootstrap.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ytree.h>

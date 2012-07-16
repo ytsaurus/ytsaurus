@@ -6,7 +6,7 @@
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/config.h>
 
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/job_proxy/config.h>

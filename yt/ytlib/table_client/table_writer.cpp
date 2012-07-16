@@ -7,7 +7,7 @@
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/misc/sync.h>

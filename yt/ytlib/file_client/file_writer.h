@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/public.h>
-#include <ytlib/cypress/id.h>
+#include <ytlib/cypress_client/id.h>
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/rpc/public.h>

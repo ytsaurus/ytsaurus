@@ -4,7 +4,7 @@
 
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_list.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NScheduler {

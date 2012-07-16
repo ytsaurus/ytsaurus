@@ -12,7 +12,7 @@
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 
 namespace NYT {

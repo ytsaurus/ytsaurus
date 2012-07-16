@@ -7,7 +7,7 @@
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/misc/sync.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 

@@ -2,7 +2,7 @@
 #include "cypress_commands.h"
 
 #include <ytlib/object_server/object_service_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
 
 namespace NYT {

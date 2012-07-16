@@ -1,7 +1,8 @@
 #pragma once
 
-#include <ytlib/cypress_client/id.h>
-#include <ytlib/cypress_client/cypress_ypath.pb.h>
+#include "id.h"
+
+#include <ytlib/cypress/cypress_ypath.pb.h>
 #include <ytlib/rpc/service.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/transaction_server/public.h>

@@ -9,7 +9,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/actions/signal.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {

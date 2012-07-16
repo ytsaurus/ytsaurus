@@ -1,7 +1,7 @@
 package NYT.NFileServer.NProto;
 
 import "yt/ytlib/misc/guid.proto";
-import "yt/ytlib/cypress/cypress_ypath.proto";
+import "yt/ytlib/cypress_client/cypress_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

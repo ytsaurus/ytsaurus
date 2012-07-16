@@ -1,7 +1,7 @@
 #pragma once
 
 #include "id.h"
-#include <ytlib/cypress/cypress_ypath.pb.h>
+#include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <ytlib/object_server/object_ypath_proxy.h>
 

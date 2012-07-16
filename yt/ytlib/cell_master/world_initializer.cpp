@@ -6,7 +6,7 @@
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/cypress/cypress_manager.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/cell_master/bootstrap.h>

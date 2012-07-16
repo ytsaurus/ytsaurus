@@ -16,7 +16,7 @@
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
 #include <ytlib/object_server/object_service_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <util/random/shuffle.h>
 

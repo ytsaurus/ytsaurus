@@ -16,6 +16,7 @@ set( DIRS
   bus
   ytree
   cypress
+  cypress_client
   orchid
   file_server
   file_client
