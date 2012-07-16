@@ -26,18 +26,51 @@ OPTS = {
 
 class Statistics(object):
     def __init__(self):
+        self.__lock = threading.Lock()
         self.bytes = 0L
         self.seconds = 0.0
 
     def update(self, bytes, seconds):
+        self.__lock.acquire()
         self.bytes += long(bytes)
         self.seconds += float(seconds)
+        self.__lock.release()
 
     def mibps(self):
         if self.seconds > 1e-7:
             return float(self.bytes) / float(self.seconds) / 1024.0 / 1024.0
         else:
             return 0.0
+
+from Queue import Queue
+from threading import Thread
+
+class Worker(Thread):
+    def __init__(self, tasks):
+        Thread.__init__(self)
+        self.tasks = tasks
+        self.daemon = True
+        self.start()
+    
+    def run(self):
+        while True:
+            func, args, kwargs = self.tasks.get()
+            try: func(*args, **kwargs)
+            except Exception, e: print e
+            self.tasks.task_done()
+
+class ThreadPool:
+    def __init__(self, number_of_threads):
+        self.tasks = Queue(number_of_threads)
+        for _ in range(number_of_threads): Worker(self.tasks)
+
+    def add_task(self, func, *args, **kwargs):
+        self.tasks.put((func, args, kwargs))
+
+    def wait_completion(self):
+        self.tasks.join()
+
+WORKER_POOL = None
 
 LOCAL_STATISTICS = Statistics()
 REMOTE_STATISTICS = Statistics()
@@ -222,10 +255,22 @@ def migrate_map_node(from_path, to_path, migrate_from, migrate_to):
     print " " * 3, "Done"
 
 def migrate_table(from_path, to_path, migrate_from, migrate_to):
+    if ask_yt(migrate_from, "get", ypath_join(from_path) + "/@row_count") != ask_yt(migrate_to, "get", ypath_join(to_path) + "/@row_count"):
+        print "Row count mismatch; removing target table"
+        ask_yt(migrate_to, "remove", ypath_join(to_path))
+    else:
+        print "Row count match; skipping source table"
+        return
+
     ask_yt(migrate_to, "create", "table", ypath_join(to_path))
 
     copy_attributes([ "channels" ], from_path, to_path, migrate_from, migrate_to)
 
+    WORKER_POOL.add_task(migrate_table_inner, (from_path, to_path, migrate_from, migrate_to), {})
+
+    print " " * 3, "Enqueued a worker task"
+
+def migrate_table_inner(from_path, to_path, migrate_from, migrate_to):
     st = time.time()
     ask_yt(migrate_from, "map",
         "--file", OPTS[migrate_from]["migrator_binary"],
@@ -243,14 +288,16 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
         ask_yt(migrate_from, "get", ypath_join(from_path) + "/@uncompressed_data_size"),
         dt)
 
-    print "Done in %.2fs" % dt
-
 def main():
     st = time.time()
+
+    WORKER_POOL = ThreadPool(5)
 
     plan = build_migration_plan()
     prepare_migration_plan(plan)
     execute_migration_plan(plan)
+
+    WORKER_POOL.wait_completion()
 
     dt = time.time() - st
 
