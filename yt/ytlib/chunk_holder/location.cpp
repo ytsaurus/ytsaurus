@@ -32,7 +32,7 @@ TLocation::TLocation(
     , ReaderCache(readerCache)
     , AvailableSpace(0)
     , UsedSpace(0)
-    , ActionQueue(New<TActionQueue>("ChunkIO:%s", ~id))
+    , ActionQueue(New<TActionQueue>(Sprintf("ChunkIO:%s", ~id)))
     , SessionCount(0)
     , Logger(ChunkHolderLogger)
 {
