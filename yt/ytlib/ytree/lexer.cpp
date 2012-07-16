@@ -257,7 +257,8 @@ private:
         return end;
     }
 
-    const char* ReadBinaryInteger(const char* begin, const char* end) {
+    const char* ReadBinaryInteger(const char* begin, const char* end)
+    {
         ui64 ui64Value = static_cast<ui64>(Token.IntegerValue);
         for (auto current = begin; current != end; ++current) {
             ui8 byte = static_cast<ui8>(*current);
@@ -308,7 +309,7 @@ private:
 
             // performance hack
             if (enough && TokenBuffer.empty()) {
-                Token.StringValue = GetBufferAsStringBuf();
+                Token.StringValue = TStringBuf(begin, length);
                 FinishString();
                 return begin + length;
             }
