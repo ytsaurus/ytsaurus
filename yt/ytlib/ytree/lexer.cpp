@@ -40,6 +40,8 @@ public:
         InnerState = EInnerState::None;
         TokenBuffer.clear();
         BytesRead = 0;
+        // This cleanup is needed for proper reading of varints.
+        Token.IntegerValue = 0;
     }
 
     const TToken& GetToken() const
