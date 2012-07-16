@@ -38,10 +38,9 @@ public:
     {
         State_ = TLexer::EState::None;
         InnerState = EInnerState::None;
+        Token = TToken();
         TokenBuffer.clear();
         BytesRead = 0;
-        // This cleanup is needed for proper reading of varints.
-        Token.IntegerValue = 0;
     }
 
     const TToken& GetToken() const
