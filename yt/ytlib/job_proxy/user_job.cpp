@@ -316,6 +316,9 @@ void TUserJob::DoJobIO()
         }
 
         JobExitStatus = StatusToError(status);
+        if (!JobExitStatus.IsOK()) {
+            ythrow yexception() << Sprintf("User job failed with status: %s", ~JobExitStatus.GetMessage());
+        }
 
         FOREACH (auto& pipe, Pipes) {
             pipe->Finish();
