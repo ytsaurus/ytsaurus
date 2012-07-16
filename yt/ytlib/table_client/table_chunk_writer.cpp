@@ -167,7 +167,7 @@ bool TTableChunkWriter::TryWriteRow(const TRow& row)
 
     DataWeight += 1;
     FOREACH (const auto& pair, row) {
-        //ToDo: check column name lenght.
+        //ToDo: check column name length.
         //ToDo: check column map size.
 
         auto& columnInfo = GetColumnInfo(pair.first);
@@ -294,6 +294,8 @@ TAsyncError TTableChunkWriter::AsyncClose()
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
     YASSERT(!State.IsClosed());
+
+    LOG_DEBUG("Closing writer (KeyColumnCount: %d)", static_cast<int>(ColumnNames.size()));
 
     State.StartOperation();
 
