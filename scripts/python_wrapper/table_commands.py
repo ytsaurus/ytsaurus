@@ -43,6 +43,17 @@ class Buffer(object):
     def empty(self):
         return self._empty
 
+def _dirs(path):
+    dirs = ["/"]
+    for name in path.strip("/").split("/"):
+        dirs.append(dirs[-1] + "/" + name)
+    return dirs
+
+def _recursive_set_dict(path):
+    for prefix_path in _dirs(path):
+        if not exists(prefix_path):
+            set(prefix_path, "{}")
+
 """ Common table methods """
 def create_table(path, make_it_empty=True):
     create = True
@@ -58,7 +69,7 @@ def create_table(path, make_it_empty=True):
     if create:
         dirname = os.path.dirname(path)
         if not exists(dirname):
-            set(dirname, "{}")
+            _recursive_set_dict(dirname)
         make_request("POST", "create", {"path": path, "type": "table"})
 
 def create_temp_table(path, prefix=None):
