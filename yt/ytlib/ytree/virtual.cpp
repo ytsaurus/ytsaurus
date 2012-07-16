@@ -48,11 +48,11 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 
     int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
     auto keys = GetKeys(max_size);
     auto size = GetSize();
 
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
     // TODO(MRoizner): use fluent
     BuildYsonFluently(&writer);
 
@@ -79,8 +79,29 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* 
     UNUSED(request);
     YASSERT(!TTokenizer(context->GetPath()).ParseNext());
 
-    auto keys = GetKeys();
-    NYT::ToProto(response->mutable_keys(), keys);
+    int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
+    auto keys = GetKeys(max_size);
+    auto size = GetSize();
+
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
+    BuildYsonFluently(&writer);
+
+    if (keys.size() != size) {
+        writer.OnBeginAttributes();
+        writer.OnKeyedItem("incomplete");
+        writer.OnStringScalar("true");
+        writer.OnEndAttributes();
+    }
+
+    writer.OnBeginList();
+    FOREACH (const auto& key, keys) {
+        writer.OnListItem();
+        writer.OnStringScalar(key);
+    }
+    writer.OnEndList();
+
+    response->set_keys(stream.Str());
     context->Reply();
 }
 

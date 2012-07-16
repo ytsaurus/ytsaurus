@@ -82,13 +82,12 @@ void TListCommand::DoExecute()
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-         auto consumer = Context->CreateOutputConsumer();
-         BuildYsonFluently(~consumer)
-            .List(rsp->keys());
-    } else {
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
+        return;
     }
+
+    ReplySuccess(TYsonString(rsp->keys()));
 }
 
 //////////////////////////////////////////////////////////////////////////////////

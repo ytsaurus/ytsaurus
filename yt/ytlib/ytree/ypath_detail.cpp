@@ -456,7 +456,7 @@ void TSupportsAttributes::ListAttribute(
 
     std::sort(keys.begin(), keys.end());
 
-    NYT::ToProto(response->mutable_keys(), keys);
+    response->set_keys(ConvertToYsonString(keys).Data());
     context->Reply();
 }
 

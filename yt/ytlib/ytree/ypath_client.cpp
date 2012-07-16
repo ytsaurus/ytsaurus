@@ -298,7 +298,7 @@ std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
     auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(service, request).Get();
     response->ThrowIfError();
-    return NYT::FromProto<Stroka>(response->keys());
+    return ConvertTo<std::vector<Stroka> >(TYsonString(response->keys()));
 }
 
 void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)

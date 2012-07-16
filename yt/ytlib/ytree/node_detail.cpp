@@ -152,7 +152,8 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* co
 {
     UNUSED(request);
 
-    NYT::ToProto(response->mutable_keys(), GetKeys());
+    auto keys = GetKeys();
+    response->set_keys(ConvertToYsonString(keys).Data());
     context->Reply();
 }
 

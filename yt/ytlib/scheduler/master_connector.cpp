@@ -72,8 +72,10 @@ public:
                 ythrow yexception() << Sprintf("Failed to get operations list\n%s",
                     ~rsp->GetError().ToString());
             }
-            LOG_INFO("Found %d operations", rsp->keys_size());
-            FOREACH (const auto& key, rsp->keys()) {
+            auto keys = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->keys()));
+            LOG_INFO("Found %d operations", keys.size());
+
+            FOREACH (const auto& key, keys) {
                 operationIds.push_back(TOperationId::FromString(key));
             }
         }
