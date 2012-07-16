@@ -20,14 +20,18 @@ def list(path, check_existance=True, quoted=True):
 
 def exists(path, hint=""):
     # TODO(ignat): use here not already existed function 'exists' from http
-    names = path.strip().split("/")[1:]
-    check_path = ""
-    for current_name, check_name in izip(names, names[1:]):
-        check_path += "/" + current_name
-        if hint.startswith(check_path + "/" + check_name):
-            continue
-        if check_name.strip("\"") not in list(check_path, check_existance=False, quoted=False):
+    objects = get("/")
+    if path == "/": return True
+    cur_path = "/"
+    for elem in path.strip("/").split("/"):
+        elem = elem.strip('"')
+        if objects is None:
+            objects = get(cur_path)
+        if not isinstance(objects, dict) or elem not in objects:
             return False
+        else:
+            objects = objects[elem]
+            cur_path = '%s/"%s"' % (cur_path, elem)
     return True
 
 def remove(path):

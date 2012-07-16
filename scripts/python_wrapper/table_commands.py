@@ -1,5 +1,5 @@
 import config
-from common import flatten, require, YtError, parse_bool, add_quotes, union
+from common import flatten, require, YtError, parse_bool, add_quotes, union, unlist
 from http import make_request
 from table import get_yson_name, to_table
 from tree_commands import exists, remove, get_attribute, set
@@ -118,20 +118,18 @@ def sort_table(table, destination_table=None, columns=None, strategy=None, spec=
     if columns is None: columns= ["key", "subkey"]
     if spec is None: spec = {}
 
-    in_place = False
-
     table = flatten(table)
     if destination_table is None:
         require(len(table) == 1,
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
-        table = table[0]
-        destination_table = to_table(table)
-        in_place = destination_table.name == table
+        destination_table = to_table(table[0])
     else:
         destination_table = to_table(destination_table)
 
+    in_place = destination_table.name == unlist(table)
     if in_place:
+        table = table[0]
         output_table = create_temp_table(os.path.dirname(table),
                                          os.path.basename(table))
     else:

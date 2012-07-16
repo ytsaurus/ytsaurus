@@ -112,10 +112,10 @@ class WaitStrategy(object):
 
     def process_operation(self, type, operation):
         state = wait_operation(operation, print_progress=self.print_progress)
-        operation_result = get_operation_result(operation)
-        jobs_errors = get_jobs_errors(operation)
-        stderr = get_operation_stderr(operation)
         if self.check_result and state.is_failed():
+            operation_result = get_operation_result(operation)
+            jobs_errors = get_jobs_errors(operation)
+            stderr = get_operation_stderr(operation)
             raise YtError(
                 "Operation {0} failed!\n"
                 "Operation result: {1}\n"
@@ -125,7 +125,7 @@ class WaitStrategy(object):
                     operation_result,
                     jobs_errors,
                     stderr))
-        return operation_result, jobs_errors, stderr
+        #return operation_result, jobs_errors, stderr
 
 class AsyncStrategy(object):
     def __init__(self):

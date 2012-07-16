@@ -252,7 +252,7 @@ class YtTest(unittest.TestCase):
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_range_operations"))
+    #suite.addTest(YtTest("test_common_operations"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 

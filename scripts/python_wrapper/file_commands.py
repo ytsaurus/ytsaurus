@@ -1,7 +1,7 @@
 import config
 from common import require, YtError, add_quotes
 from http import make_request
-from tree_commands import remove, exists, set_attribute
+from tree_commands import remove, exists, set_attribute, set
 
 import os
 
@@ -12,6 +12,9 @@ def upload_file(file, destination=None, replace=False):
     # TODO(ignat): add auto checking of files similarity 
     require(os.path.isfile(file),
             YtError("Upload: %s should be file" % file))
+    if not exists(config.FILE_STORAGE):
+        set(config.FILE_STORAGE, "{}")
+
     if destination is None:
         destination = os.path.join(config.FILE_STORAGE,
                                    add_quotes(os.path.basename(file)))
