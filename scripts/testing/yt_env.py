@@ -22,6 +22,9 @@ SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
 CONFIGS_ROOTDIR = os.path.abspath('default_configs')
 TOOLS_ROOTDIR = os.path.abspath('tools')
 
+PIDS_FILENAME = os.path.join(SANDBOX_ROOTDIR, 'pids.txt')
+
+
 def deepupdate(d, other):
     for key, value in other.iteritems():
         if key in d and isinstance(value, dict):
@@ -79,7 +82,8 @@ class YTEnv(unittest.TestCase):
         # os.system('killall MasterMain')
         # os.system('killall NodeMain')
         # os.system('killall SchedulerMain')
-        
+        self._kill_previously_run_services()
+
         print 'Setting up configuration with %s masters, %s holders, %s schedulers' % (
             self.NUM_MASTERS, self.NUM_HOLDERS, self.NUM_SCHEDULERS
             )
@@ -155,6 +159,21 @@ class YTEnv(unittest.TestCase):
         #TODO(panin): refactor
         self.master_logging_file = []
 
+    def _kill_previously_run_services(self):
+        if os.path.exists(PIDS_FILENAME):
+            with open(PIDS_FILENAME, 'rt') as f:
+                for pid in map(int, f.xreadlines()):
+                    try:
+                        os.killpg(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+
+        self.pids_file = open(PIDS_FILENAME, 'wt')
+
+    def _append_pid(self, pid):
+        self.pids_file.write(str(pid) + '\n')
+        self.pids_file.flush();
+
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
             p = subprocess.Popen([
@@ -163,6 +182,8 @@ class YTEnv(unittest.TestCase):
                 '--port', str(8001 + i)],
                 shell=False, close_fds=True, preexec_fn=os.setsid)
             self.process_to_kill.append((p, "master-%d" % (i)))
+            self._append_pid(p.pid)
+
 
     # TODO(panin): think about refactoring this part
     def _wait_for_ready_masters(self):
@@ -194,6 +215,8 @@ class YTEnv(unittest.TestCase):
                 '--port', str(7001 + i)],
                 shell=False, close_fds=True, preexec_fn=os.setsid)
             self.process_to_kill.append((p, "holder-%d" % (i)))
+            self._append_pid(p.pid)
+
 
     def _wait_for_ready_holders(self):
         if self.NUM_HOLDERS == 0: return
@@ -227,6 +250,7 @@ class YTEnv(unittest.TestCase):
                 '--port', str(8101 + i)],
                 shell=False, close_fds=True, preexec_fn=os.setsid)
             self.process_to_kill.append((p, "scheduler-%d" % (i)))
+            self._append_pid(p.pid)
 
     def _wait_for_ready_schedulers(self):
         if self.NUM_SCHEDULERS == 0: return
