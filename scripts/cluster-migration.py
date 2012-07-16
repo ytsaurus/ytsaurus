@@ -8,6 +8,9 @@ import subprocess
 import hashlib
 import os
 
+from Queue import Queue
+from threading import Lock, Thread
+
 sys.stdout = os.fdopen(sys.stdout.fileno(), "w", 0)
 sys.stderr = os.fdopen(sys.stderr.fileno(), "w", 0)
 
@@ -42,16 +45,13 @@ class Statistics(object):
         else:
             return 0.0
 
-from Queue import Queue
-from threading import Thread
-
 class Worker(Thread):
     def __init__(self, tasks):
         Thread.__init__(self)
         self.tasks = tasks
         self.daemon = True
         self.start()
-    
+
     def run(self):
         while True:
             func, args, kwargs = self.tasks.get()
@@ -266,7 +266,7 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
 
     copy_attributes([ "channels" ], from_path, to_path, migrate_from, migrate_to)
 
-    WORKER_POOL.add_task(migrate_table_inner, (from_path, to_path, migrate_from, migrate_to), {})
+    WORKER_POOL.add_task(migrate_table_inner, from_path, to_path, migrate_from, migrate_to)
 
     print " " * 3, "Enqueued a worker task"
 
