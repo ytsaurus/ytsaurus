@@ -276,7 +276,7 @@ def migrate_table_inner(from_path, to_path, migrate_from, migrate_to):
         "--file", OPTS[migrate_from]["migrator_binary"],
         "--file", OPTS[migrate_from]["migrator_config"],
         "--in", ypath_join(from_path), "--out", OPTS[migrate_from]["migrator_sink"],
-        "--mapper", "{0} write --config {1} {2}".format(
+        "--mapper", "{0} write --config {1} {2} | pv -f".format(
             "./migrator_binary",
             "./migrator_config",
             shell_quote(ypath_join(to_path))),
