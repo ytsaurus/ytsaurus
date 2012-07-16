@@ -180,6 +180,10 @@ def run_operation(binary, source_table, destination_table,
        file_paths.append(upload_file(file, replace=True))
 
     source_table = map(to_table, flatten(source_table))
+    if config.MERGE_SRC_TABLES_BEFORE_OPERATION and len(source_table) > 1:
+        temp_table = create_temp_table(config.TEMP_TABLES_STORAGE, "map_operation")
+        merge_tables(source_table, temp_table, "ordered")
+        source_table = [temp_table]
     for table in source_table:
         if not exists(table.name):
             create_table(table.name)

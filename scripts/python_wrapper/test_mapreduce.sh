@@ -19,3 +19,8 @@ done
 ./mapreduce -read "ignat/temp" | wc -l
 
 ./mapreduce -write "ignat/temp" -chunksize 1 <table_file
+
+./mapreduce -map "tests/many_output.py" -src "ignat/temp" -dst "ignat/out1" -dst "ignat/out2" -dst "ignat/out3"
+for (( i=1 ; i <= 3 ; i++ )); do
+    ./mapreduce -read "ignat/out$i" | wc -l
+done
