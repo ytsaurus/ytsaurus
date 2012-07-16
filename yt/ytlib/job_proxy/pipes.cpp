@@ -90,7 +90,7 @@ void SafeMakeNonblocking(int fd)
     if (res == -1)
         ythrow yexception() << Sprintf(
             "fcntl failed to set descriptor to nonblocking mode (fd: %d, errno %d)",
-            fd, ml
+            fd,
             errno);
 }
 
