@@ -66,19 +66,6 @@ def abort_operation(operation):
     if not get_operation_state(operation).is_final():
         make_request("POST", "abort_op", {"operation_id": operation.strip('"')})
 
-#def jobs_count(operation):
-#    def to_list(iter):
-#        return [x for x in iter]
-#    return len(to_list(list("//sys/operations/%s/jobs" % operation)))
-#
-#def jobs_completed(operation):
-#    jobs = list("//sys/operations/%s/jobs" % operation)
-#    return len([1 for job in jobs if get_attribute("//sys/operations/%s/jobs/%s" % (operation, job), "state") == "completed"])
-#
-#def jobs_failed(operation):
-#    jobs = list("//sys/operations/%s/jobs" % operation)
-#    return len([1 for job in jobs if get_attribute("//sys/operations/%s/jobs/%s" % (operation, job), "state") == "failed"])
-
 def wait_operation(operation, timeout=None, print_progress=True):
     if timeout is None: timeout = config.WAIT_TIMEOUT
     try:
@@ -87,8 +74,6 @@ def wait_operation(operation, timeout=None, print_progress=True):
             state = get_operation_state(operation)
             if state.is_final():
                 # TODO(ignat): Make some common logging
-                if print_progress:
-                    print >>sys.stderr, "Operation %s completed" % operation
                 return state
             if state.is_running() and print_progress:
                 new_progress = get_operation_progress(operation)
@@ -99,7 +84,13 @@ def wait_operation(operation, timeout=None, print_progress=True):
             sleep(timeout)
     except KeyboardInterrupt:
         if config.KEYBOARD_ABORT:
-            abort_operation(operation)
+            while True:
+                try:
+                    if get_operation_state(operation).is_final():
+                        break
+                    abort_operation(operation)
+                except KeyboardInterrupt:
+                    pass
         raise
     except:
         raise
@@ -125,6 +116,8 @@ class WaitStrategy(object):
                     operation_result,
                     jobs_errors,
                     stderr))
+        if self.print_progress:
+            print >>sys.stderr, "Operation %s completed" % operation
         #return operation_result, jobs_errors, stderr
 
 class AsyncStrategy(object):

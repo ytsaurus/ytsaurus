@@ -1,10 +1,17 @@
 #!/bin/sh -eu
 
-export SERVER="n01-0449g.yt.yandex.net:8013"
-export MAPREDUCE="./mapreduce"
-#export SERVER="proxy.yt.yandex.net"
-#export SERVER="n01-0400g.yt.yandex.net:81"
+# MAPREDUCE
+#export SERVER="n01-0449g.yt.yandex.net:8013"
+#export MAPREDUCE="./mapreduce"
+
+# YT testing
+export SERVER="proxy.yt.yandex.net"
+export MAPREDUCE="/home/ignat/yt/scripts/python_wrapper/mapreduce"
+
+# YT development
+#export SERVER="n01-0650g.yt.yandex.net:80"
 #export MAPREDUCE="/home/ignat/yt/scripts/python_wrapper/mapreduce"
+
 #export PARAMS="-jobcount 1000 -opt cpu.intensive.mode=1"
 export PARAMS=""
 
