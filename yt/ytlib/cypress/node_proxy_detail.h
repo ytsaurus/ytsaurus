@@ -283,7 +283,7 @@ protected:
         return Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, Transaction);
     }
 
-    static TIntrusivePtr<ICypressNodeProxy> ToProxy(NYTree::INodePtr node)
+    static ICypressNodeProxyPtr ToProxy(NYTree::INodePtr node)
     {
         YASSERT(node);
         return dynamic_cast<ICypressNodeProxy*>(~node);

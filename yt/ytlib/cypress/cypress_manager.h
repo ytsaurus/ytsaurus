@@ -79,11 +79,11 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode = ELockMode::Exclusive);
 
-    TIntrusivePtr<ICypressNodeProxy> FindVersionedNodeProxy(
+    ICypressNodeProxyPtr FindVersionedNodeProxy(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction = NULL);
 
-    TIntrusivePtr<ICypressNodeProxy> GetVersionedNodeProxy(
+    ICypressNodeProxyPtr GetVersionedNodeProxy(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction = NULL);
 

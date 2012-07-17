@@ -108,7 +108,7 @@ public:
         return node.Release();
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction) OVERRIDE
     {

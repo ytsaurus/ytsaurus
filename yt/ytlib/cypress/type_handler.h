@@ -47,7 +47,7 @@ struct INodeTypeHandler
      *  is being created (possibly #NullTransactionId).
      *  \return The constructed proxy.
      */
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction) = 0;
 

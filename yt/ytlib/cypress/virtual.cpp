@@ -78,7 +78,7 @@ public:
         , ObjectType(objectType)
     { }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& id,
         TTransaction* transaction)
     {

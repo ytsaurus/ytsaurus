@@ -354,7 +354,7 @@ public:
         return EObjectType::Holder;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         TTransaction* transaction)
     {
@@ -551,7 +551,7 @@ public:
         return EObjectType::HolderMap;
     }
     
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         TTransaction* transaction)
     {

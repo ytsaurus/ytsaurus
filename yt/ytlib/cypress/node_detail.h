@@ -299,7 +299,7 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction);
 
@@ -354,7 +354,7 @@ public:
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction);
 
@@ -402,7 +402,7 @@ public:
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction);
 
