@@ -30,8 +30,6 @@ struct ICypressNodeProxy;
 struct INodeBehavior
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<INodeBehavior> TPtr;
-
     //! Called when the node owning the behavior object is about to
     //! be destroyed.
     virtual void Destroy() = 0;
@@ -123,7 +121,7 @@ struct INodeTypeHandler
      *  content may get eventually destroyed by TMetaStateMap.
      *  It should keep node id instead.
      */
-    virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& id) = 0;
+    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& id) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

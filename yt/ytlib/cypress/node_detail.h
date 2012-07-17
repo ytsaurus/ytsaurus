@@ -142,7 +142,7 @@ public:
         DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
     }
 
-    virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& id)
+    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& id)
     {
         UNUSED(id);
         return NULL;

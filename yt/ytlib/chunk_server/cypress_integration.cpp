@@ -562,7 +562,7 @@ public:
             nodeId);
     }
 
-    virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& nodeId)
+    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& nodeId)
     {
         return New<THolderMapBehavior>(Bootstrap, nodeId);
     }
