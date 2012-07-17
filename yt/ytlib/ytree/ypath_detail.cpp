@@ -1,12 +1,10 @@
 #include "stdafx.h"
 #include "ypath_detail.h"
-
 #include "ypath_client.h"
 #include "tokenizer.h"
 #include "ypath_format.h"
 
 #include <ytlib/rpc/rpc.pb.h>
-
 #include <ytlib/bus/message.h>
 #include <ytlib/rpc/server_detail.h>
 #include <ytlib/rpc/message.h>

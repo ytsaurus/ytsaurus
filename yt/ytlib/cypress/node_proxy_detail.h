@@ -285,7 +285,7 @@ protected:
             ythrow yexception() << "Node already exists";
         }
 
-        context->Reply(NRpc::EErrorCode::NoSuchVerb, "Verb is not supported");
+        ThrowVerbNotSuppored(this, context->GetVerb());
     }
 
 
@@ -354,7 +354,6 @@ protected:
             Transaction,
             Bootstrap);
     }
-
 
     class TVersionedUserAttributeDictionary
         : public NObjectServer::TObjectProxyBase::TUserAttributeDictionary

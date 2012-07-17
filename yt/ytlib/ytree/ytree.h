@@ -224,13 +224,8 @@ struct IMapNode
      */
     virtual bool RemoveChild(const TStringBuf& key) = 0;
 
-    //! Similar to #FindChild but fails if no child is found.
-    INodePtr GetChild(const Stroka& key) const
-    {
-        auto child = FindChild(key);
-        YASSERT(child);
-        return child;
-    }
+    //! Similar to #FindChild but throws if no child is found.
+    INodePtr GetChild(const Stroka& key) const;
 
     //! Returns the key for a given child.
     /*!
@@ -278,12 +273,7 @@ struct IListNode
     virtual bool RemoveChild(int index) = 0;
 
     //! Similar to #FindChild but fails if the index is not valid.
-    INodePtr GetChild(int index) const
-    {
-        auto child = FindChild(index);
-        YASSERT(child);
-        return child;
-    }
+    INodePtr GetChild(int index) const;
 
     //! Returns the index for a given child.
     /*!

@@ -24,6 +24,8 @@ DECLARE_ENUM(ENodeType,
     (List)
     // Node is atomic, i.e. has no visible properties (aside from attributes).
     (Entity)
+    // Either List or Map.
+    (Composite)
 );
 
 class EYsonType;

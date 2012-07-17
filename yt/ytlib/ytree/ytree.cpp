@@ -1,4 +1,6 @@
 #include "ytree.h"
+#include "convert.h"
+#include "node_detail.h"
 
 namespace NYT {
 namespace NYTree {
@@ -18,6 +20,24 @@ const ENodeType::EDomain TScalarTypeTraits<double>::NodeType = ENodeType::Double
 TYPath INode::GetPath() const
 {
     return GetResolver()->GetPath(const_cast<INode*>(this));
+}
+
+INodePtr IMapNode::GetChild(const Stroka& key) const
+{
+    auto child = FindChild(key);
+    if (!child) {
+        ThrowNoSuchChildKey(this, key);
+    }
+    return child;
+}
+
+INodePtr IListNode::GetChild(int index) const
+{
+    auto child = FindChild(index);
+    if (!child) {
+        ThrowNoSuchChildIndex(this, index);
+    }
+    return child;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

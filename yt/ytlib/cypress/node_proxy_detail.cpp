@@ -405,6 +405,9 @@ std::vector<INodePtr> TListNodeProxy::GetChildren() const
 
 INodePtr TListNodeProxy::FindChild(int index) const
 {
+    if (index < 0) {
+        index += GetChildCount();
+    }
     const auto& list = GetTypedImpl()->IndexToChild();
     return index >= 0 && index < list.size() ? GetProxy(list[index]) : NULL;
 }

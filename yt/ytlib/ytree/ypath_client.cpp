@@ -322,7 +322,6 @@ void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
     SyncYPathSet(root, path, value);
 }
 
-// TOOD(babenko): add better diagnostics
 INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
 {
     INodePtr currentNode = root;
@@ -333,20 +332,14 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String: {
                 Stroka key(tokenizer.CurrentToken().GetStringValue());
-                currentNode = currentNode->AsMap()->FindChild(key);
-                if (!currentNode) {
-                    ythrow yexception() << Sprintf("Key %s is not found",
-                        ~YsonizeString(key, EYsonFormat::Text));
-                }
+                currentNode = currentNode->AsMap()->GetChild(key);
                 break;
             }
 
             case ETokenType::Integer: {
                 i64 index = tokenizer.CurrentToken().GetIntegerValue();
-                currentNode = currentNode->AsList()->FindChild(index);
-                if (!currentNode) {
-                    ythrow yexception() << Sprintf("Index %" PRId64 " is out of range", index);
-                }
+                // TODO(babenko): handle negative indexes
+                currentNode = currentNode->AsList()->GetChild(index);
                 break;
             }
 
@@ -360,7 +353,7 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
 
 void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
 {
-    INodePtr currentNode = root;
+    auto currentNode = root;
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     tokenizer.CurrentToken().CheckType(PathSeparatorToken);
@@ -415,7 +408,8 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
 
         case ETokenType::Integer: {
             auto listNode = currentNode->AsList();
-            auto child = listNode->GetChild(currentToken.GetIntegerValue());
+            i64 index = currentToken.GetIntegerValue();
+            auto child = listNode->GetChild(index);
             listNode->ReplaceChild(child, value);
             break;
         }
