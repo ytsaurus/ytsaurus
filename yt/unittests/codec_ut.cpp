@@ -33,7 +33,7 @@ TEST_F(TCodecTest, VectorCompression)
     FOREACH (const auto& codecId, ECodecId::GetDomainValues()) {
         auto codec = GetCodec(static_cast<ECodecId>(codecId));
 
-        Stroka data[] = {"hello", " ", "world"};
+        Stroka data[] = {"", "", "hello", "", " ", "world", ""};
         size_t count = sizeof(data) / sizeof(data[0]);
         
         std::vector<TSharedRef> refs(count);

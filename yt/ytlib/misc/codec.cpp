@@ -28,7 +28,9 @@ public:
         , Available_(Size(blocks))
         , Index_(0)
         , Position_(0)
-    { }
+    {
+        SkipCompletedBlock();
+    }
 
     virtual size_t Available() const OVERRIDE
     {
@@ -47,10 +49,7 @@ public:
             size_t toSkip = std::min(Blocks_[Index_].Size() - Position_, n);
 
             Position_ += toSkip;
-            if (Position_ == Blocks_[Index_].Size()) {
-                Index_ += 1;
-                Position_ = 0;
-            }
+            SkipCompletedBlock();
 
             n -= toSkip;
             Available_ -= toSkip;
@@ -58,6 +57,14 @@ public:
     }
 
 private:
+    void SkipCompletedBlock()
+    {
+        while (Position_ == Blocks_[Index_].Size()) {
+            Index_ += 1;
+            Position_ = 0;
+        }
+    }
+
     const std::vector<TSharedRef>& Blocks_;
     size_t Available_;
     size_t Index_;
