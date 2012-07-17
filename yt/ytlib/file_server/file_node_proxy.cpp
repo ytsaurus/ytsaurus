@@ -20,7 +20,6 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileNodeProxy::TFileNodeProxy(
@@ -34,6 +33,20 @@ TFileNodeProxy::TFileNodeProxy(
         transaction,
         nodeId)
 { }
+
+void TFileNodeProxy::DoCloneTo(TFileNode* clonedNode)
+{
+    TBase::DoCloneTo(clonedNode);
+
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto* node = GetTypedImpl();
+    auto* chunkList = node->GetChunkList();
+
+    clonedNode->SetChunkList(chunkList);
+    objectManager->RefObject(chunkList);
+    YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
+}
 
 void TFileNodeProxy::DoInvoke(IServiceContextPtr context)
 {

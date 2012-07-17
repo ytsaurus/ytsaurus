@@ -30,6 +30,9 @@ struct ICypressNodeProxy
     
     //! Returns the physical node and allows its mutation.
     virtual ICypressNode* GetImplForUpdate() = 0;
+
+    //! Constructs a deep copy of the node.
+    virtual ICypressNodeProxyPtr Clone() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

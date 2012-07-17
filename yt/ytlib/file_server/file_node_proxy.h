@@ -30,6 +30,8 @@ public:
 private:
     typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
 
+    virtual void DoCloneTo(TFileNode* clonedNode);
+
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
     virtual void OnUpdateAttribute(

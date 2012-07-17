@@ -16,7 +16,7 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeFactory::TNodeFactory(
-    NCellMaster::TBootstrap* bootstrap,
+    TBootstrap* bootstrap,
     TTransaction* transaction)
     : Bootstrap(bootstrap)
     , Transaction(transaction)
@@ -36,7 +36,6 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     auto objectManager = Bootstrap->GetObjectManager();
-    auto transactionManager = Bootstrap->GetTransactionManager();
     
     auto nodeId = Bootstrap->GetObjectManager()->GenerateId(type);
 
@@ -113,7 +112,7 @@ void TMapNodeProxy::Clear()
     impl->ChildToKey().clear();
     impl->ChildCountDelta() = 0;
 
-    const auto& children = DoGetChildren();
+    auto children = DoGetChildren();
     FOREACH (const auto& pair, children) {
         YCHECK(impl->KeyToChild().insert(MakePair(pair.first, NullObjectId)).second);
         --impl->ChildCountDelta();
@@ -127,14 +126,14 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 {
-    const auto& children = DoGetChildren();
+    auto children = DoGetChildren();
     return std::vector< TPair<Stroka, INodePtr> >(children.begin(), children.end());
 }
 
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
     std::vector<Stroka> result;
-    const auto& children = DoGetChildren();
+    auto children = DoGetChildren();
     FOREACH (const auto& pair, children) {
         result.push_back(pair.first);
     }
@@ -346,6 +345,21 @@ IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
     return TMapNodeMixin::ResolveRecursive(path, verb);
 }
 
+void TMapNodeProxy::DoCloneTo(TMapNode* clonedNode)
+{
+    TBase::DoCloneTo(clonedNode);
+
+    auto children = DoGetChildren();
+    FOREACH (const auto& pair, children) {
+        auto key = pair.first;
+        auto childId = pair.second->GetId();
+        YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, childId)).second);
+        YCHECK(clonedNode->ChildToKey().insert(std::make_pair(childId, key)).second);
+    }
+
+    YASSERT(clonedNode->ChildCountDelta() == 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNodeProxy::TListNodeProxy(
@@ -385,13 +399,8 @@ int TListNodeProxy::GetChildCount() const
 
 std::vector<INodePtr> TListNodeProxy::GetChildren() const
 {
-    std::vector<INodePtr> result;
-    const auto& list = GetTypedImpl()->IndexToChild();
-    result.reserve(list.size());
-    FOREACH (const auto& nodeId, list) {
-        result.push_back(GetProxy(nodeId));
-    }
-    return result;
+    auto children = DoGetChildren();
+    return std::vector<INodePtr>(children.begin(), children.end());
 }
 
 INodePtr TListNodeProxy::FindChild(int index) const
@@ -505,6 +514,30 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
     const Stroka& verb)
 {
     return TListNodeMixin::ResolveRecursive(path, verb);
+}
+
+std::vector<ICypressNodeProxyPtr> TListNodeProxy::DoGetChildren() const
+{
+    std::vector<ICypressNodeProxyPtr> result;
+    const auto& list = GetTypedImpl()->IndexToChild();
+    result.reserve(list.size());
+    FOREACH (const auto& nodeId, list) {
+        result.push_back(GetProxy(nodeId));
+    }
+    return result;
+}
+
+void TListNodeProxy::DoCloneTo(TListNode* clonedNode)
+{
+    TBase::DoCloneTo(clonedNode);
+
+    auto children = DoGetChildren();
+    for (int index = 0; index < static_cast<int>(children.size()); ++index) {
+        auto child = children[index];
+        auto childId = child->GetId();
+        clonedNode->IndexToChild()[index] = childId;
+        YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(childId, index)).second);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -887,20 +887,6 @@ void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)
     transaction->BranchedNodes().clear();
 }
 
-DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TVersionedNodeId, NodeMap);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManagerPtr cypressManager)
-    : CypressManager(cypressManager)
-{ }
-
-TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
-{
-    auto type = TypeFromId(id.ObjectId);
-    return CypressManager->GetHandler(type)->Create(id);
-}
-
 TYPath TCypressManager::GetNodePath(ICypressNodeProxyPtr proxy)
 {
     INodePtr root;
@@ -924,6 +910,20 @@ TYPath TCypressManager::GetNodePath(const TVersionedNodeId& id)
         ? NULL
         : transactionManager->GetTransaction(id.TransactionId);
     return GetNodePath(id.ObjectId, transaction);
+}
+
+DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TVersionedNodeId, NodeMap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManagerPtr cypressManager)
+    : CypressManager(cypressManager)
+{ }
+
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
+{
+    auto type = TypeFromId(id.ObjectId);
+    return CypressManager->GetHandler(type)->Create(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

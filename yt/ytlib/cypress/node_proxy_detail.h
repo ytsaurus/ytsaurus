@@ -144,6 +144,29 @@ public:
         return NObjectServer::TObjectProxyBase::Attributes();
     }
 
+
+    virtual ICypressNodeProxyPtr Clone()
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto objectManager = Bootstrap->GetObjectManager();
+
+        auto type = NObjectServer::TypeFromId(NodeId);
+        auto clonedNodeId = Bootstrap->GetObjectManager()->GenerateId(type);
+
+        auto clonedNode = TypeHandler->Create(clonedNodeId);
+        auto clonedNode_ = clonedNode.Get();
+
+        cypressManager->RegisterNode(
+            Transaction,
+            clonedNode,
+            GetUserAttributes());
+
+        DoCloneTo(dynamic_cast<TImpl*>(clonedNode_));
+
+        return TypeHandler->GetProxy(clonedNodeId, Transaction);;
+    }
+
+
 protected:
     INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
@@ -308,6 +331,11 @@ protected:
         Bootstrap->GetObjectManager()->UnrefObject(child);
     }
 
+
+    virtual void DoCloneTo(TImpl* clonedNode)
+    { }
+
+
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes()
     {
         return new TVersionedUserAttributeDictionary(
@@ -315,6 +343,7 @@ protected:
             Transaction,
             Bootstrap);
     }
+
 
     class TVersionedUserAttributeDictionary
         : public NObjectServer::TObjectProxyBase::TUserAttributeDictionary
@@ -443,6 +472,7 @@ protected:
                 return userAttributes->Attributes().erase(name) > 0;
             }
         }
+
     protected:
         NTransactionServer::TTransaction* Transaction;
         NCellMaster::TBootstrap* Bootstrap;
@@ -462,7 +492,7 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
-        : TCypressNodeProxyBase<IBase, TImpl>(
+        : TBase(
             typeHandler,
             bootstrap,
             transaction,
@@ -478,6 +508,18 @@ public:
     {
         this->GetTypedImplForUpdate(ELockMode::Exclusive)->Value() = value;
     }
+
+private:
+    typedef TCypressNodeProxyBase<IBase, TImpl> TBase;
+
+    virtual void DoCloneTo(TImpl* clonedNode)
+    {
+        TBase::DoCloneTo(clonedNode);
+
+        auto* node = GetTypedImpl();
+        clonedNode->Value() = node->Value();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -559,16 +601,17 @@ protected:
     virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Create);
+        DISPATCH_YPATH_SERVICE_METHOD(Copy);
         TBase::DoInvoke(context);
     }
 
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Copy);
         return TBase::IsWriteRequest(context);
     }
 
-protected:
     virtual void GetSystemAttributes(std::vector<typename TBase::TAttributeInfo>* attributes)
     {
         attributes->push_back("count");
@@ -586,37 +629,84 @@ protected:
         return TBase::GetSystemAttribute(name, consumer);
     }
 
+
+    Stroka GetCreativePath(const NYTree::TYPath& path)
+    {
+        NYTree::TTokenizer tokenizer(path);
+        if (!tokenizer.ParseNext()) {
+            auto cypressManager = this->Bootstrap->GetCypressManager();
+            ythrow yexception() << Sprintf("Node %s already exists",
+                cypressManager->GetNodePath(this));
+        }
+        tokenizer.CurrentToken().CheckType(NYTree::PathSeparatorToken);
+        return NYTree::TYPath(tokenizer.GetCurrentSuffix());
+    }
+
+    ICypressNodeProxyPtr ResolveSourcePath(const NYTree::TYPath& path)
+    {
+        // TODO(babenko): refactor
+        NYTree::TTokenizer tokenizer(path);
+        if (!tokenizer.ParseNext()) {
+            ythrow yexception() << "Source path is empty";
+        }
+        if (tokenizer.GetCurrentType() != NYTree::RootToken) {
+            ythrow yexception() << "Source path must start with \"/\"";
+        }
+        
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto root = cypressManager->GetVersionedNodeProxy(
+            cypressManager->GetRootNodeId(),
+            Transaction);
+        auto sourceNode = NYTree::GetNodeByYPath(root, NYTree::TYPath(tokenizer.GetCurrentSuffix()));
+        return dynamic_cast<ICypressNodeProxy*>(~sourceNode);
+    }
+
+
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create)
     {
         auto type = EObjectType(request->type());
-
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
-        NYTree::TTokenizer tokenizer(context->GetPath());
-        if (!tokenizer.ParseNext()) {
-            ythrow yexception() << "Node already exists";
-        }
-        tokenizer.CurrentToken().CheckType(NYTree::PathSeparatorToken);
-
         auto cypressManager = this->Bootstrap->GetCypressManager();
+        auto creativePath = GetCreativePath(context->GetPath());
 
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {
             ythrow yexception() << "Unknown object type";
         }
 
-        auto* node = cypressManager->CreateDynamicNode(
+        auto* newNode = cypressManager->CreateDynamicNode(
             handler,
             this->Transaction,
             request,
             response,
             &request->Attributes());
-
-        auto proxy = cypressManager->GetVersionedNodeProxy(
-            node->GetId().ObjectId,
+        auto newProxy = cypressManager->GetVersionedNodeProxy(
+            newNode->GetId().ObjectId,
             this->Transaction);
         
-        SetRecursive(NYTree::TYPath(tokenizer.GetCurrentSuffix()), proxy);
+        SetRecursive(creativePath, newProxy);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Copy)
+    {
+        auto sourcePath = request->source_path();
+        context->SetRequestInfo("SourcePath: %s", ~sourcePath);
+
+        auto creativePath = GetCreativePath(context->GetPath());
+
+        auto sourceProxy = ResolveSourcePath(sourcePath);
+        if (sourceProxy->GetId() == GetId()) {
+            ythrow yexception() << "Cannot copy a node to its child";
+        }
+
+        auto clonedProxy = sourceProxy->Clone();
+
+        SetRecursive(creativePath, clonedProxy);
+
+        *response->mutable_object_id() = clonedProxy->GetId().ToProto();
 
         context->Reply();
     }
@@ -649,7 +739,7 @@ public:
     virtual void RemoveChild(NYTree::INodePtr child);
     virtual Stroka GetChildKey(NYTree::IConstNodePtr child);
 
-protected:
+private:
     typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
@@ -658,6 +748,8 @@ protected:
 
     yhash_map<Stroka, ICypressNodeProxyPtr> DoGetChildren() const;
     NYTree::INodePtr DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const;
+
+    virtual void DoCloneTo(TMapNode* clonedNode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -685,8 +777,10 @@ public:
     virtual void RemoveChild(NYTree::INodePtr child);
     virtual int GetChildIndex(NYTree::IConstNodePtr child);
 
-protected:
+private:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
+
+    std::vector<ICypressNodeProxyPtr> DoGetChildren() const;
 
     virtual void SetRecursive(
         const NYTree::TYPath& path,
@@ -694,6 +788,8 @@ protected:
     virtual IYPathService::TResolveResult ResolveRecursive(
         const NYTree::TYPath& path,
         const Stroka& verb);
+
+    virtual void DoCloneTo(TListNode* clonedNode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

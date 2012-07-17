@@ -90,7 +90,7 @@ void TCompositeNodeMixin::RemoveRecursive(
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.CurrentToken().GetType()) {
-        case RemoveAllToken:
+        case WildcardToken:
             YASSERT(!tokenizer.ParseNext());
             Clear();
             break;
@@ -112,7 +112,10 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
-        case RemoveAllToken:
+        case WildcardToken:
+            if (verb != "Remove") {
+                ythrow yexception() << "Wildcard is only allowed for Remove verb";
+            }
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here(
@@ -131,7 +134,10 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                     child, TYPath(tokenizer.GetCurrentSuffix()));
             }
 
-            if (verb == "Set" || verb == "Create") {
+            if (verb == "Set" ||
+                verb == "Create" ||
+                verb == "Copy")
+            {
                 if (!tokenizer.ParseNext()) {
                     return IYPathService::TResolveResult::Here(
                         TokenTypeToString(PathSeparatorToken) + path);
@@ -161,11 +167,12 @@ void TMapNodeMixin::SetRecursive(const TYPath& path, INodePtr value)
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    Stroka childName(tokenizer.CurrentToken().GetStringValue());
+    Stroka key(tokenizer.CurrentToken().GetStringValue());
+    // TODO(babenko): fixme!
     YASSERT(!tokenizer.ParseNext());
-    YASSERT(!childName.empty());
-    YASSERT(!FindChild(childName));
-    AddChild(value, childName);
+    YASSERT(!key.empty());
+    YASSERT(!FindChild(key));
+    AddChild(value, key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,7 +185,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
         case ListAppendToken:
-        case RemoveAllToken:
+        case WildcardToken:
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here(
@@ -243,6 +250,7 @@ void TListNodeMixin::SetRecursive(
             break;
 
         default:
+            // TODO(babenko): fixme!
             YUNREACHABLE();
     }
 
