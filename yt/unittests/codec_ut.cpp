@@ -33,19 +33,30 @@ TEST_F(TCodecTest, VectorCompression)
     FOREACH (const auto& codecId, ECodecId::GetDomainValues()) {
         auto codec = GetCodec(static_cast<ECodecId>(codecId));
 
-        Stroka data[] = {"", "", "hello", "", " ", "world", ""};
-        size_t count = sizeof(data) / sizeof(data[0]);
-        
-        std::vector<TSharedRef> refs(count);
-        for (size_t i = 0; i < count; ++i) {
-            refs[i] = TSharedRef::FromString(data[i]);
+        {
+            Stroka data[] = {"", "", "hello", "", " ", "world", "", "", ""};
+            size_t count = sizeof(data) / sizeof(data[0]);
+
+            std::vector<TSharedRef> refs(count);
+            for (size_t i = 0; i < count; ++i) {
+                refs[i] = TSharedRef::FromString(data[i]);
+            }
+
+            TSharedRef compressed = codec->Compress(refs);
+            TSharedRef decompressed = codec->Decompress(compressed);
+
+            EXPECT_EQ(
+                Stroka(decompressed.Begin(), decompressed.End()),
+                "hello world");
         }
 
-        TSharedRef compressed = codec->Compress(refs);
-        TSharedRef decompressed = codec->Decompress(compressed);
+        {
+            std::vector<TSharedRef> emptyRefs(10, TSharedRef());
+            TSharedRef compressed = codec->Compress(emptyRefs);
+            TSharedRef decompressed = codec->Decompress(compressed);
 
-        EXPECT_EQ(
-            Stroka(decompressed.Begin(), decompressed.End()),
-            "hello world");
+            EXPECT_EQ(Stroka(decompressed.Begin(), decompressed.End()), "");
+        }
+
     }
 }
