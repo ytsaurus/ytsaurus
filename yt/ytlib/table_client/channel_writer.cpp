@@ -26,8 +26,17 @@ void TChannelWriter::WriteFixed(int columnIndex, const TStringBuf& value)
 
 void TChannelWriter::WriteRange(const TStringBuf& name, const TStringBuf& value)
 {
-    CurrentSize += TValue(name).Save(&RangeColumns);
     CurrentSize += TValue(value).Save(&RangeColumns);
+    CurrentSize += WriteVarInt32(&RangeColumns, static_cast<i32>(name.length()));
+    CurrentSize += name.length();
+    RangeColumns.Write(name);
+}
+
+void TChannelWriter::WriteRange(int chunkColumnIndex, const TStringBuf& value)
+{
+    YASSERT(chunkColumnIndex > 0);
+    CurrentSize += TValue(value).Save(&RangeColumns);
+    CurrentSize += WriteVarInt32(&RangeColumns, -(chunkColumnIndex + 1));
 }
 
 void TChannelWriter::EndRow()

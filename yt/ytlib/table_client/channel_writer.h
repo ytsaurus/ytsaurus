@@ -18,8 +18,9 @@ public:
 
     TChannelWriter(int fixedColumnCount);
 
-    void WriteFixed(int columnIndex, const TStringBuf& value);
+    void WriteFixed(int fixedIndex, const TStringBuf& value);
     void WriteRange(const TStringBuf& name, const TStringBuf& value);
+    void WriteRange(int chunkColumnIndex, const TStringBuf& value);
 
     void EndRow();
 

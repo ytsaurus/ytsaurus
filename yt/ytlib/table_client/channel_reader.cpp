@@ -78,8 +78,18 @@ bool TChannelReader::NextColumn()
                 ++CurrentColumnIndex;
                 return false;
             }
-            CurrentColumn = value.ToStringBuf();
-            CurrentValue = TValue::Load(&rangeBuffer).ToStringBuf();
+            CurrentValue = value.ToStringBuf();
+            i32 nameSize;
+            ReadVarInt32(&rangeBuffer, &nameSize);
+
+            if (nameSize < 0) {
+                // global key column index, not implemented yet.
+                YUNREACHABLE();
+            } else {
+                CurrentColumn = TStringBuf(rangeBuffer.Buf(), nameSize);
+                rangeBuffer.Skip(nameSize);
+            }
+
             return true;
         } 
 
@@ -112,7 +122,7 @@ TStringBuf TChannelReader::GetColumn() const
     }
 }
 
-TStringBuf TChannelReader::GetValue() const
+const TStringBuf& TChannelReader::GetValue() const
 {
     YASSERT(CurrentColumnIndex >= 0);
     YASSERT(CurrentColumnIndex <= static_cast<int>(ColumnBuffers.size()));
