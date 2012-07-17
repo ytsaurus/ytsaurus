@@ -15,12 +15,12 @@ if __name__ == "__main__":
         key, subkey, value = line.strip().split("\t")
         value = float(value)
         if subkey == "":
-            pword = value / words_number
+            pword = math.log(value) - math.log(words_number)
         else:
-            value = value / ((couples_number ** 0.5) * pword) 
             if sys.argv[3] == "1":
                 value = math.log(value)
+            value -= math.log(couples_number ** 0.5) - pword
         if subkey != "":
             key, subkey = subkey, key
-        sys.stdout.write("%s\t%s\t%.8f\n" % (key, subkey, value))
+        sys.stdout.write("%s\t%s\t%.8g\n" % (key, subkey, value))
 

@@ -20,5 +20,5 @@ if __name__ == "__main__":
     dict.load(open(sys.argv[1]))
     for i in xrange(int(sys.argv[2])):
         words = [dict.get_random_word() for _ in xrange(int(sys.argv[3]))]
-        sys.stdout.write("\t%s\n" % " ".join(words))
+        sys.stdout.write("\t\t%s\n" % " ".join(words))
 

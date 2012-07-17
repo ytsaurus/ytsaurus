@@ -4,7 +4,7 @@ import sys
 from itertools import imap, groupby
 
 def parse_line(line):
-    key, num = line.strip().split("\t")
+    key, subkey, num = line.strip().split("\t")
     num = int(num)
     return (key, num)
 
@@ -16,5 +16,5 @@ def extract_value(record):
 
 if __name__ == "__main__":
     for key, records in groupby(imap(parse_line, sys.stdin), extract_key):
-        sys.stdout.write("%s\t%d\n" % (key, sum(imap(extract_value, records))))
+        sys.stdout.write("%s\t\t%d\n" % (key, sum(imap(extract_value, records))))
 
