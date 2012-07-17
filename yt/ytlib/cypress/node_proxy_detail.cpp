@@ -349,12 +349,15 @@ void TMapNodeProxy::DoCloneTo(TMapNode* clonedNode)
 {
     TBase::DoCloneTo(clonedNode);
 
+    auto objectManager = Bootstrap->GetObjectManager();
+
     auto children = DoGetChildren();
     FOREACH (const auto& pair, children) {
         auto key = pair.first;
         auto childId = pair.second->GetId();
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, childId)).second);
         YCHECK(clonedNode->ChildToKey().insert(std::make_pair(childId, key)).second);
+        objectManager->RefObject(childId);
     }
 
     YASSERT(clonedNode->ChildCountDelta() == 0);
@@ -534,12 +537,15 @@ void TListNodeProxy::DoCloneTo(TListNode* clonedNode)
 {
     TBase::DoCloneTo(clonedNode);
 
+    auto objectManager = Bootstrap->GetObjectManager();
+
     auto children = DoGetChildren();
     for (int index = 0; index < static_cast<int>(children.size()); ++index) {
         auto child = children[index];
         auto childId = child->GetId();
         clonedNode->IndexToChild()[index] = childId;
         YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(childId, index)).second);
+        objectManager->RefObject(childId);
     }
 }
 
