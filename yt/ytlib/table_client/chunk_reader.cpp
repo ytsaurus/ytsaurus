@@ -287,15 +287,15 @@ private:
 
         LOG_DEBUG("Selected channels [%s]", ~JoinToString(SelectedChannels));
 
-        auto blockIndexSequence = GetBlockReadSequence(chunkReader);
+        auto blockSequence = GetBlockReadSequence(chunkReader);
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
-            MoveRV(blockIndexSequence),
+            MoveRV(blockSequence),
             AsyncReader,
             ECodecId(miscExt.codec_id()));
 
-        LOG_DEBUG("Reading blocks [%s]", ~JoinToString(blockIndexSequence));
+        LOG_DEBUG("Reading %d blocks", static_cast<int>(blockSequence.size()));
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
@@ -635,8 +635,8 @@ public:
             AsyncReader,
             ECodecId(miscExt.codec_id()));
 
-        LOG_DEBUG("Reading blocks [%s] for partition %d", 
-            ~JoinToString(blockSequence),
+        LOG_DEBUG("Reading %d blocks for partition %d", 
+            static_cast<int>(blockSequence.size()),
             chunkReader->PartitionTag);
 
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(
