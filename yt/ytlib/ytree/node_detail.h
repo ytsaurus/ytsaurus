@@ -25,14 +25,14 @@ public:
     typedef TIntrusivePtr<TNodeBase> TPtr;
 
 #define IMPLEMENT_AS_METHODS(name) \
-    virtual TIntrusivePtr<I##name##Node> As##name() \
+    virtual TIntrusivePtr<I##name##Node> As##name() OVERRIDE \
     { \
         ythrow yexception() << Sprintf("Invalid node type: expected: %s, found %s", \
             #name, \
             ~GetType().ToString()); \
     } \
     \
-    virtual TIntrusivePtr<const I##name##Node> As##name() const \
+    virtual TIntrusivePtr<const I##name##Node> As##name() const OVERRIDE \
     { \
         ythrow yexception() << Sprintf("Invalid node type: expected %s, found %s", \
             #name, \
@@ -48,7 +48,7 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const OVERRIDE;
 
 protected:
     template <class TNode>
@@ -62,6 +62,7 @@ protected:
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

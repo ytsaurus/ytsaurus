@@ -61,6 +61,9 @@ public:
      */
     NYTree::TYPathServiceProducer GetRootServiceProducer();
 
+    //! Creates a resolver that provides a view in the context of a given transaction.
+    NYTree::IYPathResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = NULL);
+
     ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,
         const NTransactionServer::TTransaction* transaction);
@@ -87,6 +90,9 @@ public:
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction = NULL);
 
+    ICypressNodeProxyPtr GetVersionedNodeProxy(
+        const TVersionedNodeId& versionedId);
+
     void LockVersionedNode(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
@@ -97,20 +103,13 @@ public:
         TAutoPtr<ICypressNode> node,
         NYTree::IAttributeDictionary* attributes = NULL);
 
-    NYTree::TYPath GetNodePath(ICypressNodeProxyPtr proxy);
-    NYTree::TYPath GetNodePath(
-        const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction);
-    NYTree::TYPath GetNodePath(const TVersionedNodeId& id);
-
     DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
 
 private:
     typedef TCypressManager TThis;
 
     class TNodeTypeHandler;
-    class TYPathProcessor;
-    class TRootProxy;
+    class TYPathResolver;
 
     class TNodeMapTraits
     {
@@ -195,6 +194,10 @@ private:
        ICypressNode* node,
        NTransactionServer::TTransaction* transaction,
        ELockMode mode);
+
+    NYTree::TYPath GetNodePath(
+       const TNodeId& nodeId,
+       NTransactionServer::TTransaction* transaction);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

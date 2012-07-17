@@ -1362,24 +1362,25 @@ private:
     void GetOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
+
         yhash_set<ICypressNode*> owningNodes;
         yhash_set<TChunkTreeRef> visitedRefs;
         GetOwningNodes(chunkRef, visitedRefs, &owningNodes);
 
-        // Converting ids to paths
         std::vector<TYPath> paths;
         FOREACH (auto* node, owningNodes) {
-            paths.push_back(cypressManager->GetNodePath(node->GetId()));
+            auto proxy = cypressManager->GetVersionedNodeProxy(node->GetId());
+            auto path = proxy->GetPath();
+            paths.push_back(path);
         }
+
         std::sort(paths.begin(), paths.end());
         paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
 
-        consumer->OnBeginList();
-        FOREACH (const auto& path, paths) {
-            consumer->OnListItem();
-            consumer->OnStringScalar(path);
-        }
-        consumer->OnEndList();
+        BuildYsonFluently(consumer)
+            .DoListFor(paths, [] (TFluentList fluent, const TYPath& path) {
+                fluent.Item().Scalar(path);
+            });
     }
 
 };

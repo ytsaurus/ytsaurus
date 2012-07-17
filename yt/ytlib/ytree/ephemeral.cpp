@@ -3,6 +3,7 @@
 #include "node_detail.h"
 #include "ypath_detail.h"
 #include "attribute_provider_detail.h"
+#include "ypath_client.h"
 
 #include <ytlib/misc/hash.h>
 #include <ytlib/misc/singleton.h>
@@ -11,6 +12,40 @@
 
 namespace NYT {
 namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEphemeralYPathResolver
+    : public IYPathResolver
+{
+public:
+    explicit TEphemeralYPathResolver(INodePtr node)
+        : Node(node)
+    { }
+
+    virtual INodePtr ResolvePath(const TYPath& path) OVERRIDE
+    {
+        auto root = GetRoot();
+        return GetNodeByYPath(root, path);
+    }
+
+    virtual TYPath GetPath(INodePtr node) OVERRIDE
+    {
+        return GetNodeYPath(node);
+    }
+
+private:
+    INodePtr Node;
+
+    INodePtr GetRoot()
+    {
+        auto currentNode = Node;
+        while (currentNode->GetParent()) {
+            currentNode = currentNode->GetParent();
+        }
+        return currentNode;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +62,11 @@ public:
     virtual INodeFactoryPtr CreateFactory() const
     {
         return GetEphemeralNodeFactory();
+    }
+
+    virtual IYPathResolverPtr GetResolver() const
+    {
+        return New<TEphemeralYPathResolver>(const_cast<TEphemeralNodeBase*>(this));
     }
 
     virtual ICompositeNodePtr GetParent() const

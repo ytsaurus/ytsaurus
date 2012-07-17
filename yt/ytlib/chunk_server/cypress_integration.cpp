@@ -209,9 +209,8 @@ public:
     virtual bool IsHolderAuthorized(const Stroka& address)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto rootNodeProxy =
-            cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNodeId());
-        auto holderMap = GetNodeByYPath(rootNodeProxy, "/sys/holders")->AsMap();
+        auto resolver = cypressManager->CreateResolver();
+        auto holderMap = resolver->ResolvePath("//sys/holders")->AsMap();
         auto holderNode = holderMap->FindChild(address);
 
         if (!holderNode) {

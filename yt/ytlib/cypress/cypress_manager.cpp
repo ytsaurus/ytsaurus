@@ -101,6 +101,64 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCypressManager::TYPathResolver
+    : public IYPathResolver
+{
+public:
+    explicit TYPathResolver(
+        TBootstrap* bootstrap,
+        TTransaction* transaction)
+        : Bootstrap(bootstrap)
+        , Transaction(transaction)
+    { }
+
+    virtual INodePtr ResolvePath(const TYPath& path) OVERRIDE
+    {
+        if (path.empty()) {
+            ythrow yexception() << "YPath cannot be empty";
+        }
+
+        TTokenizer tokenizer(path);
+        tokenizer.ParseNext();
+
+        if (tokenizer.GetCurrentType() != RootToken) {
+            ythrow yexception() << "YPath must start with \"/\"";
+        }
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto root = cypressManager->FindVersionedNodeProxy(
+            cypressManager->GetRootNodeId(),
+            Transaction);
+
+        return GetNodeByYPath(root, TYPath(tokenizer.GetCurrentSuffix()));
+    }
+
+    virtual TYPath GetPath(INodePtr node) OVERRIDE
+    {
+        auto path = GetNodeYPath(node);
+        return Stroka(TokenTypeToChar(RootToken)) + path;
+    }
+
+private:
+    TBootstrap* Bootstrap;
+    TTransaction* Transaction;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManagerPtr cypressManager)
+    : CypressManager(cypressManager)
+{ }
+
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
+{
+    auto type = TypeFromId(id.ObjectId);
+    return CypressManager->GetHandler(type)->Create(id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : TMetaStatePart(
         bootstrap->GetMetaStateManager(),
@@ -308,6 +366,11 @@ TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 
 }
 
+IYPathResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
+{
+    return New<TYPathResolver>(Bootstrap, transaction);
+}
+
 ICypressNode* TCypressManager::FindVersionedNode(
     const TNodeId& nodeId,
     const TTransaction* transaction)
@@ -402,6 +465,14 @@ ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
     auto proxy = FindVersionedNodeProxy(nodeId, transaction);
     YASSERT(proxy);
     return proxy;
+}
+
+ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
+    const TVersionedNodeId& versionedId)
+{
+    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto* transaction = transactionManager->GetTransaction(versionedId.TransactionId);
+    return GetVersionedNodeProxy(versionedId.ObjectId, transaction);
 }
 
 void TCypressManager::ValidateLock(
@@ -887,44 +958,28 @@ void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)
     transaction->BranchedNodes().clear();
 }
 
-TYPath TCypressManager::GetNodePath(ICypressNodeProxyPtr proxy)
-{
-    INodePtr root;
-    auto path = GetYPath(proxy, &root);
-    auto rootId = dynamic_cast<ICypressNodeProxy*>(~root)->GetId();
-    YASSERT(rootId == GetRootNodeId());
-    return Stroka(TokenTypeToChar(RootToken)) + path;
-}
+//TYPath TCypressManager::GetNodePath(ICypressNodeProxyPtr proxy)
+//{
+//}
 
 TYPath TCypressManager::GetNodePath(
     const TNodeId& nodeId,
     TTransaction* transaction)
 {
-    return GetNodePath(GetVersionedNodeProxy(nodeId, transaction));
+    auto proxy = GetVersionedNodeProxy(nodeId, transaction);
+    return proxy->GetResolver()->GetPath(proxy);
 }
 
-TYPath TCypressManager::GetNodePath(const TVersionedNodeId& id)
-{
-    auto transactionManager = Bootstrap->GetTransactionManager();
-    auto* transaction = id.TransactionId == NullTransactionId
-        ? NULL
-        : transactionManager->GetTransaction(id.TransactionId);
-    return GetNodePath(id.ObjectId, transaction);
-}
+//TYPath TCypressManager::GetNodePath(const TVersionedNodeId& id)
+//{
+//    auto transactionManager = Bootstrap->GetTransactionManager();
+//    auto* transaction = id.TransactionId == NullTransactionId
+//        ? NULL
+//        : transactionManager->GetTransaction(id.TransactionId);
+//    return GetNodePath(id.ObjectId, transaction);
+//}
 
 DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TVersionedNodeId, NodeMap);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManagerPtr cypressManager)
-    : CypressManager(cypressManager)
-{ }
-
-TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
-{
-    auto type = TypeFromId(id.ObjectId);
-    return CypressManager->GetHandler(type)->Create(id);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

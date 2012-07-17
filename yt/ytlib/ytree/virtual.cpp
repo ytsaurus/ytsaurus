@@ -154,6 +154,12 @@ public:
         return Parent->CreateFactory();
     }
 
+    virtual IYPathResolverPtr GetResolver() const
+    {
+        YASSERT(Parent);
+        return Parent->GetResolver();
+    }
+
     virtual ICompositeNodePtr GetParent() const
     {
         return Parent;

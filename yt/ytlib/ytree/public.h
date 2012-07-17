@@ -64,6 +64,9 @@ typedef TIntrusivePtr<IEntityNode> IEntityNodePtr;
 struct INodeFactory;
 typedef TIntrusivePtr<INodeFactory> INodeFactoryPtr;
 
+struct IYPathResolver;
+typedef TIntrusivePtr<IYPathResolver> IYPathResolverPtr;
+
 struct IYsonConsumer;
 class TYsonProducer;
 

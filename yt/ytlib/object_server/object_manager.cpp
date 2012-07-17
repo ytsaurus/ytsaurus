@@ -177,7 +177,6 @@ public:
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
         auto transactionManager = Bootstrap->GetTransactionManager();
-        TObjectId objectId;
 
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
@@ -199,23 +198,27 @@ public:
         }
 
         if (tokenizer.GetCurrentType() == RootToken) {
-            objectId = cypressManager->GetRootNodeId();
+            auto root = cypressManager->FindVersionedNodeProxy(
+                cypressManager->GetRootNodeId(),
+                transaction);
+            return TResolveResult::There(root, TYPath(tokenizer.GetCurrentSuffix()));
         } else if (tokenizer.GetCurrentType() == NodeGuidMarkerToken) {
             tokenizer.ParseNext();
-            Stroka objectToken(tokenizer.CurrentToken().GetStringValue());
-            if (!TObjectId::FromString(objectToken, &objectId)) {
-                ythrow yexception() << Sprintf("Error parsing object id %s", ~Stroka(objectToken).Quote());
+            Stroka objectIdToken(tokenizer.CurrentToken().GetStringValue());
+            TObjectId objectId;
+            if (!TObjectId::FromString(objectIdToken, &objectId)) {
+                ythrow yexception() << Sprintf("Error parsing object id %s", ~Stroka(objectIdToken).Quote());
             }
+
+            auto proxy = objectManager->FindProxy(objectId, transaction);
+            if (!proxy) {
+                ythrow yexception() << Sprintf("No such object %s", ~objectId.ToString());
+            }
+
+            return TResolveResult::There(proxy, TYPath(tokenizer.GetCurrentSuffix()));
         } else {
             ythrow yexception() << "Invalid YPath syntax";
         }
-
-        auto proxy = objectManager->FindProxy(objectId, transaction);
-        if (!proxy) {
-            ythrow yexception() << Sprintf("No such object %s", ~objectId.ToString());
-        }
-
-        return TResolveResult::There(proxy, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
     virtual void Invoke(IServiceContextPtr context)

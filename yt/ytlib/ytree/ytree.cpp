@@ -15,5 +15,12 @@ const ENodeType::EDomain TScalarTypeTraits<double>::NodeType = ENodeType::Double
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPath INode::GetPath() const
+{
+    return GetResolver()->GetPath(const_cast<INode*>(this));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT

@@ -20,6 +20,20 @@ struct TScalarTypeTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Resolves YPaths into nodes and vice versa.
+struct IYPathResolver
+    : public virtual TRefCounted
+{
+    //! Returns a node corresponding to a given path.
+    //! Throws if resolution fails.
+    virtual INodePtr ResolvePath(const TYPath& path) = 0;
+
+    //! Returns a path for a given node.
+    virtual TYPath GetPath(INodePtr node) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A base DOM-like interface representing a node.
 struct INode
     : public virtual IYPathService
@@ -44,6 +58,9 @@ struct INode
      */
     virtual INodeFactoryPtr CreateFactory() const = 0;
 
+    //! Returns the resolver associated with the tree.
+    virtual IYPathResolverPtr GetResolver() const = 0;
+
     // A bunch of "AsSomething" methods that return a pointer
     // to the same node but typed as "Something".
     // These methods throw an exception on type mismatch.
@@ -51,6 +68,7 @@ struct INode
     virtual TIntrusivePtr<I##name##Node> As##name() = 0; \
     virtual TIntrusivePtr<const I##name##Node> As##name() const = 0;
 
+    DECLARE_AS_METHODS(Entity)
     DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
     DECLARE_AS_METHODS(Integer)
@@ -86,6 +104,9 @@ struct INode
     {
         NDetail::TScalarTypeTraits<T>::SetValue(this, value);
     }
+
+    //! A shortcut for |node->GetResolver()->GetPath(node)|.
+    TYPath GetPath() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

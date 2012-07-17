@@ -84,6 +84,16 @@ public:
         return New<TNodeFactory>(Bootstrap, Transaction);
     }
 
+    NYTree::IYPathResolverPtr GetResolver() const
+    {
+        if (!Resolver) {
+            auto cypressManager = Bootstrap->GetCypressManager();
+            Resolver = cypressManager->CreateResolver(Transaction);
+        }
+        return Resolver;
+    }
+
+
     virtual TTransactionId GetTransactionId() const
     {
         return NObjectServer::GetObjectId(Transaction);
@@ -173,6 +183,8 @@ protected:
     NTransactionServer::TTransaction* Transaction;
     TNodeId NodeId;
 
+    mutable NYTree::IYPathResolverPtr Resolver;
+
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const
     {
@@ -222,9 +234,8 @@ protected:
         }
 
         if (name == "path") {
-            auto path = Bootstrap->GetCypressManager()->GetNodePath(this);
             BuildYsonFluently(consumer)
-                .Scalar(path);
+                .Scalar(GetPath());
             return true;
         }
 
@@ -516,7 +527,7 @@ private:
     {
         TBase::DoCloneTo(clonedNode);
 
-        auto* node = GetTypedImpl();
+        auto* node = this->GetTypedImpl();
         clonedNode->Value() = node->Value();
     }
 
@@ -636,7 +647,7 @@ protected:
         if (!tokenizer.ParseNext()) {
             auto cypressManager = this->Bootstrap->GetCypressManager();
             ythrow yexception() << Sprintf("Node %s already exists",
-                cypressManager->GetNodePath(this));
+                GetPath());
         }
         tokenizer.CurrentToken().CheckType(NYTree::PathSeparatorToken);
         return NYTree::TYPath(tokenizer.GetCurrentSuffix());
@@ -644,20 +655,7 @@ protected:
 
     ICypressNodeProxyPtr ResolveSourcePath(const NYTree::TYPath& path)
     {
-        // TODO(babenko): refactor
-        NYTree::TTokenizer tokenizer(path);
-        if (!tokenizer.ParseNext()) {
-            ythrow yexception() << "Source path is empty";
-        }
-        if (tokenizer.GetCurrentType() != NYTree::RootToken) {
-            ythrow yexception() << "Source path must start with \"/\"";
-        }
-        
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto root = cypressManager->GetVersionedNodeProxy(
-            cypressManager->GetRootNodeId(),
-            Transaction);
-        auto sourceNode = NYTree::GetNodeByYPath(root, NYTree::TYPath(tokenizer.GetCurrentSuffix()));
+        auto sourceNode = this->GetResolver()->ResolvePath(path);
         return dynamic_cast<ICypressNodeProxy*>(~sourceNode);
     }
 
@@ -668,7 +666,7 @@ protected:
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
         auto cypressManager = this->Bootstrap->GetCypressManager();
-        auto creativePath = GetCreativePath(context->GetPath());
+        auto creativePath = this->GetCreativePath(context->GetPath());
 
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {
@@ -685,7 +683,7 @@ protected:
             newNode->GetId().ObjectId,
             this->Transaction);
         
-        SetRecursive(creativePath, newProxy);
+        this->SetRecursive(creativePath, newProxy);
 
         context->Reply();
     }
@@ -695,16 +693,16 @@ protected:
         auto sourcePath = request->source_path();
         context->SetRequestInfo("SourcePath: %s", ~sourcePath);
 
-        auto creativePath = GetCreativePath(context->GetPath());
+        auto creativePath = this->GetCreativePath(context->GetPath());
 
-        auto sourceProxy = ResolveSourcePath(sourcePath);
+        auto sourceProxy = this->ResolveSourcePath(sourcePath);
         if (sourceProxy->GetId() == GetId()) {
             ythrow yexception() << "Cannot copy a node to its child";
         }
 
         auto clonedProxy = sourceProxy->Clone();
 
-        SetRecursive(creativePath, clonedProxy);
+        this->SetRecursive(creativePath, clonedProxy);
 
         *response->mutable_object_id() = clonedProxy->GetId().ToProto();
 
