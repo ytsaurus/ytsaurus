@@ -33,6 +33,8 @@ set( HDRS
   ${BASE}/chunk_sequence_reader.h
   ${BASE}/chunk_sequence_writer_base-inl.h
   ${BASE}/chunk_sequence_writer_base.h
+  ${BASE}/chunk_sequence_reader_base-inl.h
+  ${BASE}/chunk_sequence_reader_base.h
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/key.h
