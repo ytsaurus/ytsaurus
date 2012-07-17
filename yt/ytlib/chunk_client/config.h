@@ -14,7 +14,7 @@ struct TRemoteReaderConfig
     : public TYsonSerializable
 {
     //! Timeout for a block request.
-    TDuration HolderRpcTimeout;
+    TDuration RpcTimeout;
 
     //! Time to wait before asking the master for seeds.
     TDuration RetryBackoffTime;
@@ -42,14 +42,22 @@ struct TRemoteReaderConfig
 
     TRemoteReaderConfig()
     {
-        Register("holder_rpc_timeout", HolderRpcTimeout).Default(TDuration::Seconds(30));
-        Register("retry_backoff_time", RetryBackoffTime).Default(TDuration::Seconds(3));
-        Register("retry_count", RetryCount).Default(100);
-        Register("pass_backoff_time", PassBackoffTime).Default(TDuration::Seconds(1));
-        Register("pass_count", PassCount).Default(3);
-        Register("fetch_from_peers", FetchFromPeers).Default(true);
-        Register("publish_peer", PublishPeer).Default(false);
-        Register("peer_expiration_timeout", PeerExpirationTimeout).Default(TDuration::Seconds(300));
+        Register("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(30));
+        Register("retry_backoff_time", RetryBackoffTime)
+            .Default(TDuration::Seconds(3));
+        Register("retry_count", RetryCount)
+            .Default(100);
+        Register("pass_backoff_time", PassBackoffTime)
+            .Default(TDuration::Seconds(1));
+        Register("pass_count", PassCount)
+            .Default(3);
+        Register("fetch_from_peers", FetchFromPeers)
+            .Default(true);
+        Register("publish_peer", PublishPeer)
+            .Default(false);
+        Register("peer_expiration_timeout", PeerExpirationTimeout)
+            .Default(TDuration::Seconds(300));
     }
 };
 
@@ -105,10 +113,10 @@ struct TRemoteWriterConfig
     : public TYsonSerializable
 {
     //! Maximum window size (in bytes).
-    int WindowSize;
+    i64 WindowSize;
 
     //! Maximum group size (in bytes).
-    int GroupSize;
+    i64 GroupSize;
 
     //! RPC requests timeout.
     /*!
@@ -150,7 +158,7 @@ struct TRemoteWriterConfig
 struct TEncodingWriterConfig 
     : public TYsonSerializable
 {
-    int WindowSize;
+    i64 WindowSize;
 
     ECodecId CodecId;
 
@@ -173,7 +181,7 @@ struct TEncodingWriterConfig
 struct TDecodingReaderConfig
     : public TYsonSerializable
 {
-    int WindowSize;
+    i64 WindowSize;
 
     TDecodingReaderConfig()
     {

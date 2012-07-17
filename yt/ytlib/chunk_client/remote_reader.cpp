@@ -488,7 +488,7 @@ private:
                 }
 
                 TChunkHolderServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
+                proxy.SetDefaultTimeout(reader->Config->RpcTimeout);
 
                 auto request = proxy.GetBlocks();
                 *request->mutable_chunk_id() = reader->ChunkId.ToProto();
@@ -688,7 +688,7 @@ private:
         }
 
         TChunkHolderServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
+        proxy.SetDefaultTimeout(reader->Config->RpcTimeout);
 
         auto request = proxy.GetChunkMeta();
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
