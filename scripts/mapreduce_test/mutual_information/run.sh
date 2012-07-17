@@ -1,18 +1,20 @@
 #!/bin/sh -eux
 
-# 1Tb = 10^12 = (word_size + space) 10 * (words in record) 10000 * (jobs) 500 * (records) 20000
+# 1Tb = 10^12 = (word_size + space) 10 * (words in record) 10000 * (jobs) 1000 * (records) 10000
 
-export JOBCOUNT=5
+HOSTS=85
+THREADCOUNT=12
+JOBCOUNT=`echo "$HOSTS * $THREADCOUNT" | bc`
 
-export MAPREDUCE="../mapreduce -server w301.hdp.yandex.net:8013 -jobcount $JOBCOUNT -subkey"
+MAPREDUCE="../mapreduce -server w301.hdp.yandex.net:8013 -jobcount $JOBCOUNT -threadcount $THREADCOUNT -subkey"
 
-export TEMP_TABLE="ignat/temp_table"
-export DATA_TABLE="ignat/random_texts"
-export WORD_COUNT_TABLE="ignat/word_count"
-export PMI_TABLE="ignat/pmi"
+TEMP_TABLE="ignat/temp_table"
+DATA_TABLE="ignat/random_texts"
+WORD_COUNT_TABLE="ignat/word_count"
+PMI_TABLE="ignat/pmi"
 
-WORDS_IN_RECORD=1000
-RECORD_PER_JOB=2000
+WORDS_IN_RECORD=10000
+RECORD_PER_JOB=10000
 WORD_COUNT=`echo "$WORDS_IN_RECORD * $RECORD_PER_JOB * $JOBCOUNT" | bc`
 PAIRS_COUNT=`echo "($WORDS_IN_RECORD - 1) * $RECORD_PER_JOB * $JOBCOUNT" | bc`
 DICTIONARY_SIZE=`echo "sqrt($WORD_COUNT)" | bc`
