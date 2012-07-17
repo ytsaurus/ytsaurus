@@ -225,7 +225,7 @@ struct IMapNode
     virtual bool RemoveChild(const TStringBuf& key) = 0;
 
     //! Similar to #FindChild but throws if no child is found.
-    INodePtr GetChild(const Stroka& key) const;
+    INodePtr GetChild(const TStringBuf& key) const;
 
     //! Returns the key for a given child.
     /*!
@@ -281,6 +281,15 @@ struct IListNode
      *  \return Child's index.
      */
     virtual int GetChildIndex(IConstNodePtr child) = 0;
+
+    //! Normalizes negative indexes (by adding child count).
+    //! Throws if the index is invalid.
+    /*!
+     *  \param index Original (possibly negative) index.
+     *  \returns Adjusted (valid non-negative) index.
+     */
+    int AdjustAndValidateChildIndex(int index) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

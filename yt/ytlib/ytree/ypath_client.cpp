@@ -331,15 +331,16 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
         tokenizer.ParseNext();
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String: {
+                auto currentMap = currentNode->AsMap();
                 Stroka key(tokenizer.CurrentToken().GetStringValue());
-                currentNode = currentNode->AsMap()->GetChild(key);
+                currentNode = currentMap->GetChild(key);
                 break;
             }
 
             case ETokenType::Integer: {
-                i64 index = tokenizer.CurrentToken().GetIntegerValue();
-                // TODO(babenko): handle negative indexes
-                currentNode = currentNode->AsList()->GetChild(index);
+                auto currentList = currentNode->AsList();
+                int index = currentList->AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
+                currentNode = currentList->GetChild(index);
                 break;
             }
 
@@ -374,7 +375,9 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
             }
 
             case ETokenType::Integer: {
-                currentNode = currentNode->AsList()->GetChild(currentToken.GetIntegerValue());
+                auto currentList = currentNode->AsList();
+                int index = currentList->AdjustAndValidateChildIndex(currentToken.GetIntegerValue());
+                currentNode = currentList->GetChild(index);
                 break;
             }
 
@@ -396,21 +399,21 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
     switch (currentToken.GetType()) {
         case ETokenType::String: {
             Stroka key(currentToken.GetStringValue());
-            auto mapNode = currentNode->AsMap();
-            auto child = mapNode->FindChild(key);
+            auto currentMap = currentNode->AsMap();
+            auto child = currentMap->FindChild(key);
             if (child) {
-                mapNode->ReplaceChild(child, value);
+                currentMap->ReplaceChild(child, value);
             } else {
-                mapNode->AddChild(value, key);
+                currentMap->AddChild(value, key);
             }
             break;
         }
 
         case ETokenType::Integer: {
-            auto listNode = currentNode->AsList();
-            i64 index = currentToken.GetIntegerValue();
-            auto child = listNode->GetChild(index);
-            listNode->ReplaceChild(child, value);
+            auto currentList = currentNode->AsList();
+            int index = currentList->AdjustAndValidateChildIndex(currentToken.GetIntegerValue());
+            auto child = currentList->GetChild(index);
+            currentList->ReplaceChild(child, value);
             break;
         }
 
@@ -452,17 +455,20 @@ void ForceYPath(INodePtr root, const TYPath& path)
         INodePtr child;
         switch (tokenType) {
             case ETokenType::String: {
-                child = currentNode->AsMap()->FindChild(key);
+                auto currentMap = currentNode->AsMap();
+                child = currentMap->AsMap()->FindChild(key);
                 if (!child) {
-                    auto factory = currentNode->CreateFactory();
+                    auto factory = currentMap->CreateFactory();
                     child = factory->CreateMap();
-                    YCHECK(currentNode->AsMap()->AddChild(child, key));
+                    YCHECK(currentMap->AddChild(child, key));
                 }
                 break;
             }
 
             case ETokenType::Integer: {
-                child = currentNode->AsList()->GetChild(index);
+                auto currentList = currentNode->AsList();
+                index = currentList->AdjustAndValidateChildIndex(index);
+                child = currentList->GetChild(index);
                 break;
             }
 

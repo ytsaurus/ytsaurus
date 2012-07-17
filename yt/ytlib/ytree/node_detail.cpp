@@ -18,25 +18,35 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+Stroka GetNodePathHelper(IConstNodePtr node)
+{
+    auto path = node->GetPath();
+    return path.empty() ? "Node " : Sprintf("Node %s ", ~path);
+}
+
+} // namespace
+
 void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType)
 {
-    ythrow yexception() << Sprintf("Node %s has invalid type: expected %s, actual %s",
-        ~node->GetPath(),
+    ythrow yexception() << Sprintf("%s has invalid type: expected %s, actual %s",
+        ~GetNodePathHelper(node),
         ~expectedType.ToString(),
         ~actualType.ToString());
 }
 
 void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
 {
-    ythrow yexception() << Sprintf("Node %s has no child with key %s",
-        ~node->GetPath(),
+    ythrow yexception() << Sprintf("%s has no child with key %s",
+        ~GetNodePathHelper(node),
         ~YsonizeString(key, EYsonFormat::Text));
 }
 
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
 {
-    ythrow yexception() << Sprintf("Node %s has no child with index %d",
-        ~node->GetPath(),
+    ythrow yexception() << Sprintf("%s has no child with index %d",
+        ~GetNodePathHelper(node),
         index);
 }
 
@@ -44,15 +54,15 @@ void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb)
 {
     ythrow TServiceException(TError(
         NRpc::EErrorCode::NoSuchVerb,
-        "Node %s does not support verb %s",
-        ~node->GetPath(),
+        "%s does not support verb %s",
+        ~GetNodePathHelper(node),
         ~verb));
 }
 
 void ThrowNoChildren(IConstNodePtr node)
 {
-    ythrow yexception() << Sprintf("Node %s cannot have children",
-        ~node->GetPath());
+    ythrow yexception() << Sprintf("%s cannot have children",
+        ~GetNodePathHelper(node));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,7 +243,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
 
         case ETokenType::Integer: {
-            int index = tokenizer.CurrentToken().GetIntegerValue();
+            int index = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
             auto child = GetChild(index);
             tokenizer.ParseNext();
             if (tokenizer.GetCurrentType() == ListInsertToken) {
@@ -247,8 +257,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 
         case ListInsertToken: {
             tokenizer.ParseNext();
-            int index = tokenizer.CurrentToken().GetIntegerValue();
-            GetChild(index); // just a check
+            int index = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
@@ -275,18 +284,13 @@ void TListNodeMixin::SetRecursive(
 
         case ListInsertToken:
             tokenizer.ParseNext();
-            beforeIndex = tokenizer.CurrentToken().GetIntegerValue();
-            GetChild(beforeIndex); // just a check
+            beforeIndex = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
             YASSERT(!tokenizer.ParseNext());
             break;
 
         case ETokenType::Integer:
-            beforeIndex = tokenizer.CurrentToken().GetIntegerValue();
-            GetChild(beforeIndex); // just a check
+            beforeIndex = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
             ++beforeIndex;
-            if (beforeIndex == GetChildCount()) {
-                beforeIndex = -1;
-            }
             tokenizer.ParseNext();
             YASSERT(tokenizer.GetCurrentType() == ListInsertToken);
             YASSERT(!tokenizer.ParseNext());

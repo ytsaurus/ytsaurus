@@ -22,11 +22,11 @@ TYPath INode::GetPath() const
     return GetResolver()->GetPath(const_cast<INode*>(this));
 }
 
-INodePtr IMapNode::GetChild(const Stroka& key) const
+INodePtr IMapNode::GetChild(const TStringBuf& key) const
 {
     auto child = FindChild(key);
     if (!child) {
-        ThrowNoSuchChildKey(this, key);
+        ThrowNoSuchChildKey(this, Stroka(key));
     }
     return child;
 }
@@ -38,6 +38,15 @@ INodePtr IListNode::GetChild(int index) const
         ThrowNoSuchChildIndex(this, index);
     }
     return child;
+}
+
+int IListNode::AdjustAndValidateChildIndex(int index) const
+{
+    int adjustedIndex = index >= 0 ? index : index + GetChildCount();
+    if (adjustedIndex < 0 || adjustedIndex > GetChildCount()) {
+        ThrowNoSuchChildIndex(this, index);
+    }
+    return adjustedIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

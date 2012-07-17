@@ -317,9 +317,6 @@ public:
 
     virtual INodePtr FindChild(int index) const
     {
-        if (index < 0) {
-            index += GetChildCount();
-        }
         return index >= 0 && index < IndexToChild.size() ? IndexToChild[index] : NULL;
     }
 
