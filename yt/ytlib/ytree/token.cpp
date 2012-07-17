@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "token.h"
 
-//#include <util/string/cast.h>
-
 namespace NYT {
 namespace NYTree {
 
@@ -154,10 +152,10 @@ void TToken::CheckType(ETokenType expectedType) const
 {
     if (Type_ != expectedType) {
         if (Type_ == ETokenType::EndOfStream) {
-            ythrow yexception() << Sprintf("Unexpected end of stream (token of type %s was expected)",
+            ythrow yexception() << Sprintf("Unexpected end of stream (ExpectedType: %s)",
                 ~expectedType.ToString());
         } else {
-            ythrow yexception() << Sprintf("Unexpected token (Token: %s, TokenType: %s, ExpectedType: %s)",
+            ythrow yexception() << Sprintf("Unexpected token (Token: %s, Type: %s, ExpectedType: %s)",
                 ~ToString().Quote(),
                 ~Type_.ToString(),
                 ~expectedType.ToString());
@@ -169,7 +167,7 @@ void TToken::CheckType(ETokenType expectedType) const
 
 void ThrowUnexpectedToken(const TToken& token)
 {
-    ythrow yexception() << Sprintf("Unexpected token (Token: %s, TokenType: %s)",
+    ythrow yexception() << Sprintf("Unexpected token (Token: %s, Type: %s)",
         ~token.ToString().Quote(),
         ~token.GetType().ToString());
 }
