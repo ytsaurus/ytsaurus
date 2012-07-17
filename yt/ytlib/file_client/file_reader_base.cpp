@@ -76,18 +76,19 @@ void TFileReaderBase::Open(
         BlockCount,
         Size);
 
-    // Take all blocks.
-    std::vector<int> blockIndexes;
-    blockIndexes.reserve(BlockCount);
+    // Read all blocks.
+    std::vector<TSequentialReader::TBlockInfo> blockSequence;
+    blockSequence.reserve(BlockCount);
     for (int index = 0; index < BlockCount; ++index) {
-        blockIndexes.push_back(index);
+        blockSequence.push_back(TSequentialReader::TBlockInfo(
+            index, 
+            blocksExt.blocks(index).size()));
     }
 
     SequentialReader = New<TSequentialReader>(
         Config->SequentialReader,
-        blockIndexes,
+        MoveRV(blockSequence),
         remoteReader,
-        blocksExt,
         ECodecId(miscExt.codec_id()));
 
     LOG_INFO("File reader opened");

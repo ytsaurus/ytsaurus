@@ -146,7 +146,6 @@ public:
 
         std::vector<int> tags;
         tags.reserve(10);
-        tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>::Value);
         tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TMiscExt>::Value);
         tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
@@ -292,10 +291,8 @@ private:
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
-            blockIndexSequence,
+            MoveRV(blockIndexSequence),
             AsyncReader,
-            GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(
-                result.Value().extensions()),
             ECodecId(miscExt.codec_id()));
 
         LOG_DEBUG("Reading blocks [%s]", ~JoinToString(blockIndexSequence));
@@ -357,7 +354,7 @@ private:
 
     void SelectOpeningBlocks(
         TChunkReaderPtr chunkReader,
-        std::vector<int>& result, 
+        std::vector<TSequentialReader::TBlockInfo>& result, 
         std::vector<TBlockInfo>& blockHeap) 
     {
         FOREACH (auto channelIdx, SelectedChannels) {
@@ -370,7 +367,6 @@ private:
                 YASSERT(blockIndex < static_cast<int>(protoChannel.blocks_size()));
                 const auto& protoBlock = protoChannel.blocks(blockIndex);
 
-
                 startRow = lastRow;
                 lastRow += protoBlock.row_count();
 
@@ -381,7 +377,9 @@ private:
                         channelIdx,
                         lastRow));
 
-                    result.push_back(protoBlock.block_index());
+                    result.push_back(TSequentialReader::TBlockInfo(
+                        protoBlock.block_index(), 
+                        protoBlock.block_size()));
                     StartRows.push_back(startRow);
                     break;
                 }
@@ -389,9 +387,9 @@ private:
         }
     }
 
-    std::vector<int> GetBlockReadSequence(TChunkReaderPtr chunkReader)
+    std::vector<TSequentialReader::TBlockInfo> GetBlockReadSequence(TChunkReaderPtr chunkReader)
     {
-        std::vector<int> result;
+        std::vector<TSequentialReader::TBlockInfo> result;
         std::vector<TBlockInfo> blockHeap;
 
         SelectOpeningBlocks(chunkReader, result, blockHeap);
@@ -427,7 +425,9 @@ private:
                     lastRow));
 
                 std::push_heap(blockHeap.begin(), blockHeap.end());
-                result.push_back(protoBlock.block_index());
+                result.push_back(TSequentialReader::TBlockInfo(
+                    protoBlock.block_index(), 
+                    protoBlock.block_size()));
                 break;
             }
         }
@@ -573,7 +573,6 @@ public:
 
         std::vector<int> tags;
         tags.reserve(10);
-        tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TBlocksExt>::Value);
         tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TMiscExt>::Value);
         tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
@@ -606,13 +605,16 @@ public:
 
         YASSERT(channelsExt.items_size() == 1);
 
-        std::vector<int> blockIndexSequence;
+        std::vector<TSequentialReader::TBlockInfo> blockSequence;
         {
             i64 rowCount = 0;
             for (int i = 0; i < channelsExt.items(0).blocks_size(); ++i) {
                 const auto& blockInfo = channelsExt.items(0).blocks(i);
                 if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
-                    blockIndexSequence.push_back(blockInfo.block_index());
+                    blockSequence.push_back(TSequentialReader::TBlockInfo(
+                        blockInfo.block_index(), 
+                        blockInfo.block_size()));
+
                     rowCount += blockInfo.row_count();
                 }
             }
@@ -620,7 +622,7 @@ public:
             chunkReader->EndRowIndex = rowCount;
         }
 
-        if (blockIndexSequence.empty()) {
+        if (blockSequence.empty()) {
             LOG_DEBUG("Nothing to read for partition %d", chunkReader->PartitionTag);
             chunkReader->Initializer.Reset();
             chunkReader->State.FinishOperation();
@@ -629,13 +631,12 @@ public:
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
-            blockIndexSequence,
+            MoveRV(blockSequence),
             AsyncReader,
-            GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(result.Value().extensions()),
             ECodecId(miscExt.codec_id()));
 
         LOG_DEBUG("Reading blocks [%s] for partition %d", 
-            ~JoinToString(blockIndexSequence),
+            ~JoinToString(blockSequence),
             chunkReader->PartitionTag);
 
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(

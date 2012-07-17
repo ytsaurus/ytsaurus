@@ -212,17 +212,18 @@ private:
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
             BlockCount = static_cast<int>(blocksExt.blocks_size());
-            std::vector<int> blockIndexes;
-            blockIndexes.reserve(BlockCount);
+            std::vector<TSequentialReader::TBlockInfo> blockSequence;
+            blockSequence.reserve(BlockCount);
             for (int index = 0; index < BlockCount; ++index) {
-                blockIndexes.push_back(index);
+                blockSequence.push_back(TSequentialReader::TBlockInfo(
+                    index, 
+                    blocksExt.blocks(index).size()));
             }
 
             SequentialReader = New<TSequentialReader>(
                 ~Owner->Config->CacheSequentialReader,
-                blockIndexes,
+                MoveRV(blockSequence),
                 ~RemoteReader,
-                blocksExt,
                 ECodecId::None);
 
             BlockIndex = 0;

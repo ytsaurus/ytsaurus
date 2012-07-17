@@ -25,13 +25,22 @@ class TSequentialReader
 public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
 
+    struct TBlockInfo
+    {
+        int Index;
+        int Size;
+
+        TBlockInfo(int index, int size)
+            : Index(Index)
+            , Size(size)
+        { }
+    };
+
     TSequentialReader(
         TSequentialReaderConfigPtr config,
         // ToDo: use move semantics
-        const std::vector<int>& blockIndexes,
+        std::vector<TBlockInfo>&& blocks,
         IAsyncReaderPtr chunkReader,
-        // ToDo: use move semantics
-        const NChunkHolder::NProto::TBlocksExt& blocksExt,
         ECodecId codecId);
 
     bool HasNext() const;
@@ -65,8 +74,7 @@ private:
         int blockIndex,
         const IAsyncReader::TReadResult& readResult);
 
-    const std::vector<int> BlockIndexSequence;
-    NChunkHolder::NProto::TBlocksExt BlocksExt;
+    const std::vector<TBlockInfo> BlockSequence;
 
     TSequentialReaderConfigPtr Config;
     IAsyncReaderPtr ChunkReader;

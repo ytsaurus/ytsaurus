@@ -124,7 +124,14 @@ void TPartitionChunkWriter::PrepareBlock(int partitionTag)
 
     ++CurrentBlockIndex;
 
-    EncodingWriter->WriteBlock(channelWriter->FlushBlock());
+    int size = 0;
+    auto blockParts(channelWriter->FlushBlock());
+    FOREACH(auto& part, blockParts) {
+        size += part.Size();
+    }
+    blockInfo->set_block_size(size);
+
+    EncodingWriter->WriteBlock(MoveRV(blockParts));
 }
 
 i64 TPartitionChunkWriter::GetMetaSize() const

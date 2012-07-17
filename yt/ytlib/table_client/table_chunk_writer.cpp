@@ -268,7 +268,14 @@ void TTableChunkWriter::PrepareBlock(int channelIndex)
 
     ++CurrentBlockIndex;
 
-    EncodingWriter->WriteBlock(channel->FlushBlock());
+    int size = 0;
+    auto blockParts(channel->FlushBlock());
+    FOREACH(auto& part, blockParts) {
+        size += part.Size();
+    }
+    blockInfo->set_block_size(size);
+
+    EncodingWriter->WriteBlock(MoveRV(blockParts));
 }
 
 TTableChunkWriter::~TTableChunkWriter()

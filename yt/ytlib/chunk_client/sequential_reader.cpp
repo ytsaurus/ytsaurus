@@ -16,12 +16,10 @@ static NLog::TLogger& Logger = ChunkReaderLogger;
 
 TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
-    const std::vector<int>& blockIndexes,
+    std::vector<TBlockInfo>&& blocks,
     IAsyncReaderPtr chunkReader,
-    const TBlocksExt& blocksExt,
     ECodecId codecId)
-    : BlockIndexSequence(blockIndexes)
-    , BlocksExt(blocksExt)
+    : BlockSequence(blocks)
     , Config(config)
     , ChunkReader(chunkReader)
     , AsyncSemaphore(config->WindowSize)
@@ -32,14 +30,13 @@ TSequentialReader::TSequentialReader(
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
 
     YASSERT(ChunkReader);
-    YASSERT(blockIndexes.size() > 0);
-    YASSERT(blockIndexes.size() <= BlocksExt.blocks_size());
+    YASSERT(blocks.size() > 0);
 
     LOG_DEBUG("Creating sequential reader (BlockCount: %d)", 
-        static_cast<int>(blockIndexes.size()));
+        static_cast<int>(blocks.size()));
 
-    BlockWindow.reserve(BlockIndexSequence.size());
-    for (int i = 0; i < BlockIndexSequence.size(); ++i) {
+    BlockWindow.reserve(BlockSequence.size());
+    for (int i = 0; i < BlockSequence.size(); ++i) {
         BlockWindow.push_back(NewPromise<TSharedRef>());
     }
 
@@ -158,10 +155,10 @@ void TSequentialReader::FetchNextGroup()
     auto firstUnfetched = NextUnfetchedIndex;
     std::vector<int> blockIndexes;
     int groupSize = 0;
-    while (groupSize < Config->GroupSize && NextUnfetchedIndex < BlockIndexSequence.size()) {
-        auto blockIndex = BlockIndexSequence[NextUnfetchedIndex];
-        blockIndexes.push_back(blockIndex);
-        groupSize += BlocksExt.blocks(blockIndex).size();
+    while (groupSize < Config->GroupSize && NextUnfetchedIndex < BlockSequence.size()) {
+        auto& blockInfo = BlockSequence[NextUnfetchedIndex];
+        blockIndexes.push_back(blockInfo.Index);
+        groupSize += blockInfo.Size;
         ++NextUnfetchedIndex;
     }
 
