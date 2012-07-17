@@ -20,7 +20,7 @@ class TTreeBuilder
     , public ITreeBuilder
 {
 public:
-    TTreeBuilder(INodeFactory* factory)
+    TTreeBuilder(INodeFactoryPtr factory)
         : Factory(factory)
     { }
 
@@ -117,7 +117,7 @@ public:
     }
 
 private:
-    INodeFactory* Factory;
+    INodeFactoryPtr Factory;
     //! Contains nodes forming the current path in the tree.
     std::stack<INodePtr> NodeStack;
     TNullable<Stroka> Key;
@@ -150,7 +150,7 @@ private:
     }
 };
 
-TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
+TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory)
 {
     return new TTreeBuilder(factory);
 }

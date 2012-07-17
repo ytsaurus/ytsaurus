@@ -450,9 +450,9 @@ public:
     }
 };
 
-INodeFactory* GetEphemeralNodeFactory()
+INodeFactoryPtr GetEphemeralNodeFactory()
 {
-    return ~RefCountedSingleton<TEphemeralNodeFactory>();
+    return RefCountedSingleton<TEphemeralNodeFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

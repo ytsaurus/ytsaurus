@@ -39,7 +39,7 @@ TYsonString ConvertToYsonString(
 template <class T>
 INodePtr ConvertToNode(
     const T& value,
-    INodeFactory* factory = GetEphemeralNodeFactory());
+    INodeFactoryPtr factory = GetEphemeralNodeFactory());
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -647,7 +647,7 @@ protected:
         if (!tokenizer.ParseNext()) {
             auto cypressManager = this->Bootstrap->GetCypressManager();
             ythrow yexception() << Sprintf("Node %s already exists",
-                GetPath());
+                ~this->GetPath());
         }
         tokenizer.CurrentToken().CheckType(NYTree::PathSeparatorToken);
         return NYTree::TYPath(tokenizer.GetCurrentSuffix());
@@ -696,7 +696,7 @@ protected:
         auto creativePath = this->GetCreativePath(context->GetPath());
 
         auto sourceProxy = this->ResolveSourcePath(sourcePath);
-        if (sourceProxy->GetId() == GetId()) {
+        if (sourceProxy->GetId() == this->GetId()) {
             ythrow yexception() << "Cannot copy a node to its child";
         }
 

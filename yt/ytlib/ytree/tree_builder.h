@@ -34,7 +34,7 @@ struct ITreeBuilder
 /*!
  *  \param factory A factory used for materializing the nodes.
  */
-TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory);
+TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
