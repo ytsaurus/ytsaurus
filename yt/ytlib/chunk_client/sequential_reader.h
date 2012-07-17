@@ -31,7 +31,7 @@ public:
         int Size;
 
         TBlockInfo(int index, int size)
-            : Index(Index)
+            : Index(index)
             , Size(size)
         { }
     };
