@@ -168,8 +168,7 @@ public:
 
         cypressManager->RegisterNode(
             Transaction,
-            clonedNode,
-            GetUserAttributes());
+            clonedNode);
 
         DoCloneTo(dynamic_cast<TImpl*>(clonedNode_));
 
@@ -282,7 +281,8 @@ protected:
 
         NYTree::TTokenizer tokenizer(context->GetPath());
         if (!tokenizer.ParseNext()) {
-            ythrow yexception() << "Node already exists";
+            ythrow yexception() << Sprintf("Node %s already exists",
+                ~this->GetPath());
         }
 
         ThrowVerbNotSuppored(this, context->GetVerb());
@@ -344,7 +344,19 @@ protected:
 
 
     virtual void DoCloneTo(TImpl* clonedNode)
-    { }
+    {
+        // Copy attributes directly to suppress validation.
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* attributes = GetUserAttributes();
+        NObjectServer::TAttributeSet* clonedAttributes = NULL;
+        FOREACH (const auto& key, attributes->List()) {
+            auto value = attributes->GetYson(key);
+            if (!clonedAttributes) {
+                clonedAttributes = objectManager->CreateAttributes(clonedNode->GetId());
+            }
+            YCHECK(clonedAttributes->Attributes().insert(std::make_pair(key, value)).second);
+        }
+    }
 
 
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes()
