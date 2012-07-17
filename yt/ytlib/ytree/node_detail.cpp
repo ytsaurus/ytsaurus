@@ -59,7 +59,7 @@ void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb)
         ~verb));
 }
 
-void ThrowNoChildren(IConstNodePtr node)
+void ThrowCannotHaveChildren(IConstNodePtr node)
 {
     ythrow yexception() << Sprintf("%s cannot have children",
         ~GetNodePathHelper(node));
@@ -113,7 +113,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 
 IYPathService::TResolveResult TNodeBase::ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb)
 {
-    ThrowNoChildren(this);
+    ThrowCannotHaveChildren(this);
     YUNREACHABLE();
 }
 

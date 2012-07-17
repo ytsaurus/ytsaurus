@@ -17,7 +17,7 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
 void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key);
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index);
 void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb);
-void ThrowNoChildren(IConstNodePtr node);
+void ThrowCannotHaveChildren(IConstNodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
