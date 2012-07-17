@@ -73,7 +73,7 @@ public:
                     ~rsp->GetError().ToString());
             }
             auto keys = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->keys()));
-            LOG_INFO("Found %d operations", keys.size());
+            LOG_INFO("Found %d operations", static_cast<int>(keys.size()));
 
             FOREACH (const auto& key, keys) {
                 operationIds.push_back(TOperationId::FromString(key));
