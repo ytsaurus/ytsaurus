@@ -46,8 +46,11 @@ struct TChunkWriterConfig
             .GreaterThan(0)
             .LessThan(1)
             .Default(0.2);
-        Register("encoding_writer", EncodingWriter).DefaultNew();
-        Register("strict", Strict).Default(false);
+        Register("encoding_writer", EncodingWriter)
+            .DefaultNew();
+        EncodingWriter->CodecId = ECodecId::Snappy;
+        Register("strict", Strict)
+            .Default(false);
     }
 };
 
@@ -105,8 +108,10 @@ struct TChunkSequenceReaderConfig
 
     TChunkSequenceReaderConfig()
     {
-        Register("remote_reader", RemoteReader).DefaultNew();
-        Register("sequential_reader", SequentialReader).DefaultNew();
+        Register("remote_reader", RemoteReader)
+            .DefaultNew();
+        Register("sequential_reader", SequentialReader)
+            .DefaultNew();
         Register("prefetch_window", PrefetchWindow)
             .GreaterThan(0)
             .LessThanOrEqual(1000)
