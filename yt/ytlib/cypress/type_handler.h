@@ -1,22 +1,14 @@
 #pragma once
 
-#include <ytlib/cypress_client/id.h>
-#include <ytlib/cypress_client/cypress_ypath.pb.h>
+#include "public.h"
+
 #include <ytlib/rpc/service.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/transaction_server/public.h>
+#include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 namespace NYT {
 namespace NCypress {
-
-using NCypressClient::TNodeId;
-using NCypressClient::ELockMode;
-using NCypressClient::TVersionedNodeId;
-
-using NObjectServer::EObjectType;
-
-struct ICypressNode;
-struct ICypressNodeProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
