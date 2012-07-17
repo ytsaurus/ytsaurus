@@ -72,13 +72,13 @@ class TTransactedExecutor
     : public TExecutor
 {
 public:
-    TTransactedExecutor(bool required = false);
+    explicit TTransactedExecutor(bool required = false);
 
 protected:
     TCLAP::ValueArg<Stroka> TxArg;
     TCLAP::SwitchArg PingAncestorTxsArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

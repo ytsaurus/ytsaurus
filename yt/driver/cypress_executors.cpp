@@ -175,5 +175,61 @@ Stroka TLockExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCopyExecutor::TCopyExecutor()
+    : TTransactedExecutor(false)
+    , SourcePathArg("src_path", "path to a source object in Cypress", true, "", "YPATH")
+    , DestinationPathArg("dst_path", "destination path in Cypress", true, "", "YPATH")
+{
+    CmdLine.add(SourcePathArg);
+    CmdLine.add(DestinationPathArg);
+}
+
+void TCopyExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto sourcePath = PreprocessYPath(SourcePathArg.getValue());
+    auto destinationPath = PreprocessYPath(DestinationPathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("source_path").Scalar(sourcePath)
+        .Item("destination_path").Scalar(destinationPath);
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TCopyExecutor::GetCommandName() const
+{
+    return "copy";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMoveExecutor::TMoveExecutor()
+    : TTransactedExecutor(false)
+    , SourcePathArg("src_path", "path to a source object in Cypress", true, "", "YPATH")
+    , DestinationPathArg("dst_path", "destination path in Cypress", true, "", "YPATH")
+{
+    CmdLine.add(SourcePathArg);
+    CmdLine.add(DestinationPathArg);
+}
+
+void TMoveExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto sourcePath = PreprocessYPath(SourcePathArg.getValue());
+    auto destinationPath = PreprocessYPath(DestinationPathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("source_path").Scalar(sourcePath)
+        .Item("destination_path").Scalar(destinationPath);
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TMoveExecutor::GetCommandName() const
+{
+    return "move";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

@@ -1,9 +1,9 @@
 #pragma once
 
 #include "id.h"
-#include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <ytlib/object_server/object_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 namespace NYT {
 namespace NCypressClient {
@@ -23,6 +23,8 @@ struct TCypressYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, Create);
     DEFINE_YPATH_PROXY_METHOD(NProto, Lock);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Copy);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Move);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

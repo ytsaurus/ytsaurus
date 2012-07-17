@@ -39,23 +39,6 @@ static NLog::TLogger& Logger = DriverLogger;
 
 /////////////////////////////////////////////////////////////////////////////
 
-void SigPipeHandler(int signum)
-{
-    UNUSED(signum);
-    static volatile sig_atomic_t handling_in_progress = 0;
-    if (handling_in_progress == 0) {
-        handling_in_progress = 1;
-
-        // TODO: refactor system shutdown
-        // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
-        NLog::TLogManager::Get()->Shutdown();
-        NBus::TTcpDispatcher::Get()->Shutdown();
-        NProfiling::TProfilingManager::Get()->Shutdown();
-        TDelayedInvoker::Shutdown();
-        exit(0);
-    }
-}
-
 class TDriverProgram
 {
 public:
@@ -73,6 +56,8 @@ public:
         RegisterExecutor(New<TListExecutor>());
         RegisterExecutor(New<TCreateExecutor>());
         RegisterExecutor(New<TLockExecutor>());
+        RegisterExecutor(New<TCopyExecutor>());
+        RegisterExecutor(New<TMoveExecutor>());
 
         RegisterExecutor(New<TDownloadExecutor>());
         RegisterExecutor(New<TUploadExecutor>());
@@ -94,19 +79,8 @@ public:
         NYT::SetupErrorHandler();
         NYT::NThread::SetCurrentThreadName("Driver");
 
-        // set handler for SIGPIPE
-#ifdef _unix_
-        // Set mask.
-        sigset_t sigset;
-        SigEmptySet(&sigset);
-        SigAddSet(&sigset, SIGPIPE);
-        SigProcMask(SIG_UNBLOCK, &sigset, NULL);
-
-        // Set handler.
-        struct sigaction newAction;
-        newAction.sa_handler = SigPipeHandler;
-        sigaction(SIGPIPE, &newAction, NULL);
-#endif
+        // Set handler for SIGPIPE.
+        SetupSignalHandler();
 
         try {
             if (argc < 2) {
@@ -158,6 +132,39 @@ public:
 private:
     int ExitCode;
     yhash_map<Stroka, TExecutorPtr> Executors;
+
+    void SetupSignalHandler()
+    {
+#ifdef _unix_
+        // Set mask.
+        sigset_t sigset;
+        SigEmptySet(&sigset);
+        SigAddSet(&sigset, SIGPIPE);
+        SigProcMask(SIG_UNBLOCK, &sigset, NULL);
+
+        // Set handler.
+        struct sigaction newAction;
+        newAction.sa_handler = SigPipeHandler;
+        sigaction(SIGPIPE, &newAction, NULL);
+#endif
+    }
+
+    static void SigPipeHandler(int signum)
+    {
+        UNUSED(signum);
+
+        static volatile sig_atomic_t inProgress = 0;
+        if (inProgress == 0) {
+            inProgress = 1;
+            // TODO: refactor system shutdown
+            // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
+            NLog::TLogManager::Get()->Shutdown();
+            NBus::TTcpDispatcher::Get()->Shutdown();
+            NProfiling::TProfilingManager::Get()->Shutdown();
+            TDelayedInvoker::Shutdown();
+            exit(0);
+        }
+    }
 
     void PrintAllCommands()
     {

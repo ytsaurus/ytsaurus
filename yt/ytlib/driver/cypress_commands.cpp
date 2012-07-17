@@ -104,14 +104,15 @@ void TCreateCommand::DoExecute()
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-        auto consumer = Context->CreateOutputConsumer();
-        auto nodeId = TNodeId::FromProto(rsp->object_id());
-        BuildYsonFluently(~consumer)
-            .Scalar(nodeId.ToString());
-    } else {
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
+        return;
     }
+
+    auto consumer = Context->CreateOutputConsumer();
+    auto nodeId = TNodeId::FromProto(rsp->object_id());
+    BuildYsonFluently(~consumer)
+        .Scalar(nodeId.ToString());
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -126,6 +127,46 @@ void TLockCommand::DoExecute()
     req->set_mode(Request->Mode);
 
     req->Attributes().MergeFrom(Request->GetOptions());
+    auto rsp = proxy.Execute(req).Get();
+
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCopyCommand::DoExecute()
+{
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TCypressYPathProxy::Copy(WithTransaction(
+        Request->DestinationPath,
+        GetTransactionId(false)));
+    req->set_source_path(Request->SourcePath);
+
+    auto rsp = proxy.Execute(req).Get();
+
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
+        return;
+    }
+
+    auto consumer = Context->CreateOutputConsumer();
+    auto nodeId = TNodeId::FromProto(rsp->object_id());
+    BuildYsonFluently(~consumer)
+        .Scalar(nodeId.ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMoveCommand::DoExecute()
+{
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TCypressYPathProxy::Move(WithTransaction(
+        Request->DestinationPath,
+        GetTransactionId(false)));
+    req->set_source_path(Request->SourcePath);
+
     auto rsp = proxy.Execute(req).Get();
 
     if (!rsp->IsOK()) {

@@ -34,7 +34,7 @@ public:
    { }
 
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() OVERRIDE;
 
 };
 
@@ -44,7 +44,7 @@ struct TSetRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    // Note: Value is passed via StdIn
+    // Note: Value is passed input stream.
 
     TSetRequest()
     {
@@ -64,7 +64,8 @@ public:
     { }
 
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() OVERRIDE;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +93,8 @@ public:
     { }
 
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() OVERRIDE;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +122,8 @@ public:
     { }
 
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() OVERRIDE;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,7 +153,7 @@ public:
    { }
 
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() OVERRIDE;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,11 +184,73 @@ public:
     { }
 
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() OVERRIDE;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCopyRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath SourcePath;
+    NYTree::TYPath DestinationPath;
+
+    TCopyRequest()
+    {
+        Register("source_path", SourcePath);
+        Register("destination_path", DestinationPath);
+    }
+};
+
+typedef TIntrusivePtr<TCopyRequest> TCopyRequestPtr;
+
+class TCopyCommand
+    : public TTransactedCommandBase<TCopyRequest>
+{
+public:
+    explicit TCopyCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
+    { }
+
+private:
+    virtual void DoExecute() OVERRIDE;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMoveRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath SourcePath;
+    NYTree::TYPath DestinationPath;
+
+    TMoveRequest()
+    {
+        Register("source_path", SourcePath);
+        Register("destination_path", DestinationPath);
+    }
+};
+
+typedef TIntrusivePtr<TMoveRequest> TMoveRequestPtr;
+
+class TMoveCommand
+    : public TTransactedCommandBase<TMoveRequest>
+{
+public:
+    explicit TMoveCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
+    { }
+
+private:
+    virtual void DoExecute() OVERRIDE;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver
 } // namespace NYT
