@@ -237,7 +237,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
 
     TProxy proxy(ChannelCache.GetChannel(address));
     auto putRequest = proxy.PutBlocks()
-        ->SetTimeout(Config->HolderRpcTimeout);
+        ->SetTimeout(Config->NodeRpcTimeout);
     *putRequest->mutable_chunk_id() = chunkId.ToProto();
     putRequest->set_start_block_index(startBlockIndex);
     

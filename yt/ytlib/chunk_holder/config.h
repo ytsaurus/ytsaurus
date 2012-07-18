@@ -93,7 +93,7 @@ struct TChunkHolderConfig
     TDuration SessionTimeout;
     
     //! Timeout for "PutBlock" requests to other holders.
-    TDuration HolderRpcTimeout;
+    TDuration NodeRpcTimeout;
 
     //! Period between peer updates (see TPeerBlockUpdater).
     TDuration PeerUpdatePeriod;
@@ -143,8 +143,8 @@ struct TChunkHolderConfig
             .Default(10);
         Register("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(30));
-        Register("holder_rpc_timeout", HolderRpcTimeout)
-            .Default(TDuration::Seconds(15));
+        Register("noder_rpc_timeout", NodeRpcTimeout)
+            .Default(TDuration::Seconds(60));
         Register("peer_update_period", PeerUpdatePeriod)
             .Default(TDuration::Seconds(30));
         Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)

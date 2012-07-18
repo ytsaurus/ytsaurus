@@ -14,7 +14,7 @@ struct TRemoteReaderConfig
     : public TYsonSerializable
 {
     //! Timeout for a block request.
-    TDuration RpcTimeout;
+    TDuration NodeRpcTimeout;
 
     //! Time to wait before asking the master for seeds.
     TDuration RetryBackoffTime;
@@ -42,8 +42,8 @@ struct TRemoteReaderConfig
 
     TRemoteReaderConfig()
     {
-        Register("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(30));
+        Register("node_rpc_timeout", NodeRpcTimeout)
+            .Default(TDuration::Seconds(60));
         Register("retry_backoff_time", RetryBackoffTime)
             .Default(TDuration::Seconds(3));
         Register("retry_count", RetryCount)
@@ -123,13 +123,13 @@ struct TRemoteWriterConfig
      *  This timeout is especially useful for PutBlocks calls to ensure that
      *  uploading is not stalled.
      */
-    TDuration RpcTimeout;
+    TDuration NodeRpcTimeout;
 
     //! Maximum allowed period of time without RPC requests to holders.
     /*!
      *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
      */
-    TDuration PingInterval;
+    TDuration NodePingInterval;
 
     TRemoteWriterConfig()
     {
@@ -139,9 +139,9 @@ struct TRemoteWriterConfig
         Register("group_size", GroupSize)
             .Default(1024 * 1024)
             .GreaterThan(0);
-        Register("rpc_timeout", RpcTimeout)
+        Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(30));
-        Register("ping_interval", PingInterval)
+        Register("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
     }
 

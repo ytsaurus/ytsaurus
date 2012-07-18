@@ -553,11 +553,11 @@ TRemoteWriter::TImpl::TImpl(
     for (int index = 0; index < static_cast<int>(addresses.size()); ++index) {
         auto address = addresses[index];
         auto node = New<TNode>(index, address);
-        node->Proxy.SetDefaultTimeout(Config->RpcTimeout);
+        node->Proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
             WriterThread->GetInvoker(),
             BIND(&TRemoteWriter::TImpl::SendPing, MakeWeak(this), node),
-            Config->PingInterval);
+            Config->NodePingInterval);
         Nodes.push_back(node);
     }
 }
