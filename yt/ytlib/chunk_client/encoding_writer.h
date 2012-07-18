@@ -42,17 +42,14 @@ private:
 
     TAsyncStreamState State;
 
-    TLockFreeQueue<TClosure> CompressionTasks;
     std::deque<TSharedRef> PendingBlocks;
 
-    TClosure CompressNext;
     TCallback<void(TError)> WritePending;
 
 
     void WritePendingBlocks(TError error);
     void ProcessCompressedBlock(const TSharedRef& block, int delta);
 
-    void Compress();
     void DoCompressBlock(const TSharedRef& block);
     void DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock);
 

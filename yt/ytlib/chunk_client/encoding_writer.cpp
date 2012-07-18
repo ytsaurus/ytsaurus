@@ -22,7 +22,6 @@ TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPt
     , UncompressedSize_(0)
     , CompressedSize_(0)
     , CompressionRatio_(config->DefaultCompressionRatio)
-    , CompressNext(BIND(&TEncodingWriter::Compress, MakeWeak(this)).Via(WriterThread->GetInvoker()))
     , WritePending(
         BIND(
             &TEncodingWriter::WritePendingBlocks, 
@@ -33,16 +32,10 @@ TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPt
 void TEncodingWriter::WriteBlock(const TSharedRef& block)
 {
     Semaphore.Acquire(block.Size());
-    auto invokeCompression = CompressionTasks.IsEmpty();
-
-    CompressionTasks.Enqueue(BIND(
+    WriterThread->GetInvoker()->Invoke(BIND(
         &TEncodingWriter::DoCompressBlock, 
         MakeStrong(this),
         block));
-
-    if (invokeCompression) {
-        CompressNext.Run();
-    }
 }
 
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
@@ -51,27 +44,10 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
         Semaphore.Acquire(part.Size());
     }
 
-    auto invokeCompression = CompressionTasks.IsEmpty();
-
-    CompressionTasks.Enqueue(BIND(
+    WriterThread->GetInvoker()->Invoke(BIND(
         &TEncodingWriter::DoCompressVector, 
         MakeWeak(this),
         MoveRV(vectorizedBlock)));
-
-    if (invokeCompression) {
-        CompressNext.Run();
-    }
-}
-
-void TEncodingWriter::Compress()
-{
-    TClosure task;
-    if (CompressionTasks.Dequeue(&task)) {
-        task.Run();
-        if (!CompressionTasks.IsEmpty()) {
-            CompressNext.Run();
-        }
-    }
 }
 
 void TEncodingWriter::DoCompressBlock(const TSharedRef& block)

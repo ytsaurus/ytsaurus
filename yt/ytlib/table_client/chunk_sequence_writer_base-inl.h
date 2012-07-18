@@ -241,7 +241,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
             finishResult));
 
     } else {
-        LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
+        LOG_DEBUG("Cancelling empty chunk (ChunkId: %s)",
             ~CurrentSession.RemoteWriter->GetChunkId().ToString());
     }
 
