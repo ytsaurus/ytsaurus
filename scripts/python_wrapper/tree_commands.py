@@ -10,6 +10,9 @@ def get(path, check_errors=True):
 def set(path, value):
     return make_request("PUT", "set", dict(path=path), value)
 
+def copy(source_path, destination_path):
+    return make_request("GET", "copy", locals())
+
 def list(path, check_existance=True, quoted=True):
     if check_existance and not exists(path):
         return []

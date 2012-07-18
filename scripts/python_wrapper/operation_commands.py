@@ -89,6 +89,7 @@ def wait_operation(operation, timeout=None, print_progress=True):
                     if get_operation_state(operation).is_final():
                         break
                     abort_operation(operation)
+                    sleep(timeout)
                 except KeyboardInterrupt:
                     pass
         raise

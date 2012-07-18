@@ -2,7 +2,7 @@ import config
 from common import flatten, require, YtError, parse_bool, add_quotes, union, unlist
 from http import make_request
 from table import get_yson_name, to_table
-from tree_commands import exists, remove, get_attribute, set
+from tree_commands import exists, remove, get_attribute, set, copy
 from file_commands import upload_file
 from operation_commands import \
         get_operation_stderr, get_operation_result, get_jobs_errors
@@ -101,11 +101,14 @@ def read_table(table, format=None):
     response = make_request("GET", "read",
                             {"path": get_yson_name(table)}, format=format,
                             raw_response=True)
-    return imap(add_eoln, ifilter(bool, response.iter_lines()))
+    return imap(add_eoln, ifilter(bool, response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)))
 
 def remove_table(table):
     if exists(table) and get_attribute(table, "type") == "table":
         remove(table)
+
+#def copy_table(source_table, destination_table):
+#    copy(source_table, destination_table)
 
 def copy_table(source_table, destination_table, strategy=None):
     mode = "sorted" if all(map(is_sorted, flatten(source_table))) else "ordered"
@@ -126,8 +129,13 @@ def is_sorted(table):
 def sort_table(table, destination_table=None, columns=None, strategy=None, spec=None):
     # TODO(ignat): support list of input tables
     if strategy is None: strategy = config.DEFAULT_STRATEGY
-    if columns is None: columns= ["key", "subkey"]
     if spec is None: spec = {}
+    if columns is None:
+        require(hasattr(config.DEFAULT_FORMAT, "has_subkey"),
+                YtError("You must pass columns parameter to sort operation"))
+        columns= ["key"]
+        if config.DEFAULT_FORMAT.has_subkey:
+            columns.append("subkey")
 
     table = flatten(table)
     if destination_table is None:
@@ -225,7 +233,7 @@ def run_operation(binary, source_table, destination_table,
             {"input_table_paths": map(get_yson_name, source_table),
              "output_table_paths": map(get_yson_name, destination_table),
              op_key[op_type]: operation_descr})})
-    operation = add_quotes(make_request("POST", op_type, None, params, verbose=True))
+    operation = add_quotes(make_request("POST", op_type, None, params))
     strategy.process_operation(op_type, operation)
 
 def run_map(binary, source_table, destination_table,

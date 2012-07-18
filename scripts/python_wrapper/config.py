@@ -2,6 +2,7 @@ from format import YamrFormat
 
 WAIT_TIMEOUT = 2.0
 WRITE_BUFFER_SIZE = 10 ** 8
+READ_BUFFER_SIZE = 10 ** 8
 FILE_STORAGE = "//home/files"
 TEMP_TABLES_STORAGE = "//tmp"
 DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)

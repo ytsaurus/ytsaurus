@@ -16,8 +16,8 @@ std::string generate(int len) {
 
 int main(int argc, char** argv) {
     std::ios_base::sync_with_stdio(0);
-    if (argc != 2) {
-        std::cerr << "You should pas number of records to generate" << std::endl;
+    if (argc != 3) {
+        std::cerr << "You should pas number of records to generate and format" << std::endl;
         return 1;
     }
     
@@ -37,6 +37,7 @@ int main(int argc, char** argv) {
     symbols.push_back('_');
 
     int seed;
+    std::cin.ignore(2); // "k="
     std::cin >> seed;
     while (std::cin) {
         std::cin.ignore(1000);
@@ -44,7 +45,16 @@ int main(int argc, char** argv) {
     srand(seed);
 
     for (int i = 0; i < len; ++i) {
-        std::cout << generate(10) << "\t\t" << generate(90) << "\n";
+        if (std::string(argv[2]) == "yt") {
+            std::cout << "k=" << generate(10) << "\tv=" << generate(90) << "\n";
+        }
+        else if (std::string(argv[2]) == "mapreduce") {
+            std::cout << generate(10) << "\t" << generate(90) << "\n";
+        }
+        else {
+            std::cerr << "Wrong format " << argv[2];
+            return 1;
+        }
     }
 
     return 0;

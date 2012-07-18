@@ -6,10 +6,11 @@ HOSTS=85
 THREADCOUNT=12
 JOBCOUNT=`echo "$HOSTS * $THREADCOUNT" | bc`
 
-MAPREDUCE="../mapreduce -server w301.hdp.yandex.net:8013 -jobcount $JOBCOUNT -threadcount $THREADCOUNT -subkey"
+MAPREDUCE="../mapreduce -server w301.hdp.yandex.net:8013 -jobcount $JOBCOUNT -threadcount $THREADCOUNT -subkey -chunksize 134217728"
 
 TEMP_TABLE="ignat/temp_table"
-DATA_TABLE="ignat/random_texts"
+#DATA_TABLE="ignat/random_texts"
+DATA_TABLE="synth/wordcount/words.100GB"
 WORD_COUNT_TABLE="ignat/word_count"
 PMI_TABLE="ignat/pmi"
 
@@ -28,8 +29,8 @@ do
     echo -e "$i\t\t" >> input
 done
 
-time $MAPREDUCE -write "$TEMP_TABLE" <input
-time $MAPREDUCE -map "PYTHONPATH=. ./map.py dict $RECORD_PER_JOB $WORDS_IN_RECORD" -src "$TEMP_TABLE" -dst "$DATA_TABLE" -file "dict" -file "./prepare_data/map.py" -file "./prepare_data/dictionary.py" -opt cpu.intensive.mode=1
+#time $MAPREDUCE -write "$TEMP_TABLE" <input
+#time $MAPREDUCE -map "PYTHONPATH=. ./map.py dict $RECORD_PER_JOB $WORDS_IN_RECORD" -src "$TEMP_TABLE" -dst "$DATA_TABLE" -file "dict" -file "./prepare_data/map.py" -file "./prepare_data/dictionary.py" -opt cpu.intensive.mode=1
 
 time $MAPREDUCE -map "./split.py" -src "$DATA_TABLE" -dst "$TEMP_TABLE" -file "count_wc/split.py"
 time $MAPREDUCE -reduce "./collect.py" -src "$TEMP_TABLE" -dst "$WORD_COUNT_TABLE" -file "count_wc/collect.py"

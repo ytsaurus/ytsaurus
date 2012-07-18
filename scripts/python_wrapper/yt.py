@@ -17,19 +17,9 @@ if __name__ == "__main__":
     table = "//home/ignat/temp"
     other_table = "//home/ignat/temp2"
 
-    counter = 0
-    for line in read_table('//statbox/access-log/"2012-07-04"', format=DsvFormat()):
-        print line
-        print
-        counter += 1
-        if counter == 2: break
-
     set("//home/files", "{}")
 
     print "LIST", to_list(list("//home"))
-
-    print "GET"
-    get(table)
 
     print "REMOVE"
     remove(table)
@@ -61,4 +51,3 @@ if __name__ == "__main__":
     print "REDUCE"
     run_reduce("./cpp_bin", other_table, table, files=["tests/cpp_bin"])
     print to_list(read_table(table))
-

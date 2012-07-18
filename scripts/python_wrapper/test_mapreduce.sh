@@ -33,6 +33,7 @@ if __name__ == '__main__':
     for descr in range(3, 6):
         os.write(descr, '{0}\\\t{0}\\\t{0}\\\n'.format(descr))
 " >many_output_mapreduce.py
+chmod +x many_output_mapreduce.py
 
 ./mapreduce -map "./many_output_mapreduce.py" -src "ignat/temp" -dst "ignat/out1" -dst "ignat/out2" -dst "ignat/out3" -file "many_output_mapreduce.py"
 for (( i=1 ; i <= 3 ; i++ )); do
