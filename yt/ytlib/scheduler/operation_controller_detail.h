@@ -352,9 +352,6 @@ protected:
     virtual std::vector<NYTree::TYPath> GetFilePaths();
 
 
-    //! Contains large sentinel values.
-    NProto::TNodeResources InfiniteResources;
-
     //! Minimum resources that are needed to start any task.
     virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
 

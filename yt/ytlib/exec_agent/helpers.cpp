@@ -68,6 +68,24 @@ void BuildNodeResourcesYson(
         .Item("memory").Scalar(resources.memory());
 }
 
+TNodeResources ZeroResources()
+{
+    TNodeResources result;
+    result.set_slots(0);
+    result.set_cores(0);
+    result.set_memory(0);
+    return result;
+}
+
+TNodeResources InfiniteResources()
+{
+    TNodeResources result;
+    result.set_slots(1000);
+    result.set_cores(1000);
+    result.set_memory((i64) 1024 * 1024 * 1024 * 1024);
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

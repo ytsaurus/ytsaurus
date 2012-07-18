@@ -373,7 +373,7 @@ protected:
 
     virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
     {
-        return MergeTasks.empty() ? InfiniteResources : MergeTasks[0]->GetRequestedResources();
+        return MergeTasks.empty() ? InfiniteResources() : MergeTasks[0]->GetRequestedResources();
     }
 
     virtual NProto::TNodeResources GetRequestedResources() const

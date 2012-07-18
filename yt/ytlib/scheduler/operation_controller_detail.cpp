@@ -241,10 +241,6 @@ TOperationControllerBase::TOperationControllerBase(
     , FailedJobCount(0)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
-
-    InfiniteResources.set_slots(1000);
-    InfiniteResources.set_cores(1000);
-    InfiniteResources.set_memory((i64) 1024 * 1024 * 1024 * 1024);
 }
 
 void TOperationControllerBase::Initialize()

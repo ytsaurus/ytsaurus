@@ -91,10 +91,7 @@ TNodeResources TJobManager::GetResourceLimits()
 
 TNodeResources TJobManager::GetResourceUtilization()
 {
-    TNodeResources totalUtilization;
-    totalUtilization.set_slots(0);
-    totalUtilization.set_cores(0);
-    totalUtilization.set_memory(0);
+    auto totalUtilization = ZeroResources();
     FOREACH (const auto& pair, Jobs) {
         auto jobUtilization = pair.second->GetResourceUtilization();
         totalUtilization.set_slots(totalUtilization.slots() + jobUtilization.slots());

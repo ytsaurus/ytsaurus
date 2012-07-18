@@ -323,7 +323,7 @@ TNodeResources TJob::GetResourceUtilization() const
         JobState != EJobState::Aborting)
     {
         // Completed jobs have zero utilization.
-        return TNodeResources();
+        return ZeroResources();
     }
 
     // Report what we have received from the scheduler.

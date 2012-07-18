@@ -7,13 +7,20 @@
 #include "samples_fetcher.h"
 
 #include <ytlib/misc/string.h>
+
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
+
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
 #include <ytlib/job_proxy/config.h>
+
 #include <ytlib/transaction_client/transaction.h>
+
+#include <ytlib/exec_agent/helpers.h>
 
 #include <cmath>
 
@@ -25,10 +32,9 @@ using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectServer;
+using namespace NExecAgent;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
-using NTableClient::ToString;
-using ::ToString;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -964,6 +970,9 @@ private:
 
     void AddPartition(const NTableClient::NProto::TKey& key)
     {
+        using NTableClient::ToString;
+        using ::ToString;
+
         int index = static_cast<int>(Partitions.size());
         LOG_DEBUG("Partition %d has starting key %s",
             index,
@@ -1085,7 +1094,7 @@ private:
         if (!Partitions.empty()) {
             return Partitions[0]->SortTask->GetRequestedResources();
         }
-        return InfiniteResources;
+        return InfiniteResources();
     }
 
 

@@ -32,6 +32,9 @@ void BuildNodeResourcesYson(
     const NScheduler::NProto::TNodeResources& resources,
     NYTree::IYsonConsumer* consumer);
 
+NScheduler::NProto::TNodeResources ZeroResources();
+NScheduler::NProto::TNodeResources InfiniteResources();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

@@ -211,7 +211,7 @@ private:
 
     virtual NProto::TNodeResources GetMinRequestedResources() const
     {
-        return MapTask ? MapTask->GetRequestedResources() : InfiniteResources;   
+        return MapTask ? MapTask->GetRequestedResources() : InfiniteResources();
     }
 
 
