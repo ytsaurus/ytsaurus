@@ -352,7 +352,8 @@ private:
                 // TODO(babenko): magic number
                 Controller->Spec->MaxWeightPerSortJob * 3 +
                 (i64) 512 * 1024 * 1024;
-            if (Controller->Partitions.size() == 1) {
+            // TODO(babenko): fix this once partition sort is ready
+            if (true /*(Controller->Partitions.size() == 1*/) {
                 // Simple sort.
                 memory +=
                     (i64) 16 * Controller->Spec->KeyColumns.size() * rowCountPerJob +
