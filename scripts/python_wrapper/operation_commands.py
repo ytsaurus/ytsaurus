@@ -46,7 +46,7 @@ def get_operation_stderr(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     jobs = list(operation_path + "/jobs")
     stderr_paths = ("%s/jobs/%s/stderr" % (operation_path, job) for job in jobs)
-    return "\n\n".join(download_file(path)
+    return "\n\n".join("".join(download_file(path))
                        for path in stderr_paths
                        if exists(path, hint=os.path.dirname(path)))
 

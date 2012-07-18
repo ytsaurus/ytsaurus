@@ -1,6 +1,6 @@
+import collections
 import copy
 import types
-
 
 class YtError(Exception):
     pass
@@ -27,10 +27,14 @@ def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
     else:
         return [obj]
 
-def union(dictA, dictB):
-    result = copy.deepcopy(dictA)
-    result.update(dictB)
-    return result
+def update(d, u):
+    for k, v in u.iteritems():
+        if isinstance(v, collections.Mapping):
+            r = update(d.get(k, {}), v)
+            d[k] = r
+        else:
+            d[k] = u[k]
+    return d
 
 def require(condition, exception):
     if not condition: raise exception

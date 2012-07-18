@@ -1,5 +1,5 @@
 import config
-from common import flatten, require, YtError, parse_bool, add_quotes, union, unlist
+from common import flatten, require, YtError, parse_bool, add_quotes, unlist, update
 from http import make_request
 from table import get_yson_name, to_table
 from tree_commands import exists, remove, get_attribute, set, copy
@@ -72,7 +72,8 @@ def create_table(path, make_it_empty=True):
             _recursive_set_dict(dirname)
         make_request("POST", "create", {"path": path, "type": "table"})
 
-def create_temp_table(path, prefix=None):
+def create_temp_table(path=None, prefix=None):
+    if path is None: path = config.TEMP_TABLES_STORAGE
     require(exists(path), YtError("You cannot create table in unexisting path"))
     # TODO(ignat): move it to configs?
     LENGTH = 10
@@ -112,11 +113,11 @@ def remove_table(table):
 
 def copy_table(source_table, destination_table, strategy=None):
     mode = "sorted" if all(map(is_sorted, flatten(source_table))) else "ordered"
-    merge_tables(source_table, destination_table, mode)
+    merge_tables(source_table, destination_table, mode, strategy=strategy)
 
-def move_table(source_table, destination_table):
-    copy_table(source_table, destination_table)
-    remove(source_table)
+def move_table(source_table, destination_table, strategy=None):
+    copy_table(source_table, destination_table, strategy=strategy)
+    remove_table(source_table)
 
 def records_count(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
@@ -127,7 +128,6 @@ def is_sorted(table):
     return parse_bool(get_attribute(table, "sorted"))
 
 def sort_table(table, destination_table=None, columns=None, strategy=None, spec=None):
-    # TODO(ignat): support list of input tables
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if spec is None: spec = {}
     if columns is None:
@@ -155,7 +155,7 @@ def sort_table(table, destination_table=None, columns=None, strategy=None, spec=
         output_table = destination_table.name
         create_table(output_table, not destination_table.append)
     params = json.dumps(
-        {"spec": union(spec,
+        {"spec": update(spec,
             {"input_table_paths": flatten(table),
              "output_table_path": output_table,
              "key_columns": columns})})
@@ -175,7 +175,7 @@ def merge_tables(source_table, destination_table, mode, strategy=None, spec=None
                  make_it_empty=not destination_table.append)
 
     params = json.dumps(
-        {"spec": union(spec,
+        {"spec": update(spec,
             {"input_table_paths": source_table,
              "output_table_path": destination_table.name,
              "mode": mode})})
@@ -186,7 +186,7 @@ def merge_tables(source_table, destination_table, mode, strategy=None, spec=None
 """ Map and reduce methods """
 def run_operation(binary, source_table, destination_table,
                   files, format, strategy, spec, op_type,
-                  columns=None, replace_files=True):
+                  columns=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if format is None: format = config.DEFAULT_FORMAT
     if columns is None: columns = "key"
@@ -196,7 +196,7 @@ def run_operation(binary, source_table, destination_table,
 
     file_paths = []
     for file in files:
-       file_paths.append(upload_file(file, replace=True))
+       file_paths.append(upload_file(file, replace=config.REPLACE_FILES_IN_OPERATION))
 
     source_table = map(to_table, flatten(source_table))
     if config.MERGE_SRC_TABLES_BEFORE_OPERATION and len(source_table) > 1:
@@ -229,7 +229,7 @@ def run_operation(binary, source_table, destination_table,
         operation_descr.update({"key_columns": columns})
 
     params = json.dumps(
-        {"spec": union(spec,
+        {"spec": update(spec,
             {"input_table_paths": map(get_yson_name, source_table),
              "output_table_paths": map(get_yson_name, destination_table),
              op_key[op_type]: operation_descr})})

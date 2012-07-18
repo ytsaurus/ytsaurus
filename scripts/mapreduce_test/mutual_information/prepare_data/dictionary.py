@@ -20,15 +20,18 @@ class Dictionary(object):
                       for _2 in xrange(word_count)]
 
     def get_random_word(self):
-        def binary_search(func, value, min, max):
-            while max - min > 1:
-                mid = (max + min) / 2
-                if func(mid) > value:
-                    max = mid
-                else:
-                    min = mid
-            return min
+        #def binary_search(func, value, min, max):
+        #    while max - min > 1:
+        #        mid = (max + min) / 2
+        #        if func(mid) > value:
+        #            max = mid
+        #        else:
+        #            min = mid
+        #    return min
+
+        #sum = math.log(len(self.words))
+        #return self.words[binary_search(math.log, random.uniform(0.0, sum), 1, len(self.words)) - 1]
 
         sum = math.log(len(self.words))
-        return self.words[binary_search(math.log, random.uniform(0.0, sum), 1, len(self.words)) - 1]
-        
+        return self.words[int(math.exp(random.uniform(0.0, sum))) - 1]
+

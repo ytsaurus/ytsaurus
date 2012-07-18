@@ -1,7 +1,7 @@
 #!/bin/sh -eu
 
-JOBCOUNT=1000
-JOB_RECORDS=10000000
+SIZE=`echo "10 ^ 10" | bc`
+JOB_RECORDS=`echo "$SIZE / ($JOBCOUNT * 100)" | bc`
 
 if [ "$SYSTEM" = "mapreduce" ]; then
     rm -f input
@@ -28,7 +28,17 @@ yt.write_table(input, ['k=%d\\\n' % i for i in xrange($JOBCOUNT)])
 yt.create_table(output)
 yt.set_attribute(output, 'channels', '[[\\\"k\\\", \\\"v\\\"]]')
 spec = {'job_count': $JOBCOUNT,
-        'locality_timeout': 0}
+        'locality_timeout': 0,
+        # This option isn't supported yet
+        #'mapper': 
+        #    {'map_job_io':
+        #        {'chunk_sequence_writer':
+        #            {'chunk_writer':
+        #                {'codec_id': 'none'}
+        #            }
+        #        }
+        #    }
+        }
 yt.run_map('./gen_terasort $JOB_RECORDS $SYSTEM', input, yt.Table(output, append=True), files='gen_terasort', spec=spec)
 
 " >gen.py

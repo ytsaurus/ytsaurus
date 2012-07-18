@@ -26,8 +26,8 @@
 # +++ -drop
 # -lock
 # -unlock
-# -lowerkey
-# -upperkey
+# +++ -lowerkey
+# +++ -upperkey
 # +++ -append
 # +++ -jobcount
 # -threadcount    IS IGNORED
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         dst = None
 
     if args.server is not None:
-        config.DEFAULT_PROXY = args.server
+        config.PROXY = args.server
     config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))

@@ -7,7 +7,7 @@ import simplejson as json
 
 def make_request(http_method, request_type, params,
                  data=None, format=None, verbose=False, proxy=None, check_errors=True,
-                 raw_response=False):
+                 raw_response=False, files=None):
     """ Makes request to yt proxy.
         http_method may be equal to GET, POST or PUT
         type may be equal to  get, read, write, create ...
@@ -17,7 +17,7 @@ def make_request(http_method, request_type, params,
 
     # Prepare request url.
     if proxy is None:
-        proxy = config.DEFAULT_PROXY
+        proxy = config.PROXY
     url = "http://{0}/api/{1}".format(proxy, request_type)
 
     # Prepare headers
@@ -47,7 +47,8 @@ def make_request(http_method, request_type, params,
         config=request_config,
         prefetch=False,
         params=params,
-        data=data)
+        data=data,
+        files=files)
 
     if verbose:
         print >>sys.stderr, "Response header", response.headers
