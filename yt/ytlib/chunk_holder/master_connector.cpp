@@ -31,7 +31,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -329,7 +329,7 @@ void TMasterConnector::Disconnect()
 
 void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 {
-    NLog::TTaggedLogger Logger(ChunkHolderLogger);
+    NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));
@@ -355,7 +355,7 @@ void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 
 void TMasterConnector::OnChunkRemoved(TChunkPtr chunk)
 {
-    NLog::TTaggedLogger Logger(ChunkHolderLogger);
+    NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));

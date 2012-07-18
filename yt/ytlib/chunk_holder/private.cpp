@@ -6,8 +6,8 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger ChunkHolderLogger("ChunkHolder");
-NProfiling::TProfiler ChunkHolderProfiler("/chunk_holder");
+NLog::TLogger DataNodeLogger("DataNode");
+NProfiling::TProfiler DataNodeProfiler("/data_node");
 NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////

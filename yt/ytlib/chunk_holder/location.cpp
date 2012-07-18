@@ -17,7 +17,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +34,7 @@ TLocation::TLocation(
     , UsedSpace(0)
     , ActionQueue(New<TActionQueue>(Sprintf("ChunkIO:%s", ~id)))
     , SessionCount(0)
-    , Logger(ChunkHolderLogger)
+    , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
 }

@@ -20,8 +20,8 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
-static NProfiling::TProfiler& Profiler = ChunkHolderProfiler;
+static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,8 +175,7 @@ private:
             blockSize,
             PendingReadSize_);
 
-        auto profilingPathPrefix = Sprintf("/chunk_io/%s", ~chunk->GetLocation()->GetId());
-        auto timer = Profiler.TimingStart(profilingPathPrefix + "/read_time");
+        auto timer = Profiler.TimingStart("/chunk_io/read_time");
 
         TSharedRef data;
         try {
@@ -203,8 +202,8 @@ private:
         cookie->EndInsert(block);
 
         auto readTime = Profiler.TimingStop(timer);
-        Profiler.Enqueue(profilingPathPrefix + "/read_size", blockSize);
-        Profiler.Enqueue(profilingPathPrefix + "/read_throughput", blockSize / readTime.SecondsFloat());
+        Profiler.Enqueue("/chunk_io/read_size", blockSize);
+        Profiler.Enqueue("/chunk_io/read_throughput", blockSize / readTime.SecondsFloat());
 
         LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
     }

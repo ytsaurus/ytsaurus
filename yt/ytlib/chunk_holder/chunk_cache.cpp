@@ -152,7 +152,7 @@ private:
             , SeedAddresses(seedAddresses)
             , Cookie(cookie)
             , Invoker(Owner->Location->GetInvoker())
-            , Logger(ChunkHolderLogger)
+            , Logger(DataNodeLogger)
         {
             Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
         }

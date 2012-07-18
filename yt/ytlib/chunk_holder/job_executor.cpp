@@ -22,7 +22,7 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +41,7 @@ TJob::TJob(
     , TargetAddresses(targetAddresses)
     , CancelableContext(New<TCancelableContext>())
     , CancelableInvoker(CancelableContext->CreateInvoker(controlInvoker))
-    , Logger(ChunkHolderLogger)
+    , Logger(DataNodeLogger)
 {
     YCHECK(controlInvoker);
     YCHECK(chunk);

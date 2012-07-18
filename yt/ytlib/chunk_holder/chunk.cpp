@@ -17,8 +17,8 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
-static NProfiling::TProfiler& Profiler = ChunkHolderProfiler;
+static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

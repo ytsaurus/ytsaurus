@@ -9,8 +9,8 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger ChunkHolderLogger;
-extern NProfiling::TProfiler ChunkHolderProfiler;
+extern NLog::TLogger DataNodeLogger;
+extern NProfiling::TProfiler DataNodeProfiler;
 extern NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////

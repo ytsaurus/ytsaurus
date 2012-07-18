@@ -35,7 +35,7 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +45,7 @@ TChunkHolderService::TChunkHolderService(
     : NRpc::TServiceBase(
         bootstrap->GetControlInvoker(),
         TProxy::GetServiceName(),
-        ChunkHolderLogger.GetCategory())
+        DataNodeLogger.GetCategory())
     , Config(config)
     , Bootstrap(bootstrap)
 {

@@ -21,8 +21,8 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
-static NProfiling::TProfiler& Profiler = ChunkHolderProfiler;
+static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +36,7 @@ TSession::TSession(
     , WindowStart(0)
     , FirstUnwritten(0)
     , Size(0)
-    , Logger(ChunkHolderLogger)
+    , Logger(DataNodeLogger)
 {
     YASSERT(sessionManager);
     YASSERT(location);
@@ -202,8 +202,7 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
     LOG_DEBUG("Start writing chunk block %d",
         blockIndex);
 
-    auto profilingPathPrefix = Sprintf("/chunk_io/%s", ~Location->GetId());
-    auto timer = Profiler.TimingStart(profilingPathPrefix + "/write_time");
+    auto timer = Profiler.TimingStart("/chunk_io/write_time");
     auto data = block->GetData();
 
     try {
@@ -220,8 +219,8 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
     LOG_DEBUG("Chunk block %d written", blockIndex);
 
     auto readTime = Profiler.TimingStop(timer);
-    Profiler.Enqueue(profilingPathPrefix + "/write_size", data.Size());
-    Profiler.Enqueue(profilingPathPrefix + "/write_throughput", data.Size() / readTime.SecondsFloat());
+    Profiler.Enqueue("/chunk_io/write_size", data.Size());
+    Profiler.Enqueue("/chunk_io/write_throughput", data.Size() / readTime.SecondsFloat());
 
     return TVoid();
 }
