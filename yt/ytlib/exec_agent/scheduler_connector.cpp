@@ -4,7 +4,8 @@
 #include "bootstrap.h"
 #include "job_manager.h"
 #include "job.h"
-#include "helpers.h"
+
+#include <ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NExecAgent {

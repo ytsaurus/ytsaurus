@@ -5,6 +5,7 @@
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
+#include "job_resources.h"
 
 #include <ytlib/ytree/fluent.h>
 
@@ -17,8 +18,6 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/exec_agent/helpers.h>
-
 #include <cmath>
 
 namespace NYT {
@@ -30,7 +29,6 @@ using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NTableServer;
 using namespace NFormats;
-using namespace NExecAgent;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NChunkHolder::NProto;
@@ -381,17 +379,7 @@ protected:
         return MergeTasks.empty() ? InfiniteResources() : MergeTasks[0]->GetRequestedResources();
     }
 
-    virtual NProto::TNodeResources GetRequestedResources() const
-    {
-        TNodeResources requestedResources;
-        requestedResources.set_slots(1);
-        requestedResources.set_cores(1);
-        requestedResources.set_memory(
-            GetIOMemorySize(Config->MergeJobIO, InputTables.size(), OutputTables.size()) +
-            // TODO(babenko): magic numbers
-            (i64) 512 * 1024 * 1024);
-        return requestedResources;
-    }
+    virtual NProto::TNodeResources GetRequestedResources() const = 0;
 
 
     // Progress reporting.
@@ -544,6 +532,11 @@ private:
 
         TMergeControllerBase::InitJobSpecTemplate();
     }
+
+    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    {
+        return GetMergeJobResources(Config->MergeJobIO, Spec);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -631,6 +624,11 @@ private:
 
         TMergeControllerBase::InitJobSpecTemplate();
     }
+
+    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    {
+        return GetMergeJobResources(Config->MergeJobIO, Spec);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -716,6 +714,11 @@ private:
         }
 
         TMergeControllerBase::InitJobSpecTemplate();
+    }
+
+    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    {
+        return GetEraseJobResources(Config->MergeJobIO, Spec);
     }
 };
 
@@ -966,6 +969,11 @@ private:
 
         ScheduleSetOutputTablesSorted(KeyColumns);
     }
+
+    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    {
+        return GetMergeJobResources(Config->MergeJobIO, Spec);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1039,12 +1047,7 @@ private:
 
     virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
     {
-        auto requestedResources = TSortedMergeControllerBase::GetRequestedResources();
-        requestedResources.set_cores(Spec->Reducer->CoresLimit);
-        requestedResources.set_memory(
-            requestedResources.memory() +
-            Spec->Reducer->MemoryLimit);
-        return requestedResources;
+        return GetReduceJobResources(Config->MergeJobIO, Spec);
     }
 
 };

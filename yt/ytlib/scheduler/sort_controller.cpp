@@ -5,6 +5,7 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "samples_fetcher.h"
+#include "job_resources.h"
 
 #include <ytlib/misc/string.h>
 
@@ -20,8 +21,6 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/exec_agent/helpers.h>
-
 #include <cmath>
 
 namespace NYT {
@@ -32,7 +31,6 @@ using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectServer;
-using namespace NExecAgent;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 
@@ -170,15 +168,9 @@ private:
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool();
-
-            RequestedResources.set_slots(1);
-            RequestedResources.set_cores(1);
-            auto jobIOConfig = Controller->Config->PartitionJobIO;
-            RequestedResources.set_memory(
-                GetIOMemorySize(jobIOConfig, 1, 1) +
-                (i64) Controller->Partitions.size() * jobIOConfig->ChunkSequenceWriter->ChunkWriter->BlockSize +
-                // TODO(babenko): magic numbers
-                (i64) 512 * 1024 * 1024);
+            RequestedResources = GetPartitionJobResources(
+                Controller->Config->SortJobIO,
+                Controller->Partitions.size());
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -350,28 +342,12 @@ private:
             i64 rowCountPerJob = 1;
             i64 valueCountPerJob = 2;
 
-            RequestedResources.set_slots(1);
-            RequestedResources.set_cores(1);
-            auto jobIOConfig = Controller->Config->SortJobIO;
-            i64 memory = 
-                GetIOMemorySize(jobIOConfig, 1, 1) +
-                // TODO(babenko): magic number
-                Controller->Spec->MaxWeightPerSortJob * 3 +
-                (i64) 512 * 1024 * 1024;
-            // TODO(babenko): fix this once partition sort is ready
-            if (true /*(Controller->Partitions.size() == 1*/) {
-                // Simple sort.
-                memory +=
-                    (i64) 16 * Controller->Spec->KeyColumns.size() * rowCountPerJob +
-                    (i64) 16 * rowCountPerJob +
-                    (i64) 32 * valueCountPerJob;
-            } else {
-                // Partition sort.
-                memory +=
-                    (i64) 16 * Controller->Spec->KeyColumns.size() * rowCountPerJob +
-                    (i64) 8 * rowCountPerJob;
-            }
-            RequestedResources.set_memory(memory);
+            RequestedResources = GetSimpleSortJobResources(
+                Controller->Config->SortJobIO,
+                Controller->Spec,
+                Controller->Spec->MaxWeightPerSortJob,
+                rowCountPerJob,
+                valueCountPerJob);
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -615,16 +591,10 @@ private:
 
         virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
         {
-            NProto::TNodeResources requestedResources;
-            requestedResources.set_slots(1);
-            requestedResources.set_cores(1);
-            auto jobIOConfig = Controller->Config->MergeJobIO;
-            int inputStreamCount = ChunkPool->StripeCounter().GetTotal();
-            requestedResources.set_memory(
-                GetIOMemorySize(jobIOConfig, inputStreamCount, 1) +
-                // TODO(babenko): magic numbers
-                (i64) 512 * 1024 * 1024);
-            return requestedResources;
+            return GetSortedMergeDuringSortJobResources(
+                Controller->Config->SortJobIO,
+                Controller->Spec,
+                ChunkPool->StripeCounter().GetTotal());
         }
 
     private:
@@ -692,13 +662,9 @@ private:
             , Partition(partition)
         {
             ChunkPool = CreateUnorderedChunkPool();
-
-            RequestedResources.set_slots(1);
-            RequestedResources.set_cores(1);
-            RequestedResources.set_memory(
-                GetIOMemorySize(Controller->Config->MergeJobIO, 1, 1) +
-                // TODO(babenko): magic numbers
-                (i64) 512 * 1024 * 1024);
+            RequestedResources = GetUnorderedMergeDuringSortJobResources(
+                Controller->Config->MergeJobIO,
+                Controller->Spec);
         }
 
         virtual Stroka GetId() const OVERRIDE

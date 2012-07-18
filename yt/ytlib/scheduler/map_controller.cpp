@@ -4,6 +4,7 @@
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
+#include "job_resources.h"
 
 #include <ytlib/ytree/fluent.h>
 
@@ -17,8 +18,6 @@
 
 #include <ytlib/table_client/key.h>
 
-#include <ytlib/exec_agent/helpers.h>
-
 #include <cmath>
 
 namespace NYT {
@@ -26,7 +25,6 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NChunkServer;
-using namespace NExecAgent;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -71,16 +69,9 @@ private:
         {
             ChunkPool = CreateUnorderedChunkPool();
 
-            RequestedResources.set_slots(1);
-            RequestedResources.set_cores(Controller->Spec->Mapper->CoresLimit);
-            auto jobIOConfig = Controller->Config->MapJobIO;
-            RequestedResources.set_memory(
-                GetIOMemorySize(
-                    Controller->Config->MapJobIO,
-                    Controller->InputTables.size(),
-                    Controller->OutputTables.size()) +
-                // TODO(babenko): magic numbers
-                (i64) 512 * 1024 * 1024);
+            RequestedResources = GetMapJobResources(
+                Controller->Config->MapJobIO,
+                Controller->Spec);
         }
 
         virtual Stroka GetId() const OVERRIDE

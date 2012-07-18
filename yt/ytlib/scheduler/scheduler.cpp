@@ -10,6 +10,7 @@
 #include "scheduler_proxy.h"
 #include "helpers.h"
 #include "master_connector.h"
+#include "job_resources.h"
 #include "private.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -39,8 +40,6 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
 
-#include <ytlib/exec_agent/helpers.h>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -48,7 +47,6 @@ using namespace NTransactionClient;
 using namespace NCypressClient;
 using namespace NYTree;
 using namespace NObjectServer;
-using namespace NExecAgent;
 using namespace NScheduler::NProto;
 
 using NChunkServer::TChunkId;

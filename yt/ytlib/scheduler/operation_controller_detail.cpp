@@ -3,6 +3,7 @@
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
+#include "job_resources.h"
 
 #include <ytlib/transaction_client/transaction.h>
 
@@ -21,8 +22,6 @@
 
 #include <ytlib/table_client/key.h>
 
-#include <ytlib/exec_agent/helpers.h>
-
 #include <cmath>
 
 namespace NYT {
@@ -37,7 +36,6 @@ using namespace NObjectServer;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NTableClient;
-using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -216,7 +214,7 @@ void TOperationControllerBase::TTask::AddInputChunks(
 
 bool TOperationControllerBase::TTask::HasEnoughResources(TExecNodePtr node) const
 {
-    return NExecAgent::HasEnoughResources(
+    return NScheduler::HasEnoughResources(
         node->ResourceUtilization(),
         GetRequestedResources(),
         node->ResourceLimits());
@@ -1448,17 +1446,6 @@ void TOperationControllerBase::InitUserJobSpec(
     FOREACH (const auto& file, files) {
         *proto->add_files() = *file.FetchResponse;
     }
-}
-
-i64 TOperationControllerBase::GetIOMemorySize(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    int inputStreamCount,
-    int outputStreamCount )
-{
-    return
-        ioConfig->ChunkSequenceReader->SequentialReader->WindowSize * ioConfig->ChunkSequenceReader->PrefetchWindow * inputStreamCount +
-        ioConfig->ChunkSequenceWriter->RemoteWriter->WindowSize * outputStreamCount +
-        ioConfig->ChunkSequenceWriter->ChunkWriter->EncodingWriter->WindowSize * outputStreamCount;
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -4,17 +4,15 @@
 #include "job.h"
 #include "exec_node.h"
 #include "operation_controller.h"
+#include "job_resources.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
-
-#include <ytlib/exec_agent/helpers.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
-using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////
 

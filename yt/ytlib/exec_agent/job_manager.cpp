@@ -6,13 +6,14 @@
 #include "bootstrap.h"
 #include "private.h"
 #include "environment_manager.h"
-#include "helpers.h"
 
 #include <ytlib/misc/fs.h>
 
 #include <ytlib/job_proxy/config.h>
 
 #include <ytlib/chunk_holder/chunk_cache.h>
+
+#include <ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NExecAgent {

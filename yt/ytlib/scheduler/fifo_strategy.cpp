@@ -5,13 +5,10 @@
 #include "exec_node.h"
 #include "job.h"
 #include "operation_controller.h"
-
-#include <ytlib/exec_agent/helpers.h>
+#include "job_resources.h"
 
 namespace NYT {
 namespace NScheduler {
-
-using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////
 

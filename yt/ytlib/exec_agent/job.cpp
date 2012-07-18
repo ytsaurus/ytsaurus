@@ -3,7 +3,6 @@
 #include "environment_manager.h"
 #include "slot.h"
 #include "environment.h"
-#include "helpers.h"
 #include "private.h"
 
 #include <ytlib/misc/fs.h>
@@ -20,6 +19,8 @@
 #include <ytlib/chunk_holder/chunk_cache.h>
 
 #include <ytlib/job_proxy/config.h>
+
+#include <ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NExecAgent {

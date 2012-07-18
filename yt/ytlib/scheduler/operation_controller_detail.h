@@ -424,11 +424,6 @@ protected:
         TUserJobSpecPtr config,
         const std::vector<TFile>& files);
 
-    static i64 GetIOMemorySize(
-        NJobProxy::TJobIOConfigPtr ioConfig,
-        int inputStreamCount,
-        int outputStreamCount);
-
 private:
     static bool AreKeysCompatible(const std::vector<Stroka>& fullColumns, const std::vector<Stroka>& prefixColumns);
 
