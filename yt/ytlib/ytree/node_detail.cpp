@@ -23,7 +23,7 @@ namespace {
 Stroka GetNodePathHelper(IConstNodePtr node)
 {
     auto path = node->GetPath();
-    return path.empty() ? "Node " : Sprintf("Node %s ", ~path);
+    return path.empty() ? "Node" : Sprintf("Node %s", ~path);
 }
 
 } // namespace
