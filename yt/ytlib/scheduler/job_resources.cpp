@@ -129,6 +129,7 @@ TNodeResources GetMapJobResources(
             ioConfig,
             spec->InputTablePaths.size(),
             spec->OutputTablePaths.size()) +
+        spec->Mapper->MemoryLimit +
         FootprintMemorySize);
     return result;
 }
