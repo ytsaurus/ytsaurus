@@ -173,11 +173,19 @@ EExitCode TOperationTracker::DumpResult()
     }
 
     {
+        auto req = TYPathProxy::Get(operationPath + "/@start_time");
+        batchReq->AddRequest(req, "get_op_start_time");
+    }
+    {
+        auto req = TYPathProxy::Get(operationPath + "/@end_time");
+        batchReq->AddRequest(req, "get_op_end_time");
+    }
+
+    {
         auto req = TYPathProxy::Get(jobsPath);
         req->Attributes().Set<Stroka>("with_attributes", "true");
         batchReq->AddRequest(req, "get_jobs");
     }
-
     EExitCode exitCode;
     auto batchRsp = batchReq->Invoke().Get();
     CheckResponse(batchRsp, "Error getting operation result");
@@ -188,8 +196,25 @@ EExitCode TOperationTracker::DumpResult()
         auto errorNode = NYTree::GetNodeByYPath(ConvertToNode(TYsonString(rsp->value())), "/error");
         auto error = TError::FromYson(errorNode);
         if (error.IsOK()) {
-            printf("Operation completed successfully\n");
+            // TODO(panin): refactor
+            TInstant startTime;
+            {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
+                CheckResponse(rsp, "Error getting operation start time");
+                startTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
+            }
+
+            TInstant endTime;
+            {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_end_time");
+                CheckResponse(rsp, "Error getting operation end time");
+                endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
+            }
+            TDuration duration = endTime - startTime;
+
+            printf("Operation completed successfully in %" PRIu64 " milliseconds\n", duration.MilliSeconds());
             exitCode = EExitCode::OK;
+
         } else {
             fprintf(stderr, "%s\n", ~error.ToString());
             exitCode = EExitCode::Error;
