@@ -3,6 +3,7 @@
 #include "environment_manager.h"
 #include "slot.h"
 #include "environment.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <ytlib/misc/fs.h>
