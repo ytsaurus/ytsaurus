@@ -82,15 +82,10 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     auto weightThreshold = GetJobWeightThreshold();
     jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold);
 
-    LOG_DEBUG("Chunks extracted (Address: %s, TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
-        ~node->GetAddress(),
-        jip->PoolResult->TotalChunkCount,
-        jip->PoolResult->LocalChunkCount,
-        jip->PoolResult->TotalChunkWeight,
-        ~ToString(weightThreshold));
-
     NProto::TJobSpec jobSpec;
     BuildJobSpec(jip, &jobSpec);
+
+    *jobSpec.mutable_resource_utilization() = GetRequestedResources();
 
     jip->Job = Controller->Host->CreateJob(
         EJobType(jobSpec.type()),
@@ -101,6 +96,13 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     Controller->RegisterJobInProgress(jip);
 
     OnJobStarted(jip);
+
+    LOG_DEBUG("Chunks extracted (Address: %s, TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
+        ~node->GetAddress(),
+        jip->PoolResult->TotalChunkCount,
+        jip->PoolResult->LocalChunkCount,
+        jip->PoolResult->TotalChunkWeight,
+        ~ToString(weightThreshold));
 
     return jip->Job;
 }
