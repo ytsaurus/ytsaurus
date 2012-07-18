@@ -66,7 +66,7 @@ struct TResourceLimitsConfig
             .Default(2);
         Register("cores", Cores)
             .Default(2);
-        Register("memory", Slots)
+        Register("memory", Memory)
             .Default((i64) 4 * 1024 * 1024 * 1024);
     }
 };

@@ -23,8 +23,8 @@ Stroka FormatResourceUtilization(
         utilization.cores(),
         limits.cores(),
         // Memory (in MB)
-        utilization.memory() / (1024 * 1024),
-        limits.memory() / (1024 * 1024));
+        static_cast<int>(utilization.memory() / (1024 * 1024)),
+        static_cast<int>(limits.memory() / (1024 * 1024)));
 }
 
 void IncreaseResourceUtilization(
