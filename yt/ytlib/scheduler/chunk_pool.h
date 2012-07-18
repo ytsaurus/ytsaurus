@@ -43,7 +43,6 @@ struct TChunkStripe
     std::vector<NChunkServer::TChunkId> GetChunkIds() const;
 
     TSmallVector<TWeightedChunk, 1> Chunks;
-    i64 Weight;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +77,7 @@ struct IChunkPool
     virtual void OnFailed(TPoolExtractionResultPtr result) = 0;
     virtual void OnCompleted(TPoolExtractionResultPtr result) = 0;
 
+    virtual const TProgressCounter& StripeCounter() const = 0;
     virtual const TProgressCounter& WeightCounter() const = 0;
     virtual const TProgressCounter& ChunkCounter() const = 0;
 

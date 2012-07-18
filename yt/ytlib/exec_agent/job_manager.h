@@ -4,7 +4,6 @@
 
 #include <ytlib/scheduler/job.pb.h>
 #include <ytlib/misc/thread_affinity.h>
-
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
 namespace NYT {
@@ -27,6 +26,9 @@ public:
     TJobManager(
         TJobManagerConfigPtr config,
         TBootstrap* bootstrap);
+
+    //! Initializes slots etc.
+    void Initialize();
 
     //! Starts a new job.
     TJobPtr StartJob(
@@ -54,8 +56,11 @@ public:
     //! Returns a list of all currently known jobs.
     std::vector<TJobPtr> GetAllJobs();
 
-    //! Utilization includes slot statistics and various resource usage information.
-    NScheduler::NProto::TNodeUtilization GetUtilization();
+    //! Maximum allowed resource utilization.
+    NScheduler::NProto::TNodeResources GetResourceLimits();
+
+    //! Current resource utilization.
+    NScheduler::NProto::TNodeResources GetResourceUtilization();
 
 private:
     TJobManagerConfigPtr Config;
@@ -63,6 +68,8 @@ private:
 
     std::vector<TSlotPtr> Slots;
     yhash_map<TJobId, TJobPtr> Jobs;
+
+    TSlotPtr GetFreeSlot();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

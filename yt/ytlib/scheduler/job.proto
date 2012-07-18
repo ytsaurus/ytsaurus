@@ -9,6 +9,14 @@ import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Measures limits and utilization of various resources.
+message TNodeResources
+{
+    required int32 slots = 1;
+    required int32 cores = 2;
+    required int64 memory = 3;
+}
+
 // Describes a part of input table(s) to be processed by a job.
 message TTableInputSpec
 {
@@ -46,6 +54,9 @@ message TJobSpec
 
     // Job output.
     repeated TTableOutputSpec output_specs = 5;
+
+    // Expected resource utilization.
+    required TNodeResources resource_utilization = 6;
 
     extensions 100 to max;
 }

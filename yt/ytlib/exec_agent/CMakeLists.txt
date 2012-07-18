@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/slot.cpp
   ${BASE}/supervisor_service.cpp
   ${BASE}/unsafe_environment.cpp
+  ${BASE}/helpers.cpp
 )
 
 set( HDRS
@@ -26,6 +27,7 @@ set( HDRS
   ${BASE}/supervisor_service.h
   ${BASE}/supervisor_service_proxy.h
   ${BASE}/unsafe_environment.h
+  ${BASE}/helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES

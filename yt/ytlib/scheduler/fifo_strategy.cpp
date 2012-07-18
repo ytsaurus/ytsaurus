@@ -6,8 +6,12 @@
 #include "job.h"
 #include "operation_controller.h"
 
+#include <ytlib/exec_agent/helpers.h>
+
 namespace NYT {
 namespace NScheduler {
+
+using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -34,10 +38,9 @@ public:
         std::vector<TJobPtr>* jobsToAbort)
     {
         // Process operations in FIFO order asking them to perform job scheduling.
-        // Stop when no free slots are left.
-        int freeCount = node->Utilization().free_slot_count();
+        // Stop when no spare resources are left (coarse check).
         FOREACH (auto operation, Queue) {
-            while (freeCount > 0) {
+            while (HasSpareResources(node->ResourceUtilization(), node->ResourceLimits())) {
                 if (operation->GetState() != EOperationState::Running) {
                     break;
                 }
@@ -48,8 +51,10 @@ public:
                 }
 
                 jobsToStart->push_back(job);
-                --freeCount;
-                node->Utilization().set_free_slot_count(freeCount);
+
+                IncreaseResourceUtilization(
+                    &node->ResourceUtilization(),
+                    job->Spec().resource_utilization());
             }
         }
     }

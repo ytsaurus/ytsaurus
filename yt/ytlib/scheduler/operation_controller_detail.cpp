@@ -5,14 +5,23 @@
 #include "chunk_pool.h"
 
 #include <ytlib/transaction_client/transaction.h>
+
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+
 #include <ytlib/object_server/object_ypath_proxy.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/convert.h>
+
 #include <ytlib/formats/format.h>
+
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
 #include <ytlib/table_client/key.h>
+
+#include <ytlib/exec_agent/helpers.h>
 
 #include <cmath>
 
@@ -28,7 +37,7 @@ using namespace NObjectServer;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NTableClient;
-using ::ToString;
+using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -203,6 +212,14 @@ void TOperationControllerBase::TTask::AddInputChunks(
     }
 }
 
+bool TOperationControllerBase::TTask::HasEnoughResources(TExecNodePtr node) const
+{
+    return NExecAgent::HasEnoughResources(
+        node->ResourceUtilization(),
+        GetRequestedResources(),
+        node->ResourceLimits());
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TOperationControllerBase(
@@ -222,6 +239,10 @@ TOperationControllerBase::TOperationControllerBase(
     , FailedJobCount(0)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
+
+    InfiniteResources.set_slots(1000);
+    InfiniteResources.set_cores(1000);
+    InfiniteResources.set_memory((i64) 1024 * 1024 * 1024 * 1024);
 }
 
 void TOperationControllerBase::Initialize()
@@ -444,6 +465,15 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
         return NULL;
     }
 
+    // Make a course check to see if the node has enough resources.
+    if (!HasEnoughResources(
+            node->ResourceUtilization(),
+            GetMinRequestedResources(),
+            node->ResourceLimits()))
+    {
+        return NULL;
+    }
+
     auto job = DoScheduleJob(node);
     if (job) {
         ++RunningJobCount;
@@ -505,7 +535,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                     candidate->GetPriority(),
                     candidate->GetLocality(address));
                 if (locality.second > 0) {
-                    if (locality > bestLocality) {
+                    if (locality > bestLocality && candidate->HasEnoughResources(node)) {
                         bestTask = candidate;
                         bestLocality = locality;
                     }
@@ -549,7 +579,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                 }
                 if (candidate->GetNonLocalRequestTime().Get() + candidate->GetLocalityTimeout() <= now) {
                     int priority = candidate->GetPriority();
-                    if (priority > bestPriority) {
+                    if (priority > bestPriority && candidate->HasEnoughResources(node)) {
                         bestTask = candidate;
                         bestPriority = priority;
                     }
@@ -1173,6 +1203,8 @@ std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
     TNullable<int> jobCount,
     i64 maxWeightPerJob)
 {
+    using ::ToString;
+
     // Compute weight per job.
     i64 weightPerJob;
     if (jobCount) {
@@ -1418,6 +1450,17 @@ void TOperationControllerBase::InitUserJobSpec(
     FOREACH (const auto& file, files) {
         *proto->add_files() = *file.FetchResponse;
     }
+}
+
+i64 TOperationControllerBase::GetIOMemorySize(
+    NJobProxy::TJobIOConfigPtr ioConfig,
+    int inputStreamCount,
+    int outputStreamCount )
+{
+    return
+        ioConfig->ChunkSequenceReader->SequentialReader->WindowSize * ioConfig->ChunkSequenceReader->PrefetchWindow * inputStreamCount +
+        ioConfig->ChunkSequenceWriter->RemoteWriter->WindowSize * outputStreamCount +
+        ioConfig->ChunkSequenceWriter->ChunkWriter->EncodingWriter->WindowSize * outputStreamCount;
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -123,11 +123,11 @@ class Scheduler(Server):
         },
         'scheduler' : {   
             'strategy' : 'fifo',
-			'sort_job_io' : {
-				'chunk_sequence_reader' : {
-					'prefetch_window' : 100
-				}
-			}
+            'sort_job_io' : {
+                'chunk_sequence_reader' : {
+                    'prefetch_window' : 100
+                }
+            }
         },
         'rpc_port' : 9001,
         'monitoring_port' : 10001, 
@@ -191,8 +191,12 @@ class Holder(Server):
                 }
             },
             'job_manager': {
-                'slot_location' : '%(work_dir)s/slots',
-                'slot_count' : 12
+                'resource_limits' : {
+                    'slots' : 24,
+                    'cores' : 18,
+                    'memory' : 36 * 1024 * 1024 * 1024
+                },
+                'slot_location' : '%(work_dir)s/slots'
             },
             'job_proxy_logging' : proxyLogging,
         },
@@ -213,53 +217,6 @@ class Holder(Server):
         print >>fd, shebang
         print >>fd, 'rm -rf %s' % cls.config['data_node']['cache_location']['path']
 
-
-class Driver(Base, RemoteNode):
-    bin_path = '/home/yt/build/bin/yt'
-
-    nodeid = Subclass(xrange(400, 700))
-    host = Template('n01-0%(nodeid)dg')
-
-    params = Template('--config %(config_path)s')
-
-    log_disk = 'disk1'
-    log_path = Template("driver-%(nodeid)d.log")
-    debug_log_path = Template("driver-%(nodeid)d.debug.log")
-
-    stderr_path = Template('%(work_dir)s/driver.err')
-
-    config = Template({ 
-        'masters' : { 'addresses' : MasterAddresses },
-        'logging' : Logging
-    })
-
-    def run(cls, fd):
-        print >>fd, shebang
-        print >>fd, cmd_ssh % (cls.host, 
-            'start-stop-daemon -d ./ -b --exec %s --pidfile %s/pid -m -S' % (cls.do_run_path, cls.work_dir))
-
-    def do_run(cls, fd):
-        print >>fd, shebang
-        print >>fd, ulimit
-        print >>fd, cls.export_ld_path
-        suffix = '%s 2>&1 1>%s' % (cls.params, cls.stderr_path)
-        prefix = '%s/%s' % (cls.work_dir, cls.binary)
-        path = '//tmp/table%d' % cls.nodeid
-        print >>fd, ' '.join([prefix, 'create table', path, suffix])
-        print >>fd, 'for i in {1..3000}'
-        print >>fd, 'do'
-        print >>fd, ' '.join([prefix, 'write', path, '{hello=world}', suffix])
-        print >>fd, 'done'
-
-#    def do_stop(cls, fd):
-#        print >>fd, shebang
-#        print >>fd, 'killall yt'
-    
-    def do_clean(cls, fd):
-        print >>fd, shebang
-        print >>fd, 'rm -f %s' % cls.log_path
-        print >>fd, 'rm -f %s' % cls.debug_log_path
-        print >>fd, 'rm -f %s' % cls.stderr_path
 
 configure(Base)
     

@@ -21,17 +21,14 @@ TWeightedChunk::TWeightedChunk()
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripe::TChunkStripe()
-    : Weight(0)
 { }
 
 TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk)
-    : Weight(0)
 {
     AddChunk(inputChunk);
 }
 
 TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
-    : Weight(0)
 {
     AddChunk(inputChunk, dataWeightOverride, rowCountOverride);
 }
@@ -55,8 +52,6 @@ void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk, i64 dataWeightO
     weightedChunk.RowCountOverride = rowCountOverride;
     // TODO(babenko): make customizable
     weightedChunk.Weight = weightedChunk.DataWeightOverride;
-    
-    Weight += weightedChunk.Weight;
 }
 
 std::vector<NChunkServer::TChunkId> TChunkStripe::GetChunkIds() const
@@ -80,10 +75,10 @@ TPoolExtractionResult::TPoolExtractionResult()
 void TPoolExtractionResult::Add(TChunkStripePtr stripe, const Stroka& address)
 {
     Stripes.push_back(stripe);
-    TotalChunkWeight += stripe->Weight;
     FOREACH (const auto& chunk, stripe->Chunks) {
-        const auto& chunkAddresses = chunk.InputChunk->node_addresses();
         ++TotalChunkCount;
+        TotalChunkWeight += chunk.Weight;
+        const auto& chunkAddresses = chunk.InputChunk->node_addresses();
         if (std::find_if(
             chunkAddresses.begin(),
             chunkAddresses.end(),
@@ -113,6 +108,11 @@ public:
         return ChunkCounter_;
     }
 
+    virtual const TProgressCounter& StripeCounter() const OVERRIDE
+    {
+        return StripeCounter_;
+    }
+
     virtual bool IsCompleted() const OVERRIDE
     {
         return WeightCounter_.GetCompleted() == WeightCounter_.GetTotal();
@@ -127,6 +127,7 @@ public:
 protected:
     TProgressCounter WeightCounter_;
     TProgressCounter ChunkCounter_;
+    TProgressCounter StripeCounter_;
 
 };
 
@@ -142,10 +143,12 @@ public:
 
     virtual void Add(TChunkStripePtr stripe) OVERRIDE
     {
-        YASSERT(stripe->Weight > 0);
-
-        WeightCounter_.Increment(stripe->Weight);
         ChunkCounter_.Increment(stripe->Chunks.size());
+        StripeCounter_.Increment(1);
+
+        FOREACH (const auto& chunk, stripe->Chunks) {
+            WeightCounter_.Increment(chunk.Weight);
+        }
 
         Register(stripe);
     }
@@ -192,6 +195,7 @@ public:
 
         WeightCounter_.Start(result->TotalChunkWeight);
         ChunkCounter_.Start(result->TotalChunkCount);
+        StripeCounter_.Start(result->Stripes.size());
 
         return result;
     }
@@ -200,6 +204,7 @@ public:
     {
         WeightCounter_.Failed(result->TotalChunkWeight);
         ChunkCounter_.Failed(result->TotalChunkCount);
+        StripeCounter_.Failed(result->Stripes.size());
 
         FOREACH (auto stripe, result->Stripes) {
             Register(stripe);
@@ -210,6 +215,7 @@ public:
     {
         WeightCounter_.Completed(result->TotalChunkWeight);
         ChunkCounter_.Completed(result->TotalChunkCount);
+        StripeCounter_.Completed(result->Stripes.size());
     }
 
     virtual i64 GetLocality(const Stroka& address) const OVERRIDE
@@ -305,12 +311,13 @@ public:
     {
         YCHECK(!Initialized);
 
-        WeightCounter_.Increment(stripe->Weight);
         ChunkCounter_.Increment(stripe->Chunks.size());
+        StripeCounter_.Increment(1);
 
         Stripes.push_back(stripe);
         
         FOREACH (const auto& chunk, stripe->Chunks) {
+            WeightCounter_.Increment(chunk.Weight);
             auto inputChunk = chunk.InputChunk;
             FOREACH (const auto& address, inputChunk->node_addresses()) {
                 AddressToLocality[address] += chunk.Weight;
@@ -335,6 +342,7 @@ public:
         Extracted = true;
         WeightCounter_.Start(result->TotalChunkWeight);
         ChunkCounter_.Start(result->TotalChunkCount);
+        StripeCounter_.Start(1);
 
         return result;
     }
@@ -347,6 +355,7 @@ public:
         Extracted = false;
         WeightCounter_.Failed(result->TotalChunkWeight);
         ChunkCounter_.Failed(result->TotalChunkCount);
+        StripeCounter_.Failed(result->Stripes.size());
     }
 
     virtual void OnCompleted(TPoolExtractionResultPtr result) OVERRIDE
@@ -356,6 +365,7 @@ public:
 
         WeightCounter_.Completed(result->TotalChunkWeight);
         ChunkCounter_.Completed(result->TotalChunkCount);
+        StripeCounter_.Completed(result->Stripes.size());
     }
 
     virtual i64 GetLocality(const Stroka& address) const OVERRIDE

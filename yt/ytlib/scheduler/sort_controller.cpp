@@ -164,6 +164,15 @@ private:
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool();
+
+            RequestedResources.set_slots(1);
+            RequestedResources.set_cores(1);
+            auto jobIOConfig = Controller->Config->PartitionJobIO;
+            RequestedResources.set_memory(
+                GetIOMemorySize(jobIOConfig, 1, 1) +
+                (i64) Controller->Partitions.size() * jobIOConfig->ChunkSequenceWriter->ChunkWriter->BlockSize +
+                // TODO(babenko): magic numbers
+                (i64) 512 * 1024 * 1024);
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -189,8 +198,14 @@ private:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
+        virtual NProto::TNodeResources GetRequestedResources() const
+        {
+            return RequestedResources;
+        }
+
     private:
         TSortController* Controller;
+        NProto::TNodeResources RequestedResources;
 
         virtual int GetChunkListCountPerJob() const OVERRIDE
         {
@@ -325,6 +340,31 @@ private:
             , Partition(partition)
         {
             ChunkPool = CreateUnorderedChunkPool(false);
+
+            i64 rowCountPerJob = 1;
+            i64 valueCountPerJob = 2;
+
+            RequestedResources.set_slots(1);
+            RequestedResources.set_cores(1);
+            auto jobIOConfig = Controller->Config->SortJobIO;
+            i64 memory = 
+                GetIOMemorySize(jobIOConfig, 1, 1) +
+                // TODO(babenko): magic number
+                Controller->Spec->MaxWeightPerSortJob * 3 +
+                (i64) 512 * 1024 * 1024;
+            if (Controller->Partitions.size() == 1) {
+                // Simple sort.
+                memory +=
+                    (i64) 16 * Controller->Spec->KeyColumns.size() * rowCountPerJob +
+                    (i64) 16 * rowCountPerJob +
+                    (i64) 32 * valueCountPerJob;
+            } else {
+                // Partition sort.
+                memory +=
+                    (i64) 16 * Controller->Spec->KeyColumns.size() * rowCountPerJob +
+                    (i64) 8 * rowCountPerJob;
+            }
+            RequestedResources.set_memory(memory);
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -372,6 +412,11 @@ private:
             }
         }
 
+        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        {
+            return RequestedResources;
+        }
+
         bool IsCompleted() const
         {
             return
@@ -382,6 +427,7 @@ private:
     private:
         TSortController* Controller;
         TPartition* Partition;
+        NProto::TNodeResources RequestedResources;
 
         yhash_map<Stroka, i64> AddressToOutputLocality;
 
@@ -560,6 +606,20 @@ private:
             return Controller->Spec->MergeLocalityTimeout;
         }
 
+        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        {
+            NProto::TNodeResources requestedResources;
+            requestedResources.set_slots(1);
+            requestedResources.set_cores(1);
+            auto jobIOConfig = Controller->Config->MergeJobIO;
+            int inputStreamCount = ChunkPool->StripeCounter().GetTotal();
+            requestedResources.set_memory(
+                GetIOMemorySize(jobIOConfig, inputStreamCount, 1) +
+                // TODO(babenko): magic numbers
+                (i64) 512 * 1024 * 1024);
+            return requestedResources;
+        }
+
     private:
         TSortController* Controller;
         TPartition* Partition;
@@ -625,6 +685,13 @@ private:
             , Partition(partition)
         {
             ChunkPool = CreateUnorderedChunkPool();
+
+            RequestedResources.set_slots(1);
+            RequestedResources.set_cores(1);
+            RequestedResources.set_memory(
+                GetIOMemorySize(Controller->Config->MergeJobIO, 1, 1) +
+                // TODO(babenko): magic numbers
+                (i64) 512 * 1024 * 1024);
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -656,9 +723,15 @@ private:
             return TDuration::Zero();
         }
 
+        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        {
+            return RequestedResources;
+        }
+
     private:
         TSortController* Controller;
         TPartition* Partition;
+        NProto::TNodeResources RequestedResources;
 
         virtual int GetChunkListCountPerJob() const OVERRIDE
         {
@@ -746,8 +819,6 @@ private:
         TOperationControllerBase::OnOperationCompleted();
     }
 
-
-    // Job scheduling and outcome handling for sort phase.
 
     // Custom bits of preparation pipeline.
 
@@ -1002,6 +1073,18 @@ private:
 
             InitJobSpecTemplates();
         }
+    }
+
+
+    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+    {
+        if (PartitionTask) {
+            return PartitionTask->GetRequestedResources();
+        }
+        if (!Partitions.empty()) {
+            return Partitions[0]->SortTask->GetRequestedResources();
+        }
+        return InfiniteResources;
     }
 
 

@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "job_manager.h"
 #include "job.h"
+#include "helpers.h"
 
 namespace NYT {
 namespace NExecAgent {
@@ -41,11 +42,13 @@ void TSchedulerConnector::Start()
 
 void TSchedulerConnector::SendHeartbeat()
 {
+    auto jobManager = Bootstrap->GetJobManager();
+
     // Construct state snapshot.
     auto req = Proxy.Heartbeat();
     req->set_address(Bootstrap->GetPeerAddress());
-    auto jobManager = Bootstrap->GetJobManager();
-    *req->mutable_utilization() = jobManager->GetUtilization();
+    *req->mutable_resource_limits() = jobManager->GetResourceLimits();
+    *req->mutable_resource_utilization() = jobManager->GetResourceUtilization();
 
     auto jobs = Bootstrap->GetJobManager()->GetAllJobs();
     FOREACH (auto job, jobs) {
@@ -64,10 +67,11 @@ void TSchedulerConnector::SendHeartbeat()
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
         .Via(ControlInvoker));
 
-    LOG_INFO("Scheduler heartbeat sent (JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d)",
+    LOG_INFO("Scheduler heartbeat sent (JobCount: %d, Utilization: {%s})",
         req->jobs_size(),
-        req->utilization().total_slot_count(),
-        req->utilization().free_slot_count());
+        ~FormatResourceUtilization(
+            req->resource_utilization(),
+            req->resource_limits()));
 }
 
 void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeatPtr rsp)
@@ -99,7 +103,7 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
     }
 }
 
-void TSchedulerConnector::StartJob(const TStartJobInfo& info)
+void TSchedulerConnector::StartJob(const TJobStartInfo& info)
 {
     auto jobId = TJobId::FromProto(info.job_id());
     const auto& spec = info.spec();

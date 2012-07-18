@@ -7,14 +7,13 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/chunk_holder/public.h>
-// TODO(babenko): consider removing.
-#include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/rpc/public.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/job_proxy/public.h>
 #include <ytlib/file_server/file_ypath.pb.h>
 #include <ytlib/scheduler/job.pb.h>
 #include <ytlib/logging/tagged_logger.h>
+#include <ytlib/scheduler/scheduler_service.pb.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -45,6 +44,8 @@ public:
     NScheduler::EJobState GetState() const;
     NScheduler::EJobProgress GetProgress() const;
 
+    NScheduler::NProto::TNodeResources GetResourceUtilization() const;
+
     const NScheduler::NProto::TJobResult& GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
@@ -57,7 +58,7 @@ private:
         TParallelAwaiterPtr awaiter);
     void OnChunkDownloaded(
         const NFileServer::NProto::TRspFetch& fetchRsp,
-        NChunkHolder::TChunkCache::TDownloadResult result);
+        TValueOrError<NChunkHolder::TCachedChunkPtr> result);
 
     void RunJobProxy();
     void SetResult(const TError& error);

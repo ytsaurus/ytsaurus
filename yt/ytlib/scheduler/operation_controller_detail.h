@@ -8,11 +8,18 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/nullable.h>
+
 #include <ytlib/logging/tagged_logger.h>
+
 #include <ytlib/actions/async_pipeline.h>
+
 #include <ytlib/chunk_server/public.h>
+
 #include <ytlib/table_server/table_ypath_proxy.h>
+
 #include <ytlib/file_server/file_ypath_proxy.h>
+
+#include <ytlib/scheduler/scheduler_service.pb.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -183,6 +190,9 @@ protected:
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
 
+        virtual NProto::TNodeResources GetRequestedResources() const = 0;
+        bool HasEnoughResources(TExecNodePtr node) const;
+
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
 
         void AddStripe(TChunkStripePtr stripe);
@@ -341,6 +351,14 @@ protected:
     //! Called to extract file paths from the spec.
     virtual std::vector<NYTree::TYPath> GetFilePaths();
 
+
+    //! Contains large sentinel values.
+    NProto::TNodeResources InfiniteResources;
+
+    //! Minimum resources that are needed to start any task.
+    virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
+
+
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkServer::TChunkId& chunkId);
 
@@ -408,6 +426,11 @@ protected:
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
         const std::vector<TFile>& files);
+
+    static i64 GetIOMemorySize(
+        NJobProxy::TJobIOConfigPtr ioConfig,
+        int inputStreamCount,
+        int outputStreamCount);
 
 private:
     static bool AreKeysCompatible(const std::vector<Stroka>& fullColumns, const std::vector<Stroka>& prefixColumns);

@@ -96,10 +96,15 @@ struct TUserJobSpec
     : public TYsonSerializable
 {
     Stroka Command;
+    
     std::vector<NYTree::TYPath> FilePaths;
+
     NYTree::INodePtr Format;
     NYTree::INodePtr InputFormat;
     NYTree::INodePtr OutputFormat;
+    
+    int CoresLimit;
+    i64 MemoryLimit;
 
     TUserJobSpec()
     {
@@ -112,6 +117,10 @@ struct TUserJobSpec
             .Default(NULL);
         Register("output_format", OutputFormat)
             .Default(NULL);
+        Register("cores_limit", CoresLimit)
+            .Default(1);
+        Register("memory_limit", MemoryLimit)
+            .Default((i64) 1024 * 1024 * 1024);
     }
 };
 

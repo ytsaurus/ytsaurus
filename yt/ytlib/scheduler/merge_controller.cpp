@@ -91,6 +91,7 @@ protected:
             , PartitionIndex(partitionIndex)
         {
             ChunkPool = CreateAtomicChunkPool();
+            RequestedResources = Controller->GetRequestedResources();
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -110,10 +111,16 @@ protected:
         {
             return Controller->GetJobLocalityTimeout();
         }
+        
+        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        {
+            return RequestedResources;
+        }
 
 
     private:
         TMergeControllerBase* Controller;
+        NProto::TNodeResources RequestedResources;
 
         //! The position in |MergeTasks|. 
         int TaskIndex;
@@ -360,6 +367,25 @@ protected:
         if (CurrentTaskWeight > 0) {
             EndTask();
         }
+    }
+
+
+
+    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+    {
+        return MergeTasks.empty() ? InfiniteResources : MergeTasks[0]->GetRequestedResources();
+    }
+
+    virtual NProto::TNodeResources GetRequestedResources() const
+    {
+        TNodeResources requestedResources;
+        requestedResources.set_slots(1);
+        requestedResources.set_cores(1);
+        requestedResources.set_memory(
+            GetIOMemorySize(Config->MergeJobIO, InputTables.size(), OutputTables.size()) +
+            // TODO(babenko): magic numbers
+            (i64) 512 * 1024 * 1024);
+        return requestedResources;
     }
 
 
@@ -1002,7 +1028,19 @@ private:
 
         TMergeControllerBase::InitJobSpecTemplate();
     }
+
+    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    {
+        auto requestedResources = TSortedMergeControllerBase::GetRequestedResources();
+        requestedResources.set_cores(Spec->Reducer->CoresLimit);
+        requestedResources.set_memory(
+            requestedResources.memory() +
+            Spec->Reducer->MemoryLimit);
+        return requestedResources;
+    }
+
 };
+
 ////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMergeController(

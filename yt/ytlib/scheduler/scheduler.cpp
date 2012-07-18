@@ -39,15 +39,17 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
 
+#include <ytlib/exec_agent/helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
-using namespace NCellScheduler;
 using namespace NTransactionClient;
 using namespace NCypressClient;
 using namespace NYTree;
 using namespace NObjectServer;
-using namespace NProto;
+using namespace NExecAgent;
+using namespace NScheduler::NProto;
 
 using NChunkServer::TChunkId;
 
@@ -868,13 +870,13 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
         auto address = request->address();
-        auto utilization = request->utilization();
+        const auto& resourceLimits = request->resource_limits();
+        const auto& resourceUtilization = request->resource_utilization();
 
-        context->SetRequestInfo("Address: %s, JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d",
+        context->SetRequestInfo("Address: %s, JobCount: %d, Utilization: {%s}",
             ~address,
             request->jobs_size(),
-            utilization.total_slot_count(),
-            utilization.free_slot_count());
+            ~FormatResourceUtilization(resourceLimits, resourceUtilization));
 
         auto node = FindNode(address);
         if (!node) {
@@ -883,7 +885,8 @@ private:
             return;
         }
 
-        node->Utilization() = utilization;
+        node->ResourceUtilization() = resourceUtilization;
+        node->ResourceLimits() = resourceLimits;
 
         PROFILE_TIMING ("/analysis_time") {
             auto missingJobs = node->Jobs();
@@ -1055,7 +1058,7 @@ private:
 
 TScheduler::TScheduler(
     TSchedulerConfigPtr config,
-    TBootstrap* bootstrap)
+    NCellScheduler::TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
 

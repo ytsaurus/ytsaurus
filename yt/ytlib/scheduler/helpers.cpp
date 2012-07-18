@@ -8,10 +8,13 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
 
+#include <ytlib/exec_agent/helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -79,13 +82,10 @@ void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
 void BuildExecNodeAttributes(TExecNodePtr node, IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("utilization").BeginMap()
-            .Item("total_slot_count").Scalar(node->Utilization().total_slot_count())
-            .Item("free_slot_count").Scalar(node->Utilization().free_slot_count())
-        .EndMap()
+        .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, node->ResourceUtilization()))
+        .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, node->ResourceLimits()))
         .Item("job_count").Scalar(static_cast<int>(node->Jobs().size()));
 }
-
 
 ////////////////////////////////////////////////////////////////////
 

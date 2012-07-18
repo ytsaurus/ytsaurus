@@ -62,14 +62,25 @@ private:
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool();
+
+            RequestedResources.set_slots(1);
+            RequestedResources.set_cores(Controller->Spec->Mapper->CoresLimit);
+            auto jobIOConfig = Controller->Config->MapJobIO;
+            RequestedResources.set_memory(
+                GetIOMemorySize(
+                    Controller->Config->MapJobIO,
+                    Controller->InputTables.size(),
+                    Controller->OutputTables.size()) +
+                // TODO(babenko): magic numbers
+                (i64) 512 * 1024 * 1024);
         }
 
-        virtual Stroka GetId() const
+        virtual Stroka GetId() const OVERRIDE
         {
             return "Map";
         }
 
-        virtual int GetPendingJobCount() const
+        virtual int GetPendingJobCount() const OVERRIDE
         {
             return
                 IsPending()
@@ -77,22 +88,28 @@ private:
                 : 0;
         }
 
-        virtual TDuration GetLocalityTimeout() const
+        virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
             return Controller->Spec->LocalityTimeout;
+        }
+
+        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        {
+            return RequestedResources;
         }
 
     private:
         friend class TMapController;
 
         TMapController* Controller;
+        NProto::TNodeResources RequestedResources;
 
-        virtual int GetChunkListCountPerJob() const 
+        virtual int GetChunkListCountPerJob() const OVERRIDE
         {
             return static_cast<int>(Controller->OutputTables.size());
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const
+        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
         {
             return GetJobWeightThresholdGeneric(
                 GetPendingJobCount(),
@@ -110,7 +127,7 @@ private:
             }
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip)
+        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             TTask::OnJobCompleted(jip);
 
@@ -128,22 +145,22 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TYPath> GetInputTablePaths()
+    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths()
+    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths()
+    virtual std::vector<TYPath> GetFilePaths() OVERRIDE
     {
         return Spec->Mapper->FilePaths;
     }
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
     {
         return pipeline->Add(BIND(&TMapController::ProcessInputs, MakeStrong(this)));
     }
@@ -192,9 +209,15 @@ private:
     }
 
 
+    virtual NProto::TNodeResources GetMinRequestedResources() const
+    {
+        return MapTask ? MapTask->GetRequestedResources() : InfiniteResources;   
+    }
+
+
     // Progress reporting.
 
-    virtual void LogProgress()
+    virtual void LogProgress() OVERRIDE
     {
         LOG_DEBUG("Progress: "
             "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
@@ -209,7 +232,7 @@ private:
             ~ToString(MapTask->WeightCounter()));
     }
 
-    virtual void DoGetProgress(IYsonConsumer* consumer)
+    virtual void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
     {
         BuildYsonMapFluently(consumer)
             .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &MapTask->ChunkCounter()))

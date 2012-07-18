@@ -20,16 +20,20 @@ class TExecNode
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
-    //! The most recent utilization as reported by the node.
+    //! Resource limits, as reported by the node.
+    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceLimits);
+
+    //! The most recent resource utilization, as reported by the node.
     /*!
      *  Some fields are also updated by the scheduler strategy to
-     *  reflect recent job set changes. E.g. when the scheduler decided to
-     *  start a new job it decrements |free_slot_count|. 
+     *  reflect recent job set changes.
+     *  E.g. when the scheduler decides to
+     *  start a new job it decrements the appropriate counters. 
      */
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeUtilization, Utilization);
+    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUtilization);
 
 public:
-    TExecNode(const Stroka& address);
+    explicit TExecNode(const Stroka& address);
 
 };
 

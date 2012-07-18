@@ -51,16 +51,38 @@ public:
 
 };
 
+struct TResourceLimitsConfig
+    : public TYsonSerializable
+{
+    int Slots;
+    int Cores;
+    i64 Memory;
+
+    TResourceLimitsConfig()
+    {
+        // These are some very low default limits.
+        // Override for production use.
+        Register("slots", Slots)
+            .Default(2);
+        Register("cores", Cores)
+            .Default(2);
+        Register("memory", Slots)
+            .Default((i64) 4 * 1024 * 1024 * 1024);
+    }
+};
+
+typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
+
 struct TJobManagerConfig
     : public TYsonSerializable
 {
-    int  SlotCount;
+    TResourceLimitsConfigPtr ResourceLimits;
     Stroka SlotLocation;
 
     TJobManagerConfig()
     {
-        Register("slot_count", SlotCount)
-            .Default(8);
+        Register("resource_limits", ResourceLimits)
+            .DefaultNew();
         Register("slot_location", SlotLocation)
             .NonEmpty();
     }

@@ -7,11 +7,17 @@
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/assert.h>
+
 #include <ytlib/ytree/serialize.h>
+
 #include <ytlib/transaction_client/transaction.h>
+
 #include <ytlib/file_server/file_ypath_proxy.h>
+
 #include <ytlib/chunk_holder/chunk.h>
 #include <ytlib/chunk_holder/location.h>
+#include <ytlib/chunk_holder/chunk_cache.h>
+
 #include <ytlib/job_proxy/config.h>
 
 namespace NYT {
@@ -25,6 +31,7 @@ using namespace NYTree;
 using NChunkServer::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 TJob::TJob(
     const TJobId& jobId,
     const TJobSpec& jobSpec,
@@ -83,7 +90,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
                 "Error deserializing job IO configuration\n%s", 
                 ex.what());
             LOG_ERROR("%s", ~message);
-            DoAbort(TError(message), NScheduler::EJobState::Failed);
+            DoAbort(TError(message), EJobState::Failed);
             return;
         }
 
@@ -119,22 +126,22 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             ~environmentType.Quote(),
             ex.what());
         LOG_ERROR("%s", ~message);
-        DoAbort(TError(message), NScheduler::EJobState::Failed);
+        DoAbort(TError(message), EJobState::Failed);
         return;
     }
 
-    JobProgress = NScheduler::EJobProgress::PreparingSandbox;
+    JobProgress = EJobProgress::PreparingSandbox;
     Slot->InitSandbox();
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
 
-    if (JobSpec.HasExtension(NScheduler::NProto::TMapJobSpecExt::map_job_spec_ext)) {
-        const auto& jobSpecExt = JobSpec.GetExtension(NScheduler::NProto::TMapJobSpecExt::map_job_spec_ext);
+    if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
+        const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
         PrepareUserJob(jobSpecExt.mapper_spec(), awaiter);
     }
 
-    if (JobSpec.HasExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext)) {
-        const auto& jobSpecExt = JobSpec.GetExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
+    if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
+        const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         PrepareUserJob(jobSpecExt.reducer_spec(), awaiter);
     }
 
@@ -186,7 +193,7 @@ void TJob::OnChunkDownloaded(
             fileName, 
             CachedChunks.back()->GetFileName(), 
             fetchRsp.executable());
-    } catch (yexception& ex) {
+    } catch (const std::exception& ex) {
         Stroka message = Sprintf(
             "Failed to make symlink (FileName: %s)\n%s", 
             ~fileName,
@@ -213,7 +220,7 @@ void TJob::RunJobProxy()
         JobProgress = EJobProgress::StartedProxy;
         ProxyController->Run();
     } catch (const std::exception& ex) {
-        DoAbort(TError(ex.what()), NScheduler::EJobState::Failed);
+        DoAbort(TError(ex.what()), EJobState::Failed);
         return;
     }
 
@@ -277,7 +284,7 @@ const TJobSpec& TJob::GetSpec()
     return JobSpec;
 }
 
-void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
+void TJob::SetResult(const TJobResult& jobResult)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -286,7 +293,7 @@ void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
     }
 }
 
-const NScheduler::NProto::TJobResult& TJob::GetResult() const
+const TJobResult& TJob::GetResult() const
 {
     TGuard<TSpinLock> guard(SpinLock);
     YCHECK(JobResult.IsInitialized());
@@ -295,19 +302,32 @@ const NScheduler::NProto::TJobResult& TJob::GetResult() const
 
 void TJob::SetResult(const TError& error)
 {
-    NScheduler::NProto::TJobResult jobResult;
+    TJobResult jobResult;
     *jobResult.mutable_error() = error.ToProto();
     SetResult(jobResult);
 }
 
-NScheduler::EJobState TJob::GetState() const
+EJobState TJob::GetState() const
 {
     return JobState;
 }
 
-NScheduler::EJobProgress TJob::GetProgress() const
+EJobProgress TJob::GetProgress() const
 {
     return JobProgress;
+}
+
+TNodeResources TJob::GetResourceUtilization() const
+{
+    if (JobState != EJobState::Running &&
+        JobState != EJobState::Aborting)
+    {
+        // Completed jobs have zero utilization.
+        return TNodeResources();
+    }
+
+    // Report what we have received from the scheduler.
+    return JobSpec.resource_utilization();
 }
 
 void TJob::Abort()
