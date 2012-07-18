@@ -6,6 +6,7 @@
 #include "bootstrap.h"
 #include "private.h"
 #include "environment_manager.h"
+#include "helpers.h"
 
 #include <ytlib/misc/fs.h>
 

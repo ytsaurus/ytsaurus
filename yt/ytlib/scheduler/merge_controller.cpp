@@ -7,11 +7,17 @@
 #include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/transaction_client/transaction.h>
+
 #include <ytlib/table_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
+
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
 #include <ytlib/formats/format.h>
+
+#include <ytlib/exec_agent/helpers.h>
 
 #include <cmath>
 
@@ -24,11 +30,10 @@ using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NTableServer;
 using namespace NFormats;
+using namespace NExecAgent;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NChunkHolder::NProto;
-using NTableClient::ToString;
-using ::ToString;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -815,6 +820,9 @@ protected:
 
     void ProcessOverlap(int startIndex, int endIndex)
     {
+        using NTableClient::ToString;
+        using ::ToString;
+
         // Must be an even number of endpoints.
         YCHECK((endIndex - startIndex) % 2 == 0);
 

@@ -6,11 +6,18 @@
 #include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/table_client/schema.h>
+
 #include <ytlib/job_proxy/config.h>
+
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
 #include <ytlib/transaction_client/transaction.h>
+
 #include <ytlib/table_client/key.h>
+
+#include <ytlib/exec_agent/helpers.h>
 
 #include <cmath>
 
@@ -19,6 +26,7 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NChunkServer;
+using namespace NExecAgent;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
