@@ -113,10 +113,8 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
             return 0;
 
         default:
-        YUNREACHABLE();
+            YUNREACHABLE();
     }
-
-    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,8 +202,6 @@ TJobResult TSortJob::Run()
         {
             TLexer lexer;
             while (Reader->IsValid()) {
-                // Avoid constructing row on stack and then copying it into the buffer.
-                // TODO(babenko): consider using emplace_back
                 rowIndexBuffer.push_back(rowIndexBuffer.size());
                 YASSERT(rowIndexBuffer.back() <= std::numeric_limits<ui32>::max());
 
