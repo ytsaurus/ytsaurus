@@ -6,7 +6,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/chunk_server/chunk_tree_ref.h>
-#include <ytlib/cypress/node.h>
+#include <ytlib/cypress_server/node.h>
 
 // Some forward declarations.
 namespace NYT {

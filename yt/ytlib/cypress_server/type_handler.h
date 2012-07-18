@@ -8,7 +8,7 @@
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,5 +118,5 @@ struct INodeTypeHandler
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT

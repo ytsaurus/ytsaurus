@@ -7,7 +7,7 @@
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 using namespace NYTree;
 using namespace NObjectServer;
@@ -26,11 +26,11 @@ const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,6 +300,6 @@ void TListNodeTypeHandler::DoMerge(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT
 

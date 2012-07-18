@@ -5,7 +5,7 @@
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 using namespace NYTree;
 using namespace NRpc;
@@ -548,6 +548,6 @@ void TListNodeProxy::DoCloneTo(TListNode* clonedNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT
 

@@ -2,7 +2,7 @@
 
 #include "type_handler.h"
 
-#include <ytlib/cypress/public.h>
+#include <ytlib/cypress_server/public.h>
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {

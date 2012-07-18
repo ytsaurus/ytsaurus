@@ -7,8 +7,8 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/cypress/virtual.h>
-#include <ytlib/cypress/node_proxy_detail.h>
+#include <ytlib/cypress_server/virtual.h>
+#include <ytlib/cypress_server/node_proxy_detail.h>
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/chunk_server/holder_authority.h>
@@ -19,7 +19,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NMetaState;
 using namespace NOrchid;

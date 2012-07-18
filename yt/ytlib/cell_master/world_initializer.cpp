@@ -5,7 +5,7 @@
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress_server/cypress_manager.h>
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
@@ -17,7 +17,7 @@ namespace NCellMaster {
 
 using namespace NMetaState;
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NObjectServer;

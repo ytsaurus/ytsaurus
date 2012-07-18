@@ -13,7 +13,7 @@ namespace NFileServer {
 
 using namespace NCellMaster;
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NCypressClient::NProto;
@@ -49,7 +49,7 @@ void TFileNode::Load(const TLoadContext& context, TInputStream* input)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeTypeHandler
-    : public NCypress::TCypressNodeTypeHandlerBase<TFileNode>
+    : public NCypressServer::TCypressNodeTypeHandlerBase<TFileNode>
 {
 public:
     typedef TCypressNodeTypeHandlerBase<TFileNode> TBase;

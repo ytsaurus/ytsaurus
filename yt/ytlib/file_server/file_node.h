@@ -2,7 +2,7 @@
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
-#include <ytlib/cypress/node_detail.h>
+#include <ytlib/cypress_server/node_detail.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -10,14 +10,14 @@ namespace NFileServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNode
-    : public NCypress::TCypressNodeBase
+    : public NCypressServer::TCypressNodeBase
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
 
 public:
-    explicit TFileNode(const NCypress::TVersionedNodeId& id);
+    explicit TFileNode(const NCypressServer::TVersionedNodeId& id);
 
-    virtual NCypress::EObjectType GetObjectType() const;
+    virtual NCypressServer::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
     
@@ -26,7 +26,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandlerPtr CreateFileTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateFileTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

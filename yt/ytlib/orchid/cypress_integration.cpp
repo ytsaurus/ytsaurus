@@ -5,7 +5,7 @@
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/ypath_detail.h>
-#include <ytlib/cypress/virtual.h>
+#include <ytlib/cypress_server/virtual.h>
 #include <ytlib/orchid/orchid_service_proxy.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/rpc/message.h>
@@ -19,7 +19,7 @@ namespace NOrchid {
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NCellMaster;
 using namespace NOrchid::NProto;
 

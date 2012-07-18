@@ -2,7 +2,7 @@
 
 #include "id.h"
 
-#include <ytlib/cypress/cypress_ypath.pb.h>
+#include <ytlib/cypress_server/cypress_ypath.pb.h>
 #include <ytlib/rpc/service.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/transaction_server/public.h>

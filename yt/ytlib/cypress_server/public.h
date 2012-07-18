@@ -5,7 +5,7 @@
 #include <ytlib/object_server/id.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,5 +31,5 @@ using NObjectServer::EObjectType;
 
 ////////////////////////////////////////////////////////////////////////////////
             
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT

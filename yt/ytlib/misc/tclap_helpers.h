@@ -7,7 +7,7 @@
 
 #include <ytlib/object_server/public.h>
 #include <ytlib/object_server/id.h>
-#include <ytlib/cypress/public.h>
+#include <ytlib/cypress_server/public.h>
 #include <ytlib/cypress_client/id.h>
 #include <ytlib/ytree/yson_writer.h>
 

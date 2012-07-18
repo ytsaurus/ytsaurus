@@ -1,5 +1,5 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress )
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress_server )
 set( SRCS
   ${BASE}/cypress_integration.cpp
   ${BASE}/cypress_manager.cpp

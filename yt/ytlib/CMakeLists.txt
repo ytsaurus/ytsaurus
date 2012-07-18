@@ -15,7 +15,7 @@ set( DIRS
   rpc
   bus
   ytree
-  cypress
+  cypress_server
   cypress_client
   orchid
   file_server

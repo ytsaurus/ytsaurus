@@ -15,7 +15,7 @@
 #include <ytlib/object_server/object_service_proxy.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 using namespace NCellMaster;
 using namespace NBus;
@@ -983,5 +983,5 @@ DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TVersionedNodeId, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT

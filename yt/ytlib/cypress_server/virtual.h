@@ -2,11 +2,11 @@
 
 #include "type_handler.h"
 
-#include <ytlib/cypress/public.h>
+#include <ytlib/cypress_server/public.h>
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,5 +26,5 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT

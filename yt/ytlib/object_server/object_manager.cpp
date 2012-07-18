@@ -12,7 +12,7 @@
 #include <ytlib/transaction_server/transaction.h>
 #include <ytlib/rpc/message.h>
 
-#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress_server/cypress_manager.h>
 
 #include <ytlib/cell_master/bootstrap.h>
 
@@ -27,7 +27,7 @@ using namespace NMetaState;
 using namespace NRpc;
 using namespace NBus;
 using namespace NProto;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////

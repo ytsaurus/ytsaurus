@@ -2,8 +2,8 @@
 #include "virtual.h"
 
 #include <ytlib/ytree/ypath_format.h>
-#include <ytlib/cypress/node_detail.h>
-#include <ytlib/cypress/node_proxy_detail.h>
+#include <ytlib/cypress_server/node_detail.h>
+#include <ytlib/cypress_server/node_proxy_detail.h>
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {

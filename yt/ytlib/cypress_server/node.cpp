@@ -2,7 +2,7 @@
 #include "node.h"
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +18,6 @@ void Load(TInputStream* input, TLock& lock)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT
 

@@ -7,7 +7,7 @@
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/object_server/object_detail.h>
-#include <ytlib/cypress/public.h>
+#include <ytlib/cypress_server/public.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -21,7 +21,7 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypress::ICypressNode*>, OwningNodes);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypressServer::ICypressNode*>, OwningNodes);
     
     // This is a pessimistic estimate.
     // In particular, this flag is True for root chunk lists of sorted tables.

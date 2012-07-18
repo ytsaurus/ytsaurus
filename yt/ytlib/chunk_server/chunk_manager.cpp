@@ -22,7 +22,7 @@
 #include <ytlib/chunk_server/chunk_list_ypath.pb.h>
 #include <ytlib/chunk_server/chunk_manager.pb.h>
 
-#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress_server/cypress_manager.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
@@ -59,7 +59,7 @@ using namespace NObjectServer;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NChunkHolder::NProto;
-using namespace NCypress;
+using namespace NCypressServer;
 using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////

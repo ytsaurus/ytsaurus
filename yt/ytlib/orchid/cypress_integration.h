@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/cypress/public.h>
+#include <ytlib/cypress_server/public.h>
 #include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/cell_master/public.h>
 
@@ -30,7 +30,7 @@ struct TOrchidManifest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

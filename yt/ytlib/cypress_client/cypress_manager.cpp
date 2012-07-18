@@ -3,7 +3,7 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 #include "cypress_ypath_proxy.h"
-#include <ytlib/cypress/cypress_ypath.pb.h>
+#include <ytlib/cypress_server/cypress_ypath.pb.h>
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/cell_master/load_context.h>

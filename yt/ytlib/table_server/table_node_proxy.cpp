@@ -21,7 +21,7 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NChunkServer;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectServer;

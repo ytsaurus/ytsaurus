@@ -20,7 +20,7 @@
 #include <ytlib/transaction_server/transaction.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCypressServer {
 
 using NObjectServer::TObjectId;
 using NObjectServer::NullObjectId;
@@ -803,5 +803,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCypressServer
 } // namespace NYT

@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include <ytlib/cypress/virtual.h>
-#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress_server/virtual.h>
+#include <ytlib/cypress_server/cypress_manager.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/misc/string.h>
