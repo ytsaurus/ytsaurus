@@ -53,6 +53,8 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Config(config)
         , Spec(spec)
+        , TotalRowCount(0)
+        , TotalValueCount(0)
         , CompletedPartitionCount(0)
         , MaxSortJobCount(0)
         , RunningSortJobCount(0)
@@ -75,18 +77,25 @@ private:
     TSchedulerConfigPtr Config;
     TSortOperationSpecPtr Spec;
 
+    // Totals.
+    i64 TotalRowCount;
+    i64 TotalValueCount;
+
     // Counters.
     int CompletedPartitionCount;
     TProgressCounter PartitionJobCounter;
+    
     // Sort job counters.
     int MaxSortJobCount;
     int RunningSortJobCount;
     int CompletedSortJobCount;
     TProgressCounter SortWeightCounter;
+    
     // Sorted merge job counters.
     int TotalSortedMergeJobCount;
     int RunningSortedMergeJobCount;
     int CompletedSortedMergeJobCount;
+
     // Unordered merge job counters.
     int TotalUnorderedMergeJobCount;
     int RunningUnorderedMergeJobCount;
@@ -338,15 +347,7 @@ private:
             , Partition(partition)
         {
             ChunkPool = CreateUnorderedChunkPool(false);
-
-            i64 rowCountPerJob = 1;
-            i64 valueCountPerJob = 2;
-            MinRequestedResources = GetSimpleSortJobResources(
-                Controller->Config->SortJobIO,
-                Controller->Spec,
-                Controller->Spec->MaxWeightPerSortJob,
-                rowCountPerJob,
-                valueCountPerJob);
+            MinRequestedResources = GetRequestedResourcesForWeight(Controller->Spec->MaxWeightPerSortJob);
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -399,16 +400,9 @@ private:
             return MinRequestedResources;
         }
 
-        virtual NProto::TNodeResources GetRequestedResources(TJobInProgressPtr jip) const OVERRIDE
+        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const OVERRIDE
         {
-            i64 rowCountPerJob = 1;
-            i64 valueCountPerJob = 2;
-            return GetSimpleSortJobResources(
-                Controller->Config->SortJobIO,
-                Controller->Spec,
-                jip->PoolResult->TotalChunkWeight,
-                rowCountPerJob,
-                valueCountPerJob);
+            return GetRequestedResourcesForWeight(jip->PoolResult->TotalChunkWeight);
         }
 
         bool IsCompleted() const
@@ -424,6 +418,16 @@ private:
         NProto::TNodeResources MinRequestedResources;
 
         yhash_map<Stroka, i64> AddressToOutputLocality;
+
+        NProto::TNodeResources GetRequestedResourcesForWeight(i64 uncompressedDataSize) const
+        {
+            return GetSimpleSortJobResources(
+                Controller->Config->SortJobIO,
+                Controller->Spec,
+                uncompressedDataSize,
+                Controller->GetRowCountEstimate(uncompressedDataSize),
+                Controller->GetValueCountEstimate(uncompressedDataSize));
+        }
 
         bool CheckSortedMergeNeeded()
         {
@@ -888,8 +892,15 @@ private:
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                 i64 weight = miscExt.data_weight();
                 SortWeightCounter.Increment(weight);
+                TotalRowCount += miscExt.row_count();
+                TotalValueCount += miscExt.value_count();
             }
         }
+
+        LOG_INFO("Totals collected (DataWeight: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
+            SortWeightCounter.GetTotal(),
+            TotalRowCount,
+            TotalValueCount);
 
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
@@ -1205,6 +1216,16 @@ private:
             UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(
                 PrepareJobIOConfig(Config->MergeJobIO, true)).Data());
         }
+    }
+
+    i64 GetRowCountEstimate(i64 weight)
+    {
+        return static_cast<i64>((double) TotalRowCount * weight / SortWeightCounter.GetTotal());
+    }
+
+    i64 GetValueCountEstimate(i64 weight)
+    {
+        return static_cast<i64>((double) TotalValueCount * weight / SortWeightCounter.GetTotal());
     }
 };
 

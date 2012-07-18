@@ -89,7 +89,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     NProto::TJobSpec jobSpec;
     BuildJobSpec(jip, &jobSpec);
 
-    *jobSpec.mutable_resource_utilization() = GetRequestedResources(jip);
+    *jobSpec.mutable_resource_utilization() = GetRequestedResourcesForJip(jip);
 
     jip->Job = Controller->Host->CreateJob(
         EJobType(jobSpec.type()),
@@ -214,7 +214,7 @@ void TOperationControllerBase::TTask::AddInputChunks(
     }
 }
 
-NProto::TNodeResources TOperationControllerBase::TTask::GetRequestedResources(TJobInProgressPtr jip) const
+NProto::TNodeResources TOperationControllerBase::TTask::GetRequestedResourcesForJip(TJobInProgressPtr jip) const
 {
     UNUSED(jip);
     return GetMinRequestedResources();

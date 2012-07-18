@@ -68,7 +68,7 @@ NProto::TNodeResources GetPartitionJobResources(
 NProto::TNodeResources GetSimpleSortJobResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
-    i64 uncompressedDataSize,
+    i64 dataWeight,
     i64 rowCountPerJob,
     i64 valueCountPerJob);
 

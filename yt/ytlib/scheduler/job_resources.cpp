@@ -190,7 +190,7 @@ TNodeResources GetPartitionJobResources(
 TNodeResources GetSimpleSortJobResources(
     TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
-    i64 uncompressedDataSize,
+    i64 dataWeight,
     i64 rowCountPerJob,
     i64 valueCountPerJob)
 {
@@ -199,12 +199,14 @@ TNodeResources GetSimpleSortJobResources(
     result.set_cores(1);
     result.set_memory(
         GetIOMemorySize(ioConfig, 1, 1) +
-        uncompressedDataSize * 3 +
+        // TODO(babenko): magic number
+        dataWeight * 1.1 +
         (i64) 16 * spec->KeyColumns.size() * rowCountPerJob +
         (i64) 16 * rowCountPerJob +
         (i64) 32 * valueCountPerJob +
         FootprintMemorySize);
     return result;
+    // TODO(babenko): for partition sort
         //(i64) 16 * spec->KeyColumns.size() * rowCountPerJob +
         //(i64) 8 * rowCountPerJob;
 }

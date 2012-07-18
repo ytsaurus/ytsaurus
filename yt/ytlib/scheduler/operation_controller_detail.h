@@ -191,7 +191,7 @@ protected:
         virtual i64 GetLocality(const Stroka& address) const;
 
         virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
-        virtual NProto::TNodeResources GetRequestedResources(TJobInProgressPtr jip) const;
+        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const;
         bool HasEnoughResources(TExecNodePtr node) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
