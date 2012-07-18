@@ -122,19 +122,21 @@ void TSequentialReader::DecompressBlock(
     int blockIndex,
     const IAsyncReader::TReadResult& readResult)
 {
+    int globalIndex = firstSequenceIndex + blockIndex;
+
     auto& block = readResult.Value()[blockIndex];
     auto data = Codec->Decompress(block);
-    BlockWindow[firstSequenceIndex + blockIndex].Set(data);
+    BlockWindow[globalIndex].Set(data);
 
     int delta = data.Size();
-    delta -= block.Size();
+    delta -= BlockSequence[globalIndex].Size;
 
     if (delta > 0)
         AsyncSemaphore.Acquire(delta);
     else
         AsyncSemaphore.Release(-delta);
 
-    LOG_DEBUG("Decompressed block %d", firstSequenceIndex + blockIndex);
+    LOG_DEBUG("Decompressed block %d", globalIndex);
 
     ++blockIndex;
     if (blockIndex < readResult.Value().size()) {
