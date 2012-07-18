@@ -94,7 +94,7 @@ protected:
             , PartitionIndex(partitionIndex)
         {
             ChunkPool = CreateAtomicChunkPool();
-            RequestedResources = Controller->GetRequestedResources();
+            MinRequestedResources = Controller->GetMinRequestedResources();
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -115,15 +115,15 @@ protected:
             return Controller->GetJobLocalityTimeout();
         }
         
-        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
-            return RequestedResources;
+            return MinRequestedResources;
         }
 
 
     private:
         TMergeControllerBase* Controller;
-        NProto::TNodeResources RequestedResources;
+        NProto::TNodeResources MinRequestedResources;
 
         //! The position in |MergeTasks|. 
         int TaskIndex;
@@ -373,15 +373,6 @@ protected:
     }
 
 
-
-    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
-    {
-        return MergeTasks.empty() ? InfiniteResources() : MergeTasks[0]->GetRequestedResources();
-    }
-
-    virtual NProto::TNodeResources GetRequestedResources() const = 0;
-
-
     // Progress reporting.
 
     virtual void LogProgress() OVERRIDE
@@ -533,7 +524,7 @@ private:
         TMergeControllerBase::InitJobSpecTemplate();
     }
 
-    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
     {
         return GetMergeJobResources(Config->MergeJobIO, Spec);
     }
@@ -625,7 +616,7 @@ private:
         TMergeControllerBase::InitJobSpecTemplate();
     }
 
-    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
     {
         return GetMergeJobResources(Config->MergeJobIO, Spec);
     }
@@ -716,7 +707,7 @@ private:
         TMergeControllerBase::InitJobSpecTemplate();
     }
 
-    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
     {
         return GetEraseJobResources(Config->MergeJobIO, Spec);
     }
@@ -970,7 +961,7 @@ private:
         ScheduleSetOutputTablesSorted(KeyColumns);
     }
 
-    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
     {
         return GetMergeJobResources(Config->MergeJobIO, Spec);
     }
@@ -1045,7 +1036,7 @@ private:
         TMergeControllerBase::InitJobSpecTemplate();
     }
 
-    virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
     {
         return GetReduceJobResources(Config->MergeJobIO, Spec);
     }

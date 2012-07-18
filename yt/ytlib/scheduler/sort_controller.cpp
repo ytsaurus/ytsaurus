@@ -168,7 +168,7 @@ private:
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool();
-            RequestedResources = GetPartitionJobResources(
+            MinRequestedResources = GetPartitionJobResources(
                 Controller->Config->SortJobIO,
                 Controller->Partitions.size());
         }
@@ -196,14 +196,14 @@ private:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual NProto::TNodeResources GetRequestedResources() const
+        virtual NProto::TNodeResources GetMinRequestedResources() const
         {
-            return RequestedResources;
+            return MinRequestedResources;
         }
 
     private:
         TSortController* Controller;
-        NProto::TNodeResources RequestedResources;
+        NProto::TNodeResources MinRequestedResources;
 
         virtual int GetChunkListCountPerJob() const OVERRIDE
         {
@@ -341,8 +341,7 @@ private:
 
             i64 rowCountPerJob = 1;
             i64 valueCountPerJob = 2;
-
-            RequestedResources = GetSimpleSortJobResources(
+            MinRequestedResources = GetSimpleSortJobResources(
                 Controller->Config->SortJobIO,
                 Controller->Spec,
                 Controller->Spec->MaxWeightPerSortJob,
@@ -395,9 +394,21 @@ private:
             }
         }
 
-        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
-            return RequestedResources;
+            return MinRequestedResources;
+        }
+
+        virtual NProto::TNodeResources GetRequestedResources(TJobInProgressPtr jip) const OVERRIDE
+        {
+            i64 rowCountPerJob = 1;
+            i64 valueCountPerJob = 2;
+            return GetSimpleSortJobResources(
+                Controller->Config->SortJobIO,
+                Controller->Spec,
+                jip->PoolResult->TotalChunkWeight,
+                rowCountPerJob,
+                valueCountPerJob);
         }
 
         bool IsCompleted() const
@@ -410,7 +421,7 @@ private:
     private:
         TSortController* Controller;
         TPartition* Partition;
-        NProto::TNodeResources RequestedResources;
+        NProto::TNodeResources MinRequestedResources;
 
         yhash_map<Stroka, i64> AddressToOutputLocality;
 
@@ -589,7 +600,7 @@ private:
             return Controller->Spec->MergeLocalityTimeout;
         }
 
-        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
             return GetSortedMergeDuringSortJobResources(
                 Controller->Config->SortJobIO,
@@ -662,7 +673,7 @@ private:
             , Partition(partition)
         {
             ChunkPool = CreateUnorderedChunkPool();
-            RequestedResources = GetUnorderedMergeDuringSortJobResources(
+            MinRequestedResources = GetUnorderedMergeDuringSortJobResources(
                 Controller->Config->MergeJobIO,
                 Controller->Spec);
         }
@@ -696,15 +707,15 @@ private:
             return TDuration::Zero();
         }
 
-        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
-            return RequestedResources;
+            return MinRequestedResources;
         }
 
     private:
         TSortController* Controller;
         TPartition* Partition;
-        NProto::TNodeResources RequestedResources;
+        NProto::TNodeResources MinRequestedResources;
 
         virtual int GetChunkListCountPerJob() const OVERRIDE
         {
@@ -1055,10 +1066,10 @@ private:
     virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
     {
         if (PartitionTask) {
-            return PartitionTask->GetRequestedResources();
+            return PartitionTask->GetMinRequestedResources();
         }
         if (!Partitions.empty()) {
-            return Partitions[0]->SortTask->GetRequestedResources();
+            return Partitions[0]->SortTask->GetMinRequestedResources();
         }
         return InfiniteResources();
     }

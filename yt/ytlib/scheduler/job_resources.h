@@ -17,6 +17,9 @@ Stroka FormatResourceUtilization(
     const NProto::TNodeResources& utilization,
     const NProto::TNodeResources& limits);
 
+Stroka FormatResources(
+    const NProto::TNodeResources& resources);
+
 void IncreaseResourceUtilization(
     NProto::TNodeResources* utilization,
     const NProto::TNodeResources& delta);

@@ -69,7 +69,7 @@ private:
         {
             ChunkPool = CreateUnorderedChunkPool();
 
-            RequestedResources = GetMapJobResources(
+            MinRequestedResources = GetMapJobResources(
                 Controller->Config->MapJobIO,
                 Controller->Spec);
         }
@@ -92,16 +92,16 @@ private:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual NProto::TNodeResources GetRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
-            return RequestedResources;
+            return MinRequestedResources;
         }
 
     private:
         friend class TMapController;
 
         TMapController* Controller;
-        NProto::TNodeResources RequestedResources;
+        NProto::TNodeResources MinRequestedResources;
 
         virtual int GetChunkListCountPerJob() const OVERRIDE
         {
@@ -210,7 +210,7 @@ private:
 
     virtual NProto::TNodeResources GetMinRequestedResources() const
     {
-        return MapTask ? MapTask->GetRequestedResources() : InfiniteResources();
+        return MapTask ? MapTask->GetMinRequestedResources() : InfiniteResources();
     }
 
 

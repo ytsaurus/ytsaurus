@@ -80,8 +80,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     auto weightThreshold = GetJobWeightThreshold();
     jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold);
 
-    LOG_DEBUG("Chunks extracted (Address: %s, TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
-        ~node->GetAddress(),
+    LOG_DEBUG("Chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
         jip->PoolResult->TotalChunkCount,
         jip->PoolResult->LocalChunkCount,
         jip->PoolResult->TotalChunkWeight,
@@ -90,7 +89,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     NProto::TJobSpec jobSpec;
     BuildJobSpec(jip, &jobSpec);
 
-    *jobSpec.mutable_resource_utilization() = GetRequestedResources();
+    *jobSpec.mutable_resource_utilization() = GetRequestedResources(jip);
 
     jip->Job = Controller->Host->CreateJob(
         EJobType(jobSpec.type()),
@@ -99,6 +98,9 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     jip->Job->Spec().Swap(&jobSpec);
 
     Controller->RegisterJobInProgress(jip);
+
+    LOG_DEBUG("Job prepared (Utilization: {%s})",
+        ~FormatResources(jobSpec.resource_utilization()));
 
     OnJobStarted(jip);
 
@@ -212,11 +214,17 @@ void TOperationControllerBase::TTask::AddInputChunks(
     }
 }
 
+NProto::TNodeResources TOperationControllerBase::TTask::GetRequestedResources(TJobInProgressPtr jip) const
+{
+    UNUSED(jip);
+    return GetMinRequestedResources();
+}
+
 bool TOperationControllerBase::TTask::HasEnoughResources(TExecNodePtr node) const
 {
     return NScheduler::HasEnoughResources(
         node->ResourceUtilization(),
-        GetRequestedResources(),
+        GetMinRequestedResources(),
         node->ResourceLimits());
 }
 

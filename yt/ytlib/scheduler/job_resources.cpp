@@ -40,6 +40,14 @@ Stroka FormatResourceUtilization(
         static_cast<int>(limits.memory() / (1024 * 1024)));
 }
 
+Stroka FormatResources(const TNodeResources& resources)
+{
+    return Sprintf("Slots: %d, Cores: %d, Memory: %d",
+        resources.slots(),
+        resources.cores(),
+        static_cast<int>(resources.memory() / (1024 * 1024)));
+}
+
 void IncreaseResourceUtilization(
     TNodeResources* utilization,
     const TNodeResources& delta)

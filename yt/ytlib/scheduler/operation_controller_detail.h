@@ -190,7 +190,8 @@ protected:
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
 
-        virtual NProto::TNodeResources GetRequestedResources() const = 0;
+        virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
+        virtual NProto::TNodeResources GetRequestedResources(TJobInProgressPtr jip) const;
         bool HasEnoughResources(TExecNodePtr node) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
