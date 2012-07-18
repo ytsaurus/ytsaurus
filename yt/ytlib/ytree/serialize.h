@@ -52,12 +52,8 @@ void Serialize(T* value, IYsonConsumer* consumer);
 template <class T>
 void Serialize(const TIntrusivePtr<T>& value, IYsonConsumer* consumer);
 
-#ifndef _WIN32
-
 // size_t
 void Serialize(size_t value, IYsonConsumer* consumer);
-
-#endif
 
 // i64
 void Serialize(i64 value, IYsonConsumer* consumer);
