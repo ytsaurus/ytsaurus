@@ -16,13 +16,6 @@ class TElectionManagerProxy
 public:
     typedef TIntrusivePtr<TElectionManagerProxy> TPtr;
 
-    DECLARE_ENUM(EState,
-        (Stopped)
-        (Voting)
-        (Leading)
-        (Following)
-    );
-
     static Stroka GetServiceName()
     {
         return "ElectionManager";
@@ -38,9 +31,9 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower)
-    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus)
-    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetQuorum)
+    DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower);
+    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus);
+    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetQuorum);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

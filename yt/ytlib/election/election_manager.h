@@ -76,7 +76,7 @@ private:
     class TVotingRound;
     class TFollowerPinger;
 
-    TProxy::EState State;
+    EPeerState State;
     
     // Voting parameters.
     TPeerId VoteId;
@@ -126,7 +126,7 @@ private:
     void StartEpoch(TPeerId leaderId, const TEpoch& epoch);
     void StopEpoch();
 
-    void UpdateState(TProxy::EState newState);
+    void UpdateState(EPeerState newState);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

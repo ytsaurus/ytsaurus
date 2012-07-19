@@ -79,12 +79,12 @@ void TMasterDiscovery::OnResponse(
     LOG_DEBUG("Received status from peer %s (PeerId: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
         ~address,
         response->self_id(),
-        ~TProxy::EState(response->state()).ToString(),
+        ~EPeerState(response->state()).ToString(),
         response->vote_id(),
         response->priority(),
         ~epoch.ToString());
 
-    if (response->state() != TProxy::EState::Leading)
+    if (response->state() != EPeerState::Leading)
         return;
 
     TGuard<TSpinLock> guard(SpinLock);    
