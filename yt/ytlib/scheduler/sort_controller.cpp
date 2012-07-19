@@ -568,7 +568,7 @@ private:
             TTask::OnTaskCompleted();
 
             // Kick-start the corresponding merge task.
-            if (Partition->SortedMergeNeeded) {
+            if (CheckSortedMergeNeeded()) {
                 Controller->AddTaskPendingHint(Partition->SortedMergeTask);
             }
         }

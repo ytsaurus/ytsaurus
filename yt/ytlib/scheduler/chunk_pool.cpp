@@ -30,16 +30,18 @@ TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk)
 
 TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
 {
-    AddChunk(inputChunk, dataWeightOverride, rowCountOverride);
+    AddChunk(
+        inputChunk,
+        dataWeightOverride,
+        rowCountOverride);
 }
 
 void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk)
 {
-    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk->extensions());
     AddChunk(
         inputChunk,
-        miscExt.data_weight(),
-        miscExt.row_count());
+        inputChunk->data_weight(),
+        inputChunk->row_count());
 }
 
 void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk, i64 dataWeightOverride, i64 rowCountOverride)

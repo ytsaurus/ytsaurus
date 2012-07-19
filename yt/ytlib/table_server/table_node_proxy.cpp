@@ -377,11 +377,18 @@ void TTableNodeProxy::TraverseChunkTree(
         auto child = chunkList->Children()[index];
         switch (child.GetType()) {
             case EObjectType::Chunk: {
-                i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
+                const auto* chunk = child.AsChunk();
+
+                i64 rowCount = chunk->GetStatistics().RowCount;
                 i64 lastRowIndex = firstRowIndex + rowCount; // exclusive
                 YASSERT(lowerBound < lastRowIndex);
 
                 auto* inputChunk = response->add_chunks();
+
+                auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
+                inputChunk->set_data_weight(miscExt.data_weight());
+                inputChunk->set_row_count(miscExt.row_count());
+
                 auto* slice = inputChunk->mutable_slice();
                 *slice->mutable_chunk_id() = child.GetId().ToProto();
 
@@ -453,9 +460,16 @@ void TTableNodeProxy::TraverseChunkTree(
 
         switch (child.GetType()) {
             case EObjectType::Chunk: {
+                const auto* chunk = child.AsChunk();
+
                 auto* inputChunk = response->add_chunks();
+
+                auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
+                inputChunk->set_data_weight(miscExt.data_weight());
+                inputChunk->set_row_count(miscExt.row_count());
+
                 auto* slice = inputChunk->mutable_slice();
-                *slice->mutable_chunk_id() = child.GetId().ToProto();
+                *slice->mutable_chunk_id() = chunk->GetId().ToProto();
 
                 slice->mutable_start_limit();
                 if (lowerBound > minKey) {

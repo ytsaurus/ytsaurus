@@ -155,7 +155,6 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk
             result.push_back(slicedChunk);
         }
     }
-
     
     return result;
 }
