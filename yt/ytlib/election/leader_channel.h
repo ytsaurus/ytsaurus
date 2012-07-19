@@ -10,7 +10,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel that takes care of choosing leader among the peers.
-NRpc::IChannelPtr CreateLeaderChannel(NElection::TLeaderLookup::TConfigPtr config);
+NRpc::IChannelPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
