@@ -246,7 +246,7 @@ private:
 
     void Register(TChunkStripePtr stripe)
     {
-        if (TrackLocality) {
+        //if (TrackLocality) {
             FOREACH (const auto& chunk, stripe->Chunks) {
                 auto inputChunk = chunk.InputChunk;
                 FOREACH (const auto& address, inputChunk->node_addresses()) {
@@ -255,14 +255,14 @@ private:
                     entry.TotalWeight += chunk.Weight;
                 }
             }
-        }
+        //}
 
         YVERIFY(GlobalChunks.insert(stripe).second);
     }
 
     void Unregister(TChunkStripePtr stripe)
     {
-        if (TrackLocality) {
+        //if (TrackLocality) {
             FOREACH (const auto& chunk, stripe->Chunks) {
                 auto inputChunk = chunk.InputChunk;
                 FOREACH (const auto& address, inputChunk->node_addresses()) {
@@ -271,7 +271,7 @@ private:
                     entry.TotalWeight -= chunk.Weight;
                 }
             }
-        }
+        //}
 
         YVERIFY(GlobalChunks.erase(stripe) == 1);
     }
