@@ -176,7 +176,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
     Owner
         ->BlockStore
-        ->GetBlock(blockId)
+        ->GetBlock(blockId, false)
         .Subscribe(
             BIND([=] (TBlockStore::TGetBlockResult result) {
                 if (!result.IsOK()) {
