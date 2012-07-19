@@ -515,7 +515,7 @@ struct TRefCountedInputChunk
     : public TIntrinsicRefCounted
     , public NTableClient::NProto::TInputChunk
 {
-    TRefCountedInputChunk(const NProto::TInputChunk& other);
+    explicit TRefCountedInputChunk(const NProto::TInputChunk& other);
 };
 
 //! Constructs a new chunk by slicing the original one and restricting
