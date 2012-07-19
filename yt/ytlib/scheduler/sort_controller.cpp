@@ -611,7 +611,7 @@ private:
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
             return GetSortedMergeDuringSortJobResources(
-                Controller->Config->SortJobIO,
+                Controller->Config->MergeJobIO,
                 Controller->Spec,
                 ChunkPool->StripeCounter().GetTotal());
         }
