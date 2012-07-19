@@ -255,7 +255,12 @@ def migrate_map_node(from_path, to_path, migrate_from, migrate_to):
     print " " * 3, "Done"
 
 def migrate_table(from_path, to_path, migrate_from, migrate_to):
-    if ask_yt(migrate_from, "get", ypath_join(from_path) + "/@row_count") != ask_yt(migrate_to, "get", ypath_join(to_path) + "/@row_count"):
+    source_row_count = ask_yt(migrate_from, "get", ypath_join(from_path) + "/@row_count")
+    target_row_count = ask_yt(migrate_to, "get", ypath_join(to_path) + "/@row_count")
+
+    print "STATUS:PRE:source_row_count=%d:target_row_count=%d" % (source_row_count, target_row_count)
+
+    if source_row_count != target_row_count
         print "Row count mismatch; removing target table"
         ask_yt(migrate_to, "remove", ypath_join(to_path))
     else:
@@ -283,6 +288,17 @@ def migrate_table_inner(from_path, to_path, migrate_from, migrate_to):
         "--opt", "/spec/job_count=100",
         stdout=sys.stdout, stderr=sys.stdout)
     dt = time.time() - st
+
+    source_row_count = ask_yt(migrate_from, "get", ypath_join(from_path) + "/@row_count")
+    target_row_count = ask_yt(migrate_to, "get", ypath_join(to_path) + "/@row_count")
+
+    print "STATUS:POST:source_row_count=%d:target_row_count=%d" % (source_row_count, target_row_count)
+
+    if source_row_count != target_row_count
+        print "Row count mismatch; aborting"
+        sys.exit(1)
+    else:
+        print "Row count match; accepting"
 
     REMOTE_STATISTICS.update(
         ask_yt(migrate_from, "get", ypath_join(from_path) + "/@uncompressed_data_size"),
