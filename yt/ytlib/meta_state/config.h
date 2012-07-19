@@ -161,6 +161,8 @@ struct TSnapshotStoreConfig
 {
     //! A path where snapshots are stored.
     Stroka Path;
+
+    //! Controls if snapshots are compressed.
     bool EnableCompression;
 
     TSnapshotStoreConfig()
