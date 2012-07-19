@@ -456,29 +456,6 @@ private:
             }
         }
 
-        bool CheckSortedMergeNeeded()
-        {
-            if (Partition->SortedMergeNeeded) {
-                return true;
-            }
-
-            // Check if this sort job only handles a fraction of the partition.
-            // Two cases are possible:
-            // 1) Partition task is still running and thus may enqueue
-            // additional data to be sorted.
-            // 2) The sort pool hasn't been exhausted by the current job.
-            bool mergeNeeded =
-                !Controller->PartitionTask->IsCompleted() ||
-                IsPending();
-
-            if (mergeNeeded) {
-                LOG_DEBUG("Partition needs sorted merge (Partition: %d)", Partition->Index);
-                Partition->SortedMergeNeeded = true;
-            }
-
-            return mergeNeeded;
-        }
-
         virtual int GetChunkListCountPerJob() const OVERRIDE
         {
             return 1;
@@ -501,7 +478,9 @@ private:
             {
                 // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
                 // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-                auto ioConfig = Controller->PrepareJobIOConfig(Controller->Config->SortJobIO, !CheckSortedMergeNeeded());
+                auto ioConfig = Controller->PrepareJobIOConfig(
+                    Controller->Config->SortJobIO,
+                    !Controller->IsSortedMergeNeeded(Partition));
                 jobSpec->set_io_config(ConvertToYsonString(ioConfig).Data());
             }
 
@@ -579,7 +558,7 @@ private:
             TTask::OnTaskCompleted();
 
             // Kick-start the corresponding merge task.
-            if (CheckSortedMergeNeeded()) {
+            if (Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->AddTaskPendingHint(Partition->SortedMergeTask);
             }
         }
@@ -619,8 +598,7 @@ private:
         virtual int GetPendingJobCount() const OVERRIDE
         {
             return
-                !Partition->Megalomaniac &&
-                Partition->SortedMergeNeeded &&
+                Controller->IsSortedMergeNeeded(Partition) &&
                 Partition->SortTask->IsCompleted() &&
                 IsPending()
                 ? 1 : 0;
@@ -721,9 +699,7 @@ private:
 
         virtual int GetPendingJobCount() const OVERRIDE
         {
-            if (!Partition->Megalomaniac ||
-                !Controller->PartitionTask->IsCompleted())
-            {
+            if (!Controller->IsUnorderedMergeNeeded(Partition)) {
                 return 0;
             }
 
@@ -826,6 +802,42 @@ private:
         ++CompletedPartitionCount;
 
         LOG_INFO("Partition completed (Partition: %d)", partition->Index);
+    }
+
+    bool IsSortedMergeNeeded(TPartitionPtr partition)
+    {
+        // Check for cached value.
+        if (partition->SortedMergeNeeded) {
+            return true;
+        }
+
+        // Some easy cases.
+        if (partition->Megalomaniac) {
+            return false;
+        }
+
+        // Check if the sort task only handles a fraction of the partition.
+        // Two cases are possible:
+        // 1) Partition task is still running and thus may enqueue
+        // additional data to be sorted.
+        // 2) The sort pool hasn't been exhausted by the current job.
+        bool mergeNeeded =
+            !PartitionTask->IsCompleted() ||
+            partition->SortTask->IsPending();
+
+        if (mergeNeeded) {
+            LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
+            partition->SortedMergeNeeded = true;
+        }
+
+        return mergeNeeded;
+    }
+
+    bool IsUnorderedMergeNeeded(TPartitionPtr partition)
+    {
+        return
+            partition->Megalomaniac &&
+            PartitionTask->IsCompleted();
     }
 
     virtual void OnOperationCompleted() OVERRIDE
