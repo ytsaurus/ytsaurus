@@ -418,7 +418,7 @@ private:
             TTask::AddStripe(stripe);
             
             FOREACH (const auto& chunk, stripe->Chunks) {
-                Controller->SortWeightCounter.Increment(chunk.DataWeightOverride);
+                Controller->SortWeightCounter.Increment(chunk.Weight);
             }
         }
 
