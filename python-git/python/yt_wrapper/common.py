@@ -27,9 +27,6 @@ def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
     else:
         return [obj]
 
-def compose(f, g):
-    return lambda x: f(g(x))
-
 def update(d, u):
     for k, v in u.iteritems():
         if isinstance(v, collections.Mapping):
@@ -38,6 +35,9 @@ def update(d, u):
         else:
             d[k] = u[k]
     return d
+
+def compose(f, g):
+    return lambda x: f(g(x))
 
 def require(condition, exception):
     if not condition: raise exception
