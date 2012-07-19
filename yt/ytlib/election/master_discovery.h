@@ -53,16 +53,13 @@ public:
     //! Describes a lookup result.
     struct TResult
     {
-        //! Leader id.
+        //! Peer address.
         /*!
-         *  #InvalidPeerId value indicates that no leader is found.
+         *  Empty address represents a failed request.
          */
-        TPeerId Id;
-
-        //! Leader address.
         Stroka Address;
 
-        //! Leader epoch.
+        //! Quorum epoch.
         TGuid Epoch;
     };
 
@@ -71,8 +68,20 @@ public:
     //! Initializes a new instance.
     TMasterDiscovery(TConfigPtr config);
 
-    //! Performs an asynchronous lookup.
+    //! Performs an asynchronous lookup of a master.
+    /*!
+     * The returned master is uniformly chosen among alive quorum participants.
+     */
+    TAsyncResult GetMaster();
+
+    //! Performs an asynchronous lookup of a leader.
     TAsyncResult GetLeader();
+
+    //! Performs an asynchronous lookup of a follower.
+    /*!
+     * The returned follower is uniformly chosen among alive followers.
+     */
+    TAsyncResult GetFollower();
 
 private:
     typedef TElectionManagerProxy TProxy;
@@ -87,12 +96,14 @@ private:
      */
     TSpinLock SpinLock;
     
+    TFuture<TProxy::TRspGetQuorumPtr> GetQuorum();
+
     void OnResponse(
         TParallelAwaiterPtr awaiter,
-        TPromise<TResult> promise,
+        TPromise<TProxy::TRspGetQuorumPtr> promise,
         const Stroka& address,
-        TProxy::TRspGetStatusPtr response);
-    void OnComplete(TPromise<TResult> promise);
+        TProxy::TRspGetQuorumPtr response);
+    void OnComplete(TPromise<TProxy::TRspGetQuorumPtr> promise);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,7 +21,7 @@ TValueOrError<IChannelPtr> OnLeaderFound(
     TMasterDiscovery::TConfigPtr config,
     TMasterDiscovery::TResult result)
 {
-    if (result.Id == NElection::InvalidPeerId) {
+    if (result.Address.empty()) { 
         return TError("Unable to determine the leader");
     } 
 

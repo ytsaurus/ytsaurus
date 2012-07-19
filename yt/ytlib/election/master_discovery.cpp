@@ -8,6 +8,8 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/rpc/channel_cache.h>
 
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NElection {
 
@@ -25,20 +27,68 @@ TMasterDiscovery::TMasterDiscovery(TConfigPtr config)
     : Config(config)
 { }
 
+TMasterDiscovery::TAsyncResult TMasterDiscovery::GetMaster()
+{
+    return GetQuorum().Apply(
+        BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
+            TResult result;
+            if (quorum) {
+                int id = RandomNumber(1 + quorum->follower_addresses_size());
+                if (id == quorum->follower_addresses().size()) {
+                    result.Address = quorum->leader_address();
+                } else {
+                    result.Address = quorum->follower_addresses().Get(id);
+                }
+                result.Epoch = TGuid::FromProto(quorum->epoch());
+            }
+            return MakeFuture(MoveRV(result)); 
+        })
+    );
+}
+
 TMasterDiscovery::TAsyncResult TMasterDiscovery::GetLeader()
+{
+    return GetQuorum().Apply(
+        BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
+            TResult result;
+            if (quorum) {
+                result.Address = quorum->leader_address();
+                result.Epoch = TGuid::FromProto(quorum->epoch());
+            }
+            return MakeFuture(MoveRV(result));
+        })
+    );
+}
+
+TMasterDiscovery::TAsyncResult TMasterDiscovery::GetFollower()
+{
+    return GetQuorum().Apply(
+        BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
+            TResult result;
+            if (quorum) {
+                int id = RandomNumber(quorum->follower_addresses_size());
+                result.Address = quorum->follower_addresses().Get(id);
+                result.Epoch = TGuid::FromProto(quorum->epoch());
+            }
+            return MakeFuture(MoveRV(result)); 
+        })
+    );
+}
+
+TFuture<TMasterDiscovery::TProxy::TRspGetQuorumPtr> TMasterDiscovery::GetQuorum()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto promise = NewPromise<TResult>();
+    auto promise = NewPromise<TProxy::TRspGetQuorumPtr>();
     auto awaiter = New<TParallelAwaiter>(&Profiler, "/time");
 
     FOREACH (Stroka address, Config->Addresses) {
-        LOG_DEBUG("Requesting leader from peer %s", ~address);
+        LOG_DEBUG("Requesting quorum information from peer %s", ~address);
 
         TProxy proxy(ChannelCache.GetChannel(address));
         proxy.SetDefaultTimeout(Config->RpcTimeout);
 
-        auto request = proxy.GetStatus();
+        auto request = proxy.GetQuorum();
         awaiter->Await(
             request->Invoke(),
             EscapeYPathToken(address),
@@ -49,7 +99,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetLeader()
                 promise,
                 address));
     }
-    
+
     awaiter->Complete(BIND(
         &TMasterDiscovery::OnComplete,
         MakeStrong(this),
@@ -60,54 +110,35 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetLeader()
 
 void TMasterDiscovery::OnResponse(
     TParallelAwaiterPtr awaiter,
-    TPromise<TResult> promise,
+    TPromise<TProxy::TRspGetQuorumPtr> promise,
     const Stroka& address,
-    TProxy::TRspGetStatusPtr response)
+    TProxy::TRspGetQuorumPtr response)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error requesting leader from peer %s\n%s",
+        LOG_WARNING("Error requesting quorum information from peer %s\n%s",
             ~address,
             ~response->GetError().ToString());
         return;
     }
 
-    auto voteId = response->vote_id();
-    auto epoch = TEpoch::FromProto(response->vote_epoch());
-
-    LOG_DEBUG("Received status from peer %s (PeerId: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
+    LOG_DEBUG("Received quorum information from peer %s (Epoch: %s, LeaderAddress: %s, FollowerAddresses: [%s])",
         ~address,
-        response->self_id(),
-        ~EPeerState(response->state()).ToString(),
-        response->vote_id(),
-        response->priority(),
-        ~epoch.ToString());
-
-    if (response->state() != EPeerState::Leading)
-        return;
+        ~TEpoch::FromProto(response->epoch()).ToString(),
+        ~response->leader_address(),
+        ~JoinToString(response->follower_addresses()));
 
     TGuard<TSpinLock> guard(SpinLock);    
     if (promise.IsSet())
         return;
 
-    YASSERT(voteId == response->self_id());
-
-    TResult result;
-    result.Address = address;
-    result.Id = voteId;
-    result.Epoch = epoch;
-    promise.Set(result);
+    promise.Set(MoveRV(response));
 
     awaiter->Cancel();
-
-    LOG_INFO("Leader found (Address: %s, PeerId: %d, Epoch: %s)",
-        ~address,
-        response->self_id(),
-        ~epoch.ToString());
 }
 
-void TMasterDiscovery::OnComplete(TPromise<TResult> promise)
+void TMasterDiscovery::OnComplete(TPromise<TProxy::TRspGetQuorumPtr> promise)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -115,13 +146,9 @@ void TMasterDiscovery::OnComplete(TPromise<TResult> promise)
     if (promise.IsSet())
         return;
 
-    TResult result;
-    result.Address = "";
-    result.Id = InvalidPeerId;
-    result.Epoch = TEpoch();
-    promise.Set(result);
+    promise.Set(NULL);
 
-    LOG_INFO("No leader is found");
+    LOG_INFO("No quorum information received");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
