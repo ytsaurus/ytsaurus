@@ -43,7 +43,7 @@ struct TRemoteReaderConfig
     TRemoteReaderConfig()
     {
         Register("node_rpc_timeout", NodeRpcTimeout)
-            .Default(TDuration::Seconds(60));
+            .Default(TDuration::Seconds(120));
         Register("retry_backoff_time", RetryBackoffTime)
             .Default(TDuration::Seconds(3));
         Register("retry_count", RetryCount)
@@ -140,7 +140,7 @@ struct TRemoteWriterConfig
             .Default(1024 * 1024)
             .GreaterThan(0);
         Register("node_rpc_timeout", NodeRpcTimeout)
-            .Default(TDuration::Seconds(30));
+            .Default(TDuration::Seconds(120));
         Register("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
     }

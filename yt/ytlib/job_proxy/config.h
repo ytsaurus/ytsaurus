@@ -58,7 +58,7 @@ struct TJobProxyConfig
             .NonEmpty();
         Register("masters", Masters);
         Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(30));
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
