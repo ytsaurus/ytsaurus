@@ -178,7 +178,7 @@ private:
         {
             ChunkPool = CreateUnorderedChunkPool();
             MinRequestedResources = GetPartitionJobResources(
-                Controller->Config->SortJobIO,
+                Controller->Config->PartitionJobIO,
                 Controller->Partitions.size());
         }
 
