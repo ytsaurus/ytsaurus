@@ -1,8 +1,6 @@
-#!/usr/bin/python
-#!-*-coding:utf-8-*-
+import yson_types
 
 import struct
-import yson_types
 from StringIO import StringIO
 
 __all__ = ["parse", "parse_string"]

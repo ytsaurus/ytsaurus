@@ -202,7 +202,7 @@ tc "blockOpened name='Integration Tests'"
 shout "Running integration tests..."
 tc "progressMessage 'Running integration tests...'"
 
-cd $CHECKOUT_DIRECTORY/scripts/testing
+cd $CHECKOUT_DIRECTORY/tests/intergration
 PATH=$WORKING_DIRECTORY/bin:$PATH \
     py.test \
         -rx -s -v \

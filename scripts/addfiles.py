@@ -1,4 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+""" Tools for prepare cpp and h files in development.  """
+
 ################################################################################
 
 import os;
@@ -20,7 +22,6 @@ UNITTEST_EXTENSION = '_ut.cpp'
 
 # Don't change the order of extensions (suffixes must come after)
 EXTENSIONS = [INLINE_EXTENSION, HEADER_EXTENSION, UNITTEST_EXTENSION, SOURCE_EXTENSION]
-
 
 def get_cmake_omm_path():
     return os.path.join(os.path.dirname(__file__), 'cmake-omm.py')

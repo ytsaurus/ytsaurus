@@ -5,7 +5,7 @@ import sys
 #TODO:get rid of it
 sys.path.append('../../../yson')
 
-import yson_parser
+import parser
 import yson_to_bash
 import yson_types
 
@@ -27,7 +27,7 @@ class PrintBashTest(unittest.TestCase):
                 self.map_end = ""
         yson_to_bash.options = Options()
         yson_to_bash.stdout = StringIO()
-        yson_to_bash.print_bash(yson_to_bash.go_by_path(yson_parser.parse_string(input), path), 3)
+        yson_to_bash.print_bash(yson_to_bash.go_by_path(parser.parse_string(input), path), 3)
         self.assertEqual(yson_to_bash.stdout.getvalue(), correct_output)
 
     def test_print_bash(self):
@@ -47,9 +47,9 @@ class TestYSONParser(unittest.TestCase):
         self.assertEqual(parsed.attributes, attributes)
 
     def assert_parse(self, string, expected, attributes = {}):
-        self.assert_equal(yson_parser.parse_string(string), expected, attributes)
+        self.assert_equal(parser.parse_string(string), expected, attributes)
         stream = StringIO(string)
-        self.assert_equal(yson_parser.parse(stream), expected, attributes)
+        self.assert_equal(parser.parse(stream), expected, attributes)
 
     def test_quoted_string(self):
         self.assert_parse('"abc\\"\\n"', 'abc"\n')
@@ -113,7 +113,7 @@ class TestYSONParser(unittest.TestCase):
     def test_fragments(self):
         yson = '{a = b} {c = d}'
         stream = StringIO(yson)
-        parser = yson_parser.YSONFragmentedParser(stream)
+        parser = parser.YSONFragmentedParser(stream)
         self.assertTrue(parser.has_next())
         self.assertEqual(parser.parse_next(), {'a' : 'b'})
         self.assertTrue(parser.has_next())

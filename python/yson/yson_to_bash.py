@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
-import yson_parser
+import parser
 
 import copy
 from optparse import OptionParser
@@ -91,5 +91,5 @@ if __name__ == "__main__":
     parser.add_option("--path", default="")
     options, args = parser.parse_args()
 
-    obj = go_by_path(yson_parser.parse(stdin), options.path)
+    obj = go_by_path(parser.parse(stdin), options.path)
     print_bash(obj, options.print_depth)
