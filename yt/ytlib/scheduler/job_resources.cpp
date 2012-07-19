@@ -192,19 +192,24 @@ TNodeResources GetSimpleSortJobResources(
     TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
     i64 dataWeight,
-    i64 rowCountPerJob,
-    i64 valueCountPerJob)
+    i64 rowCount,
+    i64 valueCount)
 {
     TNodeResources result;
     result.set_slots(1);
     result.set_cores(1);
     result.set_memory(
-        GetIOMemorySize(ioConfig, 1, 1) +
+        // NB: Sort jobs typically have large prefetch window, which would
+        // drastically increase the estimated consumption returned by GetIOMemorySize.
+        // Set input count to zero to eliminate this term.
+        GetIOMemorySize(ioConfig, 0, 1) +
         // TODO(babenko): magic number
-        dataWeight * 1.1 +
-        (i64) 16 * spec->KeyColumns.size() * rowCountPerJob +
-        (i64) 16 * rowCountPerJob +
-        (i64) 32 * valueCountPerJob +
+        dataWeight +
+        // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
+        // starts reserving arrays of appropriate sizes
+        (i64) 16 * spec->KeyColumns.size() * rowCount * 2 +
+        (i64) 16 * rowCount * 2 +
+        (i64) 32 * valueCount * 2 +
         FootprintMemorySize);
     return result;
     // TODO(babenko): for partition sort

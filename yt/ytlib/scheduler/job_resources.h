@@ -69,8 +69,8 @@ NProto::TNodeResources GetSimpleSortJobResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
     i64 dataWeight,
-    i64 rowCountPerJob,
-    i64 valueCountPerJob);
+    i64 rowCount,
+    i64 valueCount);
 
 NProto::TNodeResources GetSortedMergeDuringSortJobResources(
     NJobProxy::TJobIOConfigPtr ioConfig,

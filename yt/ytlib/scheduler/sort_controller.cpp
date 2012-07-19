@@ -419,14 +419,14 @@ private:
 
         yhash_map<Stroka, i64> AddressToOutputLocality;
 
-        NProto::TNodeResources GetRequestedResourcesForWeight(i64 uncompressedDataSize) const
+        NProto::TNodeResources GetRequestedResourcesForWeight(i64 dataWeight) const
         {
             return GetSimpleSortJobResources(
                 Controller->Config->SortJobIO,
                 Controller->Spec,
-                uncompressedDataSize,
-                Controller->GetRowCountEstimate(uncompressedDataSize),
-                Controller->GetValueCountEstimate(uncompressedDataSize));
+                dataWeight,
+                Controller->GetRowCountEstimate(dataWeight),
+                Controller->GetValueCountEstimate(dataWeight));
         }
 
         bool CheckSortedMergeNeeded()
