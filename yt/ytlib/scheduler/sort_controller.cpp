@@ -496,6 +496,8 @@ private:
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
+            TTask::OnJobStarted(jip);
+
             YCHECK(!Partition->Megalomaniac);
 
             ++Controller->RunningSortJobCount;
@@ -507,8 +509,6 @@ private:
             auto address = jip->Job->GetNode()->GetAddress();
             AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
             Controller->AddTaskLocalityHint(this, address);
-
-            TTask::OnJobStarted(jip);
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
