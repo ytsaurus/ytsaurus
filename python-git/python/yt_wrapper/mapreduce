@@ -1,0 +1,189 @@
+#!/usr/bin/env python
+
+# Params:
+# +++ -version
+# -fs
+# -rs
+# +++ -lenval
+# +++ -subkey
+# +++ -src
+# +++ -dst
+# +++ -dstappend
+# -dstsorted
+# +++ -copy
+# +++ -sort
+# +++ -merge
+# +++ -map
+# +++ -reduce
+# +++ -reducews
+# +++ -file
+# -memlimit
+# -timelimit
+# +++ -list
+# +++ -read
+# +++ -write
+# +++ -writesorted
+# +++ -drop
+# -lock
+# -unlock
+# +++ -lowerkey
+# +++ -upperkey
+# +++ -append
+# +++ -jobcount
+# -threadcount    IS IGNORED
+# -jcmultiplier
+# +++ -chunksize
+# -dynallocmode
+# -opt  IS IGNORED
+
+import yt
+import config
+from common import flatten, unlist, compose
+
+import sys
+import string
+from argparse import ArgumentParser
+from functools import partial
+from itertools import imap
+
+PREFIX = "//statbox/"
+
+SPECIAL_SYMBOLS = "*\"=:; "
+
+def normalize_path(path):
+    names = path.strip("/").split("/")
+    quoted_names = []
+    for name in names:
+        make_quoting = False
+        name = name.strip('"')
+        if any(name.startswith(sym) for sym in string.digits):
+            make_quoting = True
+        if any(sym in name for sym in SPECIAL_SYMBOLS):
+            make_quoting = True
+        for sym in SPECIAL_SYMBOLS:
+            name.replace(sym, "\\" + sym)
+        if make_quoting:
+            name = '"%s"' % name
+        quoted_names.append(name)
+    return "//" + "/".join(quoted_names)
+
+def add_prefix(table):
+    return PREFIX + table
+
+def remove_prefix(tables):
+    result = []
+    for table in tables:
+        if table.startswith(PREFIX):
+            result.append(table[len(PREFIX):])
+    return result
+
+def list_all_tables():
+    result = []
+    def walk(path, object):
+        path = normalize_path(path)
+        if isinstance(object, dict):
+            for key, value in object.iteritems():
+                walk(path + '/%s' % key, value)
+        else:
+            attributes = yt.get(path + "/@")
+            if attributes.get("type", None) == "table":
+                result.append(path)
+    walk("/", yt.get("/"))
+    return remove_prefix(result)
+
+def add_eoln(str):
+    return str + "\n"
+
+def add_store_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument("-" + arg)
+def add_bool_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument("-" + arg, action="store_true", default=False)
+def add_multiple_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument("-" + arg, action="append")
+
+def add_integer_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument("-" + arg, type=int)
+
+if __name__ == "__main__":
+    config.FORCE_SORT_IN_REDUCE = True
+    config.USE_MAPREDUCE_STYLE_DST_TABLES = True
+
+    # TODO(ignat): add unsupported arguments
+    action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop"]
+    action_flags = ["version", "copy", "sort", "merge", "list"]
+
+    parser = ArgumentParser()
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append"])
+    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey"])
+    add_multiple_args(parser, ["src", "dst", "dstappend", "file"] + ["opt"])
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize"])
+    args = parser.parse_args()
+
+    actions_count = sum([vars(args)[arg] is not None for arg in action_stores]) + \
+                    sum([vars(args)[arg] for arg in action_flags])
+    if actions_count != 1:
+        print >>sys.stderr, "You should pass exactly one action"
+        exit(0)
+
+    if args.version:
+        print "Version: wrapper on YT distributed system"
+        exit(0)
+
+    if args.chunksize is not None:
+        config.WRITE_BUFFER_SIZE = args.chunksize
+
+    spec = {}
+    if args.jobcount is not None:
+        spec.update({"job_count": args.jobcount,
+                     "locality_timeout": 0})
+
+
+    # Fix table names
+    method = compose(normalize_path, add_prefix)
+    for option in ["src", "dst", "dstappend"]:
+        if vars(args)[option] is not None:
+            vars(args)[option] = map(method, vars(args)[option])
+    for option in ["read", "write", "writesorted", "drop"]:
+        if vars(args)[option] is not None:
+            vars(args)[option] = method(vars(args)[option])
+
+
+    dst = []
+    if args.dst is not None:
+        dst += args.dst
+    if args.dstappend is not None:
+        dst += map(partial(yt.Table, append=True), args.dstappend)
+    if not dst:
+        dst = None
+
+    if args.server is not None:
+        config.PROXY = args.server
+    config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
+    if args.list:
+        sys.stdout.writelines(imap(add_eoln, list_all_tables()))
+    if args.read is not None:
+        sys.stdout.writelines(yt.read_table(
+            yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey)))
+    if args.write is not None:
+        args.write = yt.Table(args.write, append=args.append)
+        yt.write_table(args.write, sys.stdin)
+    if args.writesorted is not None:
+        args.writesorted = yt.Table(args.writesorted, append=args.append)
+        yt.write_table(args.writesorted, sys.stdin)
+        yt.set_attribute(args.writesorted.name, "sorted", "true")
+    if args.map is not None:
+        yt.run_map(args.map, args.src, dst, files=args.file, spec=spec)
+    if args.reduce is not None or args.reducews is not None:
+        yt.run_reduce(args.reduce, args.src, dst, files=args.file, spec=spec)
+    if args.drop is not None:
+        yt.remove_table(args.drop)
+    if args.copy:
+        yt.copy_table(args.src, unlist(dst))
+    if args.sort:
+        yt.sort_table(args.src, unlist(dst), spec=spec)
+    if args.merge:
+        yt.merge_tables(args.src, unlist(dst), mode="sorted", spec=spec)
