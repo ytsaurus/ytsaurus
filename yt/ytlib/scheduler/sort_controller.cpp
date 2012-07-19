@@ -415,11 +415,10 @@ private:
 
         virtual void AddStripe(TChunkStripePtr stripe) OVERRIDE
         {
+            i64 oldTotal = ChunkPool->WeightCounter().GetTotal();
             TTask::AddStripe(stripe);
-            
-            FOREACH (const auto& chunk, stripe->Chunks) {
-                Controller->SortWeightCounter.Increment(chunk.Weight);
-            }
+            i64 newTotal = ChunkPool->WeightCounter().GetTotal();
+            Controller->SortWeightCounter.Increment(newTotal - oldTotal);
         }
 
         bool IsCompleted() const
