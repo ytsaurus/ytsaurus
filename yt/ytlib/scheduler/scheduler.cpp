@@ -874,7 +874,7 @@ private:
         context->SetRequestInfo("Address: %s, JobCount: %d, Utilization: {%s}",
             ~address,
             request->jobs_size(),
-            ~FormatResourceUtilization(resourceLimits, resourceUtilization));
+            ~FormatResourceUtilization(resourceUtilization, resourceLimits));
 
         auto node = FindNode(address);
         if (!node) {
