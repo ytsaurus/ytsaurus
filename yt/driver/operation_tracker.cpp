@@ -93,7 +93,6 @@ void TOperationTracker::AppendPhaseProgress(
 
 Stroka TOperationTracker::FormatProgress(const TYsonString& progress)
 {
-    // TODO(babenko): refactor
     auto progressAttributes = ConvertToAttributes(progress);
 
     Stroka result;
@@ -196,7 +195,6 @@ EExitCode TOperationTracker::DumpResult()
         auto errorNode = NYTree::GetNodeByYPath(ConvertToNode(TYsonString(rsp->value())), "/error");
         auto error = TError::FromYson(errorNode);
         if (error.IsOK()) {
-            // TODO(panin): refactor
             TInstant startTime;
             {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
@@ -212,7 +210,7 @@ EExitCode TOperationTracker::DumpResult()
             }
             TDuration duration = endTime - startTime;
 
-            printf("Operation completed successfully in %" PRIu64 " milliseconds\n", duration.MilliSeconds());
+            printf("Operation completed successfully in %s\n", ~ToString(duration));
             exitCode = EExitCode::OK;
 
         } else {
@@ -285,7 +283,6 @@ EExitCode TOperationTracker::DumpResult()
             printf("%" PRISZT " job(s) have failed:\n", failedJobIds.size());
             FOREACH (const auto& jobId, failedJobIds) {
                 auto job = jobs->GetChild(jobId.ToString());
-                // TODO(babenko): refactor
                 auto error = TError::FromYson(job->Attributes().Get<INodePtr>("error"));
                 printf("\n");
                 printf("Job %s on %s\n%s\n",
