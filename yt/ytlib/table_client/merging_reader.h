@@ -18,14 +18,12 @@ public:
     virtual void NextRow();
 
     virtual bool IsValid() const;
-    virtual TRow& GetRow();
+    virtual const TRow& GetRow();
     const TNonOwningKey& GetKey() const;
-
-    virtual const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
     std::vector<TChunkSequenceReaderPtr> Readers;
-    std::vector<TChunkSequenceReader*> ReaderHeap;
+    std::vector<TTableChunkSequenceReader*> ReaderHeap;
 
 };
 

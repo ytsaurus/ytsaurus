@@ -142,11 +142,11 @@ TSortJob::TSortJob(
     srand(time(NULL));
     std::random_shuffle(chunks.begin(), chunks.end());
 
-    Reader = New<TChunkSequenceReader>(
+    Reader = New<TTableChunkSequenceReader>(
         proxyConfig->JobIO->ChunkSequenceReader, 
         masterChannel, 
         blockCache, 
-        chunks,
+        MoveRV(chunks),
         options);
 
     Writer = New<TTableChunkSequenceWriter>(
@@ -178,7 +178,7 @@ TJobResult TSortJob::Run()
                 keyColumnToIndex[name] = i;
             }
 
-            Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+            Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
 
             // TODO(babenko): fix reserve below once the reader can provide per-partition statistics
 
@@ -218,7 +218,9 @@ TJobResult TSortJob::Run()
 
                 valueIndexBuffer.push_back(valueBuffer.size());
 
-                Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+                if (!Reader->FetchNextItem()) {
+                    Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+                }
             }
         }
         PROFILE_TIMING_CHECKPOINT("read");

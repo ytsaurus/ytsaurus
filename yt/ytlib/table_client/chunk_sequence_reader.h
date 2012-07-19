@@ -2,7 +2,8 @@
 
 #include "public.h"
 #include "private.h"
-#include "async_reader.h"
+#include "chunk_reader.h"
+#include "chunk_sequence_reader_base.h"
 
 #include <ytlib/table_client/table_reader.pb.h>
 #include <ytlib/chunk_client/public.h>
@@ -15,49 +16,27 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkSequenceReader
-    : public IAsyncReader
+class TTableChunkSequenceReader
+    : public TChunkSequenceReaderBase<TTableChunkReader>
 {
+    DEFINE_BYVAL_RO_PROPERTY(i64, ValueCount);
+    DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
+
 public:
-    TChunkSequenceReader(
+    TTableChunkSequenceReader(
         TChunkSequenceReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        const std::vector<NProto::TInputChunk>& inputChunks,
+        std::vector<NProto::TInputChunk>&& inputChunks,
         const TReaderOptions& options = TReaderOptions());
 
-    virtual TAsyncError AsyncOpen();
-
-    virtual TAsyncError AsyncNextRow();
-
-    virtual bool IsValid() const;
-
-    virtual TRow& GetRow();
-    virtual const TNonOwningKey& GetKey() const;
-    virtual const NYTree::TYsonString& GetRowAttributes() const;
+    const TRow& GetRow() const;
+    const TNonOwningKey& GetKey() const;
+    //const NYTree::TYsonString& GetRowAttributes() const;
 
     double GetProgress() const;
 
-    //! Upper estimate. Becomes more and more precise as reading goes.
-    i64 GetRowCount() const;
-
-    //! Rough upper estimate.
-    i64 GetValueCount() const;
-
 private:
-    void PrepareNextChunk();
-
-    void OnReaderOpened(
-        TChunkReaderPtr reader, 
-        int chunkIndex,
-        TError error);
-
-    void SwitchCurrentChunk(TChunkReaderPtr nextReader);
-    void OnRowFetched(TError error);
-
-    TChunkSequenceReaderConfigPtr Config;
-    NChunkClient::IBlockCachePtr BlockCache;
-    std::vector<NProto::TInputChunk> InputChunks;
     TReaderOptions Options;
 
     //! Upper bound estimation.
@@ -67,22 +46,14 @@ private:
     //! Is precise and equal to CurrentRowIndex when reading is complete.
     i64 TotalRowCount;
 
-    i64 CurrentRowIndex;
+    virtual TTableChunkReaderPtr CreateNewReader(
+        const NProto::TInputChunk& chunk,
+        NChunkClient::IAsyncReaderPtr asyncReader);
 
-    NRpc::IChannelPtr MasterChannel;
-    TAsyncStreamState State;
+    virtual void OnChunkSwitch(const TReaderPtr& nextReader);
 
-    int CurrentReaderIndex;
+    virtual bool KeepReaders() const;
 
-    TChunkReaderPtr CurrentReader;
-
-    /*!
-     *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
-     *  to all chunk readers it has opened during its lifetime.
-     */
-    std::vector< TPromise<TChunkReaderPtr> > Readers;
-    int LastInitializedReader;
-    int LastPreparedReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

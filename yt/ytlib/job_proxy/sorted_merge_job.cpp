@@ -53,11 +53,11 @@ TSortedMergeJob::TSortedMergeJob(
                 inputSpec.chunks().begin(),
                 inputSpec.chunks().end());
 
-            auto reader = New<TChunkSequenceReader>(
+            auto reader = New<TTableChunkSequenceReader>(
                 proxyConfig->JobIO->ChunkSequenceReader,
                 masterChannel,
                 blockCache,
-                chunks,
+                MoveRV(chunks),
                 options);
 
             readers.push_back(reader);

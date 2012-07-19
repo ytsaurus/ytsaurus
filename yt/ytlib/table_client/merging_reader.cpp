@@ -14,14 +14,15 @@ namespace NTableClient {
 namespace {
 
     inline bool CompareReaders(
-        const TChunkSequenceReader* lhs,
-        const TChunkSequenceReader* rhs)
+        const TTableChunkSequenceReader* lhs,
+        const TTableChunkSequenceReader* rhs)
     {
         return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
     }
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
 
 TMergingReader::TMergingReader(const std::vector<TChunkSequenceReaderPtr>& readers)
     : Readers(readers)
@@ -30,7 +31,7 @@ TMergingReader::TMergingReader(const std::vector<TChunkSequenceReaderPtr>& reade
 void TMergingReader::Open()
 {
     FOREACH (auto reader, Readers) {
-        Sync(~reader, &TChunkSequenceReader::AsyncOpen);
+        Sync(~reader, &TTableChunkSequenceReader::AsyncOpen);
         if (reader->IsValid()) {
             ReaderHeap.push_back(~reader);
         }
@@ -48,7 +49,10 @@ void TMergingReader::NextRow()
     if (ReaderHeap.empty())
         return;
 
-    Sync(ReaderHeap.back(), &TChunkSequenceReader::AsyncNextRow);
+    if (!ReaderHeap.back()->FetchNextItem()) {
+        Sync(ReaderHeap.back(), &TTableChunkSequenceReader::GetReadyEvent);
+    }
+
     if (ReaderHeap.back()->IsValid()) {
         std::push_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
         std::pop_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
@@ -62,14 +66,9 @@ bool TMergingReader::IsValid() const
     return !ReaderHeap.empty();
 }
 
-TRow& TMergingReader::GetRow()
+const TRow& TMergingReader::GetRow()
 {
     return ReaderHeap.back()->GetRow();
-}
-
-const NYTree::TYsonString& TMergingReader::GetRowAttributes() const
-{
-    throw ReaderHeap.back()->GetRowAttributes();
 }
 
 const TNonOwningKey& TMergingReader::GetKey() const

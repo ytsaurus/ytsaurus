@@ -21,11 +21,11 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
-class TChunkReader
-    : public IAsyncReader
+class TTableChunkReader
+    : public virtual TRefCounted
 {
 public:
-    TChunkReader(
+    TTableChunkReader(
         NChunkClient::TSequentialReaderConfigPtr config,
         const TChannel& channel,
         NChunkClient::IAsyncReaderPtr chunkReader,
@@ -35,14 +35,16 @@ public:
         int partitionTag,
         TReaderOptions options);
 
-    virtual TAsyncError AsyncOpen();
+    TAsyncError AsyncOpen();
 
-    virtual TAsyncError AsyncNextRow();
-    virtual bool IsValid() const;
+    bool FetchNextItem();
+    TAsyncError GetReadyEvent();
 
-    virtual TRow& GetRow();
-    virtual const TNonOwningKey& GetKey() const;
-    virtual const NYTree::TYsonString& GetRowAttributes() const;
+    bool IsValid() const;
+
+    const TRow& GetRow() const;
+    const TNonOwningKey& GetKey() const;
+    const NYTree::TYsonString& GetRowAttributes() const;
 
     i64 GetRowCount() const;
 
@@ -67,15 +69,13 @@ private:
     NChunkClient::TSequentialReaderPtr SequentialReader;
     TChannel Channel;
 
-    TAsyncError DoNextRow();
-    void OnRowFetched(TError error);
-
-    TAsyncError ContinueNextRow(
+    bool DoNextRow();
+    bool ContinueNextRow(
         int channelIndex, 
-        TAsyncErrorPromise result,
         TError error);
 
     void MakeCurrentRow();
+    void OnRowFetched(TError error);
 
     TColumnInfo& GetColumnInfo(const TStringBuf& column);
 
@@ -85,13 +85,14 @@ private:
     class TRegularInitializer;
     class TPartitionInitializer;
 
-    TAsyncStreamState State;
+    TAsyncStreamState ReaderState;
+    TAsyncStreamState RowState;
+
     TReaderOptions Options;
 
     NYTree::TYsonString RowAttributes;
     TRow CurrentRow;
     TNonOwningKey CurrentKey;
-
 
     NYTree::TLexer Lexer;
 
@@ -103,6 +104,8 @@ private:
     i64 EndRowIndex;
 
     int PartitionTag;
+
+    TCallback<void(TError)> OnRowFetchedCallback;
 
     THolder<TKeyValidator> EndValidator;
 

@@ -20,14 +20,22 @@ template <class TReader>
 class TChunkSequenceReaderBase
     : public virtual TRefCounted
 {
+    DEFINE_BYREF_RO_PROPERTY(TIntrusivePtr<TReader>, CurrentReader);
+    DEFINE_BYVAL_RO_PROPERTY(int, ItemIndex);
+
 public:
     TChunkSequenceReaderBase(
         TChunkSequenceReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        std::vector<NProto::TInputChunk>&& inputChunks);
+        std::vector<NProto::TInputChunk>&& inputChunks,
+        NLog::TLogger& logger);
 
     TAsyncError AsyncOpen();
+    bool FetchNextItem();
+    TAsyncError GetReadyEvent();
+
+    bool IsValid() const;
 
 protected:
     typedef TIntrusivePtr<TReader> TReaderPtr;
@@ -40,7 +48,6 @@ protected:
     TAsyncStreamState State;
 
     int CurrentReaderIndex;
-    TReaderPtr CurrentReader;
 
     /*!
      *  If #TReaderOptions::KeepBlocks option is set then the reader keeps references
@@ -50,17 +57,31 @@ protected:
     int LastInitializedReader;
     int LastPreparedReader;
 
-    virtual TReaderPtr CreateNewReader() = 0;
+    NLog::TLogger& Logger;
+
+    virtual TReaderPtr CreateNewReader(
+        const NProto::TInputChunk& chunk,
+        NChunkClient::IAsyncReaderPtr asyncReader) = 0;
+
+    virtual void OnChunkSwitch(const TReaderPtr& nextReader)
+    { }
+
+    virtual bool KeepReaders() const
+    {
+        return false;
+    }
 
     void PrepareNextChunk();
+
+    bool ValidateReader();
 
     void OnReaderOpened(
         TReaderPtr reader, 
         int chunkIndex,
         TError error);
 
-    void SwitchCurrentChunk(bool dropCurrentReader, TReaderPtr nextReader);
-    void OnItemFetched(TError error);
+    void SwitchCurrentChunk(TReaderPtr nextReader);
+    bool OnItemFetched(TError error);
 
 };
 

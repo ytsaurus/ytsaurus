@@ -50,12 +50,12 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
         index, 
         static_cast<int>(chunks.size()));
 
-    auto reader = New<TChunkSequenceReader>(
+    auto reader = New<TTableChunkSequenceReader>(
         Config->ChunkSequenceReader,
         MasterChannel,
         blockCache,
-        chunks);
-    auto syncReader = New<TSyncReaderAdapter>(reader);
+        MoveRV(chunks));
+    auto syncReader = CreateSyncReader(reader);
     syncReader->Open();
 
     return new TTableProducer(syncReader, consumer);

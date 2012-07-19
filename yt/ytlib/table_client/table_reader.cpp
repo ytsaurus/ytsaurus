@@ -63,12 +63,12 @@ void TTableReader::Open()
 
     auto inputChunks = FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
-    Reader = New<TChunkSequenceReader>(
+    Reader = New<TTableChunkSequenceReader>(
         Config,
         MasterChannel,
         BlockCache,
-        inputChunks);
-    Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+        MoveRV(inputChunks));
+    Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {
         ListenTransaction(Transaction);
@@ -86,7 +86,9 @@ void TTableReader::NextRow()
 
     CheckAborted();
 
-    Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+    if (!Reader->FetchNextItem()) {
+        Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+    }
 }
 
 bool TTableReader::IsValid() const
@@ -99,7 +101,7 @@ bool TTableReader::IsValid() const
     return Reader->IsValid();
 }
 
-TRow& TTableReader::GetRow()
+const TRow& TTableReader::GetRow()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
@@ -107,6 +109,7 @@ TRow& TTableReader::GetRow()
     return Reader->GetRow();
 }
 
+/*
 const NYTree::TYsonString& TTableReader::GetRowAttributes() const
 {
     VERIFY_THREAD_AFFINITY(Client);
@@ -114,6 +117,7 @@ const NYTree::TYsonString& TTableReader::GetRowAttributes() const
 
     return Reader->GetRowAttributes();
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

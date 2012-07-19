@@ -97,7 +97,7 @@ void TAsyncStreamState::Finish(const TError& error)
     }
 }
 
-TError TAsyncStreamState::GetCurrentError()
+const TError& TAsyncStreamState::GetCurrentError()
 {
     return StaticError.Get();
 }
@@ -113,7 +113,7 @@ TAsyncError TAsyncStreamState::GetOperationError()
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (IsOperationFinished || !IsActive_) {
-        return StaticError;
+        return StaticError.ToFuture();
     } else {
         YASSERT(CurrentError.IsNull());
         CurrentError = NewPromise<TError>();

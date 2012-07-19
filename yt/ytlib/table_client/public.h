@@ -16,6 +16,19 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReaderOptions
+{
+    bool ReadKey;
+
+    // If set, reader keeps all memory buffers valid until destruction.
+    bool KeepBlocks;
+
+    TReaderOptions()
+        : ReadKey(false)
+        , KeepBlocks(false)
+    { }
+};
+
 struct IAsyncWriter;
 typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 
@@ -37,8 +50,8 @@ typedef TIntrusivePtr<TTableChunkWriter> TTableChunkWriterPtr;
 class TPartitionChunkWriter;
 typedef TIntrusivePtr<TPartitionChunkWriter> TPartitionChunkWriterPtr;
 
-class TChunkReader;
-typedef TIntrusivePtr<TChunkReader> TChunkReaderPtr;
+class TTableChunkReader;
+typedef TIntrusivePtr<TTableChunkReader> TTableChunkReaderPtr;
 
 class TTableChunkSequenceWriter;
 typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
@@ -46,8 +59,8 @@ typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
 class TPartitionChunkSequenceWriter;
 typedef TIntrusivePtr<TPartitionChunkSequenceWriter> TPartitionChunkSequenceWriterPtr;
 
-class TChunkSequenceReader;
-typedef TIntrusivePtr<TChunkSequenceReader> TChunkSequenceReaderPtr;
+class TTableChunkSequenceReader;
+typedef TIntrusivePtr<TTableChunkSequenceReader> TChunkSequenceReaderPtr;
 
 class TChannelWriter;
 typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;

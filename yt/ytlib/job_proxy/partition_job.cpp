@@ -45,11 +45,11 @@ TPartitionJob::TPartitionJob(
         jobSpec.input_specs(0).chunks().begin(),
         jobSpec.input_specs(0).chunks().end());
 
-    Reader = New<TChunkSequenceReader>(
+    Reader = New<TTableChunkSequenceReader>(
         proxyConfig->JobIO->ChunkSequenceReader, 
         masterChannel, 
         blockCache, 
-        chunks);
+        MoveRV(chunks));
 
     std::vector<NTableClient::NProto::TKey> partitionKeys(
         jobSpecExt.partition_keys().begin(), 
@@ -70,7 +70,7 @@ TJobResult TPartitionJob::Run()
     PROFILE_TIMING ("/partition_time") {
         LOG_INFO("Initializing");
         {
-            Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+            Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
             Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncOpen);
         }
         PROFILE_TIMING_CHECKPOINT("init");
@@ -81,7 +81,9 @@ TJobResult TPartitionJob::Run()
                 while (!Writer->TryWriteRow(Reader->GetRow())) {
                     Sync(~Writer, &TPartitionChunkSequenceWriter::GetReadyEvent);
                 }
-                Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+                if (!Reader->FetchNextItem()) {
+                    Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+                }
             }
 
             Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncClose);

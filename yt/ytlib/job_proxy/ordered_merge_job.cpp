@@ -49,11 +49,11 @@ TOrderedMergeJob::TOrderedMergeJob(
         }
     }
 
-    Reader = New<TSyncReaderAdapter>(New<TChunkSequenceReader>(
+    Reader = CreateSyncReader(New<TTableChunkSequenceReader>(
         proxyConfig->JobIO->ChunkSequenceReader,
         masterChannel,
         blockCache,
-        inputChunks));
+        MoveRV(inputChunks)));
 
     {
         if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
@@ -105,7 +105,7 @@ TJobResult TOrderedMergeJob::Run()
                 key.ClearAndResize(KeyColumns->size());
 
             while (Reader->IsValid()) {
-                TRow& row = Reader->GetRow();
+                const TRow& row = Reader->GetRow();
 
                 if (KeyColumns) {
                     key.Clear();
