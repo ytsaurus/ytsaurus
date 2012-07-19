@@ -265,6 +265,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         ~currentSession.RemoteWriter->GetChunkId().ToString());
 
     auto remoteWriter = currentSession.RemoteWriter;
+    auto chunkWriter = currentSession.ChunkWriter;
 
     NObjectServer::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
@@ -273,7 +274,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
             NCypressClient::FromObjectId(remoteWriter->GetChunkId()));
         *req->mutable_chunk_info() = remoteWriter->GetChunkInfo();
         ToProto(req->mutable_node_addresses(), remoteWriter->GetNodeAddresses());
-        *req->mutable_chunk_meta() = remoteWriter->GetMasterMeta();
+        *req->mutable_chunk_meta() = chunkWriter->GetMasterMeta();
 
         batchReq->AddRequest(req);
     }
@@ -300,7 +301,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         slice->mutable_end_limit();
         *slice->mutable_chunk_id() = remoteWriter->GetChunkId().ToProto();
 
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(remoteWriter->GetMasterMeta().extensions());
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkWriter->GetMasterMeta().extensions());
         inputChunk.set_data_weight(miscExt.data_weight());
         inputChunk.set_row_count(miscExt.row_count());
 
