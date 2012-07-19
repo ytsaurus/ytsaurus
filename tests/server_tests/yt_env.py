@@ -1,20 +1,15 @@
-
-import sys
-#TODO:get rid of it
-sys.path.append('../yson')
+import yson as yson_lib
 
 import unittest
 
-import yson_parser
-import yson
-
 import copy
 import os
-import subprocess
-import signal
 import re
 import time
+import signal
 import socket
+import subprocess
+import sys
 
 from collections import defaultdict
 
@@ -35,13 +30,13 @@ def deepupdate(d, other):
 
 def read_config(filename):
     f = open(filename, 'rt')
-    config = yson_parser.parse_string(f.read())
+    config = yson_lib.parser.parse_string(f.read())
     f.close()
     return config
 
 def write_config(config, filename):
     f = open(filename, 'wt')
-    f.write(yson.dumps(config, indent = '    '))
+    f.write(yson_lib.yson.dumps(config, indent = '    '))
     f.close()
 
 def init_logging(node, path, name):
