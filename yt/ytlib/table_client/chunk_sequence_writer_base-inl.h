@@ -16,9 +16,9 @@
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
