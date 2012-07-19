@@ -1,0 +1,14 @@
+#!/bin/bash
+
+CMB=@CMAKE_CURRENT_BINARY_DIR@
+CMS=@CMAKE_CURRENT_SOURCE_DIR@
+
+make cmake_check_build_system
+
+export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
+
+[[ ! -f $CMS/lib/ytnode.node       ]] && ln -s $CMB/ytnode.node $CMS/lib
+[[ ! -f $CMS/lib/ytnode_stubs.node ]] && ln -s $CMB/ytnode_stubs.node $CMS/lib
+
+cd $CMS/bin && node yt_http_api "$@"
+
