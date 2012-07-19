@@ -281,9 +281,9 @@ struct TSortOperationSpec
             .GreaterThan(0);
         Register("max_weight_per_partition_job", MaxWeightPerPartitionJob)
             .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);        // TODO(babenko): update when sort job gets optimized
+            .GreaterThan(0);
         Register("max_weight_per_sort_job", MaxWeightPerSortJob)
-            .Default((i64) 1024 * 1024 * 1024)
+            .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("partition_count_boost_factor", PartitionCountBoostFactor)
             .Default(1.5)
