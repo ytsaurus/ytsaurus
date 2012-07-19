@@ -72,10 +72,14 @@ struct TSchedulerConfig
         Register("max_partition_count", MaxPartitionCount)
             .Default(2000)
             .GreaterThan(0);
-        Register("map_job_io", MapJobIO).DefaultNew();
-        Register("merge_job_io", MergeJobIO).DefaultNew();
-        Register("partition_job_io", PartitionJobIO).DefaultNew();
-        Register("sort_job_io", SortJobIO).DefaultNew();
+        Register("map_job_io", MapJobIO)
+            .DefaultNew();
+        Register("merge_job_io", MergeJobIO)
+            .DefaultNew();
+        Register("partition_job_io", PartitionJobIO)
+            .DefaultNew();
+        Register("sort_job_io", SortJobIO)
+            .DefaultNew();
     }
 };
 
