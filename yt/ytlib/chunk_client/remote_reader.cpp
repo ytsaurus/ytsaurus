@@ -493,6 +493,7 @@ private:
                 auto request = proxy.GetBlocks();
                 *request->mutable_chunk_id() = reader->ChunkId.ToProto();
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
+                request->set_enable_caching(reader->Config->EnableNodeCaching);
                 if (reader->Config->PublishPeer) {
                     request->set_peer_address(reader->Config->PeerAddress);
                     request->set_peer_expiration_time((TInstant::Now() + reader->Config->PeerExpirationTimeout).GetValue());

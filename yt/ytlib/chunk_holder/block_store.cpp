@@ -96,7 +96,9 @@ public:
         }
     }
 
-    TAsyncGetBlockResult Get(const TBlockId& blockId)
+    TAsyncGetBlockResult Get(
+        const TBlockId& blockId,
+        bool enableCaching)
     {
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
@@ -120,7 +122,8 @@ public:
             MakeStrong(this),
             chunk,
             blockId,
-            cookie));
+            cookie,
+            enableCaching));
         
         return cookie->GetValue();
     }
@@ -155,7 +158,8 @@ private:
     void DoReadBlock(
         TChunkPtr chunk,
         const TBlockId& blockId,
-        TSharedPtr<TInsertCookie> cookie)
+        TSharedPtr<TInsertCookie> cookie,
+        bool enableCaching)
     {
         auto readerResult = ReaderCache->GetReader(chunk);
         if (!readerResult.IsOK()) {
@@ -200,6 +204,10 @@ private:
 
         auto block = New<TCachedBlock>(blockId, data, Stroka());
         cookie->EndInsert(block);
+
+        if (!enableCaching) {
+            Remove(blockId);
+        }
 
         auto readTime = Profiler.TimingStop(timer);
         Profiler.Enqueue("/chunk_io/read_size", blockSize);
@@ -251,9 +259,11 @@ TBlockStore::TBlockStore(
 TBlockStore::~TBlockStore()
 { }
 
-TBlockStore::TAsyncGetBlockResult TBlockStore::GetBlock(const TBlockId& blockId)
+TBlockStore::TAsyncGetBlockResult TBlockStore::GetBlock(
+    const TBlockId& blockId,
+    bool enableCaching)
 {
-    return StoreImpl->Get(blockId);
+    return StoreImpl->Get(blockId, enableCaching);
 }
 
 TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)

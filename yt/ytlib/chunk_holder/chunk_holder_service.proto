@@ -74,6 +74,7 @@ message TReqGetBlocks
     repeated int32 block_indexes = 2;
     optional string peer_address = 3;
     optional uint64 peer_expiration_time = 4;
+    optional bool enable_caching = 5 [default = true];
 }
 
 message TRspGetBlocks

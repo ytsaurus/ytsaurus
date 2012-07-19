@@ -34,11 +34,14 @@ struct TRemoteReaderConfig
     //! Publish ourselves as a peer capable of serving block requests.
     bool PublishPeer;
 
-    //! Timeout after which a holder forgets about the peer.
+    //! Timeout after which a node forgets about the peer.
     TDuration PeerExpirationTimeout;
 
     //! Address to publish.
     Stroka PeerAddress;
+
+    //! If True then fetched blocks are cached by the node.
+    bool EnableNodeCaching;
 
     TRemoteReaderConfig()
     {
@@ -58,6 +61,8 @@ struct TRemoteReaderConfig
             .Default(false);
         Register("peer_expiration_timeout", PeerExpirationTimeout)
             .Default(TDuration::Seconds(300));
+        Register("enable_node_caching", EnableNodeCaching)
+            .Default(true);
     }
 };
 
@@ -125,7 +130,7 @@ struct TRemoteWriterConfig
      */
     TDuration NodeRpcTimeout;
 
-    //! Maximum allowed period of time without RPC requests to holders.
+    //! Maximum allowed period of time without RPC requests to nodes.
     /*!
      *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
      */

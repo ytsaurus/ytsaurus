@@ -264,8 +264,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     int blockCount = static_cast<int>(request->block_indexes_size());
+    bool enableCaching = request->enable_caching();
     
-    context->SetRequestInfo("ChunkId: %s, BlockIndexes: %s",
+    context->SetRequestInfo("ChunkId: %s, BlockIndexes: %s, EnableCaching: %s",
         ~chunkId.ToString(),
         ~JoinToString(request->block_indexes()));
 
@@ -300,7 +301,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
             // Fetch the actual data (either from cache or from disk).
             LOG_DEBUG("GetBlocks: Fetching block %d", blockIndex);
             awaiter->Await(
-                Bootstrap->GetBlockStore()->GetBlock(blockId),
+                Bootstrap->GetBlockStore()->GetBlock(blockId, enableCaching),
                 BIND([=] (TBlockStore::TGetBlockResult result) {
                     if (result.IsOK()) {
                         // Attach the real data.
