@@ -421,12 +421,23 @@ private:
 
         NProto::TNodeResources GetRequestedResourcesForWeight(i64 dataWeight) const
         {
-            return GetSimpleSortJobResources(
-                Controller->Config->SortJobIO,
-                Controller->Spec,
-                dataWeight,
-                Controller->GetRowCountEstimate(dataWeight),
-                Controller->GetValueCountEstimate(dataWeight));
+            i64 rowCount = Controller->GetRowCountEstimate(dataWeight);
+            i64 valueCount = Controller->GetValueCountEstimate(dataWeight);
+            // TODO(babenko): remove "true &&" once partition sort is ready
+            if (true || Controller->Partitions.size() == 1) {
+                return GetSimpleSortJobResources(
+                    Controller->Config->SortJobIO,
+                    Controller->Spec,
+                    dataWeight,
+                    rowCount,
+                    valueCount);
+            } else {
+                return GetPartitionSortJobResources(
+                    Controller->Config->SortJobIO,
+                    Controller->Spec,
+                    dataWeight,
+                    rowCount);
+            }
         }
 
         bool CheckSortedMergeNeeded()

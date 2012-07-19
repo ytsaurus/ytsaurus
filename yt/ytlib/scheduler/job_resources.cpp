@@ -129,7 +129,6 @@ TNodeResources GetMapJobResources(
             ioConfig,
             spec->InputTablePaths.size(),
             spec->OutputTablePaths.size()) +
-        spec->Mapper->MemoryLimit +
         FootprintMemorySize);
     return result;
 }
@@ -201,20 +200,35 @@ TNodeResources GetSimpleSortJobResources(
     result.set_memory(
         // NB: Sort jobs typically have large prefetch window, which would
         // drastically increase the estimated consumption returned by GetIOMemorySize.
-        // Set input count to zero to eliminate this term.
+        // Seting input count to zero to eliminates this term.
         GetIOMemorySize(ioConfig, 0, 1) +
-        // TODO(babenko): magic number
         dataWeight +
         // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
-        // starts reserving arrays of appropriate sizes
+        // starts reserving arrays of appropriate sizes.
         (i64) 16 * spec->KeyColumns.size() * rowCount * 2 +
         (i64) 16 * rowCount * 2 +
         (i64) 32 * valueCount * 2 +
         FootprintMemorySize);
     return result;
-    // TODO(babenko): for partition sort
-        //(i64) 16 * spec->KeyColumns.size() * rowCountPerJob +
-        //(i64) 8 * rowCountPerJob;
+}
+
+TNodeResources GetPartitionSortJobResources(
+    TJobIOConfigPtr ioConfig,
+    TSortOperationSpecPtr spec,
+    i64 dataWeight,
+    i64 rowCount)
+{
+    TNodeResources result;
+    result.set_slots(1);
+    result.set_cores(1);
+    result.set_memory(
+        // NB: See comment above for GetSimpleSortJobResources.
+        GetIOMemorySize(ioConfig, 0, 1) +
+        dataWeight +
+        (i64) 16 * spec->KeyColumns.size() * rowCount +
+        (i64) 8 * rowCount +
+        FootprintMemorySize);
+    return result;
 }
 
 TNodeResources GetSortedMergeDuringSortJobResources(
