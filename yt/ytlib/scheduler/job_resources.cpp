@@ -200,7 +200,7 @@ TNodeResources GetSimpleSortJobResources(
     result.set_memory(
         // NB: Sort jobs typically have large prefetch window, which would
         // drastically increase the estimated consumption returned by GetIOMemorySize.
-        // Seting input count to zero to eliminates this term.
+        // Setting input count to zero to eliminates this term.
         GetIOMemorySize(ioConfig, 0, 1) +
         dataWeight +
         // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
