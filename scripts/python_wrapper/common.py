@@ -27,6 +27,9 @@ def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
     else:
         return [obj]
 
+def compose(f, g):
+    return lambda x: f(g(x))
+
 def update(d, u):
     for k, v in u.iteritems():
         if isinstance(v, collections.Mapping):

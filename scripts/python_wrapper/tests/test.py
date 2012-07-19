@@ -249,11 +249,17 @@ class YtTest(unittest.TestCase):
         self.assertTrue(yt.is_sorted(another_table))
         self.assertEqual(yt.records_count(another_table), 20)
 
+    def test_digit_names(self):
+        table = TEST_DIR + '/"123"'
+        yt.write_table(table, self.temp_records())
+        yt.sort_table(table)
+        self.assertEqual(self.read_records(table)[0].key, "0")
+
 
 if __name__ == "__main__":
-    suite = unittest.TestSuite()
-    suite.addTest(YtTest("test_operations"))
-    unittest.TextTestRunner().run(suite)
-    #unittest.main()
+    #suite = unittest.TestSuite()
+    #suite.addTest(YtTest("test_operations"))
+    #unittest.TextTestRunner().run(suite)
+    unittest.main()
 
 

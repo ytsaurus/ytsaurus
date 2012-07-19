@@ -79,7 +79,11 @@ def create_temp_table(path=None, prefix=None):
     LENGTH = 10
     char_set = string.ascii_lowercase + string.ascii_uppercase + string.digits
     while True:
-        name = "%s/%s%s" % (path, prefix, "".join(random.sample(char_set, LENGTH)))
+        add_quote = False
+        if prefix.endswith('"'):
+            prefix = prefix[:-1]
+            add_quote = True
+        name = "%s/%s%s%s" % (path, prefix, "".join(random.sample(char_set, LENGTH)), '"' if add_quote else '')
         if not exists(name, hint=path):
             create_table(name)
             return name

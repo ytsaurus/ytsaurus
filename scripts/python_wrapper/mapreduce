@@ -38,33 +38,52 @@
 
 import yt
 import config
-from common import flatten, unlist
+from common import flatten, unlist, compose
 
 import sys
+import string
 from argparse import ArgumentParser
 from functools import partial
 from itertools import imap
 
-#PREFIXES = ["//tmp/"]
-PREFIXES = ["//{0}statbox{0}/".format(quote) for quote in ['', '"']]
+PREFIX = "//statbox/"
+
+SPECIAL_SYMBOLS = "*\"=:; "
+
+def normalize_path(path):
+    names = path.strip("/").split("/")
+    quoted_names = []
+    for name in names:
+        make_quoting = False
+        name = name.strip('"')
+        if any(name.startswith(sym) for sym in string.digits):
+            make_quoting = True
+        if any(sym in name for sym in SPECIAL_SYMBOLS):
+            make_quoting = True
+        for sym in SPECIAL_SYMBOLS:
+            name.replace(sym, "\\" + sym)
+        if make_quoting:
+            name = '"%s"' % name
+        quoted_names.append(name)
+    return "//" + "/".join(quoted_names)
 
 def add_prefix(table):
-    return PREFIXES[0] + table
+    return PREFIX + table
 
 def remove_prefix(tables):
     result = []
     for table in tables:
-        for prefix in PREFIXES:
-            if table.startswith(prefix):
-                result.append(table[len(prefix):])
+        if table.startswith(PREFIX):
+            result.append(table[len(PREFIX):])
     return result
 
 def list_all_tables():
     result = []
     def walk(path, object):
+        path = normalize_path(path)
         if isinstance(object, dict):
             for key, value in object.iteritems():
-                walk(path + '/"%s"' % key, value)
+                walk(path + '/%s' % key, value)
         else:
             attributes = yt.get(path + "/@")
             if attributes.get("type", None) == "table":
@@ -124,12 +143,13 @@ if __name__ == "__main__":
 
 
     # Fix table names
+    method = compose(normalize_path, add_prefix)
     for option in ["src", "dst", "dstappend"]:
         if vars(args)[option] is not None:
-            vars(args)[option] = map(add_prefix, vars(args)[option])
+            vars(args)[option] = map(method, vars(args)[option])
     for option in ["read", "write", "writesorted", "drop"]:
         if vars(args)[option] is not None:
-            vars(args)[option] = add_prefix(vars(args)[option])
+            vars(args)[option] = method(vars(args)[option])
 
 
     dst = []
