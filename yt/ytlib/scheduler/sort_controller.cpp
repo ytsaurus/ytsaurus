@@ -355,7 +355,7 @@ private:
             , Controller(controller)
             , Partition(partition)
         {
-            ChunkPool = CreateUnorderedChunkPool(true);
+            ChunkPool = CreateUnorderedChunkPool(false);
         }
 
         virtual Stroka GetId() const OVERRIDE
