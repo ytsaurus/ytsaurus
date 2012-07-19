@@ -63,6 +63,7 @@ NProto::TNodeResources GetEraseJobResources(
 
 NProto::TNodeResources GetPartitionJobResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
+    i64 dataWeight,
     int partitionCount);
 
 NProto::TNodeResources GetSimpleSortJobResources(

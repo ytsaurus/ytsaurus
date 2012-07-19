@@ -175,6 +175,7 @@ TNodeResources GetEraseJobResources(
 
 TNodeResources GetPartitionJobResources(
     TJobIOConfigPtr ioConfig,
+    i64 dataWeight,
     int partitionCount)
 {
     TNodeResources result;
@@ -182,7 +183,7 @@ TNodeResources GetPartitionJobResources(
     result.set_cores(1);
     result.set_memory(
         GetIOMemorySize(ioConfig, 1, 1) +
-        ioConfig->ChunkSequenceWriter->ChunkWriter->BlockSize * partitionCount +
+        std::min(ioConfig->ChunkSequenceWriter->ChunkWriter->BlockSize * partitionCount, dataWeight) +
         FootprintMemorySize);
     return result;
 }

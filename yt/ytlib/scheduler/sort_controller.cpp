@@ -177,9 +177,6 @@ private:
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool();
-            MinRequestedResources = GetPartitionJobResources(
-                Controller->Config->PartitionJobIO,
-                Controller->Partitions.size());
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -207,12 +204,22 @@ private:
 
         virtual NProto::TNodeResources GetMinRequestedResources() const
         {
-            return MinRequestedResources;
+            return GetPartitionJobResources(
+                Controller->Config->PartitionJobIO,
+                Controller->Spec->MaxWeightPerPartitionJob,
+                Controller->Partitions.size());
+        }
+
+        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const
+        {
+            return GetPartitionJobResources(
+                Controller->Config->PartitionJobIO,
+                jip->PoolResult->TotalChunkWeight,
+                Controller->Partitions.size());
         }
 
     private:
         TSortController* Controller;
-        NProto::TNodeResources MinRequestedResources;
 
         virtual int GetChunkListCountPerJob() const OVERRIDE
         {
@@ -347,7 +354,6 @@ private:
             , Partition(partition)
         {
             ChunkPool = CreateUnorderedChunkPool(false);
-            MinRequestedResources = GetRequestedResourcesForWeight(Controller->Spec->MaxWeightPerSortJob);
         }
 
         virtual Stroka GetId() const OVERRIDE
@@ -397,7 +403,7 @@ private:
 
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
-            return MinRequestedResources;
+            return GetRequestedResourcesForWeight(Controller->Spec->MaxWeightPerSortJob);
         }
 
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const OVERRIDE
@@ -415,7 +421,6 @@ private:
     private:
         TSortController* Controller;
         TPartition* Partition;
-        NProto::TNodeResources MinRequestedResources;
 
         yhash_map<Stroka, i64> AddressToOutputLocality;
 
