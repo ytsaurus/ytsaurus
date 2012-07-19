@@ -268,7 +268,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     
     context->SetRequestInfo("ChunkId: %s, BlockIndexes: %s, EnableCaching: %s",
         ~chunkId.ToString(),
-        ~JoinToString(request->block_indexes()));
+        ~JoinToString(request->block_indexes()),
+        ~FormatBool(enableCaching));
 
     bool throttling = CheckThrottling();
 
