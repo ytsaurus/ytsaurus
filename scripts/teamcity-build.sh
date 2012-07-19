@@ -203,6 +203,7 @@ shout "Running integration tests..."
 tc "progressMessage 'Running integration tests...'"
 
 cd $CHECKOUT_DIRECTORY/tests/intergration
+PYTHONPATH=$CHECKOUT_DIRECTORY/python \
 PATH=$WORKING_DIRECTORY/bin:$PATH \
     py.test \
         -rx -s -v \

@@ -6,10 +6,6 @@ import subprocess
 
 ###########################################################################
 
-YT = "yt"
-
-###########################################################################
-
 class YTError(Exception):
     def __init__(self, value):
         self.value = value
@@ -54,7 +50,7 @@ def run_command(name, *args, **kw):
     all_args = [name] + convert_to_yt_args(*args, **kw)
     print 'yt ' + ' '.join(quote(s) for s in all_args)
 
-    process = subprocess.Popen([YT] + all_args,
+    process = subprocess.Popen(['yt'] + all_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE)

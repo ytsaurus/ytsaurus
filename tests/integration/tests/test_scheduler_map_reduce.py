@@ -1,9 +1,8 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, TOOLS_ROOTDIR
 from yt_commands import *
 
-from yt_env import TOOLS_ROOTDIR
 import os
 
 from collections import defaultdict

@@ -1,30 +1,30 @@
 #!/bin/sh -eu
 
-export PYTHONPATH="/home/ignat/yt/scripts/python_wrapper"
+export PYTHONPATH="/home/ignat/yt/python/yt_wrapper:$PYTHONPATH"
 
 # Octo cluster
-#HOSTS=85
-#THREADCOUNT=12
+HOSTS=85
+THREADCOUNT=12
 
 # -- YT --
-#export SYSTEM="yt"
-#export SERVER="w301.hdp.yandex.net"
+export SYSTEM="yt"
+export SERVER="w301.hdp.yandex.net"
 
 # -- Mapreduce --
 #export SYSTEM="mapreduce"
 #export SERVER="w301.hdp.yandex.net:8013"
 
 # YT testing cluster
-HOSTS=250
-THREADCOUNT=16
+#HOSTS=250
+#THREADCOUNT=16
 
 # -- Mapreduce --
 #export SYSTEM="mapreduce"
 #export SERVER="n01-0449g.yt.yandex.net:8013"
 
 # -- YT --
-export SYSTEM="yt"
-export SERVER="proxy.yt.yandex.net"
+#export SYSTEM="yt"
+#export SERVER="proxy.yt.yandex.net"
 
 # YT development cluster
 #export SYSTEM="yt"
@@ -32,7 +32,7 @@ export SERVER="proxy.yt.yandex.net"
 
 export JOBCOUNT=`echo "$HOSTS * $THREADCOUNT" | bc`
 if [ "$SYSTEM" = "yt" ]; then
-    export MAPREDUCE="/home/ignat/yt/scripts/python_wrapper/mapreduce -server $SERVER -jobcount $JOBCOUNT -threadcount $THREADCOUNT"
+    export MAPREDUCE="/home/ignat/yt/python/yt_wrapper/mapreduce -server $SERVER -jobcount $JOBCOUNT -threadcount $THREADCOUNT"
 else
     export MAPREDUCE="/home/ignat/yt/scripts/mapreduce_test/mapreduce -server $SERVER -jobcount $JOBCOUNT"
 fi

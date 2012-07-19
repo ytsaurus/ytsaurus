@@ -1,16 +1,20 @@
 import os
 
-from yt_env import YTEnv, SANDBOX_ROOTDIR
+from yt_environment import YTEnv
 from functools import wraps
 
 import yt_commands
+
+SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
+CONFIGS_ROOTDIR = os.path.abspath('default_configs')
+TOOLS_ROOTDIR = os.path.abspath('tools')
+PIDS_FILENAME = os.path.join(SANDBOX_ROOTDIR, 'pids.txt')
 
 def _working_dir(test_name):
     path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
     return os.path.join(path_to_test, "run")
 
 class YTEnvSetup(YTEnv):
-
     @classmethod
     def setup_class(cls):
         test_name = cls.__name__
@@ -23,11 +27,11 @@ class YTEnvSetup(YTEnv):
 
         cls.path_to_test = path_to_test
         cls.Env = cls()
-        cls.Env.my_setUp(path_to_run)
+        cls.Env.set_environment(path_to_run, CONFIGS_ROOTDIR, PIDS_FILENAME)
 
     @classmethod
     def teardown_class(cls):
-        cls.Env.my_tearDown()
+        cls.Env.clear_environment()
 
     def setup_method(self, method):
         path_to_test_case = os.path.join(self.path_to_test, method.__name__)
@@ -52,8 +56,8 @@ ATTRS = [
     'NUM_SCHEDULERS',
     'DELTA_MASTER_CONFIG',
     'DELTA_HOLDER_CONFIG',
-    'DELTA_SCHEDULER_CONFIG',
-    ]
+    'DELTA_SCHEDULER_CONFIG']
+
 def ytenv(**attrs):
     def make_decorator(f):
         @wraps(f)

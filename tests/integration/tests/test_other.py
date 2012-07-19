@@ -40,7 +40,7 @@ class TestOrchid(YTEnvSetup):
     def test_on_masters(self):
         self._check_orchid('//sys/masters', self.NUM_MASTERS, "master")
 
-    def test_on_holders(self):
+    def test_on_nodes(self):
         self._check_orchid('//sys/holders', self.NUM_HOLDERS, "node")
 
     def test_on_scheduler(self):
@@ -61,7 +61,7 @@ class TestResourceLeak(YTEnvSetup):
             for file in files:
                 assert not file.endswith('~'), 'Found temporary file: ' + file  
 
-    # should be called on empty holders
+    # should be called on empty nodes
     def test_canceled_upload(self):
         tx_id = start_transaction(opt = '/timeout=2000')
 
@@ -74,8 +74,8 @@ class TestResourceLeak(YTEnvSetup):
         # now check that there are no temp files
         for i in xrange(self.NUM_HOLDERS):
             # TODO(panin): refactor
-            holder_config = self.Env.configs['holder'][i]
-            chunk_store_path = holder_config['data_node']['store_locations'][0]['path']
+            node_config = self.Env.configs['node'][i]
+            chunk_store_path = node_config['data_node']['store_locations'][0]['path']
             self._check_no_temp_file(chunk_store_path)
 
 # TODO(panin): check chunks

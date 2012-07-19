@@ -23,10 +23,12 @@ DICTIONARY_SIZE=`echo "sqrt($WORD_COUNT)" | bc`
 
 rm -f input
 touch input
+set +x
 for (( i = 0 ; i < $JOBCOUNT; i++ ))
 do
     echo -e "$i\t\t" >> input
 done
+set -x
 
 time $MAPREDUCE -write "$TEMP_TABLE" <input
 time $MAPREDUCE -map "PYTHONPATH=. ./map.py dict $RECORD_PER_JOB $WORDS_IN_RECORD" -src "$TEMP_TABLE" -dst "$DATA_TABLE" \
