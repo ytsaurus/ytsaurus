@@ -25,7 +25,7 @@ public:
     /*!
      *  \param location Root directory where all snapshot files reside.
      */
-    TSnapshotStore(TSnapshotStoreConfigPtr config);
+    explicit TSnapshotStore(TSnapshotStoreConfigPtr config);
 
     //! Prepares the snapshot directory.
     void Start();

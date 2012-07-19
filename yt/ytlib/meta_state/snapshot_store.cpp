@@ -122,7 +122,7 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
         {
             TGuard<TSpinLock> guard(SpinLock);
             SnapshotIds.erase(snapshotId);
-            LOG_WARNING("Erasing orphaned snapshot id from store: %d", snapshotId);
+            LOG_WARNING("Erasing orphaned snapshot id snapshot %d from store", snapshotId);
         }
     }
 }
