@@ -169,7 +169,8 @@ private:
                 "/services/" +
                 EscapeYPathToken(request->GetPath()) + "/" +
                 EscapeYPathToken(request->GetVerb()) +
-                "/time");
+                "/time",
+                NProfiling::ETimerMode::Sequential);
 
             IBusPtr bus;
             {
