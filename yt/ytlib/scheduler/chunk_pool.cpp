@@ -166,34 +166,22 @@ public:
             auto addressIt = LocalChunks.find(address);
             if (addressIt != LocalChunks.end()) {
                 const auto& entry = addressIt->second;
-                AddStripes(
+                AddAndUnregisterStripes(
                     result,
                     entry.Stripes.begin(),
                     entry.Stripes.end(),
                     weightThreshold,
                     address);
             }
-
-            // Unregister taken local chunks.
-            // We have to do this right away, otherwise we risk getting same chunks
-            // in the next phase.
-            for (int index = 0; index < result->LocalChunkCount; ++index) {
-                Unregister(result->Stripes[index]);
-            }
         }
 
         // Take remote chunks.
-        AddStripes(
+        AddAndUnregisterStripes(
             result,
             GlobalChunks.begin(),
             GlobalChunks.end(),
             weightThreshold,
             address);
-
-        // Unregister taken remote chunks.
-        for (int index = result->LocalChunkCount; index < result->LocalChunkCount + result->RemoteChunkCount; ++index) {
-            Unregister(result->Stripes[index]);
-        }
 
         WeightCounter_.Start(result->TotalChunkWeight);
         ChunkCounter_.Start(result->TotalChunkCount);
@@ -246,7 +234,7 @@ private:
 
     void Register(TChunkStripePtr stripe)
     {
-        //if (TrackLocality) {
+        if (TrackLocality) {
             FOREACH (const auto& chunk, stripe->Chunks) {
                 auto inputChunk = chunk.InputChunk;
                 FOREACH (const auto& address, inputChunk->node_addresses()) {
@@ -255,14 +243,14 @@ private:
                     entry.TotalWeight += chunk.Weight;
                 }
             }
-        //}
+        }
 
         YVERIFY(GlobalChunks.insert(stripe).second);
     }
 
     void Unregister(TChunkStripePtr stripe)
     {
-        //if (TrackLocality) {
+        if (TrackLocality) {
             FOREACH (const auto& chunk, stripe->Chunks) {
                 auto inputChunk = chunk.InputChunk;
                 FOREACH (const auto& address, inputChunk->node_addresses()) {
@@ -271,24 +259,29 @@ private:
                     entry.TotalWeight -= chunk.Weight;
                 }
             }
-        //}
+        }
 
         YVERIFY(GlobalChunks.erase(stripe) == 1);
     }
 
     template <class TIterator>
-    void AddStripes(
+    void AddAndUnregisterStripes(
         TPoolExtractionResultPtr result,
         const TIterator& begin,
         const TIterator& end,
         TNullable<i64> weightThreshold,
         const Stroka& address)
     {
+        int oldSize = static_cast<int>(result->Stripes.size());
         for (auto it = begin; it != end; ++it) {
             if (weightThreshold && result->TotalChunkWeight >= weightThreshold.Get()) {
                 break;
             }
             result->Add(*it, address);
+        }
+        int newSize = static_cast<int>(result->Stripes.size());
+        for (int index = oldSize; index < newSize; ++index) {
+            Unregister(result->Stripes[index]);
         }
     }
 };
