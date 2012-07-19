@@ -74,11 +74,11 @@ TPoolExtractionResult::TPoolExtractionResult()
     , RemoteChunkCount(0)
 { }
 
-void TPoolExtractionResult::Add(TChunkStripePtr stripe, const Stroka& address)
+void TPoolExtractionResult::AddStripe(TChunkStripePtr stripe, const Stroka& address)
 {
     Stripes.push_back(stripe);
+    TotalChunkCount += stripe->Chunks.size();
     FOREACH (const auto& chunk, stripe->Chunks) {
-        ++TotalChunkCount;
         TotalChunkWeight += chunk.Weight;
         const auto& chunkAddresses = chunk.InputChunk->node_addresses();
         if (std::find_if(
@@ -91,6 +91,17 @@ void TPoolExtractionResult::Add(TChunkStripePtr stripe, const Stroka& address)
         } else {
             ++RemoteChunkCount;
         }
+    }
+}
+
+void TPoolExtractionResult::AddStripe(TChunkStripePtr stripe)
+{
+    // NB: Keep this in sync with the above.
+    Stripes.push_back(stripe);
+    TotalChunkCount += stripe->Chunks.size();
+    RemoteChunkCount += stripe->Chunks.size();
+    FOREACH (const auto& chunk, stripe->Chunks) {
+        TotalChunkWeight += chunk.Weight;
     }
 }
 
@@ -277,7 +288,11 @@ private:
             if (weightThreshold && result->TotalChunkWeight >= weightThreshold.Get()) {
                 break;
             }
-            result->Add(*it, address);
+            if (TrackLocality) {
+                result->AddStripe(*it, address);
+            } else {
+                result->AddStripe(*it);
+            }
         }
         int newSize = static_cast<int>(result->Stripes.size());
         for (int index = oldSize; index < newSize; ++index) {
@@ -331,7 +346,7 @@ public:
 
         auto result = New<TPoolExtractionResult>();
         FOREACH (auto stripe, Stripes) {
-            result->Add(stripe, address);
+            result->AddStripe(stripe, address);
         }
 
         Extracted = true;

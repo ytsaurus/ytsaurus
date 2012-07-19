@@ -52,7 +52,8 @@ struct TPoolExtractionResult
 {
     TPoolExtractionResult();
 
-    void Add(TChunkStripePtr stripe, const Stroka& address);
+    void AddStripe(TChunkStripePtr stripe, const Stroka& address);
+    void AddStripe(TChunkStripePtr stripe);
 
     std::vector<TChunkStripePtr> Stripes;
     i64 TotalChunkWeight;
