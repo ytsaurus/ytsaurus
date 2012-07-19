@@ -519,7 +519,7 @@ private:
             ++Controller->CompletedSortJobCount;
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
-            if (!Partition->SortedMergeNeeded) {
+            if (!Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
                 Controller->OnPartitionCompeted(Partition);
                 return;

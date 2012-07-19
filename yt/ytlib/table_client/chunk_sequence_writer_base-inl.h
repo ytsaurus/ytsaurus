@@ -264,42 +264,49 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
         ~currentSession.RemoteWriter->GetChunkId().ToString());
 
+    auto remoteWriter = currentSession.RemoteWriter;
+
     NObjectServer::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
     {
         auto req = NChunkServer::TChunkYPathProxy::Confirm(
-            NCypressClient::FromObjectId(currentSession.RemoteWriter->GetChunkId()));
-        *req->mutable_chunk_info() = currentSession.RemoteWriter->GetChunkInfo();
-        ToProto(req->mutable_node_addresses(), currentSession.RemoteWriter->GetNodeAddresses());
-        *req->mutable_chunk_meta() = currentSession.ChunkWriter->GetMasterMeta();
+            NCypressClient::FromObjectId(remoteWriter->GetChunkId()));
+        *req->mutable_chunk_info() = remoteWriter->GetChunkInfo();
+        ToProto(req->mutable_node_addresses(), remoteWriter->GetNodeAddresses());
+        *req->mutable_chunk_meta() = remoteWriter->GetMasterMeta();
 
         batchReq->AddRequest(req);
     }
     {
         auto req = NChunkServer::TChunkListYPathProxy::Attach(
             NCypressClient::FromObjectId(ParentChunkList));
-        *req->add_children_ids() = currentSession.RemoteWriter->GetChunkId().ToProto();
+        *req->add_children_ids() = remoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(req);
     }
     {
         auto req = NTransactionServer::TTransactionYPathProxy::ReleaseObject(
             NCypressClient::FromObjectId(TransactionId));
-        *req->mutable_object_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
+        *req->mutable_object_id() = remoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(req);
     }
 
     {
         NProto::TInputChunk inputChunk;
+
         auto* slice = inputChunk.mutable_slice();
         slice->mutable_start_limit();
         slice->mutable_end_limit();
-        *slice->mutable_chunk_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
+        *slice->mutable_chunk_id() = remoteWriter->GetChunkId().ToProto();
 
-        ToProto(inputChunk.mutable_node_addresses(), currentSession.RemoteWriter->GetNodeAddresses());
+        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(remoteWriter->GetMasterMeta().extensions());
+        inputChunk.set_data_weight(miscExt.data_weight());
+        inputChunk.set_row_count(miscExt.row_count());
+
+        ToProto(inputChunk.mutable_node_addresses(), remoteWriter->GetNodeAddresses());
         *inputChunk.mutable_channel() = TChannel::CreateUniversal().ToProto();
-        *inputChunk.mutable_extensions() = currentSession.ChunkWriter->GetSchedulerMeta().extensions();
+        *inputChunk.mutable_extensions() = remoteWriter->GetSchedulerMeta().extensions();
 
         TGuard<TSpinLock> guard(WrittenChunksGuard);
         WrittenChunks.push_back(inputChunk);
@@ -308,7 +315,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     batchReq->Invoke().Subscribe(BIND(
         &TChunkSequenceWriterBase::OnChunkRegistered,
         MakeWeak(this),
-        currentSession.RemoteWriter->GetChunkId(),
+        remoteWriter->GetChunkId(),
         finishResult));
 }
 

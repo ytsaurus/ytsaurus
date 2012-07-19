@@ -47,8 +47,8 @@ message TInputChunk
     // a much more precise information about the data size and the row count.
     // A typical example is the scheduler preparing the input for a sort job.
     // Here's the place for such overrides.
-    optional int64 data_weight = 6;
-    optional int64 row_count = 7;
+    required int64 data_weight = 6;
+    required int64 row_count = 7;
 
     optional int32 partition_tag = 8 [default = -1];
 }
