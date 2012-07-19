@@ -53,6 +53,7 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Config(config)
         , Spec(spec)
+        , TotalDataWeight(0)
         , TotalRowCount(0)
         , TotalValueCount(0)
         , CompletedPartitionCount(0)
@@ -78,6 +79,7 @@ private:
     TSortOperationSpecPtr Spec;
 
     // Totals.
+    i64 TotalDataWeight;
     i64 TotalRowCount;
     i64 TotalValueCount;
 
@@ -409,6 +411,15 @@ private:
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const OVERRIDE
         {
             return GetRequestedResourcesForWeight(jip->PoolResult->TotalChunkWeight);
+        }
+
+        virtual void AddStripe(TChunkStripePtr stripe) OVERRIDE
+        {
+            TTask::AddStripe(stripe);
+            
+            FOREACH (const auto& chunk, stripe->Chunks) {
+                Controller->SortWeightCounter.Increment(chunk.DataWeightOverride);
+            }
         }
 
         bool IsCompleted() const
@@ -906,15 +917,14 @@ private:
         FOREACH (const auto& table, InputTables) {
             FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                i64 weight = miscExt.data_weight();
-                SortWeightCounter.Increment(weight);
+                TotalDataWeight += miscExt.data_weight();
                 TotalRowCount += miscExt.row_count();
                 TotalValueCount += miscExt.value_count();
             }
         }
 
         LOG_INFO("Totals collected (DataWeight: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
-            SortWeightCounter.GetTotal(),
+            TotalDataWeight,
             TotalRowCount,
             TotalValueCount);
 
@@ -923,7 +933,7 @@ private:
         int partitionCount = Spec->PartitionCount
             ? Spec->PartitionCount.Get()
             : static_cast<int>(ceil(
-                (double) SortWeightCounter.GetTotal() /
+                (double) TotalDataWeight /
                 Spec->MaxWeightPerSortJob *
                 Spec->PartitionCountBoostFactor));
 
@@ -958,7 +968,7 @@ private:
 
         // A pretty accurate estimate.
         MaxSortJobCount = GetJobCount(
-            SortWeightCounter.GetTotal(),
+            partition->SortTask->WeightCounter().GetTotal(),
             Spec->MaxWeightPerSortJob,
             Spec->SortJobCount,
             partition->SortTask->ChunkCounter().GetTotal());
@@ -1236,12 +1246,12 @@ private:
 
     i64 GetRowCountEstimate(i64 weight)
     {
-        return static_cast<i64>((double) TotalRowCount * weight / SortWeightCounter.GetTotal());
+        return static_cast<i64>((double) TotalRowCount * weight / TotalDataWeight);
     }
 
     i64 GetValueCountEstimate(i64 weight)
     {
-        return static_cast<i64>((double) TotalValueCount * weight / SortWeightCounter.GetTotal());
+        return static_cast<i64>((double) TotalValueCount * weight / TotalDataWeight);
     }
 };
 

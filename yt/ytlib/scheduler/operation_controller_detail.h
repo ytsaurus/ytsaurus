@@ -196,7 +196,7 @@ protected:
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
 
-        void AddStripe(TChunkStripePtr stripe);
+        virtual void AddStripe(TChunkStripePtr stripe);
         void AddStripes(const std::vector<TChunkStripePtr>& stripes);
 
         TJobPtr ScheduleJob(TExecNodePtr node);
