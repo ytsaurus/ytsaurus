@@ -16,8 +16,6 @@
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
-
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT {
