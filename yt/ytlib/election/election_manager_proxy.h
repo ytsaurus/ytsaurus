@@ -28,7 +28,6 @@ public:
         return "ElectionManager";
     }
 
-
     DECLARE_ENUM(EErrorCode,
         ((InvalidState)(1))
         ((InvalidLeader)(2))
@@ -41,7 +40,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower)
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus)
-
+    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetQuorum)
 };
 
 ////////////////////////////////////////////////////////////////////////////////

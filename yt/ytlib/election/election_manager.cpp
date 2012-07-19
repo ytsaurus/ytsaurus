@@ -455,6 +455,7 @@ TElectionManager::TElectionManager(
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuorum));
 }
 
 TElectionManager::~TElectionManager()
@@ -785,6 +786,27 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
         VoteId,
         ~ElectionCallbacks->FormatPriority(priority),
         ~VoteEpoch.ToString());
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetQuorum)
+{
+    UNUSED(request);
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    context->SetRequestInfo("");
+
+    if (State != TProxy::EState::Leading) {
+        ythrow TServiceException(EErrorCode::InvalidState) <<
+            Sprintf("Not a leader (State: %s)", ~State.ToString());
+    }
+
+    *response->mutable_epoch() = Epoch.ToProto();
+    response->set_leader_address(CellManager->GetPeerAddress(LeaderId));
+    FOREACH(TPeerId id, AliveFollowers) {
+        response->add_follower_addresses(CellManager->GetPeerAddress(id));
+    }
 
     context->Reply();
 }
