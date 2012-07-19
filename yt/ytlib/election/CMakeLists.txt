@@ -5,7 +5,7 @@ set( SRCS
   ${BASE}/common.cpp
   ${BASE}/election_manager.cpp
   ${BASE}/leader_channel.cpp
-  ${BASE}/leader_lookup.cpp
+  ${BASE}/master_discovery.cpp
 )
 set( HDRS
   ${BASE}/cell_manager.h
@@ -14,7 +14,7 @@ set( HDRS
   ${BASE}/election_manager.h
   ${BASE}/election_manager_proxy.h
   ${BASE}/leader_channel.h
-  ${BASE}/leader_lookup.h
+  ${BASE}/master_discovery.h
   ${BASE}/public.h
 )
 

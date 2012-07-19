@@ -18,8 +18,8 @@ using namespace NBus;
 namespace {
 
 TValueOrError<IChannelPtr> OnLeaderFound(  
-    TLeaderLookup::TConfigPtr config,
-    TLeaderLookup::TResult result)
+    TMasterDiscovery::TConfigPtr config,
+    TMasterDiscovery::TResult result)
 {
     if (result.Id == NElection::InvalidPeerId) {
         return TError("Unable to determine the leader");
@@ -34,13 +34,13 @@ TValueOrError<IChannelPtr> OnLeaderFound(
 
 } // namespace
 
-IChannelPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config)
+IChannelPtr CreateLeaderChannel(TMasterDiscovery::TConfigPtr config)
 {
-    auto leaderLookup = New<TLeaderLookup>(config);
+    auto masterDiscovery = New<TMasterDiscovery>(config);
     return CreateRoamingChannel(
         config->RpcTimeout,
         BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
-            return leaderLookup->GetLeader().Apply(BIND(
+            return masterDiscovery->GetLeader().Apply(BIND(
                 &OnLeaderFound,
                 config));
         }));

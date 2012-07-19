@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/election/leader_lookup.h>
+#include <ytlib/election/master_discovery.h>
 #include <ytlib/table_client/public.h>
 #include <ytlib/scheduler/job.pb.h>
 
@@ -18,7 +18,7 @@ class TUserJobIO
 public:
     TUserJobIO(
         TJobIOConfigPtr config,
-        NElection::TLeaderLookup::TConfigPtr mastersConfig,
+        NElection::TMasterDiscovery::TConfigPtr mastersConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);
 
     virtual ~TUserJobIO()

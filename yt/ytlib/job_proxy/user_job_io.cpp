@@ -28,7 +28,7 @@ using namespace NChunkServer;
 
 TUserJobIO::TUserJobIO(
     TJobIOConfigPtr config, 
-    NElection::TLeaderLookup::TConfigPtr mastersConfig,
+    NElection::TMasterDiscovery::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
     : Config(config)
     , MasterChannel(CreateLeaderChannel(mastersConfig))

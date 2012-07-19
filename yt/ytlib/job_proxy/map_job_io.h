@@ -19,7 +19,7 @@ class TMapJobIO
 public:
     TMapJobIO(
         TJobIOConfigPtr config,
-        NElection::TLeaderLookup::TConfigPtr mastersConfig,
+        NElection::TMasterDiscovery::TConfigPtr mastersConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);
 
     TAutoPtr<NTableClient::TTableProducer> CreateTableInput(

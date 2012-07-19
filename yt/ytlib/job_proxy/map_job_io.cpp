@@ -30,7 +30,7 @@ using namespace NChunkServer;
 
 TMapJobIO::TMapJobIO(
     TJobIOConfigPtr config,
-    NElection::TLeaderLookup::TConfigPtr mastersConfig,
+    NElection::TMasterDiscovery::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
     : TUserJobIO(config, mastersConfig, jobSpec)
 { }

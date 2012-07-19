@@ -16,11 +16,11 @@ namespace NElection {
 /*!
  * \note Thread affinity: any.
  */
-class TLeaderLookup
+class TMasterDiscovery
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TLeaderLookup> TPtr;
+    typedef TIntrusivePtr<TMasterDiscovery> TPtr;
 
     //! Lookup configuration.
     struct TConfig
@@ -69,7 +69,7 @@ public:
     typedef TFuture<TResult> TAsyncResult;
 
     //! Initializes a new instance.
-    TLeaderLookup(TConfigPtr config);
+    TMasterDiscovery(TConfigPtr config);
 
     //! Performs an asynchronous lookup.
     TAsyncResult GetLeader();

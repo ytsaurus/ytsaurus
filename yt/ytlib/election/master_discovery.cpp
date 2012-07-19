@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "leader_lookup.h"
+#include "master_discovery.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -16,16 +16,16 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ElectionLogger;
-static NProfiling::TProfiler Profiler("/election/leader_lookup");
+static NProfiling::TProfiler Profiler("/election/master_discovery");
 static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaderLookup::TLeaderLookup(TConfigPtr config)
+TMasterDiscovery::TMasterDiscovery(TConfigPtr config)
     : Config(config)
 { }
 
-TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
+TMasterDiscovery::TAsyncResult TMasterDiscovery::GetLeader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -43,7 +43,7 @@ TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
             request->Invoke(),
             EscapeYPathToken(address),
             BIND(
-                &TLeaderLookup::OnResponse,
+                &TMasterDiscovery::OnResponse,
                 MakeStrong(this),
                 awaiter,
                 promise,
@@ -51,14 +51,14 @@ TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
     }
     
     awaiter->Complete(BIND(
-        &TLeaderLookup::OnComplete,
+        &TMasterDiscovery::OnComplete,
         MakeStrong(this),
         promise));
 
     return promise;
 }
 
-void TLeaderLookup::OnResponse(
+void TMasterDiscovery::OnResponse(
     TParallelAwaiterPtr awaiter,
     TPromise<TResult> promise,
     const Stroka& address,
@@ -107,7 +107,7 @@ void TLeaderLookup::OnResponse(
         ~epoch.ToString());
 }
 
-void TLeaderLookup::OnComplete(TPromise<TResult> promise)
+void TMasterDiscovery::OnComplete(TPromise<TResult> promise)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

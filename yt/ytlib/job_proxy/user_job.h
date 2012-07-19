@@ -4,7 +4,7 @@
 #include "job.h"
 
 #include <ytlib/scheduler/job.pb.h>
-#include <ytlib/election/leader_lookup.h>
+#include <ytlib/election/master_discovery.h>
 #include <ytlib/misc/error.h>
 
 namespace NYT {

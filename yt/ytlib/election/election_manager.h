@@ -3,7 +3,7 @@
 #include "common.h"
 #include "public.h"
 #include "config.h"
-#include "leader_lookup.h"
+#include "master_discovery.h"
 #include "election_manager_proxy.h"
 #include "cell_manager.h"
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "leader_lookup.h"
+#include "master_discovery.h"
 
 #include <ytlib/rpc/public.h>
 
@@ -10,7 +10,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel that takes care of choosing leader among the peers.
-NRpc::IChannelPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config);
+NRpc::IChannelPtr CreateLeaderChannel(TMasterDiscovery::TConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

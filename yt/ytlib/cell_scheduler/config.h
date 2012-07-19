@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/election/leader_lookup.h>
+#include <ytlib/election/master_discovery.h>
 #include <ytlib/transaction_client/config.h>
 
 namespace NYT {
@@ -19,7 +19,7 @@ struct TCellSchedulerConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    NElection::TLeaderLookup::TConfigPtr Masters;
+    NElection::TMasterDiscovery::TConfigPtr Masters;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NScheduler::TSchedulerConfigPtr Scheduler;
 
