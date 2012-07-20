@@ -204,7 +204,7 @@ tc "progressMessage 'Running integration tests...'"
 
 dpkg -s python-simplejson
 if [ "$?" != "0" ]; then
-    sudo apt-get install python-simplejson
+    sudo apt-get install -y python-simplejson
 fi
 
 ulimit -c unlimited
