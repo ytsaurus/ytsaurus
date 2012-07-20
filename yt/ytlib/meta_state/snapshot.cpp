@@ -180,6 +180,14 @@ void TSnapshotWriter::Close()
         return;
     }
 
+    ChecksummableOutput->Finish();
+
+    if (EnableCompression) {
+        // This ensures that the compressed stream gets finalized properly,
+        // in particular, flushes its trailer.
+        CompressedOutput->Finish();
+    }
+
     Header->Checksum = ChecksummableOutput->GetChecksum();
     Header->DataLength = File->GetLength() - sizeof(TSnapshotHeader);
 
