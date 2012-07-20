@@ -407,7 +407,7 @@ private:
         {
             return GetRequestedResourcesForWeight(std::min(
                 Controller->Spec->MaxWeightPerSortJob,
-                Controller->TotalDataWeight);
+                Controller->TotalDataWeight));
         }
 
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const OVERRIDE
