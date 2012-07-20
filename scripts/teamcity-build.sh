@@ -202,6 +202,8 @@ tc "blockOpened name='Integration Tests'"
 shout "Running integration tests..."
 tc "progressMessage 'Running integration tests...'"
 
+ulimit -c unlimited
+
 cd $CHECKOUT_DIRECTORY/tests/integration
 PYTHONPATH=$CHECKOUT_DIRECTORY/python \
 PATH=$WORKING_DIRECTORY/bin:$PATH \
