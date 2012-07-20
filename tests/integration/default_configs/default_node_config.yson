@@ -14,7 +14,6 @@
             };
         };
         "job_manager" = {
-            "slot_count" = 1;
             "slot_location" = "";
         };
         job_proxy_logging = {
