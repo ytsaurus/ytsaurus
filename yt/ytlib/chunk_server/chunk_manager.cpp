@@ -1733,7 +1733,6 @@ private:
         attributes->push_back("compressed_size");
         attributes->push_back("chunk_count");
         attributes->push_back("rank");
-        attributes->push_back("mutable");
         attributes->push_back("rigid");
         attributes->push_back(TAttributeInfo("tree", true, true));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
