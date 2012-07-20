@@ -33,7 +33,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetMaster()
         BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
             TResult result;
             if (quorum) {
-                int id = RandomNumber(1 + quorum->follower_addresses_size());
+                int id = RandomNumber<unsigned int>(1 + quorum->follower_addresses_size());
                 if (id == quorum->follower_addresses().size()) {
                     result.Address = quorum->leader_address();
                 } else {
@@ -66,7 +66,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetFollower()
         BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
             TResult result;
             if (quorum) {
-                int id = RandomNumber(quorum->follower_addresses_size());
+                int id = RandomNumber<unsigned int>(quorum->follower_addresses_size());
                 result.Address = quorum->follower_addresses().Get(id);
                 result.Epoch = TGuid::FromProto(quorum->epoch());
             }
