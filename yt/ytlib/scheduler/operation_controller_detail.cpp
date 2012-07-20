@@ -1214,13 +1214,14 @@ std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
     if (jobCount) {
         i64 totalWeight = 0;
         FOREACH (auto inputChunk, inputChunks) {
-            auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk->extensions());
-            totalWeight += miscExt.data_weight();
+            totalWeight += inputChunk->data_weight();
         }
-        weightPerJob = totalWeight / jobCount.Get();
+        weightPerJob = totalWeight / jobCount.Get() + 1;
     } else {
         weightPerJob = maxWeightPerJob;
     }
+
+    YCHECK(weightPerJob > 0);
 
     LOG_DEBUG("Preparing chunk stripes (ChunkCount: %d, JobCount: %s, MaxWeightPerJob: %" PRId64 ", WeightPerJob: %" PRId64 ")",
         static_cast<int>(inputChunks.size()),
@@ -1233,9 +1234,8 @@ std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
     // Ensure that no input chunk has weight much larger than weightPerJob.
     FOREACH (auto inputChunk, inputChunks) {
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk->extensions());
-        if (miscExt.data_weight() > weightPerJob * 1.3) {
-            int sliceCount = (int) std::ceil((double) miscExt.data_weight() / (double) weightPerJob);
+        if (inputChunk->data_weight() > weightPerJob * 1.3) {
+            int sliceCount = (int) std::ceil((double) inputChunk->data_weight() / (double) weightPerJob);
             auto slicedInputChunks = SliceChunkEvenly(*inputChunk, sliceCount);
             FOREACH (auto slicedInputChunk, slicedInputChunks) {
                 auto stripe = New<TChunkStripe>(slicedInputChunk);
