@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_sequence_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/merging_reader.h>

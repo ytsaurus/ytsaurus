@@ -33,7 +33,7 @@ static NLog::TLogger& Logger = TableReaderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableChunkReader::IInitializer
+class TTableChunkReader::TInitializer
     : public virtual TRefCounted
 {
 public:
@@ -118,7 +118,7 @@ struct TTableChunkReader::TIndexComparator
 
 //! Helper class aimed to asynchronously initialize the internals of TChunkReader.
 class TTableChunkReader::TRegularInitializer
-    : public TTableChunkReader::IInitializer
+    : public TTableChunkReader::TInitializer
 {
 public:
     TRegularInitializer(
@@ -548,7 +548,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableChunkReader::TPartitionInitializer
-    : public TTableChunkReader::IInitializer
+    : public TTableChunkReader::TInitializer
 {
 public:
     TPartitionInitializer(
@@ -567,7 +567,7 @@ public:
         YASSERT(chunkReader);
 
         Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
-        LOG_DEBUG("Initializing partition chunk reader");
+        LOG_DEBUG("Initializing partition table chunk reader");
 
         std::vector<int> tags;
         tags.reserve(10);

@@ -16,7 +16,7 @@ class TChannelWriter
 public:
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
-    TChannelWriter(int fixedColumnCount);
+    TChannelWriter(int fixedColumnCount, bool writeRangeSizes = false);
 
     void WriteFixed(int fixedIndex, const TStringBuf& value);
     void WriteRange(const TStringBuf& name, const TStringBuf& value);
@@ -41,6 +41,9 @@ private:
     //! Current buffer for range columns.
     TBlobOutput RangeColumns;
 
+    TBlobOutput RangeSizes;
+    int RangeOffset;
+
     //! Is fixed column with corresponding index already set in the current row.
     std::vector<bool> IsColumnUsed;
 
@@ -49,6 +52,8 @@ private:
 
     //! Number of rows in the current unflushed buffer.
     int CurrentRowCount;
+
+    bool WriteRangeSizes;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

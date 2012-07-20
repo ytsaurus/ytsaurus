@@ -9,7 +9,7 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_client/partition_chunk_sequence_writer.h>
-#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_sequence_reader.h>
 #include <ytlib/ytree/lexer.h>
 
 namespace NYT {

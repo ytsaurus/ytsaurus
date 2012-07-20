@@ -68,7 +68,7 @@ protected:
 
     virtual bool KeepReaders() const
     {
-        return false;
+        return true;
     }
 
     void PrepareNextChunk();

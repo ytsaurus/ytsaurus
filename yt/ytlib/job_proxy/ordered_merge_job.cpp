@@ -5,7 +5,7 @@
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/election/leader_channel.h>
-#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_sequence_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>

@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 #include "table_reader.h"
 #include "config.h"
-#include "chunk_sequence_reader.h"
+#include "table_chunk_sequence_reader.h"
 #include "private.h"
 
 #include <ytlib/table_server/table_ypath_proxy.h>

@@ -12,7 +12,7 @@
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/private.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
-#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_sequence_reader.h>
 #include <ytlib/table_client/merging_reader.h>
 #include <ytlib/ytree/yson_string.h>
 

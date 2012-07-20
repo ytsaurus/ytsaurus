@@ -11,11 +11,11 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortJob
+class TSimpleSortJob
     : public IJob
 {
 public:
-    TSortJob(
+    TSimpleSortJob(
         TJobProxyConfigPtr proxyConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);
 

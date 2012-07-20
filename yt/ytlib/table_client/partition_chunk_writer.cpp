@@ -37,15 +37,17 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     const TKeyColumns& keyColumns,
     const std::vector<NProto::TKey>& partitionKeys)
     : TChunkWriterBase(chunkWriter, config)
-    , Channel(TChannel::CreateUniversal())
     , KeyColumns(keyColumns)
     , CurrentSize(0)
     , BasicMetaSize(0)
 {
-    *ChannelsExt.add_items()->mutable_channel() = Channel.ToProto();
-
-    for (int i = 0; i < KeyColumns.size(); ++i) {
-        KeyColumnIndexes[KeyColumns[i]] = i;
+    {
+        auto channel = TChannel::CreateUniversal();
+        for (int i = 0; i < KeyColumns.size(); ++i) {
+            KeyColumnIndexes[KeyColumns[i]] = i;
+            channel.AddColumn(KeyColumns[i]);
+        }
+        *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
     }
 
     PartitionKeys.reserve(partitionKeys.size());
@@ -54,7 +56,8 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     }
 
     for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
-        ChannelWriters.push_back(New<TChannelWriter>(0));
+        // Write range column sizes to effectively skip during reading.
+        ChannelWriters.push_back(New<TChannelWriter>(0, true));
         auto* partitionAttributes = PartitionsExt.add_partitions();
         partitionAttributes->set_data_weight(0);
         partitionAttributes->set_row_count(0);
@@ -76,10 +79,19 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
         return false;
 
     TNonOwningKey key(KeyColumns.size());
-    FOREACH (const auto& pair, row) {
-        auto it = KeyColumnIndexes.find(pair.first);
-        if (it != KeyColumnIndexes.end()) {
-            key.SetKeyPart(it->second, pair.second, Lexer);
+    RowValueIndexes.assign(row.size() + KeyColumns.size(), -1);
+    {
+        int nonKeyIndex = KeyColumns.size();
+        for (int i = 0; i < row.size(); ++i) {
+            const auto& pair = row[i];
+            auto it = KeyColumnIndexes.find(pair.first);
+            if (it != KeyColumnIndexes.end()) {
+                key.SetKeyPart(it->second, pair.second, Lexer);
+                RowValueIndexes[it->second] = i;
+            } else {
+                RowValueIndexes[nonKeyIndex] = i;
+                ++nonKeyIndex;
+            }
         }
     }
 
@@ -88,12 +100,15 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
     auto& channelWriter = ChannelWriters[partitionTag];
 
     i64 rowDataWeight = 1;
-    FOREACH (const auto& pair, row) {
-        channelWriter->WriteRange(pair.first, pair.second);
+    FOREACH (int valueIndex, RowValueIndexes) {
+        if (valueIndex >= 0) {
+            const auto& pair = row[valueIndex];
+            channelWriter->WriteRange(pair.first, pair.second);
 
-        rowDataWeight += pair.first.size();
-        rowDataWeight += pair.second.size();
-        ValueCount += 1;
+            rowDataWeight += pair.first.size();
+            rowDataWeight += pair.second.size();
+            ValueCount += 1;
+        }
     }
     channelWriter->EndRow();
 

@@ -57,7 +57,7 @@ TAsyncError TChunkSequenceReaderBase<TReader>::AsyncOpen()
     if (CurrentReaderIndex < InputChunks.size()) {
         State.StartOperation();
         Readers[CurrentReaderIndex].Subscribe(BIND(
-            &TTableChunkSequenceReader::SwitchCurrentChunk,
+            &TChunkSequenceReaderBase<TReader>::SwitchCurrentChunk,
             MakeWeak(this)));
     }
 
@@ -89,7 +89,7 @@ void TChunkSequenceReaderBase<TReader>::PrepareNextChunk()
 
     auto chunkReader = CreateNewReader(inputChunk, remoteReader);
     chunkReader->AsyncOpen().Subscribe(BIND(
-        &TTableChunkSequenceReader::OnReaderOpened,
+        &TChunkSequenceReaderBase<TReader>::OnReaderOpened,
         MakeWeak(this),
         chunkReader,
         LastPreparedReader).Via(NChunkClient::ReaderThread->GetInvoker()));
@@ -115,7 +115,7 @@ void TChunkSequenceReaderBase<TReader>::OnReaderOpened(
     }
 
     State.Fail(error);
-    Readers[LastInitializedReader].Set(TTableChunkReaderPtr());
+    Readers[LastInitializedReader].Set(TReaderPtr());
 }
 
 template <class TReader>

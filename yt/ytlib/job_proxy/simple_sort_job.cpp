@@ -1,7 +1,8 @@
 ﻿#include "stdafx.h"
 #include "private.h"
 #include "config.h"
-#include "sort_job.h"
+#include "simple_sort_job.h"
+#include "small_key.h"
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/object_server/id.h>
@@ -9,7 +10,7 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
-#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_sequence_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/ytree/lexer.h>
 
@@ -31,95 +32,7 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSmallKeyPart
-{
-    EKeyPartType Type;
-    ui32 Length;
-
-    union {
-        i64 Int;
-        double Double;
-        const char* Str;
-    } Value;
-
-    TStringBuf GetString() const
-    {
-        return TStringBuf(Value.Str, Value.Str + Length);
-    }
-
-    TSmallKeyPart() 
-        : Type(EKeyPartType::Null)
-    { }
-};
-
-void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, TLexer& lexer)
-{
-    lexer.Reset();
-    YVERIFY(lexer.Read(yson) > 0);
-    YASSERT(lexer.GetState() == NYTree::TLexer::EState::Terminal);
-
-    const auto& token = lexer.GetToken();
-    switch (token.GetType()) {
-        case ETokenType::Integer:
-            keyPart.Type = EKeyPartType::Integer;
-            keyPart.Value.Int = token.GetIntegerValue();
-            break;
-
-        case NYTree::ETokenType::Double:
-            keyPart.Type = EKeyPartType::Double;
-            keyPart.Value.Double = token.GetDoubleValue();
-            break;
-
-        case ETokenType::String: {
-            keyPart.Type = EKeyPartType::String;
-            auto& value = token.GetStringValue();
-            keyPart.Value.Str = ~value;
-            keyPart.Length = static_cast<ui32>(value.size());
-            break;
-        }
-
-        default:
-            keyPart.Type = EKeyPartType::Composite;
-            break;
-    }
-}
-
-int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
-{
-    if (lhs.Type != rhs.Type) {
-        return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
-    }
-
-    switch (lhs.Type) {
-        case EKeyPartType::Integer:
-            if (lhs.Value.Int > rhs.Value.Int)
-                return 1;
-            if (lhs.Value.Int < rhs.Value.Int)
-                return -1;
-            return 0;
-
-        case EKeyPartType::Double:
-            if (lhs.Value.Double > rhs.Value.Double)
-                return 1;
-            if (lhs.Value.Double < rhs.Value.Double)
-                return -1;
-            return 0;
-
-        case EKeyPartType::String:
-            return lhs.GetString().compare(rhs.GetString());
-
-        case EKeyPartType::Composite:
-        case EKeyPartType::Null:
-            return 0;
-
-        default:
-            YUNREACHABLE();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSortJob::TSortJob(
+TSimpleSortJob::TSimpleSortJob(
     TJobProxyConfigPtr proxyConfig,
     const TJobSpec& jobSpec)
 {
@@ -158,7 +71,7 @@ TSortJob::TSortJob(
         KeyColumns);
 }
 
-TJobResult TSortJob::Run()
+TJobResult TSimpleSortJob::Run()
 {
     PROFILE_TIMING ("/sort_time") {
 
@@ -171,7 +84,7 @@ TJobResult TSortJob::Run()
         std::vector<ui32> valueIndexBuffer;
         std::vector<ui32> rowIndexBuffer;
 
-        LOG_INFO("Initializing");
+        LOG_INFO("Somple sort job.");
         {
             for (int i = 0; i < KeyColumns.size(); ++i) {
                 TStringBuf name(~KeyColumns[i], KeyColumns[i].size());
@@ -180,17 +93,10 @@ TJobResult TSortJob::Run()
 
             Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
 
-            // TODO(babenko): fix reserve below once the reader can provide per-partition statistics
-
-            //valueBuffer.reserve(Reader->GetValueCount());
-            valueBuffer.reserve(1000000);
-
-            //rowBuffer.reserve(Reader->GetRowCount());
-            keyBuffer.reserve(1000000);
-
-            //indexBuffer.reserve(Reader->GetRowCount());
-            valueIndexBuffer.reserve(1000000);
-            rowIndexBuffer.reserve(1000000);
+            valueBuffer.reserve(Reader->GetValueCount());
+            keyBuffer.reserve(Reader->GetRowCount() * keyColumnCount);
+            valueIndexBuffer.reserve(Reader->GetRowCount() + 1);
+            rowIndexBuffer.reserve(Reader->GetRowCount());
 
             // Add fake row.
             valueIndexBuffer.push_back(0);
@@ -269,27 +175,7 @@ TJobResult TSortJob::Run()
 
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
                     auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
-                    switch (keyPart.Type) {
-                        case EKeyPartType::Integer:
-                            key.SetValue(keyIndex, keyPart.Value.Int);
-                            break;
-
-                        case EKeyPartType::Double:
-                            key.SetValue(keyIndex, keyPart.Value.Double);
-                            break;
-
-                        case EKeyPartType::String:
-                            key.SetValue(keyIndex, keyPart.GetString());
-                            break;
-
-                        case EKeyPartType::Null:
-                        case EKeyPartType::Composite:
-                            key.SetSentinel(keyIndex, keyPart.Type);
-                            break;
-
-                        default:
-                            YUNREACHABLE();
-                    }
+                    SetKeyPart(&key, keyPart, keyIndex);
                 }
 
                 writer->WriteRowUnsafe(row, key);

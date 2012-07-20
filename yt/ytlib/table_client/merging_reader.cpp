@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
 #include "merging_reader.h"
-#include "chunk_sequence_reader.h"
+#include "table_chunk_sequence_reader.h"
 #include "key.h"
 
 #include <ytlib/misc/sync.h>

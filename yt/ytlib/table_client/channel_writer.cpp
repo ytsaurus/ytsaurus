@@ -9,10 +9,12 @@ namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChannelWriter::TChannelWriter(int fixedColumnCount)
+TChannelWriter::TChannelWriter(int fixedColumnCount, bool writeRangeSizes)
     : FixedColumns(fixedColumnCount)
     , IsColumnUsed(fixedColumnCount)
     , CurrentRowCount(0)
+    , WriteRangeSizes(writeRangeSizes)
+    , RangeOffset(0)
 {
     CurrentSize = GetEmptySize();
 }
@@ -53,6 +55,12 @@ void TChannelWriter::EndRow()
 
     // End of the row
     CurrentSize += TValue().Save(&RangeColumns);
+
+    if (WriteRangeSizes) {
+        CurrentSize += WriteVarUInt64(&RangeSizes, RangeColumns.GetSize() - RangeOffset);
+        RangeOffset = RangeColumns.GetSize();
+    }
+
     ++ CurrentRowCount;
 }
 
@@ -68,14 +76,15 @@ size_t TChannelWriter::GetEmptySize() const
 
 std::vector<TSharedRef> TChannelWriter::FlushBlock()
 {
-    TBlobOutput sizeOutput(8 * FixedColumns.size());
+    TBlobOutput sizeOutput(8 * (FixedColumns.size() + 1));
 
     FOREACH (const auto& column, FixedColumns) {
         WriteVarUInt64(&sizeOutput, column.GetSize());
     }
+    WriteVarUInt64(&sizeOutput, RangeColumns.GetSize());
 
     std::vector<TSharedRef> result;
-    result.reserve(FixedColumns.size() + 2);
+    result.reserve(FixedColumns.size() + 3);
     result.push_back(sizeOutput.Flush());
 
     FOREACH (auto& column, FixedColumns) {
@@ -84,9 +93,17 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
         column.Reserve(capacity);
     }
 
-    auto capacity = RangeColumns.GetBlob()->capacity();
-    result.push_back(RangeColumns.Flush());
-    RangeColumns.Reserve(capacity);
+    {
+        auto capacity = RangeColumns.GetBlob()->capacity();
+        result.push_back(RangeColumns.Flush());
+        RangeColumns.Reserve(capacity);
+    }
+
+    if (WriteRangeSizes) {
+        auto capacity = RangeSizes.GetBlob()->capacity();
+        result.push_back(RangeSizes.Flush());
+        RangeSizes.Reserve(capacity);
+    }
 
     CurrentSize = GetEmptySize();
     CurrentRowCount = 0;

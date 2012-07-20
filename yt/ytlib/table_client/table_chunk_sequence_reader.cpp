@@ -1,5 +1,5 @@
 ﻿#include "stdafx.h"
-#include "chunk_sequence_reader.h"
+#include "table_chunk_sequence_reader.h"
 #include "config.h"
 #include "schema.h"
 
@@ -7,7 +7,6 @@
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
-#include <ytlib/rpc/channel.h>
 #include <ytlib/ytree/convert.h>
 
 #include <limits>
@@ -34,7 +33,7 @@ TTableChunkSequenceReader::TTableChunkSequenceReader(
 {
     for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
-        RowCount_ += miscExt.row_count();
+        RowCount_ += InputChunks[i].row_count();
         ValueCount_ += miscExt.value_count();
     }
 }
@@ -60,8 +59,7 @@ void TTableChunkSequenceReader::OnChunkSwitch(const TReaderPtr& nextReader)
 {
     RowCount_ = GetItemIndex() + nextReader->GetRowCount();
     for (int i = CurrentReaderIndex + 1; i < InputChunks.size(); ++i) {
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(InputChunks[i].extensions());
-        RowCount_ += miscExt.row_count();
+        RowCount_ += InputChunks[i].row_count();
     }
 }
 

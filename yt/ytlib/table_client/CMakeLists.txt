@@ -3,8 +3,10 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client )
 set( SRCS
   ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
-  ${BASE}/chunk_reader.cpp
-  ${BASE}/chunk_sequence_reader.cpp
+  ${BASE}/partition_chunk_reader.cpp
+  ${BASE}/partition_chunk_sequence_reader.cpp
+  ${BASE}/table_chunk_reader.cpp
+  ${BASE}/table_chunk_sequence_reader.cpp
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/key.cpp
   ${BASE}/merging_reader.cpp
@@ -29,8 +31,10 @@ set( HDRS
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
   ${BASE}/chunk_meta_extensions.h
-  ${BASE}/chunk_reader.h
-  ${BASE}/chunk_sequence_reader.h
+  ${BASE}/partition_chunk_reader.h
+  ${BASE}/partition_chunk_sequence_reader.h
+  ${BASE}/table_chunk_reader.h
+  ${BASE}/table_chunk_sequence_reader.h
   ${BASE}/chunk_sequence_writer_base-inl.h
   ${BASE}/chunk_sequence_writer_base.h
   ${BASE}/chunk_sequence_reader_base-inl.h

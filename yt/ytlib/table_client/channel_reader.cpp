@@ -23,8 +23,9 @@ void TChannelReader::SetBlock(const TSharedRef& block)
 
     TMemoryInput input(CurrentBlock.Begin(), CurrentBlock.Size());
     std::vector<size_t> columnSizes;
-    columnSizes.reserve(Channel.GetColumns().size());
-    for (int columnIndex = 0; columnIndex < Channel.GetColumns().size(); ++columnIndex) {
+    // One buffer for RangeColumn.
+    columnSizes.reserve(Channel.GetColumns().size() + 1);
+    for (int columnIndex = 0; columnIndex < columnSizes.size(); ++columnIndex) {
         ui64 size;
         ReadVarUInt64(&input, &size);
         YASSERT(size <= static_cast<ui64>(Max<size_t>()));
@@ -37,8 +38,6 @@ void TChannelReader::SetBlock(const TSharedRef& block)
         ColumnBuffers[columnIndex].Reset(currentPos, size);
         currentPos += size;
     }
-
-    ColumnBuffers.back().Reset(currentPos, CurrentBlock.End() - currentPos);
 }
 
 bool TChannelReader::NextRow()

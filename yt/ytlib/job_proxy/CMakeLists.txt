@@ -9,12 +9,14 @@ set( SRCS
   ${BASE}/pipes.cpp
   ${BASE}/private.cpp
   ${BASE}/reduce_job_io.cpp
-  ${BASE}/sort_job.cpp
+  ${BASE}/simple_sort_job.cpp
+  ${BASE}/partition_sort_job.cpp
   ${BASE}/sorted_merge_job.cpp
   ${BASE}/stderr_output.cpp
   ${BASE}/table_output.cpp
   ${BASE}/user_job.cpp
   ${BASE}/user_job_io.cpp
+  ${BASE}/small_key.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -27,12 +29,14 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/reduce_job_io.h
-  ${BASE}/sort_job.h
+  ${BASE}/simple_sort_job.h
+  ${BASE}/partition_sort_job.h
   ${BASE}/sorted_merge_job.h
   ${BASE}/stderr_output.h
   ${BASE}/table_output.h
   ${BASE}/user_job.h
   ${BASE}/user_job_io.h
+  ${BASE}/small_key.h
 )
 
 list(APPEND YT_SOURCE_FILES

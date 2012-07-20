@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "private.h"
-#include "chunk_reader.h"
+#include "table_chunk_reader.h"
 #include "chunk_sequence_reader_base.h"
 
 #include <ytlib/table_client/table_reader.pb.h>
@@ -38,13 +38,6 @@ public:
 
 private:
     TReaderOptions Options;
-
-    //! Upper bound estimation.
-    i64 TotalValueCount;
-
-    //! Upper bound, estimation, becomes more precise as we start actually reading chunk.
-    //! Is precise and equal to CurrentRowIndex when reading is complete.
-    i64 TotalRowCount;
 
     virtual TTableChunkReaderPtr CreateNewReader(
         const NProto::TInputChunk& chunk,

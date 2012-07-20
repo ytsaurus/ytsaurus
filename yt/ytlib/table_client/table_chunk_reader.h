@@ -79,8 +79,8 @@ private:
 
     TColumnInfo& GetColumnInfo(const TStringBuf& column);
 
-    class IInitializer;
-    TIntrusivePtr<IInitializer> Initializer;
+    class TInitializer;
+    TIntrusivePtr<TInitializer> Initializer;
 
     class TRegularInitializer;
     class TPartitionInitializer;
