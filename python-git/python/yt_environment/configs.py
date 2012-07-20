@@ -34,6 +34,11 @@ def get_master_config():
                 writers = [ raw ];
                 categories  = [ "*" ];
             };
+            {
+                min_level = Error;
+                writers = [ stderr ];
+                categories  = [ "*" ];
+            };
         ];
         writers = {
             stderr = {
@@ -77,6 +82,11 @@ def get_scheduler_config():
             {
                 min_level = Debug;
                 writers = [ raw ];
+                categories  = [ "*" ];
+            };
+            {
+                min_level = Error;
+                writers = [ stderr ];
                 categories  = [ "*" ];
             };
         ];
@@ -194,6 +204,11 @@ def get_node_config():
                 {
                     min_level = Debug;
                     writers = [ raw ];
+                    categories  = [ "*" ];
+                };
+                {
+                    min_level = Error;
+                    writers = [ stderr ];
                     categories  = [ "*" ];
                 };
             ];
