@@ -24,6 +24,8 @@ using namespace NProto;
 static NLog::TLogger& Logger = DataNodeLogger;
 static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
+static NProfiling::TRateCounter ReadThroughputCounter("/chunk_io/read_throughput");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedBlock::TCachedBlock(
@@ -218,9 +220,9 @@ private:
             Remove(blockId);
         }
 
-        auto readTime = Profiler.TimingStop(timer);
+        Profiler.TimingStop(timer);
         Profiler.Enqueue("/chunk_io/read_size", blockSize);
-        Profiler.Enqueue("/chunk_io/read_throughput", blockSize / readTime.SecondsFloat());
+        Profiler.Increment(ReadThroughputCounter, blockSize);
 
         LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
     }

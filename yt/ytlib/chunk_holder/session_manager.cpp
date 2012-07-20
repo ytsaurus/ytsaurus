@@ -26,6 +26,8 @@ using namespace NProto;
 static NLog::TLogger& Logger = DataNodeLogger;
 static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
+static NProfiling::TRateCounter WriteThroughputCounter("/chunk_io/write_throughput");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
@@ -36,8 +38,9 @@ TSession::TSession(
     , ChunkId(chunkId)
     , Location(location)
     , WindowStart(0)
-    , FirstUnwritten(0)
     , Size(0)
+    , IsWriteEnqueued(false)
+    , LastWrittenIndex(-1)
     , Logger(DataNodeLogger)
 {
     YCHECK(bootstrap);
@@ -174,33 +177,39 @@ void TSession::PutBlock(
 
     LOG_DEBUG("Chunk block %d received", blockIndex);
 
-    EnqueueWrites();
+    TryEnqueueWrites();
 }
 
-void TSession::EnqueueWrites()
+void TSession::TryEnqueueWrites()
 {
-    while (IsInWindow(FirstUnwritten)) {
-        i32 blockIndex = FirstUnwritten;
-
-        const auto& slot = GetSlot(blockIndex);
-        if (slot.State != ESlotState::Received)
-            break;
-
-        BIND(
-            &TSession::DoWrite,
-            MakeStrong(this),
-            slot.Block,
-            blockIndex)
-        .AsyncVia(Bootstrap->GetWritePoolInvoker())
-        .Run()
-        .Subscribe(BIND(
-            &TSession::OnBlockWritten,
-            MakeStrong(this),
-            blockIndex)
-        .Via(Bootstrap->GetWriteRouterInvoker()));
-
-        ++FirstUnwritten;
+    if (IsWriteEnqueued) {
+        return;
     }
+
+    int nextWriteIndex = LastWrittenIndex + 1;
+    if (!IsInWindow(nextWriteIndex)) {
+        return;
+    }
+
+    const auto& slot = GetSlot(nextWriteIndex);
+    if (slot.State != ESlotState::Received) {
+        return;
+    }
+
+    IsWriteEnqueued = true;
+
+    BIND(
+        &TSession::DoWrite,
+        MakeStrong(this),
+        slot.Block,
+        nextWriteIndex)
+    .AsyncVia(Bootstrap->GetWritePoolInvoker())
+    .Run()
+    .Subscribe(BIND(
+        &TSession::OnBlockWritten,
+        MakeStrong(this),
+        nextWriteIndex)
+    .Via(Bootstrap->GetWriteRouterInvoker()));
 }
 
 TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
@@ -223,9 +232,9 @@ TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
 
     LOG_DEBUG("Chunk block %d written", blockIndex);
 
-    auto readTime = Profiler.TimingStop(timer);
+    Profiler.TimingStop(timer);
     Profiler.Enqueue("/chunk_io/write_size", block.Size());
-    Profiler.Enqueue("/chunk_io/write_throughput", block.Size() / readTime.SecondsFloat());
+    Profiler.Increment(WriteThroughputCounter, block.Size());
 
     return TVoid();
 }
@@ -236,6 +245,12 @@ void TSession::OnBlockWritten(i32 blockIndex, TVoid)
     YASSERT(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
     slot.IsWritten.Set(TVoid());
+    
+    YCHECK(IsWriteEnqueued);
+    IsWriteEnqueued = false;
+    LastWrittenIndex = blockIndex;
+
+    TryEnqueueWrites();
 }
 
 TFuture<void> TSession::FlushBlock(i32 blockIndex)
@@ -246,7 +261,7 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
 
     RenewLease();
 
-    const TSlot& slot = GetSlot(blockIndex);
+    const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Attempt to flush an unreceived block %d (WindowStart: %d, WindowSize: %" PRISZT ")",
@@ -388,8 +403,8 @@ void TSession::VerifyInWindow(i32 blockIndex)
 TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
     YASSERT(IsInWindow(blockIndex));
-    if (Window.size() <= blockIndex)
-        Window.reserve(blockIndex + 1);
+    
+    Window.reserve(blockIndex + 1);
 
     while (Window.size() <= blockIndex) {
         // NB: do not use resize here! 

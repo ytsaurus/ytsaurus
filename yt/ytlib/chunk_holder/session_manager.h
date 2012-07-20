@@ -93,13 +93,15 @@ private:
 
     TWindow Window;
     i32 WindowStart;
-    i32 FirstUnwritten;
     i64 Size;
 
     Stroka FileName;
     NChunkClient::TFileWriterPtr Writer;
 
     TLeaseManager::TLease Lease;
+
+    bool IsWriteEnqueued;
+    int LastWrittenIndex;
 
     NLog::TTaggedLogger Logger;
 
@@ -125,7 +127,7 @@ private:
     TVoid DoCloseFile(const NProto::TChunkMeta& chunkMeta);
     TChunkPtr OnFileClosed(TVoid);
 
-    void EnqueueWrites();
+    void TryEnqueueWrites();
     TVoid DoWrite(const TSharedRef& block, i32 blockIndex);
     void OnBlockWritten(i32 blockIndex, TVoid);
 
