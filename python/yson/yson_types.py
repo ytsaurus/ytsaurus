@@ -11,6 +11,9 @@ class YSONString(str, YSONType):
 class YSONInteger(int, YSONType):
     pass
 
+class YSONLongInteger(long, YSONType):
+    pass
+
 class YSONDouble(float, YSONType):
     pass
 
@@ -32,6 +35,8 @@ def convert_to_YSON_type(value, attributes = None):
         result = YSONString(value)
     elif isinstance(value, int):
         result = YSONInteger(value)
+    elif isinstance(value, long):
+        result = YSONLongInteger(value)
     elif isinstance(value, float):
         result = YSONDouble(value)
     elif isinstance(value, list):
