@@ -68,6 +68,8 @@ public:
 
 
 private:
+    void Initialize();
+
     TFuture<TError> ReadMeta();
 
     mutable TSpinLock SpinLock;

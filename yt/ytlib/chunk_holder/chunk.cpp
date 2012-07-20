@@ -33,10 +33,9 @@ TChunk::TChunk(
     , Info_(chunkInfo)
     , HasMeta(true)
     , Meta(chunkMeta)
-    , ReadLockCounter(0)
-    , RemovalPending(false)
-    , RemovalScheduled(false)
-{ }
+{
+    Initialize();
+}
 
 TChunk::TChunk(
     TLocationPtr location,
@@ -47,6 +46,14 @@ TChunk::TChunk(
 {
     Info_.set_size(descriptor.Size);
     Info_.clear_meta_checksum();
+    Initialize();
+}
+
+void TChunk::Initialize()
+{
+    ReadLockCounter = 0;
+    RemovalPending = false;
+    RemovalScheduled = false;
 }
 
 TChunk::~TChunk()
