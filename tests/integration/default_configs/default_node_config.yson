@@ -1,5 +1,7 @@
 {
     "data_node" = {
+        "read_pool_thread_count" = 2;
+        "write_pool_thread_count" = 2;
         "cache_location" = {
             "path" = ""
         };
