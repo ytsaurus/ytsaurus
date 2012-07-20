@@ -39,8 +39,7 @@ public:
     //! Constructs a store.
     TBlockStore(
         TChunkHolderConfigPtr config,
-        TChunkRegistryPtr chunkRegistry,
-        TReaderCachePtr readerCache);
+        TBootstrap* bootstrap);
 
     ~TBlockStore();
 

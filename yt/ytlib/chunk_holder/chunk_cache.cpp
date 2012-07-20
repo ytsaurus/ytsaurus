@@ -56,7 +56,7 @@ public:
             ELocationType::Cache,
             "cache",
             Config->CacheLocation,
-            Bootstrap->GetReaderCache());
+            Bootstrap);
 
         try {
             FOREACH (const auto& descriptor, Location->Scan()) {
@@ -151,7 +151,7 @@ private:
             , ChunkId(chunkId)
             , SeedAddresses(seedAddresses)
             , Cookie(cookie)
-            , Invoker(Owner->Location->GetInvoker())
+            , Invoker(Owner->Bootstrap->GetWritePoolInvoker())
             , Logger(DataNodeLogger)
         {
             Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));

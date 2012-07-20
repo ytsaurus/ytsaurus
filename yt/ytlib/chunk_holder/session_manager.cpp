@@ -6,6 +6,8 @@
 #include "block_store.h"
 #include "chunk.h"
 #include "chunk_store.h"
+#include "bootstrap.h"
+
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/chunk_client/file_writer.h>
 
@@ -27,10 +29,10 @@ static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
-    TSessionManagerPtr sessionManager,
+    TBootstrap* bootstrap,
     const TChunkId& chunkId,
     TLocationPtr location)
-    : SessionManager(sessionManager)
+    : Bootstrap(bootstrap)
     , ChunkId(chunkId)
     , Location(location)
     , WindowStart(0)
@@ -38,8 +40,8 @@ TSession::TSession(
     , Size(0)
     , Logger(DataNodeLogger)
 {
-    YASSERT(sessionManager);
-    YASSERT(location);
+    YCHECK(bootstrap);
+    YCHECK(location);
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
@@ -54,7 +56,9 @@ TSession::~TSession()
 
 void TSession::Start()
 {
-    GetIOInvoker()->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
+    Bootstrap
+        ->GetWritePoolInvoker()
+        ->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }
 
 void TSession::DoOpenFile()
@@ -83,11 +87,6 @@ void TSession::RenewLease()
 void TSession::CloseLease()
 {
     TLeaseManager::CloseLease(Lease);
-}
-
-IInvokerPtr TSession::GetIOInvoker()
-{
-    return Location->GetInvoker();
 }
 
 TChunkId TSession::GetChunkId() const
@@ -167,7 +166,7 @@ void TSession::PutBlock(
     slot.Block = data;
 
     if (enableCaching) {
-        SessionManager->BlockStore->PutBlock(blockId, data, Null);
+        Bootstrap->GetBlockStore()->PutBlock(blockId, data, Null);
     }
 
     Location->UpdateUsedSpace(data.Size());
@@ -192,13 +191,13 @@ void TSession::EnqueueWrites()
             MakeStrong(this),
             slot.Block,
             blockIndex)
-        .AsyncVia(GetIOInvoker())
+        .AsyncVia(Bootstrap->GetWritePoolInvoker())
         .Run()
         .Subscribe(BIND(
             &TSession::OnBlockWritten,
             MakeStrong(this),
             blockIndex)
-        .Via(SessionManager->ServiceInvoker));
+        .Via(Bootstrap->GetWriteRouterInvoker()));
 
         ++FirstUnwritten;
     }
@@ -286,7 +285,7 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 
     return CloseFile(chunkMeta).Apply(
         BIND(&TSession::OnFileClosed, MakeStrong(this))
-        .AsyncVia(SessionManager->ServiceInvoker));
+        .AsyncVia(Bootstrap->GetWriteRouterInvoker()));
 }
 
 void TSession::Cancel(const TError& error)
@@ -294,14 +293,14 @@ void TSession::Cancel(const TError& error)
     CloseLease();
     DeleteFile(error)
         .Apply(BIND(&TSession::OnFileDeleted, MakeStrong(this))
-        .AsyncVia(SessionManager->ServiceInvoker));
+        .AsyncVia(Bootstrap->GetWriteRouterInvoker()));
 }
 
 TFuture<TVoid> TSession::DeleteFile(const TError& error)
 {
     return
         BIND(&TSession::DoDeleteFile, MakeStrong(this), error)
-        .AsyncVia(GetIOInvoker())
+        .AsyncVia(Bootstrap->GetWriteRouterInvoker())
         .Run();
 }
 
@@ -325,7 +324,7 @@ TFuture<TVoid> TSession::CloseFile(const TChunkMeta& chunkMeta)
 {
     return
         BIND(&TSession::DoCloseFile,MakeStrong(this), chunkMeta)
-        .AsyncVia(GetIOInvoker())
+        .AsyncVia(Bootstrap->GetWriteRouterInvoker())
         .Run();
 }
 
@@ -350,7 +349,7 @@ TChunkPtr TSession::OnFileClosed(TVoid)
         ChunkId, 
         Writer->GetChunkMeta(), 
         Writer->GetChunkInfo());
-    SessionManager->ChunkStore->RegisterChunk(chunk);
+    Bootstrap->GetChunkStore()->RegisterChunk(chunk);
     return chunk;
 }
 
@@ -411,17 +410,12 @@ void TSession::ReleaseSpaceOccupiedByBlocks()
 
 TSessionManager::TSessionManager(
     TChunkHolderConfigPtr config,
-    TBlockStorePtr blockStore,
-    TChunkStorePtr chunkStore,
-    IInvokerPtr serviceInvoker)
+    TBootstrap* bootstrap)
     : Config(config)
-    , BlockStore(blockStore)
-    , ChunkStore(chunkStore)
-    , ServiceInvoker(serviceInvoker)
+    , Bootstrap(bootstrap)
 {
-    YASSERT(blockStore);
-    YASSERT(chunkStore);
-    YASSERT(serviceInvoker);
+    YCHECK(config);
+    YCHECK(bootstrap);
 }
 
 TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
@@ -438,9 +432,9 @@ TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
 TSessionPtr TSessionManager::StartSession(
     const TChunkId& chunkId)
 {
-    auto location = ChunkStore->GetNewChunkLocation();
+    auto location = Bootstrap->GetChunkStore()->GetNewChunkLocation();
 
-    auto session = New<TSession>(this, chunkId, location);
+    auto session = New<TSession>(Bootstrap, chunkId, location);
     session->Start();
 
     auto lease = TLeaseManager::CreateLease(
@@ -449,7 +443,7 @@ TSessionPtr TSessionManager::StartSession(
             &TSessionManager::OnLeaseExpired,
             MakeStrong(this),
             session)
-        .Via(ServiceInvoker));
+        .Via(Bootstrap->GetWriteRouterInvoker()));
     session->SetLease(lease);
 
     AtomicIncrement(SessionCount);

@@ -106,7 +106,7 @@ private:
         TWeakPtr<TSnapshotBuilder> weakSnapshotBuilder,
         i32 segmentId, 
         pid_t childPid);
-    TActionQueue::TPtr WatchdogQueue;
+    TActionQueuePtr WatchdogQueue;
 #endif
 };
 

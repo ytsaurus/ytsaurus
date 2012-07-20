@@ -4,8 +4,7 @@
 
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/cell_node/public.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/bus/server.h>
+#include <ytlib/bus/public.h>
 #include <ytlib/rpc/public.h>
 
 namespace NYT {
@@ -30,7 +29,11 @@ public:
     TSessionManagerPtr GetSessionManager() const;
     TJobExecutorPtr GetJobExecutor() const;
     IInvokerPtr GetControlInvoker() const;
-    IInvokerPtr GetWorkInvoker() const;
+    IInvokerPtr GetReadRouterInvoker() const;
+    IInvokerPtr GetReadPoolInvoker() const;
+    IInvokerPtr GetWriteRouterInvoker() const;
+    IInvokerPtr GetWritePoolInvoker() const;
+    TChunkRegistryPtr GetChunkRegistry() const;
     TBlockStorePtr GetBlockStore();
     TPeerBlockTablePtr GetPeerBlockTable() const;
     TReaderCachePtr GetReaderCache() const;
@@ -41,7 +44,11 @@ private:
     TChunkHolderConfigPtr Config;
     NCellNode::TBootstrap* NodeBootstrap;
     
-    TActionQueue::TPtr WorkQueue;
+    TActionQueuePtr ReadRouterQueue;
+    TThreadPoolPtr ReadThreadPool;
+    TActionQueuePtr WriteRouterQueue;
+    TThreadPoolPtr WriteThreadPool;
+    TChunkRegistryPtr ChunkRegistry;
     TChunkStorePtr ChunkStore;
     TChunkCachePtr ChunkCache;
     TSessionManagerPtr SessionManager;

@@ -2,12 +2,14 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/actions )
 set( SRCS
   ${BASE}/action_queue.cpp
+  ${BASE}/action_queue_detail.cpp
   ${BASE}/callback_internal.cpp
   ${BASE}/cancelable_context.cpp
   ${BASE}/invoker_util.cpp
 )
 set( HDRS
   ${BASE}/action_queue.h
+  ${BASE}/action_queue_detail.h
   ${BASE}/async_pipeline-inl.h
   ${BASE}/async_pipeline.h
   ${BASE}/bind.h

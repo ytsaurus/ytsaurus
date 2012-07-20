@@ -60,12 +60,24 @@ public:
      */
     TAsyncGetMetaResult GetMeta(const std::vector<int>* tags = NULL);
 
+
+    bool AcquireReadLock();
+    void ReleaseReadLock();
+
+    void ScheduleRemoval();
+
+
 private:
     TFuture<TError> ReadMeta();
 
     mutable TSpinLock SpinLock;
+    
     mutable volatile bool HasMeta;
     mutable NProto::TChunkMeta Meta;
+    
+    int ReadLockCounter;
+    bool RemovalPending;
+    bool RemovalScheduled;
 
 };
 

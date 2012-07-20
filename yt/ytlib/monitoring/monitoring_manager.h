@@ -60,7 +60,7 @@ private:
     static const TDuration Period; // TODO: make yson serializable
 
     bool IsStarted;
-    TActionQueue::TPtr ActionQueue;
+    TActionQueuePtr ActionQueue;
     TPeriodicInvoker::TPtr PeriodicInvoker;
 
     //! Protects #MonitoringMap.

@@ -43,7 +43,7 @@ private:
     TCellNodeConfigPtr Config;
     
     NChunkServer::TIncarnationId IncarnationId;
-    TActionQueue::TPtr ControlQueue;
+    TActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
     NRpc::IServerPtr RpcServer;
     NRpc::IChannelPtr MasterChannel;

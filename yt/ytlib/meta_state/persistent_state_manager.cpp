@@ -310,7 +310,7 @@ public:
     TSnapshotStorePtr SnapshotStore;
     TDecoratedMetaStatePtr DecoratedState;
 
-    TActionQueue::TPtr IOQueue;
+    TActionQueuePtr IOQueue;
 
     TCancelableContextPtr EpochContext;
 

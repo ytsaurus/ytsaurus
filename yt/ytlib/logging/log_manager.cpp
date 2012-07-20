@@ -3,10 +3,13 @@
 #include "writer.h"
 
 #include <ytlib/misc/pattern_formatter.h>
-#include <ytlib/actions/action_queue.h>
+
+#include <ytlib/actions/action_queue_detail.h>
+
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/yson_serializable.h>
+
 #include <ytlib/profiling/profiler.h>
 
 #include <util/system/sigset.h>

@@ -42,7 +42,7 @@ private:
     Stroka Path;
     Stroka SandboxPath;
 
-    TActionQueue::TPtr SlotThread;
+    TActionQueuePtr SlotThread;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

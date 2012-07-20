@@ -25,7 +25,7 @@ public:
         ELocationType type,
         const Stroka& id,
         TLocationConfigPtr config,
-        TReaderCachePtr readerCache);
+        TBootstrap* bootstrap);
 
     ~TLocation();
 
@@ -49,11 +49,8 @@ public:
     //! Updates #AvailalbleSpace with a system call and returns the result.
     i64 GetAvailableSpace() const;
 
-    //! Returns the invoker that handles all IO requests to this location.
-    IInvokerPtr GetInvoker() const;
-
-    //! Returns the reader cache.
-    TIntrusivePtr<TReaderCache> GetReaderCache() const;
+    //! Returns the bootstrap.
+    TBootstrap* GetBootstrap() const;
 
     //! Returns the number of bytes used at the location.
     /*!
@@ -91,10 +88,10 @@ private:
     ELocationType Type;
     Stroka Id;
     TLocationConfigPtr Config;
-    TReaderCachePtr ReaderCache;
+    TBootstrap* Bootstrap;
+
     mutable i64 AvailableSpace;
     i64 UsedSpace;
-    TActionQueue::TPtr ActionQueue;
     int SessionCount;
 
     mutable NLog::TTaggedLogger Logger;

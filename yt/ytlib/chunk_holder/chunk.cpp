@@ -6,6 +6,7 @@
 #include "chunk_holder_service_proxy.h"
 #include "chunk_cache.h"
 #include "chunk_meta_extensions.h"
+#include "bootstrap.h"
 
 #include <ytlib/chunk_client/file_reader.h>
 
@@ -32,6 +33,9 @@ TChunk::TChunk(
     , Info_(chunkInfo)
     , HasMeta(true)
     , Meta(chunkMeta)
+    , ReadLockCounter(0)
+    , RemovalPending(false)
+    , RemovalScheduled(false)
 { }
 
 TChunk::TChunk(
@@ -68,7 +72,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
     // Make a copy of tags list to pass it into the closure.
     auto tags_ = MakeNullable(tags);
     auto this_ = MakeStrong(this);
-    auto invoker = Location_->GetInvoker();
+    auto invoker = Location_->GetBootstrap()->GetReadRouterInvoker();
     return ReadMeta().Apply(
         BIND([=] (TError error) -> TGetMetaResult {
             if (!error.IsOK()) {
@@ -84,17 +88,23 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
 
 TFuture<TError> TChunk::ReadMeta()
 {
+    if (!AcquireReadLock()) {
+        return MakeFuture(TError("Cannot read meta of chunk %s: chunk is scheduled for removal",
+            ~Id_.ToString()));
+    }
+
     auto this_ = MakeStrong(this);
-    auto invoker = Location_->GetInvoker();
-    auto readerCache = Location_->GetReaderCache();
-    auto timer = Profiler.TimingStart(Sprintf("/chunk_io/%s/meta_read_time", ~Location_->GetId()));
+    auto invoker = Location_->GetBootstrap()->GetReadPoolInvoker();
+    auto readerCache = Location_->GetBootstrap()->GetReaderCache();
 
     LOG_DEBUG("Reading chunk meta (ChunkId: %s)", ~Id_.ToString());
 
+    auto timer = Profiler.TimingStart("/chunk_io/meta_read_time");
     return
         BIND([=] () mutable -> TError {
             auto result = readerCache->GetReader(this_);
             if (!result.IsOK()) {
+                this_->ReleaseReadLock();
                 LOG_WARNING("Error reading chunk meta (ChunkId: %s)\n%s",
                     ~this_->Id_.ToString(),
                     ~result.ToString());
@@ -111,6 +121,8 @@ TFuture<TError> TChunk::ReadMeta()
                 HasMeta = true;
             }
 
+            this_->ReleaseReadLock();
+
             Profiler.TimingStop(timer);
 
             LOG_DEBUG("Chunk meta is read (ChunkId: %s)", ~this_->Id_.ToString());
@@ -119,6 +131,70 @@ TFuture<TError> TChunk::ReadMeta()
         })
         .AsyncVia(invoker)
         .Run();
+}
+
+bool TChunk::AcquireReadLock()
+{
+    int lockCount;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (RemovalPending) {
+            LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %s)",
+                ~ToString(Id_));
+            return false;
+        }
+
+        lockCount = ++ReadLockCounter;
+    }
+
+    LOG_DEBUG("Chunk read lock acquired (ChunkId: %s, LockCount: %d)",
+        ~ToString(Id_),
+        lockCount);
+
+    return true;
+}
+
+void TChunk::ReleaseReadLock()
+{
+    bool scheduleRemoval = false;
+    int lockCount;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        YCHECK(ReadLockCounter > 0);
+        lockCount = --ReadLockCounter;
+        if (ReadLockCounter == 0 && !RemovalScheduled && RemovalPending) {
+            scheduleRemoval = RemovalScheduled = true;
+        }
+    }
+
+    LOG_DEBUG("Chunk read lock released (ChunkId: %s, LockCount: %d)",
+        ~ToString(Id_),
+        lockCount);
+
+    if (scheduleRemoval) {
+        Location_->ScheduleChunkRemoval(this);
+    }
+}
+
+void TChunk::ScheduleRemoval()
+{
+    bool scheduleRemoval = false;
+
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (RemovalScheduled || RemovalPending) {
+            return;
+        }
+
+        RemovalPending = true;
+        if (ReadLockCounter == 0 && !RemovalScheduled) {
+            scheduleRemoval = RemovalScheduled = true;
+        }
+    }
+
+    if (scheduleRemoval) {
+        Location_->ScheduleChunkRemoval(this);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

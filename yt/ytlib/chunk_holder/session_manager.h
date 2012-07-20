@@ -18,7 +18,7 @@ class TSession
 {
 public:
     TSession(
-        TSessionManagerPtr sessionManager,
+        TBootstrap* bootstrap,
         const TChunkId& chunkId,
         TLocationPtr location);
 
@@ -87,7 +87,7 @@ private:
 
     typedef std::vector<TSlot> TWindow;
 
-    TSessionManagerPtr SessionManager;
+    TBootstrap* Bootstrap;
     TChunkId ChunkId;
     TLocationPtr Location;
 
@@ -113,8 +113,6 @@ private:
     void VerifyInWindow(i32 blockIndex);
     TSlot& GetSlot(i32 blockIndex);
     void ReleaseBlocks(i32 flushedBlockIndex);
-
-    IInvokerPtr GetIOInvoker();
 
     void OpenFile();
     void DoOpenFile();
@@ -148,9 +146,7 @@ public:
     //! Constructs a manager.
     TSessionManager(
         TChunkHolderConfigPtr config,
-        TBlockStorePtr blockStore,
-        TChunkStorePtr chunkStore,
-        IInvokerPtr serviceInvoker);
+        TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
     TSessionPtr StartSession(const TChunkId& chunkId);
@@ -185,9 +181,7 @@ private:
     friend class TSession;
 
     TChunkHolderConfigPtr Config;
-    TBlockStorePtr BlockStore;
-    TChunkStorePtr ChunkStore;
-    IInvokerPtr ServiceInvoker;
+    TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;

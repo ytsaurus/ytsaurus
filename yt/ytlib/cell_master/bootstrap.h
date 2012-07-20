@@ -57,8 +57,8 @@ private:
     NChunkServer::TChunkManagerPtr ChunkManager;
     NChunkServer::IHolderAuthorityPtr HolderAuthority;
 
-    TActionQueue::TPtr ControlQueue;
-    TMultiActionQueuePtr StateQueue;
+    TActionQueuePtr ControlQueue;
+    TFairShareActionQueuePtr StateQueue;
 
 };
 

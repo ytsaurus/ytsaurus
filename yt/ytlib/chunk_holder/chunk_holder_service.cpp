@@ -52,17 +52,20 @@ TChunkHolderService::TChunkHolderService(
     YCHECK(config);
     YCHECK(bootstrap);
 
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk), Bootstrap->GetWorkInvoker());
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk), Bootstrap->GetWorkInvoker());
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks), Bootstrap->GetWorkInvoker());
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks), Bootstrap->GetWorkInvoker());
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock), Bootstrap->GetWorkInvoker());
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession), Bootstrap->GetWorkInvoker());
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
-    RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(UpdatePeer));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples));
+    auto writeInvoker = Bootstrap->GetWriteRouterInvoker();
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk), writeInvoker);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk), writeInvoker);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks), writeInvoker);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks), writeInvoker);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock), writeInvoker);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession), writeInvoker);
+
+    auto readInvoker = Bootstrap->GetReadRouterInvoker();
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks), readInvoker);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta), readInvoker);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk), readInvoker);
+    RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(UpdatePeer), readInvoker);
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples), readInvoker);
 }
 
 void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
@@ -274,8 +277,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 
     response->Attachments().resize(blockCount);
 
-    // NB: All callbacks should be handled in the control thread.
-    auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
+    // NB: All callbacks should be handled in the router thread.
+    auto awaiter = New<TParallelAwaiter>(Bootstrap->GetReadRouterInvoker());
 
     auto peerBlockTable = Bootstrap->GetPeerBlockTable();
     for (int index = 0; index < blockCount; ++index) {
@@ -459,7 +462,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
         request->key_columns_size(),
         request->chunk_ids_size());
 
-    auto awaiter = New<TParallelAwaiter>(Bootstrap->GetWorkInvoker());
+    auto awaiter = New<TParallelAwaiter>(Bootstrap->GetReadRouterInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
 

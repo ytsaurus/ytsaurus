@@ -122,6 +122,12 @@ struct TChunkHolderConfig
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
 
+    //! Size of chunk reader pool.
+    int ReadPoolThreadCount;
+
+    //! Size of chunk writer pool.
+    int WritePoolThreadCount;
+
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -164,6 +170,10 @@ struct TChunkHolderConfig
             .DefaultNew();
         Register("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
+        Register("read_pool_thread_count", ReadPoolThreadCount)
+            .Default(8);
+        Register("write_pool_thread_count", WritePoolThreadCount)
+            .Default(8);
     }
 };
 

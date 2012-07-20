@@ -7,6 +7,7 @@
 #include "reader_cache.h"
 #include "location.h"
 #include "chunk_meta_extensions.h"
+#include "bootstrap.h"
 
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/chunk_client/file_reader.h>
@@ -49,11 +50,9 @@ public:
 
     TStoreImpl(
         TChunkHolderConfigPtr config,
-        TChunkRegistryPtr chunkRegistry,
-        TReaderCachePtr readerCache)
+        TBootstrap* bootstrap)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
-        , ChunkRegistry(chunkRegistry)
-        , ReaderCache(readerCache)
+        , Bootstrap(bootstrap)
         , PendingReadSize_(0)
     { }
 
@@ -110,7 +109,7 @@ public:
             return cookie->GetValue();
         }
 
-        auto chunk = ChunkRegistry->FindChunk(blockId.ChunkId);
+        auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(blockId.ChunkId);
         if (!chunk) {
             cookie->Cancel(TError(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
@@ -120,8 +119,12 @@ public:
      
         LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
 
-        auto invoker = chunk->GetLocation()->GetInvoker();
-        invoker->Invoke(BIND(
+        if (!chunk->AcquireReadLock()) {
+            return MakeFuture(TGetBlockResult(TError("Cannot read chunk block %s: chunk is scheduled for removal",
+                ~blockId.ToString())));
+        }
+
+        Bootstrap->GetReadPoolInvoker()->Invoke(BIND(
             &TStoreImpl::DoReadBlock,
             MakeStrong(this),
             chunk,
@@ -151,8 +154,7 @@ public:
     }
 
 private:
-    TChunkRegistryPtr ChunkRegistry;
-    TReaderCachePtr ReaderCache;
+    TBootstrap* Bootstrap;
 
     virtual i64 GetWeight(TCachedBlock* block) const
     {
@@ -165,8 +167,9 @@ private:
         TSharedPtr<TInsertCookie> cookie,
         bool enableCaching)
     {
-        auto readerResult = ReaderCache->GetReader(chunk);
+        auto readerResult = Bootstrap->GetReaderCache()->GetReader(chunk);
         if (!readerResult.IsOK()) {
+            chunk->ReleaseReadLock();
             cookie->Cancel(readerResult);
             return;
         }
@@ -194,6 +197,8 @@ private:
                 ex.what());
         }
 
+        chunk->ReleaseReadLock();
+        
         AtomicSub(PendingReadSize_, blockSize);
         LOG_DEBUG("Pending read size decreased (BlockSize: %d, PendingReadSize: %" PRISZT,
             blockSize,
@@ -254,12 +259,8 @@ private:
 
 TBlockStore::TBlockStore(
     TChunkHolderConfigPtr config,
-    TChunkRegistryPtr chunkRegistry,
-    TReaderCachePtr readerCache)
-    : StoreImpl(New<TStoreImpl>(
-        config,
-        chunkRegistry,
-        readerCache))
+    TBootstrap* bootstrap)
+    : StoreImpl(New<TStoreImpl>(config, bootstrap))
     , CacheImpl(New<TCacheImpl>(StoreImpl))
 { }
 

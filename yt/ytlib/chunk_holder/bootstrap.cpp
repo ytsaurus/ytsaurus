@@ -54,14 +54,15 @@ void TBootstrap::Init()
 {
     ReaderCache = New<TReaderCache>(Config);
 
-    WorkQueue = New<TActionQueue>("Work");
+    ReadRouterQueue = New<TActionQueue>("ReadRouter");
+    ReadThreadPool = New<TThreadPool>(Config->ReadPoolThreadCount, "ReadPool");
 
-    auto chunkRegistry = New<TChunkRegistry>(this);
+    WriteRouterQueue = New<TActionQueue>("WriteRouter");
+    WriteThreadPool = New<TThreadPool>(Config->WritePoolThreadCount, "WritePool");
 
-    BlockStore = New<TBlockStore>(
-        Config,
-        chunkRegistry,
-        ReaderCache);
+    ChunkRegistry = New<TChunkRegistry>(this);
+
+    BlockStore = New<TBlockStore>(Config, this);
 
     PeerBlockTable = New<TPeerBlockTable>(Config->PeerBlockTable);
 
@@ -74,11 +75,7 @@ void TBootstrap::Init()
     ChunkCache = New<TChunkCache>(Config, this);
     ChunkCache->Start();
 
-    SessionManager = New<TSessionManager>(
-        Config,
-        BlockStore,
-        ChunkStore,
-        GetWorkInvoker());
+    SessionManager = New<TSessionManager>(Config, this);
 
     JobExecutor = New<TJobExecutor>(
         Config,
@@ -146,9 +143,29 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
     return NodeBootstrap->GetControlInvoker();
 }
 
-IInvokerPtr TBootstrap::GetWorkInvoker() const
+IInvokerPtr TBootstrap::GetReadRouterInvoker() const
 {
-    return WorkQueue->GetInvoker();
+    return ReadRouterQueue->GetInvoker();
+}
+
+IInvokerPtr TBootstrap::GetReadPoolInvoker() const
+{
+    return ReadThreadPool->GetInvoker();
+}
+
+IInvokerPtr TBootstrap::GetWriteRouterInvoker() const
+{
+    return WriteRouterQueue->GetInvoker();
+}
+
+IInvokerPtr TBootstrap::GetWritePoolInvoker() const
+{
+    return WriteThreadPool->GetInvoker();
+}
+
+TChunkRegistryPtr TBootstrap::GetChunkRegistry() const
+{
+    return ChunkRegistry;
 }
 
 TBlockStorePtr TBootstrap::GetBlockStore()

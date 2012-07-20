@@ -140,7 +140,7 @@ private:
 
     TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* Bootstrap;
-    TActionQueue::TPtr BackgroundQueue;
+    TActionQueuePtr BackgroundQueue;
     THolder<TMasterConnector> MasterConnector;
 
     TAutoPtr<ISchedulerStrategy> Strategy;

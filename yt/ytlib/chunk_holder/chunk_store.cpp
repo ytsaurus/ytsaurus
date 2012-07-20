@@ -44,7 +44,7 @@ void TChunkStore::Start()
                 ELocationType::Store,
                 "store" + ToString(i),
                 locationConfig,
-                Bootstrap->GetReaderCache());
+                Bootstrap);
             Locations_.push_back(location);
 
             FOREACH (const auto& descriptor, location->Scan()) {
@@ -85,9 +85,8 @@ void TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
     
     auto location = chunk->GetLocation();
     location->UpdateUsedSpace(-chunk->GetInfo().size());
-    location->ScheduleChunkRemoval(~chunk);
 
-    LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~chunkId.ToString());
+    chunk->ScheduleRemoval();
 
     ChunkRemoved_.Fire(chunk);
 }

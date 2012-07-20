@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "reader_cache.h"
 #include "config.h"
+#include "bootstrap.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/chunk_client/format.h>
@@ -25,14 +26,13 @@ TLocation::TLocation(
     ELocationType type,
     const Stroka& id,
     TLocationConfigPtr config,
-    TReaderCachePtr readerCache)
+    TBootstrap* bootstrap)
     : Type(type)
     , Id(id)
     , Config(config)
-    , ReaderCache(readerCache)
+    , Bootstrap(bootstrap)
     , AvailableSpace(0)
     , UsedSpace(0)
-    , ActionQueue(New<TActionQueue>(Sprintf("ChunkIO:%s", ~id)))
     , SessionCount(0)
     , Logger(DataNodeLogger)
 {
@@ -76,14 +76,9 @@ i64 TLocation::GetAvailableSpace() const
     return AvailableSpace;
 }
 
-IInvokerPtr TLocation::GetInvoker() const
+TBootstrap* TLocation::GetBootstrap() const
 {
-    return ActionQueue->GetInvoker();
-}
-
-TIntrusivePtr<TReaderCache> TLocation::GetReaderCache() const
-{
-    return ReaderCache;
+    return Bootstrap;
 }
 
 i64 TLocation::GetUsedSpace() const
@@ -219,7 +214,10 @@ void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 {
     auto id = chunk->GetId();
     Stroka fileName = chunk->GetFileName();
-    GetInvoker()->Invoke(BIND([=] () {
+
+    LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
+
+    Bootstrap->GetWritePoolInvoker()->Invoke(BIND([=] () {
         // TODO: retry on failure
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
         RemoveFile(fileName);

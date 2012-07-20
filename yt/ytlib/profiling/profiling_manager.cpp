@@ -4,15 +4,18 @@
 #include "timing.h"
 
 #include <ytlib/misc/id_generator.h>
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/misc/periodic_invoker.h>
+
+#include <ytlib/actions/action_queue_detail.h>
+
 #include <ytlib/ytree/ytree.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/logging/log.h>
-#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NProfiling  {

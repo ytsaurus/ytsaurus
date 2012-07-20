@@ -183,7 +183,7 @@ class TRpcTest
     IServerPtr RpcServer;
 
     // need to remember
-    TActionQueue::TPtr Queue;
+    TActionQueuePtr Queue;
 
 public:
     virtual void SetUp()
