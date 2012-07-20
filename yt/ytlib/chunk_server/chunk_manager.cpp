@@ -338,7 +338,9 @@ public:
     void ScheduleChunkTreeRebalanceIfNeeded(TChunkList* chunkList)
     {
         TMsgRebalanceChunkTree message;
-        if (ChunkTreeBalancer.CheckRebalanceNeeded(chunkList, &message)) {
+        if (IsLeader() &&
+            ChunkTreeBalancer.CheckRebalanceNeeded(chunkList, &message))
+        {
             // Don't retry in case of failure.
             // Balancing will happen eventually.
             InitiateRebalanceChunkTree(message)->PostCommit();
@@ -1522,7 +1524,7 @@ private:
 
         if (name == "codec_id") {
             BuildYsonFluently(consumer)
-                .Scalar(miscExt.codec_id());
+                .Scalar(CamelCaseToUnderscoreCase(ECodecId(miscExt.codec_id()).ToString()));
             return true;
         }
 
