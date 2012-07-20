@@ -405,7 +405,9 @@ private:
 
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
-            return GetRequestedResourcesForWeight(Controller->Spec->MaxWeightPerSortJob);
+            return GetRequestedResourcesForWeight(std::min(
+                Controller->Spec->MaxWeightPerSortJob,
+                Controller->TotalDataWeight);
         }
 
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const OVERRIDE
