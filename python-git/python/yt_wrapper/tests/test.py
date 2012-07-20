@@ -6,9 +6,12 @@ from yt import Record, YtError, record_to_line, line_to_record, Table
 
 from common import flatten
 
+from yt_environment import YTEnv
+
 import os
 import random
 import string
+import shutil
 from itertools import imap, izip, starmap
 from functools import partial
 
@@ -16,8 +19,27 @@ import unittest
     
 TEST_DIR = "//home/tests"
 
-class YtTest(unittest.TestCase):
-    # TODO(ignat): test with local host instead of testing claster
+class YtTest(YTEnv):
+    NUM_MASTERS = 1
+    NUM_HOLDERS = 3
+    START_SCHEDULER = True
+    START_PROXY = True
+
+    @classmethod  
+    def setUpClass(cls):
+        ports = {
+            "master": 18001,
+            "node": 17001,
+            "scheduler": 18101,
+            "proxy": 18080}
+        # (TODO): remake this strange stuff.
+        cls.env = cls()
+        cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports)
+    
+    @classmethod
+    def tearDownClass(cls):
+        cls.env.clear_environment()
+    
     def setUp(self):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
         if not yt.exists(TEST_DIR):
