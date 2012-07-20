@@ -72,13 +72,13 @@ bool TQueueInvoker::DequeueAndExecute()
     auto startExecInstant = GetCpuInstant();
     Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(startExecInstant - item.StartInstant));
 
-    auto size = AtomicDecrement(QueueSize);
-    Profiler.Aggregate(QueueSizeCounter, size);
-
     auto action = item.Action;
     LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", action.GetHandle());
     action.Run();
     LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", action.GetHandle());
+
+    auto size = AtomicDecrement(QueueSize);
+    Profiler.Aggregate(QueueSizeCounter, size);
 
     auto endExecInstant = GetCpuInstant();
     Profiler.Aggregate(ExecTimeCounter, CpuDurationToValue(endExecInstant - startExecInstant));
