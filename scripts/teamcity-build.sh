@@ -183,6 +183,11 @@ tc "blockOpened name='Unit Tests'"
 shout "Running unit tests..."
 tc "progressMessage 'Running unit tests...'"
 
+dpkg -s python-simplejson
+if [ "$?" != "0" ]; then
+    apt-get install python-simplejson
+fi
+
 cd $WORKING_DIRECTORY
 gdb \
     --batch \
