@@ -79,7 +79,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
     // Make a copy of tags list to pass it into the closure.
     auto tags_ = MakeNullable(tags);
     auto this_ = MakeStrong(this);
-    auto invoker = Location_->GetBootstrap()->GetReadRouterInvoker();
+    auto invoker = Location_->GetBootstrap()->GetControlInvoker();
     return ReadMeta().Apply(
         BIND([=] (TError error) -> TGetMetaResult {
             if (!error.IsOK()) {

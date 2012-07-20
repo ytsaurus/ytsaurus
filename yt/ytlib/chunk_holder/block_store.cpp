@@ -105,26 +105,26 @@ public:
         const TBlockId& blockId,
         bool enableCaching)
     {
-        TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
-        if (!BeginInsert(~cookie)) {
-            LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
-            return cookie->GetValue();
-        }
-
         auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(blockId.ChunkId);
+
         if (!chunk) {
-            cookie->Cancel(TError(
+            return MakeFuture(TGetBlockResult(TError(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
-                Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString())));
-            return cookie->GetValue();
+                Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString()))));
         }
-     
-        LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
 
         if (!chunk->AcquireReadLock()) {
             return MakeFuture(TGetBlockResult(TError("Cannot read chunk block %s: chunk is scheduled for removal",
                 ~blockId.ToString())));
         }
+
+        TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
+        if (!BeginInsert(~cookie)) {
+            LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
+            return cookie->GetValue();
+        }
+     
+        LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
 
         Bootstrap->GetReadPoolInvoker()->Invoke(BIND(
             &TStoreImpl::DoReadBlock,

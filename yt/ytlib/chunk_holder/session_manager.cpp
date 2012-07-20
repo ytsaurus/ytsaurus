@@ -185,7 +185,7 @@ void TSession::PutBlock(
         &TSession::OnBlockWritten,
         MakeStrong(this),
         blockIndex)
-    .Via(Bootstrap->GetWriteRouterInvoker()));
+    .Via(Bootstrap->GetControlInvoker()));
 }
 
 TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
@@ -270,7 +270,7 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 
     return CloseFile(chunkMeta).Apply(
         BIND(&TSession::OnFileClosed, MakeStrong(this))
-        .AsyncVia(Bootstrap->GetWriteRouterInvoker()));
+        .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
 void TSession::Cancel(const TError& error)
@@ -278,14 +278,14 @@ void TSession::Cancel(const TError& error)
     CloseLease();
     DeleteFile(error)
         .Apply(BIND(&TSession::OnFileDeleted, MakeStrong(this))
-        .AsyncVia(Bootstrap->GetWriteRouterInvoker()));
+        .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
 TFuture<TVoid> TSession::DeleteFile(const TError& error)
 {
     return
         BIND(&TSession::DoDeleteFile, MakeStrong(this), error)
-        .AsyncVia(Bootstrap->GetWriteRouterInvoker())
+        .AsyncVia(Bootstrap->GetControlInvoker())
         .Run();
 }
 
@@ -428,7 +428,7 @@ TSessionPtr TSessionManager::StartSession(
             &TSessionManager::OnLeaseExpired,
             MakeStrong(this),
             session)
-        .Via(Bootstrap->GetWriteRouterInvoker()));
+        .Via(Bootstrap->GetControlInvoker()));
     session->SetLease(lease);
 
     AtomicIncrement(SessionCount);

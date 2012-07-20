@@ -29,9 +29,7 @@ public:
     TSessionManagerPtr GetSessionManager() const;
     TJobExecutorPtr GetJobExecutor() const;
     IInvokerPtr GetControlInvoker() const;
-    IInvokerPtr GetReadRouterInvoker() const;
     IInvokerPtr GetReadPoolInvoker() const;
-    IInvokerPtr GetWriteRouterInvoker() const;
     IInvokerPtr GetWritePoolInvoker() const;
     TChunkRegistryPtr GetChunkRegistry() const;
     TBlockStorePtr GetBlockStore();
@@ -44,9 +42,7 @@ private:
     TChunkHolderConfigPtr Config;
     NCellNode::TBootstrap* NodeBootstrap;
     
-    TActionQueuePtr ReadRouterQueue;
     TThreadPoolPtr ReadThreadPool;
-    TActionQueuePtr WriteRouterQueue;
     TThreadPoolPtr WriteThreadPool;
     TChunkRegistryPtr ChunkRegistry;
     TChunkStorePtr ChunkStore;

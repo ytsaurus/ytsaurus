@@ -54,10 +54,7 @@ void TBootstrap::Init()
 {
     ReaderCache = New<TReaderCache>(Config);
 
-    ReadRouterQueue = New<TActionQueue>("ReadRouter");
     ReadThreadPool = New<TThreadPool>(Config->ReadPoolThreadCount, "ReadPool");
-
-    WriteRouterQueue = New<TActionQueue>("WriteRouter");
     WriteThreadPool = New<TThreadPool>(Config->WritePoolThreadCount, "WritePool");
 
     ChunkRegistry = New<TChunkRegistry>(this);
@@ -143,19 +140,9 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
     return NodeBootstrap->GetControlInvoker();
 }
 
-IInvokerPtr TBootstrap::GetReadRouterInvoker() const
-{
-    return ReadRouterQueue->GetInvoker();
-}
-
 IInvokerPtr TBootstrap::GetReadPoolInvoker() const
 {
     return ReadThreadPool->GetInvoker();
-}
-
-IInvokerPtr TBootstrap::GetWriteRouterInvoker() const
-{
-    return WriteRouterQueue->GetInvoker();
 }
 
 IInvokerPtr TBootstrap::GetWritePoolInvoker() const

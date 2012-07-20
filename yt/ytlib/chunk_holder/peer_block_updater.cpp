@@ -27,7 +27,7 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     , Bootstrap(bootstrap)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        bootstrap->GetReadRouterInvoker(),
+        bootstrap->GetControlInvoker(),
         BIND(&TPeerBlockUpdater::Update, MakeWeak(this)),
         Config->PeerUpdatePeriod);
 }
