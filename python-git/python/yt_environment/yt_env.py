@@ -84,7 +84,7 @@ class YTEnv(unittest.TestCase):
             p.poll()
             if p.returncode is not None:
                 ok = False
-                message = '%s (pid %d) is already terminated with exit status %d' % (name, p.pid, p.returncode)
+                message += '%s (pid %d) is already terminated with exit status %d\n' % (name, p.pid, p.returncode)
             else:
                 os.killpg(p.pid, signal.SIGTERM)
 
@@ -102,7 +102,7 @@ class YTEnv(unittest.TestCase):
 
             if p.returncode is None:
                 ok = False
-                message = 'Alarm! %s (pid %d) was not killed after 50 iterations' % (name, p. pid)
+                message += 'Alarm! %s (pid %d) was not killed after 50 iterations\n' % (name, p. pid)
 
         assert ok, message
 
