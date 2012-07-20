@@ -26,7 +26,7 @@ class TestRunHolder(YTEnvSetup):
 class TestRunScheduler(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
-    NUM_SCHEDULERS = 1
+    START_SCHEDULER = True
 
     def test(self):
         assert True
