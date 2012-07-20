@@ -12,6 +12,7 @@ from sys import stdin, stdout, stderr
 # TODO: It is better to use class instead global variable
 options = None
 
+# TODO: move it to tools
 def require(condition, exception):
     if not condition:
         raise exception
