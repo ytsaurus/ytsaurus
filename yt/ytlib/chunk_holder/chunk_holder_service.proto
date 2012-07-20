@@ -37,6 +37,7 @@ message TReqPutBlocks
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required int32 start_block_index = 2;
+    optional bool enable_caching = 5 [default = false];
 }
 
 message TRspPutBlocks
@@ -47,7 +48,7 @@ message TRspPutBlocks
 message TReqSendBlocks
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    required string address = 2;
+    required string target_address = 2;
     required int32 start_block_index = 3;
     required int32 block_count = 4;
 }

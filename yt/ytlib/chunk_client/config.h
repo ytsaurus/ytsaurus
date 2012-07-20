@@ -136,6 +136,9 @@ struct TRemoteWriterConfig
      */
     TDuration NodePingInterval;
 
+    //! If True then written blocks are cached by the node.
+    bool EnableNodeCaching;
+
     TRemoteWriterConfig()
     {
         Register("window_size", WindowSize)
@@ -148,6 +151,8 @@ struct TRemoteWriterConfig
             .Default(TDuration::Seconds(120));
         Register("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
+        Register("enable_node_caching", EnableNodeCaching)
+            .Default(false);
     }
 
     virtual void DoValidate() const

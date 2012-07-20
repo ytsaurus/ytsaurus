@@ -194,22 +194,21 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     i32 startBlockIndex = request->start_block_index();
+    bool enableCaching = request->enable_caching();
 
-    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d",
+    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, EnableCaching: %s",
         ~chunkId.ToString(),
         startBlockIndex,
-        request->Attachments().size());
+        request->Attachments().size(),
+        ~FormatBool(enableCaching));
 
     auto session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
-    FOREACH (const auto& attachment, request->Attachments()) {
+    FOREACH (const auto& block, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
-        // TODO(babenko): switched off for now
-//        auto data = attachment.ToBlob();
-        auto data = attachment;
-        session->PutBlock(blockIndex, data);
+        session->PutBlock(blockIndex, block, enableCaching);
         ++blockIndex;
     }
     
@@ -223,19 +222,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     i32 startBlockIndex = request->start_block_index();
     i32 blockCount = request->block_count();
-    Stroka address = request->address();
+    Stroka targetAddress = request->target_address();
 
-    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, Address: %s",
+    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, TargetAddress: %s",
         ~chunkId.ToString(),
         startBlockIndex,
         blockCount,
-        ~address);
+        ~targetAddress);
 
     auto session = GetSession(chunkId);
 
     auto startBlock = session->GetBlock(startBlockIndex);
 
-    TProxy proxy(ChannelCache.GetChannel(address));
+    TProxy proxy(ChannelCache.GetChannel(targetAddress));
     auto putRequest = proxy.PutBlocks()
         ->SetTimeout(Config->NodeRpcTimeout);
     *putRequest->mutable_chunk_id() = chunkId.ToProto();
@@ -243,7 +242,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
     
     for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
         auto block = session->GetBlock(blockIndex);
-        putRequest->Attachments().push_back(block->GetData());
+        putRequest->Attachments().push_back(block);
     }
 
     putRequest->Invoke().Subscribe(
@@ -254,7 +253,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
                 context->Reply(TError(
                     TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed,
                     "Error putting blocks to %s\n%s",
-                    ~address,
+                    ~targetAddress,
                     ~putResponse->GetError().ToString()));
             }
         }));

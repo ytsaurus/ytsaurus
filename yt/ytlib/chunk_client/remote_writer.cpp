@@ -342,6 +342,7 @@ TRemoteWriter::TGroup::PutBlocks(TNodePtr node)
     *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
+    req->set_enable_caching(writer->Config->EnableNodeCaching);
 
     LOG_DEBUG("Putting blocks %d-%d to %s",
         StartBlockIndex, 
@@ -411,7 +412,7 @@ TRemoteWriter::TGroup::SendBlocks(
     *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->set_block_count(Blocks.size());
-    req->set_address(dstNod->Address);
+    req->set_target_address(dstNod->Address);
     return req->Invoke();
 }
 
@@ -576,7 +577,9 @@ TRemoteWriter::TImpl::~TImpl()
 
 void TRemoteWriter::TImpl::Open()
 {
-    LOG_INFO("Opening writer (Addresses: [%s])", ~JoinToString(Addresses));
+    LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s)",
+        ~JoinToString(Addresses),
+        ~FormatBool(Config->EnableNodeCaching));
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto node, Nodes) {

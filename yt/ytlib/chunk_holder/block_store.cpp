@@ -28,10 +28,10 @@ static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 TCachedBlock::TCachedBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
-    const Stroka& source)
+    const TNullable<Stroka>& sourceAddress)
     : TCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data_(data)
-    , Source_(source)
+    , SourceAddress_(sourceAddress)
 { }
 
 TCachedBlock::~TCachedBlock()
@@ -57,17 +57,21 @@ public:
         , PendingReadSize_(0)
     { }
 
-    TCachedBlockPtr Put(const TBlockId& blockId, const TSharedRef& data, const Stroka& source)
+    TCachedBlockPtr Put(
+        const TBlockId& blockId,
+        const TSharedRef& data,
+        const TNullable<Stroka>& sourceAddress)
     {
         while (true) {
             TInsertCookie cookie(blockId);
             if (BeginInsert(&cookie)) {
-                auto block = New<TCachedBlock>(blockId, data, source);
+                auto block = New<TCachedBlock>(blockId, data, sourceAddress);
                 cookie.EndInsert(block);
 
-                LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ")",
+                LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ", SourceAddress: %s)",
                     ~blockId.ToString(),
-                    data.Size());
+                    data.Size(),
+                    ~ToString(sourceAddress));
 
                 return block;
             }
@@ -202,7 +206,7 @@ private:
             return;
         }
 
-        auto block = New<TCachedBlock>(blockId, data, Stroka());
+        auto block = New<TCachedBlock>(blockId, data, Null);
         cookie->EndInsert(block);
 
         if (!enableCaching) {
@@ -227,9 +231,12 @@ public:
         : StoreImpl(storeImpl)
     { }
 
-    void Put(const TBlockId& id, const TSharedRef& data, const Stroka& source)
+    void Put(
+        const TBlockId& id,
+        const TSharedRef& data,
+        const TNullable<Stroka>& sourceAddress)
     {
-        StoreImpl->Put(id, data, source);
+        StoreImpl->Put(id, data, sourceAddress);
     }
 
     TSharedRef Find(const TBlockId& id)
@@ -253,7 +260,7 @@ TBlockStore::TBlockStore(
         config,
         chunkRegistry,
         readerCache))
-    , CacheImpl(New<TCacheImpl>(~StoreImpl))
+    , CacheImpl(New<TCacheImpl>(StoreImpl))
 { }
 
 TBlockStore::~TBlockStore()
@@ -274,9 +281,9 @@ TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)
 TCachedBlockPtr TBlockStore::PutBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
-    const Stroka& source)
+    const TNullable<Stroka>& sourceAddress)
 {
-    return StoreImpl->Put(blockId, data, source);
+    return StoreImpl->Put(blockId, data, sourceAddress);
 }
 
 i64 TBlockStore::GetPendingReadSize() const

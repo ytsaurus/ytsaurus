@@ -20,10 +20,14 @@ struct IBlockCache
     //! Puts a block into the cache.
     /*!
      *  If a block with the given id is already present, then the request is ignored.
-     *  Source is an address of peer from which the block was downloaded.
-     *  If the block was not downloaded from another peer, source must be empty.
+     *  
+     *  #sourceAddress is an address of peer from which the block was downloaded.
+     *  If the block was not downloaded from another peer, it must be Null.
      */
-    virtual void Put(const NChunkServer::TBlockId& id, const TSharedRef& data, const Stroka& source) = 0;
+    virtual void Put(
+        const NChunkServer::TBlockId& id,
+        const TSharedRef& data,
+        const TNullable<Stroka>& sourceAddress) = 0;
 
     //! Fetches a block from the cache.
     /*!

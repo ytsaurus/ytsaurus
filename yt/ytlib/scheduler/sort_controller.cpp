@@ -1195,14 +1195,20 @@ private:
 
     // Unsorted helpers.
 
-    TJobIOConfigPtr PrepareJobIOConfig(TJobIOConfigPtr config, bool replicateOutput)
+    TJobIOConfigPtr PrepareJobIOConfig(TJobIOConfigPtr config, bool isFinalOutput)
     {
-        if (replicateOutput) {
+        if (isFinalOutput) {
             return config;
         } else {
             auto newConfig = CloneConfigurable(config);
+            
+            // Don't replicate intermediate output.
             newConfig->ChunkSequenceWriter->ReplicationFactor = 1;
             newConfig->ChunkSequenceWriter->UploadReplicationFactor = 1;
+
+            // Cache blocks on nodes.
+            newConfig->ChunkSequenceWriter->RemoteWriter->EnableNodeCaching = true;
+            
             return newConfig;
         }
     }
@@ -1219,9 +1225,8 @@ private:
             }
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
-            // Don't replicate partition chunks.
-            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(
-                PrepareJobIOConfig(Config->PartitionJobIO, false)).Data());
+            auto ioConfig = PrepareJobIOConfig(Config->PartitionJobIO, false);
+            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
         }
         {
             SortJobSpecTemplate.set_type(Partitions.size() == 1 ? EJobType::SimpleSort : EJobType::PartitionSort);
@@ -1231,7 +1236,7 @@ private:
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
             // Can't fill io_config right away: some sort jobs need output replication
-            // while others don't. Leave this customization to #TSortTask::GetJobSpec.
+            // while others don't. Leave this customization to #TSortTask::BuildJobSpec.
         }
         {
             SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
@@ -1240,8 +1245,8 @@ private:
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
-            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(
-                PrepareJobIOConfig(Config->MergeJobIO, true)).Data());
+            auto ioConfig = PrepareJobIOConfig(Config->MergeJobIO, true);
+            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
         }
         {
             UnorderedMergeJobSpecTemplate.set_type(EJobType::UnorderedMerge);
@@ -1250,8 +1255,8 @@ private:
             auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
-            UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(
-                PrepareJobIOConfig(Config->MergeJobIO, true)).Data());
+            auto ioConfig = PrepareJobIOConfig(Config->MergeJobIO, true);
+            UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
         }
     }
 

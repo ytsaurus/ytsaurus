@@ -40,9 +40,9 @@ public:
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxSize)
     { }
 
-    void Put(const TBlockId& id, const TSharedRef& data, const Stroka& source)
+    void Put(const TBlockId& id, const TSharedRef& data, const TNullable<Stroka>& sourceAddress)
     {
-        UNUSED(source);
+        UNUSED(sourceAddress);
 
         TInsertCookie cookie(id);
         if (BeginInsert(&cookie)) {

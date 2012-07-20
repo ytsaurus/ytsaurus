@@ -63,17 +63,18 @@ public:
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-        LOG_INFO("Reader created (SeedAddresses: [%s], FetchPromPeers: %s, PublishPeer: %s)",
-            ~JoinToString(seedAddresses),
-            ~ToString(Config->FetchFromPeers),
-            ~ToString(Config->PublishPeer));
-
         if (!seedAddresses.empty()) {
             GetSeedsPromise = MakePromise(TGetSeedsResult(seedAddresses));
         }
 
         ChunkProxy = new TChunkServiceProxy(masterChannel);
         ObjectProxy = new TObjectServiceProxy(masterChannel);
+
+        LOG_INFO("Reader initialized (SeedAddresses: [%s], FetchPromPeers: %s, PublishPeer: %s, EnableCaching: %s)",
+            ~JoinToString(seedAddresses),
+            ~ToString(Config->FetchFromPeers),
+            ~ToString(Config->PublishPeer),
+            ~FormatBool(Config->EnableNodeCaching));
     }
 
     TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);

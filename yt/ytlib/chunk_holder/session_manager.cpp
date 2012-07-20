@@ -115,7 +115,7 @@ TChunkInfo TSession::GetChunkInfo() const
     return Writer->GetChunkInfo();
 }
 
-TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
+TSharedRef TSession::GetBlock(i32 blockIndex)
 {
     VerifyInWindow(blockIndex);
 
@@ -134,7 +134,10 @@ TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
     return slot.Block;
 }
 
-void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
+void TSession::PutBlock(
+    i32 blockIndex,
+    const TSharedRef& data,
+    bool enableCaching)
 {
     TBlockId blockId(ChunkId, blockIndex);
 
@@ -149,7 +152,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        if (TRef::CompareContent(slot.Block->GetData(), data)) {
+        if (TRef::CompareContent(slot.Block, data)) {
             LOG_WARNING("Block %d is already received", blockIndex);
             return;
         }
@@ -161,7 +164,11 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
     }
 
     slot.State = ESlotState::Received;
-    slot.Block = SessionManager->BlockStore->PutBlock(blockId, data, Stroka());
+    slot.Block = data;
+
+    if (enableCaching) {
+        SessionManager->BlockStore->PutBlock(blockId, data, Null);
+    }
 
     Location->UpdateUsedSpace(data.Size());
     Size += data.Size();
@@ -197,16 +204,15 @@ void TSession::EnqueueWrites()
     }
 }
 
-TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
+TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
 {
     LOG_DEBUG("Start writing chunk block %d",
         blockIndex);
 
     auto timer = Profiler.TimingStart("/chunk_io/write_time");
-    auto data = block->GetData();
 
     try {
-        if (!Writer->TryWriteBlock(data)) {
+        if (!Writer->TryWriteBlock(block)) {
             Sync(~Writer, &TFileWriter::GetReadyEvent);
             YUNREACHABLE();
         }
@@ -219,8 +225,8 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
     LOG_DEBUG("Chunk block %d written", blockIndex);
 
     auto readTime = Profiler.TimingStop(timer);
-    Profiler.Enqueue("/chunk_io/write_size", data.Size());
-    Profiler.Enqueue("/chunk_io/write_throughput", data.Size() / readTime.SecondsFloat());
+    Profiler.Enqueue("/chunk_io/write_size", block.Size());
+    Profiler.Enqueue("/chunk_io/write_throughput", block.Size() / readTime.SecondsFloat());
 
     return TVoid();
 }
@@ -355,7 +361,7 @@ void TSession::ReleaseBlocks(i32 flushedBlockIndex)
     while (WindowStart <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStart);
         YASSERT(slot.State == ESlotState::Written);
-        slot.Block.Reset();
+        slot.Block = TSharedRef();
         slot.IsWritten.Reset();
         ++WindowStart;
     }

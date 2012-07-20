@@ -41,11 +41,14 @@ public:
     //! Returns the info of the just-uploaded chunk
     NProto::TChunkInfo GetChunkInfo() const;
 
-    //! Returns a cached block that is still in the session window.
-    TCachedBlockPtr GetBlock(i32 blockIndex);
+    //! Returns a block that is still in the session window.
+    TSharedRef GetBlock(i32 blockIndex);
 
     //! Puts a block into the window.
-    void PutBlock(i32 blockIndex, const TSharedRef& data);
+    void PutBlock(
+        i32 blockIndex,
+        const TSharedRef& data,
+        bool enableCaching);
 
     //! Flushes a block and moves the window
     /*!
@@ -74,12 +77,11 @@ private:
     {
         TSlot()
             : State(ESlotState::Empty)
-            , Block(NULL)
             , IsWritten(NewPromise<TVoid>())
         { }
 
         ESlotState State;
-        TCachedBlockPtr Block;
+        TSharedRef Block;
         TPromise<TVoid> IsWritten;
     };
 
@@ -126,7 +128,7 @@ private:
     TChunkPtr OnFileClosed(TVoid);
 
     void EnqueueWrites();
-    TVoid DoWrite(TCachedBlockPtr block, i32 blockIndex);
+    TVoid DoWrite(const TSharedRef& block, i32 blockIndex);
     void OnBlockWritten(i32 blockIndex, TVoid);
 
     void OnBlockFlushed(i32 blockIndex, TVoid);
