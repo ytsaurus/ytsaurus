@@ -123,6 +123,9 @@ void TJobProxy::Run()
                 break;
 
             case EJobType::PartitionSort:
+                Job = new TPartitionSortJob(Config, jobSpec);
+                break;
+
             case EJobType::SimpleSort:
                 Job = new TSimpleSortJob(Config, jobSpec);
                 break;
