@@ -7,6 +7,7 @@ set( SRCS
 set( HDRS
   ${BASE}/cypress_ypath_proxy.h
   ${BASE}/id.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
