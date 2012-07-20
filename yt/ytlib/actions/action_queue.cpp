@@ -52,9 +52,6 @@ protected:
     }
 
 private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl;
-
     TQueueInvokerPtr QueueInvoker;
 
 };
