@@ -29,12 +29,12 @@ private:
     NCellMaster::TBootstrap* Bootstrap;
     TChunkTreeBalancerConfigPtr Config;
 
-    void MergeChunkRef(
+    void MergeChunkTrees(
         std::vector<TChunkTreeRef>* children,
         TChunkTreeRef child,
         const NProto::TMsgRebalanceChunkTree& message);
     
-    void AddChunkRef(
+    void AppendChunkTree(
         std::vector<TChunkTreeRef>* children,
         TChunkTreeRef child,
         const NProto::TMsgRebalanceChunkTree& message);
