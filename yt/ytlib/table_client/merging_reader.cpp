@@ -24,7 +24,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMergingReader::TMergingReader(const std::vector<TChunkSequenceReaderPtr>& readers)
+TMergingReader::TMergingReader(const std::vector<TTableChunkSequenceReaderPtr>& readers)
     : Readers(readers)
 { }
 

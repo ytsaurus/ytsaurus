@@ -43,7 +43,7 @@ TSortedMergeJob::TSortedMergeJob(
     auto masterChannel = CreateLeaderChannel(proxyConfig->Masters);
 
     {
-        std::vector<TChunkSequenceReaderPtr> readers;
+        std::vector<TTableChunkSequenceReaderPtr> readers;
         TReaderOptions options;
         options.ReadKey = true;
 

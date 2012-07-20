@@ -65,7 +65,7 @@ private:
     NObjectServer::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 
-    TChunkSequenceReaderPtr Reader;
+    TTableChunkSequenceReaderPtr Reader;
     NCypressClient::TNodeId NodeId;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);

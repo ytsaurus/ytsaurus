@@ -36,7 +36,7 @@ TReduceJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
 
     auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
 
-    std::vector<TChunkSequenceReaderPtr> readers;
+    std::vector<TTableChunkSequenceReaderPtr> readers;
     TReaderOptions options;
     options.ReadKey = true;
 

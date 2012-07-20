@@ -12,7 +12,7 @@ class TMergingReader
     : public ISyncReader
 {
 public:
-    TMergingReader(const std::vector<TChunkSequenceReaderPtr>& readers);
+    TMergingReader(const std::vector<TTableChunkSequenceReaderPtr>& readers);
 
     virtual void Open();
     virtual void NextRow();
@@ -22,7 +22,7 @@ public:
     const TNonOwningKey& GetKey() const;
 
 private:
-    std::vector<TChunkSequenceReaderPtr> Readers;
+    std::vector<TTableChunkSequenceReaderPtr> Readers;
     std::vector<TTableChunkSequenceReader*> ReaderHeap;
 
 };

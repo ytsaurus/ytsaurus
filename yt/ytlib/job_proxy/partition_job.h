@@ -22,7 +22,7 @@ public:
     NScheduler::NProto::TJobResult Run();
 
 private:
-    NTableClient::TChunkSequenceReaderPtr Reader;
+    NTableClient::TTableChunkSequenceReaderPtr Reader;
     NTableClient::TPartitionChunkSequenceWriterPtr Writer;
 };
 
