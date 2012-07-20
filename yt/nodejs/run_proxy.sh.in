@@ -10,7 +10,7 @@ export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
 [[ ! -L $CMS/lib/ytnode.node       ]] && ln -s $CMB/ytnode.node $CMS/lib
 [[ ! -L $CMS/lib/ytnode_stubs.node ]] && ln -s $CMB/ytnode_stubs.node $CMS/lib
 
-npm install ; [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
+(cd $CMB && npm install) ; [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
 
 exec $CMB/node_modules/yt/bin/yt_http_api "$@"
 
