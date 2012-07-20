@@ -2,8 +2,6 @@
 #!-*-coding:utf-8-*-
 
 import sys
-#TODO:get rid of it
-sys.path.append('../../../yson')
 
 import parser
 import yson_to_bash
@@ -113,12 +111,12 @@ class TestYSONParser(unittest.TestCase):
     def test_fragments(self):
         yson = '{a = b} {c = d}'
         stream = StringIO(yson)
-        parser = parser.YSONFragmentedParser(stream)
-        self.assertTrue(parser.has_next())
-        self.assertEqual(parser.parse_next(), {'a' : 'b'})
-        self.assertTrue(parser.has_next())
-        self.assertEqual(parser.parse_next(), {'c' : 'd'})
-        self.assertFalse(parser.has_next())
+        p = parser.YSONFragmentedParser(stream)
+        self.assertTrue(p.has_next())
+        self.assertEqual(p.parse_next(), {'a' : 'b'})
+        self.assertTrue(p.has_next())
+        self.assertEqual(p.parse_next(), {'c' : 'd'})
+        self.assertFalse(p.has_next())
                 
 
 if __name__ == "__main__":
