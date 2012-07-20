@@ -126,7 +126,7 @@ void TPartitionChunkWriter::PrepareBlock(int partitionTag)
 
     int size = 0;
     auto blockParts(channelWriter->FlushBlock());
-    FOREACH(auto& part, blockParts) {
+    FOREACH (auto& part, blockParts) {
         size += part.Size();
     }
     blockInfo->set_block_size(size);

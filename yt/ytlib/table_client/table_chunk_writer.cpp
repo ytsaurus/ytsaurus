@@ -144,7 +144,7 @@ auto TTableChunkWriter::GetColumnInfo(const TStringBuf& name) ->TColumnInfo&
 
 void TTableChunkWriter::WriteValue(const std::pair<TStringBuf, TStringBuf>& value, const TColumnInfo& columnInfo)
 {
-    FOREACH(auto& channel, columnInfo.Channels) {
+    FOREACH (auto& channel, columnInfo.Channels) {
         if (channel.ColumnIndex == RangeColumnIndex) {
             channel.Writer->WriteRange(value.first, value.second);
         } else {
@@ -270,7 +270,7 @@ void TTableChunkWriter::PrepareBlock(int channelIndex)
 
     int size = 0;
     auto blockParts(channel->FlushBlock());
-    FOREACH(auto& part, blockParts) {
+    FOREACH (auto& part, blockParts) {
         size += part.Size();
     }
     blockInfo->set_block_size(size);

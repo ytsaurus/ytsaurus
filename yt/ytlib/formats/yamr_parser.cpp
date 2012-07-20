@@ -227,7 +227,7 @@ void TYamrLenvalParser::Finish()
 const char* TYamrLenvalParser::Consume(const char* begin, const char* end)
 {
     const char* current = begin;
-    while(BytesToRead > 0 && current != end) {
+    while (BytesToRead > 0 && current != end) {
         if (ReadingLength) {
             Union.Bytes[4 - BytesToRead] = *current;
         }

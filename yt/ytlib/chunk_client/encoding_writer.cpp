@@ -40,7 +40,7 @@ void TEncodingWriter::WriteBlock(const TSharedRef& block)
 
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
 {
-    FOREACH(const auto& part, vectorizedBlock) {
+    FOREACH (const auto& part, vectorizedBlock) {
         Semaphore.Acquire(part.Size());
     }
 
@@ -70,7 +70,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
     auto compressedBlock = Codec->Compress(vectorizedBlock);
 
     auto oldSize = GetUncompressedSize();
-    FOREACH(const auto& part, vectorizedBlock) {
+    FOREACH (const auto& part, vectorizedBlock) {
         UncompressedSize_ += part.Size();
     }
 

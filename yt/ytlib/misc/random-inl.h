@@ -25,7 +25,7 @@ inline long double TRandomGenerator::GetNext()
     return Generator.GenRandReal2();
 }
 
-template<class T>
+template <class T>
 T TRandomGenerator::GetNext()
 {
     return static_cast<T>(Generator.GenRand());

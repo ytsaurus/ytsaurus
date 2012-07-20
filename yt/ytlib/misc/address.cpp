@@ -157,7 +157,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
     }
 
     char buffer[256];
-    if(!inet_ntop(
+    if (!inet_ntop(
         sockAddr->sa_family,
         const_cast<void*>(ipAddr),
         buffer,
