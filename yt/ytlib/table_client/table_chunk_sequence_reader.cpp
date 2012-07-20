@@ -26,7 +26,7 @@ TTableChunkSequenceReader::TTableChunkSequenceReader(
     NChunkClient::IBlockCachePtr blockCache,
     std::vector<NProto::TInputChunk>&& inputChunks,
     const TReaderOptions& options)
-    : TChunkSequenceReaderBase<TTableChunkReader>(config, masterChannel, blockCache, MoveRV(inputChunks), Logger)
+    : TChunkSequenceReaderBase<TTableChunkReader>(config, masterChannel, blockCache, MoveRV(inputChunks))
     , Options(options)
     , ValueCount_(0)
     , RowCount_(0)

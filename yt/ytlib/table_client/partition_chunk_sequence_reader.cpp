@@ -13,7 +13,7 @@ TPartitionChunkSequenceReader::TPartitionChunkSequenceReader(
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     std::vector<NProto::TInputChunk>&& inputChunks)
-    : TChunkSequenceReaderBase<TPartitionChunkReader>(config, masterChannel, blockCache, MoveRV(inputChunks), Logger)
+    : TChunkSequenceReaderBase<TPartitionChunkReader>(config, masterChannel, blockCache, MoveRV(inputChunks))
     , RowCount_(0)
 {
     for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {

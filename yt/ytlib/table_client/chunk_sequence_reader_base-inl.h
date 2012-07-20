@@ -22,8 +22,7 @@ TChunkSequenceReaderBase<TReader>::TChunkSequenceReaderBase(
     TChunkSequenceReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
-    std::vector<NProto::TInputChunk>&& inputChunks,
-    NLog::TLogger& logger)
+    std::vector<NProto::TInputChunk>&& inputChunks)
     : Config(config)
     , BlockCache(blockCache)
     , InputChunks(inputChunks)
@@ -32,7 +31,7 @@ TChunkSequenceReaderBase<TReader>::TChunkSequenceReaderBase(
     , LastInitializedReader(-1)
     , LastPreparedReader(-1)
     , ItemIndex_(0)
-    , Logger(logger)
+    , Logger(TableReaderLogger)
 {
     LOG_DEBUG("Chunk sequence reader created (ChunkCount: %d)", 
         static_cast<int>(InputChunks.size()));

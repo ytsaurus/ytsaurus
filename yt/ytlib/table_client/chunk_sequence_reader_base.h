@@ -28,8 +28,7 @@ public:
         TChunkSequenceReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        std::vector<NProto::TInputChunk>&& inputChunks,
-        NLog::TLogger& logger);
+        std::vector<NProto::TInputChunk>&& inputChunks);
 
     TAsyncError AsyncOpen();
     bool FetchNextItem();
