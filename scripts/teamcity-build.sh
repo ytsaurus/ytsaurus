@@ -183,11 +183,6 @@ tc "blockOpened name='Unit Tests'"
 shout "Running unit tests..."
 tc "progressMessage 'Running unit tests...'"
 
-dpkg -s python-simplejson
-if [ "$?" != "0" ]; then
-    apt-get install python-simplejson
-fi
-
 cd $WORKING_DIRECTORY
 gdb \
     --batch \
@@ -206,6 +201,11 @@ tc "blockOpened name='Integration Tests'"
 
 shout "Running integration tests..."
 tc "progressMessage 'Running integration tests...'"
+
+dpkg -s python-simplejson
+if [ "$?" != "0" ]; then
+    sudo apt-get install python-simplejson
+fi
 
 ulimit -c unlimited
 
