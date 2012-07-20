@@ -1,5 +1,5 @@
+import yson as yson_lib
 from tools.common import update
-import configs
 
 import unittest
 
@@ -11,10 +11,16 @@ import signal
 import socket
 import subprocess
 import sys
-import getpass
-import simplejson as json
 
 from collections import defaultdict
+
+def read_config(filename):
+    with open(filename, 'rt') as f:
+        return  yson_lib.parser.parse_string(f.read())
+
+def write_config(config, filename):
+    with open(filename, 'wt') as f:
+        f.write(yson_lib.yson.dumps(config, indent = '    '))
 
 def init_logging(node, path, name):
     for key, suffix in [('file', '.log'), ('raw', '.debug.log')]:
@@ -25,7 +31,6 @@ class YTEnv(unittest.TestCase):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     NUM_SCHEDULERS = 0
-    NUM_PROXY = 0
 
     DELTA_MASTER_CONFIG = {}
     DELTA_HOLDER_CONFIG = {}
@@ -47,7 +52,7 @@ class YTEnv(unittest.TestCase):
     def modify_scheduler_config(self, config):
         pass
 
-    def set_environment(self, path_to_run, pids_filename):
+    def set_environment(self, path_to_run, configs_dir, pids_filename):
         # TODO(panin): add option for this
         # os.system('killall MasterMain')
         # os.system('killall NodeMain')
@@ -58,7 +63,7 @@ class YTEnv(unittest.TestCase):
         print 'Setting up configuration with %s masters, %s nodes, %s schedulers' % \
             (self.NUM_MASTERS, self.NUM_HOLDERS, self.NUM_SCHEDULERS)
         try:
-            self._set_path(path_to_run)
+            self._set_path(path_to_run, configs_dir)
             self._clean_run_path()
             self._prepare_configs()
             self._run_masters()
@@ -67,7 +72,6 @@ class YTEnv(unittest.TestCase):
             self._wait_for_ready_nodes()
             self._run_schedulers()
             self._wait_for_ready_schedulers()
-            self._run_proxy()
         except:
             self.clear_environment()
             raise
@@ -113,7 +117,6 @@ class YTEnv(unittest.TestCase):
         self.node_config = read_config(os.path.join(configs_dir, 'default_node_config.yson'))
         self.scheduler_config = read_config(os.path.join(configs_dir, 'default_scheduler_config.yson'))
         self.driver_config = read_config(os.path.join(configs_dir, 'default_driver_config.yson'))
-        self.proxy_config = json.loads(open(os.path.join(configs_dir, 'default_proxy_config.json')).read())
 
         short_hostname = socket.gethostname()
         hostname = socket.gethostbyname_ex(short_hostname)[0]
@@ -236,7 +239,6 @@ class YTEnv(unittest.TestCase):
         self._prepare_nodes_config()
         self._prepare_schedulers_config()
         self._prepare_driver_config()
-        self._prepare_proxy_config()
 
     def _prepare_masters_config(self):
         self.config_paths['master'] = []
@@ -328,34 +330,6 @@ class YTEnv(unittest.TestCase):
         config_path = os.path.join(self.path_to_run, 'driver_config.yson')
         write_config(self.driver_config, config_path)
         os.environ['YT_CONFIG'] = config_path
-    
-    def _prepare_proxy_config(self):
-        config_path = os.path.join(self.path_to_run, 'proxy_config.json')
-        self.proxy_config["driver"] = self.driver_config
-        #self.proxy_config["user"] = self.proxy_config["group"] = getpass.getuser()
-        with open(config_path, "w") as f:
-            f.write(json.dumps(self.proxy_config))
-
-
-    def _run_proxy(self):
-        p = subprocess.Popen(['run_proxy.sh', "-c", os.path.join(self.path_to_run, 'proxy_config.json')],
-            shell=False, close_fds=True, preexec_fn=os.setsid)
-        self.process_to_kill.append((p, "proxy"))
-        self._append_pid(p.pid)
-
-        def started():
-            host = '127.0.0.1'
-            port = 8080
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                s.connect((host, port))
-                s.shutdown(2)
-                return True
-            except:
-                return False
-
-        self._wait_for(started)
-        
 
     def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
         current_wait_time = 0
