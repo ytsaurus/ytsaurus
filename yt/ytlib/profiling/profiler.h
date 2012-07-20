@@ -79,7 +79,7 @@ struct TCounterBase
  *  \note Thread safety: single
  */
 struct TRateCounter
-    : TCounterBase
+    : public TCounterBase
 {
     TRateCounter(
         const NYTree::TYPath& path = "",
@@ -117,7 +117,7 @@ DECLARE_ENUM(EAggregateMode,
  *  \note Thread safety: single
  */
 struct TAggregateCounter
-    : TCounterBase
+    : public TCounterBase
 {
     TAggregateCounter(
         const NYTree::TYPath& path = "",
