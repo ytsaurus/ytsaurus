@@ -19,10 +19,10 @@ struct TChunkTreeStatistics
     i64 CompressedSize;
     
     //! Total number of chunks in the tree.
-    int ChunkCount;
+    i32 ChunkCount;
 
     //! Distance to leaves (chunks) in edges. Leaves have rank zero.
-    int Rank;
+    i32 Rank;
 
     TChunkTreeStatistics()
         : RowCount(0)
