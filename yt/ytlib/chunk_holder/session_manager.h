@@ -100,7 +100,7 @@ private:
 
     TLeaseManager::TLease Lease;
 
-    bool IsWriteEnqueued;
+    IInvokerPtr WriteInvoker;
     int LastWrittenIndex;
 
     NLog::TTaggedLogger Logger;
@@ -127,7 +127,6 @@ private:
     TVoid DoCloseFile(const NProto::TChunkMeta& chunkMeta);
     TChunkPtr OnFileClosed(TVoid);
 
-    void TryEnqueueWrites();
     TVoid DoWrite(const TSharedRef& block, i32 blockIndex);
     void OnBlockWritten(i32 blockIndex, TVoid);
 
