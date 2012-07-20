@@ -86,5 +86,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns an invoker that executes all queues actions in the
+//! context of #underlyingInvoker (possibly in different threads)
+//! but in a serialized fashion (i.e. all queued actions are executed
+//! in the proper order and no two actions are executed in parallel).
+IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 

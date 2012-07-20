@@ -270,4 +270,57 @@ IInvokerPtr TThreadPool::GetInvoker()
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TSerializedInvoker
+    : public IInvoker
+{
+public:
+    explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
+        : UnderlyingInvoker(underlyingInvoker)
+        , Lock(0)
+    { }
+
+    virtual void Invoke(const TClosure& action) OVERRIDE
+    {
+        Queue.Enqueue(action);
+        TrySchedule();
+    }
+
+private:
+    IInvokerPtr UnderlyingInvoker;
+    TLockFreeQueue<TClosure> Queue;
+    TAtomic Lock;
+
+    void TrySchedule()
+    {
+        if (Queue.IsEmpty()) {
+            return;
+        }
+
+        if (AtomicTryAndTryLock(&Lock)) {
+            UnderlyingInvoker->Invoke(BIND(&TSerializedInvoker::DoInvoke, MakeStrong(this)));
+        }
+    }
+
+    void DoInvoke()
+    {
+        // Execute as many actions as possible to minimize context switches.
+        TClosure action;
+        while (Queue.Dequeue(&action)) {
+            action.Run();
+        }
+
+        AtomicUnlock(&Lock);
+
+        TrySchedule();
+    }
+
+};
+
+IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
+{
+    return New<TSerializedInvoker>(underlyingInvoker);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
