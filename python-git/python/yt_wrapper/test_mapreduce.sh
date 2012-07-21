@@ -40,4 +40,4 @@ for (( i=1 ; i <= 3 ; i++ )); do
     ./mapreduce -read "ignat/out$i" | wc -l
 done
 
-rm -f "many_output_mapreduce.py"
+rm -f "many_output_mapreduce.py" table_file
