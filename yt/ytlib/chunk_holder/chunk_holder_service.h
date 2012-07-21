@@ -16,14 +16,14 @@ class TChunkHolderService
 {
 public:
     //! Creates an instance.
-    TChunkHolderService(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
+    TChunkHolderService(TDataNodeConfigPtr config, TBootstrap* bootstrap);
 
 private:
     typedef TChunkHolderService TThis;
     typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);

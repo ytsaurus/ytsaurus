@@ -101,7 +101,6 @@ private:
     TLeaseManager::TLease Lease;
 
     IInvokerPtr WriteInvoker;
-    int LastWrittenIndex;
 
     NLog::TTaggedLogger Logger;
 
@@ -146,7 +145,7 @@ public:
 
     //! Constructs a manager.
     TSessionManager(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
@@ -181,7 +180,7 @@ public:
 private:
     friend class TSession;
 
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;

@@ -21,7 +21,7 @@ class TMasterConnector
 {
 public:
     //! Creates an instance.
-    TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
+    TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootstrap);
 
     //! Starts interaction with master.
     void Start();
@@ -34,7 +34,7 @@ private:
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;
 
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
     IInvokerPtr ControlInvoker;
 

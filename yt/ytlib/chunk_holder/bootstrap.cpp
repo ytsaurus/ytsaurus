@@ -38,7 +38,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     NCellNode::TBootstrap* nodeBootstrap)
     : Config(config)
     , NodeBootstrap(nodeBootstrap)
@@ -53,9 +53,6 @@ TBootstrap::~TBootstrap()
 void TBootstrap::Init()
 {
     ReaderCache = New<TReaderCache>(Config);
-
-    ReadThreadPool = New<TThreadPool>(Config->ReadPoolThreadCount, "ReadPool");
-    WriteThreadPool = New<TThreadPool>(Config->WritePoolThreadCount, "WritePool");
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
@@ -105,7 +102,7 @@ void TBootstrap::Init()
     MasterConnector->Start();
 }
 
-TChunkHolderConfigPtr TBootstrap::GetConfig() const
+TDataNodeConfigPtr TBootstrap::GetConfig() const
 {
     return Config;
 }
@@ -138,16 +135,6 @@ TJobExecutorPtr TBootstrap::GetJobExecutor() const
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return NodeBootstrap->GetControlInvoker();
-}
-
-IInvokerPtr TBootstrap::GetReadPoolInvoker() const
-{
-    return ReadThreadPool->GetInvoker();
-}
-
-IInvokerPtr TBootstrap::GetWritePoolInvoker() const
-{
-    return WriteThreadPool->GetInvoker();
 }
 
 TChunkRegistryPtr TBootstrap::GetChunkRegistry() const

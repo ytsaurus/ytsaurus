@@ -51,7 +51,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TAtomic, PendingReadSize);
 
     TStoreImpl(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
         , Bootstrap(bootstrap)
@@ -126,13 +126,16 @@ public:
      
         LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
 
-        Bootstrap->GetReadPoolInvoker()->Invoke(BIND(
-            &TStoreImpl::DoReadBlock,
-            MakeStrong(this),
-            chunk,
-            blockId,
-            cookie,
-            enableCaching));
+        chunk
+            ->GetLocation()
+            ->GetReadInvoker()
+            ->Invoke(BIND(
+                &TStoreImpl::DoReadBlock,
+                MakeStrong(this),
+                chunk,
+                blockId,
+                cookie,
+                enableCaching));
         
         return cookie->GetValue();
     }
@@ -260,7 +263,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockStore::TBlockStore(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : StoreImpl(New<TStoreImpl>(config, bootstrap))
     , CacheImpl(New<TCacheImpl>(StoreImpl))

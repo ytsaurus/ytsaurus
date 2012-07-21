@@ -101,7 +101,6 @@ TFuture<TError> TChunk::ReadMeta()
     }
 
     auto this_ = MakeStrong(this);
-    auto invoker = Location_->GetBootstrap()->GetReadPoolInvoker();
     auto readerCache = Location_->GetBootstrap()->GetReaderCache();
 
     LOG_DEBUG("Reading chunk meta (ChunkId: %s)", ~Id_.ToString());
@@ -136,7 +135,7 @@ TFuture<TError> TChunk::ReadMeta()
 
             return TError();
         })
-        .AsyncVia(invoker)
+        .AsyncVia(Location_->GetReadInvoker())
         .Run();
 }
 

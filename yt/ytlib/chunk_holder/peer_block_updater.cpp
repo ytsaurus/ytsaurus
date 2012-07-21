@@ -21,7 +21,7 @@ static NLog::TLogger& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPeerBlockUpdater::TPeerBlockUpdater(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)

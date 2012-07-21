@@ -39,7 +39,7 @@ TSession::TSession(
     , Location(location)
     , WindowStart(0)
     , Size(0)
-    , WriteInvoker(CreateSerializedInvoker(Bootstrap->GetWritePoolInvoker()))
+    , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
     , Logger(DataNodeLogger)
 {
     YCHECK(bootstrap);
@@ -58,7 +58,9 @@ TSession::~TSession()
 
 void TSession::Start()
 {
-    WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
+    Location
+        ->GetWriteInvoker()
+        ->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }
 
 void TSession::DoOpenFile()
@@ -394,7 +396,7 @@ void TSession::ReleaseSpaceOccupiedByBlocks()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionManager::TSessionManager(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)

@@ -42,7 +42,7 @@ class TChunkCache::TImpl
 public:
     typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
 
-    TImpl(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
+    TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
         : TBase(config->CacheLocation->Quota.Get(Max<i64>()))
         , Config(config)
         , Bootstrap(bootstrap)
@@ -112,7 +112,7 @@ public:
     }
 
 private:
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
     TLocationPtr Location;
 
@@ -151,7 +151,7 @@ private:
             , ChunkId(chunkId)
             , SeedAddresses(seedAddresses)
             , Cookie(cookie)
-            , Invoker(Owner->Bootstrap->GetWritePoolInvoker())
+            , WriteInvoker(CreateSerializedInvoker(Owner->Location->GetWriteInvoker()))
             , Logger(DataNodeLogger)
         {
             Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
@@ -159,15 +159,6 @@ private:
 
         void Start()
         {
-            Stroka fileName = Owner->Location->GetChunkFileName(ChunkId);
-            try {
-                NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                FileWriter = New<TFileWriter>(fileName);
-                FileWriter->Open();
-            } catch (const std::exception& ex) {
-                LOG_FATAL("Error opening cached chunk for writing\n%s", ex.what());
-            }
-
             RemoteReader = CreateRemoteReader(
                 Owner->Config->CacheRemoteReader,
                 Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
@@ -175,10 +166,7 @@ private:
                 ChunkId,
                 SeedAddresses);
 
-            LOG_INFO("Getting chunk info from holders");
-            RemoteReader->AsyncGetChunkMeta().Subscribe(
-                BIND(&TThis::OnGotChunkMeta, MakeStrong(this))
-                .Via(Invoker));
+            WriteInvoker->Invoke(BIND(&TThis::DoStart, MakeStrong(this)));
         }
 
     private:
@@ -186,7 +174,7 @@ private:
         TChunkId ChunkId;
         std::vector<Stroka> SeedAddresses;
         TSharedPtr<TInsertCookie> Cookie;
-        IInvokerPtr Invoker;
+        IInvokerPtr WriteInvoker;
 
         TFileWriter::TPtr FileWriter;
         IAsyncReaderPtr RemoteReader;
@@ -197,6 +185,23 @@ private:
         int BlockIndex;
 
         NLog::TTaggedLogger Logger;
+
+        void DoStart()
+        {
+            Stroka fileName = Owner->Location->GetChunkFileName(ChunkId);
+            try {
+                NFS::ForcePath(NFS::GetDirectoryName(fileName));
+                FileWriter = New<TFileWriter>(fileName);
+                FileWriter->Open();
+            } catch (const std::exception& ex) {
+                LOG_FATAL("Error opening cached chunk for writing\n%s", ex.what());
+            }
+
+            LOG_INFO("Getting chunk info from holders");
+            RemoteReader->AsyncGetChunkMeta().Subscribe(
+                BIND(&TThis::OnGotChunkMeta, MakeStrong(this))
+                .Via(WriteInvoker));
+        }
 
         void OnGotChunkMeta(IAsyncReader::TGetMetaResult result)
         {
@@ -221,9 +226,9 @@ private:
             }
 
             SequentialReader = New<TSequentialReader>(
-                ~Owner->Config->CacheSequentialReader,
+                Owner->Config->CacheSequentialReader,
                 MoveRV(blockSequence),
-                ~RemoteReader,
+                RemoteReader,
                 ECodecId::None);
 
             BlockIndex = 0;
@@ -242,7 +247,7 @@ private:
 
             SequentialReader->AsyncNextBlock().Subscribe(
                 BIND(&TThis::OnNextBlock, MakeStrong(this))
-                .Via(Invoker));
+                .Via(WriteInvoker));
         }
 
         void OnNextBlock(TError error)
@@ -285,11 +290,11 @@ private:
         {
             LOG_INFO("Chunk is downloaded into cache");
             auto chunk = New<TCachedChunk>(
-                ~Owner->Location,
+                Owner->Location,
                 ChunkId,
                 ChunkMeta,
                 FileWriter->GetChunkInfo(),
-                ~Owner->Bootstrap->GetChunkCache());
+                Owner->Bootstrap->GetChunkCache());
             Cookie->EndInsert(chunk);
             Owner->Register(chunk);
             Cleanup();
@@ -322,7 +327,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkCache::TChunkCache(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
+TChunkCache::TChunkCache(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
 

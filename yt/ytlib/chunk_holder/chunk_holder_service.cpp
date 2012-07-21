@@ -40,7 +40,7 @@ static NLog::TLogger& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkHolderService::TChunkHolderService(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : NRpc::TServiceBase(
         bootstrap->GetControlInvoker(),

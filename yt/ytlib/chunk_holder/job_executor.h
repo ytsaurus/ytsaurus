@@ -96,7 +96,7 @@ class TJobExecutor
 public:
     //! Constructs a new instance.
     TJobExecutor(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         TChunkStorePtr chunkStore,
         TBlockStorePtr blockStore,
         IInvokerPtr controlInvoker);
@@ -125,7 +125,7 @@ private:
     friend class TJob;
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
 
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
 
     TChunkStorePtr ChunkStore;
     TBlockStorePtr BlockStore;
