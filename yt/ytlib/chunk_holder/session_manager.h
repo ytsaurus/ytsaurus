@@ -100,8 +100,7 @@ private:
 
     TLeaseManager::TLease Lease;
 
-    bool IsWriteEnqueued;
-    int LastWrittenIndex;
+    IInvokerPtr WriteInvoker;
 
     NLog::TTaggedLogger Logger;
 
@@ -127,7 +126,6 @@ private:
     TVoid DoCloseFile(const NProto::TChunkMeta& chunkMeta);
     TChunkPtr OnFileClosed(TVoid);
 
-    void TryEnqueueWrites();
     TVoid DoWrite(const TSharedRef& block, i32 blockIndex);
     void OnBlockWritten(i32 blockIndex, TVoid);
 
@@ -147,7 +145,7 @@ public:
 
     //! Constructs a manager.
     TSessionManager(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
@@ -182,7 +180,7 @@ public:
 private:
     friend class TSession;
 
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;

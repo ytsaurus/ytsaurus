@@ -34,6 +34,14 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
+    , ReadThreadPool(New<TThreadPool>(
+        Bootstrap->GetConfig()->ReadThreadsPerLocation,
+        Sprintf("Read:%s", ~Id)))
+    , ReadInvoker(ReadThreadPool->GetInvoker())
+    , WriteThreadPool(New<TThreadPool>(
+        bootstrap->GetConfig()->WriteThreadsPerLocation,
+        Sprintf("Write:%s", ~Id)))
+    , WriteInvoker(WriteThreadPool->GetInvoker())
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
@@ -137,6 +145,16 @@ bool TLocation::HasEnoughSpace(i64 size) const
     return GetAvailableSpace() - size >= Config->HighWatermark;
 }
 
+IInvokerPtr TLocation::GetReadInvoker()
+{
+    return ReadInvoker;
+}
+
+IInvokerPtr TLocation::GetWriteInvoker()
+{
+    return WriteInvoker;
+}
+
 namespace {
 
 void RemoveFile(const Stroka& fileName)
@@ -217,7 +235,7 @@ void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
 
-    Bootstrap->GetWritePoolInvoker()->Invoke(BIND([=] () {
+    WriteInvoker->Invoke(BIND([=] () {
         // TODO: retry on failure
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
         RemoveFile(fileName);

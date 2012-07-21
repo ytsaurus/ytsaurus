@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if [[ x$0 == *environment* ]]; then
     echo "Don't forget to use source, Luke:"

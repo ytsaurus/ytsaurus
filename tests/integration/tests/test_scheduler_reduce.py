@@ -8,7 +8,7 @@ from yt_commands import *
 class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
-    NUM_SCHEDULERS = 1
+    START_SCHEDULER = True
 
     def test_cat(self):
         create('table', '//tmp/in1')

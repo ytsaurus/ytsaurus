@@ -27,7 +27,7 @@ static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStore::TChunkStore(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
+TChunkStore::TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
 { }

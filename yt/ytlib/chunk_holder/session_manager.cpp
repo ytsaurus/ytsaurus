@@ -39,8 +39,7 @@ TSession::TSession(
     , Location(location)
     , WindowStart(0)
     , Size(0)
-    , IsWriteEnqueued(false)
-    , LastWrittenIndex(-1)
+    , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
     , Logger(DataNodeLogger)
 {
     YCHECK(bootstrap);
@@ -59,9 +58,7 @@ TSession::~TSession()
 
 void TSession::Start()
 {
-    Bootstrap
-        ->GetWritePoolInvoker()
-        ->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
+    WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }
 
 void TSession::DoOpenFile()
@@ -177,39 +174,18 @@ void TSession::PutBlock(
 
     LOG_DEBUG("Chunk block %d received", blockIndex);
 
-    TryEnqueueWrites();
-}
-
-void TSession::TryEnqueueWrites()
-{
-    if (IsWriteEnqueued) {
-        return;
-    }
-
-    int nextWriteIndex = LastWrittenIndex + 1;
-    if (!IsInWindow(nextWriteIndex)) {
-        return;
-    }
-
-    const auto& slot = GetSlot(nextWriteIndex);
-    if (slot.State != ESlotState::Received) {
-        return;
-    }
-
-    IsWriteEnqueued = true;
-
     BIND(
         &TSession::DoWrite,
         MakeStrong(this),
-        slot.Block,
-        nextWriteIndex)
-    .AsyncVia(Bootstrap->GetWritePoolInvoker())
+        data, 
+        blockIndex)
+    .AsyncVia(WriteInvoker)
     .Run()
     .Subscribe(BIND(
         &TSession::OnBlockWritten,
         MakeStrong(this),
-        nextWriteIndex)
-    .Via(Bootstrap->GetWriteRouterInvoker()));
+        blockIndex)
+    .Via(Bootstrap->GetControlInvoker()));
 }
 
 TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
@@ -245,12 +221,6 @@ void TSession::OnBlockWritten(i32 blockIndex, TVoid)
     YASSERT(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
     slot.IsWritten.Set(TVoid());
-    
-    YCHECK(IsWriteEnqueued);
-    IsWriteEnqueued = false;
-    LastWrittenIndex = blockIndex;
-
-    TryEnqueueWrites();
 }
 
 TFuture<void> TSession::FlushBlock(i32 blockIndex)
@@ -300,7 +270,7 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 
     return CloseFile(chunkMeta).Apply(
         BIND(&TSession::OnFileClosed, MakeStrong(this))
-        .AsyncVia(Bootstrap->GetWriteRouterInvoker()));
+        .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
 void TSession::Cancel(const TError& error)
@@ -308,14 +278,14 @@ void TSession::Cancel(const TError& error)
     CloseLease();
     DeleteFile(error)
         .Apply(BIND(&TSession::OnFileDeleted, MakeStrong(this))
-        .AsyncVia(Bootstrap->GetWriteRouterInvoker()));
+        .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
 TFuture<TVoid> TSession::DeleteFile(const TError& error)
 {
     return
         BIND(&TSession::DoDeleteFile, MakeStrong(this), error)
-        .AsyncVia(Bootstrap->GetWriteRouterInvoker())
+        .AsyncVia(WriteInvoker)
         .Run();
 }
 
@@ -339,7 +309,7 @@ TFuture<TVoid> TSession::CloseFile(const TChunkMeta& chunkMeta)
 {
     return
         BIND(&TSession::DoCloseFile,MakeStrong(this), chunkMeta)
-        .AsyncVia(Bootstrap->GetWriteRouterInvoker())
+        .AsyncVia(WriteInvoker)
         .Run();
 }
 
@@ -424,7 +394,7 @@ void TSession::ReleaseSpaceOccupiedByBlocks()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionManager::TSessionManager(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
@@ -458,7 +428,7 @@ TSessionPtr TSessionManager::StartSession(
             &TSessionManager::OnLeaseExpired,
             MakeStrong(this),
             session)
-        .Via(Bootstrap->GetWriteRouterInvoker()));
+        .Via(Bootstrap->GetControlInvoker()));
     session->SetLease(lease);
 
     AtomicIncrement(SessionCount);

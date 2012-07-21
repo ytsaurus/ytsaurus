@@ -16,23 +16,19 @@ class TBootstrap
 {
 public:
     TBootstrap(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         NCellNode::TBootstrap* nodeBootstrap);
     ~TBootstrap();
 
     void Init();
 
-    TChunkHolderConfigPtr GetConfig() const;
+    TDataNodeConfigPtr GetConfig() const;
     NChunkServer::TIncarnationId GetIncarnationId() const;
     TChunkStorePtr GetChunkStore() const;
     TChunkCachePtr GetChunkCache() const;
     TSessionManagerPtr GetSessionManager() const;
     TJobExecutorPtr GetJobExecutor() const;
     IInvokerPtr GetControlInvoker() const;
-    IInvokerPtr GetReadRouterInvoker() const;
-    IInvokerPtr GetReadPoolInvoker() const;
-    IInvokerPtr GetWriteRouterInvoker() const;
-    IInvokerPtr GetWritePoolInvoker() const;
     TChunkRegistryPtr GetChunkRegistry() const;
     TBlockStorePtr GetBlockStore();
     TPeerBlockTablePtr GetPeerBlockTable() const;
@@ -41,13 +37,9 @@ public:
     Stroka GetPeerAddress() const;
 
 private:
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* NodeBootstrap;
     
-    TActionQueuePtr ReadRouterQueue;
-    TThreadPoolPtr ReadThreadPool;
-    TActionQueuePtr WriteRouterQueue;
-    TThreadPoolPtr WriteThreadPool;
     TChunkRegistryPtr ChunkRegistry;
     TChunkStorePtr ChunkStore;
     TChunkCachePtr ChunkCache;

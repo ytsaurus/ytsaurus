@@ -206,7 +206,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobExecutor::TJobExecutor(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     TChunkStorePtr chunkStore,
     TBlockStorePtr blockStore,
     IInvokerPtr controlInvoker)

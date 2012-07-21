@@ -17,7 +17,7 @@ class TPeerBlockUpdater
 {
 public:
     TPeerBlockUpdater(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         TBootstrap* bootstrap);
 
     void Start();
@@ -28,7 +28,7 @@ private:
     
     typedef TChunkHolderServiceProxy TProxy;
 
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
     TPeriodicInvoker::TPtr PeriodicInvoker;
 

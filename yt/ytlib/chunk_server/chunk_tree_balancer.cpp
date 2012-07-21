@@ -78,14 +78,13 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
     // Create new children list.
     std::vector<TChunkTreeRef> newChildren;
 
-    TChunkTreeRef rootRef(root);
-    AddChunkRef(&newChildren, rootRef, message);
+    AppendChunkTree(&newChildren, root, message);
     YCHECK(!newChildren.empty());
-    YCHECK(newChildren.front() != rootRef);
+    YCHECK(newChildren.front() != root);
 
     // Rewrite root.
     auto oldChildren = root->Children();
-    FOREACH (auto childRef, oldChildren) {
+    FOREACH (auto childRef, newChildren) {
         objectManager->RefObject(childRef.GetId());
     }
     chunkManager->ClearChunkList(root);
@@ -103,75 +102,19 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
     return true;
 }
 
-void TChunkTreeBalancer::MergeChunkRef(
-    std::vector<TChunkTreeRef>* children,
-    TChunkTreeRef child,
-    const NProto::TMsgRebalanceChunkTree& message)
-{
-    // We are trying to add the child to the last chunk list.
-    auto* lastChunkList = children->back().AsChunkList();
-    
-    YASSERT(lastChunkList->GetObjectRefCounter() == 0);
-    YASSERT(lastChunkList->Statistics().Rank <= 1);
-    YASSERT(lastChunkList->Children().size() < message.min_chunk_list_size());
-    
-    auto chunkManager = Bootstrap->GetChunkManager();
-
-    switch (child.GetType()) {
-        case EObjectType::Chunk: {
-            // Just adding the chunk to the last chunk list.
-            chunkManager->AttachToChunkList(lastChunkList, child);
-            break;
-        }
-
-        case EObjectType::ChunkList: {
-            const auto* chunkList = child.AsChunkList();
-            if (lastChunkList->Children().size() + chunkList->Children().size() <=
-                message.max_chunk_list_size())
-            {
-                // Just appending the chunk list to the last chunk list.
-                chunkManager->AttachToChunkList(lastChunkList, chunkList->Children());
-            } else {
-                // The chunk list is too large. We have to copy chunks by blocks.
-                int mergedCount = 0;
-                while (mergedCount < chunkList->Children().size()) {
-                    if (lastChunkList->Children().size() >= message.min_chunk_list_size()) {
-                        // The last chunk list is too large. Creating a new one.
-                        YASSERT(lastChunkList->Children().size() == message.min_chunk_list_size());
-                        lastChunkList = chunkManager->CreateChunkList();
-                        children->push_back(TChunkTreeRef(lastChunkList));
-                    }
-                    int count = Min(
-                        message.min_chunk_list_size() - lastChunkList->Children().size(),
-                        chunkList->Children().size() - mergedCount);
-                    chunkManager->AttachToChunkList(
-                        lastChunkList,
-                        &*chunkList->Children().begin() + mergedCount,
-                        &*chunkList->Children().begin() + mergedCount + count);
-                    mergedCount += count;
-                }
-            }
-            break;
-        }
-
-        default:
-            YUNREACHABLE();
-    }
-}
-
-void TChunkTreeBalancer::AddChunkRef(
+void TChunkTreeBalancer::AppendChunkTree(
     std::vector<TChunkTreeRef>* children,
     TChunkTreeRef child,
     const NProto::TMsgRebalanceChunkTree& message)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
 
-    // Expand child if it has high rank.
+    // Expand child chunk lists of rank > 1.
     if (child.GetType() == EObjectType::ChunkList) {
         const auto* chunkList = child.AsChunkList();
         if (chunkList->Statistics().Rank > 1) {
             FOREACH (const auto& childRef, chunkList->Children()) {
-                AddChunkRef(children, childRef, message);
+                AppendChunkTree(children, childRef, message);
             }
             return;
         }
@@ -187,10 +130,10 @@ void TChunkTreeBalancer::AddChunkRef(
             if (lastChild->GetObjectRefCounter() > 0) {
                 // We want to merge to this chunk list but it is shared.
                 // Copy on write.
+                auto* clonedLastChild = chunkManager->CreateChunkList();
+                chunkManager->AttachToChunkList(clonedLastChild, lastChild->Children());
                 children->pop_back();
-                auto* newChunkList = chunkManager->CreateChunkList();
-                chunkManager->AttachToChunkList(newChunkList, lastChild->Children());
-                children->push_back(newChunkList);
+                children->push_back(clonedLastChild);
             }
             merge = true;
         }
@@ -198,12 +141,13 @@ void TChunkTreeBalancer::AddChunkRef(
 
     // Try to add the child as is.
     if (!merge) {
-        if (child.GetType() == EObjectType::ChunkList &&
-            child.AsChunkList()->Children().size() <= message.max_chunk_list_size())
-        {
-            YASSERT(child.AsChunkList()->GetObjectRefCounter() > 0);
-            children->push_back(child);
-            return;
+        if (child.GetType() == EObjectType::ChunkList) {
+            const auto* chunkList = child.AsChunkList();
+            if (chunkList->Children().size() <= message.max_chunk_list_size()) {
+                YASSERT(chunkList->GetObjectRefCounter() > 0);
+                children->push_back(child);
+                return;
+            }
         }
 
         // We need to split the child. So we use usual merging.
@@ -212,7 +156,63 @@ void TChunkTreeBalancer::AddChunkRef(
     }
 
     // Merge!
-    MergeChunkRef(children, child, message);
+    MergeChunkTrees(children, child, message);
+}
+
+void TChunkTreeBalancer::MergeChunkTrees(
+    std::vector<TChunkTreeRef>* children,
+    TChunkTreeRef child,
+    const NProto::TMsgRebalanceChunkTree& message)
+{
+    // We are trying to add the child to the last chunk list.
+    auto* lastChunkList = children->back().AsChunkList();
+
+    YASSERT(lastChunkList->GetObjectRefCounter() == 0);
+    YASSERT(lastChunkList->Statistics().Rank <= 1);
+    YASSERT(lastChunkList->Children().size() < message.min_chunk_list_size());
+
+    auto chunkManager = Bootstrap->GetChunkManager();
+
+    switch (child.GetType()) {
+    case EObjectType::Chunk: {
+        // Just adding the chunk to the last chunk list.
+        chunkManager->AttachToChunkList(lastChunkList, child);
+        break;
+                             }
+
+    case EObjectType::ChunkList: {
+        const auto* chunkList = child.AsChunkList();
+        if (lastChunkList->Children().size() + chunkList->Children().size() <=
+            message.max_chunk_list_size())
+        {
+            // Just appending the chunk list to the last chunk list.
+            chunkManager->AttachToChunkList(lastChunkList, chunkList->Children());
+        } else {
+            // The chunk list is too large. We have to copy chunks by blocks.
+            int mergedCount = 0;
+            while (mergedCount < chunkList->Children().size()) {
+                if (lastChunkList->Children().size() >= message.min_chunk_list_size()) {
+                    // The last chunk list is too large. Creating a new one.
+                    YASSERT(lastChunkList->Children().size() == message.min_chunk_list_size());
+                    lastChunkList = chunkManager->CreateChunkList();
+                    children->push_back(TChunkTreeRef(lastChunkList));
+                }
+                int count = Min(
+                    message.min_chunk_list_size() - lastChunkList->Children().size(),
+                    chunkList->Children().size() - mergedCount);
+                chunkManager->AttachToChunkList(
+                    lastChunkList,
+                    &*chunkList->Children().begin() + mergedCount,
+                    &*chunkList->Children().begin() + mergedCount + count);
+                mergedCount += count;
+            }
+        }
+        break;
+                                 }
+
+    default:
+        YUNREACHABLE();
+    }
 }
 
 void TChunkTreeBalancer::InitRebalanceMessage(

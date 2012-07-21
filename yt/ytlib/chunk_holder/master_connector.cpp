@@ -35,7 +35,7 @@ static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnector::TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
+TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
     , ControlInvoker(bootstrap->GetControlInvoker())

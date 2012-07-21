@@ -51,7 +51,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TAtomic, PendingReadSize);
 
     TStoreImpl(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
         , Bootstrap(bootstrap)
@@ -105,34 +105,37 @@ public:
         const TBlockId& blockId,
         bool enableCaching)
     {
-        TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
-        if (!BeginInsert(~cookie)) {
-            LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
-            return cookie->GetValue();
-        }
-
         auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(blockId.ChunkId);
+
         if (!chunk) {
-            cookie->Cancel(TError(
+            return MakeFuture(TGetBlockResult(TError(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
-                Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString())));
-            return cookie->GetValue();
+                Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString()))));
         }
-     
-        LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
 
         if (!chunk->AcquireReadLock()) {
             return MakeFuture(TGetBlockResult(TError("Cannot read chunk block %s: chunk is scheduled for removal",
                 ~blockId.ToString())));
         }
 
-        Bootstrap->GetReadPoolInvoker()->Invoke(BIND(
-            &TStoreImpl::DoReadBlock,
-            MakeStrong(this),
-            chunk,
-            blockId,
-            cookie,
-            enableCaching));
+        TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
+        if (!BeginInsert(~cookie)) {
+            LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
+            return cookie->GetValue();
+        }
+     
+        LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
+
+        chunk
+            ->GetLocation()
+            ->GetReadInvoker()
+            ->Invoke(BIND(
+                &TStoreImpl::DoReadBlock,
+                MakeStrong(this),
+                chunk,
+                blockId,
+                cookie,
+                enableCaching));
         
         return cookie->GetValue();
     }
@@ -260,7 +263,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockStore::TBlockStore(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : StoreImpl(New<TStoreImpl>(config, bootstrap))
     , CacheImpl(New<TCacheImpl>(StoreImpl))

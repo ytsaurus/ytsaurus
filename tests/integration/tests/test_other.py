@@ -11,7 +11,7 @@ import os
 class TestOrchid(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
-    NUM_SCHEDULERS = 1
+    START_SCHEDULER = True
 
     def _check_service(self, path_to_orchid, service_name):
         path_to_value = path_to_orchid + '/value'
@@ -74,7 +74,7 @@ class TestResourceLeak(YTEnvSetup):
         # now check that there are no temp files
         for i in xrange(self.NUM_HOLDERS):
             # TODO(panin): refactor
-            node_config = self.Env.configs['node'][i]
+            node_config = self.Env.node_configs[i]
             chunk_store_path = node_config['data_node']['store_locations'][0]['path']
             self._check_no_temp_file(chunk_store_path)
 

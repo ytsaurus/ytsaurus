@@ -21,13 +21,13 @@ static NLog::TLogger& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPeerBlockUpdater::TPeerBlockUpdater(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        bootstrap->GetReadRouterInvoker(),
+        bootstrap->GetControlInvoker(),
         BIND(&TPeerBlockUpdater::Update, MakeWeak(this)),
         Config->PeerUpdatePeriod);
 }

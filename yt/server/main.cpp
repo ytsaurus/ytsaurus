@@ -210,6 +210,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         try {
             config->Load(configNode);
+
+            // Override RPC port.
+            if (port >= 0) {
+                config->RpcPort = port;
+            }
+            config->Validate();
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing cell scheduler configuration\n%s",
                 ex.what());

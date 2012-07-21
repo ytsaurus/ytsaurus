@@ -38,7 +38,7 @@ class TBlockStore
 public:
     //! Constructs a store.
     TBlockStore(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         TBootstrap* bootstrap);
 
     ~TBlockStore();

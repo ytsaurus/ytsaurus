@@ -63,7 +63,7 @@ struct TLocationConfig
 };
 
 //! Describes a configuration of TChunkHolder.
-struct TChunkHolderConfig
+struct TDataNodeConfig
     : public TYsonSerializable
 {
     //! Period between consequent heartbeats.
@@ -123,17 +123,17 @@ struct TChunkHolderConfig
     TPeerBlockTableConfigPtr PeerBlockTable;
 
     //! Size of chunk reader pool.
-    int ReadPoolThreadCount;
+    int ReadThreadsPerLocation;
 
     //! Size of chunk writer pool.
-    int WritePoolThreadCount;
+    int WriteThreadsPerLocation;
 
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
      *  a standalone mode, which only makes sense for testing purposes.
      */
-    TChunkHolderConfig()
+    TDataNodeConfig()
     {
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
@@ -170,10 +170,10 @@ struct TChunkHolderConfig
             .DefaultNew();
         Register("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
-        Register("read_pool_thread_count", ReadPoolThreadCount)
-            .Default(8);
-        Register("write_pool_thread_count", WritePoolThreadCount)
-            .Default(8);
+        Register("read_threads_per_location", ReadThreadsPerLocation)
+            .Default(2);
+        Register("write_threads_per_location", WriteThreadsPerLocation)
+            .Default(2);
     }
 };
 

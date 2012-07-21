@@ -84,6 +84,18 @@ public:
     //! Checks whether to location has enough space to contain file of size #size
     bool HasEnoughSpace(i64 size) const;
 
+    //! Returns an invoker for read operations.
+    /*!
+     *  This invoker represents a pool. Requests may be served concurrently.
+     */
+    IInvokerPtr GetReadInvoker();
+
+    //! Returns an invoker for write operations.
+    /*!
+     *  This invoker represents a pool. Requests may be served concurrently.
+     */
+    IInvokerPtr GetWriteInvoker();
+
 private:
     ELocationType Type;
     Stroka Id;
@@ -93,6 +105,11 @@ private:
     mutable i64 AvailableSpace;
     i64 UsedSpace;
     int SessionCount;
+
+    TThreadPoolPtr ReadThreadPool;
+    IInvokerPtr ReadInvoker;
+    TThreadPoolPtr WriteThreadPool;
+    IInvokerPtr WriteInvoker;
 
     mutable NLog::TTaggedLogger Logger;
 };

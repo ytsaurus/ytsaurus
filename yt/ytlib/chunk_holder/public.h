@@ -13,8 +13,8 @@ class TBootstrap;
 struct TLocationConfig;
 typedef TIntrusivePtr<TLocationConfig> TLocationConfigPtr;
 
-struct TChunkHolderConfig;
-typedef TIntrusivePtr<TChunkHolderConfig> TChunkHolderConfigPtr;
+struct TDataNodeConfig;
+typedef TIntrusivePtr<TDataNodeConfig> TDataNodeConfigPtr;
 
 class TMasterConnector;
 typedef TIntrusivePtr<TMasterConnector> TMasterConnectorPtr;

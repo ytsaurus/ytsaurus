@@ -202,6 +202,11 @@ tc "blockOpened name='Integration Tests'"
 shout "Running integration tests..."
 tc "progressMessage 'Running integration tests...'"
 
+dpkg -s python-simplejson
+if [ "$?" != "0" ]; then
+    sudo apt-get install -y python-simplejson
+fi
+
 ulimit -c unlimited
 
 cd $CHECKOUT_DIRECTORY/tests/integration

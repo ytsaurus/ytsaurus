@@ -24,7 +24,7 @@ struct TCellNodeConfig
     NElection::TLeaderLookup::TConfigPtr Masters;
 
     //! Data node configuration part.
-    NChunkHolder::TChunkHolderConfigPtr DataNode;
+    NChunkHolder::TDataNodeConfigPtr DataNode;
 
     //! Exec node configuration part.
     NExecAgent::TExecAgentConfigPtr ExecAgent;

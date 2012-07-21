@@ -6,7 +6,6 @@ from functools import wraps
 import yt_commands
 
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
-CONFIGS_ROOTDIR = os.path.abspath('default_configs')
 TOOLS_ROOTDIR = os.path.abspath('tools')
 PIDS_FILENAME = os.path.join(SANDBOX_ROOTDIR, 'pids.txt')
 
@@ -26,8 +25,13 @@ class YTEnvSetup(YTEnv):
         path_to_run = os.path.join(path_to_test, "run")
 
         cls.path_to_test = path_to_test
+        ports = {
+            "master": 28001,
+            "node": 27001,
+            "scheduler": 28101,
+            "proxy": 28080}
         cls.Env = cls()
-        cls.Env.set_environment(path_to_run, CONFIGS_ROOTDIR, PIDS_FILENAME)
+        cls.Env.set_environment(path_to_run, PIDS_FILENAME, ports)
 
     @classmethod
     def teardown_class(cls):
