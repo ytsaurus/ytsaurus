@@ -120,7 +120,7 @@ void TChunkSequenceReaderBase<TReader>::OnReaderOpened(
 template <class TReader>
 void TChunkSequenceReaderBase<TReader>::SwitchCurrentChunk(TReaderPtr nextReader)
 {
-    if (CurrentReaderIndex > 0 && KeepReaders()) {
+    if (CurrentReaderIndex > 0 && !KeepReaders()) {
         Readers[CurrentReaderIndex - 1].Reset();
     }
 
