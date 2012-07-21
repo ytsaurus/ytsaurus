@@ -285,7 +285,7 @@ TFuture<TVoid> TSession::DeleteFile(const TError& error)
 {
     return
         BIND(&TSession::DoDeleteFile, MakeStrong(this), error)
-        .AsyncVia(Bootstrap->GetControlInvoker())
+        .AsyncVia(WriteInvoker)
         .Run();
 }
 
