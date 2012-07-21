@@ -86,6 +86,7 @@ private:
     // Counters.
     int CompletedPartitionCount;
     TProgressCounter PartitionJobCounter;
+    int SortStartThresholdCount;
     
     // Sort job counters.
     int MaxSortJobCount;
@@ -291,6 +292,16 @@ private:
                     }
                 }
             }
+
+            // If completed partition job limit has been reached, then
+            // kick-start all sort jobs.
+            if (Controller->PartitionJobCounter.GetTotal() == Controller->SortStartThresholdCount) {
+                FOREACH (auto partition, Controller->Partitions) {
+                    if (!partition->Megalomaniac) {
+                        Controller->AddTaskPendingHint(partition->SortTask);
+                    }
+                }
+            }
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -325,18 +336,20 @@ private:
                     ~Controller->Partitions[index]->TotalAttributes.DebugString());
             }
 
-            // Kick-start sort and unordered merge tasks.
             // Mark empty partitions are completed.
             FOREACH (auto partition, Controller->Partitions) {
                 if (partition->TotalAttributes.data_weight() == 0) {
                     LOG_DEBUG("Partition is empty (Partition: %d)", partition->Index);
                     Controller->OnPartitionCompeted(partition);
-                } else {
-                    auto taskToKick = partition->Megalomaniac
-                        ? TTaskPtr(partition->UnorderedMergeTask)
-                        : TTaskPtr(partition->SortTask);
-                    Controller->AddTaskPendingHint(taskToKick);
                 }
+            }
+
+            // Kick-start sort and unordered merge tasks.
+            FOREACH (auto partition, Controller->Partitions) {
+                auto taskToKick = partition->Megalomaniac
+                    ? TTaskPtr(partition->UnorderedMergeTask)
+                    : TTaskPtr(partition->SortTask);
+                Controller->AddTaskPendingHint(taskToKick);
             }
         }
     };
@@ -370,6 +383,14 @@ private:
 
         virtual int GetPendingJobCount() const OVERRIDE
         {
+            // Check if enough partition jobs are completed.
+            if (Controller->PartitionJobCounter.GetCompleted() < Controller->SortStartThresholdCount) {
+                return 0;
+            }
+
+            // Compute pending job count based on pooled weight and weight per job.
+            // If partition phase is completed, take any remaining weight.
+            // If partition phase is still in progress, only take weight exceeding weight per job.
             i64 weight = ChunkPool->WeightCounter().GetPending();
             i64 weightPerJob = Controller->Spec->MaxWeightPerSortJob;
             double fractionalJobCount = (double) weight / weightPerJob;
@@ -529,14 +550,12 @@ private:
 
             // Sort outputs in large partitions are queued for further merge.
 
-            // Construct a stripe consisting of sorted chunks.
+            // Construct a stripe consisting of sorted chunks and put it into the pool.
             const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
             auto stripe = New<TChunkStripe>();
             FOREACH (const auto& inputChunk, resultExt.chunks()) {
                 stripe->AddChunk(New<TRefCountedInputChunk>(inputChunk));
             }
-
-            // Put the stripe into the pool.
             Partition->SortedMergeTask->AddStripe(stripe);
         }
 
@@ -963,6 +982,13 @@ private:
         } else {
             BuildMulitplePartitions(partitionCount);
         }
+
+        // Compute absolute sort start threshold.
+        // Must be at least 1 for the sort task to be triggered
+        // by the first completed partition job.
+        SortStartThresholdCount = std::max(
+            static_cast<int>(Spec->SortStartThreshold * PartitionJobCounter.GetTotal()),
+            1);
     }
 
     void BuildSinglePartition()
