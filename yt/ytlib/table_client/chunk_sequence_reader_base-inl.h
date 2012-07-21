@@ -39,10 +39,6 @@ TChunkSequenceReaderBase<TReader>::TChunkSequenceReaderBase(
     for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {
         Readers.push_back(NewPromise<TReaderPtr>());
     }
-
-    for (int i = 0; i < Config->PrefetchWindow; ++i) {
-        PrepareNextChunk();
-    }
 }
 
 template <class TReader>
@@ -50,6 +46,10 @@ TAsyncError TChunkSequenceReaderBase<TReader>::AsyncOpen()
 {
     YASSERT(CurrentReaderIndex == -1);
     YASSERT(!State.HasRunningOperation());
+
+    for (int i = 0; i < Config->PrefetchWindow; ++i) {
+        PrepareNextChunk();
+    }
 
     ++CurrentReaderIndex;
 
@@ -208,8 +208,6 @@ bool TChunkSequenceReaderBase<TReader>::IsValid() const
 
     return CurrentReader_->IsValid();
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
