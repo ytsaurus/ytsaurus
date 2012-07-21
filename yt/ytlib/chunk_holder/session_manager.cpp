@@ -58,9 +58,7 @@ TSession::~TSession()
 
 void TSession::Start()
 {
-    Location
-        ->GetWriteInvoker()
-        ->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
+    WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }
 
 void TSession::DoOpenFile()
