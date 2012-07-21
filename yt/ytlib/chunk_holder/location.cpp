@@ -36,11 +36,11 @@ TLocation::TLocation(
     , SessionCount(0)
     , ReadThreadPool(New<TThreadPool>(
         Bootstrap->GetConfig()->ReadThreadsPerLocation,
-        Sprintf("Read:%s", Id)))
+        Sprintf("Read:%s", ~Id)))
     , ReadInvoker(ReadThreadPool->GetInvoker())
     , WriteThreadPool(New<TThreadPool>(
         bootstrap->GetConfig()->WriteThreadsPerLocation,
-        Sprintf("Write:%s", Id)))
+        Sprintf("Write:%s", ~Id)))
     , WriteInvoker(WriteThreadPool->GetInvoker())
     , Logger(DataNodeLogger)
 {
