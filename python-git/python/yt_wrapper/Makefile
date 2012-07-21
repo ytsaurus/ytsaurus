@@ -2,8 +2,8 @@ all:
 	g++ -O2 -static-libgcc -L. -o tests/cpp_bin tests/bin.cpp
 
 clean:
-	rm -f *.pyc tests/*.pyc tests/cpp_bin
+	rm -rf *.pyc tests/*.pyc tests/cpp_bin tests/sandbox
 
 test: all
-	PYTHONPATH=. python tests/test.py
+	PYTHONPATH=.:${PYTHONPATH} python tests/test.py
 	./test_mapreduce.sh
