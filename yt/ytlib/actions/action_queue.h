@@ -15,6 +15,9 @@ typedef TIntrusivePtr<TActionQueue> TActionQueuePtr;
 class TFairShareActionQueue;
 typedef TIntrusivePtr<TFairShareActionQueue> TFairShareActionQueuePtr;
 
+class TPrioritizedActionQueue;
+typedef TIntrusivePtr<TPrioritizedActionQueue> TPrioritizedActionQueuePtr;
+
 class TThreadPool;
 typedef TIntrusivePtr<TThreadPool> TThreadPoolPtr;
 
