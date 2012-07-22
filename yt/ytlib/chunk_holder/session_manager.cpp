@@ -39,7 +39,7 @@ TSession::TSession(
     , Location(location)
     , WindowStart(0)
     , Size(0)
-    , WriteInvoker(Location->CreateWriteInvoker())
+    , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
     , Logger(DataNodeLogger)
 {
     YCHECK(bootstrap);

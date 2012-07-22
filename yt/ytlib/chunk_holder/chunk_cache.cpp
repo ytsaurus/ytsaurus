@@ -13,16 +13,12 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/fs.h>
-
 #include <ytlib/logging/tagged_logger.h>
-
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
-
 #include <ytlib/chunk_server/chunk_service_proxy.h>
-
 #include <ytlib/election/leader_channel.h>
 
 namespace NYT {
@@ -155,7 +151,7 @@ private:
             , ChunkId(chunkId)
             , SeedAddresses(seedAddresses)
             , Cookie(cookie)
-            , WriteInvoker(Owner->Location->CreateWriteInvoker())
+            , WriteInvoker(CreateSerializedInvoker(Owner->Location->GetWriteInvoker()))
             , Logger(DataNodeLogger)
         {
             Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));

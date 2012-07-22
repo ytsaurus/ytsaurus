@@ -91,7 +91,7 @@ public:
     IInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IInvokerPtr CreateWriteInvoker();
+    IInvokerPtr GetWriteInvoker();
 
 private:
     ELocationType Type;
@@ -103,9 +103,9 @@ private:
     i64 UsedSpace;
     int SessionCount;
 
-    TFairShareActionQueuePtr ReadQueue;
-    TPrioritizedActionQueuePtr WriteQueue;
-    i64 CurrentWritePriority;
+    TActionQueuePtr DataReadQueue;
+    TActionQueuePtr MetaReadQueue;
+    TActionQueuePtr WriteQueue;
 
     mutable NLog::TTaggedLogger Logger;
 };
