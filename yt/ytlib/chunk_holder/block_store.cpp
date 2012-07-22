@@ -128,7 +128,7 @@ public:
 
         chunk
             ->GetLocation()
-            ->GetReadInvoker()
+            ->GetDataReadInvoker()
             ->Invoke(BIND(
                 &TStoreImpl::DoReadBlock,
                 MakeStrong(this),
@@ -191,16 +191,20 @@ private:
             blockSize,
             PendingReadSize_);
 
-        auto timer = Profiler.TimingStart("/chunk_io/read_time");
+        LOG_DEBUG("Started reading block (BlockId: %s)", ~blockId.ToString());
 
         TSharedRef data;
         try {
-            data = reader->ReadBlock(blockId.BlockIndex);
+            PROFILE_TIMING ("/chunk_io/block_read_time") {
+                data = reader->ReadBlock(blockId.BlockIndex);
+            }
         } catch (const std::exception& ex) {
             LOG_FATAL("Error reading chunk block (BlockId: %s)\n%s",
                 ~blockId.ToString(),
                 ex.what());
         }
+
+        LOG_DEBUG("Finished reading block (BlockId: %s)", ~blockId.ToString());
 
         chunk->ReleaseReadLock();
         
@@ -223,11 +227,8 @@ private:
             Remove(blockId);
         }
 
-        Profiler.TimingStop(timer);
-        Profiler.Enqueue("/chunk_io/read_size", blockSize);
+        Profiler.Enqueue("/chunk_io/block_read_size", blockSize);
         Profiler.Increment(ReadThroughputCounter, blockSize);
-
-        LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
     }
 };
 

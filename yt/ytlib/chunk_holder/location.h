@@ -84,16 +84,13 @@ public:
     //! Checks whether to location has enough space to contain file of size #size
     bool HasEnoughSpace(i64 size) const;
 
-    //! Returns an invoker for read operations.
-    /*!
-     *  This invoker represents a pool. Requests may be served concurrently.
-     */
-    IInvokerPtr GetReadInvoker();
+    //! Returns an invoker for reading chunk data.
+    IInvokerPtr GetDataReadInvoker();
 
-    //! Returns an invoker for write operations.
-    /*!
-     *  This invoker represents a pool. Requests may be served concurrently.
-     */
+    //! Returns an invoker for reading chunk meta.
+    IInvokerPtr GetMetaReadInvoker();
+
+    //! Returns an invoker for writing chunks.
     IInvokerPtr GetWriteInvoker();
 
 private:
@@ -106,10 +103,9 @@ private:
     i64 UsedSpace;
     int SessionCount;
 
-    TThreadPoolPtr ReadThreadPool;
-    IInvokerPtr ReadInvoker;
-    TThreadPoolPtr WriteThreadPool;
-    IInvokerPtr WriteInvoker;
+    TActionQueuePtr DataReadQueue;
+    TActionQueuePtr MetaReadQueue;
+    TActionQueuePtr WriteQueue;
 
     mutable NLog::TTaggedLogger Logger;
 };

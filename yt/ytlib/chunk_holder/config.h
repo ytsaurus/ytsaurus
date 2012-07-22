@@ -122,12 +122,6 @@ struct TDataNodeConfig
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
 
-    //! Size of chunk reader pool.
-    int ReadThreadsPerLocation;
-
-    //! Size of chunk writer pool.
-    int WriteThreadsPerLocation;
-
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -170,10 +164,6 @@ struct TDataNodeConfig
             .DefaultNew();
         Register("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
-        Register("read_threads_per_location", ReadThreadsPerLocation)
-            .Default(2);
-        Register("write_threads_per_location", WriteThreadsPerLocation)
-            .Default(1);
     }
 };
 

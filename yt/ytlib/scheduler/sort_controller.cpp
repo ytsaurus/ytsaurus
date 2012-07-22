@@ -117,6 +117,8 @@ private:
     class TUnorderedMergeTask;
     typedef TIntrusivePtr<TUnorderedMergeTask> TUnorderedMergeTaskPtr;
 
+    // Partitions.
+
     struct TPartition
         : public TIntrinsicRefCounted
     {
@@ -152,7 +154,6 @@ private:
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
 
-    //! List of all partitions.
     std::vector<TPartitionPtr> Partitions;
 
     // Samples.

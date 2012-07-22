@@ -69,12 +69,19 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (HasMeta) {
+            const auto& meta = Meta;
+            guard.Release();
+
+            LOG_DEBUG("Meta cache hit (ChunkId: %s)", ~Id_.ToString());
+
             return MakeFuture(TGetMetaResult(
                 tags
-                ? FilterChunkMetaExtensions(Meta, *tags)
+                ? FilterChunkMetaExtensions(meta, *tags)
                 : Meta));
         }
     }
+
+    LOG_DEBUG("Meta cache miss (ChunkId: %s)", ~Id_.ToString());
 
     // Make a copy of tags list to pass it into the closure.
     auto tags_ = MakeNullable(tags);
@@ -103,21 +110,22 @@ TFuture<TError> TChunk::ReadMeta()
     auto this_ = MakeStrong(this);
     auto readerCache = Location_->GetBootstrap()->GetReaderCache();
 
-    LOG_DEBUG("Reading chunk meta (ChunkId: %s)", ~Id_.ToString());
-
-    auto timer = Profiler.TimingStart("/chunk_io/meta_read_time");
     return
         BIND([=] () mutable -> TError {
-            auto result = readerCache->GetReader(this_);
-            if (!result.IsOK()) {
-                this_->ReleaseReadLock();
-                LOG_WARNING("Error reading chunk meta (ChunkId: %s)\n%s",
-                    ~this_->Id_.ToString(),
-                    ~result.ToString());
-                return TError(result);
-            }
+            LOG_DEBUG("Started reading meta (ChunkId: %s)", ~Id_.ToString());
 
-            auto reader = result.Value();
+            NChunkClient::TFileReaderPtr reader;
+            PROFILE_TIMING ("/chunk_io/meta_read_time") {
+                auto result = readerCache->GetReader(this_);
+                if (!result.IsOK()) {
+                    this_->ReleaseReadLock();
+                    LOG_WARNING("Error reading chunk meta (ChunkId: %s)\n%s",
+                        ~this_->Id_.ToString(),
+                        ~result.ToString());
+                    return TError(result);
+                }
+                reader = result.Value();
+            }
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
@@ -128,14 +136,11 @@ TFuture<TError> TChunk::ReadMeta()
             }
 
             this_->ReleaseReadLock();
-
-            Profiler.TimingStop(timer);
-
-            LOG_DEBUG("Chunk meta is read (ChunkId: %s)", ~this_->Id_.ToString());
+            LOG_DEBUG("Finished reading meta (ChunkId: %s)", ~this_->Id_.ToString());
 
             return TError();
         })
-        .AsyncVia(Location_->GetReadInvoker())
+        .AsyncVia(Location_->GetMetaReadInvoker())
         .Run();
 }
 
