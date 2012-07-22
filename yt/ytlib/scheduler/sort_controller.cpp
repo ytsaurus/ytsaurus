@@ -117,7 +117,6 @@ private:
     class TUnorderedMergeTask;
     typedef TIntrusivePtr<TUnorderedMergeTask> TUnorderedMergeTaskPtr;
 
-    // Samples and partitions.
     struct TPartition
         : public TIntrinsicRefCounted
     {
@@ -153,15 +152,16 @@ private:
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
 
+    //! List of all partitions.
+    std::vector<TPartitionPtr> Partitions;
+
+    // Samples.
     TSamplesFetcherPtr SamplesFetcher;
     std::vector<const NTableClient::NProto::TKey*> SortedSamples;
 
     //! |PartitionCount - 1| separating keys.
     std::vector<NTableClient::NProto::TKey> PartitionKeys;
     
-    //! List of all partitions.
-    std::vector<TPartitionPtr> Partitions;
-
     //! Templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
     TJobSpec SortJobSpecTemplate;
