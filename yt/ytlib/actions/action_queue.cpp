@@ -46,7 +46,7 @@ public:
     static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
 
 protected:
-    virtual bool DequeueAndExecute()
+    virtual bool DequeueAndExecute() OVERRIDE
     {
         return QueueInvoker->DequeueAndExecute();
     }
@@ -139,7 +139,7 @@ private:
     std::vector<TQueue> Queues;
 
 
-    bool DequeueAndExecute()
+    virtual bool DequeueAndExecute() OVERRIDE
     {
         // Compute min excess over non-empty queues.
         i64 minExcess = std::numeric_limits<i64>::max();
@@ -266,6 +266,117 @@ void TThreadPool::Shutdown()
 IInvokerPtr TThreadPool::GetInvoker()
 {
     return Impl->GetInvoker();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TPrioritizedActionQueue::TImpl
+    : public TActionQueueBase
+{
+public:
+    TImpl(const Stroka& threadName)
+        : TActionQueueBase(threadName, true)
+        , CurrentSequenceNumber(0)
+    {
+        Start();
+    }
+
+    ~TImpl()
+    {
+        Shutdown();
+    }
+
+    void Shutdown()
+    {
+        TActionQueueBase::Shutdown();
+    }
+
+    void Enqueue(const TClosure& action, i64 priority)
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        TItem item;
+        item.Action = action;
+        item.Priority = priority;
+        item.SequenceNumber = CurrentSequenceNumber++;
+        Items.push_back(item);
+        std::push_heap(Items.begin(), Items.end());
+    }
+
+private:
+    struct TItem
+    {
+        TClosure Action;
+        i64 Priority;
+        i64 SequenceNumber;
+
+        bool operator < (const TItem& other) const
+        {
+            if (this->Priority < other.Priority)
+                return true;
+            if (this->Priority > other.Priority)
+                return false;
+            return this->SequenceNumber > other.SequenceNumber;
+        }
+    };
+
+    TSpinLock SpinLock;
+    std::vector<TItem> Items;
+    i64 CurrentSequenceNumber;
+
+    virtual bool DequeueAndExecute() OVERRIDE
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (Items.empty()) {
+            return false;
+        }
+
+        auto action = MoveRV(Items.front().Action);
+        std::pop_heap(Items.begin(), Items.end());
+        Items.pop_back();
+
+        guard.Release();
+
+        action.Run();
+
+        return true;
+    }
+};
+
+class TPrioritizedActionQueue::TInvoker
+    : public IInvoker
+{
+public:
+    TInvoker(TIntrusivePtr<TImpl> impl, i64 priority)
+        : Impl(impl)
+        , Priority(priority)
+    { }
+
+    virtual void Invoke(const TClosure& action) OVERRIDE
+    {
+        Impl->Enqueue(action, Priority);
+    }
+
+private:
+    TIntrusivePtr<TImpl> Impl;
+    i64 Priority;
+
+};
+
+TPrioritizedActionQueue::TPrioritizedActionQueue(const Stroka& threadName)
+    : Impl(New<TImpl>(threadName))
+{ }
+
+TPrioritizedActionQueue::~TPrioritizedActionQueue()
+{ }
+
+IInvokerPtr TPrioritizedActionQueue::CreateInvoker(i64 priority)
+{
+    return New<TInvoker>(Impl, priority);
+}
+
+void TPrioritizedActionQueue::Shutdown()
+{
+    return Impl->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

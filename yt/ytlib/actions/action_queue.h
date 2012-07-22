@@ -71,7 +71,7 @@ class TThreadPool
     : public TRefCounted
 {
 public:
-    explicit TThreadPool(int threadCount, const Stroka& threadName);
+    TThreadPool(int threadCount, const Stroka& threadName);
     virtual ~TThreadPool();
 
     void Shutdown();
@@ -79,6 +79,25 @@ public:
     IInvokerPtr GetInvoker();
 
 private:
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPrioritizedActionQueue
+{
+public:
+    explicit TPrioritizedActionQueue(const Stroka& threadName);
+    virtual ~TPrioritizedActionQueue();
+
+    void Shutdown();
+
+    IInvokerPtr CreateInvoker(i64 priority);
+
+private:
+    class TInvoker;
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
 
