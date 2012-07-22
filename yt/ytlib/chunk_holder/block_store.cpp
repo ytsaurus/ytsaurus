@@ -191,7 +191,9 @@ private:
             blockSize,
             PendingReadSize_);
 
-        LOG_DEBUG("Started reading block (BlockId: %s)", ~blockId.ToString());
+        LOG_DEBUG("Started reading block (LocationId: %s, BlockId: %s)",
+            ~chunk->GetLocation()->GetId(),
+            ~blockId.ToString());
 
         TSharedRef data;
         PROFILE_TIMING ("/chunk_io/block_read_time") {
@@ -204,7 +206,9 @@ private:
             }
         }
 
-        LOG_DEBUG("Finished reading block (BlockId: %s)", ~blockId.ToString());
+        LOG_DEBUG("Finished reading block (LocationId: %s, BlockId: %s)",
+            ~chunk->GetLocation()->GetId(),
+            ~blockId.ToString());
 
         chunk->ReleaseReadLock();
         

@@ -118,9 +118,9 @@ private:
     void OpenFile();
     void DoOpenFile();
 
-    TFuture<TVoid> DeleteFile(const TError& error);
-    TVoid DoDeleteFile(const TError& error);
-    TVoid OnFileDeleted(TVoid);
+    TFuture<TVoid> AbortWriter();
+    TVoid DoAbortWriter();
+    TVoid OnWriterAborted(TVoid);
 
     TFuture<TVoid> CloseFile(const NProto::TChunkMeta& chunkMeta);
     TVoid DoCloseFile(const NProto::TChunkMeta& chunkMeta);

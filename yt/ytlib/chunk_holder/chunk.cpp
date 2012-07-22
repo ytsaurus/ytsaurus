@@ -108,14 +108,15 @@ TFuture<TError> TChunk::ReadMeta()
     }
 
     auto this_ = MakeStrong(this);
-    auto readerCache = Location_->GetBootstrap()->GetReaderCache();
-
     return
         BIND([=] () mutable -> TError {
-            LOG_DEBUG("Started reading meta (ChunkId: %s)", ~Id_.ToString());
+            LOG_DEBUG("Started reading meta (LocationId: %s, ChunkId: %s)",
+                ~this_->Location_->GetId(),
+                ~this_->Id_.ToString());
 
             NChunkClient::TFileReaderPtr reader;
             PROFILE_TIMING ("/chunk_io/meta_read_time") {
+                auto readerCache = this_->Location_->GetBootstrap()->GetReaderCache();
                 auto result = readerCache->GetReader(this_);
                 if (!result.IsOK()) {
                     this_->ReleaseReadLock();
@@ -136,7 +137,9 @@ TFuture<TError> TChunk::ReadMeta()
             }
 
             this_->ReleaseReadLock();
-            LOG_DEBUG("Finished reading meta (ChunkId: %s)", ~this_->Id_.ToString());
+            LOG_DEBUG("Finished reading meta (LocationId: %s, ChunkId: %s)",
+                ~this_->Location_->GetId(),
+                ~this_->Id_.ToString());
 
             return TError();
         })

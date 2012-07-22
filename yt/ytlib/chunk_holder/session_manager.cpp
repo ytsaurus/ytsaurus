@@ -45,7 +45,9 @@ TSession::TSession(
     YCHECK(bootstrap);
     YCHECK(location);
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s",
+        ~Location->GetId(),
+        ~ChunkId.ToString()));
 
     Location->UpdateSessionCount(+1);
     FileName = Location->GetChunkFileName(ChunkId);
@@ -58,20 +60,25 @@ TSession::~TSession()
 
 void TSession::Start()
 {
+    LOG_DEBUG("Session started");
+
     WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }
 
 void TSession::DoOpenFile()
 {
+    LOG_DEBUG("Started opening chunk writer");
+    
     try {
         NFS::ForcePath(NFS::GetDirectoryName(FileName));
         Writer = New<TFileWriter>(FileName);
         Writer->Open();
     }
     catch (const std::exception& ex) {
-        LOG_FATAL("Error opening chunk file\n%s", ex.what());
+        LOG_FATAL("Error opening chunk writer\n%s", ex.what());
     }
-    LOG_DEBUG("Chunk file opened");
+
+    LOG_DEBUG("Finished opening chunk writer");
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)
@@ -266,6 +273,8 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
         }
     }
 
+    LOG_DEBUG("Session finished");
+
     return CloseFile(chunkMeta).Apply(
         BIND(&TSession::OnFileClosed, MakeStrong(this))
         .AsyncVia(Bootstrap->GetControlInvoker()));
@@ -273,31 +282,35 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 
 void TSession::Cancel(const TError& error)
 {
+    LOG_DEBUG("Session canceled\n%s", ~error.ToString());
+
     CloseLease();
-    DeleteFile(error)
-        .Apply(BIND(&TSession::OnFileDeleted, MakeStrong(this))
+    AbortWriter()
+        .Apply(BIND(&TSession::OnWriterAborted, MakeStrong(this))
         .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
-TFuture<TVoid> TSession::DeleteFile(const TError& error)
+TFuture<TVoid> TSession::AbortWriter()
 {
     return
-        BIND(&TSession::DoDeleteFile, MakeStrong(this), error)
+        BIND(&TSession::DoAbortWriter, MakeStrong(this))
         .AsyncVia(WriteInvoker)
         .Run();
 }
 
-TVoid TSession::DoDeleteFile(const TError& error)
+TVoid TSession::DoAbortWriter()
 {
+    LOG_DEBUG("Started aborting chunk writer");
+
     Writer->Abort();
     Writer.Reset();
 
-    LOG_DEBUG("Chunk file deleted\n%s", ~error.ToString());
+    LOG_DEBUG("Finished aborting chunk writer");
 
     return TVoid();
 }
 
-TVoid TSession::OnFileDeleted(TVoid)
+TVoid TSession::OnWriterAborted(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
     return TVoid();
@@ -313,13 +326,15 @@ TFuture<TVoid> TSession::CloseFile(const TChunkMeta& chunkMeta)
 
 TVoid TSession::DoCloseFile(const TChunkMeta& chunkMeta)
 {
+    LOG_DEBUG("Started closing chunk writer");
+
     try {
         Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
     } catch (const std::exception& ex) {
-        LOG_FATAL("Error closing chunk file\n%s", ex.what());
+        LOG_FATAL("Error closing chunk writer\n%s", ex.what());
     }
 
-    LOG_DEBUG("Chunk file closed");
+    LOG_DEBUG("Chunk writer closed");
 
     return TVoid();
 }
