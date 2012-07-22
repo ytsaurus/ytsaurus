@@ -447,9 +447,6 @@ TSessionPtr TSessionManager::StartSession(
     AtomicIncrement(SessionCount);
     YCHECK(SessionMap.insert(MakePair(chunkId, session)).second);
 
-    LOG_INFO("Session started (ChunkId: %s, Path: %s)",
-        ~chunkId.ToString(),
-        ~location->GetPath().Quote());
     return session;
 }
 
