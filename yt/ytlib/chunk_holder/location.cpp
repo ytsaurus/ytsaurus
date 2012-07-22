@@ -19,8 +19,25 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
+static const int IOQueueBucketCount = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void RemoveFile(const Stroka& fileName)
+{
+    if (!NFS::Remove(fileName)) {
+        LOG_FATAL("Error deleting file %s", ~fileName.Quote());
+    }
+}
+
+int GetIOBucket(const TChunkId& chunkId)
+{
+    return chunkId.Parts[0] % IOQueueBucketCount;
+}
+
+} // namespace
 
 TLocation::TLocation(
     ELocationType type,
@@ -34,9 +51,8 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
-    , DataReadQueue(New<TActionQueue>(Sprintf("DataRead:%s", ~Id)))
-    , MetaReadQueue(New<TActionQueue>(Sprintf("MetaRead:%s", ~Id)))
-    , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
+    , ReadQueue(New<TFairShareActionQueue>(IOQueueBucketCount * 2, Sprintf("Read:%s", ~Id)))
+    , WriteQueue(New<TFairShareActionQueue>(IOQueueBucketCount, Sprintf("Write:%s", ~Id)))
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
@@ -140,31 +156,20 @@ bool TLocation::HasEnoughSpace(i64 size) const
     return GetAvailableSpace() - size >= Config->HighWatermark;
 }
 
-IInvokerPtr TLocation::GetDataReadInvoker()
+IInvokerPtr TLocation::GetDataReadInvoker(const TChunkId& chunkId)
 {
-    return DataReadQueue->GetInvoker();
+    return ReadQueue->GetInvoker(GetIOBucket(chunkId));
 }
 
-IInvokerPtr TLocation::GetMetaReadInvoker()
+IInvokerPtr TLocation::GetMetaReadInvoker(const TChunkId& chunkId)
 {
-    return MetaReadQueue->GetInvoker();
+    return ReadQueue->GetInvoker(GetIOBucket(chunkId) + IOQueueBucketCount);
 }
 
-IInvokerPtr TLocation::GetWriteInvoker()
+IInvokerPtr TLocation::GetWriteInvoker(const TChunkId& chunkId)
 {
-    return WriteQueue->GetInvoker();
+    return WriteQueue->GetInvoker(GetIOBucket(chunkId));
 }
-
-namespace {
-
-void RemoveFile(const Stroka& fileName)
-{
-    if (!NFS::Remove(fileName)) {
-        LOG_FATAL("Error deleting file %s", ~fileName.Quote());
-    }
-}
-
-} // namespace
 
 std::vector<TChunkDescriptor> TLocation::Scan()
 {
@@ -235,7 +240,7 @@ void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
 
-    GetWriteInvoker()->Invoke(BIND([=] () {
+    GetWriteInvoker(id)->Invoke(BIND([=] () {
         // TODO: retry on failure
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
         RemoveFile(fileName);

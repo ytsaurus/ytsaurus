@@ -140,7 +140,7 @@ TFuture<TError> TChunk::ReadMeta()
 
             return TError();
         })
-        .AsyncVia(Location_->GetMetaReadInvoker())
+        .AsyncVia(Location_->GetMetaReadInvoker(Id_))
         .Run();
 }
 

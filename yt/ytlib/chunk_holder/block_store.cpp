@@ -128,7 +128,7 @@ public:
 
         chunk
             ->GetLocation()
-            ->GetDataReadInvoker()
+            ->GetDataReadInvoker(blockId.ChunkId)
             ->Invoke(BIND(
                 &TStoreImpl::DoReadBlock,
                 MakeStrong(this),
