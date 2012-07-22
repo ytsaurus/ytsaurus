@@ -173,7 +173,7 @@ struct TDataNodeConfig
         Register("read_threads_per_location", ReadThreadsPerLocation)
             .Default(2);
         Register("write_threads_per_location", WriteThreadsPerLocation)
-            .Default(2);
+            .Default(1);
     }
 };
 
