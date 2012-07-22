@@ -293,13 +293,17 @@ public:
 
     void Enqueue(const TClosure& action, i64 priority)
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        TItem item;
-        item.Action = action;
-        item.Priority = priority;
-        item.SequenceNumber = CurrentSequenceNumber++;
-        Items.push_back(item);
-        std::push_heap(Items.begin(), Items.end());
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            TItem item;
+            item.Action = action;
+            item.Priority = priority;
+            item.SequenceNumber = CurrentSequenceNumber++;
+            Items.push_back(item);
+            std::push_heap(Items.begin(), Items.end());
+        }
+
+        Signal();
     }
 
 private:
@@ -325,19 +329,18 @@ private:
 
     virtual bool DequeueAndExecute() OVERRIDE
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (Items.empty()) {
-            return false;
+        TClosure action;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (Items.empty()) {
+                return false;
+            }
+
+            action = MoveRV(Items.front().Action);
+            std::pop_heap(Items.begin(), Items.end());
+            Items.pop_back();
         }
-
-        auto action = MoveRV(Items.front().Action);
-        std::pop_heap(Items.begin(), Items.end());
-        Items.pop_back();
-
-        guard.Release();
-
         action.Run();
-
         return true;
     }
 };
