@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/errortrace.h>
+#include <ytlib/misc/crash_handler.h>
 #include <ytlib/bus/tcp_dispatcher.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
@@ -20,7 +20,7 @@
 #include <ytlib/misc/tclap_helpers.h>
 #include <tclap/CmdLine.h>
 
-#include <build.h>
+#include <yt/build.h>
 
 #include <util/system/sigset.h>
 
@@ -259,7 +259,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 int Main(int argc, const char* argv[])
 {
-    NYT::SetupErrorHandler();
+    NYT::InstallCrashSignalHandler();
 
 #ifdef _unix_
     sigset_t sigset;

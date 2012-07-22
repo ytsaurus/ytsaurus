@@ -57,6 +57,10 @@ target_link_libraries ( ytlib
   protobuf
 )
 
+if (HAVE_LIBUNWIND)
+  target_link_libraries( ytlib libunwind.a )
+endif()
+
 include_directories(
   ${CMAKE_SOURCE_DIR}
 

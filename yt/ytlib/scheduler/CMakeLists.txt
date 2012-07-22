@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/fifo_strategy.cpp
   ${BASE}/helpers.cpp
   ${BASE}/job.cpp
+  ${BASE}/job_resources.cpp
   ${BASE}/map_controller.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/merge_controller.cpp
@@ -19,7 +20,6 @@ set( SRCS
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_channel.cpp
   ${BASE}/sort_controller.cpp
-  ${BASE}/job_resources.cpp
 )
 set( HDRS
   ${BASE}/chunk_list_pool.h
@@ -29,6 +29,7 @@ set( HDRS
   ${BASE}/fifo_strategy.h
   ${BASE}/helpers.h
   ${BASE}/job.h
+  ${BASE}/job_resources.h
   ${BASE}/map_controller.h
   ${BASE}/master_connector.h
   ${BASE}/merge_controller.h
@@ -45,7 +46,6 @@ set( HDRS
   ${BASE}/scheduler_proxy.h
   ${BASE}/scheduler_strategy.h
   ${BASE}/sort_controller.h
-  ${BASE}/job_resources.h
 )
 
 list(APPEND YT_SOURCE_FILES

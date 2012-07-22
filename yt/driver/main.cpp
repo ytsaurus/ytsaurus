@@ -20,13 +20,13 @@
 
 #include <ytlib/exec_agent/config.h>
 
-#include <ytlib/misc/errortrace.h>
+#include <ytlib/misc/crash_handler.h>
 #include <ytlib/misc/thread.h>
 
 #include <util/stream/pipe.h>
 #include <util/system/sigset.h>
 
-#include <build.h>
+#include <yt/build.h>
 
 namespace NYT {
 
@@ -76,7 +76,7 @@ public:
 
     int Main(int argc, const char* argv[])
     {
-        NYT::SetupErrorHandler();
+        NYT::InstallCrashSignalHandler();
         NYT::NThread::SetCurrentThreadName("Driver");
 
         // Set handler for SIGPIPE.

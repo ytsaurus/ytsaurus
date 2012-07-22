@@ -1,0 +1,11 @@
+#pragma once
+
+#cmakedefine HAVE_CXXABI_H
+#cmakedefine HAVE_DLFCN_H
+#cmakedefine HAVE_EXECINFO_H
+#cmakedefine HAVE_LIBUNWIND_H
+#cmakedefine HAVE_SYS_UCONTEXT_H
+#cmakedefine HAVE_UCONTEXT_H
+#cmakedefine HAVE_UNWIND_H
+
+#cmakedefine PC_FROM_UCONTEXT @PC_FROM_UCONTEXT@

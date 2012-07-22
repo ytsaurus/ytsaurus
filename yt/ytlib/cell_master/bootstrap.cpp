@@ -48,7 +48,7 @@
 
 #include <ytlib/profiling/profiling_manager.h>
 
-#include <build.h>
+#include <yt/build.h>
 
 namespace NYT {
 namespace NCellMaster {

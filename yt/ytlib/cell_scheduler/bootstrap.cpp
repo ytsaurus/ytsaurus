@@ -34,7 +34,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
-#include <build.h>
+#include <yt/build.h>
 
 namespace NYT {
 namespace NCellScheduler {
