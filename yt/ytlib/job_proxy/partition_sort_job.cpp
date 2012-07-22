@@ -155,16 +155,20 @@ TJobResult TPartitionSortJob::Run()
                 }
 
                 input.Reset(rowPtrBuffer[rowIndex], std::numeric_limits<size_t>::max());
-                auto value = TValue::Load(&input);
-                while (!value.IsNull()) {
-                    i32 columnNameLength;
-                    ReadVarInt32(&input, &columnNameLength);
-                    YASSERT(columnNameLength > 0);
-                    row.push_back(std::make_pair(
-                        TStringBuf(input.Buf(), columnNameLength),
-                        value.ToStringBuf()));
+                while (true) {
+                    auto value = TValue::Load(&input);
+                    if (!value.IsNull()) {
+                        i32 columnNameLength;
+                        ReadVarInt32(&input, &columnNameLength);
+                        YASSERT(columnNameLength > 0);
+                        row.push_back(std::make_pair(
+                            TStringBuf(input.Buf(), columnNameLength),
+                            value.ToStringBuf()));
 
-                    input.Skip(columnNameLength);
+                        input.Skip(columnNameLength);
+                    } else {
+                        break;
+                    }
                 }
 
                 writer->WriteRowUnsafe(row, key);
