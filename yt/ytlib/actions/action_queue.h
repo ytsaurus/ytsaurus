@@ -90,6 +90,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPrioritizedActionQueue
+    : public TRefCounted
 {
 public:
     explicit TPrioritizedActionQueue(const Stroka& threadName);
