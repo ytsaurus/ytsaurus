@@ -1147,10 +1147,7 @@ private:
             "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
             "Partitions = {T: %d, C: %d}, "
             "PartitionJobs = {%s}, "
-            "PartitionChunks = {%s}, "
-            "PartitionWeight = {%s}, "
             "SortJobs = {%s}, "
-            "SortWeight = {%s}, "
             "SortedMergeJobs = {%s}, "
             "UnorderedMergeJobs = {%s}",
             // Jobs
@@ -1163,11 +1160,8 @@ private:
             CompletedPartitionCount,
             // PartitionJobs
             ~ToString(PartitionJobCounter),
-            ~ToString(PartitionTask->ChunkCounter()),
-            ~ToString(PartitionTask->WeightCounter()),
             // SortJobs
             ~ToString(SortJobCounter),
-            ~ToString(SortWeightCounter),
             // SortedMergeJobs
             ~ToString(SortedMergeJobCounter),
             // UnorderedMergeJobs
@@ -1182,10 +1176,7 @@ private:
                 .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap()
             .Item("partition_jobs").Do(BIND(&TProgressCounter::ToYson, &PartitionJobCounter))
-            .Item("partition_chunks").Do(BIND(&TProgressCounter::ToYson, &PartitionTask->ChunkCounter()))
-            .Item("partition_weight").Do(BIND(&TProgressCounter::ToYson, &PartitionTask->WeightCounter()))
-            .Item("partition_jobs").Do(BIND(&TProgressCounter::ToYson, &SortJobCounter))
-            .Item("sort_weight").Do(BIND(&TProgressCounter::ToYson, &SortWeightCounter))
+            .Item("sort_jobs").Do(BIND(&TProgressCounter::ToYson, &SortJobCounter))
             .Item("sorted_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &SortedMergeJobCounter))
             .Item("unordered_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &UnorderedMergeJobCounter));
     }

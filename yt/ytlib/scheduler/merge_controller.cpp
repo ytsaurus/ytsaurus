@@ -378,23 +378,12 @@ protected:
     virtual void LogProgress() OVERRIDE
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
-            "Chunks = {%s}, "
-            "Weight = {%s}",
+            "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}",
             TotalJobCount,
             RunningJobCount,
             CompletedJobCount,
             GetPendingJobCount(),
-            FailedJobCount,
-            ~ToString(ChunkCounter),
-            ~ToString(WeightCounter));
-    }
-
-    virtual void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &ChunkCounter))
-            .Item("weight").Do(BIND(&TProgressCounter::ToYson, &WeightCounter));
+            FailedJobCount);
     }
 
 
