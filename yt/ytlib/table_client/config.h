@@ -26,7 +26,7 @@ struct TChunkWriterConfig
 
     NChunkClient::TEncodingWriterConfigPtr EncodingWriter;
 
-    bool Strict;
+    bool AllowDuplicateColumnNames;
 
     TChunkWriterConfig()
     {
@@ -49,8 +49,8 @@ struct TChunkWriterConfig
         Register("encoding_writer", EncodingWriter)
             .DefaultNew();
         EncodingWriter->CodecId = ECodecId::Snappy;
-        Register("strict", Strict)
-            .Default(false);
+        Register("allow_duplicate_column_names", AllowDuplicateColumnNames)
+            .Default(true);
     }
 };
 
