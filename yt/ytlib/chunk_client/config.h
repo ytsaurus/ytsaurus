@@ -43,6 +43,9 @@ struct TRemoteReaderConfig
     //! If True then fetched blocks are cached by the node.
     bool EnableNodeCaching;
 
+    //! If True then the master may be asked for seeds.
+    bool AllowFetchingSeedsFromMaster;
+
     TRemoteReaderConfig()
     {
         Register("node_rpc_timeout", NodeRpcTimeout)
@@ -62,6 +65,8 @@ struct TRemoteReaderConfig
         Register("peer_expiration_timeout", PeerExpirationTimeout)
             .Default(TDuration::Seconds(300));
         Register("enable_node_caching", EnableNodeCaching)
+            .Default(true);
+        Register("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
             .Default(true);
     }
 };
