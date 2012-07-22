@@ -190,26 +190,24 @@ void TSession::PutBlock(
 
 TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
 {
-    LOG_DEBUG("Start writing chunk block %d",
-        blockIndex);
+    LOG_DEBUG("Started writing block (Index: %d)", blockIndex);
 
-    auto timer = Profiler.TimingStart("/chunk_io/write_time");
-
-    try {
-        if (!Writer->TryWriteBlock(block)) {
-            Sync(~Writer, &TFileWriter::GetReadyEvent);
-            YUNREACHABLE();
+    PROFILE_TIMING ("/chunk_io/block_write_time") {
+        try {
+            if (!Writer->TryWriteBlock(block)) {
+                Sync(~Writer, &TFileWriter::GetReadyEvent);
+                YUNREACHABLE();
+            }
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Error writing chunk block %d\n%s",
+                blockIndex,
+                ex.what());
         }
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error writing chunk block %d\n%s",
-            blockIndex,
-            ex.what());
     }
 
-    LOG_DEBUG("Chunk block %d written", blockIndex);
+    LOG_DEBUG("Finished writing block (Index: %d)", blockIndex);
 
-    Profiler.TimingStop(timer);
-    Profiler.Enqueue("/chunk_io/write_size", block.Size());
+    Profiler.Enqueue("/chunk_io/block_write_size", block.Size());
     Profiler.Increment(WriteThroughputCounter, block.Size());
 
     return TVoid();

@@ -194,14 +194,14 @@ private:
         LOG_DEBUG("Started reading block (BlockId: %s)", ~blockId.ToString());
 
         TSharedRef data;
-        try {
-            PROFILE_TIMING ("/chunk_io/block_read_time") {
+        PROFILE_TIMING ("/chunk_io/block_read_time") {
+            try {
                 data = reader->ReadBlock(blockId.BlockIndex);
+            } catch (const std::exception& ex) {
+                LOG_FATAL("Error reading chunk block (BlockId: %s)\n%s",
+                    ~blockId.ToString(),
+                    ex.what());
             }
-        } catch (const std::exception& ex) {
-            LOG_FATAL("Error reading chunk block (BlockId: %s)\n%s",
-                ~blockId.ToString(),
-                ex.what());
         }
 
         LOG_DEBUG("Finished reading block (BlockId: %s)", ~blockId.ToString());
