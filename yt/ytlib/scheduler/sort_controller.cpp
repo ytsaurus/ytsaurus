@@ -57,15 +57,6 @@ public:
         , TotalRowCount(0)
         , TotalValueCount(0)
         , CompletedPartitionCount(0)
-        , MaxSortJobCount(0)
-        , RunningSortJobCount(0)
-        , CompletedSortJobCount(0)
-        , TotalSortedMergeJobCount(0)
-        , RunningSortedMergeJobCount(0)
-        , CompletedSortedMergeJobCount(0)
-        , TotalUnorderedMergeJobCount(0)
-        , RunningUnorderedMergeJobCount(0)
-        , CompletedUnorderedMergeJobCount(0)
         , SamplesFetcher(New<TSamplesFetcher>(
             Config,
             Spec,
@@ -89,20 +80,14 @@ private:
     int SortStartThresholdCount;
     
     // Sort job counters.
-    int MaxSortJobCount;
-    int RunningSortJobCount;
-    int CompletedSortJobCount;
+    TProgressCounter SortJobCounter;
     TProgressCounter SortWeightCounter;
     
     // Sorted merge job counters.
-    int TotalSortedMergeJobCount;
-    int RunningSortedMergeJobCount;
-    int CompletedSortedMergeJobCount;
+    TProgressCounter SortedMergeJobCounter;
 
     // Unordered merge job counters.
-    int TotalUnorderedMergeJobCount;
-    int RunningUnorderedMergeJobCount;
-    int CompletedUnorderedMergeJobCount;
+    TProgressCounter UnorderedMergeJobCounter;
 
     // Forward declarations.
     class TPartitionTask;
@@ -319,12 +304,12 @@ private:
             // Compute jobs totals.
             FOREACH (auto partition, Controller->Partitions) {
                 if (partition->Megalomaniac) {
-                    ++Controller->TotalUnorderedMergeJobCount;
+                    Controller->UnorderedMergeJobCounter.Increment(1);
                 } else {
                     if (partition->SortTask->WeightCounter().GetTotal() > Controller->Spec->MaxWeightPerSortJob) {
                         // This is still an estimate: sort job may occasionally get more input that
                         // dictated by MaxWeightPerSortJob bound.
-                        ++Controller->TotalSortedMergeJobCount;
+                        Controller->SortedMergeJobCounter.Increment(1);
                     }
                 }
             }
@@ -529,7 +514,7 @@ private:
 
             YCHECK(!Partition->Megalomaniac);
 
-            ++Controller->RunningSortJobCount;
+            Controller->SortJobCounter.Start(1);
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
 
             // Increment output locality.
@@ -544,8 +529,7 @@ private:
         {
             TTask::OnJobCompleted(jip);
 
-            --Controller->RunningSortJobCount;
-            ++Controller->CompletedSortJobCount;
+            Controller->SortJobCounter.Completed(1);
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
             if (!Controller->IsSortedMergeNeeded(Partition)) {
@@ -567,7 +551,7 @@ private:
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
-            --Controller->RunningSortJobCount;
+            Controller->SortJobCounter.Failed(1);
             Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
 
             // Decrement output locality and purge zeros.
@@ -670,7 +654,7 @@ private:
         {
             YCHECK(!Partition->Megalomaniac);
 
-            ++Controller->RunningSortedMergeJobCount;
+            Controller->SortedMergeJobCounter.Start(1);
 
             TTask::OnJobStarted(jip);
         }
@@ -679,8 +663,7 @@ private:
         {
             TTask::OnJobCompleted(jip);
 
-            --Controller->RunningSortedMergeJobCount;
-            ++Controller->CompletedSortedMergeJobCount;
+            Controller->SortedMergeJobCounter.Completed(1);
 
             Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
 
@@ -690,7 +673,7 @@ private:
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
-            --Controller->RunningSortedMergeJobCount;
+            Controller->SortedMergeJobCounter.Failed(1);
 
             TTask::OnJobFailed(jip);
         }
@@ -780,7 +763,7 @@ private:
         {
             YCHECK(Partition->Megalomaniac);
 
-            ++Controller->RunningUnorderedMergeJobCount;
+            Controller->UnorderedMergeJobCounter.Start(1);
 
             TTask::OnJobStarted(jip);
         }
@@ -789,8 +772,7 @@ private:
         {
             TTask::OnJobCompleted(jip);
 
-            --Controller->RunningUnorderedMergeJobCount;
-            ++Controller->CompletedUnorderedMergeJobCount;
+            Controller->UnorderedMergeJobCounter.Completed(1);
 
             Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
 
@@ -801,7 +783,7 @@ private:
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
-            --Controller->RunningUnorderedMergeJobCount;
+            Controller->UnorderedMergeJobCounter.Failed(1);
 
             TTask::OnJobFailed(jip);
         }
@@ -1012,14 +994,14 @@ private:
         partition->SortTask->AddStripes(stripes);
 
         // A pretty accurate estimate.
-        MaxSortJobCount = GetJobCount(
+        SortJobCounter.Set(GetJobCount(
             partition->SortTask->WeightCounter().GetTotal(),
             Spec->MaxWeightPerSortJob,
             Spec->SortJobCount,
-            partition->SortTask->ChunkCounter().GetTotal());
+            partition->SortTask->ChunkCounter().GetTotal()));
 
         // Can be zero but better be pessimists.
-        TotalSortedMergeJobCount = 1;
+        SortedMergeJobCounter.Set(1);
 
         LOG_INFO("Sorting without partitioning");
 
@@ -1108,13 +1090,13 @@ private:
             PartitionTask->ChunkCounter().GetTotal()));
 
         // Some upper bound.
-        MaxSortJobCount =
+        SortJobCounter.Set(
             GetJobCount(
                 PartitionTask->WeightCounter().GetTotal(),
                 Spec->MaxWeightPerSortJob,
                 Null,
                 std::numeric_limits<int>::max()) +
-            Partitions.size();
+            Partitions.size());
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             static_cast<int>(Partitions.size()),
@@ -1136,7 +1118,7 @@ private:
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(
                 PartitionJobCounter.GetTotal() +
-                MaxSortJobCount +
+                SortJobCounter.GetTotal() +
                 Partitions.size() + // for merge jobs
                 Config->SpareChunkListCount);
 
@@ -1167,10 +1149,10 @@ private:
             "PartitionJobs = {%s}, "
             "PartitionChunks = {%s}, "
             "PartitionWeight = {%s}, "
-            "SortJobs = {M: %d, R: %d, C: %d}, "
+            "SortJobs = {%s}, "
             "SortWeight = {%s}, "
-            "SortedMergeJobs = {T: %d, R: %d, C: %d}, "
-            "UnorderedMergeJobs = {T: %d, R: %d, C: %d}",
+            "SortedMergeJobs = {%s}, "
+            "UnorderedMergeJobs = {%s}",
             // Jobs
             RunningJobCount,
             CompletedJobCount,
@@ -1184,18 +1166,12 @@ private:
             ~ToString(PartitionTask->ChunkCounter()),
             ~ToString(PartitionTask->WeightCounter()),
             // SortJobs
-            MaxSortJobCount,
-            RunningSortJobCount,
-            CompletedSortJobCount,
+            ~ToString(SortJobCounter),
             ~ToString(SortWeightCounter),
             // SortedMergeJobs
-            TotalSortedMergeJobCount,
-            RunningSortedMergeJobCount,
-            CompletedSortedMergeJobCount,
+            ~ToString(SortedMergeJobCounter),
             // UnorderedMergeJobs
-            TotalUnorderedMergeJobCount,
-            RunningUnorderedMergeJobCount,
-            CompletedUnorderedMergeJobCount);
+            ~ToString(UnorderedMergeJobCounter));
     }
 
     virtual void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
@@ -1208,22 +1184,10 @@ private:
             .Item("partition_jobs").Do(BIND(&TProgressCounter::ToYson, &PartitionJobCounter))
             .Item("partition_chunks").Do(BIND(&TProgressCounter::ToYson, &PartitionTask->ChunkCounter()))
             .Item("partition_weight").Do(BIND(&TProgressCounter::ToYson, &PartitionTask->WeightCounter()))
-            .Item("sort_jobs").BeginMap()
-                .Item("max").Scalar(MaxSortJobCount)
-                .Item("running").Scalar(RunningSortJobCount)
-                .Item("completed").Scalar(CompletedSortJobCount)
-            .EndMap()
+            .Item("partition_jobs").Do(BIND(&TProgressCounter::ToYson, &SortJobCounter))
             .Item("sort_weight").Do(BIND(&TProgressCounter::ToYson, &SortWeightCounter))
-            .Item("sorted_merge_jobs").BeginMap()
-                .Item("total").Scalar(TotalSortedMergeJobCount)
-                .Item("running").Scalar(RunningSortedMergeJobCount)
-                .Item("completed").Scalar(CompletedSortedMergeJobCount)
-            .EndMap()
-            .Item("unordered_merge_jobs").BeginMap()
-                .Item("total").Scalar(TotalUnorderedMergeJobCount)
-                .Item("running").Scalar(RunningUnorderedMergeJobCount)
-                .Item("completed").Scalar(CompletedUnorderedMergeJobCount)
-            .EndMap();
+            .Item("sorted_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &SortedMergeJobCounter))
+            .Item("unordered_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &UnorderedMergeJobCounter));
     }
 
 
