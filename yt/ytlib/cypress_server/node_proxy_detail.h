@@ -48,7 +48,7 @@ private:
     NTransactionServer::TTransaction* Transaction;
     std::vector<TNodeId> CreatedNodeIds;
 
-    ICypressNodeProxyPtr DoCreate(EObjectType type);
+    ICypressNodeProxyPtr DoCreate(NObjectServer::EObjectType type);
 
 };
 
@@ -187,7 +187,7 @@ protected:
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const
     {
-        return TVersionedObjectId(NodeId, NObjectServer::GetObjectId(Transaction));
+        return NObjectServer::TVersionedObjectId(NodeId, NObjectServer::GetObjectId(Transaction));
     }
 
 
@@ -397,7 +397,7 @@ protected:
 
             yhash_set<Stroka> attributes;
             FOREACH (const auto* transaction, transactions) {
-                TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                NObjectServer::TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     FOREACH (const auto& pair, userAttributes->Attributes()) {
@@ -424,7 +424,7 @@ protected:
             auto transactions = transactionManager->GetTransactionPath(Transaction);
 
             FOREACH (const auto* transaction, transactions) {
-                TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                NObjectServer::TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
@@ -467,7 +467,7 @@ protected:
 
             bool contains = false;
             FOREACH (const auto* transaction, transactions) {
-                TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                NObjectServer::TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
@@ -673,7 +673,7 @@ protected:
 
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create)
     {
-        auto type = EObjectType(request->type());
+        auto type = NObjectServer::EObjectType(request->type());
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
         auto cypressManager = this->Bootstrap->GetCypressManager();

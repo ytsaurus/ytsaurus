@@ -17,6 +17,7 @@ using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NYTree;
 using namespace NChunkServer;
+using namespace NObjectServer;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////

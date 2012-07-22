@@ -17,7 +17,7 @@ class TFileNode
 public:
     explicit TFileNode(const NCypressServer::TVersionedNodeId& id);
 
-    virtual NCypressServer::EObjectType GetObjectType() const;
+    virtual NObjectServer::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
     

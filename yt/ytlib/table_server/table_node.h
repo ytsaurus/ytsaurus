@@ -24,7 +24,7 @@ class TTableNode
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
 
-    virtual NCypressServer::EObjectType GetObjectType() const;
+    virtual NObjectServer::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

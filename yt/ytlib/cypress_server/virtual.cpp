@@ -12,6 +12,7 @@ namespace NCypressServer {
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NTransactionServer;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

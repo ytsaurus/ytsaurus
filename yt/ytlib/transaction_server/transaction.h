@@ -4,7 +4,7 @@
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
-#include <ytlib/cypress_client/id.h>
+#include <ytlib/cypress_client/public.h>
 #include <ytlib/cypress_server/public.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/object_server/object_detail.h>

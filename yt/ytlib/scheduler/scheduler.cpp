@@ -32,7 +32,6 @@
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/id.h>
 
 #include <ytlib/object_server/object_ypath_proxy.h>
 
