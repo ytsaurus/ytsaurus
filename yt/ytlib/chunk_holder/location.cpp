@@ -32,11 +32,6 @@ void RemoveFile(const Stroka& fileName)
     }
 }
 
-int GetIOBucket(const TChunkId& chunkId)
-{
-    return chunkId.Parts[0] % IOQueueBucketCount;
-}
-
 } // namespace
 
 TLocation::TLocation(
@@ -51,8 +46,9 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
-    , ReadQueue(New<TFairShareActionQueue>(IOQueueBucketCount * 2, Sprintf("Read:%s", ~Id)))
-    , WriteQueue(New<TFairShareActionQueue>(IOQueueBucketCount, Sprintf("Write:%s", ~Id)))
+    , ReadQueue(New<TFairShareActionQueue>(2, Sprintf("Read:%s", ~Id)))
+    , WriteQueue(New<TPrioritizedActionQueue>(Sprintf("Write:%s", ~Id)))
+    , CurrentWritePriority(0)
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
@@ -156,19 +152,19 @@ bool TLocation::HasEnoughSpace(i64 size) const
     return GetAvailableSpace() - size >= Config->HighWatermark;
 }
 
-IInvokerPtr TLocation::GetDataReadInvoker(const TChunkId& chunkId)
+IInvokerPtr TLocation::GetDataReadInvoker()
 {
-    return ReadQueue->GetInvoker(GetIOBucket(chunkId));
+    return ReadQueue->GetInvoker(0);
 }
 
-IInvokerPtr TLocation::GetMetaReadInvoker(const TChunkId& chunkId)
+IInvokerPtr TLocation::GetMetaReadInvoker()
 {
-    return ReadQueue->GetInvoker(GetIOBucket(chunkId) + IOQueueBucketCount);
+    return ReadQueue->GetInvoker(1);
 }
 
-IInvokerPtr TLocation::GetWriteInvoker(const TChunkId& chunkId)
+IInvokerPtr TLocation::CreateWriteInvoker()
 {
-    return WriteQueue->GetInvoker(GetIOBucket(chunkId));
+    return WriteQueue->CreateInvoker(CurrentWritePriority++);
 }
 
 std::vector<TChunkDescriptor> TLocation::Scan()
@@ -240,7 +236,7 @@ void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
 
-    GetWriteInvoker(id)->Invoke(BIND([=] () {
+    CreateWriteInvoker()->Invoke(BIND([=] () {
         // TODO: retry on failure
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
         RemoveFile(fileName);

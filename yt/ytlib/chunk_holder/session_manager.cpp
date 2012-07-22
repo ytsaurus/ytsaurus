@@ -39,7 +39,7 @@ TSession::TSession(
     , Location(location)
     , WindowStart(0)
     , Size(0)
-    , WriteInvoker(Location->GetWriteInvoker(ChunkId))
+    , WriteInvoker(Location->CreateWriteInvoker())
     , Logger(DataNodeLogger)
 {
     YCHECK(bootstrap);

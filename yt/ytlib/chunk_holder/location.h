@@ -85,13 +85,13 @@ public:
     bool HasEnoughSpace(i64 size) const;
 
     //! Returns an invoker for reading chunk data.
-    IInvokerPtr GetDataReadInvoker(const TChunkId& chunkId);
+    IInvokerPtr GetDataReadInvoker();
 
     //! Returns an invoker for reading chunk meta.
-    IInvokerPtr GetMetaReadInvoker(const TChunkId& chunkId);
+    IInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IInvokerPtr GetWriteInvoker(const TChunkId& chunkId);
+    IInvokerPtr CreateWriteInvoker();
 
 private:
     ELocationType Type;
@@ -104,7 +104,8 @@ private:
     int SessionCount;
 
     TFairShareActionQueuePtr ReadQueue;
-    TFairShareActionQueuePtr WriteQueue;
+    TPrioritizedActionQueuePtr WriteQueue;
+    i64 CurrentWritePriority;
 
     mutable NLog::TTaggedLogger Logger;
 };
