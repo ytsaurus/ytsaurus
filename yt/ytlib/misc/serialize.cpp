@@ -44,7 +44,7 @@ int ReadVarUInt64(TInputStream* input, ui64* value)
             ythrow yexception() << Sprintf("The data is too long to read ui64");
         }
         if (input->Read(&byte, 1) != 1) {
-            ythrow yexception() << Sprintf("The data is short to read ui64");
+            ythrow yexception() << Sprintf("The data is too short to read ui64");
         }
         result |= (static_cast<ui64> (byte & 0x7F)) << (7 * count);
         ++count;
@@ -59,7 +59,7 @@ int ReadVarInt32(TInputStream* input, i32* value)
     ui64 varInt;
     int bytesRead = ReadVarUInt64(input, &varInt);
     if (varInt > Max<ui32>()) {
-        ythrow yexception() << Sprintf("Value %" PRIx64 " is to large to parse as ui32", varInt);
+        ythrow yexception() << Sprintf("Value %" PRIx64 " is too large to read ui32", varInt);
     }
     *value = ZigZagDecode32(static_cast<ui32> (varInt));
     return bytesRead;
