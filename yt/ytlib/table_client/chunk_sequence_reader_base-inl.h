@@ -196,6 +196,9 @@ bool TChunkSequenceReaderBase<TReader>::OnItemFetched(TError error)
         return false;
 
     ++ItemIndex_;
+    if (State.HasRunningOperation())
+        State.FinishOperation();
+
     return true;
 }
 
