@@ -47,7 +47,7 @@ int ReadVarUInt64(TInputStream* input, ui64* value)
             LOG_FATAL("The data is too long to read ui64");
         }
         if (input->Read(&byte, 1) != 1) {
-            LOG_FATAL("The data is short to read ui64");
+            LOG_FATAL("The data is too short to read ui64");
         }
         result |= (static_cast<ui64> (byte & 0x7F)) << (7 * count);
         ++count;
@@ -62,7 +62,7 @@ int ReadVarInt32(TInputStream* input, i32* value)
     ui64 varInt;
     int bytesRead = ReadVarUInt64(input, &varInt);
     if (varInt > Max<ui32>()) {
-        LOG_FATAL("Value %" PRIx64 " is to large to parse as ui32", varInt);
+        LOG_FATAL("Value %" PRIx64 " is too large to read ui32", varInt);
     }
     *value = ZigZagDecode32(static_cast<ui32> (varInt));
     return bytesRead;
@@ -82,11 +82,11 @@ TSharedRef PackRefs(const std::vector<TSharedRef>& refs)
 {
     i64 size = 0;
 
-    // Number of bytes to hold vector size
+    // Number of bytes to hold vector size.
     size += sizeof(i32);
-    // Number of bytes to hold ref sizes
+    // Number of bytes to hold ref sizes.
     size += sizeof(i64) * refs.size();
-    // Number of bytes to hold refs
+    // Number of bytes to hold refs.
     FOREACH (const auto& ref, refs) {
         size += ref.Size();
     }
