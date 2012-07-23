@@ -1,11 +1,13 @@
-from common import add_quotes
+from common import add_quotes, bool_to_string
 from http import make_request
 
 import os
 from itertools import imap, izip
 
-def get(path, check_errors=True):
-    return make_request("GET", "get", dict(path=path), check_errors=check_errors)
+def get(path, with_attributes=False, check_errors=True):
+    return make_request("GET", "get",
+                        dict(path=path, with_attributes=bool_to_string(with_attributes)),
+                        check_errors=check_errors)
 
 def set(path, value):
     return make_request("PUT", "set", dict(path=path), value)
