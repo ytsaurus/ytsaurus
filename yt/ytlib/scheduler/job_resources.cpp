@@ -227,7 +227,7 @@ TNodeResources GetPartitionSortJobResources(
         GetIOMemorySize(ioConfig, 0, 1) +
         dataWeight +
         (i64) 16 * spec->KeyColumns.size() * rowCount +
-        (i64) 8 * rowCount +
+        (i64) 12 * rowCount +
         FootprintMemorySize);
     return result;
 }
