@@ -199,12 +199,17 @@ tc "blockClosed name='Unit Tests'"
 
 tc "blockOpened name='Integration Tests'"
 
+# TODO(ignat): add correct installation for package "python-requests (>=0.13.1)"
+# Unfortunetly python-requests of proper version is absent in debian repository.
+# So I need to use easy_install.
+# Now it is installed to teamcity manually.
+
 # Prepare packages for tests
-for package in "python-simplejson" "python-requests=0.13.1"; do
-    #dpkg -s $package
-    #if [ "$?" != "0" ]; then
-    sudo apt-get install -y $package
-    #fi
+for package in "python-simplejson"; do
+    dpkg -s $package
+    if [ "$?" != "0" ]; then
+        sudo apt-get install -y $package
+    fi
 done
 
 ulimit -c unlimited

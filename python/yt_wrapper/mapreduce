@@ -51,6 +51,8 @@ PREFIX = "//statbox/"
 SPECIAL_SYMBOLS = "*\"=:; "
 
 def normalize(name):
+    require(name.find("\\") != -1, YtError("Using \\ in table names is forbidden"))
+
     for sym in SPECIAL_SYMBOLS:
         name.replace(sym, "\\" + sym)
     return '"%s"' % name
