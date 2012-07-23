@@ -34,7 +34,6 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
-
     Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
     LOG_DEBUG("Initializing partition chunk reader");
 
@@ -137,9 +136,6 @@ bool TPartitionChunkReader::NextRow()
 
 void TPartitionChunkReader::NextColumn()
 {
-    if (Value.IsNull())
-        return;
-
     Value = TValue::Load(&DataBuffer);
     if (!Value.IsNull()) {
         i32 columnNameLength;
