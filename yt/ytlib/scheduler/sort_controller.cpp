@@ -449,8 +449,7 @@ private:
         {
             i64 rowCount = Controller->GetRowCountEstimate(dataWeight);
             i64 valueCount = Controller->GetValueCountEstimate(dataWeight);
-            // TODO(babenko): remove "true ||" once partition sort is ready
-            if (true || Controller->Partitions.size() == 1) {
+            if (Controller->Partitions.size() == 1) {
                 return GetSimpleSortJobResources(
                     Controller->Config->SortJobIO,
                     Controller->Spec,
