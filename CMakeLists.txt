@@ -76,6 +76,8 @@ include(LocalFunctions)
 include(LocalConfiguration)
 include(PCH)
 
+include(cotire)
+
 ################################################################################
 # Setup targets.
 
