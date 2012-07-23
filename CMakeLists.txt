@@ -76,6 +76,9 @@ include(LocalFunctions)
 include(LocalConfiguration)
 include(PCH)
 
+# TODO(sandello): We all have to migrate to a newer CMake aforehead.
+# include(cotire)
+
 ################################################################################
 # Setup targets.
 
