@@ -4,6 +4,9 @@ import os
 import sys
 import subprocess
 
+
+import threading
+
 ###########################################################################
 
 class YTError(Exception):
@@ -14,8 +17,26 @@ class YTError(Exception):
 
 ###########################################################################
 
+
+debug_info = {}
+timeout = 60
+shared_output = None
+
+def communicate_with_process(process, data):
+    global shared_output
+    shared_output = process.communicate(data)
+
 def send_data(process, data=None):
-    stdout, stderr = process.communicate(data)
+    t = threading.Thread(target = communicate_with_process, args=[process, data])
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        message = 'FAIL: "{0}" --- wasn\'t finished after {1} seconds '.format(debug_info[process.pid], timeout)
+        print message
+        assert False, message
+
+    stdout, stderr = shared_output
+
     if process.returncode != 0:
         print '!process exited with returncode:', process.returncode
         # add '!' before each line in stderr output
@@ -48,13 +69,18 @@ def quote(s):
 
 def run_command(name, *args, **kw):
     all_args = [name] + convert_to_yt_args(*args, **kw)
-    print 'yt ' + ' '.join(quote(s) for s in all_args)
+    debug_string =  'yt ' + ' '.join(quote(s) for s in all_args)
+    print debug_string
 
     process = subprocess.Popen(['yt'] + all_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE)
+
+    debug_info[process.pid] = debug_string
     return process    
+
+
 
 
 ###########################################################################
