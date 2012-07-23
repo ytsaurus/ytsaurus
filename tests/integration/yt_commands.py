@@ -179,10 +179,10 @@ def write(path, value, **kw):
 # Helpers:
 
 def table2py(yson):
-    return yson_lib.parser.parse_list_fragment(yson)
+    return yson_lib.yson_parser.parse_list_fragment(yson)
 
 def yson2py(yson):
-    return yson_lib.parser.parse_string(yson)
+    return yson_lib.yson_parser.parse_string(yson)
 
 def py2yson(py):
     return yson_lib.yson.dumps(py, indent='')
