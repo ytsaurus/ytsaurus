@@ -84,6 +84,8 @@ TJobResult TPartitionSortJob::Run()
             keyBuffer.reserve(Reader->GetRowCount() * keyColumnCount);
             rowPtrBuffer.reserve(Reader->GetRowCount());
             rowIndexBuffer.reserve(Reader->GetRowCount());
+
+            LOG_INFO("Estimated row count: %d", Reader->GetRowCount());
         }
 
         PROFILE_TIMING_CHECKPOINT("init");
@@ -110,6 +112,8 @@ TJobResult TPartitionSortJob::Run()
                     Sync(~Reader, &TPartitionChunkSequenceReader::GetReadyEvent);
                 }
             }
+
+            LOG_INFO("Read row count: %d", static_cast<int>(rowIndexBuffer.size()));
         }
         PROFILE_TIMING_CHECKPOINT("read");
 
@@ -143,7 +147,9 @@ TJobResult TPartitionSortJob::Run()
             TMemoryInput input;
             TRow row;
             TNonOwningKey key(keyColumnCount);
-            for (size_t progressIndex = 0; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
+
+            size_t progressIndex = 0;
+            for (; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
                 row.clear();
                 key.Clear();
 
@@ -179,6 +185,8 @@ TJobResult TPartitionSortJob::Run()
             }
 
             writer->Close();
+
+            LOG_INFO("Written row count: %d", static_cast<int>(progressIndex));
         }
 
         PROFILE_TIMING_CHECKPOINT("write");
