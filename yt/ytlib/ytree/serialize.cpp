@@ -31,34 +31,44 @@ EYsonType GetYsonType(const TYsonProducer& producer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// i64
-void Serialize(i64 value, IYsonConsumer* consumer)
+void Serialize(short value, IYsonConsumer* consumer)
 {
-    consumer->OnIntegerScalar(value);
+    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-// ui64
-void Serialize(ui64 value, IYsonConsumer* consumer)
+void Serialize(unsigned short value, IYsonConsumer* consumer)
 {
-    consumer->OnIntegerScalar(value);
+    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-// i32
-void Serialize(i32 value, IYsonConsumer* consumer)
+void Serialize(int value, IYsonConsumer* consumer)
 {
-    consumer->OnIntegerScalar(value);
+    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-// ui32
-void Serialize(ui32 value, IYsonConsumer* consumer)
+void Serialize(unsigned int value, IYsonConsumer* consumer)
 {
-    consumer->OnIntegerScalar(value);
+    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-// ui16
-void Serialize(ui16 value, IYsonConsumer* consumer)
+void Serialize(long value, IYsonConsumer* consumer)
 {
-    consumer->OnIntegerScalar(value);
+    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
+}
+
+void Serialize(unsigned long value, IYsonConsumer* consumer)
+{
+    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
+}
+
+void Serialize(long long value, IYsonConsumer* consumer)
+{
+    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
+}
+
+void Serialize(unsigned long long value, IYsonConsumer* consumer)
+{
+    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
 // double
@@ -132,7 +142,13 @@ void Serialize(INode& value, IYsonConsumer* consumer)
 // i64
 void Deserialize(i64& value, INodePtr node)
 {
-    value = node->AsInteger()->GetValue();
+    value = CheckedStaticCast<i64>(node->AsInteger()->GetValue());
+}
+
+// ui64
+void Deserialize(ui64& value, INodePtr node)
+{
+    value = CheckedStaticCast<ui64>(node->AsInteger()->GetValue());
 }
 
 // i32
@@ -145,6 +161,12 @@ void Deserialize(i32& value, INodePtr node)
 void Deserialize(ui32& value, INodePtr node)
 {
     value = CheckedStaticCast<ui32>(node->AsInteger()->GetValue());
+}
+
+// i16
+void Deserialize(i16& value, INodePtr node)
+{
+    value = CheckedStaticCast<i16>(node->AsInteger()->GetValue());
 }
 
 // ui16

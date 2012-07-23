@@ -52,20 +52,14 @@ void Serialize(T* value, IYsonConsumer* consumer);
 template <class T>
 void Serialize(const TIntrusivePtr<T>& value, IYsonConsumer* consumer);
 
-// size_t
-void Serialize(size_t value, IYsonConsumer* consumer);
-
-// i64
-void Serialize(i64 value, IYsonConsumer* consumer);
-
-// i32
-void Serialize(i32 value, IYsonConsumer* consumer);
-
-// ui32
-void Serialize(ui32 value, IYsonConsumer* consumer);
-
-// ui16
-void Serialize(ui16 value, IYsonConsumer* consumer);
+void Serialize(short value, IYsonConsumer* consumer);
+void Serialize(unsigned short value, IYsonConsumer* consumer);
+void Serialize(int value, IYsonConsumer* consumer);
+void Serialize(unsigned int value, IYsonConsumer* consumer);
+void Serialize(long value, IYsonConsumer* consumer);
+void Serialize(unsigned long value, IYsonConsumer* consumer);
+void Serialize(long long value, IYsonConsumer* consumer);
+void Serialize(unsigned long long value, IYsonConsumer* consumer);
 
 // double
 void Serialize(double value, IYsonConsumer* consumer);
@@ -138,11 +132,17 @@ void Deserialize(TAutoPtr<T>& value, INodePtr node);
 // i64
 void Deserialize(i64& value, INodePtr node);
 
+// ui64
+void Deserialize(ui64& value, INodePtr node);
+
 // i32
 void Deserialize(i32& value, INodePtr node);
 
 // ui32
 void Deserialize(ui32& value, INodePtr node);
+
+// i16
+void Deserialize(i16& value, INodePtr node);
 
 // ui16
 void Deserialize(ui16& value, INodePtr node);
