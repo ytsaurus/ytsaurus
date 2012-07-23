@@ -39,6 +39,8 @@ using namespace NChunkHolder::NProto;
 static NLog::TLogger& Logger(OperationLogger);
 static NProfiling::TProfiler Profiler("/operations/sort");
 
+static const int PriorityClassMultiplier = 1000000;
+
 ////////////////////////////////////////////////////////////////////
 
 class TSortController
@@ -175,7 +177,7 @@ private:
 
         virtual int GetPriority() const OVERRIDE
         {
-            return 2;
+            return PriorityClassMultiplier * 2;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
@@ -364,7 +366,7 @@ private:
 
         virtual int GetPriority() const OVERRIDE
         {
-            return 1;
+            return Partition->Index;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
@@ -603,7 +605,7 @@ private:
 
         virtual int GetPriority() const OVERRIDE
         {
-            return 0;
+            return PriorityClassMultiplier + Partition->Index;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
@@ -704,7 +706,7 @@ private:
 
         virtual int GetPriority() const OVERRIDE
         {
-            return 0;
+            return PriorityClassMultiplier + Partition->Index;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
