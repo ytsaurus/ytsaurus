@@ -1,6 +1,7 @@
 #pragma once
 
-#include "master_discovery.h"
+// TODO: FixMe
+#include <ytlib/meta_state/public.h>
 
 #include <ytlib/rpc/public.h>
 
@@ -10,7 +11,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel that takes care of choosing leader among the peers.
-NRpc::IChannelPtr CreateLeaderChannel(TMasterDiscovery::TConfigPtr config);
+NRpc::IChannelPtr CreateLeaderChannel(NMetaState::TMasterDiscoveryConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

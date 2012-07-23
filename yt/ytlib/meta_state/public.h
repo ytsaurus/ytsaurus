@@ -73,6 +73,9 @@ typedef TIntrusivePtr<TSnapshotStoreConfig> TSnapshotStoreConfigPtr;
 struct TPersistentStateManagerConfig;
 typedef TIntrusivePtr<TPersistentStateManagerConfig> TPersistentStateManagerConfigPtr;
 
+struct TMasterDiscoveryConfig;
+typedef TIntrusivePtr<TMasterDiscoveryConfig> TMasterDiscoveryConfigPtr;
+
 class TRecovery;
 typedef TIntrusivePtr<TRecovery> TRecoveryPtr;
 
@@ -109,6 +112,9 @@ typedef TIntrusivePtr<TChangeLogCache> TChangeLogCachePtr;
 
 class TSnapshotStore;
 typedef TIntrusivePtr<TSnapshotStore> TSnapshotStorePtr;
+
+class TMasterDiscovery;
+typedef TIntrusivePtr<TMasterDiscovery> TMasterDiscoveryPtr;
 
 DECLARE_ENUM(EPeerStatus,
     (Stopped)

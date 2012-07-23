@@ -14,6 +14,8 @@
 
 #include <ytlib/election/leader_channel.h>
 
+#include <ytlib/meta_state/config.h>
+
 #include <ytlib/orchid/orchid_service.h>
 
 #include <ytlib/monitoring/monitoring_manager.h>
@@ -39,15 +41,16 @@
 namespace NYT {
 namespace NCellScheduler {
 
-using namespace NRpc;
 using namespace NBus;
-using namespace NYTree;
+using namespace NElection;
 using namespace NMonitoring;
+using namespace NObjectServer;
 using namespace NOrchid;
 using namespace NProfiling;
-using namespace NObjectServer;
+using namespace NRpc;
 using namespace NScheduler;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,6 +7,7 @@
 #include "change_log_cache.h"
 #include "follower_tracker.h"
 
+#include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>

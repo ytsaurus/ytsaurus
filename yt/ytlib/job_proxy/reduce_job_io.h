@@ -14,7 +14,7 @@ class TReduceJobIO
 public:
     TReduceJobIO(
         TJobIOConfigPtr config,
-        NElection::TMasterDiscovery::TConfigPtr mastersConfig,
+        NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);
 
     TAutoPtr<NTableClient::TTableProducer> CreateTableInput(

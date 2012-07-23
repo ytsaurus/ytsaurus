@@ -121,3 +121,15 @@ message TRspLookupSnapshot
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQuorum
+{ }
+
+message TRspGetQuorum
+{
+    required bytes leader_address = 1;
+    repeated bytes follower_addresses = 2;
+    required NYT.NProto.TGuid epoch = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

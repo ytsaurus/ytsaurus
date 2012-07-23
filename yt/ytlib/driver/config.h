@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/election/master_discovery.h>
+#include <ytlib/meta_state/config.h>
 //#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/config.h>
 #include <ytlib/file_client/config.h>
@@ -17,7 +17,7 @@ namespace NDriver {
 struct TDriverConfig
     : public TYsonSerializable
 {
-    NElection::TMasterDiscovery::TConfigPtr Masters;
+    NMetaState::TMasterDiscoveryConfigPtr Masters;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;
     NFileClient::TFileWriterConfigPtr FileWriter;

@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "leader_channel.h"
 
+#include <ytlib/meta_state/config.h>
+#include <ytlib/meta_state/master_discovery.h>
+
 #include <ytlib/rpc/roaming_channel.h>
 #include <ytlib/rpc/bus_channel.h>
 
@@ -18,8 +21,8 @@ using namespace NBus;
 namespace {
 
 TValueOrError<IChannelPtr> OnLeaderFound(  
-    TMasterDiscovery::TConfigPtr config,
-    TMasterDiscovery::TResult result)
+    NMetaState::TMasterDiscoveryConfigPtr config,
+    NMetaState::TMasterDiscovery::TResult result)
 {
     if (result.Address) { 
         return TError("Unable to determine the leader");
@@ -34,9 +37,9 @@ TValueOrError<IChannelPtr> OnLeaderFound(
 
 } // namespace
 
-IChannelPtr CreateLeaderChannel(TMasterDiscovery::TConfigPtr config)
+IChannelPtr CreateLeaderChannel(NMetaState::TMasterDiscoveryConfigPtr config)
 {
-    auto masterDiscovery = New<TMasterDiscovery>(config);
+    auto masterDiscovery = New<NMetaState::TMasterDiscovery>(config);
     return CreateRoamingChannel(
         config->RpcTimeout,
         BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {

@@ -113,6 +113,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuorum));
 
         ChangeLogCache = New<TChangeLogCache>(Config->ChangeLogs);
 
@@ -791,6 +792,34 @@ public:
         context->SetResponseInfo("SnapshotId: %d", snapshotId);
         context->Reply();
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetQuorum)
+    {
+        UNUSED(request);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        context->SetRequestInfo("");
+
+        if (GetControlStatus() != EPeerStatus::Leading) {
+            ythrow TServiceException(EErrorCode::InvalidStatus) <<
+                Sprintf("Cannot answer quorum queries while in %s", ~GetControlStatus().ToString());
+        }
+
+        auto tracker = FollowerTracker;
+        YASSERT(tracker);
+
+        response->set_leader_address(CellManager->GetSelfAddress());
+        for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+            if (tracker->IsFollowerActive(id)) {
+                CellManager->GetPeerAddress(id);
+            }
+        }
+
+        *response->mutable_epoch() = DecoratedState->GetEpoch().ToProto();
+
+        context->Reply();
+    }
+
     // End of RPC methods
 
 

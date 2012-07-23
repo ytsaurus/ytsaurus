@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "master_discovery.h"
+#include "config.h"
+#include "private.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -11,19 +13,19 @@
 #include <util/random/random.h>
 
 namespace NYT {
-namespace NElection {
+namespace NMetaState {
 
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ElectionLogger;
-static NProfiling::TProfiler Profiler("/election/master_discovery");
+static NLog::TLogger& Logger = MetaStateLogger;
+static NProfiling::TProfiler Profiler("/meta_state/master_discovery");
 static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterDiscovery::TMasterDiscovery(TConfigPtr config)
+TMasterDiscovery::TMasterDiscovery(TMasterDiscoveryConfigPtr config)
     : Config(config)
 { }
 
@@ -153,5 +155,5 @@ void TMasterDiscovery::OnComplete(TPromise<TProxy::TRspGetQuorumPtr> promise)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
+} // namespace NMetaState
 } // namespace NYT

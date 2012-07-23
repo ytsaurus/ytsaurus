@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/election/master_discovery.h>
+#include <ytlib/meta_state/public.h>
 #include <ytlib/table_client/public.h>
 #include <ytlib/scheduler/job.pb.h>
 
@@ -18,7 +18,7 @@ class TUserJobIO
 public:
     TUserJobIO(
         TJobIOConfigPtr config,
-        NElection::TMasterDiscovery::TConfigPtr mastersConfig,
+        NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);
 
     virtual ~TUserJobIO()

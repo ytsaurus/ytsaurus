@@ -24,7 +24,7 @@ using namespace NChunkServer;
 
 TReduceJobIO::TReduceJobIO(
     TJobIOConfigPtr config,
-    NElection::TMasterDiscovery::TConfigPtr mastersConfig,
+    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
     : TUserJobIO(config, mastersConfig, jobSpec)
 { }

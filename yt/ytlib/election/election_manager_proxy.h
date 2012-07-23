@@ -33,7 +33,6 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower);
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus);
-    DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetQuorum);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,8 @@
 #include "reduce_job_io.h"
 #include "stderr_output.h"
 
+#include <ytlib/meta_state/config.h>
+
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
@@ -28,7 +30,7 @@ using namespace NChunkServer;
 
 TUserJobIO::TUserJobIO(
     TJobIOConfigPtr config, 
-    NElection::TMasterDiscovery::TConfigPtr mastersConfig,
+    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
     : Config(config)
     , MasterChannel(CreateLeaderChannel(mastersConfig))
