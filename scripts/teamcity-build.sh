@@ -224,7 +224,7 @@ run_python_test()
 
     cd $dir
     PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
-    PATH="$WORKING_DIRECTORY/bin:$PATH" \
+    PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
         py.test \
             -rx -v \
             --timeout 300 \
