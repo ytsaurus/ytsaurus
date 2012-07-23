@@ -276,6 +276,13 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
     print " " * 3, "Enqueued a worker task"
 
 def migrate_table_inner(from_path, to_path, migrate_from, migrate_to):
+    chunk_count = ask_yt(migrate_from, "get", ypath_join(from_path) + "/@chunk_count")
+    try:
+        chunk_count = int(chunk_count)
+        chunk_opts = [ "--opt", "/spec/job_count=100" ] if chunk_count >= 100 else []
+    except:
+        chunk_opts = []
+
     st = time.time()
     ask_yt(migrate_from, "map",
         "--file", OPTS[migrate_from]["migrator_binary"],
@@ -285,7 +292,7 @@ def migrate_table_inner(from_path, to_path, migrate_from, migrate_to):
             "./migrator_binary",
             "./migrator_config",
             shell_quote(ypath_join(to_path))),
-        "--opt", "/spec/job_count=100",
+        *chunk_opts,
         stdout=sys.stdout, stderr=sys.stdout)
     dt = time.time() - st
 
