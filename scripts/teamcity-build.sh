@@ -209,15 +209,17 @@ fi
 
 ulimit -c unlimited
 
-cd $CHECKOUT_DIRECTORY/tests/integration
-PYTHONPATH=$CHECKOUT_DIRECTORY/python \
-PATH=$WORKING_DIRECTORY/bin:$PATH \
-    py.test \
-        -rx -v \
-        --timeout 300 \
-        --junitxml=$WORKING_DIRECTORY/test_integration.xml
-b=$?
-a=$((a+b))
+for DIR in "$CHECKOUT_DIRECTORY/tests/integration" "$CHECKOUT_DIRECTORY/python/yt_wrapper" "$CHECKOUT_DIRECTORY/python/yson"; do
+    cd $DIR
+    PYTHONPATH=$CHECKOUT_DIRECTORY/python \
+    PATH=$WORKING_DIRECTORY/bin:$PATH \
+        py.test \
+            -rx -v \
+            --timeout 300 \
+            --junitxml=$WORKING_DIRECTORY/test_integration.xml
+    b=$?
+    a=$((a+b))
+done
 
 tc "blockClosed name='Integration Tests'"
 
