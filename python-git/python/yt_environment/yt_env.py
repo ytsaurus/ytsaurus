@@ -53,7 +53,8 @@ class YTEnv(unittest.TestCase):
     def modify_scheduler_config(self, config):
         pass
 
-    def set_environment(self, path_to_run, pids_filename, ports=None, logging_level=logging.WARNING):
+    def set_environment(self, path_to_run, pids_filename, ports=None, supress_yt_output=False):
+        self.supress_yt_output = supress_yt_output
         self.path_to_run = os.path.abspath(path_to_run)
         if os.path.exists(self.path_to_run):
             shutil.rmtree(self.path_to_run)
@@ -79,6 +80,7 @@ class YTEnv(unittest.TestCase):
             return
 
         try:
+            logging.info("Configuring, ...")
             self._run_masters()
             self._run_nodes()
             self._run_schedulers()
@@ -122,7 +124,14 @@ class YTEnv(unittest.TestCase):
         self.pids_file.flush();
 
     def _run(self, args, name):
-        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid)
+        if self.supress_yt_output:
+            stdout = open("/dev/null", "w")
+            stderr = open("/dev/null", "w")
+        else:
+            stdout = sys.stdout
+            stderr = sys.stderr
+        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid,
+                             stdout=stdout, stderr=stderr)
         self.process_to_kill.append((p, name))
         self._append_pid(p.pid)
 
