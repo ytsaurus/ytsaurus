@@ -195,7 +195,7 @@ private:
         {
             return GetPartitionJobResources(
                 Controller->Config->PartitionJobIO,
-                Controller->Spec->MaxWeightPerPartitionJob,
+                std::min(Controller->Spec->MaxWeightPerPartitionJob, Controller->TotalDataWeight),
                 Controller->Partitions.size());
         }
 
@@ -413,7 +413,7 @@ private:
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
             return GetRequestedResourcesForWeight(std::min(
-                Controller->Spec->MaxWeightPerSortJob,
+                std::min(Controller->Spec->MaxWeightPerSortJob, Controller->TotalDataWeight),
                 Controller->TotalDataWeight));
         }
 
