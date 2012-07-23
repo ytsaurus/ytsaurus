@@ -63,6 +63,9 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
     TChunkList* root,
     const NProto::TMsgRebalanceChunkTree& message)
 {
+
+    return false;
+
     if (root->GetRigid() ||
         !root->Parents().empty() ||
         root->Statistics().Rank <= 1)
