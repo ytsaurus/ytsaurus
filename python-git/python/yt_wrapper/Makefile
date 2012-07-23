@@ -5,7 +5,7 @@ clean:
 	rm -rf *.pyc tests/*.pyc tests/cpp_bin tests/sandbox
 
 test: all
-	PYTHONPATH=.:${PYTHONPATH} python tests/test.py
+	PYTHONPATH=.:${PYTHONPATH} python tests/test_all.py
 
 test_mapreduce:
 	./test_mapreduce.sh
