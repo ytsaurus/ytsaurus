@@ -57,7 +57,7 @@ public:
         /*!
          *  Empty address represents a failed request.
          */
-        Stroka Address;
+        TNullable<Stroka> Address;
 
         //! Quorum epoch.
         TGuid Epoch;

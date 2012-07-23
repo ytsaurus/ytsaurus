@@ -21,12 +21,12 @@ TValueOrError<IChannelPtr> OnLeaderFound(
     TMasterDiscovery::TConfigPtr config,
     TMasterDiscovery::TResult result)
 {
-    if (result.Address.empty()) { 
+    if (result.Address) { 
         return TError("Unable to determine the leader");
     } 
 
     auto clientConfig = New<TTcpBusClientConfig>();
-    clientConfig->Address = result.Address;
+    clientConfig->Address = *result.Address;
     clientConfig->Priority = config->ConnectionPriority;
     auto client = CreateTcpBusClient(clientConfig);
     return CreateBusChannel(client);

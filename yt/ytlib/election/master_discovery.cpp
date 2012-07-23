@@ -82,7 +82,7 @@ TFuture<TMasterDiscovery::TProxy::TRspGetQuorumPtr> TMasterDiscovery::GetQuorum(
     auto promise = NewPromise<TProxy::TRspGetQuorumPtr>();
     auto awaiter = New<TParallelAwaiter>(&Profiler, "/time");
 
-    FOREACH (Stroka address, Config->Addresses) {
+    FOREACH (const Stroka& address, Config->Addresses) {
         LOG_DEBUG("Requesting quorum information from peer %s", ~address);
 
         TProxy proxy(ChannelCache.GetChannel(address));
