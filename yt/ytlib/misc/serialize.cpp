@@ -1,7 +1,10 @@
 #include "stdafx.h"
 #include "serialize.h"
+#include <ytlib/logging/log.h>
 
 namespace NYT {
+
+static NLog::TLogger Logger("Serialize");
 
 ////////////////////////////////////////////////////////////////////////////////
 
