@@ -6,4 +6,6 @@ clean:
 
 test: all
 	PYTHONPATH=.:${PYTHONPATH} python tests/test.py
+
+test_mapreduce:
 	./test_mapreduce.sh
