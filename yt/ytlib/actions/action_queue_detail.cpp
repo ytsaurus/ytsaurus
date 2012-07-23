@@ -64,8 +64,9 @@ void TQueueInvoker::Shutdown()
 bool TQueueInvoker::DequeueAndExecute()
 {
     TItem item;
-    if (!Queue.Dequeue(&item))
+    if (!Queue.Dequeue(&item)) {
         return false;
+    }
 
     Profiler.Increment(DequeueCounter);
 
@@ -90,6 +91,11 @@ bool TQueueInvoker::DequeueAndExecute()
 int TQueueInvoker::GetSize() const
 {
     return static_cast<int>(QueueSize);
+}
+
+bool TQueueInvoker::IsEmpty() const
+{
+    return const_cast< TLockFreeQueue<TItem>& >(Queue).IsEmpty();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
