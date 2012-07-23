@@ -31,7 +31,7 @@ def send_data(process, data=None):
     t.start()
     t.join(timeout)
     if t.is_alive():
-        message = 'FAIL: "{0}" --- wasn\'t finished after {1} seconds '.format(debug_info[process.pid], timeout)
+        message = 'FAIL: "{0}" --- did not finish after {1} seconds '.format(debug_info[process.pid], timeout)
         print message
         assert False, message
 
