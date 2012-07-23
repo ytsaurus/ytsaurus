@@ -228,8 +228,7 @@ run_python_test()
         py.test \
             -rx -v \
             --timeout 300 \
-            --junitxml=$WORKING_DIRECTORY/test_integration.xml \
-            -k "TestSchedulerMapReduceCommands"
+            --junitxml="$WORKING_DIRECTORY/test_${test_name}.xml"
     b=$?
     a=$((a+b))
 }
@@ -244,9 +243,9 @@ if [ "$b" != "0" ]; then
     cp -r $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/* "$tmpdir"
 fi
 
-run_python_test "$CHECKOUT_DIRECTORY/python/yt_wrapper" "python wrapper"
+run_python_test "$CHECKOUT_DIRECTORY/python/yt_wrapper" "python_wrapper"
 
-run_python_test "$CHECKOUT_DIRECTORY/python/yson" "python yson"
+run_python_test "$CHECKOUT_DIRECTORY/python/yson" "python_yson"
 
 tc "blockClosed name='Integration Tests'"
 
