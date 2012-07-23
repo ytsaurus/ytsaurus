@@ -64,8 +64,6 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
     const NProto::TMsgRebalanceChunkTree& message)
 {
 
-    return false;
-
     if (root->GetRigid() ||
         !root->Parents().empty() ||
         root->Statistics().Rank <= 1)
@@ -128,7 +126,7 @@ void TChunkTreeBalancer::AppendChunkTree(
     if (!children->empty()) {
         auto* lastChild = children->back().AsChunkList();
         if (lastChild->Children().size() < message.min_chunk_list_size()) {
-            YASSERT(lastChild->Statistics().Rank == 1);
+            YASSERT(lastChild->Statistics().Rank <= 1);
             YASSERT(lastChild->Children().size() <= message.max_chunk_list_size());
             if (lastChild->GetObjectRefCounter() > 0) {
                 // We want to merge to this chunk list but it is shared.
