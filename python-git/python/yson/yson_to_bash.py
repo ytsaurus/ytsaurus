@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
-import parser
+import yson_parser
 
 import copy
 from optparse import OptionParser
@@ -74,22 +74,22 @@ def go_by_path(obj, path):
     return yson
 
 if __name__ == "__main__":
-    parser = OptionParser("Options")
-    parser.add_option("--sentinel", default="")
-    parser.add_option("--list_begin", default="")
-    parser.add_option("--list_separator", default="\n")
-    parser.add_option("--list_end", default="")
-    parser.add_option("--none_literal", default="<None>")
-    parser.add_option("--map_begin", default="")
-    parser.add_option("--map_separator", default="\n")
-    parser.add_option("--map_key_value_separator", default="\t")
-    parser.add_option("--map_end", default="")
-    parser.add_option("--print_depth", default=3, type=int)
-    parser.add_option("--no_keys", default=False, action="store_const", const=True)
-    parser.add_option("--no_values", default=False, action="store_const", const=True)
+    options_parser = OptionParser("Options")
+    options_parser.add_option("--sentinel", default="")
+    options_parser.add_option("--list_begin", default="")
+    options_parser.add_option("--list_separator", default="\n")
+    options_parser.add_option("--list_end", default="")
+    options_parser.add_option("--none_literal", default="<None>")
+    options_parser.add_option("--map_begin", default="")
+    options_parser.add_option("--map_separator", default="\n")
+    options_parser.add_option("--map_key_value_separator", default="\t")
+    options_parser.add_option("--map_end", default="")
+    options_parser.add_option("--print_depth", default=3, type=int)
+    options_parser.add_option("--no_keys", default=False, action="store_const", const=True)
+    options_parser.add_option("--no_values", default=False, action="store_const", const=True)
 
-    parser.add_option("--path", default="")
-    options, args = parser.parse_args()
+    options_parser.add_option("--path", default="")
+    options, args = options_parser.parse_args()
 
     obj = go_by_path(parser.parse(stdin), options.path)
     print_bash(obj, options.print_depth)
