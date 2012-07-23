@@ -6,11 +6,13 @@ import yson
 import unittest
 
 import copy
+import logging
 import os
 import re
 import time
 import signal
 import socket
+import shutil
 import subprocess
 import sys
 import simplejson as json
@@ -51,11 +53,12 @@ class YTEnv(unittest.TestCase):
     def modify_scheduler_config(self, config):
         pass
 
-    def set_environment(self, path_to_run, pids_filename, ports=None):
-        # TODO(panin): add option for this
-        # os.system('killall MasterMain')
-        # os.system('killall NodeMain')
-        # os.system('killall SchedulerMain')
+    def set_environment(self, path_to_run, pids_filename, ports=None, logging_level=logging.WARNING):
+        self.path_to_run = os.path.abspath(path_to_run)
+        if os.path.exists(self.path_to_run):
+            shutil.rmtree(self.path_to_run)
+        os.makedirs(self.path_to_run)
+
         self._pids_filename = pids_filename
         self._kill_previously_run_services()
         self._ports = {
@@ -66,18 +69,13 @@ class YTEnv(unittest.TestCase):
         if ports is not None:
             self._ports.update(ports)
 
-        self.path_to_run = os.path.abspath(path_to_run)
-        print 'Setting up configuration with %s masters, %s nodes, %s schedulers at %s' % \
-            (self.NUM_MASTERS, self.NUM_HOLDERS, self.START_SCHEDULER, self.path_to_run)
+        logging.info('Setting up configuration with %s masters, %s nodes, %s schedulers at %s' %
+                     (self.NUM_MASTERS, self.NUM_HOLDERS, self.START_SCHEDULER, self.path_to_run))
 
         self.process_to_kill = []
 
-        if os.path.exists(self.path_to_run):
-            shutil.rmtree(self.path_to_run)
-        os.makedirs(self.path_to_run)
-
         if self.NUM_MASTERS == 0:
-            print "Do nothing, because we have 0 masters"
+            logging.info("Do nothing, because we have 0 masters")
             return
 
         try:
@@ -91,7 +89,6 @@ class YTEnv(unittest.TestCase):
             raise
 
     def clear_environment(self):
-        print 'Tearing down'
         ok = True
         message = ""
         for p, name in self.process_to_kill:
@@ -109,7 +106,7 @@ class YTEnv(unittest.TestCase):
                 p.poll()
                 if p.returncode is not None:
                     break
-                print '%s (pid %d) was not killed by the kill command' % (name, p.pid)
+                logging.warning('%s (pid %d) was not killed by the kill command' % (name, p.pid))
 
                 os.killpg(p.pid, signal.SIGKILL)
                 time.sleep(0.100)
@@ -146,6 +143,9 @@ class YTEnv(unittest.TestCase):
                     except OSError:
                         pass
 
+        dirname = os.path.dirname(self._pids_filename)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
         self.pids_file = open(self._pids_filename, 'wt')
 
 
@@ -198,7 +198,7 @@ class YTEnv(unittest.TestCase):
                 for line in reversed(open(logging_file).readlines()):
                     if bad_marker in line: continue
                     if good_marker in line:
-                        print 'Found leader: ', master_id
+                        logging.info('Found leader: %d', master_id)
                         self.leader_log = logging_file
                         return True
                 master_id += 1
@@ -331,15 +331,13 @@ class YTEnv(unittest.TestCase):
 
     def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
         current_wait_time = 0
-        print 'Waiting for {0}'.format(name),
+        logging.info('Waiting for %s', name)
         while current_wait_time < max_wait_time:
-            sys.stdout.write('.')
-            sys.stdout.flush()
+            logging.info('.')
             if condition():
-                print ' %s ready' % name
+                logging.info(' %s ready' % name)
                 return
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
-        print
         assert False, "%s still not ready after %s seconds" % (name, max_wait_time)
 

@@ -38,6 +38,7 @@ class YtTest(YTEnv):
     
     @classmethod
     def tearDownClass(cls):
+        print "TEARING DOWN"
         cls.env.clear_environment()
     
     def setUp(self):
