@@ -370,7 +370,9 @@ private:
         virtual int GetPendingJobCount() const OVERRIDE
         {
             // Check if enough partition jobs are completed.
-            if (Controller->PartitionJobCounter.GetCompleted() < Controller->SortStartThresholdCount) {
+            if (Controller->Partitions.size() > 1 &&
+                Controller->PartitionJobCounter.GetCompleted() < Controller->SortStartThresholdCount)
+            {
                 return 0;
             }
 
