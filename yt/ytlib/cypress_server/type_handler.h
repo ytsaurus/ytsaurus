@@ -44,7 +44,7 @@ struct INodeTypeHandler
         NTransactionServer::TTransaction* transaction) = 0;
 
     //! Returns the (dynamic) node type.
-    virtual EObjectType GetObjectType() = 0;
+    virtual NObjectServer::EObjectType GetObjectType() = 0;
     
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;

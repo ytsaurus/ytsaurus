@@ -199,7 +199,7 @@ class TCypressNodeBase
 public:
     explicit TCypressNodeBase(const TVersionedNodeId& id);
 
-    virtual EObjectType GetObjectType() const;
+    virtual NObjectServer::EObjectType GetObjectType() const;
     virtual TVersionedNodeId GetId() const;
 
     virtual i32 RefObject();
@@ -226,21 +226,21 @@ template <>
 struct TCypressScalarTypeTraits<Stroka>
     : NYTree::NDetail::TScalarTypeTraits<Stroka>
 {
-    static const EObjectType::EDomain ObjectType;
+    static const NObjectServer::EObjectType::EDomain ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<i64>
     : NYTree::NDetail::TScalarTypeTraits<i64>
 {
-    static const EObjectType::EDomain ObjectType;
+    static const NObjectServer::EObjectType::EDomain ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<double>
     : NYTree::NDetail::TScalarTypeTraits<double>
 {
-    static const EObjectType::EDomain ObjectType;
+    static const NObjectServer::EObjectType::EDomain ObjectType;
 };
 
 } // namespace NDetail
@@ -289,7 +289,7 @@ public:
         : TCypressNodeTypeHandlerBase< TScalarNode<TValue> >(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType()
+    virtual NObjectServer::EObjectType GetObjectType()
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::ObjectType;
     }
@@ -351,7 +351,7 @@ class TMapNodeTypeHandler
 public:
     explicit TMapNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual EObjectType GetObjectType();
+    virtual NObjectServer::EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
     virtual ICypressNodeProxyPtr GetProxy(
@@ -399,7 +399,7 @@ class TListNodeTypeHandler
 public:
     TListNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual EObjectType GetObjectType();
+    virtual NObjectServer::EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
     virtual ICypressNodeProxyPtr GetProxy(

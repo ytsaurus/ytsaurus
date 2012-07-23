@@ -1,6 +1,6 @@
 #pragma once
 
-#include "id.h"
+#include "public.h"
 
 #include <ytlib/object_server/object_ypath_proxy.h>
 #include <ytlib/cypress_client/cypress_ypath.pb.h>

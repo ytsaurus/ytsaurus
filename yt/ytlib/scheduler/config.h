@@ -260,6 +260,8 @@ struct TSortOperationSpec
     //! that takes care of a megalomaniac partition.
     i64 MaxWeightPerUnorderedMergeJob;
 
+    double SortStartThreshold;
+
     TDuration PartitionLocalityTimeout;
     TDuration SortLocalityTimeout;
     TDuration MergeLocalityTimeout;
@@ -291,6 +293,9 @@ struct TSortOperationSpec
         Register("max_weight_per_unordered_merge_job", MaxWeightPerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("sort_start_threshold", SortStartThreshold)
+            .Default(0.75)
+            .InRange(0.0, 1.0);
         Register("partition_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
         Register("sort_locality_timeout", SortLocalityTimeout)

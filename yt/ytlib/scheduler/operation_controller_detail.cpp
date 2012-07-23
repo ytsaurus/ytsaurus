@@ -294,6 +294,11 @@ void TOperationControllerBase::Initialize()
 void TOperationControllerBase::DoInitialize()
 { }
 
+void TOperationControllerBase::DoGetProgress(IYsonConsumer* consumer)
+{
+    UNUSED(consumer);
+}
+
 TFuture<void> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

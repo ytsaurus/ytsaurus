@@ -32,8 +32,8 @@ public:
     explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
 
     void RegisterHandler(INodeTypeHandlerPtr handler);
-    INodeTypeHandlerPtr FindHandler(EObjectType type);
-    INodeTypeHandlerPtr GetHandler(EObjectType type);
+    INodeTypeHandlerPtr FindHandler(NObjectServer::EObjectType type);
+    INodeTypeHandlerPtr GetHandler(NObjectServer::EObjectType type);
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;

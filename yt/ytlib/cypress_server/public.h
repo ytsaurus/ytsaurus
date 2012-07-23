@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/cypress_client/id.h>
+#include <ytlib/cypress_client/public.h>
 #include <ytlib/object_server/id.h>
 
 namespace NYT {
@@ -26,8 +26,6 @@ typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
 using NCypressClient::TNodeId;
 using NCypressClient::ELockMode;
 using NCypressClient::TVersionedNodeId;
-
-using NObjectServer::EObjectType;
 
 ////////////////////////////////////////////////////////////////////////////////
             

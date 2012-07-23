@@ -2,21 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/cypress_client/id.h>
+#include <ytlib/cypress_client/public.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NCypressServer {
-
-// TODO(panin): move somewhere
-using NCypressClient::ELockMode;
-using NCypressClient::TNodeId;
-using NCypressClient::TVersionedNodeId;
-
-using NObjectServer::EObjectType;
-using NObjectServer::TVersionedObjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +31,7 @@ struct ICypressNode
     { }
 
     //! Returns node type.
-    virtual EObjectType GetObjectType() const = 0;
+    virtual NObjectServer::EObjectType GetObjectType() const = 0;
 
     //! Saves the node into the snapshot stream.
     virtual void Save(TOutputStream* output) const = 0;
@@ -48,7 +40,7 @@ struct ICypressNode
     virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) = 0;
 
     //! Returns the composite (versioned) id of the node.
-    virtual TVersionedObjectId GetId() const = 0;
+    virtual TVersionedNodeId GetId() const = 0;
 
     //! Gets the lock mode.
     virtual ELockMode GetLockMode() const = 0;

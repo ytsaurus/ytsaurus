@@ -34,14 +34,7 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
-    , ReadThreadPool(New<TThreadPool>(
-        Bootstrap->GetConfig()->ReadThreadsPerLocation,
-        Sprintf("Read:%s", ~Id)))
-    , ReadInvoker(ReadThreadPool->GetInvoker())
-    , WriteThreadPool(New<TThreadPool>(
-        bootstrap->GetConfig()->WriteThreadsPerLocation,
-        Sprintf("Write:%s", ~Id)))
-    , WriteInvoker(WriteThreadPool->GetInvoker())
+    , Queue(New<TFairShareActionQueue>(3, Sprintf("ChunkIO:%s", ~Id)))
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
@@ -145,14 +138,19 @@ bool TLocation::HasEnoughSpace(i64 size) const
     return GetAvailableSpace() - size >= Config->HighWatermark;
 }
 
-IInvokerPtr TLocation::GetReadInvoker()
+IInvokerPtr TLocation::GetDataReadInvoker()
 {
-    return ReadInvoker;
+    return Queue->GetInvoker(0);
+}
+
+IInvokerPtr TLocation::GetMetaReadInvoker()
+{
+    return Queue->GetInvoker(1);
 }
 
 IInvokerPtr TLocation::GetWriteInvoker()
 {
-    return WriteInvoker;
+    return Queue->GetInvoker(2);
 }
 
 namespace {
@@ -235,7 +233,7 @@ void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
 
-    WriteInvoker->Invoke(BIND([=] () {
+    GetWriteInvoker()->Invoke(BIND([=] () {
         // TODO: retry on failure
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
         RemoveFile(fileName);

@@ -140,7 +140,7 @@ bool TChunkHolderService::CheckThrottling() const
     i64 pendingReadSize = Bootstrap->GetBlockStore()->GetPendingReadSize();
     i64 pendingSize = responseDataSize + pendingReadSize;
     if (pendingSize > Config->ResponseThrottlingSize) {
-        LOG_DEBUG("Throttling activated (PendingSize: %" PRId64 ")", pendingSize);
+        LOG_DEBUG("Throttling is active (PendingSize: %" PRId64 ")", pendingSize);
         return true;
     } else {
         return false;

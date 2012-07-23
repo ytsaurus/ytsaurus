@@ -20,6 +20,7 @@ using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
 using namespace NCypressServer;
+using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NOrchid::NProto;
 
