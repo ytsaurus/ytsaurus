@@ -352,7 +352,7 @@ public:
         Extracted = true;
         WeightCounter_.Start(result->TotalChunkWeight);
         ChunkCounter_.Start(result->TotalChunkCount);
-        StripeCounter_.Start(1);
+        StripeCounter_.Start(result->Stripes.size());
 
         return result;
     }
