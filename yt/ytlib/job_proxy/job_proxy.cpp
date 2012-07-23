@@ -11,6 +11,7 @@
 #include "map_job_io.h"
 #include "reduce_job_io.h"
 
+#include <ytlib/actions/invoker_util.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/scheduler/public.h>
 #include <ytlib/bus/tcp_client.h>

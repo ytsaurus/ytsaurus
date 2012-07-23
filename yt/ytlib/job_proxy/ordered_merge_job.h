@@ -3,6 +3,7 @@
 #include "public.h"
 #include "job.h"
 
+#include <ytlib/misc/nullable.h>
 #include <ytlib/table_client/public.h>
 
 namespace NYT {

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/rpc/public.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/meta_state/public.h>
 #include <ytlib/table_client/public.h>
 #include <ytlib/scheduler/job.pb.h>
