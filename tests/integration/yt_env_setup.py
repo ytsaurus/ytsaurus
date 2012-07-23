@@ -16,6 +16,8 @@ def _working_dir(test_name):
 class YTEnvSetup(YTEnv):
     @classmethod
     def setup_class(cls):
+        logging.basicConfig(level=logging.INFO)
+
         test_name = cls.__name__
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 

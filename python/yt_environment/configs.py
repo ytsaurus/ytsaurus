@@ -133,7 +133,7 @@ def get_driver_config():
                 categories  = [ "*" ];
             };
             {
-                min_level = Warning;
+                min_level = Error;
                 writers = [ stderr ];
                 categories  = [ "*" ];
             };
