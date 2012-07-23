@@ -103,6 +103,7 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
         auto capacity = RangeSizes.GetBlob()->capacity();
         result.push_back(RangeSizes.Flush());
         RangeSizes.Reserve(capacity);
+        RangeOffset = 0;
     }
 
     CurrentSize = GetEmptySize();
