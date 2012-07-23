@@ -38,7 +38,7 @@
 
 import yt
 import config
-from common import flatten, unlist, compose
+from common import flatten, unlist, compose, require, YtError
 
 import sys
 import string
@@ -50,46 +50,40 @@ PREFIX = "//statbox/"
 
 SPECIAL_SYMBOLS = "*\"=:; "
 
-def normalize_path(path):
-    names = path.strip("/").split("/")
-    quoted_names = []
-    for name in names:
-        make_quoting = False
-        name = name.strip('"')
-        if any(name.startswith(sym) for sym in string.digits):
-            make_quoting = True
-        if any(sym in name for sym in SPECIAL_SYMBOLS):
-            make_quoting = True
-        for sym in SPECIAL_SYMBOLS:
-            name.replace(sym, "\\" + sym)
-        if make_quoting:
-            name = '"%s"' % name
-        quoted_names.append(name)
-    return "//" + "/".join(quoted_names)
+def normalize(name):
+    for sym in SPECIAL_SYMBOLS:
+        name.replace(sym, "\\" + sym)
+    return '"%s"' % name
+
+def denormalize(name):
+    for sym in SPECIAL_SYMBOLS:
+        name.replace("\\" + sym, sym)
+    return name[1:-1]
+
+def process_path(path, func):
+    return "//" + "/".join(map(func, path.strip("/").split("/")))
+
 
 def add_prefix(table):
     return PREFIX + table
 
-def remove_prefix(tables):
-    result = []
-    for table in tables:
-        if table.startswith(PREFIX):
-            result.append(table[len(PREFIX):])
-    return result
+def remove_prefix(table):
+    if table.startswith(PREFIX):
+        return table[len(PREFIX):]
+    return table
 
 def list_all_tables():
     result = []
     def walk(path, object):
-        path = normalize_path(path)
         if isinstance(object, dict):
             for key, value in object.iteritems():
-                walk(path + '/%s' % key, value)
+                walk(path + '/%s' % normalize(key), value)
         else:
             attributes = yt.get(path + "/@")
             if attributes.get("type", None) == "table":
                 result.append(path)
     walk("/", yt.get("/"))
-    return remove_prefix(result)
+    return map(compose(remove_prefix, partial(process_path, func=denormalize)), result)
 
 def add_eoln(str):
     return str + "\n"
@@ -143,7 +137,7 @@ if __name__ == "__main__":
 
 
     # Fix table names
-    method = compose(normalize_path, add_prefix)
+    method = compose(partial(process_path, func=normalize), add_prefix)
     for option in ["src", "dst", "dstappend"]:
         if vars(args)[option] is not None:
             vars(args)[option] = map(method, vars(args)[option])
