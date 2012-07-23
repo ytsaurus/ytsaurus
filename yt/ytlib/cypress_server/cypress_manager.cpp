@@ -958,10 +958,6 @@ void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)
     transaction->BranchedNodes().clear();
 }
 
-//TYPath TCypressManager::GetNodePath(ICypressNodeProxyPtr proxy)
-//{
-//}
-
 TYPath TCypressManager::GetNodePath(
     const TNodeId& nodeId,
     TTransaction* transaction)
@@ -969,15 +965,6 @@ TYPath TCypressManager::GetNodePath(
     auto proxy = GetVersionedNodeProxy(nodeId, transaction);
     return proxy->GetResolver()->GetPath(proxy);
 }
-
-//TYPath TCypressManager::GetNodePath(const TVersionedNodeId& id)
-//{
-//    auto transactionManager = Bootstrap->GetTransactionManager();
-//    auto* transaction = id.TransactionId == NullTransactionId
-//        ? NULL
-//        : transactionManager->GetTransaction(id.TransactionId);
-//    return GetNodePath(id.ObjectId, transaction);
-//}
 
 DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TVersionedNodeId, NodeMap);
 
