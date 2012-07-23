@@ -413,7 +413,7 @@ private:
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
             return GetRequestedResourcesForWeight(std::min(
-                std::min(Controller->Spec->MaxWeightPerSortJob, Controller->TotalDataWeight),
+                Controller->Spec->MaxWeightPerSortJob,
                 Controller->TotalDataWeight));
         }
 
