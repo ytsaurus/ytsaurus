@@ -69,11 +69,16 @@ class YTEnv(unittest.TestCase):
         self.path_to_run = os.path.abspath(path_to_run)
         print 'Setting up configuration with %s masters, %s nodes, %s schedulers at %s' % \
             (self.NUM_MASTERS, self.NUM_HOLDERS, self.START_SCHEDULER, self.path_to_run)
+
         self.process_to_kill = []
 
         if os.path.exists(self.path_to_run):
             shutil.rmtree(self.path_to_run)
         os.makedirs(self.path_to_run)
+
+        if self.NUM_MASTERS == 0:
+            print "Do nothing, because we have 0 masters"
+            return
 
         try:
             self._run_masters()
