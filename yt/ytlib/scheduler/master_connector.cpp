@@ -703,7 +703,7 @@ private:
             return rsp->GetError();
         }
 
-        LOG_ERROR("Operation node created successfully (OperationId: %s)",
+        LOG_INFO("Operation node created successfully (OperationId: %s)",
             ~operationId.ToString());
 
         return TError();
