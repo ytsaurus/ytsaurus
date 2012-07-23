@@ -199,27 +199,49 @@ tc "blockClosed name='Unit Tests'"
 
 tc "blockOpened name='Integration Tests'"
 
-shout "Running integration tests..."
-tc "progressMessage 'Running integration tests...'"
-
-dpkg -s python-simplejson
-if [ "$?" != "0" ]; then
-    sudo apt-get install -y python-simplejson
-fi
+# Prepare packages for tests
+for package in "python-simplejson" "python-requests=0.13.1"; do
+    #dpkg -s $package
+    #if [ "$?" != "0" ]; then
+    sudo apt-get install -y $package
+    #fi
+done
 
 ulimit -c unlimited
 
-for DIR in "$CHECKOUT_DIRECTORY/tests/integration" "$CHECKOUT_DIRECTORY/python/yt_wrapper" "$CHECKOUT_DIRECTORY/python/yson"; do
-    cd $DIR
-    PYTHONPATH=$CHECKOUT_DIRECTORY/python \
-    PATH=$WORKING_DIRECTORY/bin:$PATH \
+run_python_test()
+{
+    local dir=$1
+    local test_name=$2
+
+    shout "Running $test_name tests..."
+    tc "progressMessage 'Running $test_name tests...'"
+
+    cd $dir
+    PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
+    PATH="$WORKING_DIRECTORY/bin:$PATH" \
         py.test \
             -rx -v \
             --timeout 300 \
-            --junitxml=$WORKING_DIRECTORY/test_integration.xml
+            --junitxml=$WORKING_DIRECTORY/test_integration.xml \
+            -k "TestSchedulerMapReduceCommands"
     b=$?
     a=$((a+b))
-done
+}
+
+run_python_test "$CHECKOUT_DIRECTORY/tests/integration" "integration"
+
+if [ "$b" != "0" ]; then
+    tmpdir="$HOME/failed_tests/$BUILD_VCS_NUMBER"
+    mkdir -p "$tmpdir"
+
+    shout "Integration tests failed, output was put to $tmpdir"
+    cp -r $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/* "$tmpdir"
+fi
+
+run_python_test "$CHECKOUT_DIRECTORY/python/yt_wrapper" "python wrapper"
+
+run_python_test "$CHECKOUT_DIRECTORY/python/yson" "python yson"
 
 tc "blockClosed name='Integration Tests'"
 
