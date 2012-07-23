@@ -30,6 +30,7 @@ public:
     bool DequeueAndExecute();
 
     int GetSize() const;
+    bool IsEmpty() const;
 
 private:
     struct TItem

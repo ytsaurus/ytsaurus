@@ -146,7 +146,7 @@ private:
         int minQueueIndex = -1;
         for (int index = 0; index < static_cast<int>(Queues.size()); ++index) {
             const auto& queue = Queues[index];
-            if (queue.Invoker->GetSize() > 0) {
+            if (!queue.Invoker->IsEmpty()) {
                 if (queue.ExcessTime < minExcess) {
                     minExcess = queue.ExcessTime;
                     minQueueIndex = index;
@@ -168,7 +168,7 @@ private:
         // Pump the min queue and update its excess.
         auto& minQueue = Queues[minQueueIndex];
         auto startTime = GetCpuInstant();
-        YVERIFY(minQueue.Invoker->DequeueAndExecute());
+        YCHECK(minQueue.Invoker->DequeueAndExecute());
         auto endTime = GetCpuInstant();
         minQueue.ExcessTime += (endTime - startTime);
 
