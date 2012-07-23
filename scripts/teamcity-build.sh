@@ -213,7 +213,7 @@ cd $CHECKOUT_DIRECTORY/tests/integration
 PYTHONPATH=$CHECKOUT_DIRECTORY/python \
 PATH=$WORKING_DIRECTORY/bin:$PATH \
     py.test \
-        -rx -s -v \
+        -rx -v \
         --timeout 300 \
         --junitxml=$WORKING_DIRECTORY/test_integration.xml
 b=$?
