@@ -157,6 +157,7 @@ bool TPartitionChunkReader::FetchNextItem()
         SequentialReader->AsyncNextBlock().Subscribe(BIND(
             &TPartitionChunkReader::OnNextBlock,
             MakeWeak(this)));
+        return false;
     }
 
     return true;
