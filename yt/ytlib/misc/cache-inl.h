@@ -174,6 +174,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
 
     auto key = value->GetKey();
 
+    TAsyncValuePtrOrErrorResult valueOrError;
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -184,7 +185,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         YASSERT(it != ItemMap.end());
 
         auto* item = it->second;
-        item->ValueOrError.Set(value);
+        valueOrError = item->ValueOrError;
 
         // TODO(sandello): Remove tilda from here when we migrate from STLport.
         YCHECK(ValueMap.insert(MakePair(key, ~value)).second);
@@ -194,23 +195,29 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         OnAdded(~value);
     }
 
+    valueOrError.Set(value);
     TrimIfNeeded();
 }
 
 template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TAsyncValuePtrOrErrorResult valueOrError;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
 
-    auto it = ItemMap.find(key);
-    YASSERT(it != ItemMap.end());
-    
-    auto* item = it->second;
-    item->ValueOrError.Set(error);
-    
-    ItemMap.erase(it);
-    
-    delete item;
+        auto it = ItemMap.find(key);
+        YASSERT(it != ItemMap.end());
+
+        auto* item = it->second;
+        valueOrError = item->ValueOrError;
+
+        ItemMap.erase(it);
+
+        delete item;
+    }
+
+    valueOrError.Set(error)
 }
 
 template <class TKey, class TValue, class THash>
