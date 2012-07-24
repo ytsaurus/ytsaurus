@@ -142,17 +142,18 @@ TJobResult TPartitionSortJob::Run()
 
         LOG_INFO("Writing");
         {
-            auto writer = CreateSyncWriter(Writer);
-            writer->Open();
+            auto syncWriter = CreateSyncWriter(Writer);
+            syncWriter->Open();
 
             TMemoryInput input;
             TRow row;
             TNonOwningKey key(keyColumnCount);
+            bool isRowReady = false;
 
-            for (i64 writtenRowCount = 0; writtenRowCount < totalRowCount; ++writtenRowCount) {
-                // Pop row index and readjust the heap.
-                ui32 rowIndex = rowIndexHeap.front();
-                std::pop_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
+            auto prepareRow = [&] () {
+                YASSERT(!rowIndexHeap.empty());
+
+                auto rowIndex = rowIndexHeap.back();
                 rowIndexHeap.pop_back();
 
                 // Prepare key.
@@ -179,14 +180,56 @@ TJobResult TPartitionSortJob::Run()
                         value.ToStringBuf()));
                     input.Skip(columnNameLength);
                 }
+            };
 
-                writer->WriteRowUnsafe(row, key);
-
+            i64 writtenRowCount = 0;
+            auto setProgress = [&] () {
                 if (writtenRowCount % 1000 == 0) {
                     Writer->SetProgress((double) writtenRowCount / totalRowCount);
                 }
+            };
+
+            auto heapBegin = rowIndexHeap.begin();
+            auto heapEnd = rowIndexHeap.end();
+            // Pop heap and do async writing.
+            while (heapBegin != heapEnd) {
+                // Pop row index and readjust the heap.
+                std::pop_heap(heapBegin, heapEnd, comparer);
+                --heapEnd;
+
+                do {
+                    if (!isRowReady) {
+                        prepareRow();
+                    }
+
+                    if (!Writer->TryWriteRowUnsafe(row, key)) {
+                        break;
+                    }
+
+                    isRowReady = false;
+                    ++writtenRowCount;
+
+                    setProgress();
+
+                } while (heapEnd != rowIndexHeap.end());
             }
-            writer->Close();
+
+            YCHECK(isRowReady || rowIndexHeap.empty());
+
+            if (isRowReady) {
+                syncWriter->WriteRowUnsafe(row, key);
+                ++writtenRowCount;
+            }
+
+            // Synchronously write the rest of the rows.
+            while (!rowIndexHeap.empty()) {
+                prepareRow();
+                syncWriter->WriteRowUnsafe(row, key);
+                ++writtenRowCount;
+                setProgress();
+            }
+
+            syncWriter->Close();
         }
         PROFILE_TIMING_CHECKPOINT("write");
 
