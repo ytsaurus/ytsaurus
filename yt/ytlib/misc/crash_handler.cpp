@@ -223,11 +223,10 @@ void DumpSignalInfo(int signal, siginfo_t* si)
 }
 
 //! Dumps information about the stack frame.
-void DumpStackFrameInfo(const char* prefix, void* pc)
+void DumpStackFrameInfo(void* pc)
 {
     TRawFormatter<1024> formatter;
 
-    formatter.AppendString(prefix);
     formatter.AppendString("@ ");
     const int width = (sizeof(void*) == 8 ? 12 : 8) + 2;
     // +2 for "0x"; 12 for x86_64 because higher bits are always zeroed.
@@ -297,22 +296,34 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     // This is the first time we enter the signal handler. We are going to
     // do some interesting stuff from here.
 
+    TRawFormatter<16> prefix;
+
     // When the crash happened?
     DumpTimeInfo();
 
     // Where the crash happened?
     void *pc = GetPC(uc);
-    DumpStackFrameInfo("PC: ", pc);
+
+    {
+        prefix.Reset();
+        prefix.AppendString("PC: ");
+        WriteToStdErr(prefix.GetData(), prefix.GetBytesWritten());
+        DumpStackFrameInfo(pc);
+    }
 
     DumpSignalInfo(signal, si);
 
     // Get the stack trace (without current frame hence +1).
-    void *stack[32];
+    void *stack[99]; // 99 is to keep formatting. :)
     const int depth = GetStackTrace(stack, ARRAY_SIZE(stack), 1);
 
     // Dump the stack trace.
     for (int i = 0; i < depth; ++i) {
-        DumpStackFrameInfo("    ", stack[i]);
+        prefix.Reset();
+        prefix.AppendNumber(i + 1, 10, 2);
+        prefix.AppendString(". ");
+        WriteToStdErr(prefix.GetData(), prefix.GetBytesWritten());
+        DumpStackFrameInfo(stack[i]);
     }
 
     // Okay, we have done enough, so now we can do unsafe (async signal unsafe)

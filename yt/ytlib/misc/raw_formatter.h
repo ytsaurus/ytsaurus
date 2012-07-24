@@ -48,7 +48,7 @@ public:
     //! Returns the number of bytes written in the buffer.
     int GetBytesWritten() const
     {
-        return Cursor - Buffer;
+        return Cursor - Begin;
     }
 
     //! Returns the number of bytes avaliable in the buffer.
@@ -77,7 +77,7 @@ public:
     }
 
     //! Formats |number| in base |radix| and updates the internal cursor.
-    void AppendNumber(uintptr_t number, int radix)
+    void AppendNumber(uintptr_t number, int radix, int width = 0)
     {
         int i = 0;
         while (Cursor + i < End) {
@@ -92,7 +92,15 @@ public:
 
         // Reverse the bytes written.
         std::reverse(Cursor, Cursor + i);
-        Cursor += i;
+
+        if (i < width) {
+            auto delta = width - i;
+            std::copy(Cursor, Cursor + i, Cursor + delta);
+            std::fill(Cursor, Cursor + delta, ' ');
+            Cursor += width;
+        } else {
+            Cursor += i;
+        }
     }
 
     //! Formats |number| as hexadecimal number and updates the internal cursor.
@@ -109,6 +117,12 @@ public:
             std::fill(begin, begin + delta, ' ');
             Cursor = begin + width;
         }
+    }
+
+    //! Resets the underlying cursor.
+    void Reset()
+    {
+        Cursor = Begin;
     }
 
 private:
