@@ -222,7 +222,25 @@ run_python_test()
         py.test \
             -rx -v \
             --timeout 300 \
-            --junitxml="$WORKING_DIRECTORY/test_${test_name}.xml"
+            --junitxml="$WORKING_DIRECTORY/test_${test_name}.prexml"
+    cat > /tmp/fix_xml_entities.py <<-EOP
+#!/usr/bin/python
+
+import xml.etree.ElementTree as etree
+import sys
+
+tree = etree.parse(sys.stdin)
+for node in tree.iter():
+    if isinstance(node.text, str):
+        node.text = node.text \
+            .replace("&quot;", "\"") \
+            .replace("&apos;", "\'") \
+            .replace("&amp;", "&") \
+            .replace("&lt;", "<") \
+            .replace("&gt;", ">")
+tree.write(sys.stderr, encoding="utf-8")
+EOP
+    cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
     b=$?
     a=$((a+b))
     tc "blockClosed name=${block_name}"
