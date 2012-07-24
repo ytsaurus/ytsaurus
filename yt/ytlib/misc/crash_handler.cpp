@@ -9,6 +9,12 @@
 
 #include <signal.h>
 #include <time.h>
+#ifdef HAVE_SYS_TYPES_H
+#   include <sys/types.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#   include <unistd.h>
+#endif
 #ifdef HAVE_UCONTEXT_H
 #   include <ucontext.h>
 #endif
@@ -20,6 +26,9 @@
 #endif
 #ifdef HAVE_CXXABI_H
 #   include <cxxabi.h>
+#endif
+#ifdef HAVE_PTHREAD_H
+#   include <pthread.h>
 #endif
 
 #include <cstdlib>

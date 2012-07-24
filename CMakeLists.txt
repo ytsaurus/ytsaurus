@@ -40,9 +40,12 @@ check_include_files(cxxabi.h       HAVE_CXXABI_H)
 check_include_files(dlfcn.h        HAVE_DLFCN_H)
 check_include_files(execinfo.h     HAVE_EXECINFO_H)
 check_include_files(libunwind.h    HAVE_LIBUNWIND_H)
+check_include_files(pthread.h      HAVE_PTHREAD_H)
+check_include_files(sys/types.h    HAVE_SYS_TYPES_H)
 check_include_files(sys/ucontext.h HAVE_SYS_UCONTEXT_H)
 check_include_files(ucontext.h     HAVE_UCONTEXT_H)
 check_include_files(unwind.h       HAVE_UNWIND_H)
+check_include_files(unistd.h       HAVE_UNISTD_H)
 
 include(PCFromUcontext)
 
