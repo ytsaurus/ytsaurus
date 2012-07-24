@@ -9,6 +9,7 @@ from common import flatten
 from yt_environment import YTEnv
 
 import os
+import sys
 import logging
 import random
 import string
@@ -22,12 +23,14 @@ TEST_DIR = "//home/tests"
 
 class YtTest(YTEnv):
     NUM_MASTERS = 1
-    NUM_HOLDERS = 1
+    NUM_HOLDERS = 3
     START_SCHEDULER = True
     START_PROXY = True
 
     @classmethod  
     def setUpClass(cls):
+        print >>sys.stderr, "Setting up class!"
+
         if os.path.exists("test.log"):
             os.remove("test.log")
         logging.basicConfig(filename="test.log", level=logging.INFO)
@@ -40,6 +43,8 @@ class YtTest(YTEnv):
         # (TODO): remake this strange stuff.
         cls.env = cls()
         cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports, supress_yt_output=True)
+
+        config.PROXY = "localhost:%d" % ports["proxy"]
     
     @classmethod
     def tearDownClass(cls):
