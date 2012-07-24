@@ -217,7 +217,7 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError
         delete item;
     }
 
-    valueOrError.Set(error)
+    valueOrError.Set(error);
 }
 
 template <class TKey, class TValue, class THash>
