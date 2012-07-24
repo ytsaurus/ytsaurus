@@ -177,7 +177,7 @@ private:
 
         virtual int GetPriority() const OVERRIDE
         {
-            return PriorityClassMultiplier * 2;
+            return 0;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
@@ -366,7 +366,7 @@ private:
 
         virtual int GetPriority() const OVERRIDE
         {
-            return Partition->Index;
+            return PriorityClassMultiplier + Partition->Index;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
@@ -605,7 +605,7 @@ private:
 
         virtual int GetPriority() const OVERRIDE
         {
-            return PriorityClassMultiplier + Partition->Index;
+            return PriorityClassMultiplier * 2 + Partition->Index;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
@@ -706,7 +706,7 @@ private:
 
         virtual int GetPriority() const OVERRIDE
         {
-            return PriorityClassMultiplier + Partition->Index;
+            return PriorityClassMultiplier * 2 + Partition->Index;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
