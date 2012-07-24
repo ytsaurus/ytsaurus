@@ -238,7 +238,7 @@ for node in tree.iter():
             .replace("&amp;", "&") \
             .replace("&lt;", "<") \
             .replace("&gt;", ">")
-tree.write(sys.stderr, encoding="utf-8")
+tree.write(sys.stdout, encoding="utf-8")
 EOP
     cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
     b=$?
