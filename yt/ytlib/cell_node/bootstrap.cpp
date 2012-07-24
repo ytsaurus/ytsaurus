@@ -69,6 +69,8 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
+    srand(time(NULL));
+
     IncarnationId = TIncarnationId::Create();
     PeerAddress = BuildServiceAddress(GetLocalHostName(), Config->RpcPort);
 
