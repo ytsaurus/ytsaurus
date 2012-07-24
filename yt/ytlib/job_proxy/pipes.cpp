@@ -59,7 +59,8 @@ void SafeClose(int fd)
 
     // ToDo: provide proper message.
     if (res == -1) {
-        ythrow yexception() << "close failed with errno: " << errno;
+        ythrow yexception() <<
+            Sprintf("close failed with errno: %d, fd: %d", errno, fd);
     }
 }
 
