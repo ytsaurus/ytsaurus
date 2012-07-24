@@ -85,13 +85,13 @@ public:
     bool HasEnoughSpace(i64 size) const;
 
     //! Returns an invoker for reading chunk data.
-    IInvokerPtr GetDataReadInvoker(const TChunkId& chunkId);
+    IInvokerPtr GetDataReadInvoker();
 
     //! Returns an invoker for reading chunk meta.
     IInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IInvokerPtr GetWriteInvoker(const TChunkId& chunkId);
+    IInvokerPtr GetWriteInvoker();
 
 private:
     ELocationType Type;

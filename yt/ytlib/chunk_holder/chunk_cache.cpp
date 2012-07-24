@@ -151,7 +151,7 @@ private:
             , ChunkId(chunkId)
             , SeedAddresses(seedAddresses)
             , Cookie(cookie)
-            , WriteInvoker(Owner->Location->GetWriteInvoker(ChunkId))
+            , WriteInvoker(CreateSerializedInvoker(Owner->Location->GetWriteInvoker()))
             , Logger(DataNodeLogger)
         {
             Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));

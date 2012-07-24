@@ -19,25 +19,8 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
-static const int FairShareBucketCount = 20;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-void RemoveFile(const Stroka& fileName)
-{
-    if (!NFS::Remove(fileName)) {
-        LOG_FATAL("Error deleting file %s", ~fileName.Quote());
-    }
-}
-
-int GetFairShareBucket(const TChunkId& chunkId)
-{
-    return chunkId.Parts[0] % FairShareBucketCount;
-}
-
-} // namespace
 
 TLocation::TLocation(
     ELocationType type,
@@ -51,7 +34,7 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
-    , Queue(New<TFairShareActionQueue>(2 * FairShareBucketCount + 1, Sprintf("ChunkIO:%s", ~Id)))
+    , Queue(New<TFairShareActionQueue>(3, Sprintf("ChunkIO:%s", ~Id)))
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
@@ -155,20 +138,31 @@ bool TLocation::HasEnoughSpace(i64 size) const
     return GetAvailableSpace() - size >= Config->HighWatermark;
 }
 
-IInvokerPtr TLocation::GetDataReadInvoker(const TChunkId& chunkId)
-{
-    return Queue->GetInvoker(GetFairShareBucket(chunkId) + 1);
-}
-
-IInvokerPtr TLocation::GetMetaReadInvoker()
+IInvokerPtr TLocation::GetDataReadInvoker()
 {
     return Queue->GetInvoker(0);
 }
 
-IInvokerPtr TLocation::GetWriteInvoker(const TChunkId& chunkId)
+IInvokerPtr TLocation::GetMetaReadInvoker()
 {
-    return Queue->GetInvoker(GetFairShareBucket(chunkId) + FairShareBucketCount + 1);
+    return Queue->GetInvoker(1);
 }
+
+IInvokerPtr TLocation::GetWriteInvoker()
+{
+    return Queue->GetInvoker(2);
+}
+
+namespace {
+
+void RemoveFile(const Stroka& fileName)
+{
+    if (!NFS::Remove(fileName)) {
+        LOG_FATAL("Error deleting file %s", ~fileName.Quote());
+    }
+}
+
+} // namespace
 
 std::vector<TChunkDescriptor> TLocation::Scan()
 {
@@ -239,7 +233,7 @@ void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
 
-    GetWriteInvoker(id)->Invoke(BIND([=] () {
+    GetWriteInvoker()->Invoke(BIND([=] () {
         // TODO: retry on failure
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
         RemoveFile(fileName);
