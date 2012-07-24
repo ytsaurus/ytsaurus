@@ -223,9 +223,9 @@ run_python_test()
             -rx -v \
             --timeout 300 \
             --junitxml="$WORKING_DIRECTORY/test_${test_name}.xml"
-    tc "blockClosed name=${block_name}"
     b=$?
     a=$((a+b))
+    tc "blockClosed name=${block_name}"
 }
 
 run_python_test "$CHECKOUT_DIRECTORY/tests/integration" "integration"
