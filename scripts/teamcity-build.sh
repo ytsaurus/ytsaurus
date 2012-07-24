@@ -197,7 +197,6 @@ a=$((a+b))
 
 tc "blockClosed name='Unit Tests'"
 
-tc "blockOpened name='Integration Tests'"
 
 # TODO(ignat): add correct installation for package "python-requests (>=0.13.1)"
 # Unfortunetly python-requests of proper version is absent in debian repository.
@@ -212,6 +211,7 @@ run_python_test()
     local test_name=$2
 
     shout "Running $test_name tests..."
+    tc "blockOpened name=${test_name} tests"
     tc "progressMessage 'Running $test_name tests...'"
 
     cd $dir
@@ -221,6 +221,7 @@ run_python_test()
             -rx -v \
             --timeout 300 \
             --junitxml="$WORKING_DIRECTORY/test_${test_name}.xml"
+    tc "blockClosed name=${test_name} tests"
     b=$?
     a=$((a+b))
 }
@@ -238,8 +239,6 @@ fi
 run_python_test "$CHECKOUT_DIRECTORY/python/yt_wrapper" "python_wrapper"
 
 run_python_test "$CHECKOUT_DIRECTORY/python/yson" "python_yson"
-
-tc "blockClosed name='Integration Tests'"
 
 tc "blockOpened name='JavaScript Tests'"
 
