@@ -31,3 +31,11 @@ class TestRunScheduler(YTEnvSetup):
     def test(self):
         assert True
 
+class TestRunAll(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_HOLDERS = 1
+    START_SCHEDULER = True
+
+    def test(self):
+        assert True
+
