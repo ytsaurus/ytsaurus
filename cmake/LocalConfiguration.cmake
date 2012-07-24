@@ -13,9 +13,9 @@
 # Specify available build options.
 
 option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
-option(YT_BUILD_ENABLE_TESTS "Build tests" TRUE)
-option(YT_BUILD_ENABLE_NODEJS "Build NodeJS extensions" FALSE)
-option(YT_BUILD_WITH_STLPORT "Build with STLport" TRUE)
+option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
+option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
+option(YT_BUILD_WITH_STLPORT       "Build with STLport" FALSE)
 
 ################################################################################
 # Enforce developer to specify build type.
