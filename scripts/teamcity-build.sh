@@ -191,7 +191,7 @@ gdb \
     --args \
     ./bin/unittester \
         --gtest_color=no \
-        --gtest_output=xml:$WORKING_DIRECTORY/test_unit.xml
+        --gtest_output=xml:$WORKING_DIRECTORY/unit_tests.xml
 b=$?
 a=$((a+b))
 
@@ -203,14 +203,6 @@ tc "blockOpened name='Integration Tests'"
 # Unfortunetly python-requests of proper version is absent in debian repository.
 # So I need to use easy_install.
 # Now it is installed to teamcity manually.
-
-# Prepare packages for tests
-for package in "python-simplejson"; do
-    dpkg -s $package
-    if [ "$?" != "0" ]; then
-        sudo apt-get install -y $package
-    fi
-done
 
 ulimit -c unlimited
 
