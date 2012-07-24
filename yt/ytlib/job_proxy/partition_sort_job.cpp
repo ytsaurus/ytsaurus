@@ -75,69 +75,70 @@ TJobResult TPartitionSortJob::Run()
 
         std::vector<TSmallKeyPart> keyBuffer;
         std::vector<const char*> rowPtrBuffer;
-        std::vector<ui32> rowIndexBuffer;
+        std::vector<ui32> rowIndexHeap;
 
-        LOG_INFO("Partition sort job.");
+        LOG_INFO("Initializing");
         {
             Sync(~Reader, &TPartitionChunkSequenceReader::AsyncOpen);
 
             keyBuffer.reserve(Reader->GetRowCount() * keyColumnCount);
             rowPtrBuffer.reserve(Reader->GetRowCount());
-            rowIndexBuffer.reserve(Reader->GetRowCount());
+            rowIndexHeap.reserve(Reader->GetRowCount());
 
-            LOG_INFO("Estimated row count: %d", Reader->GetRowCount());
+            LOG_INFO("Estimated row count: %" PRId64, Reader->GetRowCount());
         }
-
         PROFILE_TIMING_CHECKPOINT("init");
+
+        // comparer(x, y) returns True iff row[x] > row[y]
+        // The comparison order is reversed since std::push_heap/pop_heap deal with max-heaps.
+        auto comparer = [&] (ui32 lhs, ui32 rhs) -> bool {
+            int lhsStartIndex = lhs * keyColumnCount;
+            int lhsEndIndex   = lhsStartIndex + keyColumnCount;
+            int rhsStartIndex = rhs * keyColumnCount;
+            for (int lhsIndex = lhsStartIndex, rhsIndex = rhsStartIndex;
+                 lhsIndex < lhsEndIndex;
+                 ++lhsIndex, ++rhsIndex)
+            {
+                auto res = CompareSmallKeyParts(keyBuffer[lhsIndex], keyBuffer[rhsIndex]);
+                if (res < 0)
+                    return true;
+                if (res > 0)
+                    return false;
+            }
+            return false;
+        };
 
         LOG_INFO("Reading");
         {
             TLexer lexer;
             while (Reader->IsValid()) {
+                // Push row pointer.
                 rowPtrBuffer.push_back(Reader->CurrentReader()->GetRowPointer());
-                rowIndexBuffer.push_back(rowIndexBuffer.size());
-                YASSERT(rowIndexBuffer.back() <= std::numeric_limits<ui32>::max());
+                YASSERT(rowIndexHeap.back() <= std::numeric_limits<ui32>::max());
 
+                // Push key.
                 keyBuffer.resize(keyBuffer.size() + keyColumnCount);
-
                 for (int i = 0; i < keyColumnCount; ++i) {
                     auto value = Reader->CurrentReader()->ReadValue(KeyColumns[i]);
                     if (!value.IsNull()) {
-                        auto& keyPart = keyBuffer[rowIndexBuffer.back() * keyColumnCount + i];
+                        auto& keyPart = keyBuffer[rowIndexHeap.back() * keyColumnCount + i];
                         SetSmallKeyPart(keyPart, value.ToStringBuf(), lexer);
                     }
                 }
+
+                // Push row index and readjust the heap.
+                rowIndexHeap.push_back(rowIndexHeap.size());
+                std::push_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
 
                 if (!Reader->FetchNextItem()) {
                     Sync(~Reader, &TPartitionChunkSequenceReader::GetReadyEvent);
                 }
             }
-
-            LOG_INFO("Read row count: %d", static_cast<int>(rowIndexBuffer.size()));
         }
         PROFILE_TIMING_CHECKPOINT("read");
 
-        LOG_INFO("Sorting");
-
-        std::sort(
-            rowIndexBuffer.begin(), 
-            rowIndexBuffer.end(),
-            [&] (ui32 lhs, ui32 rhs) -> bool {
-                for (int i = 0; i < keyColumnCount; ++i) {
-                    auto res = CompareSmallKeyParts(
-                        keyBuffer[lhs * keyColumnCount + i], 
-                        keyBuffer[rhs * keyColumnCount + i]);
-
-                    if (res < 0)
-                        return true;
-                    if (res > 0)
-                        return false;
-                }
-
-                return false;
-        });
-
-        PROFILE_TIMING_CHECKPOINT("sort");
+        i64 totalRowCount = rowIndexHeap.size();
+        LOG_INFO("Total row count: %" PRId64, totalRowCount);
 
         LOG_INFO("Writing");
         {
@@ -148,47 +149,45 @@ TJobResult TPartitionSortJob::Run()
             TRow row;
             TNonOwningKey key(keyColumnCount);
 
-            size_t progressIndex = 0;
-            for (; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
-                row.clear();
+            for (i64 writtenRowCount = 0; writtenRowCount < totalRowCount; ++writtenRowCount) {
+                // Pop row index and readjust the heap.
+                ui32 rowIndex = rowIndexHeap.front();
+                std::pop_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
+                rowIndexHeap.pop_back();
+
+                // Prepare key.
                 key.Clear();
-
-                auto rowIndex = rowIndexBuffer[progressIndex];
-
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
                     auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
                     SetKeyPart(&key, keyPart, keyIndex);
                 }
 
+                // Prepare row.
+                row.clear();
                 input.Reset(rowPtrBuffer[rowIndex], std::numeric_limits<size_t>::max());
                 while (true) {
                     auto value = TValue::Load(&input);
-                    if (!value.IsNull()) {
-                        i32 columnNameLength;
-                        ReadVarInt32(&input, &columnNameLength);
-                        YASSERT(columnNameLength > 0);
-                        row.push_back(std::make_pair(
-                            TStringBuf(input.Buf(), columnNameLength),
-                            value.ToStringBuf()));
-
-                        input.Skip(columnNameLength);
-                    } else {
+                    if (value.IsNull()) {
                         break;
                     }
+
+                    i32 columnNameLength;
+                    ReadVarInt32(&input, &columnNameLength);
+                    YASSERT(columnNameLength > 0);
+                    row.push_back(std::make_pair(
+                        TStringBuf(input.Buf(), columnNameLength),
+                        value.ToStringBuf()));
+                    input.Skip(columnNameLength);
                 }
 
                 writer->WriteRowUnsafe(row, key);
 
-                if (progressIndex % 1000 == 0) {
-                    Writer->SetProgress(double(progressIndex) / rowIndexBuffer.size());
+                if (writtenRowCount % 1000 == 0) {
+                    Writer->SetProgress((double) writtenRowCount / totalRowCount);
                 }
             }
-
             writer->Close();
-
-            LOG_INFO("Written row count: %d", static_cast<int>(progressIndex));
         }
-
         PROFILE_TIMING_CHECKPOINT("write");
 
         LOG_INFO("Finalizing");
