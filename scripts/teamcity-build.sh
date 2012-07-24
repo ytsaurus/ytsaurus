@@ -209,9 +209,11 @@ run_python_test()
 {
     local dir=$1
     local test_name=$2
+    local block_name="'${test_name} tests'"
 
     shout "Running $test_name tests..."
-    tc "blockOpened name=${test_name} tests"
+
+    tc "blockOpened name=${block_name}"
     tc "progressMessage 'Running $test_name tests...'"
 
     cd $dir
@@ -221,7 +223,7 @@ run_python_test()
             -rx -v \
             --timeout 300 \
             --junitxml="$WORKING_DIRECTORY/test_${test_name}.xml"
-    tc "blockClosed name=${test_name} tests"
+    tc "blockClosed name=${block_name}"
     b=$?
     a=$((a+b))
 }
