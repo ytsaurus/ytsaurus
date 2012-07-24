@@ -292,7 +292,6 @@ public:
     void Configure(const Stroka& fileName, const TYPath& path)
     {
         try {
-            LOG_TRACE("Configuring logging (FileName: %s, Path: %s)", ~fileName, ~path);
             TIFStream configStream(fileName);
             auto root = ConvertToNode(&configStream);
             auto configNode = GetNodeByYPath(root, path);
