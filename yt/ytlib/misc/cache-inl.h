@@ -174,7 +174,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
 
     auto key = value->GetKey();
 
-    TAsyncValuePtrOrErrorResult valueOrError;
+    TAsyncValuePtrOrErrorPromise valueOrError;
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -202,7 +202,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
 template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
 {
-    TAsyncValuePtrOrErrorResult valueOrError;
+    TAsyncValuePtrOrErrorPromise valueOrError;
     {
         TGuard<TSpinLock> guard(SpinLock);
 
