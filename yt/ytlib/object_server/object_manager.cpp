@@ -622,15 +622,14 @@ void TObjectManager::ExecuteVerb(
         context->GetVerb() +
         "/time";
 
-    if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
-        !isWrite ||
-        MetaStateManager->GetMutationContext())
-    {
+    if (IsRecovery() || !isWrite || MetaStateManager->GetMutationContext()) {
         PROFILE_TIMING (profilingPath) {
             action.Run(context);
         }
         return;
     }
+
+    // TODO(sandello): We are about to execute verb, have to check that we are leading.
 
     TMsgExecuteVerb message;
     *message.mutable_object_id() = id.ObjectId.ToProto();

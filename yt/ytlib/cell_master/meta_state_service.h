@@ -40,6 +40,7 @@ protected:
     template <class TContext>
     TClosure CreateErrorHandler(TIntrusivePtr<TContext> context)
     {
+        // TODO: Add check that error is not yet in place.
         return BIND(
             (void (TContext::*)(int, const Stroka&)) &TContext::Reply,
             context,
@@ -52,9 +53,6 @@ private:
         TRuntimeMethodInfo* runtimeInfo,
         const TClosure& handler,
         NRpc::IServiceContextPtr context);
-
-    void CheckStatus(NMetaState::EPeerStatus status);
-    void CheckQuorum();
 
 };
 

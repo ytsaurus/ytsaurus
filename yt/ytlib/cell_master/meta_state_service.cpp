@@ -36,7 +36,7 @@ void TMetaStateServiceBase::InvokeHandler(
     NRpc::IServiceContextPtr context_ = context;
     runtimeInfo->Invoker->Invoke(BIND([=] ()
         {
-            if (Bootstrap->GetMetaStateManager()->GetStateStatusAsync() != EPeerStatus::Leading ||
+            if (Bootstrap->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading ||
                 !Bootstrap->GetMetaStateManager()->HasActiveQuorum())
             {
                 context_->Reply(TError(NRpc::EErrorCode::Unavailable, "Not an active leader"));
