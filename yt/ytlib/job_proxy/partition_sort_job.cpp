@@ -97,7 +97,7 @@ TJobResult TPartitionSortJob::Run()
             int rhsStartIndex = rhs * keyColumnCount;
             for (int lhsIndex = lhsStartIndex, rhsIndex = rhsStartIndex;
                  lhsIndex < lhsEndIndex;
-                 ++lhsIndex, ++rhsIndex)
+                 ++lhsIndex, ++rhsIndex) 
             {
                 auto res = CompareSmallKeyParts(keyBuffer[lhsIndex], keyBuffer[rhsIndex]);
                 if (res < 0)
