@@ -27,6 +27,12 @@ def write_config(config, filename):
     with open(filename, 'wt') as f:
         f.write(yson.dumps(config, indent = '    '))
 
+def write_with_flush(data):
+    sys.stdout.write(data)
+    sys.stdout.flush()
+
+logging.basicConfig(format='%(message)s', level=logging.INFO)
+
 class YTEnv(unittest.TestCase):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
@@ -70,8 +76,9 @@ class YTEnv(unittest.TestCase):
         if ports is not None:
             self._ports.update(ports)
 
-        logging.info('Setting up configuration with %s masters, %s nodes, %s schedulers at %s' %
-                     (self.NUM_MASTERS, self.NUM_HOLDERS, self.START_SCHEDULER, self.path_to_run))
+        logging.info('Setting up configuration with %s masters, %s nodes, %s schedulers.' %
+                     (self.NUM_MASTERS, self.NUM_HOLDERS, self.START_SCHEDULER))
+        logging.info('SANDBOX_DIR is %s', self.path_to_run)
 
         self.process_to_kill = []
 
@@ -207,13 +214,15 @@ class YTEnv(unittest.TestCase):
                 for line in reversed(open(logging_file).readlines()):
                     if bad_marker in line: continue
                     if good_marker in line:
-                        logging.info('Found leader: %d', master_id)
                         self.leader_log = logging_file
+                        self.leader_id = master_id
                         return True
                 master_id += 1
             return False
 
         self._wait_for(masters_ready, name = "masters")
+        logging.info('(Leader is: %d)', self.leader_id)
+
 
     def _run_nodes(self):
         if self.NUM_HOLDERS == 0: return
@@ -340,11 +349,11 @@ class YTEnv(unittest.TestCase):
 
     def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
         current_wait_time = 0
-        logging.info('Waiting for %s', name)
+        write_with_flush('Waiting for %s' % name)
         while current_wait_time < max_wait_time:
-            logging.info('.')
+            write_with_flush('.')
             if condition():
-                logging.info(' %s ready' % name)
+                write_with_flush(' %s ready\n' % name)
                 return
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
