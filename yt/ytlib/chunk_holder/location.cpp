@@ -34,7 +34,8 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
-    , Queue(New<TFairShareActionQueue>(3, Sprintf("ChunkIO:%s", ~Id)))
+    , ReadQueue(New<TFairShareActionQueue>(2, Sprintf("ChunkIO:%s", ~Id)))
+    , WriteQueue(New<TActionQueue>())
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
@@ -140,17 +141,17 @@ bool TLocation::HasEnoughSpace(i64 size) const
 
 IInvokerPtr TLocation::GetDataReadInvoker()
 {
-    return Queue->GetInvoker(0);
+    return ReadQueue->GetInvoker(0);
 }
 
 IInvokerPtr TLocation::GetMetaReadInvoker()
 {
-    return Queue->GetInvoker(1);
+    return ReadQueue->GetInvoker(1);
 }
 
 IInvokerPtr TLocation::GetWriteInvoker()
 {
-    return Queue->GetInvoker(2);
+    return WriteQueue->GetInvoker();
 }
 
 namespace {

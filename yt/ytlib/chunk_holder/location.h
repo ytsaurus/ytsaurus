@@ -103,7 +103,8 @@ private:
     i64 UsedSpace;
     int SessionCount;
 
-    TFairShareActionQueuePtr Queue;
+    TFairShareActionQueuePtr ReadQueue;
+    TActionQueuePtr WriteQueue;
 
     mutable NLog::TTaggedLogger Logger;
 };
