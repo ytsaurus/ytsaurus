@@ -51,7 +51,7 @@ PREFIX = "//statbox/"
 SPECIAL_SYMBOLS = "*\"=:; "
 
 def normalize(name):
-    require(name.find("\\") != -1, YtError("Using \\ in table names is forbidden"))
+    require(name.find("\\") == -1, YtError("Using \\ in table names is forbidden, name " + name))
 
     for sym in SPECIAL_SYMBOLS:
         name.replace(sym, "\\" + sym)
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append"])
-    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey"])
+    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file"] + ["opt"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize"])
     args = parser.parse_args()
@@ -131,6 +131,10 @@ if __name__ == "__main__":
 
     if args.chunksize is not None:
         config.WRITE_BUFFER_SIZE = args.chunksize
+    if args.server is not None:
+        config.PROXY = args.server
+    if args.prefix is not None:
+        PREFIX = args.prefix
 
     spec = {}
     if args.jobcount is not None:
@@ -156,8 +160,6 @@ if __name__ == "__main__":
     if not dst:
         dst = None
 
-    if args.server is not None:
-        config.PROXY = args.server
     config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))
