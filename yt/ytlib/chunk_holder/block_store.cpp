@@ -113,7 +113,7 @@ public:
                 Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString()))));
         }
 
-        if (!chunk->AcquireReadLock()) {
+        if (!chunk->TryAcquireReadLock()) {
             return MakeFuture(TGetBlockResult(TError("Cannot read chunk block %s: chunk is scheduled for removal",
                 ~blockId.ToString())));
         }

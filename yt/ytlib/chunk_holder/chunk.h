@@ -60,10 +60,26 @@ public:
      */
     TAsyncGetMetaResult GetMeta(const std::vector<int>* tags = NULL);
 
+    //! Tries to acquire a read lock and increments the lock counter.
+    /*!
+     *  Succeeds if removal is not scheduled yet.
+     *  Returns True on success, False on failure.
+     */
+    bool TryAcquireReadLock();
 
-    bool AcquireReadLock();
+    //! Releases an earlier acquired read lock, decrements the lock counter.
+    /*!
+     *  If this was the last read lock and chunk removal is pending,
+     *  enqueues removal actions to the appropriate thread.
+     */
     void ReleaseReadLock();
 
+    //! Marks the chunk as pending for removal.
+    /*!
+     *  After this call, no new read locks can be taken.
+     *  If no read lock is currently in progress, enqueues removal actions
+     *  to the appropriate thread.
+     */
     void ScheduleRemoval();
 
 
