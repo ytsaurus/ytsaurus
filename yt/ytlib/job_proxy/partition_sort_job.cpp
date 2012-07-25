@@ -200,6 +200,7 @@ TJobResult TPartitionSortJob::Run()
                 do {
                     if (!isRowReady) {
                         prepareRow();
+                        isRowReady = true;
                     }
 
                     if (!Writer->TryWriteRowUnsafe(row, key)) {
