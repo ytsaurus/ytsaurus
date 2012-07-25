@@ -358,7 +358,6 @@ private:
     int ProcessId;
 };
 
-NScheduler::NProto::TJobResult TUserJob::Run()
 TAutoPtr<IJob> CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
