@@ -6,8 +6,12 @@
 #include "bootstrap.h"
 #include "private.h"
 
+#include <ytlib/scheduler/job_resources.h>
+
 namespace NYT {
 namespace NExecAgent {
+
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +29,7 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
     RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(OnJobProgress));
+    RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(OnResourceUtilizationSet));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
@@ -60,6 +65,19 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
         ~jobId.ToString());
 
     // Progress tracking is not implemented yet.
+}
+
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnResourceUtilizationSet)
+{
+    auto jobId = TJobId::FromProto(request->job_id());
+    const auto& utilization = request->utilization();
+
+    context->SetRequestInfo("JobId: %s, Utilization: {%s}",
+        ~jobId.ToString(),
+        ~FormatResources(utilization));
+
+    auto job = Bootstrap->GetJobManager()->GetJob(jobId);
+    job->SetResourceUtilization(utilization);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

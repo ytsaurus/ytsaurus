@@ -45,11 +45,13 @@ public:
     NScheduler::EJobProgress GetProgress() const;
 
     NScheduler::NProto::TNodeResources GetResourceUtilization() const;
+    void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization);
 
     const NScheduler::NProto::TJobResult& GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
     DECLARE_SIGNAL(void(), Finished);
+    DEFINE_SIGNAL(void(), ResourceUtilizationSet);
 
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
@@ -76,16 +78,19 @@ private:
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
 
+    NScheduler::NProto::TNodeResources ResourceUtilization;
+
     NLog::TTaggedLogger Logger;
+
+    NChunkHolder::TChunkCachePtr ChunkCache;
+
+    TSlotPtr Slot;
 
     NScheduler::EJobState JobState;
     NScheduler::EJobProgress JobProgress;
 
     NJobProxy::TJobProxyConfigPtr ProxyConfig;
 
-    TSlotPtr Slot;
-
-    NChunkHolder::TChunkCachePtr ChunkCache;
     std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
 
     IProxyControllerPtr ProxyController;
@@ -94,6 +99,7 @@ private:
     TSpinLock SpinLock;
     TNullable<NScheduler::NProto::TJobResult> JobResult;
     TPromise<void> JobFinished;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };

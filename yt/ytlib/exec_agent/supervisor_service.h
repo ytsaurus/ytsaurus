@@ -16,7 +16,7 @@ class TSupervisorService
 public:
     typedef TIntrusivePtr<TSupervisorService> TPtr;
 
-    TSupervisorService(TBootstrap* bootstrap);
+    explicit TSupervisorService(TBootstrap* bootstrap);
 
 private:
     typedef TSupervisorService TThis;
@@ -26,6 +26,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobFinished);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnJobProgress);
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnResourceUtilizationSet);
 
 };
 

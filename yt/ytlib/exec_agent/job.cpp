@@ -42,6 +42,8 @@ TJob::TJob(
     TSlotPtr slot)
     : JobId(jobId)
     , JobSpec(jobSpec)
+    // Use initial utilization provided by the scheduler.
+    , ResourceUtilization(JobSpec.resource_utilization())
     , Logger(ExecAgentLogger)
     , ChunkCache(chunkCache)
     , Slot(slot)
@@ -321,15 +323,18 @@ EJobProgress TJob::GetProgress() const
 
 TNodeResources TJob::GetResourceUtilization() const
 {
-    if (JobState != EJobState::Running &&
-        JobState != EJobState::Aborting)
-    {
-        // Completed jobs have zero utilization.
-        return ZeroResources();
-    }
+    return
+        JobState == EJobState::Running || JobState == EJobState::Aborting
+        ? ResourceUtilization
+        : ZeroResources();
+}
 
-    // Report what we have received from the scheduler.
-    return JobSpec.resource_utilization();
+void TJob::SetResourceUtilization(const TNodeResources& utilization)
+{
+    if (JobState == EJobState::Running) {
+        ResourceUtilization = utilization;
+        ResourceUtilizationSet_.Fire();
+    }
 }
 
 void TJob::Abort()
@@ -364,7 +369,7 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
             LOG_INFO("Killing job");
             ProxyController->Kill(error);
         } catch (const std::exception& ex) {
-            //NB: retries should be done inside proxy controller (if makes sense).
+            // NB: Retries should be done inside proxy controller (if makes sense).
             LOG_FATAL("Failed to kill job\n%s", ex.what());
         }
     }

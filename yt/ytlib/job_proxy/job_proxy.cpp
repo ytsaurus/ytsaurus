@@ -48,6 +48,7 @@ void TJobProxy::SendHeartbeat()
 
     auto req = SupervisorProxy->OnJobProgress();
     *req->mutable_job_id() = JobId.ToProto();
+    *req->mutable_progress() = Job->GetProgress();
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
     LOG_DEBUG("Supervisor heartbeat sent");
@@ -160,8 +161,8 @@ void TJobProxy::ReportResult(const TJobResult& result)
     HeartbeatInvoker->Stop();
 
     auto req = SupervisorProxy->OnJobFinished();
-    *req->mutable_result() = result;
     *req->mutable_job_id() = JobId.ToProto();
+    *req->mutable_result() = result;
 
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
@@ -191,6 +192,12 @@ TNodeResources TJobProxy::GetResourceUtilization()
 void TJobProxy::SetResourceUtilization(const TNodeResources& utilization) 
 {
     ResourceUtilization = utilization;
+
+    // Fire-and-forget.
+    auto req = SupervisorProxy->OnResourceUtilizationSet();
+    *req->mutable_job_id() = JobId.ToProto();
+    *req->mutable_utilization() = ResourceUtilization;
+    req->Invoke();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

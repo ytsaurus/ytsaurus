@@ -109,8 +109,13 @@ void TSchedulerConnector::StartJob(const TJobStartInfo& info)
     auto jobId = TJobId::FromProto(info.job_id());
     const auto& spec = info.spec();
     auto job = Bootstrap->GetJobManager()->StartJob(jobId, spec);
-    // Schedule an out-of-order heartbeat whenever a job finishes.
+
+    // Schedule an out-of-order heartbeat whenever a job finishes
+    // or its resource utilization is updated.
     job->SubscribeFinished(BIND(
+        &TPeriodicInvoker::ScheduleOutOfBand,
+        HeartbeatInvoker));
+    job->SubscribeResourceUtilizationSet(BIND(
         &TPeriodicInvoker::ScheduleOutOfBand,
         HeartbeatInvoker));
 }

@@ -32,7 +32,16 @@ message TRspOnJobFinished
 message TReqOnJobProgress
 {
     required NYT.NProto.TGuid job_id = 1;
-    // Once there's gonna be progress.
+    required NScheduler.NProto.TJobProgress progress = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqOnResourceUtilizationSet
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NScheduler.NProto.TNodeResources utilization = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
