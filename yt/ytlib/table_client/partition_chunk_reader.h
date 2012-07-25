@@ -7,7 +7,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 
 namespace NYT {
 namespace NTableClient {

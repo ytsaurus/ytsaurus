@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 
 namespace NYT {
 namespace NChunkClient {

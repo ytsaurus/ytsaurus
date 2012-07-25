@@ -12,7 +12,7 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/blob_output.h>
 

@@ -5,7 +5,7 @@
 //#include <ytlib/chunk_client/public.h>
 //#include <ytlib/chunk_client/config.h>
 #include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 #include <ytlib/chunk_client/config.h>
 
 namespace NYT {

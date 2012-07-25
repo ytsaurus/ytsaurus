@@ -7,6 +7,7 @@ set( DIRS
   chunk_holder
   chunk_client
   chunk_server
+  codecs
   transaction_server
   transaction_client
   logging

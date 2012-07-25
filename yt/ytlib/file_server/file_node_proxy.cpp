@@ -6,7 +6,7 @@
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 
 namespace NYT {
 namespace NFileServer {

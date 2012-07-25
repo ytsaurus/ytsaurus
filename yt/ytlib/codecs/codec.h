@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "ref.h"
+#include <ytlib/misc/ref.h>
 
 namespace NYT {
 
@@ -9,7 +9,10 @@ namespace NYT {
 DECLARE_ENUM(ECodecId,
     ((None)(0))
     ((Snappy)(1))
+    ((Gzip)(2))
+    ((Lz4)(3))
 );
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

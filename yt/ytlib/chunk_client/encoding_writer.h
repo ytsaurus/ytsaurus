@@ -5,7 +5,7 @@
 #include <ytlib/actions/callback.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 
 #include <util/thread/lfqueue.h>
 

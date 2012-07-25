@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 import yt
+import config
+
+config.PROXY = "w301.hdp/yandex.net"
 
 import sys
 
