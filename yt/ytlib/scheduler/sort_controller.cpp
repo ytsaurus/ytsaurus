@@ -283,7 +283,7 @@ private:
 
             // If completed partition job limit has been reached, then
             // kick-start all sort jobs.
-            if (Controller->PartitionJobCounter.GetTotal() == Controller->SortStartThresholdCount) {
+            if (Controller->PartitionJobCounter.GetCompleted() == Controller->SortStartThresholdCount) {
                 FOREACH (auto partition, Controller->Partitions) {
                     if (!partition->Megalomaniac) {
                         Controller->AddTaskPendingHint(partition->SortTask);
