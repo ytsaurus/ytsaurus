@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/object_server/id.h>
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/leader_channel.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>

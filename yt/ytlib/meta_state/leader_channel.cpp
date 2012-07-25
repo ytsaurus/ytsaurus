@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "leader_channel.h"
 
-#include <ytlib/meta_state/config.h>
-#include <ytlib/meta_state/master_discovery.h>
+#include "config.h"
+#include "master_discovery.h"
 
 #include <ytlib/rpc/roaming_channel.h>
 #include <ytlib/rpc/bus_channel.h>
@@ -11,7 +11,7 @@
 #include <ytlib/bus/tcp_client.h>
 
 namespace NYT {
-namespace NElection {
+namespace NMetaState {
 
 using namespace NRpc;
 using namespace NBus;
@@ -20,13 +20,13 @@ using namespace NBus;
 
 namespace {
 
-TValueOrError<IChannelPtr> OnLeaderFound(  
-    NMetaState::TMasterDiscoveryConfigPtr config,
-    NMetaState::TMasterDiscovery::TResult result)
+TValueOrError<IChannelPtr> OnLeaderFound(
+    TMasterDiscoveryConfigPtr config,
+    TMasterDiscovery::TResult result)
 {
-    if (result.Address) { 
+    if (!result.Address) {
         return TError("Unable to determine the leader");
-    } 
+    }
 
     auto clientConfig = New<TTcpBusClientConfig>();
     clientConfig->Address = *result.Address;
@@ -37,9 +37,9 @@ TValueOrError<IChannelPtr> OnLeaderFound(
 
 } // namespace
 
-IChannelPtr CreateLeaderChannel(NMetaState::TMasterDiscoveryConfigPtr config)
+IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
 {
-    auto masterDiscovery = New<NMetaState::TMasterDiscovery>(config);
+    auto masterDiscovery = New<TMasterDiscovery>(config);
     return CreateRoamingChannel(
         config->RpcTimeout,
         BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
@@ -51,5 +51,5 @@ IChannelPtr CreateLeaderChannel(NMetaState::TMasterDiscoveryConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
+} // namespace NMetaState
 } // namespace NYT

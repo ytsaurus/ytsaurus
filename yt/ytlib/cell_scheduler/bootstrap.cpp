@@ -12,7 +12,7 @@
 
 #include <ytlib/rpc/server.h>
 
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/leader_channel.h>
 
 #include <ytlib/meta_state/config.h>
 

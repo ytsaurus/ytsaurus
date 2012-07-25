@@ -17,7 +17,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/chunk_server/holder_statistics.h>
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/leader_channel.h>
 #include <ytlib/logging/tagged_logger.h>
 
 #include <util/random/random.h>

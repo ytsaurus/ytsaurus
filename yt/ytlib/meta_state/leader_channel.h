@@ -1,17 +1,16 @@
 #pragma once
 
-// TODO: FixMe
-#include <ytlib/meta_state/public.h>
+#include "public.h"
 
 #include <ytlib/rpc/public.h>
 
 namespace NYT {
-namespace NElection {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel that takes care of choosing leader among the peers.
-NRpc::IChannelPtr CreateLeaderChannel(NMetaState::TMasterDiscoveryConfigPtr config);
+NRpc::IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
