@@ -18,6 +18,7 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,15 +64,25 @@ public:
                     Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString())));
             }
 
-            try {
-                auto reader = New<TCachedReader>(chunkId, fileName);
-                reader->Open();
-                cookie.EndInsert(reader);
-            } catch (const std::exception& ex) {
-                LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
-                    ~chunkId.ToString(),
-                    ex.what());
+            LOG_DEBUG("Started opening chunk reader (LocationId: %s, ChunkId: %s)",
+                ~chunk->GetLocation()->GetId(),
+                ~chunkId.ToString());
+
+            PROFILE_TIMING ("/chunk_io/chunk_reader_open_time") {
+                try {
+                    auto reader = New<TCachedReader>(chunkId, fileName);
+                    reader->Open();
+                    cookie.EndInsert(reader);
+                } catch (const std::exception& ex) {
+                    LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
+                        ~chunkId.ToString(),
+                        ex.what());
+                }
             }
+
+            LOG_DEBUG("Finished opening chunk reader (LocationId: %s, ChunkId: %s)",
+                ~chunk->GetLocation()->GetId(),
+                ~chunkId.ToString());
         }
 
         return cookie.GetValue().Get();

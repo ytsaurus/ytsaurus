@@ -224,13 +224,18 @@ std::vector<TChunkDescriptor> TLocation::Scan()
 
     LOG_INFO("Done, %" PRISZT " chunks found", result.size());
 
+    // Force subdirectories.
+    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
+        NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)));
+    }
+
     return result;
 }
 
 void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 {
     auto id = chunk->GetId();
-    Stroka fileName = chunk->GetFileName();
+    Stroka fileName = GetChunkFileName(id);
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
 

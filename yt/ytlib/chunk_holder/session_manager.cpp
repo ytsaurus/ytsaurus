@@ -69,13 +69,14 @@ void TSession::DoOpenFile()
 {
     LOG_DEBUG("Started opening chunk writer");
     
-    try {
-        NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        Writer = New<TFileWriter>(FileName);
-        Writer->Open();
-    }
-    catch (const std::exception& ex) {
-        LOG_FATAL("Error opening chunk writer\n%s", ex.what());
+    PROFILE_TIMING ("/chunk_io/chunk_writer_open_time") {
+        try {
+            Writer = New<TFileWriter>(FileName);
+            Writer->Open();
+        }
+        catch (const std::exception& ex) {
+            LOG_FATAL("Error opening chunk writer\n%s", ex.what());
+        }
     }
 
     LOG_DEBUG("Finished opening chunk writer");
@@ -302,8 +303,10 @@ TVoid TSession::DoAbortWriter()
 {
     LOG_DEBUG("Started aborting chunk writer");
 
-    Writer->Abort();
-    Writer.Reset();
+    PROFILE_TIMING ("/chunk_io/chunk_abort_time") {
+        Writer->Abort();
+        Writer.Reset();
+    }
 
     LOG_DEBUG("Finished aborting chunk writer");
 
@@ -328,13 +331,15 @@ TVoid TSession::DoCloseFile(const TChunkMeta& chunkMeta)
 {
     LOG_DEBUG("Started closing chunk writer");
 
-    try {
-        Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error closing chunk writer\n%s", ex.what());
+    PROFILE_TIMING ("/chunk_io/chunk_writer_close_time") {
+        try {
+            Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Error closing chunk writer\n%s", ex.what());
+        }
     }
 
-    LOG_DEBUG("Chunk writer closed");
+    LOG_DEBUG("Finished closing chunk writer");
 
     return TVoid();
 }
