@@ -96,7 +96,6 @@ void TJobProxy::Run()
         TSyncInvoker::Get(),
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)), 
         Config->HeartbeatPeriod);
-    HeartbeatInvoker->Start();
 
     try {
         RetrieveJobSpec();
@@ -143,9 +142,11 @@ void TJobProxy::Run()
                 YUNREACHABLE();
         }
 
+        HeartbeatInvoker->Start();
         auto result = Job->Run();
-        ReportResult(result);
+        HeartbeatInvoker->Stop();
 
+        ReportResult(result);
     } catch (const std::exception& ex) {
         LOG_ERROR("Job failed\n%s", ex.what());
 
