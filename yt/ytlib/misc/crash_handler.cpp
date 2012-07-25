@@ -42,6 +42,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+#ifndef _win_
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -333,10 +334,15 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     InvokeDefaultSignalHandler(signal);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+#endif
+
 } // namespace anonymous
 
 void InstallCrashSignalHandler()
 {
+#ifndef _win_
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
@@ -346,6 +352,7 @@ void InstallCrashSignalHandler()
     for (size_t i = 0; i < ARRAY_SIZE(FailureSignals); ++i) {
         YCHECK(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
     }
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

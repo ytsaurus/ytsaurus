@@ -2,6 +2,8 @@
 
 #include <yt/config.h>
 
+#ifndef _win_
+
 #if defined(HAVE_UNWIND_H)
 #   define ENABLE_GCC_STACKTRACE
 #endif
@@ -227,3 +229,5 @@ int GetStackTrace(void** result, int maxFrames, int skipFrames)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#endif
