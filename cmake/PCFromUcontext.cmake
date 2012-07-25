@@ -8,7 +8,7 @@ if (HAVE_SYS_UCONTEXT_H)
   set(UCONTEXT_INCLUDES "${UCONTEXT_INCLUDES}\n#include <sys/ucontext.h>")
 endif()
 
-if ("${PC_FROM_UCONTEXT}" MATCHES "^${PC_FROM_UCONTEXT}")
+if (NOT DEFINED PC_FROM_UCONTEXT)
   foreach (_pc_field
     "uc_mcontext.gregs[REG_EIP]"
     "uc_mcontext.gregs[REG_RIP]"
@@ -43,10 +43,14 @@ if ("${PC_FROM_UCONTEXT}" MATCHES "^${PC_FROM_UCONTEXT}")
 
     if (_pc_from_ucontext_compiled)
       message(STATUS "Found PC ucontext field: ${_pc_field}")
-      set(PC_FROM_UCONTEXT ${_pc_field})
+      set(PC_FROM_UCONTEXT ${_pc_field} CACHE STRING "")
       break()
     endif()
   endforeach()
+
+  if (NOT DEFINED PC_FROM_UCONTEXT)
+    set(PC_FROM_UCONTEXT "" CACHE STRING "")
+  endif()
 
   unset(_pc_field CACHE)
   unset(_pc_from_ucontext_compiled CACHE)
