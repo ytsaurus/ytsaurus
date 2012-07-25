@@ -1224,6 +1224,7 @@ private:
             *SortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = SortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+            specExt->set_shuffle_network_release_threshold(Spec->ShuffleNetworkReleaseThreshold);
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
             // Can't fill io_config right away.

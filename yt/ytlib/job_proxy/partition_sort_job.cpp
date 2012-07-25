@@ -83,16 +83,17 @@ public:
             std::vector<TSmallKeyPart> keyBuffer;
             std::vector<const char*> rowPtrBuffer;
             std::vector<ui32> rowIndexHeap;
+            i64 estimatedRowCount = Reader->GetRowCount();
 
             LOG_INFO("Initializing");
             {
                 Sync(~Reader, &TPartitionChunkSequenceReader::AsyncOpen);
 
-                keyBuffer.reserve(Reader->GetRowCount() * keyColumnCount);
-                rowPtrBuffer.reserve(Reader->GetRowCount());
-                rowIndexHeap.reserve(Reader->GetRowCount());
+                keyBuffer.reserve(estimatedRowCount * keyColumnCount);
+                rowPtrBuffer.reserve(estimatedRowCount);
+                rowIndexHeap.reserve(estimatedRowCount);
 
-                LOG_INFO("Estimated row count: %" PRId64, Reader->GetRowCount());
+                LOG_INFO("Estimated row count: %" PRId64, estimatedRowCount);
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
@@ -117,6 +118,14 @@ public:
 
             LOG_INFO("Reading");
             {
+                bool isNetworkReleased = false;
+                i64 thresholdRowIndex = i64(estimatedRowCount * Host->GetJobSpec()->shuffle_network_release_threshold());
+                auto releaseNetwork = [&] () {
+                    auto utilization = Host->GetResourceUtilization();
+                    utilization.set_network(0);
+                    Host->SetResourceUtilization(utilization);
+                };
+
                 TLexer lexer;
                 while (Reader->IsValid()) {
                     // Push row pointer.
@@ -137,21 +146,24 @@ public:
                     rowIndexHeap.push_back(rowIndexHeap.size());
                     std::push_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
 
+                    if (!isNetworkReleased && rowPtrBuffer.size() > thresholdRowIndex) {
+                        releaseNetwork();
+                        isNetworkReleased =  true;
+                    }
+
                     if (!Reader->FetchNextItem()) {
                         Sync(~Reader, &TPartitionChunkSequenceReader::GetReadyEvent);
                     }
+                }
+
+                if (!isNetworkReleased) {
+                    releaseNetwork();
                 }
             }
             PROFILE_TIMING_CHECKPOINT("read");
 
             i64 totalRowCount = rowIndexHeap.size();
             LOG_INFO("Total row count: %" PRId64, totalRowCount);
-
-            {
-                auto utilization = Host->GetResourceUtilization();
-                utilization.set_network(0);
-                Host->SetResourceUtilization(utilization);
-            }
 
             LOG_INFO("Writing");
             {
