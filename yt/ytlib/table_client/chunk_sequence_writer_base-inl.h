@@ -195,7 +195,8 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
         auto currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
         auto expectedInputSize = currentDataSize * std::max(.0, 1. - Progress);
 
-        if (expectedInputSize > Config->DesiredChunkSize || 
+        if ((expectedInputSize > Config->DesiredChunkSize && 
+            CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) || 
             CurrentSession.ChunkWriter->GetCurrentSize() > 2 * Config->DesiredChunkSize) 
         {
             LOG_DEBUG("Switching to next chunk (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
