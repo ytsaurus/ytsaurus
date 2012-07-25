@@ -150,7 +150,7 @@ public:
             {
                 auto utilization = Host->GetResourceUtilization();
                 utilization.set_network(0);
-                Host->SetResourceUtilization(utilization));
+                Host->SetResourceUtilization(utilization);
             }
 
             LOG_INFO("Writing");
