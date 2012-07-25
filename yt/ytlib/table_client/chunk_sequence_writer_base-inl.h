@@ -192,11 +192,10 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
 
     if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) 
     {
-        auto currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
+        i64 currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
         auto expectedInputSize = currentDataSize * std::max(.0, 1. - Progress);
 
-        if ((expectedInputSize > Config->DesiredChunkSize && 
-            CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) || 
+        if (expectedInputSize > Config->DesiredChunkSize || 
             CurrentSession.ChunkWriter->GetCurrentSize() > 2 * Config->DesiredChunkSize) 
         {
             LOG_DEBUG("Switching to next chunk (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
@@ -265,11 +264,13 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         return;
     }
 
-    LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
-        ~currentSession.RemoteWriter->GetChunkId().ToString());
-
     auto remoteWriter = currentSession.RemoteWriter;
     auto chunkWriter = currentSession.ChunkWriter;
+
+    CompleteChunkSize += chunkWriter->GetCurrentSize();
+
+    LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
+        ~remoteWriter->GetChunkId().ToString());
 
     NObjectServer::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
