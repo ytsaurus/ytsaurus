@@ -13,7 +13,9 @@
 #include <ytlib/rpc/channel.h>
 #include <ytlib/rpc/server.h>
 
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/leader_channel.h>
+
+#include <ytlib/meta_state/config.h>
 
 #include <ytlib/orchid/orchid_service.h>
 
@@ -43,13 +45,14 @@ namespace NYT {
 namespace NCellNode {
 
 using namespace NBus;
-using namespace NRpc;
-using namespace NYTree;
+using namespace NChunkServer;
+using namespace NElection;
 using namespace NMonitoring;
 using namespace NOrchid;
-using namespace NChunkServer;
 using namespace NProfiling;
+using namespace NRpc;
 using namespace NScheduler;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 

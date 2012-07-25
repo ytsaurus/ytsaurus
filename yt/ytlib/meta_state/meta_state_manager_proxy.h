@@ -40,6 +40,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, AdvanceSegment);
     DEFINE_RPC_PROXY_METHOD(NProto, PingFollower);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetQuorum);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

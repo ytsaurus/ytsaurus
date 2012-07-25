@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "leader_channel.h"
 
+#include "config.h"
+#include "master_discovery.h"
+
 #include <ytlib/rpc/roaming_channel.h>
 #include <ytlib/rpc/bus_channel.h>
 
@@ -8,7 +11,7 @@
 #include <ytlib/bus/tcp_client.h>
 
 namespace NYT {
-namespace NElection {
+namespace NMetaState {
 
 using namespace NRpc;
 using namespace NBus;
@@ -17,16 +20,16 @@ using namespace NBus;
 
 namespace {
 
-TValueOrError<IChannelPtr> OnLeaderFound(  
-    TLeaderLookup::TConfigPtr config,
-    TLeaderLookup::TResult result)
+TValueOrError<IChannelPtr> OnLeaderFound(
+    TMasterDiscoveryConfigPtr config,
+    TMasterDiscovery::TResult result)
 {
-    if (result.Id == NElection::InvalidPeerId) {
+    if (!result.Address) {
         return TError("Unable to determine the leader");
-    } 
+    }
 
     auto clientConfig = New<TTcpBusClientConfig>();
-    clientConfig->Address = result.Address;
+    clientConfig->Address = *result.Address;
     clientConfig->Priority = config->ConnectionPriority;
     auto client = CreateTcpBusClient(clientConfig);
     return CreateBusChannel(client);
@@ -34,13 +37,13 @@ TValueOrError<IChannelPtr> OnLeaderFound(
 
 } // namespace
 
-IChannelPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config)
+IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
 {
-    auto leaderLookup = New<TLeaderLookup>(config);
+    auto masterDiscovery = New<TMasterDiscovery>(config);
     return CreateRoamingChannel(
         config->RpcTimeout,
         BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
-            return leaderLookup->GetLeader().Apply(BIND(
+            return masterDiscovery->GetLeader().Apply(BIND(
                 &OnLeaderFound,
                 config));
         }));
@@ -48,5 +51,5 @@ IChannelPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
+} // namespace NMetaState
 } // namespace NYT

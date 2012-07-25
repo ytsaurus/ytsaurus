@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_holder/public.h>
-#include <ytlib/election/leader_lookup.h>
+#include <ytlib/meta_state/public.h>
 #include <ytlib/exec_agent/config.h>
 
 namespace NYT {
@@ -21,7 +21,7 @@ struct TCellNodeConfig
     int MonitoringPort;
 
     //! Cell masters.
-    NElection::TLeaderLookup::TConfigPtr Masters;
+    NMetaState::TMasterDiscoveryConfigPtr Masters;
 
     //! Data node configuration part.
     NChunkHolder::TDataNodeConfigPtr DataNode;

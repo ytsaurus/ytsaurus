@@ -4,7 +4,7 @@
 
 #include <ytlib/table_client/config.h>
 #include <ytlib/file_client/config.h>
-#include <ytlib/election/leader_lookup.h>
+#include <ytlib/meta_state/config.h>
 #include <ytlib/ytree/ytree.h>
 #include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/bus/config.h>
@@ -44,7 +44,7 @@ struct TJobProxyConfig
     // Filled by exec agent.
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     Stroka SandboxName;
-    NElection::TLeaderLookup::TConfigPtr Masters;
+    NMetaState::TMasterDiscoveryConfigPtr Masters;
     TDuration SupervisorRpcTimeout;
     TDuration HeartbeatPeriod;
 

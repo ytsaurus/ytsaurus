@@ -7,7 +7,7 @@
 #include <ytlib/table_client/value.h>
 #include <ytlib/table_client/partition_chunk_sequence_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/leader_channel.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/ytree/lexer.h>

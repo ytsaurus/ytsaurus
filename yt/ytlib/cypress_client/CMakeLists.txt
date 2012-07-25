@@ -4,8 +4,8 @@ set( SRCS
   ${BASE}/cypress_ypath_proxy.cpp
 )
 set( HDRS
-  ${BASE}/public.h
   ${BASE}/cypress_ypath_proxy.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

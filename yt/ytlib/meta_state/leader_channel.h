@@ -1,16 +1,16 @@
 #pragma once
 
-#include "leader_lookup.h"
+#include "public.h"
 
 #include <ytlib/rpc/public.h>
 
 namespace NYT {
-namespace NElection {
+namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel that takes care of choosing leader among the peers.
-NRpc::IChannelPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config);
+NRpc::IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

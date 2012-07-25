@@ -3,7 +3,6 @@
 #include "public.h"
 #include "job.h"
 
-#include <ytlib/election/leader_lookup.h>
 #include <ytlib/table_client/public.h>
 
 namespace NYT {

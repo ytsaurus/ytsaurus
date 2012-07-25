@@ -15,7 +15,8 @@
 
 #include <rpc/scoped_channel.h>
 
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/config.h>
+#include <ytlib/meta_state/leader_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 

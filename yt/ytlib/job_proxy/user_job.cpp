@@ -14,6 +14,7 @@
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/sync_writer.h>
+#include <ytlib/rpc/channel.h>
 
 #include <util/folder/dirut.h>
 
