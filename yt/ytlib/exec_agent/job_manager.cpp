@@ -88,6 +88,7 @@ TNodeResources TJobManager::GetResourceLimits()
     result.set_slots(Config->ResourceLimits->Slots);
     result.set_cores(Config->ResourceLimits->Cores);
     result.set_memory(Config->ResourceLimits->Memory);
+    result.set_network(Config->ResourceLimits->Network);
     return result;
 }
 
@@ -96,9 +97,7 @@ TNodeResources TJobManager::GetResourceUtilization()
     auto totalUtilization = ZeroResources();
     FOREACH (const auto& pair, Jobs) {
         auto jobUtilization = pair.second->GetResourceUtilization();
-        totalUtilization.set_slots(totalUtilization.slots() + jobUtilization.slots());
-        totalUtilization.set_cores(totalUtilization.cores() + jobUtilization.cores());
-        totalUtilization.set_memory(totalUtilization.memory() + jobUtilization.memory());
+        IncreaseResourceUtilization(&totalUtilization, jobUtilization);
     }
     return totalUtilization;
 }
@@ -111,9 +110,7 @@ TJobPtr TJobManager::StartJob(
 
     auto slot = GetFreeSlot();
 
-    LOG_DEBUG("Job is starting (JobId: %s, WorkDir: %s)", 
-        ~jobId.ToString(),
-        ~slot->GetWorkingDirectory());
+    LOG_DEBUG("Job is starting (JobId: %s)", ~jobId.ToString());
 
     auto job = New<TJob>(
         jobId,
@@ -159,7 +156,7 @@ void TJobManager::RemoveJob(const TJobId& jobId)
         YASSERT(job->GetProgress() > EJobProgress::Cleanup);
         YCHECK(Jobs.erase(jobId) == 1);
     } else {
-        LOG_WARNING("Removed job does not exist (JobId: %s)", ~jobId.ToString());
+        LOG_WARNING("Requested to remove an unknown job (JobId: %s)", ~jobId.ToString());
     }
 }
 

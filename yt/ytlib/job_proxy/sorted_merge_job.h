@@ -3,28 +3,12 @@
 #include "public.h"
 #include "job.h"
 
-#include <ytlib/table_client/public.h>
-
 namespace NYT {
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedMergeJob
-    : public IJob
-{
-public:
-    TSortedMergeJob(
-        TJobProxyConfigPtr proxyConfig,
-        const NScheduler::NProto::TJobSpec& jobSpec);
-
-    NScheduler::NProto::TJobResult Run();
-
-private:
-    NTableClient::TMergingReaderPtr Reader;
-    NTableClient::TTableChunkSequenceWriterPtr Writer;
-
-};
+TAutoPtr<IJob> CreateSortedMergeJob(IJobHost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 

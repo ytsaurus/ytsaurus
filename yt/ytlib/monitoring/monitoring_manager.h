@@ -61,7 +61,7 @@ private:
 
     bool IsStarted;
     TActionQueuePtr ActionQueue;
-    TPeriodicInvoker::TPtr PeriodicInvoker;
+    TPeriodicInvokerPtr PeriodicInvoker;
 
     //! Protects #MonitoringMap.
     TSpinLock SpinLock;

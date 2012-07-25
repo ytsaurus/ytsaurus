@@ -1,14 +1,21 @@
 #include "stdafx.h"
-
-#include "job.h"
+#include "job_detail.h"
 
 namespace NYT {
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJob::~IJob()
-{ }
+TJob::TJob(IJobHost* host)
+    : Host(host)
+{
+    YCHECK(host);
+}
+
+NScheduler::NProto::TJobProgress TJob::GetProgress() const
+{
+    return NScheduler::NProto::TJobProgress();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

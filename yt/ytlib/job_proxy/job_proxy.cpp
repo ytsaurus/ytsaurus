@@ -71,7 +71,7 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
     LOG_DEBUG("Successfully reported heartbeat to supervisor")
 }
 
-TJobSpec TJobProxy::GetJobSpec()
+void TJobProxy::RetrieveJobSpec()
 {
     LOG_INFO("Requesting job spec");
     auto req = SupervisorProxy->GetJobSpec();
@@ -85,7 +85,8 @@ TJobSpec TJobProxy::GetJobSpec()
 
     LOG_INFO("Job spec received\n%s", ~rsp->job_spec().DebugString());
 
-    return rsp->job_spec();
+    JobSpec = rsp->job_spec();
+    ResourceUtilization = JobSpec.resource_utilization();
 }
 
 void TJobProxy::Run()
@@ -97,42 +98,44 @@ void TJobProxy::Run()
     HeartbeatInvoker->Start();
 
     try {
-        auto jobSpec = GetJobSpec();
+        RetrieveJobSpec();
+
+        const auto& jobSpec = GetJobSpec();
 
         switch (jobSpec.type()) {
             case EJobType::Map: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
                 TAutoPtr<TUserJobIO> userJobIO = new TMapJobIO(Config->JobIO, Config->Masters, jobSpec);
-                Job = new TUserJob(Config, jobSpec, jobSpecExt.mapper_spec(), userJobIO);
+                Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
             case EJobType::Reduce: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 TAutoPtr<TUserJobIO> userJobIO = new TReduceJobIO(Config->JobIO, Config->Masters, jobSpec);
-                Job = new TUserJob(Config, jobSpec, jobSpecExt.reducer_spec(), userJobIO);
+                Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
 
             case EJobType::OrderedMerge:
             case EJobType::UnorderedMerge:
-                Job = new TOrderedMergeJob(Config, jobSpec);
+                Job = CreateOrderedMergeJob(this);
                 break;
 
             case EJobType::SortedMerge:
-                Job = new TSortedMergeJob(Config, jobSpec);
+                Job = CreateSortedMergeJob(this);
                 break;
 
             case EJobType::PartitionSort:
-                Job = new TPartitionSortJob(Config, jobSpec);
+                Job = CreatePartitionSortJob(this);
                 break;
 
             case EJobType::SimpleSort:
-                Job = new TSimpleSortJob(Config, jobSpec);
+                Job = CreateSimpleSortJob(this);
                 break;
 
             case EJobType::Partition:
-                Job = new TPartitionJob(Config, jobSpec);
+                Job = CreatePartitionJob(this);
                 break;
 
             default:
@@ -152,7 +155,7 @@ void TJobProxy::Run()
     }
 }
 
-void TJobProxy::ReportResult(const NScheduler::NProto::TJobResult& result)
+void TJobProxy::ReportResult(const TJobResult& result)
 {
     HeartbeatInvoker->Stop();
 
@@ -168,6 +171,26 @@ void TJobProxy::ReportResult(const NScheduler::NProto::TJobResult& result)
         // TODO(babenko): extract error code constant
         _exit(123);
     }
+}
+
+TJobProxyConfigPtr TJobProxy::GetConfig()
+{
+    return Config;
+}
+
+const TJobSpec& TJobProxy::GetJobSpec()
+{
+    return JobSpec;
+}
+
+TNodeResources TJobProxy::GetResourceUtilization()
+{
+    return ResourceUtilization;
+}
+
+void TJobProxy::SetResourceUtilization(const TNodeResources& utilization) 
+{
+    ResourceUtilization = utilization;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

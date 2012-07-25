@@ -266,6 +266,8 @@ struct TSortOperationSpec
     TDuration SortLocalityTimeout;
     TDuration MergeLocalityTimeout;
 
+    int ShuffleNetworkLimit;
+
     TSortOperationSpec()
     {
         Register("input_table_paths", InputTablePaths);
@@ -302,6 +304,8 @@ struct TSortOperationSpec
             .Default(TDuration::Seconds(30));
         Register("merge_locality_timeout", SortLocalityTimeout)
             .Default(TDuration::Seconds(30));
+        Register("shuffle_network_limit", ShuffleNetworkLimit)
+            .Default(20);
     }
 };
 

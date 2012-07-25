@@ -6,13 +6,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to public.h
+class TPeriodicInvoker;
+typedef TIntrusivePtr<TPeriodicInvoker> TPeriodicInvokerPtr;
+
 //! Helps to perform certain actions periodically.
 class TPeriodicInvoker
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TPeriodicInvoker> TPtr;
-
     //! Initializes an instance.
     /*!
      *  \note

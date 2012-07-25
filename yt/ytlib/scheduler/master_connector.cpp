@@ -257,9 +257,9 @@ private:
 
     NTransactionClient::ITransactionPtr BootstrapTransaction;
 
-    TPeriodicInvoker::TPtr TransactionRefreshInvoker;
-    TPeriodicInvoker::TPtr ExecNodesRefreshInvoker;
-    TPeriodicInvoker::TPtr OperationNodesUpdateInvoker;
+    TPeriodicInvokerPtr TransactionRefreshInvoker;
+    TPeriodicInvokerPtr ExecNodesRefreshInvoker;
+    TPeriodicInvokerPtr OperationNodesUpdateInvoker;
 
     struct TOperationUpdateList
     {

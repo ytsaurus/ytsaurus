@@ -22,7 +22,7 @@ private:
     yhash_map<Stroka, i64> PreviousUserTicks;
     yhash_map<Stroka, i64> PreviousKernelTicks;
 
-    TPeriodicInvoker::TPtr PeriodicInvoker;
+    TPeriodicInvokerPtr PeriodicInvoker;
     static const TDuration UpdateInterval;
 
     void EnqueueUsage();

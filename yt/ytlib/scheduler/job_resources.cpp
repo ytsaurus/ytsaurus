@@ -28,7 +28,7 @@ Stroka FormatResourceUtilization(
     const TNodeResources& utilization,
     const TNodeResources& limits)
 {
-    return Sprintf("Slots: %d/%d, Cores: %d/%d, Memory: %d/%d",
+    return Sprintf("Slots: %d/%d, Cores: %d/%d, Memory: %d/%d, Network: %d/%d",
         // Slots
         utilization.slots(),
         limits.slots(),
@@ -37,15 +37,18 @@ Stroka FormatResourceUtilization(
         limits.cores(),
         // Memory (in MB)
         static_cast<int>(utilization.memory() / (1024 * 1024)),
-        static_cast<int>(limits.memory() / (1024 * 1024)));
+        static_cast<int>(limits.memory() / (1024 * 1024)),
+        utilization.network(),
+        limits.network());
 }
 
 Stroka FormatResources(const TNodeResources& resources)
 {
-    return Sprintf("Slots: %d, Cores: %d, Memory: %d",
+    return Sprintf("Slots: %d, Cores: %d, Memory: %d, Network: %d",
         resources.slots(),
         resources.cores(),
-        static_cast<int>(resources.memory() / (1024 * 1024)));
+        static_cast<int>(resources.memory() / (1024 * 1024)),
+        resources.network());
 }
 
 void IncreaseResourceUtilization(
@@ -55,6 +58,7 @@ void IncreaseResourceUtilization(
     utilization->set_slots(utilization->slots() + delta.slots());
     utilization->set_cores(utilization->cores() + delta.cores());
     utilization->set_memory(utilization->memory() + delta.memory());
+    utilization->set_network(utilization->network() + delta.network());
 }
 
 bool HasEnoughResources(
@@ -65,7 +69,8 @@ bool HasEnoughResources(
     return
         currentUtilization.slots() + requestedUtilization.slots() <= limits.slots() &&
         currentUtilization.cores() + requestedUtilization.cores() <= limits.cores() &&
-        currentUtilization.memory() + requestedUtilization.memory() <= limits.memory();
+        currentUtilization.memory() + requestedUtilization.memory() <= limits.memory() &&
+        currentUtilization.network() + requestedUtilization.network() <= limits.network();
 }
 
 bool HasSpareResources(
@@ -85,7 +90,8 @@ void BuildNodeResourcesYson(
     BuildYsonMapFluently(consumer)
         .Item("slots").Scalar(resources.slots())
         .Item("cores").Scalar(resources.cores())
-        .Item("memory").Scalar(resources.memory());
+        .Item("memory").Scalar(resources.memory())
+        .Item("network").Scalar(resources.network());
 }
 
 TNodeResources ZeroResources()
@@ -94,6 +100,7 @@ TNodeResources ZeroResources()
     result.set_slots(0);
     result.set_cores(0);
     result.set_memory(0);
+    result.set_network(0);
     return result;
 }
 
@@ -103,6 +110,7 @@ TNodeResources InfiniteResources()
     result.set_slots(1000);
     result.set_cores(1000);
     result.set_memory((i64) 1024 * 1024 * 1024 * 1024);
+    result.set_network(1000);
     return result;
 }
 
@@ -229,6 +237,7 @@ TNodeResources GetPartitionSortJobResources(
         (i64) 16 * spec->KeyColumns.size() * rowCount +
         (i64) 12 * rowCount +
         FootprintMemorySize);
+    result.set_network(spec->ShuffleNetworkLimit);
     return result;
 }
 

@@ -10,10 +10,19 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IJob> CreateUserJob(
-    IJobHost* host,
-    const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    TAutoPtr<TUserJobIO> userJobIO);
+//! Base class for all jobs inside job proxy.
+class TJob
+    : public IJob
+{
+public:
+    explicit TJob(IJobHost* host);
+
+    virtual NScheduler::NProto::TJobProgress GetProgress() const OVERRIDE;
+
+protected:
+    IJobHost* Host;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,7 +1,8 @@
 ﻿#include "stdafx.h"
 #include "ordered_merge_job.h"
-#include "config.h"
 #include "private.h"
+#include "job_detail.h"
+#include "config.h"
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/meta_state/leader_channel.h>
@@ -33,108 +34,127 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOrderedMergeJob::TOrderedMergeJob(
-    TJobProxyConfigPtr proxyConfig,
-    const TJobSpec& jobSpec)
+class TOrderedMergeJob
+    : public TJob
 {
-    YCHECK(jobSpec.output_specs_size() == 1);
-
-    auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
-    auto masterChannel = CreateLeaderChannel(proxyConfig->Masters);
-
-    std::vector<TInputChunk> inputChunks;
-    FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
-        FOREACH (const auto& inputChunk, inputSpec.chunks()) {
-            inputChunks.push_back(inputChunk);
-        }
-    }
-
-    Reader = CreateSyncReader(New<TTableChunkSequenceReader>(
-        proxyConfig->JobIO->ChunkSequenceReader,
-        masterChannel,
-        blockCache,
-        MoveRV(inputChunks)));
-
+public:
+    explicit TOrderedMergeJob(IJobHost* host)
+        : TJob(host)
     {
-        if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
-            const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            KeyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
+        const auto& jobSpec = Host->GetJobSpec();
+        auto config = Host->GetConfig();
 
-            LOG_INFO("Ordered merge produces sorted output.");
+        YCHECK(jobSpec.output_specs_size() == 1);
+
+        auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
+        auto masterChannel = CreateLeaderChannel(config->Masters);
+
+        std::vector<TInputChunk> inputChunks;
+        FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
+            FOREACH (const auto& inputChunk, inputSpec.chunks()) {
+                inputChunks.push_back(inputChunk);
+            }
         }
 
-        // ToDo(psushin): estimate row count for writer.
-        Writer = New<TTableChunkSequenceWriter>(
-            proxyConfig->JobIO->ChunkSequenceWriter,
+        Reader = CreateSyncReader(New<TTableChunkSequenceReader>(
+            config->JobIO->ChunkSequenceReader,
             masterChannel,
-            TTransactionId::FromProto(jobSpec.output_transaction_id()),
-            TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-            ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
-            KeyColumns);
-    }
-}
+            blockCache,
+            MoveRV(inputChunks)));
 
-TJobResult TOrderedMergeJob::Run()
-{
-    PROFILE_TIMING ("/ordered_merge_time") {
-        LOG_INFO("Initializing");
-
-        yhash_map<TStringBuf, int> keyColumnToIndex;
-
-        auto writer = CreateSyncWriter(Writer);
         {
-            if (KeyColumns) {
-                // ToDo(psushin): remove this after rewriting chunk_writer.
-                for (int i = 0; i < KeyColumns->size(); ++i) {
-                    TStringBuf name(~KeyColumns->at(i), KeyColumns->at(i).size());
-                    keyColumnToIndex[name] = i;
-                }
+            if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
+                const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
+                KeyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
+
+                LOG_INFO("Ordered merge produces sorted output.");
             }
 
-            Reader->Open();
-            writer->Open();
+            // ToDo(psushin): estimate row count for writer.
+            Writer = New<TTableChunkSequenceWriter>(
+                config->JobIO->ChunkSequenceWriter,
+                masterChannel,
+                TTransactionId::FromProto(jobSpec.output_transaction_id()),
+                TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
+                ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
+                KeyColumns);
         }
-        PROFILE_TIMING_CHECKPOINT("init");
+    }
 
-        LOG_INFO("Merging");
-        {
-            NYTree::TLexer lexer;
-            // Unsorted write - use dummy key.
-            TNonOwningKey key;
-            if (KeyColumns)
-                key.ClearAndResize(KeyColumns->size());
+    virtual NScheduler::NProto::TJobResult Run() OVERRIDE
+    {
+        PROFILE_TIMING ("/ordered_merge_time") {
+            LOG_INFO("Initializing");
 
-            while (Reader->IsValid()) {
-                const TRow& row = Reader->GetRow();
+            yhash_map<TStringBuf, int> keyColumnToIndex;
 
+            auto writer = CreateSyncWriter(Writer);
+            {
                 if (KeyColumns) {
-                    key.Clear();
-
-                    FOREACH (const auto& pair, row) {
-                        auto it = keyColumnToIndex.find(pair.first);
-                        if (it != keyColumnToIndex.end()) {
-                            key.SetKeyPart(it->second, pair.second, lexer);
-                        }
+                    // ToDo(psushin): remove this after rewriting chunk_writer.
+                    for (int i = 0; i < KeyColumns->size(); ++i) {
+                        TStringBuf name(~KeyColumns->at(i), KeyColumns->at(i).size());
+                        keyColumnToIndex[name] = i;
                     }
-                    writer->WriteRowUnsafe(row, key);
-                } else {
-                    writer->WriteRowUnsafe(row);
                 }
 
-                Reader->NextRow();
+                Reader->Open();
+                writer->Open();
+            }
+            PROFILE_TIMING_CHECKPOINT("init");
+
+            LOG_INFO("Merging");
+            {
+                NYTree::TLexer lexer;
+                // Unsorted write - use dummy key.
+                TNonOwningKey key;
+                if (KeyColumns)
+                    key.ClearAndResize(KeyColumns->size());
+
+                while (Reader->IsValid()) {
+                    const TRow& row = Reader->GetRow();
+
+                    if (KeyColumns) {
+                        key.Clear();
+
+                        FOREACH (const auto& pair, row) {
+                            auto it = keyColumnToIndex.find(pair.first);
+                            if (it != keyColumnToIndex.end()) {
+                                key.SetKeyPart(it->second, pair.second, lexer);
+                            }
+                        }
+                        writer->WriteRowUnsafe(row, key);
+                    } else {
+                        writer->WriteRowUnsafe(row);
+                    }
+
+                    Reader->NextRow();
+                }
+            }
+            PROFILE_TIMING_CHECKPOINT("merge");
+
+            LOG_INFO("Finalizing");
+            {
+                writer->Close();
+
+                TJobResult result;
+                *result.mutable_error() = TError().ToProto();
+                return result;
             }
         }
-        PROFILE_TIMING_CHECKPOINT("merge");
-
-        LOG_INFO("Finalizing");
-        {
-            writer->Close();
-
-            TJobResult result;
-            *result.mutable_error() = TError().ToProto();
-            return result;
-        }
     }
+
+private:
+    ISyncReaderPtr Reader;
+    TTableChunkSequenceWriterPtr Writer;
+
+    TNullable<TKeyColumns> KeyColumns;
+
+};
+
+TAutoPtr<IJob> CreateOrderedMergeJob(IJobHost* host)
+{
+    return new TOrderedMergeJob(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

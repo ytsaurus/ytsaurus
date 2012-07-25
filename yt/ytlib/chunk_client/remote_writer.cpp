@@ -152,7 +152,7 @@ struct TRemoteWriter::TNode
     bool IsAlive;
     const Stroka Address;
     TProxy Proxy;
-    TPeriodicInvoker::TPtr PingInvoker;
+    TPeriodicInvokerPtr PingInvoker;
 
     TNode(int index, const Stroka& address)
         : Index(index)

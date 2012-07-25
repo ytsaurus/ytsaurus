@@ -28,7 +28,7 @@ private:
     IInvokerPtr ControlInvoker;
 
     NScheduler::TSchedulerServiceProxy Proxy;
-    TPeriodicInvoker::TPtr HeartbeatInvoker;
+    TPeriodicInvokerPtr HeartbeatInvoker;
 
     void SendHeartbeat();
     void OnHeartbeatResponse(NScheduler::TSchedulerServiceProxy::TRspHeartbeatPtr rsp);

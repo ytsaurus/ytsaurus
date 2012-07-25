@@ -57,6 +57,7 @@ struct TResourceLimitsConfig
     int Slots;
     int Cores;
     i64 Memory;
+    int Network;
 
     TResourceLimitsConfig()
     {
@@ -68,6 +69,8 @@ struct TResourceLimitsConfig
             .Default(2);
         Register("memory", Memory)
             .Default((i64) 4 * 1024 * 1024 * 1024);
+        Register("network", Network)
+            .Default(100);
     }
 };
 

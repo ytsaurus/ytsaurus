@@ -10,21 +10,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitionSortJob
-    : public IJob
-{
-public:
-    TPartitionSortJob(
-        TJobProxyConfigPtr proxyConfig,
-        const NScheduler::NProto::TJobSpec& jobSpec);
-
-    NScheduler::NProto::TJobResult Run();
-
-private:
-    NTableClient::TKeyColumns KeyColumns;
-    NTableClient::TPartitionChunkSequenceReaderPtr Reader;
-    NTableClient::TTableChunkSequenceWriterPtr Writer;
-};
+TAutoPtr<IJob> CreatePartitionSortJob(IJobHost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 

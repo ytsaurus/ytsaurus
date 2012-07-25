@@ -30,7 +30,7 @@ private:
 
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
-    TPeriodicInvoker::TPtr PeriodicInvoker;
+    TPeriodicInvokerPtr PeriodicInvoker;
 
 };
 

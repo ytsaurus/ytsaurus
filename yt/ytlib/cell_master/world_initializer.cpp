@@ -54,7 +54,7 @@ public:
 
 private:
     TBootstrap* Bootstrap;
-    TPeriodicInvoker::TPtr PeriodicInvoker;
+    TPeriodicInvokerPtr PeriodicInvoker;
 
     void OnCheck()
     {
