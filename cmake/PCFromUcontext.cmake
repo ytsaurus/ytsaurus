@@ -48,10 +48,6 @@ if ("${PC_FROM_UCONTEXT}" MATCHES "^${PC_FROM_UCONTEXT}")
     endif()
   endforeach()
 
-  if (NOT PC_FROM_UCONTEXT)
-    message(FATAL_ERROR "Failed to find PC in ucontext structure.")
-  endif()
-
   unset(_pc_field CACHE)
   unset(_pc_from_ucontext_compiled CACHE)
 endif()
