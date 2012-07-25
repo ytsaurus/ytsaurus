@@ -174,7 +174,7 @@ private:
             auto stripes = PrepareChunkStripes(
                 inputChunks,
                 Spec->JobCount,
-                Spec->MaxWeightPerJob);
+                Spec->JobSliceWeight);
             MapTask->AddStripes(stripes);
 
             // Check for empty inputs.

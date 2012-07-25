@@ -412,7 +412,7 @@ protected:
     std::vector<TChunkStripePtr> PrepareChunkStripes(
         const std::vector<NTableClient::TRefCountedInputChunkPtr>& inputChunks,
         TNullable<int> jobCount,
-        i64 maxWeightPerJob);
+        i64 jobSliceWeight);
 
     static int GetJobCount(
         i64 totalWeight,

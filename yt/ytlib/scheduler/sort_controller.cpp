@@ -993,7 +993,7 @@ private:
         auto stripes = PrepareChunkStripes(
             inputChunks,
             Spec->SortJobCount,
-            Spec->MaxWeightPerSortJob);
+            Spec->SortJobSliceWeight);
         partition->SortTask->AddStripes(stripes);
 
         // A pretty accurate estimate.
@@ -1082,7 +1082,7 @@ private:
         auto stripes = PrepareChunkStripes(
             inputChunks,
             Spec->PartitionJobCount,
-            Spec->MaxWeightPerPartitionJob);
+            Spec->PartitionJobSliceWeight);
         PartitionTask->AddStripes(stripes);
 
         // Init counters.

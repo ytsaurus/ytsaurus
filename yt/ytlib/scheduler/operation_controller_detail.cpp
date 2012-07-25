@@ -1210,37 +1210,34 @@ std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTabl
 std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
     const std::vector<TRefCountedInputChunkPtr>& inputChunks,
     TNullable<int> jobCount,
-    i64 maxWeightPerJob)
+    i64 jobSliceWeight)
 {
     using ::ToString;
 
-    // Compute weight per job.
-    i64 weightPerJob;
+    i64 sliceWeight = jobSliceWeight;
     if (jobCount) {
         i64 totalWeight = 0;
         FOREACH (auto inputChunk, inputChunks) {
             totalWeight += inputChunk->data_weight();
         }
-        weightPerJob = totalWeight / jobCount.Get() + 1;
-    } else {
-        weightPerJob = maxWeightPerJob;
+        sliceWeight = std::min(sliceWeight, totalWeight / jobCount.Get() + 1);
     }
 
-    YCHECK(weightPerJob > 0);
+    YCHECK(sliceWeight > 0);
 
-    LOG_DEBUG("Preparing chunk stripes (ChunkCount: %d, JobCount: %s, MaxWeightPerJob: %" PRId64 ", WeightPerJob: %" PRId64 ")",
+    LOG_DEBUG("Preparing chunk stripes (ChunkCount: %d, JobCount: %s, JobSliceWeight: %" PRId64 ", SliceWeight: %" PRId64 ")",
         static_cast<int>(inputChunks.size()),
         ~ToString(jobCount),
-        maxWeightPerJob,
-        weightPerJob);
+        jobSliceWeight,
+        sliceWeight);
 
     std::vector<TChunkStripePtr> result;
 
-    // Ensure that no input chunk has weight much larger than weightPerJob.
+    // Ensure that no input chunk has weight larger than sliceWeight.
     FOREACH (auto inputChunk, inputChunks) {
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        if (inputChunk->data_weight() > weightPerJob * 1.3) {
-            int sliceCount = (int) std::ceil((double) inputChunk->data_weight() / (double) weightPerJob);
+        if (inputChunk->data_weight() > sliceWeight) {
+            int sliceCount = (int) std::ceil((double) inputChunk->data_weight() / (double) sliceWeight);
             auto slicedInputChunks = SliceChunkEvenly(*inputChunk, sliceCount);
             FOREACH (auto slicedInputChunk, slicedInputChunks) {
                 auto stripe = New<TChunkStripe>(slicedInputChunk);

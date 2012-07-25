@@ -231,6 +231,19 @@ private:
 
     yhash_set<TChunkStripePtr> GlobalChunks;
 
+    struct TChunkStripeHasher
+    {
+        size_t operator () (const TChunkStripePtr& stripe) const
+        {
+            size_t result = THash<TChunkStripe*>()(~stripe);
+            if (!stripe->Chunks.empty()) {
+                const auto& firstChunk = stripe->Chunks.front();
+                result += 17 * firstChunk.InputChunk->slice().start_limit().row_index();
+            }
+            return result;
+        }
+    };
+
     struct TLocalityEntry
     {
         TLocalityEntry()
@@ -238,7 +251,7 @@ private:
         { }
 
         i64 TotalWeight;
-        yhash_set<TChunkStripePtr> Stripes;
+        yhash_set<TChunkStripePtr, TChunkStripeHasher> Stripes;
     };
     
     yhash_map<Stroka,  TLocalityEntry> LocalChunks;
