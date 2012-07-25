@@ -456,9 +456,14 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
 {
-    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
+    auto maxSampleCount = std::numeric_limits<int>::max();
+    if (request->has_max_sample_count())
+        maxSampleCount = request->max_sample_count();
+
+    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MaxSampleCount: %d",
         request->key_columns_size(),
-        request->chunk_ids_size());
+        request->chunk_ids_size(),
+        maxSampleCount);
 
     auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
@@ -485,7 +490,12 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                     }
 
                     auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
-                    FOREACH (const auto& sample, samplesExt.items()) {
+
+                    //ToDo(psushin): extract to method and use std::vector.
+                    yvector<NTableClient::NProto::TSample> samples(samplesExt.items().begin(), samplesExt.items().end());
+                    std::random_shuffle(samples.begin(), samples.end());
+
+                    FOREACH (const auto& sample, samples) {
                         auto* key = chunkSamples->add_items();
 
                         size_t size = 0;
@@ -528,6 +538,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                             } else {
                                 keyPart->set_type(EKeyPartType::Null);
                             }
+                        }
+
+                        if (chunkSamples->items_size() == maxSampleCount) {
+                            break;
                         }
                     }
                 }));

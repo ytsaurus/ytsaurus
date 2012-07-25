@@ -148,6 +148,7 @@ message TReqGetTableSamples
 {
     repeated NYT.NProto.TGuid chunk_ids = 1;
     repeated string key_columns = 2;
+    optional int32 max_sample_count = 3;
 }
 
 message TRspGetTableSamples
