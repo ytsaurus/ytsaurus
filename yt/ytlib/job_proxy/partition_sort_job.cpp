@@ -147,6 +147,12 @@ public:
             i64 totalRowCount = rowIndexHeap.size();
             LOG_INFO("Total row count: %" PRId64, totalRowCount);
 
+            {
+                auto utilization = Host->GetResourceUtilization();
+                utilization.set_network(0);
+                Host->SetResourceUtilization(utilization));
+            }
+
             LOG_INFO("Writing");
             {
                 auto syncWriter = CreateSyncWriter(Writer);
