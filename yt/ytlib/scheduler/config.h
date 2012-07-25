@@ -268,6 +268,7 @@ struct TSortOperationSpec
     i64 MaxWeightPerUnorderedMergeJob;
 
     double SortStartThreshold;
+    double MergeStartThreshold;
 
     TDuration PartitionLocalityTimeout;
     TDuration SortLocalityTimeout;
@@ -311,6 +312,9 @@ struct TSortOperationSpec
             .GreaterThan(0);
         Register("sort_start_threshold", SortStartThreshold)
             .Default(0.75)
+            .InRange(0.0, 1.0);
+        Register("merge_start_threshold", MergeStartThreshold)
+            .Default(0.9)
             .InRange(0.0, 1.0);
         Register("partition_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));

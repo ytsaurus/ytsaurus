@@ -59,6 +59,8 @@ public:
         , TotalRowCount(0)
         , TotalValueCount(0)
         , CompletedPartitionCount(0)
+        , SortStartThresholdReached(false)
+        , MergeStartThresholdReached(false)
         , SamplesFetcher(New<TSamplesFetcher>(
             Config,
             Spec,
@@ -79,11 +81,14 @@ private:
     // Counters.
     int CompletedPartitionCount;
     TProgressCounter PartitionJobCounter;
-    int SortStartThresholdCount;
     
     // Sort job counters.
     TProgressCounter SortJobCounter;
     TProgressCounter SortWeightCounter;
+
+    // Start thresholds.
+    bool SortStartThresholdReached;
+    bool MergeStartThresholdReached;
     
     // Sorted merge job counters.
     TProgressCounter SortedMergeJobCounter;
@@ -281,15 +286,7 @@ private:
                 }
             }
 
-            // If completed partition job limit has been reached, then
-            // kick-start all sort jobs.
-            if (Controller->PartitionJobCounter.GetCompleted() == Controller->SortStartThresholdCount) {
-                FOREACH (auto partition, Controller->Partitions) {
-                    if (!partition->Megalomaniac) {
-                        Controller->AddTaskPendingHint(partition->SortTask);
-                    }
-                }
-            }
+            Controller->CheckSortStartThreshold();
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -333,12 +330,7 @@ private:
             }
 
             // Kick-start sort and unordered merge tasks.
-            FOREACH (auto partition, Controller->Partitions) {
-                auto taskToKick = partition->Megalomaniac
-                    ? TTaskPtr(partition->UnorderedMergeTask)
-                    : TTaskPtr(partition->SortTask);
-                Controller->AddTaskPendingHint(taskToKick);
-            }
+            Controller->AddMergeTasksPendingHints();
         }
     };
 
@@ -372,9 +364,7 @@ private:
         virtual int GetPendingJobCount() const OVERRIDE
         {
             // Check if enough partition jobs are completed.
-            if (Controller->Partitions.size() > 1 &&
-                Controller->PartitionJobCounter.GetCompleted() < Controller->SortStartThresholdCount)
-            {
+            if (!Controller->SortStartThresholdReached) {
                 return 0;
             }
 
@@ -550,6 +540,8 @@ private:
                 stripe->AddChunk(New<TRefCountedInputChunk>(inputChunk));
             }
             Partition->SortedMergeTask->AddStripe(stripe);
+
+            Controller->CheckMergeStartThreshold();
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -610,6 +602,10 @@ private:
 
         virtual int GetPendingJobCount() const OVERRIDE
         {
+            if (!Controller->MergeStartThresholdReached) {
+                return 0;
+            }
+
             return
                 Controller->IsSortedMergeNeeded(Partition) &&
                 Partition->SortTask->IsCompleted() &&
@@ -711,6 +707,10 @@ private:
 
         virtual int GetPendingJobCount() const OVERRIDE
         {
+            if (!Controller->MergeStartThresholdReached) {
+                return 0;
+            }
+
             if (!Controller->IsUnorderedMergeNeeded(Partition)) {
                 return 0;
             }
@@ -851,6 +851,57 @@ private:
             PartitionTask->IsCompleted();
     }
 
+    void CheckSortStartThreshold()
+    {
+        if (SortStartThresholdReached)
+            return;
+
+        const auto& partitionWeightCounter = PartitionTask->WeightCounter();
+        if (partitionWeightCounter.GetCompleted() < partitionWeightCounter.GetTotal() * Spec->SortStartThreshold)
+            return;
+
+        LOG_INFO("Sort start threshold reached");
+
+        SortStartThresholdReached = true;
+        AddSortTasksPendingHints();
+    }
+
+    void CheckMergeStartThreshold()
+    {
+        if (MergeStartThresholdReached)
+            return;
+
+        if (!PartitionTask->IsCompleted())
+            return;
+
+        if (SortWeightCounter.GetCompleted() < SortWeightCounter.GetTotal() * Spec->MergeStartThreshold)
+            return;
+
+        LOG_INFO("Merge start threshold reached");
+
+        MergeStartThresholdReached = true;
+        AddMergeTasksPendingHints();
+    }
+
+    void AddSortTasksPendingHints()
+    {
+        FOREACH (auto partition, Partitions) {
+            if (!partition->Megalomaniac) {
+                AddTaskPendingHint(partition->SortTask);
+            }
+        }   
+    }
+
+    void AddMergeTasksPendingHints()
+    {
+        FOREACH (auto partition, Partitions) {
+            auto taskToKick = partition->Megalomaniac
+                ? TTaskPtr(partition->UnorderedMergeTask)
+                : TTaskPtr(partition->SortTask);
+            AddTaskPendingHint(taskToKick);
+        }
+    }
+
     virtual void OnOperationCompleted() OVERRIDE
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
@@ -973,13 +1024,6 @@ private:
         } else {
             BuildMulitplePartitions(partitionCount);
         }
-
-        // Compute absolute sort start threshold.
-        // Must be at least 1 for the sort task to be triggered
-        // by the first completed partition job.
-        SortStartThresholdCount = std::max(
-            static_cast<int>(Spec->SortStartThreshold * PartitionJobCounter.GetTotal()),
-            1);
     }
 
     void BuildSinglePartition()
@@ -1009,6 +1053,7 @@ private:
         LOG_INFO("Sorting without partitioning");
 
         // Kick-start the sort task.
+        SortStartThresholdReached = true;
         AddTaskPendingHint(partition->SortTask);
     }
 
