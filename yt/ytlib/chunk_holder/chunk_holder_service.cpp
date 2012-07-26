@@ -150,17 +150,20 @@ bool TChunkHolderService::CheckThrottling() const
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
+
 {
     UNUSED(response);
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
 
-    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+    context->SetRequestInfo("ChunkId: %s, DirectMode: %s", 
+        ~chunkId.ToString(),
+        request->direct_mode() ? "True" : "False");
 
     ValidateNoSession(chunkId);
     ValidateNoChunk(chunkId);
 
-    Bootstrap->GetSessionManager()->StartSession(chunkId);
+    Bootstrap->GetSessionManager()->StartSession(chunkId, request->direct_mode());
 
     context->Reply();
 }

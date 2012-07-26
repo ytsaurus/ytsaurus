@@ -19,12 +19,13 @@ static NLog::TLogger& Logger = ChunkWriterLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileWriter::TFileWriter(const Stroka& fileName)
+TFileWriter::TFileWriter(const Stroka& fileName, bool directMode)
     : FileName(fileName)
     , IsOpen(false)
     , IsClosed(false)
     , DataSize(0)
     , Result(MakeFuture(TError()))
+    , DirectMode(directMode)
 { }
 
 void TFileWriter::Open()
@@ -32,9 +33,11 @@ void TFileWriter::Open()
     YASSERT(!IsOpen);
     YASSERT(!IsClosed);
 
-    DataFile.Reset(new TFile(
-        FileName + NFS::TempFileSuffix,
-        CreateAlways | WrOnly | Seq));
+    ui32 oMode = CreateAlways | WrOnly | Seq;
+    if (DirectMode)
+        oMode |= Direct;
+
+    DataFile.Reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
 
     IsOpen = true;
 }

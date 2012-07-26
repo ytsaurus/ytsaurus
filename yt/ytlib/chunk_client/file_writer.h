@@ -19,7 +19,7 @@ public:
     typedef TIntrusivePtr<TFileWriter> TPtr;
 
     //! Creates a new writer.
-    explicit TFileWriter(const Stroka& fileName);
+    explicit TFileWriter(const Stroka& fileName, bool directMode = false);
 
     virtual void Open();
 
@@ -40,6 +40,7 @@ private:
     Stroka FileName;
     bool IsOpen;
     bool IsClosed;
+    const bool DirectMode;
     i64 DataSize;
     THolder<TFile> DataFile;
     NChunkHolder::NProto::TChunkInfo ChunkInfo;

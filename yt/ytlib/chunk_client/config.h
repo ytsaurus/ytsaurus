@@ -144,6 +144,9 @@ struct TRemoteWriterConfig
     //! If True then written blocks are cached by the node.
     bool EnableNodeCaching;
 
+    //! Set O_DIRECT flag for chunk file on node.
+    bool DirectMode;
+
     TRemoteWriterConfig()
     {
         Register("window_size", WindowSize)
@@ -157,6 +160,8 @@ struct TRemoteWriterConfig
         Register("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
         Register("enable_node_caching", EnableNodeCaching)
+            .Default(false);
+        Register("direct_mode", DirectMode)
             .Default(false);
     }
 

@@ -10,6 +10,7 @@ import "yt/ytlib/table_client/table_chunk_meta.proto";
 message TReqStartChunk
 {
     required NYT.NProto.TGuid chunk_id = 1;
+    required bool direct_mode = 2;
 }
 
 message TRspStartChunk
