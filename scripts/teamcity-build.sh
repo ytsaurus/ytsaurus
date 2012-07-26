@@ -223,6 +223,8 @@ run_python_test()
             -rx -v \
             --timeout 300 \
             --junitxml="$WORKING_DIRECTORY/test_${test_name}.prexml"
+    b=$?
+    a=$((a+b))
     cat > /tmp/fix_xml_entities.py <<-EOP
 #!/usr/bin/python
 
@@ -241,8 +243,6 @@ for node in tree.iter():
 tree.write(sys.stdout, encoding="utf-8")
 EOP
     cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
-    b=$?
-    a=$((a+b))
     tc "blockClosed name=${block_name}"
 }
 
