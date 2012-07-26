@@ -339,8 +339,7 @@ private:
     TPartitionTaskPtr PartitionTask;
 
 
-    // Base class for tasks that are assigned to particular partitions.
-
+    //! Base class for tasks that are assigned to particular partitions.
     class TPartitionBoundTask
         : public TTask
     {
@@ -384,8 +383,6 @@ private:
         virtual TDuration GetSimpleLocalityTimeout() const = 0;
 
     };
-
-    // Sort task.
 
     class TSortTask
         : public TPartitionBoundTask
@@ -590,9 +587,7 @@ private:
         }
     };
 
-
-    // Merge tasks.
-
+    //! Base class for both sorted and ordered merge.
     class TMergeTask
         : public TPartitionBoundTask
     {
