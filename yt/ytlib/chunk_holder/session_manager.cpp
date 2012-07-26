@@ -62,7 +62,7 @@ void TSession::Start(bool directMode)
 {
     LOG_DEBUG("Session started");
 
-    WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)), directMode);
+    WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this), directMode));
 }
 
 void TSession::DoOpenFile(bool directMode)
@@ -71,8 +71,8 @@ void TSession::DoOpenFile(bool directMode)
     
     PROFILE_TIMING ("/chunk_io/chunk_writer_open_time") {
         try {
-            Writer = New<TFileWriter>(FileName);
-            Writer->Open(directMode);
+            Writer = New<TFileWriter>(FileName, directMode);
+            Writer->Open();
         }
         catch (const std::exception& ex) {
             LOG_FATAL("Error opening chunk writer\n%s", ex.what());
