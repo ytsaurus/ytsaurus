@@ -209,12 +209,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
 
     i32 blockIndex = startBlockIndex;
     FOREACH (const auto& block, request->Attachments()) {
-        // Make a copy of the attachment to enable separate caching
-        // of blocks arriving within a single RPC request.
         session->PutBlock(blockIndex, block, enableCaching);
         ++blockIndex;
     }
-    
+
     context->Reply();
 }
 
