@@ -435,7 +435,7 @@ private:
         virtual void AddStripe(TChunkStripePtr stripe) OVERRIDE
         {
             i64 oldTotal = ChunkPool->WeightCounter().GetTotal();
-            TTask::AddStripe(stripe);
+            TPartitionBoundTask::AddStripe(stripe);
             i64 newTotal = ChunkPool->WeightCounter().GetTotal();
             Controller->SortWeightCounter.Increment(newTotal - oldTotal);
         }
@@ -444,7 +444,7 @@ private:
         {
             return
                 Controller->PartitionTask->IsCompleted() &&
-                TTask::IsCompleted();
+                TPartitionBoundTask::IsCompleted();
         }
 
     private:
@@ -519,7 +519,7 @@ private:
 
         virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
         {
-            TTask::OnJobStarted(jip);
+            TPartitionBoundTask::OnJobStarted(jip);
 
             YCHECK(!Partition->Megalomaniac);
 
@@ -535,7 +535,7 @@ private:
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
-            TTask::OnJobCompleted(jip);
+            TPartitionBoundTask::OnJobCompleted(jip);
 
             Controller->SortJobCounter.Completed(1);
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
@@ -564,12 +564,12 @@ private:
             Controller->SortJobCounter.Failed(1);
             Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
 
-            TTask::OnJobFailed(jip);
+            TPartitionBoundTask::OnJobFailed(jip);
         }
 
         virtual void OnTaskCompleted() OVERRIDE
         {
-            TTask::OnTaskCompleted();
+            TPartitionBoundTask::OnTaskCompleted();
 
             // Kick-start the corresponding merge task.
             if (Controller->IsSortedMergeNeeded(Partition)) {
@@ -668,12 +668,12 @@ private:
 
             Controller->SortedMergeJobCounter.Start(1);
 
-            TTask::OnJobStarted(jip);
+            TMergeTask::OnJobStarted(jip);
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
-            TTask::OnJobCompleted(jip);
+            TMergeTask::OnJobCompleted(jip);
 
             Controller->SortedMergeJobCounter.Completed(1);
 
@@ -687,7 +687,7 @@ private:
         {
             Controller->SortedMergeJobCounter.Failed(1);
 
-            TTask::OnJobFailed(jip);
+            TMergeTask::OnJobFailed(jip);
         }
     };
 
@@ -764,12 +764,12 @@ private:
 
             Controller->UnorderedMergeJobCounter.Start(1);
 
-            TTask::OnJobStarted(jip);
+            TMergeTask::OnJobStarted(jip);
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
-            TTask::OnJobCompleted(jip);
+            TMergeTask::OnJobCompleted(jip);
 
             Controller->UnorderedMergeJobCounter.Completed(1);
 
@@ -784,7 +784,7 @@ private:
         {
             Controller->UnorderedMergeJobCounter.Failed(1);
 
-            TTask::OnJobFailed(jip);
+            TMergeTask::OnJobFailed(jip);
         }
     };
 
@@ -960,7 +960,7 @@ private:
         FOREACH (auto partition, Partitions) {
             auto taskToKick = partition->Megalomaniac
                 ? TTaskPtr(partition->UnorderedMergeTask)
-                : TTaskPtr(partition->SortTask);
+                : TTaskPtr(partition->SortedMergeTask);
             AddTaskPendingHint(taskToKick);
         }
     }
