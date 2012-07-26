@@ -151,3 +151,19 @@ class TestSchedulerSortCommands(YTEnvSetup):
              key_columns='key')
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5, v6]
+
+    def sort_with_options(self, suffix, **kwargs):
+        input = '//tmp/in' + suffix
+        output = '//tmp/out' + suffix
+        create('table', input)
+        create('table', output)
+        write(input, [{'key': num} for num in xrange(5, 0, -1)])
+        sort(in_=[input], out=output, key_columns='key', **kwargs)
+        assert read(output) == [{'key': num} for num in xrange(1, 6)]
+
+    def test_sort_with_options(self):
+        self.sort_with_options("1", opt='/spec/max_weight_per_unordered_merge_job=1')
+        self.sort_with_options("2", opt='/spec/max_weight_per_partition_job=1')
+        self.sort_with_options("3", opt='/spec/max_weight_per_sort_job=1')
+        self.sort_with_options("4", opt='/spec/partition_count=1')
+
