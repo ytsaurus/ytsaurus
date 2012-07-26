@@ -392,14 +392,22 @@ private:
             // To make subsequent merges local,
             // sort locality is assigned based on outputs (including those that are still running)
             // rather than on on inputs (they are scattered anyway).
+             
+
+            // If no nodes are assigned to this partition yet, then report infinite locality.
+            // This enables all partitions to get initially assigned nodes quickly and uniformly.
             if (AddressToRunningWeight.empty()) {
                 return InfiniteLocality;
             }
             
+            // If the partition is not assigned to this node then report zero locality.
+            // This prevents scattering sorted output across nodes.
             if (AddressToRunningWeight.find(address) == AddressToRunningWeight.end()) {
                 return 0;
             }
 
+            // Finally report locality proportional to the pending weight.
+            // This facilitates uniform sort progress across partitions.
             return WeightCounter().GetPending();
         }
 
