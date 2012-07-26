@@ -246,7 +246,7 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
                 Window.size());
     }
 
-    // IsWritten is set in router thread, hence no need for AsyncVia.
+    // IsWritten is set in the control thread, hence no need for AsyncVia.
     return slot.IsWritten.ToFuture().Apply(BIND(
         &TSession::OnBlockFlushed,
         MakeStrong(this),
@@ -256,7 +256,6 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
 void TSession::OnBlockFlushed(i32 blockIndex, TVoid)
 {
     ReleaseBlocks(blockIndex);
-    return;
 }
 
 TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
