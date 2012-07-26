@@ -980,7 +980,7 @@ private:
     {
         LOG_DEBUG("Partition assigned: %d -> %s",
             partition->Index,
-            node->GetAddress());
+            ~node->GetAddress());
         partition->AssignedAddress = node->GetAddress();
     }
 
