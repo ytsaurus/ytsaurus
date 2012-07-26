@@ -394,10 +394,13 @@ private:
             // rather than on on inputs (they are scattered anyway).
             if (AddressToRunningWeight.empty()) {
                 return InfiniteLocality;
-            } else {
-                auto it = AddressToRunningWeight.find(address);
-                return it == AddressToRunningWeight.end() ? 0 : InfiniteLocality - it->second;
             }
+            
+            if (AddressToRunningWeight.find(address) == AddressToRunningWeight.end()) {
+                return 0;
+            }
+
+            return WeightCounter().GetPending();
         }
 
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
