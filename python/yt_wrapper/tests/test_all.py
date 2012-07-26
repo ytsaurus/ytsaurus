@@ -40,7 +40,7 @@ class YtTest(YTEnv):
             "proxy": 18080}
         # (TODO): remake this strange stuff.
         cls.env = cls()
-        cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports, supress_yt_output=True)
+        cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports, supress_yt_output=False)
 
         config.PROXY = "localhost:%d" % ports["proxy"]
     
