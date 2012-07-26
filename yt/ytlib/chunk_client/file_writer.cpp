@@ -34,8 +34,9 @@ void TFileWriter::Open()
     YASSERT(!IsClosed);
 
     ui32 oMode = CreateAlways | WrOnly | Seq;
-    if (DirectMode)
+    if (DirectMode) {
         oMode |= Direct;
+    }
 
     DataFile.Reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
 

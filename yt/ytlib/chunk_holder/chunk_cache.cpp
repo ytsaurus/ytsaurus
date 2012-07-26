@@ -176,7 +176,7 @@ private:
         TSharedPtr<TInsertCookie> Cookie;
         IInvokerPtr WriteInvoker;
 
-        TFileWriter::TPtr FileWriter;
+        TFileWriterPtr FileWriter;
         IAsyncReaderPtr RemoteReader;
         TSequentialReaderPtr SequentialReader;
         TChunkMeta ChunkMeta;
