@@ -570,13 +570,12 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
         return NULL;
     }
 
-    LOG_DEBUG("Scheduling a %s job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", LocalityDelay: %s)",
+    LOG_DEBUG("Scheduling a %s job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64)",
         bestLocality.second == 0 ? "non-local" : "local",
         ~bestTask->GetId(),
         ~node->GetAddress(),
         bestLocality.first,
-        bestLocality.second,
-        ~ToString(now - bestTask->GetNonLocalRequestTime().Get()));
+        bestLocality.second);
 
     auto job = bestTask->ScheduleJob(node);
     if (!job) {
