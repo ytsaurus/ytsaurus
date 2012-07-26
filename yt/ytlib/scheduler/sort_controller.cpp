@@ -359,8 +359,8 @@ private:
         virtual i64 GetLocality(const Stroka& address) const OVERRIDE
         {
             if (Controller->Partitions.size() == 1) {
-                // Simple sort: use the usual locality based on outputs.
-                return TTask::GetLocality(address);
+                // Any positive number will do.
+                return 1;
             } 
 
             if (Partition->AssignedAddress != address) {
@@ -526,8 +526,7 @@ private:
             Controller->SortJobCounter.Start(1);
             Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
 
-            // Increment output locality.
-            // Also notify the controller that we're willing to use this node
+            // Notify the controller that we're willing to use this node
             // for all subsequent jobs.
             auto address = jip->Job->GetNode()->GetAddress();
             Controller->AddTaskLocalityHint(this, address);
