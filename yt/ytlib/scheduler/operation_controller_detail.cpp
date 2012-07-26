@@ -536,15 +536,18 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
         auto jt = it++;
         auto candidate = *jt;
 
-        TWeightedLocality locality(candidate->GetPriority(), candidate->GetLocality(address));
-
-        if (candidate->GetPendingJobCount() == 0 || locality.second < 0) {
+        if (candidate->GetPendingJobCount() == 0 ) {
             LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
             PendingTasks.erase(jt);
             continue;
         }
 
         if (!candidate->HasEnoughResources(node)) {
+            continue;
+        }
+
+        TWeightedLocality locality(candidate->GetPriority(), candidate->GetLocality(address));
+        if (locality.second < 0) {
             continue;
         }
 
