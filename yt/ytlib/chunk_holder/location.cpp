@@ -34,8 +34,8 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
-    , ReadQueue(New<TFairShareActionQueue>(2, Sprintf("ChunkIO:%s", ~Id)))
-    , WriteQueue(New<TActionQueue>())
+    , ReadQueue(New<TFairShareActionQueue>(2, Sprintf("Read:%s", ~Id)))
+    , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
