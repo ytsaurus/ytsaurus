@@ -106,7 +106,7 @@ class YTEnv(unittest.TestCase):
                 ok = False
                 message += '%s (pid %d) is already terminated with exit status %d\n' % (name, p.pid, p.returncode)
             else:
-                os.killpg(p.pid, signal.SIGTERM)
+                os.killpg(p.pid, signal.SIGKILL)
 
             time.sleep(0.250)
 
