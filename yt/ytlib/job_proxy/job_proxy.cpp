@@ -101,8 +101,10 @@ void TJobProxy::Run()
         RetrieveJobSpec();
 
         const auto& jobSpec = GetJobSpec();
+        auto jobType = EJobType(jobSpec.type());
+        NYT::NThread::SetCurrentThreadName(~jobType.ToString());
 
-        switch (jobSpec.type()) {
+        switch (jobType) {
             case EJobType::Map: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
                 TAutoPtr<TUserJobIO> userJobIO = new TMapJobIO(Config->JobIO, Config->Masters, jobSpec);
