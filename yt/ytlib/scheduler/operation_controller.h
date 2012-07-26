@@ -44,11 +44,11 @@ struct IOperationHost
      */
     virtual IInvokerPtr GetBackgroundInvoker() = 0;
 
-    //! Returns the number of currently active exec nodes.
+    //! Returns the list of currently active exec nodes.
     /*!
      *  \note Thread affinity: ControlThread
      */
-    virtual int GetExecNodeCount() = 0;
+    virtual std::vector<TExecNodePtr> GetExecNodes() = 0;
 
     //! A factory method for creating new jobs.
     /*!

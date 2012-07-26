@@ -137,6 +137,10 @@ private:
         //! Accumulated attributes.
         NTableClient::NProto::TPartitionsExt::TPartitionAttributes TotalAttributes;
 
+        //! The only node where sorting and merging must take place (in case of multiple partitions).
+        Stroka AssignedAddress;
+
+        // Tasks.
         TSortTaskPtr SortTask;
         TSortedMergeTaskPtr SortedMergeTask;
         TUnorderedMergeTaskPtr UnorderedMergeTask;
@@ -335,16 +339,60 @@ private:
     TPartitionTaskPtr PartitionTask;
 
 
-    // Sort task.
+    // Base class for tasks that are assigned to particular partitions.
 
-    class TSortTask
+    class TPartitionBoundTask
         : public TTask
     {
     public:
-        TSortTask(TSortController* controller, TPartition* partition)
+        TPartitionBoundTask(TSortController* controller, TPartition* partition)
             : TTask(controller)
             , Controller(controller)
             , Partition(partition)
+        { }
+
+        virtual TDuration GetLocalityTimeout() const OVERRIDE
+        {
+            // Locality timeouts are only used for simple sort.
+            return
+                Controller->Partitions.size() == 1
+                ? GetSimpleLocalityTimeout()
+                : TDuration::Zero();
+        }
+
+        virtual i64 GetLocality(const Stroka& address) const OVERRIDE
+        {
+            if (Controller->Partitions.size() == 1) {
+                // Simple sort: use the usual locality based on outputs.
+                return TTask::GetLocality(address);
+            } 
+
+            if (Partition->AssignedAddress != address) {
+                // Never start sort jobs on a wrong node.
+                return -1;
+            }
+
+            // Report locality proportional to the pending weight.
+            // This facilitates uniform sort progress across partitions.
+            return WeightCounter().GetPending();
+        }
+
+    protected:
+        TSortController* Controller;
+        TPartition* Partition;
+
+        virtual TDuration GetSimpleLocalityTimeout() const = 0;
+
+    };
+
+    // Sort task.
+
+    class TSortTask
+        : public TPartitionBoundTask
+    {
+    public:
+        TSortTask(TSortController* controller, TPartition* partition)
+            : TPartitionBoundTask(controller, partition)
         {
             ChunkPool = CreateUnorderedChunkPool(false);
         }
@@ -378,39 +426,6 @@ private:
                 : static_cast<int>(floor(fractionalJobCount));
         }
 
-        virtual TDuration GetLocalityTimeout() const OVERRIDE
-        {
-            // If no primary node is chosen yet then start the job immediately.
-            return
-                AddressToRunningWeight.empty()
-                ? TDuration::Zero()
-                : Controller->Spec->SortLocalityTimeout;
-        }
-
-        virtual i64 GetLocality(const Stroka& address) const OVERRIDE
-        {
-            // To make subsequent merges local,
-            // sort locality is assigned based on outputs (including those that are still running)
-            // rather than on on inputs (they are scattered anyway).
-             
-
-            // If no nodes are assigned to this partition yet, then report infinite locality.
-            // This enables all partitions to get initially assigned nodes quickly and uniformly.
-            if (AddressToRunningWeight.empty()) {
-                return InfiniteLocality;
-            }
-            
-            // If the partition is not assigned to this node then report zero locality.
-            // This prevents scattering sorted output across nodes.
-            if (AddressToRunningWeight.find(address) == AddressToRunningWeight.end()) {
-                return 0;
-            }
-
-            // Finally report locality proportional to the pending weight.
-            // This facilitates uniform sort progress across partitions.
-            return WeightCounter().GetPending();
-        }
-
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
             return GetRequestedResourcesForWeight(std::min(
@@ -439,12 +454,8 @@ private:
         }
 
     private:
-        static const i64 InfiniteLocality = 1000000000000l;
-
         TSortController* Controller;
         TPartition* Partition;
-
-        yhash_map<Stroka, i64> AddressToRunningWeight;
 
         NProto::TNodeResources GetRequestedResourcesForWeight(i64 dataWeight) const
         {
@@ -464,6 +475,11 @@ private:
                     dataWeight,
                     rowCount);
             }
+        }
+
+        virtual TDuration GetSimpleLocalityTimeout() const OVERRIDE
+        {
+            return Controller->Spec->SortLocalityTimeout;
         }
 
         virtual int GetChunkListCountPerJob() const OVERRIDE
@@ -523,7 +539,6 @@ private:
             // Also notify the controller that we're willing to use this node
             // for all subsequent jobs.
             auto address = jip->Job->GetNode()->GetAddress();
-            AddressToRunningWeight[address] += jip->PoolResult->TotalChunkWeight;
             Controller->AddTaskLocalityHint(this, address);
         }
 
@@ -558,12 +573,6 @@ private:
             Controller->SortJobCounter.Failed(1);
             Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
 
-            // Decrement output locality and purge zeros.
-            auto address = jip->Job->GetNode()->GetAddress();
-            if ((AddressToRunningWeight[address] -= jip->PoolResult->TotalChunkWeight) == 0) {
-                YCHECK(AddressToRunningWeight.erase(address) == 1);
-            }
-
             TTask::OnJobFailed(jip);
         }
 
@@ -585,16 +594,35 @@ private:
     };
 
 
-    // Sorted merge task.
+    // Merge tasks.
+
+    class TMergeTask
+        : public TPartitionBoundTask
+    {
+    public:
+        TMergeTask(TSortController* controller, TPartition* partition)
+            : TPartitionBoundTask(controller, partition)
+        { }
+
+        virtual int GetPriority() const OVERRIDE
+        {
+            return 2;
+        }
+
+    protected:
+        virtual TDuration GetSimpleLocalityTimeout() const OVERRIDE
+        {
+            return Controller->Spec->MergeLocalityTimeout;
+        }
+
+    };
 
     class TSortedMergeTask
-        : public TTask
+        : public TMergeTask
     {
     public:
         TSortedMergeTask(TSortController* controller, TPartition* partition)
-            : TTask(controller)
-            , Controller(controller)
-            , Partition(partition)
+            : TMergeTask(controller, partition)
         {
             ChunkPool = CreateAtomicChunkPool();
         }
@@ -602,11 +630,6 @@ private:
         virtual Stroka GetId() const OVERRIDE
         {
             return Sprintf("SortedMerge(%d)", Partition->Index);
-        }
-
-        virtual int GetPriority() const OVERRIDE
-        {
-            return 2;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
@@ -622,11 +645,6 @@ private:
                 ? 1 : 0;
         }
 
-        virtual TDuration GetLocalityTimeout() const OVERRIDE
-        {
-            return Controller->Spec->MergeLocalityTimeout;
-        }
-
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
             return GetSortedMergeDuringSortJobResources(
@@ -636,9 +654,6 @@ private:
         }
 
     private:
-        TSortController* Controller;
-        TPartition* Partition;
-
         virtual int GetChunkListCountPerJob() const OVERRIDE
         {
             return 1;
@@ -687,16 +702,12 @@ private:
         }
     };
 
-    // Unorderded merge task (for megalomaniacs).
-    
     class TUnorderedMergeTask
-        : public TTask
+        : public TMergeTask
     {
     public:
         TUnorderedMergeTask(TSortController* controller, TPartition* partition)
-            : TTask(controller)
-            , Controller(controller)
-            , Partition(partition)
+            : TMergeTask(controller, partition)
         {
             ChunkPool = CreateUnorderedChunkPool();
             MinRequestedResources = GetUnorderedMergeDuringSortJobResources(
@@ -707,11 +718,6 @@ private:
         virtual Stroka GetId() const OVERRIDE
         {
             return Sprintf("UnorderedMerge(%d)", Partition->Index);
-        }
-
-        virtual int GetPriority() const OVERRIDE
-        {
-            return 2;
         }
 
         virtual int GetPendingJobCount() const OVERRIDE
@@ -729,20 +735,12 @@ private:
             return static_cast<int>(ceil((double) weight / weightPerJob));
         }
 
-        virtual TDuration GetLocalityTimeout() const OVERRIDE
-        {
-            // Unordered merge will fetch all partitions so the locality is not an issue here.
-            return TDuration::Zero();
-        }
-
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
             return MinRequestedResources;
         }
 
     private:
-        TSortController* Controller;
-        TPartition* Partition;
         NProto::TNodeResources MinRequestedResources;
 
         virtual int GetChunkListCountPerJob() const OVERRIDE
@@ -809,108 +807,6 @@ private:
         ScheduleClearOutputTables();
     }
 
-    void RegisterOutputChunkTree(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
-    {
-        TOperationControllerBase::RegisterOutputChunkTree(chunkTreeId, partition->Index, 0);
-    }
-
-    void OnPartitionCompeted(TPartitionPtr partition)
-    {
-        YCHECK(!partition->Completed);
-        partition->Completed = true;
-
-        ++CompletedPartitionCount;
-
-        LOG_INFO("Partition completed (Partition: %d)", partition->Index);
-    }
-
-    bool IsSortedMergeNeeded(TPartitionPtr partition)
-    {
-        // Check for cached value.
-        if (partition->SortedMergeNeeded) {
-            return true;
-        }
-
-        // Some easy cases.
-        if (partition->Megalomaniac) {
-            return false;
-        }
-
-        // Check if the sort task only handles a fraction of the partition.
-        // Two cases are possible:
-        // 1) Partition task is still running and thus may enqueue
-        // additional data to be sorted.
-        // 2) The sort pool hasn't been exhausted by the current job.
-        bool mergeNeeded =
-            !PartitionTask->IsCompleted() ||
-            partition->SortTask->IsPending();
-
-        if (mergeNeeded) {
-            LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
-            partition->SortedMergeNeeded = true;
-        }
-
-        return mergeNeeded;
-    }
-
-    bool IsUnorderedMergeNeeded(TPartitionPtr partition)
-    {
-        return
-            partition->Megalomaniac &&
-            PartitionTask->IsCompleted();
-    }
-
-    void CheckSortStartThreshold()
-    {
-        if (SortStartThresholdReached)
-            return;
-
-        const auto& partitionWeightCounter = PartitionTask->WeightCounter();
-        if (partitionWeightCounter.GetCompleted() < partitionWeightCounter.GetTotal() * Spec->SortStartThreshold)
-            return;
-
-        LOG_INFO("Sort start threshold reached");
-
-        SortStartThresholdReached = true;
-        AddSortTasksPendingHints();
-    }
-
-    void CheckMergeStartThreshold()
-    {
-        if (MergeStartThresholdReached)
-            return;
-
-        if (!PartitionTask->IsCompleted())
-            return;
-
-        if (SortWeightCounter.GetCompleted() < SortWeightCounter.GetTotal() * Spec->MergeStartThreshold)
-            return;
-
-        LOG_INFO("Merge start threshold reached");
-
-        MergeStartThresholdReached = true;
-        AddMergeTasksPendingHints();
-    }
-
-    void AddSortTasksPendingHints()
-    {
-        FOREACH (auto partition, Partitions) {
-            if (!partition->Megalomaniac) {
-                AddTaskPendingHint(partition->SortTask);
-            }
-        }   
-    }
-
-    void AddMergeTasksPendingHints()
-    {
-        FOREACH (auto partition, Partitions) {
-            auto taskToKick = partition->Megalomaniac
-                ? TTaskPtr(partition->UnorderedMergeTask)
-                : TTaskPtr(partition->SortTask);
-            AddTaskPendingHint(taskToKick);
-        }
-    }
-
     virtual void OnOperationCompleted() OVERRIDE
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
@@ -975,6 +871,133 @@ private:
         // TODO(babenko): unless overwrite mode is ON
         CheckOutputTablesEmpty();
         ScheduleSetOutputTablesSorted(Spec->KeyColumns);
+    }
+
+    void RegisterOutputChunkTree(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
+    {
+        TOperationControllerBase::RegisterOutputChunkTree(chunkTreeId, partition->Index, 0);
+    }
+
+    void OnPartitionCompeted(TPartitionPtr partition)
+    {
+        YCHECK(!partition->Completed);
+        partition->Completed = true;
+
+        ++CompletedPartitionCount;
+
+        LOG_INFO("Partition completed (Partition: %d)", partition->Index);
+    }
+
+    bool IsSortedMergeNeeded(TPartitionPtr partition)
+    {
+        // Check for cached value.
+        if (partition->SortedMergeNeeded) {
+            return true;
+        }
+
+        // Some easy cases.
+        if (partition->Megalomaniac) {
+            return false;
+        }
+
+        // Check if the sort task only handles a fraction of the partition.
+        // Two cases are possible:
+        // 1) Partition task is still running and thus may enqueue
+        // additional data to be sorted.
+        // 2) The sort pool hasn't been exhausted by the current job.
+        bool mergeNeeded =
+            !PartitionTask->IsCompleted() ||
+            partition->SortTask->IsPending();
+
+        if (mergeNeeded) {
+            LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
+            partition->SortedMergeNeeded = true;
+        }
+
+        return mergeNeeded;
+    }
+
+    bool IsUnorderedMergeNeeded(TPartitionPtr partition)
+    {
+        return
+            partition->Megalomaniac &&
+            PartitionTask->IsCompleted();
+    }
+
+    void CheckSortStartThreshold()
+    {
+        if (SortStartThresholdReached)
+            return;
+
+        const auto& partitionWeightCounter = PartitionTask->WeightCounter();
+        if (partitionWeightCounter.GetCompleted() < partitionWeightCounter.GetTotal() * Spec->SortStartThreshold)
+            return;
+
+        LOG_INFO("Sort start threshold reached");
+
+        SortStartThresholdReached = true;
+        AssignPartitions();
+        AddSortTasksPendingHints();
+    }
+
+    void CheckMergeStartThreshold()
+    {
+        if (MergeStartThresholdReached)
+            return;
+
+        if (!PartitionTask->IsCompleted())
+            return;
+
+        if (SortWeightCounter.GetCompleted() < SortWeightCounter.GetTotal() * Spec->MergeStartThreshold)
+            return;
+
+        LOG_INFO("Merge start threshold reached");
+
+        MergeStartThresholdReached = true;
+        AddMergeTasksPendingHints();
+    }
+
+    void AddSortTasksPendingHints()
+    {
+        FOREACH (auto partition, Partitions) {
+            if (!partition->Megalomaniac) {
+                AddTaskPendingHint(partition->SortTask);
+            }
+        }   
+    }
+
+    void AddMergeTasksPendingHints()
+    {
+        FOREACH (auto partition, Partitions) {
+            auto taskToKick = partition->Megalomaniac
+                ? TTaskPtr(partition->UnorderedMergeTask)
+                : TTaskPtr(partition->SortTask);
+            AddTaskPendingHint(taskToKick);
+        }
+    }
+
+    void AssignPartition(TPartitionPtr partition, TExecNodePtr node)
+    {
+        LOG_DEBUG("Partition assigned: %d -> %s",
+            partition->Index,
+            node->GetAddress());
+        partition->AssignedAddress = node->GetAddress();
+    }
+
+    void AssignPartitions()
+    {
+        auto nodes = Host->GetExecNodes();
+        if (nodes.empty()) {
+            OnOperationFailed(TError("No online exec nodes to assign partitions"));
+        }
+
+        std::random_shuffle(nodes.begin(), nodes.end());
+
+        int currentNode = 0;
+        FOREACH (auto partition, Partitions) {
+            AssignPartition(partition, nodes[currentNode]);
+            currentNode = (currentNode + 1) % nodes.size();
+        }
     }
 
     void SortSamples()

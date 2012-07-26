@@ -123,15 +123,15 @@ public:
         return operations;
     }
 
-    std::vector<TExecNodePtr> GetExecNodes()
+    virtual std::vector<TExecNodePtr> GetExecNodes() OVERRIDE
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        std::vector<TExecNodePtr> execNodes;
+        std::vector<TExecNodePtr> result;
         FOREACH (const auto& pair, ExecNodes) {
-            execNodes.push_back(pair.second);
+            result.push_back(pair.second);
         }
-        return execNodes;
+        return result;
     }
 
 private:
@@ -261,8 +261,8 @@ private:
 
     void InitializeOperation(TOperationPtr operation)
     {
-        if (GetExecNodeCount() == 0) {
-            ythrow yexception() << "No online exec nodes";
+        if (ExecNodes.empty()) {
+            ythrow yexception() << "No online exec nodes to start operation";
         }
 
         operation->GetController()->Initialize();
@@ -614,34 +614,27 @@ private:
     
 
     // IOperationHost methods
-    NRpc::IChannelPtr GetMasterChannel() OVERRIDE
+    virtual NRpc::IChannelPtr GetMasterChannel() OVERRIDE
     {
         return Bootstrap->GetMasterChannel();
     }
 
-    TTransactionManagerPtr GetTransactionManager() OVERRIDE
+    virtual TTransactionManagerPtr GetTransactionManager() OVERRIDE
     {
         return Bootstrap->GetTransactionManager();
     }
 
-    IInvokerPtr GetControlInvoker() OVERRIDE
+    virtual IInvokerPtr GetControlInvoker() OVERRIDE
     {
         return Bootstrap->GetControlInvoker();
     }
 
-    IInvokerPtr GetBackgroundInvoker() OVERRIDE
+    virtual IInvokerPtr GetBackgroundInvoker() OVERRIDE
     {
         return BackgroundQueue->GetInvoker();
     }
 
-    int GetExecNodeCount() OVERRIDE
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return static_cast<int>(ExecNodes.size());
-    }
-
-    TJobPtr CreateJob(
+    virtual TJobPtr CreateJob(
         EJobType type,
         TOperationPtr operation,
         TExecNodePtr node) OVERRIDE
@@ -659,7 +652,7 @@ private:
     }
 
 
-    void OnOperationCompleted(TOperationPtr operation) OVERRIDE
+    virtual void OnOperationCompleted(TOperationPtr operation) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -719,7 +712,7 @@ private:
     }
 
 
-    void OnOperationFailed(
+    virtual void OnOperationFailed(
         TOperationPtr operation,
         const TError& error) OVERRIDE
     {

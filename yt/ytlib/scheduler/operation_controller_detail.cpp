@@ -255,10 +255,7 @@ void TOperationControllerBase::Initialize()
     
     LOG_INFO("Initializing operation");
 
-    ExecNodeCount = Host->GetExecNodeCount();
-    if (ExecNodeCount == 0) {
-        ythrow yexception() << "No online exec nodes";
-    }
+    ExecNodeCount = static_cast<int>(Host->GetExecNodes().size());
 
     FOREACH (const auto& path, GetInputTablePaths()) {
         TInputTable table;
@@ -539,7 +536,9 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
         auto jt = it++;
         auto candidate = *jt;
 
-        if (candidate->GetPendingJobCount() == 0) {
+        TWeightedLocality locality(candidate->GetPriority(), candidate->GetLocality(address));
+
+        if (candidate->GetPendingJobCount() == 0 || locality.second < 0) {
             LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
             PendingTasks.erase(jt);
             continue;
@@ -549,7 +548,6 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
             continue;
         }
 
-        TWeightedLocality locality(candidate->GetPriority(), candidate->GetLocality(address));
         if (locality.second == 0) {
             if (!candidate->GetNonLocalRequestTime()) {
                 candidate->SetNonLocalRequestTime(now);

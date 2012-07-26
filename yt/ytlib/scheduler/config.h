@@ -319,9 +319,9 @@ struct TSortOperationSpec
         Register("partition_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
         Register("sort_locality_timeout", SortLocalityTimeout)
-            .Default(TDuration::Seconds(30));
+            .Default(TDuration::Seconds(10));
         Register("merge_locality_timeout", MergeLocalityTimeout)
-            .Default(TDuration::Seconds(30));
+            .Default(TDuration::Seconds(10));
         Register("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(20);
         Register("shuffle_network_release_threshold", ShuffleNetworkReleaseThreshold)
