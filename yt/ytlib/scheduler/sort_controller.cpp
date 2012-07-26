@@ -163,9 +163,9 @@ private:
     TJobSpec SortedMergeJobSpecTemplate;
     TJobSpec UnorderedMergeJobSpecTemplate;
 
-    
-    // Partition task.
+    TPartitionTaskPtr PartitionTask;
 
+    
     class TPartitionTask
         : public TTask
     {
@@ -335,9 +335,6 @@ private:
             Controller->AddMergeTasksPendingHints();
         }
     };
-
-    TPartitionTaskPtr PartitionTask;
-
 
     //! Base class for tasks that are assigned to particular partitions.
     class TPartitionBoundTask
