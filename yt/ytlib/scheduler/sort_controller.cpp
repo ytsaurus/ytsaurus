@@ -454,9 +454,6 @@ private:
         }
 
     private:
-        TSortController* Controller;
-        TPartition* Partition;
-
         NProto::TNodeResources GetRequestedResourcesForWeight(i64 dataWeight) const
         {
             i64 rowCount = Controller->GetRowCountEstimate(dataWeight);
