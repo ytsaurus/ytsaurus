@@ -320,7 +320,7 @@ struct TSortOperationSpec
             .Default(TDuration::Seconds(5));
         Register("sort_locality_timeout", SortLocalityTimeout)
             .Default(TDuration::Seconds(30));
-        Register("merge_locality_timeout", SortLocalityTimeout)
+        Register("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Seconds(30));
         Register("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(20);
