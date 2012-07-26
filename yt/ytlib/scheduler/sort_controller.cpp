@@ -382,7 +382,7 @@ private:
         {
             // If no primary node is chosen yet then start the job immediately.
             return
-                AddressToOutputLocality.empty()
+                AddressToRunningWeight.empty()
                 ? TDuration::Zero()
                 : Controller->Spec->SortLocalityTimeout;
         }
@@ -392,13 +392,11 @@ private:
             // To make subsequent merges local,
             // sort locality is assigned based on outputs (including those that are still running)
             // rather than on on inputs (they are scattered anyway).
-            if (AddressToOutputLocality.empty()) {
-                // No primary node is chosen yet, an arbitrary one will do.
-                // Return some magic number.
-                return Controller->Spec->MaxWeightPerSortJob;
+            if (AddressToRunningWeight.empty()) {
+                return InfiniteLocality;
             } else {
-                auto it = AddressToOutputLocality.find(address);
-                return it == AddressToOutputLocality.end() ? 0 : it->second;
+                auto it = AddressToRunningWeight.find(address);
+                return it == AddressToRunningWeight.end() ? 0 : InfiniteLocality - it->second;
             }
         }
 
@@ -430,10 +428,12 @@ private:
         }
 
     private:
+        static const i64 InfiniteLocality = 1000000000000l;
+
         TSortController* Controller;
         TPartition* Partition;
 
-        yhash_map<Stroka, i64> AddressToOutputLocality;
+        yhash_map<Stroka, i64> AddressToRunningWeight;
 
         NProto::TNodeResources GetRequestedResourcesForWeight(i64 dataWeight) const
         {
@@ -512,7 +512,7 @@ private:
             // Also notify the controller that we're willing to use this node
             // for all subsequent jobs.
             auto address = jip->Job->GetNode()->GetAddress();
-            AddressToOutputLocality[address] += jip->PoolResult->TotalChunkWeight;
+            AddressToRunningWeight[address] += jip->PoolResult->TotalChunkWeight;
             Controller->AddTaskLocalityHint(this, address);
         }
 
@@ -549,8 +549,8 @@ private:
 
             // Decrement output locality and purge zeros.
             auto address = jip->Job->GetNode()->GetAddress();
-            if ((AddressToOutputLocality[address] -= jip->PoolResult->TotalChunkWeight) == 0) {
-                YCHECK(AddressToOutputLocality.erase(address) == 1);
+            if ((AddressToRunningWeight[address] -= jip->PoolResult->TotalChunkWeight) == 0) {
+                YCHECK(AddressToRunningWeight.erase(address) == 1);
             }
 
             TTask::OnJobFailed(jip);
