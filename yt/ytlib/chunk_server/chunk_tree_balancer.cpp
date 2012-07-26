@@ -83,13 +83,19 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
     YCHECK(!newChildren.empty());
     YCHECK(newChildren.front() != root);
 
-    // Rewrite root.
+    // Rewrite the root with newChildren.
+    
+    // Add temporary references to the old children.
     auto oldChildren = root->Children();
-    FOREACH (auto childRef, newChildren) {
+    FOREACH (auto childRef, oldChildren) {
         objectManager->RefObject(childRef.GetId());
     }
+
+    // Replace the children list.
     chunkManager->ClearChunkList(root);
     chunkManager->AttachToChunkList(root, newChildren);
+    
+    // Release the temporary references added above.
     FOREACH (auto childRef, oldChildren) {
         objectManager->UnrefObject(childRef.GetId());
     }
