@@ -3,8 +3,10 @@
 #include "private.h"
 #include "config.h"
 
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/rpc/channel_cache.h>
+#include <ytlib/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -84,8 +86,6 @@ void TSamplesFetcher::SendRequests()
         UnfetchedChunkIndexes.size(),
         addressToChunkIndexes.size());
 
-    int weightBetweenSamples = TotalWeight / DesiredSampleCount;
-
     // Sort nodes by number of chunks (in decreasing order).
     std::vector<TAddressToChunkIndexes::iterator> addressIts;
     for (auto it = addressToChunkIndexes.begin(); it != addressToChunkIndexes.end(); ++it) {
@@ -97,6 +97,13 @@ void TSamplesFetcher::SendRequests()
         [=] (const TAddressToChunkIndexes::iterator& lhs, const TAddressToChunkIndexes::iterator& rhs) {
             return lhs->second.size() > rhs->second.size();
         });
+
+    int weightBetweenSamples = TotalWeight / DesiredSampleCount;
+    if (weightBetweenSamples == 0)
+        weightBetweenSamples = 1;
+
+    i64 currentWeight = 0;
+    int currentSampleCount = 0;
 
     // Pick nodes greedily.
     auto awaiter = New<TParallelAwaiter>(Invoker);
@@ -112,19 +119,30 @@ void TSamplesFetcher::SendRequests()
         std::vector<int> chunkIndexes;
         FOREACH (auto chunkIndex, it->second) {
             if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
-                const auto& chunk = Chunks[chunkIndex];
-                auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
-                auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                chunkIndexes.push_back(chunkIndex);
                 YCHECK(requestedChunkIndexes.insert(chunkIndex).second);
-                *req->add_chunk_ids() = chunkId.ToProto();
+
+                const auto& chunk = Chunks[chunkIndex];
+                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                currentWeight += miscExt.data_weight();
+                int sampleCount = currentWeight / weightBetweenSamples;
+
+                if (sampleCount > currentSampleCount) {
+                    int chunkSampleCount = sampleCount - currentSampleCount;
+                    currentSampleCount = sampleCount;
+                    auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+                    chunkIndexes.push_back(chunkIndex);
+                    
+                    auto* sampleRequest = req->add_sample_requests();
+                    *sampleRequest->mutable_chunk_id() = chunkId.ToProto();
+                    sampleRequest->set_sample_count(chunkSampleCount);
+                }
             }
         }
 
         // Send the request, if not empty.
         if (!chunkIndexes.empty()) {
             LOG_DEBUG("Requesting samples for %d chunks from %s",
-                req->chunk_ids_size(),
+                req->sample_requests_size(),
                 ~address);
 
             ToProto(req->mutable_key_columns(), Spec->KeyColumns);

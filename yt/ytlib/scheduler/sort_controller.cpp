@@ -59,11 +59,7 @@ public:
         , CompletedPartitionCount(0)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
-        , SamplesFetcher(New<TSamplesFetcher>(
-            Config,
-            Spec,
-            Host->GetBackgroundInvoker(),
-            Operation->GetOperationId()))
+        , SamplesFetcher(NULL)
         , PartitionTask(New<TPartitionTask>(this))
     { }
 
@@ -829,6 +825,13 @@ private:
             LOG_INFO("Processing inputs");
 
             // Prepare the fetcher.
+            SamplesFetcher = New<TSamplesFetcher>(
+                Config,
+                Spec,
+                Host->GetBackgroundInvoker(),
+                Operation->GetOperationId(),
+                GetPartitionCountEstimate() * Spec->SamplesPerPartition);
+
             int chunkCount = 0;
             FOREACH (const auto& table, InputTables) {
                 FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
@@ -1024,12 +1027,7 @@ private:
 
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
-        int partitionCount = Spec->PartitionCount
-            ? Spec->PartitionCount.Get()
-            : static_cast<int>(ceil(
-                (double) TotalDataWeight /
-                Spec->MaxWeightPerSortJob *
-                Spec->PartitionCountBoostFactor));
+        int partitionCount = GetPartitionCountEstimate();
 
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
@@ -1321,14 +1319,24 @@ private:
         }
     }
 
-    i64 GetRowCountEstimate(i64 weight)
+    i64 GetRowCountEstimate(i64 weight) const
     {
         return static_cast<i64>((double) TotalRowCount * weight / TotalDataWeight);
     }
 
-    i64 GetValueCountEstimate(i64 weight)
+    i64 GetValueCountEstimate(i64 weight) const
     {
         return static_cast<i64>((double) TotalValueCount * weight / TotalDataWeight);
+    }
+
+    int GetPartitionCountEstimate() const
+    {
+        return Spec->PartitionCount ? 
+            Spec->PartitionCount.Get() : 
+            static_cast<int>(ceil(
+                (double) TotalDataWeight /
+                Spec->MaxWeightPerSortJob *
+                Spec->PartitionCountBoostFactor));;
     }
 };
 

@@ -458,21 +458,16 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
 {
-    auto maxSampleCount = std::numeric_limits<int>::max();
-    if (request->has_max_sample_count())
-        maxSampleCount = request->max_sample_count();
-
-    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MaxSampleCount: %d",
+    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
         request->key_columns_size(),
-        request->chunk_ids_size(),
-        maxSampleCount);
+        request->sample_requests_size());
 
     auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
-    auto chunkIds = FromProto<TChunkId>(request->chunk_ids());
 
-    FOREACH (const auto& chunkId, chunkIds) {
+    FOREACH (const auto& sampleRequest, request->sample_requests()) {
         auto* chunkSamples = response->add_samples();
+        auto chunkId = TChunkId::FromProto(sampleRequest.chunk_id());
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
         if (!chunk) {
@@ -483,10 +478,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
             awaiter->Await(chunk->GetMeta(), BIND(
                 &TChunkHolderService::ProcessSample, 
                 MakeStrong(this), 
-                chunkId,
+                &sampleRequest,
                 chunkSamples,
-                keyColumns,
-                maxSampleCount).Via(WorkerThread->GetInvoker()));
+                keyColumns).Via(WorkerThread->GetInvoker()));
         }
     }
 
@@ -496,12 +490,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
 }
 
 void TChunkHolderService::ProcessSample(
-    const TChunkId& chunkId, 
+    const NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
     NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
     const NTableClient::TKeyColumns& keyColumns,
-    int maxSampleCount,
     TChunk::TGetMetaResult result)
 {
+    auto chunkId = TChunkId::FromProto(sampleRequest->chunk_id());
+
     if (!result.IsOK()) {
         LOG_WARNING("GetTableSamples: Error getting meta of chunk %s\n%s", 
             ~chunkId.ToString(),
@@ -516,7 +511,7 @@ void TChunkHolderService::ProcessSample(
         samplesExt.items().begin(), 
         samplesExt.items().end(), 
         std::back_inserter(samples), 
-        maxSampleCount);
+        sampleRequest->sample_count());
 
     FOREACH (const auto& sample, samples) {
         auto* key = chunkSamples->add_items();

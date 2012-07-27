@@ -47,10 +47,9 @@ private:
     TIntrusivePtr<TSession> GetSession(const TChunkId& chunkId);
     TIntrusivePtr<TChunk> GetChunk(const TChunkId& chunkId);
     void ProcessSample(
-        const TChunkId& chunkId, 
+        const NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
         NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
         const NTableClient::TKeyColumns& keyColumns,
-        int maxSampleCount,
         TChunk::TGetMetaResult result);
 
     void OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int> artitionTag, TChunk::TGetMetaResult result);

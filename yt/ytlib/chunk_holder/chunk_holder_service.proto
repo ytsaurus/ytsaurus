@@ -146,9 +146,13 @@ message TReqUpdatePeer
 
 message TReqGetTableSamples
 {
-    repeated NYT.NProto.TGuid chunk_ids = 1;
+    message TSampleRequest {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required int32 sample_count = 2;
+    }
+
+    repeated TSampleRequest sample_requests = 1;
     repeated string key_columns = 2;
-    optional int32 max_sample_count = 3;
 }
 
 message TRspGetTableSamples

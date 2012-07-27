@@ -263,6 +263,9 @@ struct TSortOperationSpec
     //! See comments for #MaxWeightPerSortJob.
     double PartitionCountBoostFactor;
 
+    // Desired number of samples per partition.
+    int SamplesPerPartition;
+
     //! Maximum amount of (uncompressed) data to be given to a single unordered merge job
     //! that takes care of a megalomaniac partition.
     i64 MaxWeightPerUnorderedMergeJob;
@@ -307,6 +310,9 @@ struct TSortOperationSpec
         Register("partition_count_boost_factor", PartitionCountBoostFactor)
             .Default(1.5)
             .GreaterThanOrEqual(1.0);
+        Register("samples_per_partition", SamplesPerPartition)
+            .Default(10)
+            .GreaterThan(1);
         Register("max_weight_per_unordered_merge_job", MaxWeightPerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
