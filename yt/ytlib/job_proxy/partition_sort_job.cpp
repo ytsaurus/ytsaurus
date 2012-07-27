@@ -131,6 +131,7 @@ public:
                 while (Reader->IsValid()) {
                     // Push row pointer.
                     rowPtrBuffer.push_back(Reader->CurrentReader()->GetRowPointer());
+                    rowIndexHeap.push_back(rowIndexHeap.size());
                     YASSERT(rowIndexHeap.back() <= std::numeric_limits<ui32>::max());
 
                     // Push key.
@@ -144,7 +145,6 @@ public:
                     }
 
                     // Push row index and readjust the heap.
-                    rowIndexHeap.push_back(rowIndexHeap.size());
                     std::push_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
 
                     if (!isNetworkReleased && rowPtrBuffer.size() > thresholdRowIndex) {
