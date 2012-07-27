@@ -97,8 +97,7 @@ public:
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
-            // comparer(x, y) returns True iff row[x] > row[y]
-            // The comparison order is reversed since std::push_heap/pop_heap deal with max-heaps.
+            // comparer(x, y) returns True iff row[x] < row[y]
             auto comparer = [&] (ui32 lhs, ui32 rhs) -> bool {
                 int lhsStartIndex = lhs * keyColumnCount;
                 int lhsEndIndex   = lhsStartIndex + keyColumnCount;
@@ -108,9 +107,9 @@ public:
                     ++lhsIndex, ++rhsIndex)
                 {
                     auto res = CompareSmallKeyParts(keyBuffer[lhsIndex], keyBuffer[rhsIndex]);
-                    if (res < 0)
-                        return true;
                     if (res > 0)
+                        return true;
+                    if (res < 0)
                         return false;
                 }
                 return false;
