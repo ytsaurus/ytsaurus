@@ -1176,7 +1176,7 @@ private:
 
     void OnSamplesReceived()
     {
-        PROFILE_TIMING ("/samples_processing_time") {          
+        PROFILE_TIMING ("/samples_processing_time") {
             SortSamples();
             BuildPartitions();
 

@@ -23,7 +23,8 @@ public:
         TSchedulerConfigPtr config,
         TSortOperationSpecPtr spec,
         IInvokerPtr invoker,
-        const TOperationId& operationId);
+        const TOperationId& operationId,
+        int desiredSampleCount);
 
     void AddChunk(const NTableClient::NProto::TInputChunk& chunk);
 
@@ -35,6 +36,8 @@ private:
     TSchedulerConfigPtr Config;
     TSortOperationSpecPtr Spec;
     IInvokerPtr Invoker;
+    int DesiredSampleCount;
+    i64 TotalWeight;
 
     NLog::TTaggedLogger Logger;
     TPromise< TValueOrError<void> > Promise;

@@ -23,6 +23,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TForwardIterator, class TOutputIterator, class TDistance>
+TOutputIterator RandomSampleN(
+    TForwardIterator begin, TForwardIterator end,
+    TOutputIterator output, const TDistance n)
+{
+    TDistance remaining = std::distance(begin, end);
+    TDistance m = Min(n, remaining);
+
+    while (m > 0) {
+        if ((std::rand() % remaining) < m) {
+            *output = *begin;
+            ++output;
+            --m;
+        }
+
+        --remaining;
+        ++begin;
+    }
+
+    return output;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define RANDOM_INL_H_

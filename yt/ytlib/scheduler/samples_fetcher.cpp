@@ -11,6 +11,7 @@ namespace NScheduler {
 
 using namespace NChunkHolder;
 using namespace NTableClient::NProto;
+using namespace NChunkHolder::NProto;
 
 static NRpc::TChannelCache ChannelCache;
 
@@ -20,10 +21,13 @@ TSamplesFetcher::TSamplesFetcher(
     TSchedulerConfigPtr config,
     TSortOperationSpecPtr spec,
     IInvokerPtr invoker,
-    const TOperationId& operationId)
+    const TOperationId& operationId,
+    int desiredSampleCount)
     : Config(config)
     , Spec(spec)
     , Invoker(invoker)
+    , DesiredSampleCount(desiredSampleCount)
+    , TotalWeight(0)
     , Logger(OperationLogger)
     , Promise(NewPromise< TValueOrError<void> >())
 {
@@ -34,6 +38,9 @@ void TSamplesFetcher::AddChunk(const TInputChunk& chunk)
 {
     YCHECK(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);
+
+    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+    TotalWeight += miscExt.data_weight();
 }
 
 const std::vector<TKey>& TSamplesFetcher::GetSamples() const
@@ -77,6 +84,8 @@ void TSamplesFetcher::SendRequests()
         UnfetchedChunkIndexes.size(),
         addressToChunkIndexes.size());
 
+    int weightBetweenSamples = TotalWeight / DesiredSampleCount;
+
     // Sort nodes by number of chunks (in decreasing order).
     std::vector<TAddressToChunkIndexes::iterator> addressIts;
     for (auto it = addressToChunkIndexes.begin(); it != addressToChunkIndexes.end(); ++it) {
@@ -104,6 +113,7 @@ void TSamplesFetcher::SendRequests()
         FOREACH (auto chunkIndex, it->second) {
             if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
                 const auto& chunk = Chunks[chunkIndex];
+                auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
                 auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                 chunkIndexes.push_back(chunkIndex);
                 YCHECK(requestedChunkIndexes.insert(chunkIndex).second);

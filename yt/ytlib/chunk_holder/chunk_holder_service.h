@@ -4,7 +4,9 @@
 #include "chunk.h"
 #include "chunk_holder_service_proxy.h"
 
+#include <ytlib/table_client/public.h>
 #include <ytlib/rpc/service.h>
+#include <ytlib/actions/action_queue.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -24,6 +26,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TDataNodeConfigPtr Config;
+    TActionQueuePtr WorkerThread;
     TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);
@@ -43,10 +46,17 @@ private:
 
     TIntrusivePtr<TSession> GetSession(const TChunkId& chunkId);
     TIntrusivePtr<TChunk> GetChunk(const TChunkId& chunkId);
+    void ProcessSample(
+        const TChunkId& chunkId, 
+        NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const NTableClient::TKeyColumns& keyColumns,
+        int maxSampleCount,
+        TChunk::TGetMetaResult result);
 
     void OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int> artitionTag, TChunk::TGetMetaResult result);
 
     bool CheckThrottling() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

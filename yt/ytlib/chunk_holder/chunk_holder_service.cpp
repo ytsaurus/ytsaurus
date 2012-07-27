@@ -15,6 +15,7 @@
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/lazy_ptr.h>
+#include <ytlib/misc/random.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -47,6 +48,7 @@ TChunkHolderService::TChunkHolderService(
         TProxy::GetServiceName(),
         DataNodeLogger.GetCategory())
     , Config(config)
+    , WorkerThread(New<TActionQueue>("ChunkHolderWorker"))
     , Bootstrap(bootstrap)
 {
     YCHECK(config);
@@ -478,79 +480,89 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                 ~chunkId.ToString());
             *chunkSamples->mutable_error() = TError("No such chunk").ToProto();
         } else {
-            awaiter->Await(
-                chunk->GetMeta(),
-                BIND([=] (TChunk::TGetMetaResult result) {
-                    if (!result.IsOK()) {
-                        LOG_WARNING("GetTableSamples: Error getting meta of chunk %s\n%s", 
-                            ~chunkId.ToString(),
-                            ~result.ToString());
-                        *chunkSamples->mutable_error() = result.ToProto();
-                        return;
-                    }
-
-                    auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
-
-                    //ToDo(psushin): extract to method and use std::vector.
-                    yvector<NTableClient::NProto::TSample> samples(samplesExt.items().begin(), samplesExt.items().end());
-                    std::random_shuffle(samples.begin(), samples.end());
-
-                    FOREACH (const auto& sample, samples) {
-                        auto* key = chunkSamples->add_items();
-
-                        size_t size = 0;
-                        FOREACH (const auto& column, keyColumns) {
-                            if (size >= NTableClient::MaxKeySize)
-                                break;
-
-                            auto* keyPart = key->add_parts();
-                            auto it = std::lower_bound(
-                                sample.parts().begin(),
-                                sample.parts().end(),
-                                column,
-                                [] (const NTableClient::NProto::TSamplePart& part, const Stroka& column) {
-                                    return part.column() < column;
-                                });
-
-                            size += sizeof(i32); // part type
-                            if (it != sample.parts().end() && it->column() == column) {
-                                keyPart->set_type(it->key_part().type());
-                                switch (it->key_part().type()) {
-                                    case EKeyPartType::Composite:
-                                        break;
-                                    case EKeyPartType::Integer:
-                                        keyPart->set_int_value(it->key_part().int_value());
-                                        size += sizeof(keyPart->int_value());
-                                        break;
-                                    case EKeyPartType::Double:
-                                        keyPart->set_double_value(it->key_part().double_value());
-                                        size += sizeof(keyPart->double_value());
-                                        break;
-                                    case EKeyPartType::String: {
-                                        auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
-                                        keyPart->set_str_value(it->key_part().str_value().begin(), partSize);
-                                        size += partSize;
-                                        break;
-                                    }
-                                    default:
-                                        YUNREACHABLE();
-                                }
-                            } else {
-                                keyPart->set_type(EKeyPartType::Null);
-                            }
-                        }
-
-                        if (chunkSamples->items_size() == maxSampleCount) {
-                            break;
-                        }
-                    }
-                }));
+            awaiter->Await(chunk->GetMeta(), BIND(
+                &TChunkHolderService::ProcessSample, 
+                MakeStrong(this), 
+                chunkId,
+                chunkSamples,
+                keyColumns,
+                maxSampleCount).Via(WorkerThread->GetInvoker()));
         }
     }
 
     awaiter->Complete(BIND([=] () {
         context->Reply();
     }));
+}
+
+void TChunkHolderService::ProcessSample(
+    const TChunkId& chunkId, 
+    NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
+    const NTableClient::TKeyColumns& keyColumns,
+    int maxSampleCount,
+    TChunk::TGetMetaResult result)
+{
+    if (!result.IsOK()) {
+        LOG_WARNING("GetTableSamples: Error getting meta of chunk %s\n%s", 
+            ~chunkId.ToString(),
+            ~result.ToString());
+        *chunkSamples->mutable_error() = result.ToProto();
+        return;
+    }
+
+    auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
+    std::vector<NTableClient::NProto::TSample> samples;
+    RandomSampleN(
+        samplesExt.items().begin(), 
+        samplesExt.items().end(), 
+        std::back_inserter(samples), 
+        maxSampleCount);
+
+    FOREACH (const auto& sample, samples) {
+        auto* key = chunkSamples->add_items();
+
+        size_t size = 0;
+        FOREACH (const auto& column, keyColumns) {
+            if (size >= NTableClient::MaxKeySize)
+                break;
+
+            auto* keyPart = key->add_parts();
+            auto it = std::lower_bound(
+                sample.parts().begin(),
+                sample.parts().end(),
+                column,
+                [] (const NTableClient::NProto::TSamplePart& part, const Stroka& column) {
+                    return part.column() < column;
+            });
+
+            size += sizeof(i32); // part type
+            if (it != sample.parts().end() && it->column() == column) {
+                keyPart->set_type(it->key_part().type());
+                switch (it->key_part().type()) {
+                case EKeyPartType::Composite:
+                    break;
+                case EKeyPartType::Integer:
+                    keyPart->set_int_value(it->key_part().int_value());
+                    size += sizeof(keyPart->int_value());
+                    break;
+                case EKeyPartType::Double:
+                    keyPart->set_double_value(it->key_part().double_value());
+                    size += sizeof(keyPart->double_value());
+                    break;
+                case EKeyPartType::String: {
+                    auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
+                    keyPart->set_str_value(it->key_part().str_value().begin(), partSize);
+                    size += partSize;
+                    break;
+                }
+                default:
+                    YUNREACHABLE();
+                }
+            } else {
+                keyPart->set_type(EKeyPartType::Null);
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
