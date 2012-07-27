@@ -4,6 +4,9 @@
 #include "key.h"
 
 #include <ytlib/misc/sync.h>
+
+#include <ytlib/actions/parallel_awaiter.h>
+
 #include <ytlib/ytree/yson_string.h>
 
 namespace NYT {
@@ -13,12 +16,12 @@ namespace NTableClient {
 
 namespace {
 
-    inline bool CompareReaders(
-        const TTableChunkSequenceReader* lhs,
-        const TTableChunkSequenceReader* rhs)
-    {
-        return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
-    }
+inline bool CompareReaders(
+    const TTableChunkSequenceReader* lhs,
+    const TTableChunkSequenceReader* rhs)
+{
+    return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
+}
 
 } // namespace
 
@@ -30,16 +33,45 @@ TMergingReader::TMergingReader(const std::vector<TTableChunkSequenceReaderPtr>& 
 
 void TMergingReader::Open()
 {
+    // Open all readers in parallel and wait until of them are opened.
+    auto awaiter = New<TParallelAwaiter>();
+    TSpinLock spinLock;
+    std::vector<TError> errors;
+
     FOREACH (auto reader, Readers) {
-        Sync(~reader, &TTableChunkSequenceReader::AsyncOpen);
+        awaiter->Await(
+            reader->AsyncOpen(),
+            BIND([&] (TError error) {
+                if (!error.IsOK()) {
+                    TGuard<TSpinLock> guard(spinLock);
+                    errors.push_back(error);
+                }
+            }));
+    }
+
+    TPromise<void> completed(NewPromise<void>());
+    awaiter->Complete(BIND(&TPromise<void>::Set, &completed));
+    completed.Get();
+
+    if (!errors.empty()) {
+        Stroka message = "Error opening merging reader\n";
+        FOREACH (const auto& error, errors) {
+            message.append("\n");
+            message.append(error.ToString());
+        }
+        ythrow yexception() << message;
+    }
+
+    // Push all non-empty readers to the heap.
+    FOREACH (auto reader, Readers) {
         if (reader->IsValid()) {
             ReaderHeap.push_back(~reader);
         }
     }
 
-    std::make_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
-
+    // Prepare the heap.
     if (!ReaderHeap.empty()) {
+        std::make_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
         std::pop_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
     }
 }
@@ -49,11 +81,13 @@ void TMergingReader::NextRow()
     if (ReaderHeap.empty())
         return;
 
-    if (!ReaderHeap.back()->FetchNextItem()) {
-        Sync(ReaderHeap.back(), &TTableChunkSequenceReader::GetReadyEvent);
+    auto* currentReader = ReaderHeap.back();
+
+    if (!currentReader->FetchNextItem()) {
+        Sync(currentReader, &TTableChunkSequenceReader::GetReadyEvent);
     }
 
-    if (ReaderHeap.back()->IsValid()) {
+    if (currentReader->IsValid()) {
         std::push_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
         std::pop_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
     } else {
