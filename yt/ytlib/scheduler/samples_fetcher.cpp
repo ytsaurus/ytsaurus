@@ -23,12 +23,10 @@ TSamplesFetcher::TSamplesFetcher(
     TSchedulerConfigPtr config,
     TSortOperationSpecPtr spec,
     IInvokerPtr invoker,
-    const TOperationId& operationId,
-    int desiredSampleCount)
+    const TOperationId& operationId)
     : Config(config)
     , Spec(spec)
     , Invoker(invoker)
-    , DesiredSampleCount(desiredSampleCount)
     , TotalWeight(0)
     , Logger(OperationLogger)
     , Promise(NewPromise< TValueOrError<void> >())
@@ -50,8 +48,12 @@ const std::vector<TKey>& TSamplesFetcher::GetSamples() const
     return Samples;
 }
 
-TFuture< TValueOrError<void> > TSamplesFetcher::Run()
+TFuture< TValueOrError<void> > TSamplesFetcher::Run(int desiredSampleCount)
 {
+    YCHECK(desiredSampleCount > 0);
+    YCHECK(TotalWeight > 0);
+    WeightBetweenSamples = TotalWeight / desiredSampleCount;
+
     SendRequests();
     return Promise;
 }
@@ -98,11 +100,7 @@ void TSamplesFetcher::SendRequests()
             return lhs->second.size() > rhs->second.size();
         });
 
-    int weightBetweenSamples = TotalWeight / DesiredSampleCount;
-    if (weightBetweenSamples == 0)
-        weightBetweenSamples = 1;
-
-    i64 currentWeight = 0;
+    i64 currentWeight = WeightBetweenSamples; // This ensures that we will request at least one sample.
     int currentSampleCount = 0;
 
     // Pick nodes greedily.
@@ -124,7 +122,7 @@ void TSamplesFetcher::SendRequests()
                 const auto& chunk = Chunks[chunkIndex];
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                 currentWeight += miscExt.data_weight();
-                int sampleCount = currentWeight / weightBetweenSamples;
+                int sampleCount = currentWeight / WeightBetweenSamples;
 
                 if (sampleCount > currentSampleCount) {
                     int chunkSampleCount = sampleCount - currentSampleCount;

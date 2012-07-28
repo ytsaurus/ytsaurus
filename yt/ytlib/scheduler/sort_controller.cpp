@@ -59,8 +59,12 @@ public:
         , CompletedPartitionCount(0)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
-        , SamplesFetcher(NULL)
         , PartitionTask(New<TPartitionTask>(this))
+        , SamplesFetcher(New<TSamplesFetcher>(
+            Config,
+            Spec,
+            Host->GetBackgroundInvoker(),
+            Operation->GetOperationId()))
     { }
 
 private:
@@ -824,21 +828,23 @@ private:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            // Prepare the fetcher.
-            SamplesFetcher = New<TSamplesFetcher>(
-                Config,
-                Spec,
-                Host->GetBackgroundInvoker(),
-                Operation->GetOperationId(),
-                GetPartitionCountEstimate() * Spec->SamplesPerPartition);
-
             int chunkCount = 0;
             FOREACH (const auto& table, InputTables) {
                 FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
+                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                    TotalDataWeight += miscExt.data_weight();
+                    TotalRowCount += miscExt.row_count();
+                    TotalValueCount += miscExt.value_count();
+
                     SamplesFetcher->AddChunk(chunk);
                     ++chunkCount;
                 }
             }
+
+            LOG_INFO("Totals collected (DataWeight: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
+                TotalDataWeight,
+                TotalRowCount,
+                TotalValueCount);
 
             // Check for empty inputs.
             if (chunkCount == 0) {
@@ -851,7 +857,7 @@ private:
                 PartitionTask->WeightCounter().GetTotal(),
                 PartitionTask->ChunkCounter().GetTotal());
 
-            return SamplesFetcher->Run();
+            return SamplesFetcher->Run(GetPartitionCountEstimate() * Spec->SamplesPerPartition);
         }
     }
 
@@ -1011,20 +1017,6 @@ private:
 
     void BuildPartitions()
     {
-        FOREACH (const auto& table, InputTables) {
-            FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
-                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                TotalDataWeight += miscExt.data_weight();
-                TotalRowCount += miscExt.row_count();
-                TotalValueCount += miscExt.value_count();
-            }
-        }
-
-        LOG_INFO("Totals collected (DataWeight: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
-            TotalDataWeight,
-            TotalRowCount,
-            TotalValueCount);
-
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         int partitionCount = GetPartitionCountEstimate();
@@ -1331,12 +1323,15 @@ private:
 
     int GetPartitionCountEstimate() const
     {
-        return Spec->PartitionCount ? 
+        YCHECK(TotalDataWeight > 0);
+
+        int result = Spec->PartitionCount ? 
             Spec->PartitionCount.Get() : 
             static_cast<int>(ceil(
                 (double) TotalDataWeight /
                 Spec->MaxWeightPerSortJob *
-                Spec->PartitionCountBoostFactor));;
+                Spec->PartitionCountBoostFactor));
+        return std::max(1, result);
     }
 };
 
