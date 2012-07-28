@@ -462,7 +462,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
         request->key_columns_size(),
         request->sample_requests_size());
 
-    auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
+    auto awaiter = New<TParallelAwaiter>(WorkerThread->GetInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
 
     FOREACH (const auto& sampleRequest, request->sample_requests()) {
@@ -480,7 +480,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
                 MakeStrong(this), 
                 &sampleRequest,
                 chunkSamples,
-                keyColumns).Via(WorkerThread->GetInvoker()));
+                keyColumns));
         }
     }
 
