@@ -37,7 +37,7 @@ version="${major}.${minor}.${patch}"
 
 echo "*** New version is '${major}.${minor}.${patch}'"
 
-git flow hotfix start "${version}"
+git flow hotfix start "${version}" "$2"
 
 update_cmakelists $major $minor $patch
 update_debian_changelog $major $minor $patch "Hotfix '${cause}'"

@@ -39,7 +39,7 @@ esac
 version="${major}.${minor}.${patch}"
 echo "*** New version is '${version}'"
 
-git flow release start ${version}
+git flow release start "${version}" "$2"
 
 update_cmakelists $major $minor $patch
 update_debian_changelog $major $minor $patch
