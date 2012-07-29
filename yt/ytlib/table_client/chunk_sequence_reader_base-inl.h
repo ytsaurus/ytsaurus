@@ -100,21 +100,22 @@ void TChunkSequenceReaderBase<TReader>::OnReaderOpened(
     int chunkIndex, 
     TError error)
 {
+    auto newReader = LastInitializedReader + 1;
     LOG_DEBUG("Chunk opened (ChunkIndex: %d, ReaderIndex: %d)", 
         chunkIndex, 
-        LastInitializedReader + 1);
+        newReader);
 
-    YASSERT(!Readers[LastInitializedReader].IsSet());
+    YASSERT(!Readers[newReader].IsSet());
 
     if (error.IsOK()) {
-        Readers[LastInitializedReader].Set(reader);
+        Readers[newReader].Set(reader);
         return;
     }
 
     State.Fail(error);
-    Readers[LastInitializedReader].Set(TReaderPtr());
+    Readers[newReader].Set(TReaderPtr());
 
-    ++LastInitializedReader;
+    LastInitializedReader = newReader;
 }
 
 template <class TReader>
