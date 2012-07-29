@@ -36,6 +36,8 @@ public:
 
     bool IsValid() const;
 
+    bool IsFetchingComplete() const;
+
 protected:
     typedef TIntrusivePtr<TReader> TReaderPtr;
 

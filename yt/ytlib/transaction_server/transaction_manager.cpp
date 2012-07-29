@@ -138,6 +138,9 @@ private:
 
     void ValidateTransactionIsActive(const TTransaction* transaction)
     {
+        if (!transaction) {
+            ythrow yexception() << "A valid transaction is required";
+        }
         if (!transaction->IsActive()) {
             ythrow yexception() << "Transaction is not active";
         }
@@ -475,7 +478,6 @@ void TTransactionManager::DoRenewLease(const TTransaction* transaction)
     YCHECK(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
 }
-
 
 void TTransactionManager::SaveKeys(TOutputStream* output)
 {

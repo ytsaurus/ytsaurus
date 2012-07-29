@@ -58,7 +58,7 @@ bool TFileWriter::TryWriteBlock(const TSharedRef& block)
 
         DataSize += block.Size();
         return true;
-    } catch (yexception& e) {
+    } catch (const std::exception& e) {
         Result = MakeFuture(TError(
             "Failed to write block to file: %s",
             e.what()));

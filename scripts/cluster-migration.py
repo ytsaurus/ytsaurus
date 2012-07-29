@@ -7,23 +7,29 @@ import json
 import subprocess
 import hashlib
 import os
+import os.path
 
 from Queue import Queue
 from threading import Lock, Thread
+from pprint import pprint
+
+os.putenv("LD_LIBRARY_PATH", "/home/sandello/archive/master")
 
 sys.stdout = os.fdopen(sys.stdout.fileno(), "w", 0)
 sys.stderr = os.fdopen(sys.stderr.fileno(), "w", 0)
 
 OPTS = {
     "src" : {
-        "prefix"    : [],
-        "yt_binary" : "/home/sandello/yt.testing",
-        "yt_config" : "/home/sandello/build/ytdriver.conf"
+        "prefix" : [],
+        "archive" : "/home/sandello/archive/stable",
+        "binary" : "/home/sandello/archive/stable/yt",
+        "config" : "/home/sandello/archive/ytdriver.test.conf"
     },
     "dst" : {
-        "prefix"    : ["backup"],
-        "yt_binary" : "/home/sandello/build/bin/yt",
-        "yt_config" : "/home/sandello/build/ytdriver-dev.conf"
+        "prefix" : ["backup"],
+        "archive" : "/home/sandello/archive/master",
+        "binary" : "/home/sandello/archive/master/yt",
+        "config" : "/home/sandello/archive/ytdriver.development.conf"
     }
 }
 
@@ -100,19 +106,21 @@ def ypath_join(*tokens):
 
 def spawn_yt(which, command, *args, **kwargs):
     execv = [
-        OPTS[which]["yt_binary"], command,
-        "--config", OPTS[which]["yt_config"],
+        OPTS[which]["binary"], command,
+        "--config", OPTS[which]["config"],
         "--format", "json"
     ] + list(args)
     execa = { "shell" : False, "stdout" : subprocess.PIPE, "stderr" : subprocess.PIPE }
     execa.update(kwargs)
 
-    #print "Running", repr(execv)
-
+    print >>sys.stderr, "> %s" % execv
     return subprocess.Popen(execv, **execa)
 
 def ask_yt(which, command, *args, **kwargs):
     stdout, stderr = spawn_yt(which, command, *args, **kwargs).communicate()
+    if stderr:
+        print "STDERR: ask_yt(%s, %s, %s, %s)" % (which, command, args, kwargs)
+        print >>sys.stderr, stderr
     return json.loads(stdout) if stdout else None
 
 def traverse_cypress(which, path_tokens=[]):
@@ -166,28 +174,35 @@ def prepare_migration_plan(plan, migrate_from="src", migrate_to="dst"):
 
     tmp_prefix = "migrate_" + str(int(time.time())) + "_"
 
-    tmp_binary = ypath_join("tmp", tmp_prefix + hash_file(OPTS[migrate_to]["yt_binary"]))
-    tmp_config = ypath_join("tmp", tmp_prefix + hash_file(OPTS[migrate_to]["yt_config"]))
+    tmp_config = ypath_join("tmp", tmp_prefix + hash_file(OPTS[migrate_to]["config"]))
     tmp_sink   = ypath_join("tmp", tmp_prefix + "sink")
 
-    OPTS[migrate_from]["migrator_binary"] = tmp_binary
-    OPTS[migrate_from]["migrator_config"] = tmp_config
-    OPTS[migrate_from]["migrator_sink"  ] = tmp_sink
+    OPTS[migrate_from]["migrator_archive"] = []
+    OPTS[migrate_from]["migrator_config" ] = tmp_config
+    OPTS[migrate_from]["migrator_sink"   ] = tmp_sink
 
-    atexit.register(lambda: ask_yt(migrate_from, "remove", tmp_binary))
-    with open(OPTS[migrate_to]["yt_binary"], "r") as handle:
-        uploader = spawn_yt(migrate_from, "upload", tmp_binary, stdin=handle)
-        uploader.communicate()
+    archive_files = os.listdir(OPTS[migrate_to]["archive"])
+    archive_files = map(lambda f: os.path.join(OPTS[migrate_to]["archive"], f), archive_files)
 
-    ask_yt(migrate_from, "set", tmp_binary + "/@executable", "\"true\"")
-    ask_yt(migrate_from, "set", tmp_binary + "/@file_name", "\"migrator_binary\"")
+    for archive_file in archive_files:
+        print "Uploading " + archive_file
+        tmp_path = ypath_join("tmp", tmp_prefix + hash_file(archive_file))
+        tmp_path_2 = "" + tmp_path + ""
+        atexit.register(lambda: ask_yt(migrate_from, "remove", tmp_path_2))
+        with open(archive_file, "r") as handle:
+            uploader = spawn_yt(migrate_from, "upload", tmp_path, stdin=handle)
+            uploader.communicate()
+        ask_yt(migrate_from, "set", tmp_path + "/@executable", "\"true\"")
+        ask_yt(migrate_from, "set", tmp_path + "/@file_name", json.dumps(os.path.basename(archive_file)))
+
+        OPTS[migrate_from]["migrator_archive"].append(tmp_path)
 
     atexit.register(lambda: ask_yt(migrate_from, "remove", tmp_config))
-    with open(OPTS[migrate_to]["yt_config"], "r") as handle:
+    with open(OPTS[migrate_to]["config"], "r") as handle:
         uploader = spawn_yt(migrate_from, "upload", tmp_config, stdin=handle)
         uploader.communicate()
     ask_yt(migrate_from, "set", tmp_config + "/@executable", "\"false\"")
-    ask_yt(migrate_from, "set", tmp_config + "/@file_name", "\"migrator_config\"")
+    ask_yt(migrate_from, "set", tmp_config + "/@file_name", "\"yt.config\"")
 
     atexit.register(lambda: ask_yt(migrate_from, "remove", tmp_sink))
     ask_yt(migrate_from, "create", "table", tmp_sink)
@@ -258,9 +273,9 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
     source_row_count = ask_yt(migrate_from, "get", ypath_join(from_path) + "/@row_count")
     target_row_count = ask_yt(migrate_to, "get", ypath_join(to_path) + "/@row_count")
 
-    print "STATUS:PRE:from=%s:to=%s:source_row_count=%d:target_row_count=%d" % (from_path, to_path, source_row_count, target_row_count)
+    print "STATUS:PRE:from=%s:to=%s:source_row_count=%s:target_row_count=%s" % (from_path, to_path, source_row_count, target_row_count)
 
-    if source_row_count != target_row_count
+    if source_row_count != target_row_count:
         print "Row count mismatch; removing target table"
         ask_yt(migrate_to, "remove", ypath_join(to_path))
     else:
@@ -272,6 +287,7 @@ def migrate_table(from_path, to_path, migrate_from, migrate_to):
     copy_attributes([ "channels" ], from_path, to_path, migrate_from, migrate_to)
 
     WORKER_POOL.add_task(migrate_table_inner, from_path, to_path, migrate_from, migrate_to)
+    #migrate_table_inner(from_path, to_path, migrate_from, migrate_to)
 
     print " " * 3, "Enqueued a worker task"
 
@@ -283,27 +299,30 @@ def migrate_table_inner(from_path, to_path, migrate_from, migrate_to):
     except:
         chunk_opts = []
 
+    map_opts = []
+    for path in OPTS[migrate_from]["migrator_archive"]:
+        map_opts.append("--file")
+        map_opts.append(path)
+
+    map_opts.extend([ "--file", OPTS[migrate_from]["migrator_config"] ])
+    map_opts.extend([ "--in", ypath_join(from_path), "--out", OPTS[migrate_from]["migrator_sink"] ])
+    map_opts.extend([ "--mapper", "pv -f | ./yt write --config ./yt.config {0}".format(shell_quote(ypath_join(to_path))) ])
+    map_opts.extend(chunk_opts)
+
     st = time.time()
-    ask_yt(migrate_from, "map",
-        "--file", OPTS[migrate_from]["migrator_binary"],
-        "--file", OPTS[migrate_from]["migrator_config"],
-        "--in", ypath_join(from_path), "--out", OPTS[migrate_from]["migrator_sink"],
-        "--mapper", "{0} write --config {1} {2} | pv -f".format(
-            "./migrator_binary",
-            "./migrator_config",
-            shell_quote(ypath_join(to_path))),
-        *chunk_opts,
-        stdout=sys.stdout, stderr=sys.stdout)
+    ask_yt(migrate_from, "map", *map_opts, stdout=sys.stdout, stderr=sys.stdout)
     dt = time.time() - st
 
     source_row_count = ask_yt(migrate_from, "get", ypath_join(from_path) + "/@row_count")
     target_row_count = ask_yt(migrate_to, "get", ypath_join(to_path) + "/@row_count")
 
-    print "STATUS:POST:from=%s:to=%s:source_row_count=%d:target_row_count=%d" % (from_path, to_path, source_row_count, target_row_count)
+    print "STATUS:POST:from=%s:to=%s:source_row_count=%s:target_row_count=%s" % (from_path, to_path, source_row_count, target_row_count)
 
-    if source_row_count != target_row_count
+    if source_row_count != target_row_count:
         print "Row count mismatch; aborting"
-        sys.exit(1)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(1)
     else:
         print "Row count match; accepting"
 

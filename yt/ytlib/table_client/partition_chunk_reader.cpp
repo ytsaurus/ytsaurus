@@ -185,6 +185,11 @@ TValue TPartitionChunkReader::ReadValue(const TStringBuf& name)
     return TValue();
 }
 
+bool TPartitionChunkReader::IsFetchingComplete() const
+{
+    return SequentialReader->IsFetchingComplete();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

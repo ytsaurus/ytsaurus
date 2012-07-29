@@ -869,6 +869,11 @@ i64 TTableChunkReader::GetRowCount() const
     return EndRowIndex - StartRowIndex;
 }
 
+bool TTableChunkReader::IsFetchingComplete() const
+{
+    return SequentialReader->IsFetchingComplete();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

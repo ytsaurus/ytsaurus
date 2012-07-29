@@ -47,6 +47,7 @@ public:
     const NYTree::TYsonString& GetRowAttributes() const;
 
     i64 GetRowCount() const;
+    bool IsFetchingComplete() const;
 
 private:
     struct TColumnInfo

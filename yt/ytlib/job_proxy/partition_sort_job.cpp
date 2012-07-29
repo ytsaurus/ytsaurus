@@ -119,7 +119,6 @@ public:
             {
                 bool isNetworkReleased = false;
                 auto jobSpecExt = Host->GetJobSpec().GetExtension(TSortJobSpecExt::sort_job_spec_ext);
-                i64 thresholdRowIndex = i64(estimatedRowCount * jobSpecExt.shuffle_network_release_threshold());
                 auto releaseNetwork = [&] () {
                     auto utilization = Host->GetResourceUtilization();
                     utilization.set_network(0);
@@ -146,7 +145,7 @@ public:
                     // Push row index and readjust the heap.
                     std::push_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
 
-                    if (!isNetworkReleased && rowPtrBuffer.size() > thresholdRowIndex) {
+                    if (!isNetworkReleased && Reader->IsFetchingComplete()) {
                         releaseNetwork();
                         isNetworkReleased =  true;
                     }

@@ -278,7 +278,6 @@ struct TSortOperationSpec
     TDuration MergeLocalityTimeout;
 
     int ShuffleNetworkLimit;
-    double ShuffleNetworkReleaseThreshold;
 
     TSortOperationSpec()
     {
@@ -330,9 +329,6 @@ struct TSortOperationSpec
             .Default(TDuration::Seconds(10));
         Register("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(20);
-        Register("shuffle_network_release_threshold", ShuffleNetworkReleaseThreshold)
-            .Default(0.8)
-            .InRange(0.0, 1.0);
     }
 };
 

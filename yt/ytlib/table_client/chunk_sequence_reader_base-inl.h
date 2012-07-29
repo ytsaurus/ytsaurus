@@ -100,11 +100,9 @@ void TChunkSequenceReaderBase<TReader>::OnReaderOpened(
     int chunkIndex, 
     TError error)
 {
-    ++LastInitializedReader;
-
     LOG_DEBUG("Chunk opened (ChunkIndex: %d, ReaderIndex: %d)", 
         chunkIndex, 
-        LastInitializedReader);
+        LastInitializedReader + 1);
 
     YASSERT(!Readers[LastInitializedReader].IsSet());
 
@@ -115,6 +113,8 @@ void TChunkSequenceReaderBase<TReader>::OnReaderOpened(
 
     State.Fail(error);
     Readers[LastInitializedReader].Set(TReaderPtr());
+
+    ++LastInitializedReader;
 }
 
 template <class TReader>
@@ -210,6 +210,27 @@ bool TChunkSequenceReaderBase<TReader>::IsValid() const
         return false;
 
     return CurrentReader_->IsValid();
+}
+
+template <class TReader>
+bool TChunkSequenceReaderBase<TReader>::IsFetchingComplete() const
+{
+    if (LastInitializedReader < InputChunks.size()) {
+        return false;
+    }
+
+    if (!CurrentReader_->IsFetchingComplete()) {
+        return false;
+    }
+
+    for (int i = CurrentReaderIndex + 1; i < Readers.size(); ++i) {
+        YASSERT(Readers[i].IsSet());
+        if (!Readers[i].Get()->IsFetchingComplete()) {
+            return false;
+        }
+    }
+
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

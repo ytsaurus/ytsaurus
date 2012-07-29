@@ -58,6 +58,8 @@ public:
      */
     TSharedRef GetBlock();
 
+    bool IsFetchingComplete() const;
+
 private:
     void OnGotBlocks(
         int firstSequenceIndex,
