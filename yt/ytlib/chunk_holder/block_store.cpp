@@ -25,6 +25,7 @@ static NLog::TLogger& Logger = DataNodeLogger;
 static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
 static NProfiling::TRateCounter ReadThroughputCounter("/chunk_io/read_throughput");
+static NProfiling::TRateCounter CacheReadThroughputCounter("/chunk_io/cache_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,6 +121,8 @@ public:
 
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
+            auto cachedBlock = cookie->GetValue().Get().Value();
+            Profiler.Increment(CacheReadThroughputCounter, cachedBlock->GetData().Size());
             LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
             return cookie->GetValue();
         }
