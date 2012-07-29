@@ -1,6 +1,7 @@
 #include "lz.h"
 
 #include <contrib/z-lz-lzo/lz4.h>
+//#include <contrib/z-lz-lzo/lz4hc.h>
 
 namespace NYT {
 

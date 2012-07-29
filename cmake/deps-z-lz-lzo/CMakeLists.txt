@@ -14,6 +14,7 @@ add_library( ytext-fastlz ${LTYPE}
 
 add_library( ytext-lz4 ${LTYPE}
   ${BASE}/lz4.c
+  ${BASE}/lz4hc.c
 )
 
 add_library( ytext-minilzo ${LTYPE}
@@ -70,7 +71,7 @@ set_target_properties( ytext-fastlz PROPERTIES
 )
 
 set_target_properties( ytext-lz4 PROPERTIES
-  VERSION   0.1.0
+  VERSION   0.71
   SOVERSION 0.1
 )
 
