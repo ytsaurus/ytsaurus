@@ -25,17 +25,20 @@
 #include <ytlib/rpc/server.h>
 #include <ytlib/rpc/channel_cache.h>
 
+#include <yt/build.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NBus;
 using namespace NRpc;
 using namespace NChunkServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
-    TChunkHolderConfigPtr config,
+    TDataNodeConfigPtr config,
     NCellNode::TBootstrap* nodeBootstrap)
     : Config(config)
     , NodeBootstrap(nodeBootstrap)
@@ -51,14 +54,9 @@ void TBootstrap::Init()
 {
     ReaderCache = New<TReaderCache>(Config);
 
-    WorkQueue = New<TActionQueue>("Work");
+    ChunkRegistry = New<TChunkRegistry>(this);
 
-    auto chunkRegistry = New<TChunkRegistry>(this);
-
-    BlockStore = New<TBlockStore>(
-        Config,
-        chunkRegistry,
-        ReaderCache);
+    BlockStore = New<TBlockStore>(Config, this);
 
     PeerBlockTable = New<TPeerBlockTable>(Config->PeerBlockTable);
 
@@ -71,11 +69,7 @@ void TBootstrap::Init()
     ChunkCache = New<TChunkCache>(Config, this);
     ChunkCache->Start();
 
-    SessionManager = New<TSessionManager>(
-        Config,
-        BlockStore,
-        ChunkStore,
-        GetWorkInvoker());
+    SessionManager = New<TSessionManager>(Config, this);
 
     JobExecutor = New<TJobExecutor>(
         Config,
@@ -88,20 +82,27 @@ void TBootstrap::Init()
     auto chunkHolderService = New<TChunkHolderService>(Config, this);
     NodeBootstrap->GetRpcServer()->RegisterService(chunkHolderService);
 
+    auto orchidRoot = NodeBootstrap->GetOrchidRoot();
+
     SetNodeByYPath(
-        NodeBootstrap->GetOrchidRoot(),
+        orchidRoot,
         "/stored_chunks",
         CreateVirtualNode(CreateStoredChunkMapService(~ChunkStore)));
     SetNodeByYPath(
-        NodeBootstrap->GetOrchidRoot(),
+        orchidRoot,
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
-    SyncYPathSet(NodeBootstrap->GetOrchidRoot(), "/@service_name", NYTree::TYsonString("node"));
+    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("node"));
+
+    SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
+    SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
+    SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
+    SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
 
     MasterConnector->Start();
 }
 
-TChunkHolderConfigPtr TBootstrap::GetConfig() const
+TDataNodeConfigPtr TBootstrap::GetConfig() const
 {
     return Config;
 }
@@ -136,9 +137,9 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
     return NodeBootstrap->GetControlInvoker();
 }
 
-IInvokerPtr TBootstrap::GetWorkInvoker() const
+TChunkRegistryPtr TBootstrap::GetChunkRegistry() const
 {
-    return WorkQueue->GetInvoker();
+    return ChunkRegistry;
 }
 
 TBlockStorePtr TBootstrap::GetBlockStore()

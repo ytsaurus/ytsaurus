@@ -2,14 +2,14 @@
 #include "cypress_commands.h"
 
 #include <ytlib/object_server/object_service_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,13 +82,12 @@ void TListCommand::DoExecute()
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-         auto consumer = Context->CreateOutputConsumer();
-         BuildYsonFluently(~consumer)
-            .List(rsp->keys());
-    } else {
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
+        return;
     }
+
+    ReplySuccess(TYsonString(rsp->keys()));
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -105,14 +104,15 @@ void TCreateCommand::DoExecute()
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-        auto consumer = Context->CreateOutputConsumer();
-        auto nodeId = TNodeId::FromProto(rsp->object_id());
-        BuildYsonFluently(~consumer)
-            .Scalar(nodeId.ToString());
-    } else {
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
+        return;
     }
+
+    auto consumer = Context->CreateOutputConsumer();
+    auto nodeId = TNodeId::FromProto(rsp->object_id());
+    BuildYsonFluently(~consumer)
+        .Scalar(nodeId.ToString());
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -129,11 +129,47 @@ void TLockCommand::DoExecute()
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
-    if (rsp->IsOK()) {
-        auto lockId = TLockId::FromProto(rsp->lock_id());
-        BuildYsonFluently(~Context->CreateOutputConsumer())
-            .Scalar(lockId.ToString());
-    } else {
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCopyCommand::DoExecute()
+{
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TCypressYPathProxy::Copy(WithTransaction(
+        Request->DestinationPath,
+        GetTransactionId(false)));
+    req->set_source_path(Request->SourcePath);
+
+    auto rsp = proxy.Execute(req).Get();
+
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
+        return;
+    }
+
+    auto consumer = Context->CreateOutputConsumer();
+    auto nodeId = TNodeId::FromProto(rsp->object_id());
+    BuildYsonFluently(~consumer)
+        .Scalar(nodeId.ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMoveCommand::DoExecute()
+{
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TCypressYPathProxy::Move(WithTransaction(
+        Request->DestinationPath,
+        GetTransactionId(false)));
+    req->set_source_path(Request->SourcePath);
+
+    auto rsp = proxy.Execute(req).Get();
+
+    if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
     }
 }

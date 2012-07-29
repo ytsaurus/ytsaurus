@@ -8,11 +8,18 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/nullable.h>
+
 #include <ytlib/logging/tagged_logger.h>
+
 #include <ytlib/actions/async_pipeline.h>
+
 #include <ytlib/chunk_server/public.h>
+
 #include <ytlib/table_server/table_ypath_proxy.h>
+
 #include <ytlib/file_server/file_ypath_proxy.h>
+
+#include <ytlib/scheduler/scheduler_service.pb.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -177,14 +184,20 @@ protected:
         explicit TTask(TOperationControllerBase* controller);
 
         virtual Stroka GetId() const = 0;
+        virtual int GetPriority() const;
         virtual int GetPendingJobCount() const = 0;
         virtual int GetChunkListCountPerJob() const = 0;
-        virtual TDuration GetMaxLocalityDelay() const = 0;
+        virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
+
+        virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
+        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const;
+        bool HasEnoughResources(TExecNodePtr node) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
 
-        void AddStripe(TChunkStripePtr stripe);
+        virtual void AddStripe(TChunkStripePtr stripe);
+        void AddStripes(const std::vector<TChunkStripePtr>& stripes);
 
         TJobPtr ScheduleJob(TExecNodePtr node);
 
@@ -208,7 +221,9 @@ protected:
 
         virtual TNullable<i64> GetJobWeightThreshold() const = 0;
 
-        virtual NScheduler::NProto::TJobSpec GetJobSpec(TJobInProgressPtr jip) = 0;
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) = 0;
 
         virtual void OnJobStarted(TJobInProgressPtr jip);
 
@@ -326,7 +341,7 @@ protected:
 
     virtual void DoInitialize();
     virtual void LogProgress() = 0;
-    virtual void DoGetProgress(NYTree::IYsonConsumer* consumer) = 0;
+    virtual void DoGetProgress(NYTree::IYsonConsumer* consumer);
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
@@ -336,6 +351,11 @@ protected:
     
     //! Called to extract file paths from the spec.
     virtual std::vector<NYTree::TYPath> GetFilePaths();
+
+
+    //! Minimum resources that are needed to start any task.
+    virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
+
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkServer::TChunkId& chunkId);
@@ -367,9 +387,11 @@ protected:
 
     // Unsorted helpers.
 
-    std::vector<Stroka> CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns);
+    std::vector<Stroka> CheckInputTablesSorted(
+        const TNullable< std::vector<Stroka> >& keyColumns);
     void CheckOutputTablesEmpty();
-    void SetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
+    void ScheduleClearOutputTables();
+    void ScheduleSetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
     void RegisterOutputChunkTree(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
@@ -379,6 +401,18 @@ protected:
 
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
+
+    //! Returns the list of all input chunks collected from all input tables.
+    std::vector<NTableClient::TRefCountedInputChunkPtr> CollectInputTablesChunks();
+
+    //! Converts a list of input chunks into a list of chunk stripes for further
+    //! processing. Each stripe receives exactly one chunk (as suitable for most
+    //! jobs except merge). Tries to slice chunks into smaller parts if
+    //! sees necessary based on #desiredJobCount and #maxWeightPerJob.
+    std::vector<TChunkStripePtr> PrepareChunkStripes(
+        const std::vector<NTableClient::TRefCountedInputChunkPtr>& inputChunks,
+        TNullable<int> jobCount,
+        i64 jobSliceWeight);
 
     static int GetJobCount(
         i64 totalWeight,

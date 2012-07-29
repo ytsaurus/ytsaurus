@@ -22,7 +22,7 @@ public:
     bool NextColumn();
 
     TStringBuf GetColumn() const;
-    TStringBuf GetValue() const;
+    const TStringBuf& GetValue() const;
 
 private:
     const TChannel Channel;

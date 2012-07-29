@@ -4,6 +4,7 @@
 #include "job.h"
 #include "exec_node.h"
 #include "operation_controller.h"
+#include "job_resources.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
@@ -65,7 +66,7 @@ void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
     auto state = job->GetState();
     auto error = TError::FromProto(job->Result().error());
     BuildYsonMapFluently(consumer)
-        .Item("job_type").Scalar(FormatEnum(EJobType(job->Spec().type())))
+        .Item("job_type").Scalar(FormatEnum(job->GetType()))
         .Item("state").Scalar(FormatEnum(state))
         .Item("address").Scalar(job->GetNode()->GetAddress())
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
@@ -79,13 +80,10 @@ void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
 void BuildExecNodeAttributes(TExecNodePtr node, IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("utilization").BeginMap()
-            .Item("total_slot_count").Scalar(node->Utilization().total_slot_count())
-            .Item("free_slot_count").Scalar(node->Utilization().free_slot_count())
-        .EndMap()
+        .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, node->ResourceUtilization()))
+        .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, node->ResourceLimits()))
         .Item("job_count").Scalar(static_cast<int>(node->Jobs().size()));
 }
-
 
 ////////////////////////////////////////////////////////////////////
 

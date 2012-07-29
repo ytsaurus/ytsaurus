@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/meta_state/common.h>
+#include <ytlib/meta_state/private.h>
 #include <ytlib/meta_state/config.h>
 #include <ytlib/meta_state/snapshot.h>
 #include <ytlib/meta_state/snapshot_store.h>

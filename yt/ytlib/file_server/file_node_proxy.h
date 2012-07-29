@@ -5,7 +5,7 @@
 #include <ytlib/file_server/file_ypath.pb.h>
 
 #include <ytlib/ytree/ypath_service.h>
-#include <ytlib/cypress/node_proxy_detail.h>
+#include <ytlib/cypress_server/node_proxy_detail.h>
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/cell_master/public.h>
 
@@ -15,26 +15,25 @@ namespace NFileServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeProxy
-    : public NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode>
+    : public NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode>
 {
 public:
-    typedef TIntrusivePtr<TFileNodeProxy> TPtr;
-
     TFileNodeProxy(
-        NCypress::INodeTypeHandlerPtr typeHandler,
+        NCypressServer::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        const NCypress::TNodeId& nodeId);
+        const NCypressServer::TNodeId& nodeId);
 
     bool IsExecutable();
     Stroka GetFileName();
 
 private:
-    typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
+    typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
+
+    virtual void DoCloneTo(TFileNode* clonedNode);
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
-
     virtual void OnUpdateAttribute(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,

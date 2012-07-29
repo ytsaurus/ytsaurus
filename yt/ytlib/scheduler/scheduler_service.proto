@@ -72,21 +72,15 @@ message TJobStatus
     optional TJobResult result = 4;
 }
 
-message TNodeUtilization
-{
-    required int32 total_slot_count = 2;
-    required int32 free_slot_count = 3;
-    // TODO(babenko): report resource usage info
-}
-
 message TReqHeartbeat
 {
     required string address = 1;
-    required TNodeUtilization utilization = 2;
-    repeated TJobStatus jobs = 3;
+    required TNodeResources resource_utilization = 2;
+    required TNodeResources resource_limits = 3;
+    repeated TJobStatus jobs = 4;
 }
 
-message TStartJobInfo
+message TJobStartInfo
 {
     required NYT.NProto.TGuid job_id = 1;
     required TJobSpec spec = 2;
@@ -94,7 +88,7 @@ message TStartJobInfo
 
 message TRspHeartbeat
 {
-    repeated TStartJobInfo jobs_to_start = 1;
+    repeated TJobStartInfo jobs_to_start = 1;
     repeated NYT.NProto.TGuid jobs_to_abort = 2;
     repeated NYT.NProto.TGuid jobs_to_remove = 3;
 }

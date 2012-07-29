@@ -7,13 +7,13 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/chunk_holder/public.h>
-// TODO(babenko): consider removing.
-#include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/rpc/public.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/job_proxy/public.h>
 #include <ytlib/file_server/file_ypath.pb.h>
 #include <ytlib/scheduler/job.pb.h>
+#include <ytlib/logging/tagged_logger.h>
+#include <ytlib/scheduler/scheduler_service.pb.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -44,10 +44,14 @@ public:
     NScheduler::EJobState GetState() const;
     NScheduler::EJobProgress GetProgress() const;
 
+    NScheduler::NProto::TNodeResources GetResourceUtilization() const;
+    void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization);
+
     const NScheduler::NProto::TJobResult& GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
     DECLARE_SIGNAL(void(), Finished);
+    DEFINE_SIGNAL(void(), ResourceUtilizationSet);
 
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
@@ -56,7 +60,7 @@ private:
         TParallelAwaiterPtr awaiter);
     void OnChunkDownloaded(
         const NFileServer::NProto::TRspFetch& fetchRsp,
-        NChunkHolder::TChunkCache::TDownloadResult result);
+        TValueOrError<NChunkHolder::TCachedChunkPtr> result);
 
     void RunJobProxy();
     void SetResult(const TError& error);
@@ -74,14 +78,19 @@ private:
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
 
+    NScheduler::NProto::TNodeResources ResourceUtilization;
+
+    NLog::TTaggedLogger Logger;
+
+    NChunkHolder::TChunkCachePtr ChunkCache;
+
+    TSlotPtr Slot;
+
     NScheduler::EJobState JobState;
     NScheduler::EJobProgress JobProgress;
 
     NJobProxy::TJobProxyConfigPtr ProxyConfig;
 
-    TSlotPtr Slot;
-
-    NChunkHolder::TChunkCachePtr ChunkCache;
     std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
 
     IProxyControllerPtr ProxyController;
@@ -90,6 +99,7 @@ private:
     TSpinLock SpinLock;
     TNullable<NScheduler::NProto::TJobResult> JobResult;
     TPromise<void> JobFinished;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };

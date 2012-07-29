@@ -7,8 +7,13 @@
 #include "private.h"
 #include "environment_manager.h"
 
-#include <ytlib/job_proxy/config.h>
 #include <ytlib/misc/fs.h>
+
+#include <ytlib/job_proxy/config.h>
+
+#include <ytlib/chunk_holder/chunk_cache.h>
+
+#include <ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -31,13 +36,18 @@ TJobManager::TJobManager(
 {
     YASSERT(config);
     YASSERT(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetControlInvoker(), ControlThread);
+}
+
+void TJobManager::Initialize()
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap->GetControlInvoker(), ControlThread);
 
     // Init job slots.
-    for (int slotIndex = 0; slotIndex < Config->SlotCount; ++slotIndex) {
+    for (int slotIndex = 0; slotIndex < Config->ResourceLimits->Slots; ++slotIndex) {
         auto slotName = ToString(slotIndex);
         auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
         Slots.push_back(New<TSlot>(slotPath, slotIndex));
+        Slots.back()->Clean();
     }
 }
 
@@ -72,18 +82,24 @@ std::vector<TJobPtr> TJobManager::GetAllJobs()
     return result;
 }
 
-TNodeUtilization TJobManager::GetUtilization()
+TNodeResources TJobManager::GetResourceLimits()
 {
-    TNodeUtilization result;
-    result.set_total_slot_count(Slots.size());
-    int freeCount = 0;
-    FOREACH (auto slot, Slots) {
-        if (slot->IsFree()) {
-            ++freeCount;
-        }
-    }
-    result.set_free_slot_count(freeCount);
+    TNodeResources result;
+    result.set_slots(Config->ResourceLimits->Slots);
+    result.set_cores(Config->ResourceLimits->Cores);
+    result.set_memory(Config->ResourceLimits->Memory);
+    result.set_network(Config->ResourceLimits->Network);
     return result;
+}
+
+TNodeResources TJobManager::GetResourceUtilization()
+{
+    auto totalUtilization = ZeroResources();
+    FOREACH (const auto& pair, Jobs) {
+        auto jobUtilization = pair.second->GetResourceUtilization();
+        IncreaseResourceUtilization(&totalUtilization, jobUtilization);
+    }
+    return totalUtilization;
 }
 
 TJobPtr TJobManager::StartJob(
@@ -92,37 +108,32 @@ TJobPtr TJobManager::StartJob(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TSlotPtr emptySlot;
-    FOREACH (auto slot, Slots) {
-        if (slot->IsFree()) {
-            emptySlot = slot;
-            break;
-        }
-    }
+    auto slot = GetFreeSlot();
 
-    if (!emptySlot) {
-        LOG_FATAL("All slots are busy (JobId: %s)", ~jobId.ToString());
-    }
-
-    LOG_DEBUG("Found slot for new job (JobId: %s, WorkDir: %s)", 
-        ~jobId.ToString(),
-        ~emptySlot->GetWorkingDirectory());
+    LOG_DEBUG("Job is starting (JobId: %s)", ~jobId.ToString());
 
     auto job = New<TJob>(
         jobId,
         jobSpec,
         Bootstrap->GetJobProxyConfig(),
         Bootstrap->GetChunkCache(),
-        emptySlot);
+        slot);
     job->Start(Bootstrap->GetEnvironmentManager());
 
     YCHECK(Jobs.insert(MakePair(jobId, job)).second);
 
-    LOG_DEBUG("Job created, preparing (JobId: %s, JobType: %s)",
-        ~jobId.ToString(),
-        ~EJobType(jobSpec.type()).ToString());
-
     return job;
+}
+
+TSlotPtr TJobManager::GetFreeSlot()
+{
+    FOREACH (auto slot, Slots) {
+        if (slot->IsFree()) {
+            return slot;
+        }
+    }
+    LOG_FATAL("All slots are busy");
+    YUNREACHABLE();
 }
 
 void TJobManager::AbortJob(const TJobId& jobId)
@@ -145,7 +156,7 @@ void TJobManager::RemoveJob(const TJobId& jobId)
         YASSERT(job->GetProgress() > EJobProgress::Cleanup);
         YCHECK(Jobs.erase(jobId) == 1);
     } else {
-        LOG_WARNING("Removed job does not exist (JobId: %s)", ~jobId.ToString());
+        LOG_WARNING("Requested to remove an unknown job (JobId: %s)", ~jobId.ToString());
     }
 }
 

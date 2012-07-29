@@ -5,7 +5,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/transaction_server/public.h>
-#include <ytlib/cypress/public.h>
+#include <ytlib/cypress_server/public.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/meta_state/meta_state_manager.h>
 // TODO(babenko): replace with public.h
@@ -31,7 +31,7 @@ public:
     TCellMasterConfigPtr GetConfig() const;
 
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
-    NCypress::TCypressManagerPtr GetCypressManager() const;
+    NCypressServer::TCypressManagerPtr GetCypressManager() const;
     TWorldInitializerPtr GetWorldInitializer() const;
     NMetaState::IMetaStateManagerPtr GetMetaStateManager() const;
     NMetaState::TCompositeMetaStatePtr GetMetaState() const;
@@ -49,7 +49,7 @@ private:
     TCellMasterConfigPtr Config;
 
     NTransactionServer::TTransactionManagerPtr TransactionManager;
-    NCypress::TCypressManagerPtr CypressManager;
+    NCypressServer::TCypressManagerPtr CypressManager;
     TWorldInitializerPtr WorldInitializer;
     NMetaState::IMetaStateManagerPtr MetaStateManager;
     NMetaState::TCompositeMetaStatePtr MetaState;
@@ -57,8 +57,8 @@ private:
     NChunkServer::TChunkManagerPtr ChunkManager;
     NChunkServer::IHolderAuthorityPtr HolderAuthority;
 
-    TActionQueue::TPtr ControlQueue;
-    TMultiActionQueuePtr StateQueue;
+    TActionQueuePtr ControlQueue;
+    TFairShareActionQueuePtr StateQueue;
 
 };
 

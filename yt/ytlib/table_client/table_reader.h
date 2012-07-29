@@ -7,7 +7,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/cypress/id.h>
+#include <ytlib/cypress_client/public.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/chunk_client/public.h>
@@ -51,8 +51,8 @@ public:
 
     bool IsValid() const;
 
-    TRow& GetRow();
-    const NYTree::TYsonString& GetRowAttributes() const;
+    const TRow& GetRow();
+    //const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
     TChunkSequenceReaderConfigPtr Config;
@@ -65,8 +65,8 @@ private:
     NObjectServer::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 
-    TChunkSequenceReaderPtr Reader;
-    NCypress::TNodeId NodeId;
+    TTableChunkSequenceReaderPtr Reader;
+    NCypressClient::TNodeId NodeId;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 

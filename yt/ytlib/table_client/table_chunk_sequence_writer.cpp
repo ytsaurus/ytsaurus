@@ -51,14 +51,14 @@ void TTableChunkSequenceWriter::PrepareChunkWriter(TSession& newSession)
 void TTableChunkSequenceWriter::InitCurrentSession(TSession nextSession)
 {
     if (!CurrentSession.IsNull()) {
-        nextSession.ChunkWriter->LastKey = 
-            CurrentSession.ChunkWriter->GetLastKey();
+        nextSession.ChunkWriter->SetLastKey(
+            CurrentSession.ChunkWriter->GetLastKey());
     }
 
     TChunkSequenceWriterBase<TTableChunkWriter>::InitCurrentSession(nextSession);
 }
 
-bool TTableChunkSequenceWriter::TryWriteRow(TRow& row, const TNonOwningKey& key)
+bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -66,11 +66,27 @@ bool TTableChunkSequenceWriter::TryWriteRow(TRow& row, const TNonOwningKey& key)
         return false;
     }
 
-    if (!CurrentSession.ChunkWriter->TryWriteRow(row, key)) {
+    if (!CurrentSession.ChunkWriter->TryWriteRowUnsafe(row, key)) {
         return false;
     }
 
-    ++RowCount;
+    OnRowWritten();
+
+    return true;
+}
+
+bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row)
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+
+    if (!CurrentSession.ChunkWriter) {
+        return false;
+    }
+
+    if (!CurrentSession.ChunkWriter->TryWriteRowUnsafe(row)) {
+        return false;
+    }
+
     OnRowWritten();
 
     return true;

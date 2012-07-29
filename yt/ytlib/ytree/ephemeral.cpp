@@ -3,6 +3,7 @@
 #include "node_detail.h"
 #include "ypath_detail.h"
 #include "attribute_provider_detail.h"
+#include "ypath_client.h"
 
 #include <ytlib/misc/hash.h>
 #include <ytlib/misc/singleton.h>
@@ -11,6 +12,40 @@
 
 namespace NYT {
 namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEphemeralYPathResolver
+    : public IYPathResolver
+{
+public:
+    explicit TEphemeralYPathResolver(INodePtr node)
+        : Node(node)
+    { }
+
+    virtual INodePtr ResolvePath(const TYPath& path) OVERRIDE
+    {
+        auto root = GetRoot();
+        return GetNodeByYPath(root, path);
+    }
+
+    virtual TYPath GetPath(INodePtr node) OVERRIDE
+    {
+        return GetNodeYPath(node);
+    }
+
+private:
+    INodePtr Node;
+
+    INodePtr GetRoot()
+    {
+        auto currentNode = Node;
+        while (currentNode->GetParent()) {
+            currentNode = currentNode->GetParent();
+        }
+        return currentNode;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,15 +64,20 @@ public:
         return GetEphemeralNodeFactory();
     }
 
+    virtual IYPathResolverPtr GetResolver() const
+    {
+        return New<TEphemeralYPathResolver>(const_cast<TEphemeralNodeBase*>(this));
+    }
+
     virtual ICompositeNodePtr GetParent() const
     {
         return Parent;
     }
 
-    virtual void SetParent(ICompositeNode* parent)
+    virtual void SetParent(ICompositeNodePtr parent)
     {
         YASSERT(!parent || !Parent);
-        Parent = parent;
+        Parent = ~parent;
     }
 
 protected:
@@ -157,7 +197,7 @@ public:
         return it == KeyToChild.end() ? NULL : it->second;
     }
 
-    virtual bool AddChild(INode* child, const TStringBuf& key)
+    virtual bool AddChild(INodePtr child, const TStringBuf& key)
     {
         YASSERT(!key.empty());
         YASSERT(child);
@@ -185,7 +225,7 @@ public:
         return true;
     }
 
-    virtual void RemoveChild(INode* child)
+    virtual void RemoveChild(INodePtr child)
     {
         YASSERT(child);
 
@@ -200,7 +240,7 @@ public:
         YCHECK(KeyToChild.erase(key) == 1);
     }
 
-    virtual void ReplaceChild(INode* oldChild, INode* newChild)
+    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild)
     {
         YASSERT(oldChild);
         YASSERT(newChild);
@@ -222,11 +262,11 @@ public:
         YCHECK(ChildToKey.insert(MakePair(newChild, key)).second);
     }
 
-    virtual Stroka GetChildKey(const INode* child)
+    virtual Stroka GetChildKey(IConstNodePtr child)
     {
         YASSERT(child);
 
-        auto it = ChildToKey.find(const_cast<INode*>(child));
+        auto it = ChildToKey.find(const_cast<INode*>(~child));
         YASSERT(it != ChildToKey.end());
         return it->second;
     }
@@ -280,7 +320,7 @@ public:
         return index >= 0 && index < IndexToChild.size() ? IndexToChild[index] : NULL;
     }
 
-    virtual void AddChild(INode* child, int beforeIndex = -1)
+    virtual void AddChild(INodePtr child, int beforeIndex = -1)
     {
         YASSERT(child);
 
@@ -316,7 +356,7 @@ public:
         return true;
     }
 
-    virtual void ReplaceChild(INode* oldChild, INode* newChild)
+    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild)
     {
         YASSERT(oldChild);
         YASSERT(newChild);
@@ -337,7 +377,7 @@ public:
         newChild->SetParent(this);
     }
 
-    virtual void RemoveChild(INode* child)
+    virtual void RemoveChild(INodePtr child)
     {
         YASSERT(child);
 
@@ -345,11 +385,11 @@ public:
         YVERIFY(RemoveChild(index));
     }
 
-    virtual int GetChildIndex(const INode* child)
+    virtual int GetChildIndex(IConstNodePtr child)
     {
         YASSERT(child);
 
-        auto it = ChildToIndex.find(const_cast<INode*>(child));
+        auto it = ChildToIndex.find(const_cast<INode*>(~child));
         YASSERT(it != ChildToIndex.end());
         return it->second;
     }
@@ -410,9 +450,9 @@ public:
     }
 };
 
-INodeFactory* GetEphemeralNodeFactory()
+INodeFactoryPtr GetEphemeralNodeFactory()
 {
-    return ~RefCountedSingleton<TEphemeralNodeFactory>();
+    return RefCountedSingleton<TEphemeralNodeFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

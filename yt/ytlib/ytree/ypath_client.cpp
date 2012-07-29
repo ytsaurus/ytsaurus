@@ -298,7 +298,7 @@ std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
     auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(service, request).Get();
     response->ThrowIfError();
-    return NYT::FromProto<Stroka>(response->keys());
+    return ConvertTo<std::vector<Stroka> >(TYsonString(response->keys()));
 }
 
 void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
@@ -316,7 +316,6 @@ void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
         path.append(tokenizer.CurrentToken().ToString());
     }
 
-    //! TODO: or ConvertToYsonString?
     auto value = TYsonString(Stroka(tokenizer.GetCurrentSuffix()));
 
     ForceYPath(root, path);
@@ -332,13 +331,16 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
         tokenizer.ParseNext();
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String: {
+                auto currentMap = currentNode->AsMap();
                 Stroka key(tokenizer.CurrentToken().GetStringValue());
-                currentNode = currentNode->AsMap()->GetChild(key);
+                currentNode = currentMap->GetChild(key);
                 break;
             }
 
             case ETokenType::Integer: {
-                currentNode = currentNode->AsList()->GetChild(tokenizer.CurrentToken().GetIntegerValue());
+                auto currentList = currentNode->AsList();
+                int index = currentList->AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
+                currentNode = currentList->GetChild(index);
                 break;
             }
 
@@ -352,7 +354,7 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
 
 void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
 {
-    INodePtr currentNode = root;
+    auto currentNode = root;
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     tokenizer.CurrentToken().CheckType(PathSeparatorToken);
@@ -373,7 +375,9 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
             }
 
             case ETokenType::Integer: {
-                currentNode = currentNode->AsList()->GetChild(currentToken.GetIntegerValue());
+                auto currentList = currentNode->AsList();
+                int index = currentList->AdjustAndValidateChildIndex(currentToken.GetIntegerValue());
+                currentNode = currentList->GetChild(index);
                 break;
             }
 
@@ -395,20 +399,21 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
     switch (currentToken.GetType()) {
         case ETokenType::String: {
             Stroka key(currentToken.GetStringValue());
-            auto mapNode = currentNode->AsMap();
-            auto child = mapNode->FindChild(key);
+            auto currentMap = currentNode->AsMap();
+            auto child = currentMap->FindChild(key);
             if (child) {
-                mapNode->ReplaceChild(~child, ~value);
+                currentMap->ReplaceChild(child, value);
             } else {
-                mapNode->AddChild(~value, key);
+                currentMap->AddChild(value, key);
             }
             break;
         }
 
         case ETokenType::Integer: {
-            auto listNode = currentNode->AsList();
-            auto child = listNode->GetChild(currentToken.GetIntegerValue());
-            listNode->ReplaceChild(~child, ~value);
+            auto currentList = currentNode->AsList();
+            int index = currentList->AdjustAndValidateChildIndex(currentToken.GetIntegerValue());
+            auto child = currentList->GetChild(index);
+            currentList->ReplaceChild(child, value);
             break;
         }
 
@@ -450,17 +455,20 @@ void ForceYPath(INodePtr root, const TYPath& path)
         INodePtr child;
         switch (tokenType) {
             case ETokenType::String: {
-                child = currentNode->AsMap()->FindChild(key);
+                auto currentMap = currentNode->AsMap();
+                child = currentMap->AsMap()->FindChild(key);
                 if (!child) {
-                    auto factory = currentNode->CreateFactory();
+                    auto factory = currentMap->CreateFactory();
                     child = factory->CreateMap();
-                    YCHECK(currentNode->AsMap()->AddChild(~child, key));
+                    YCHECK(currentMap->AddChild(child, key));
                 }
                 break;
             }
 
             case ETokenType::Integer: {
-                child = currentNode->AsList()->GetChild(index);
+                auto currentList = currentNode->AsList();
+                index = currentList->AdjustAndValidateChildIndex(index);
+                child = currentList->GetChild(index);
                 break;
             }
 
@@ -473,7 +481,7 @@ void ForceYPath(INodePtr root, const TYPath& path)
     }
 }
 
-TYPath GetYPath(INodePtr node, INodePtr* root)
+TYPath GetNodeYPath(INodePtr node, INodePtr* root)
 {
     std::vector<TYPath> tokens;
     while (true) {
@@ -484,12 +492,12 @@ TYPath GetYPath(INodePtr node, INodePtr* root)
         TYPath token;
         switch (parent->GetType()) {
             case ENodeType::List: {
-                auto index = parent->AsList()->GetChildIndex(~node);
+                auto index = parent->AsList()->GetChildIndex(node);
                 token = EscapeYPathToken(index);
                 break;
             }
             case ENodeType::Map: {
-                auto key = parent->AsMap()->GetChildKey(~node);
+                auto key = parent->AsMap()->GetChildKey(node);
                 token = EscapeYPathToken(key);
                 break;
             }

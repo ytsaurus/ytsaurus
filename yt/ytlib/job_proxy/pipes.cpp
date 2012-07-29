@@ -10,10 +10,12 @@
 
 #include <errno.h>
 
-#ifdef _linux_
+#if defined(_linux_) || defined(_darwin_)
     #include <unistd.h>
     #include <fcntl.h>
+#if defined(_linux_)
     #include <sys/epoll.h>
+#endif
 #else
     #include <io.h>
 #endif
@@ -26,6 +28,7 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////
 
 static auto& Logger = JobProxyLogger;
+static const int PipeBufferSize = 1 << 16;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -58,7 +61,8 @@ void SafeClose(int fd)
 
     // ToDo: provide proper message.
     if (res == -1) {
-        ythrow yexception() << "close failed with errno: " << errno;
+        ythrow yexception() <<
+            Sprintf("close failed with errno: %d, fd: %d", errno, fd);
     }
 }
 
@@ -89,7 +93,7 @@ void SafeMakeNonblocking(int fd)
     if (res == -1)
         ythrow yexception() << Sprintf(
             "fcntl failed to set descriptor to nonblocking mode (fd: %d, errno %d)",
-            fd, 
+            fd,
             errno);
 }
 
@@ -293,40 +297,44 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
 {
     YASSERT(!IsFinished);
 
-    while (HasData) {
-        if (Position < Buffer->GetSize()) {
-            auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
-
-            LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
-
-            if (res > 0)
-                Position += res;
-            else if (res < 0) {
-                if (errno == EAGAIN) {
-                    // Pipe blocked, pause writing.
-                    return true;
-                } else {
-                    // Error with pipe.
-                    ythrow yexception() << 
-                        Sprintf("Writing to pipe failed (fd: %d, job fd: %d, errno: %d).",
-                            Pipe.WriteFd,
-                            JobDescriptor,
-                            errno);
-                }
-            }
-        } else {
+    while (true) {
+        if (Position == Buffer->GetSize()) {
             Position = 0;
             Buffer->Clear();
-            HasData = TableProducer->ProduceRow();
-            if (!HasData) {
-                SafeClose(Pipe.WriteFd);
+            while (HasData && Buffer->GetSize() < PipeBufferSize) {
+                HasData = TableProducer->ProduceRow();
             }
         }
+
+        if (Position == Buffer->GetSize()) {
+            YCHECK(!HasData);
+            SafeClose(Pipe.WriteFd);
+            LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
+            return true;
+        }
+
+        YASSERT(Position < Buffer->GetSize());
+
+        auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
+        LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
+
+        if (res < 0)  {
+            if (errno == EAGAIN) {
+                // Pipe blocked, pause writing.
+                return true;
+            } else {
+                // Error with pipe.
+                ythrow yexception() << 
+                    Sprintf("Writing to pipe failed (fd: %d, job fd: %d, errno: %d).",
+                    Pipe.WriteFd,
+                    JobDescriptor,
+                    errno);
+            }
+        }
+
+        Position += res;
+        YASSERT(Position <= Buffer->GetSize());
     }
-
-    LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
-
-    return true;
 }
 
 void TInputPipe::Finish()

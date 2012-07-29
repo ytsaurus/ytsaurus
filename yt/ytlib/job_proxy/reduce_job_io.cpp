@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_sequence_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/merging_reader.h>
@@ -24,7 +24,7 @@ using namespace NChunkServer;
 
 TReduceJobIO::TReduceJobIO(
     TJobIOConfigPtr config,
-    NElection::TLeaderLookup::TConfigPtr mastersConfig,
+    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
     : TUserJobIO(config, mastersConfig, jobSpec)
 { }
@@ -36,7 +36,7 @@ TReduceJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
 
     auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
 
-    std::vector<TChunkSequenceReaderPtr> readers;
+    std::vector<TTableChunkSequenceReaderPtr> readers;
     TReaderOptions options;
     options.ReadKey = true;
 
@@ -46,11 +46,11 @@ TReduceJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
             inputSpec.chunks().begin(),
             inputSpec.chunks().end());
 
-        auto reader = New<TChunkSequenceReader>(
+        auto reader = New<TTableChunkSequenceReader>(
             Config->ChunkSequenceReader,
             MasterChannel,
             blockCache,
-            chunks,
+            MoveRV(chunks),
             options);
 
         readers.push_back(reader);

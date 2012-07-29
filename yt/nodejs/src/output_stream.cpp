@@ -10,8 +10,6 @@ namespace {
 
 static Persistent<String> OnWriteSymbol;
 static Persistent<String> OnDrainSymbol;
-static Persistent<String> OnFlushSymbol;
-static Persistent<String> OnFinishSymbol;
 
 void DeleteCallback(char* data, void* hint)
 {
@@ -52,8 +50,6 @@ void TNodeJSOutputStream::Initialize(Handle<Object> target)
 
     OnWriteSymbol = NODE_PSYMBOL("on_write");
     OnDrainSymbol = NODE_PSYMBOL("on_drain");
-    OnFlushSymbol = NODE_PSYMBOL("on_flush");
-    OnFinishSymbol = NODE_PSYMBOL("on_finish");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
         FunctionTemplate::New(TNodeJSOutputStream::New));
@@ -185,54 +181,10 @@ void TNodeJSOutputStream::DoOnWrite()
             Local<Value>::New(buffer->handle_)
         };
 
-        // TODO(sandello): Use OnWriteSymbol here.
-        node::MakeCallback(this->handle_, "on_write", ARRAY_SIZE(args), args);
+        node::MakeCallback(this->handle_, OnWriteSymbol, ARRAY_SIZE(args), args);
     }
 
-    // TODO(sandello): Use OnDrainSymbol here.
-    node::MakeCallback(this->handle_, "on_drain", 0, NULL);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int TNodeJSOutputStream::AsyncOnFlush(eio_req* request)
-{
-    THREAD_AFFINITY_IS_V8();
-    TNodeJSOutputStream* stream = static_cast<TNodeJSOutputStream*>(request->data);
-    AtomicSet(stream->FlushRequestPending, 0);
-    stream->DoOnFlush();
-    stream->AsyncUnref();
-    return 0;
-}
-
-void TNodeJSOutputStream::DoOnFlush()
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // TODO(sandello): Use OnFlushSymbol here.
-    node::MakeCallback(this->handle_, "on_flush", 0, NULL);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int TNodeJSOutputStream::AsyncOnFinish(eio_req* request)
-{
-    THREAD_AFFINITY_IS_V8();
-    TNodeJSOutputStream* stream = static_cast<TNodeJSOutputStream*>(request->data);
-    AtomicSet(stream->FinishRequestPending, 0);
-    stream->DoOnFinish();
-    stream->AsyncUnref();
-    return 0;
-}
-
-void TNodeJSOutputStream::DoOnFinish()
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    // TODO(sandello): Use OnFinishSymbol here.
-    node::MakeCallback(this->handle_, "on_finish", 0, NULL);
+    node::MakeCallback(this->handle_, OnDrainSymbol, 0, NULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,18 +210,6 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
     EnqueueOnWrite();
 
     AtomicAdd(BytesCounter, length);
-}
-
-void TNodeJSOutputStream::DoFlush()
-{
-    THREAD_AFFINITY_IS_ANY();
-    EnqueueOnFlush();
-}
-
-void TNodeJSOutputStream::DoFinish()
-{
-    THREAD_AFFINITY_IS_ANY();
-    EnqueueOnFinish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

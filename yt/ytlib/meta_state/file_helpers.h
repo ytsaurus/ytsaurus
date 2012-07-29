@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <util/system/file.h>
 #include <util/stream/file.h>
@@ -9,6 +9,8 @@
 
 namespace NYT {
 namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Wrapper on TFile and TBufferedFileOutput.
 class TBufferedFile
@@ -154,7 +156,9 @@ TCheckableFileReader<FileObject> CreateCheckableReader(FileObject& file)
     return TCheckableFileReader<FileObject>(file);
 }
 
-void Move(Stroka source, Stroka destination);
+void CheckedMoveFile(const Stroka& source, const Stroka& destination);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NMetaState
 } // namespace NYT

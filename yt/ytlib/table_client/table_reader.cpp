@@ -1,13 +1,13 @@
 ﻿#include "stdafx.h"
 #include "table_reader.h"
 #include "config.h"
-#include "chunk_sequence_reader.h"
+#include "table_chunk_sequence_reader.h"
 #include "private.h"
 
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/misc/sync.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
@@ -15,7 +15,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NTableServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,12 +63,12 @@ void TTableReader::Open()
 
     auto inputChunks = FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
-    Reader = New<TChunkSequenceReader>(
+    Reader = New<TTableChunkSequenceReader>(
         Config,
         MasterChannel,
         BlockCache,
-        inputChunks);
-    Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
+        MoveRV(inputChunks));
+    Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {
         ListenTransaction(Transaction);
@@ -86,7 +86,9 @@ void TTableReader::NextRow()
 
     CheckAborted();
 
-    Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+    if (!Reader->FetchNextItem()) {
+        Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+    }
 }
 
 bool TTableReader::IsValid() const
@@ -99,7 +101,7 @@ bool TTableReader::IsValid() const
     return Reader->IsValid();
 }
 
-TRow& TTableReader::GetRow()
+const TRow& TTableReader::GetRow()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
@@ -107,6 +109,7 @@ TRow& TTableReader::GetRow()
     return Reader->GetRow();
 }
 
+/*
 const NYTree::TYsonString& TTableReader::GetRowAttributes() const
 {
     VERIFY_THREAD_AFFINITY(Client);
@@ -114,6 +117,7 @@ const NYTree::TYsonString& TTableReader::GetRowAttributes() const
 
     return Reader->GetRowAttributes();
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

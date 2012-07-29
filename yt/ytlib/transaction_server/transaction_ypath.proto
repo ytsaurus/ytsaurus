@@ -22,7 +22,9 @@ message TRspAbort
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqRenewLease
-{ }
+{
+    optional bool renew_ancestors = 1 [default = false];
+}
 
 message TRspRenewLease
 { }

@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/public.h>
-#include <ytlib/cypress/id.h>
+#include <ytlib/cypress_client/public.h>
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/rpc/public.h>
@@ -40,7 +40,7 @@ public:
     //! Closes the writer.
     virtual void Close();
 
-    NCypress::TNodeId GetNodeId() const;
+    NCypressClient::TNodeId GetNodeId() const;
 
 private:
     TFileWriterConfigPtr Config;
@@ -55,7 +55,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    NCypress::TNodeId NodeId;
+    NCypressClient::TNodeId NodeId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

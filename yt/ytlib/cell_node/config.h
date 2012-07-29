@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_holder/public.h>
-#include <ytlib/election/leader_lookup.h>
+#include <ytlib/meta_state/public.h>
 #include <ytlib/exec_agent/config.h>
 
 namespace NYT {
@@ -21,10 +21,10 @@ struct TCellNodeConfig
     int MonitoringPort;
 
     //! Cell masters.
-    NElection::TLeaderLookup::TConfigPtr Masters;
+    NMetaState::TMasterDiscoveryConfigPtr Masters;
 
     //! Data node configuration part.
-    NChunkHolder::TChunkHolderConfigPtr ChunkHolder;
+    NChunkHolder::TDataNodeConfigPtr DataNode;
 
     //! Exec node configuration part.
     NExecAgent::TExecAgentConfigPtr ExecAgent;
@@ -37,7 +37,7 @@ struct TCellNodeConfig
             .Default(10000);
         Register("masters", Masters)
             .DefaultNew();
-        Register("chunk_holder", ChunkHolder)
+        Register("data_node", DataNode)
             .DefaultNew();
         Register("exec_agent", ExecAgent)
             .DefaultNew();

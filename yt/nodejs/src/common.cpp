@@ -138,11 +138,21 @@ Handle<Value> GetYsonRepresentation(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
+    TryCatch block;
 
     YASSERT(args.Length() == 1);
 
-    TYsonString yson = ConvertToYsonString(ConvertV8ValueToNode(args[0]), EYsonFormat::Text);
-    return scope.Close(String::New(~yson.Data()));
+    auto ysonNode = ConvertV8ValueToNode(args[0]);
+    if (!ysonNode) {
+        if (!block.HasCaught()) {
+            return scope.Close(String::New("Mysterious failure :("));
+        } else {
+            return scope.Close(block.ReThrow());
+        }
+    }
+
+    auto ysonString = ConvertToYsonString(ysonNode, EYsonFormat::Text);
+    return scope.Close(String::New(ysonString.Data().c_str()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

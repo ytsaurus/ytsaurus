@@ -2,7 +2,7 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/actions/action_queue.h>
@@ -12,7 +12,9 @@
 
 #include <ytlib/rpc/server.h>
 
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/leader_channel.h>
+
+#include <ytlib/meta_state/config.h>
 
 #include <ytlib/orchid/orchid_service.h>
 
@@ -22,6 +24,7 @@
 #include <ytlib/monitoring/http_integration.h>
 
 #include <ytlib/ytree/virtual.h>
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/yson_file_service.h>
 
 #include <ytlib/profiling/profiling_manager.h>
@@ -31,18 +34,23 @@
 
 #include <ytlib/job_proxy/config.h>
 
+#include <ytlib/transaction_client/transaction_manager.h>
+
+#include <yt/build.h>
+
 namespace NYT {
 namespace NCellScheduler {
 
-using namespace NRpc;
 using namespace NBus;
-using namespace NYTree;
+using namespace NElection;
 using namespace NMonitoring;
+using namespace NObjectServer;
 using namespace NOrchid;
 using namespace NProfiling;
-using namespace NObjectServer;
+using namespace NRpc;
 using namespace NScheduler;
 using namespace NTransactionClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +70,7 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
-    PeerAddress = BuildServiceAddress(GetHostName(), Config->RpcPort);
+    PeerAddress = BuildServiceAddress(GetLocalHostName(), Config->RpcPort);
 
     LOG_INFO("Starting scheduler (PeerAddress: %s, MasterAddresses: [%s])",
         ~PeerAddress,
@@ -94,7 +102,7 @@ void TBootstrap::Run()
     SetNodeByYPath(
         orchidRoot,
         "/monitoring",
-        CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
+        CreateVirtualNode(CreateMonitoringProducer(monitoringManager)));
     SetNodeByYPath(
         orchidRoot,
         "/profiling",
@@ -109,7 +117,12 @@ void TBootstrap::Run()
         orchidRoot,
         "/scheduler",
         CreateVirtualNode(Scheduler->CreateOrchidProducer()));
-    SyncYPathSet(orchidRoot, "/@service_name", TYsonString("scheduler"));
+    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("scheduler"));
+
+    SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
+    SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
+    SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
+    SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,

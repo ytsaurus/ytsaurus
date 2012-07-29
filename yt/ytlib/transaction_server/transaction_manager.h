@@ -10,7 +10,7 @@
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/meta_change.h>
+#include <ytlib/meta_state/mutation.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/object_server/public.h>
 
@@ -47,7 +47,7 @@ public:
     TTransaction* Start(TTransaction* parent, TNullable<TDuration> timeout);
     void Commit(TTransaction* transaction);
     void Abort(TTransaction* transaction);
-    void RenewLease(const TTransaction* transaction);
+    void RenewLease(const TTransaction* transaction, bool renewAncestors = false);
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
@@ -72,9 +72,11 @@ private:
 
     void OnTransactionExpired(const TTransactionId& id);
 
-    void CreateLease(const TTransaction* transaction, TNullable<TDuration> timeout);
+    void CreateLease(const TTransaction* transaction, TDuration timeout);
     void CloseLease(const TTransaction* transaction);
     void FinishTransaction(TTransaction* transaction);
+
+    void DoRenewLease(const TTransaction* transaction);
 
     // TMetaStatePart overrides
     void SaveKeys(TOutputStream* output);
@@ -82,6 +84,8 @@ private:
     void LoadKeys(TInputStream* input);
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
     virtual void Clear();
+
+    TDuration GetActualTimeout(TNullable<TDuration> timeout);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

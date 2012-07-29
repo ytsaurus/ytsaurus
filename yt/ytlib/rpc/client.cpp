@@ -3,6 +3,8 @@
 #include "private.h"
 #include "message.h"
 
+#include <iterator>
+
 namespace NYT {
 namespace NRpc {
 

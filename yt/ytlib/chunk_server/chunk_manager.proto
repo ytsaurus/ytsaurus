@@ -7,7 +7,7 @@ import "yt/ytlib/misc/guid.proto";
 
 message TMsgRegisterHolder
 {
-    required bytes address = 1;
+    required string address = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
     required THolderStatistics statistics = 3;
 }
@@ -34,6 +34,13 @@ message TMsgUpdateJobs
     required int32 holder_id = 1;
     repeated TJobStartInfo started_jobs = 2;
     repeated TJobStopInfo stopped_jobs = 3;
+}
+
+message TMsgRebalanceChunkTree
+{
+    required NYT.NProto.TGuid root_id = 1;
+    required int32 min_chunk_list_size = 2;
+    required int32 max_chunk_list_size = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

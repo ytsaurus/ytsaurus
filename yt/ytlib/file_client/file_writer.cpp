@@ -5,7 +5,7 @@
 #include "private.h"
 
 #include <ytlib/object_server/object_service_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
@@ -14,7 +14,7 @@ namespace NYT {
 namespace NFileClient {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -112,7 +112,7 @@ void TFileWriter::Close()
     LOG_INFO("Upload transaction committed");
 }
 
-NCypress::TNodeId TFileWriter::GetNodeId() const
+NCypressClient::TNodeId TFileWriter::GetNodeId() const
 {
     return NodeId;
 }

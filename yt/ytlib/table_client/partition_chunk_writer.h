@@ -37,15 +37,20 @@ public:
 
     i64 GetCurrentSize() const;
     NChunkHolder::NProto::TChunkMeta GetMasterMeta() const;
+    NChunkHolder::NProto::TChunkMeta GetSchedulerMeta() const;
 
     i64 GetMetaSize() const;
 
 private:
-    TChannel Channel;
+    NYTree::TLexer Lexer;
 
     std::vector<TOwningKey> PartitionKeys;
-    yhash_map<TStringBuf, int> ColumnIndexes;
-    int KeyColumnCount;
+    yhash_map<TStringBuf, int> KeyColumnIndexes;
+    TKeyColumns KeyColumns;
+
+    // Permutation of value index in current row.
+    // Defines writing order (key columns go first).
+    std::vector<int> RowValueIndexes;
 
     //! Current size of written data.
     /*!
@@ -65,7 +70,7 @@ private:
 
     void PrepareBlock(int partitionTag);
 
-    void OnFinalBlocksWritten();
+    void OnFinalBlocksWritten(TError error);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

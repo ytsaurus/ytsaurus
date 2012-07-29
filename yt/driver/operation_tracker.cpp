@@ -32,23 +32,27 @@ EExitCode TOperationTracker::Run()
 {
     OperationType = GetOperationType(OperationId);
     TSchedulerServiceProxy proxy(Driver->GetSchedulerChannel());
-    while (true)  {
-        auto waitOpReq = proxy.WaitForOperation();
-        *waitOpReq->mutable_operation_id() = OperationId.ToProto();
-        waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
+    if (!OperationFinished()) {
+        while (true)  {
+            auto waitOpReq = proxy.WaitForOperation();
+            *waitOpReq->mutable_operation_id() = OperationId.ToProto();
+            waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
 
-        // Override default timeout.
-        waitOpReq->SetTimeout(Config->OperationWaitTimeout * 2);
-        auto waitOpRsp = waitOpReq->Invoke().Get();
+            // Override default timeout.
+            waitOpReq->SetTimeout(
+                Config->OperationWaitTimeout +
+                proxy.GetDefaultTimeout().Get(TDuration::Zero()));
+            auto waitOpRsp = waitOpReq->Invoke().Get();
 
-        if (!waitOpRsp->IsOK()) {
-            ythrow yexception() << waitOpRsp->GetError().ToString();
+            if (!waitOpRsp->IsOK()) {
+                ythrow yexception() << waitOpRsp->GetError().ToString();
+            }
+
+            if (waitOpRsp->finished())
+                break;
+
+            DumpProgress();
         }
-
-        if (waitOpRsp->finished())
-            break;
-
-        DumpProgress();
     }
 
     return DumpResult();
@@ -89,7 +93,6 @@ void TOperationTracker::AppendPhaseProgress(
 
 Stroka TOperationTracker::FormatProgress(const TYsonString& progress)
 {
-    // TODO(babenko): refactor
     auto progressAttributes = ConvertToAttributes(progress);
 
     Stroka result;
@@ -169,11 +172,19 @@ EExitCode TOperationTracker::DumpResult()
     }
 
     {
+        auto req = TYPathProxy::Get(operationPath + "/@start_time");
+        batchReq->AddRequest(req, "get_op_start_time");
+    }
+    {
+        auto req = TYPathProxy::Get(operationPath + "/@end_time");
+        batchReq->AddRequest(req, "get_op_end_time");
+    }
+
+    {
         auto req = TYPathProxy::Get(jobsPath);
         req->Attributes().Set<Stroka>("with_attributes", "true");
         batchReq->AddRequest(req, "get_jobs");
     }
-
     EExitCode exitCode;
     auto batchRsp = batchReq->Invoke().Get();
     CheckResponse(batchRsp, "Error getting operation result");
@@ -184,8 +195,24 @@ EExitCode TOperationTracker::DumpResult()
         auto errorNode = NYTree::GetNodeByYPath(ConvertToNode(TYsonString(rsp->value())), "/error");
         auto error = TError::FromYson(errorNode);
         if (error.IsOK()) {
-            printf("Operation completed successfully\n");
+            TInstant startTime;
+            {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
+                CheckResponse(rsp, "Error getting operation start time");
+                startTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
+            }
+
+            TInstant endTime;
+            {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_end_time");
+                CheckResponse(rsp, "Error getting operation end time");
+                endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
+            }
+            TDuration duration = endTime - startTime;
+
+            printf("Operation completed successfully in %s\n", ~ToString(duration));
             exitCode = EExitCode::OK;
+
         } else {
             fprintf(stderr, "%s\n", ~error.ToString());
             exitCode = EExitCode::Error;
@@ -256,7 +283,6 @@ EExitCode TOperationTracker::DumpResult()
             printf("%" PRISZT " job(s) have failed:\n", failedJobIds.size());
             FOREACH (const auto& jobId, failedJobIds) {
                 auto job = jobs->GetChild(jobId.ToString());
-                // TODO(babenko): refactor
                 auto error = TError::FromYson(job->Attributes().Get<INodePtr>("error"));
                 printf("\n");
                 printf("Job %s on %s\n%s\n",
@@ -287,6 +313,24 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
     auto rsp = proxy.Execute(req).Get();
     CheckResponse(rsp, "Error getting operation type");
     return ConvertTo<EOperationType>(TYsonString(rsp->value()));
+}
+
+bool TOperationTracker::OperationFinished()
+{
+    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    auto operationPath = GetOperationPath(OperationId);
+    auto req = TYPathProxy::Get(operationPath + "/@state");
+    auto rsp = proxy.Execute(req).Get();
+    if (rsp->IsOK()) {
+        auto state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
+        if (state == EOperationState::Completed ||
+            state == EOperationState::Aborted ||
+            state == EOperationState::Failed)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

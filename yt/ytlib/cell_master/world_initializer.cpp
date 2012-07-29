@@ -5,8 +5,8 @@
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/cypress/cypress_manager.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_server/cypress_manager.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -17,7 +17,8 @@ namespace NCellMaster {
 
 using namespace NMetaState;
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
+using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 
@@ -53,7 +54,7 @@ public:
 
 private:
     TBootstrap* Bootstrap;
-    TPeriodicInvoker::TPtr PeriodicInvoker;
+    TPeriodicInvokerPtr PeriodicInvoker;
 
     void OnCheck()
     {
@@ -172,11 +173,6 @@ private:
                 service,
                 WithTransaction("//sys/nodes", transactionId),
                 EObjectType::NodeMap);
-
-            SyncYPathCreate(
-                service,
-                WithTransaction("//sys/locks", transactionId),
-                EObjectType::LockMap);
 
             SyncYPathCreate(
                 service,

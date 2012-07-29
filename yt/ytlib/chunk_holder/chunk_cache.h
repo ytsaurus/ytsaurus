@@ -27,7 +27,7 @@ public:
     typedef std::vector<TCachedChunkPtr> TChunks;
 
     //! Constructs a new instance.
-    TChunkCache(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
+    TChunkCache(TDataNodeConfigPtr config, TBootstrap* bootstrap);
 
     //! Initializes the cache.
     void Start();

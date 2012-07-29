@@ -79,7 +79,7 @@ struct TCounterBase
  *  \note Thread safety: single
  */
 struct TRateCounter
-    : TCounterBase
+    : public TCounterBase
 {
     TRateCounter(
         const NYTree::TYPath& path = "",
@@ -117,7 +117,7 @@ DECLARE_ENUM(EAggregateMode,
  *  \note Thread safety: single
  */
 struct TAggregateCounter
-    : TCounterBase
+    : public TCounterBase
 {
     TAggregateCounter(
         const NYTree::TYPath& path = "",
@@ -165,13 +165,16 @@ public:
 
     //! Marks a checkpoint and enqueues the corresponding sample.
     /*!
+     *  Returns the time passed from the previous duration.
+     *  
      *  If #timer is in Simple mode then it is automatically
      *  switched to Sequential mode.
      */
-    void TimingCheckpoint(TTimer& timer, const NYTree::TYPath& pathSuffix);
+    TDuration TimingCheckpoint(TTimer& timer, const NYTree::TYPath& pathSuffix);
 
     //! Stops time measurement and enqueues the "total" sample.
-    void TimingStop(TTimer& timer);
+    //! Returns the total duration.
+    TDuration TimingStop(TTimer& timer);
 
     //! Increments the counter and possibly enqueues a rate sample.
     /*!

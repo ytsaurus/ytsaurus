@@ -478,6 +478,8 @@ Stroka ToString(const TKey<TBuffer>& key)
     return "[" + JoinToString(key.Parts) + "]";
 }
 
+Stroka ToString(const NProto::TKey& key);
+
 //! Compares given keys (truncated to #prefixLength). Returns zero if |lhs == rhs|, a negative value
 //! if |lhs < rhs| and a positive value otherwise.
 template <class TLhsBuffer, class TRhsBuffer>
@@ -507,12 +509,30 @@ bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 //! obtained from |key| by appending a sentinel part.
 NProto::TKey GetSuccessorKey(const NProto::TKey& key);
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRefCountedInputChunk
+    : public TIntrinsicRefCounted
+    , public NTableClient::NProto::TInputChunk
+{
+    explicit TRefCountedInputChunk(const NProto::TInputChunk& other);
+};
+
 //! Constructs a new chunk by slicing the original one and restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
-NProto::TInputChunk SliceChunk(
+TRefCountedInputChunkPtr SliceChunk(
     const NProto::TInputChunk& chunk,
     const TNullable<NProto::TKey>& startKey = Null,
     const TNullable<NProto::TKey>& endKey = Null);
+
+//! Tries to split the given chunk into #count
+//! parts of almost equal size.
+/*!
+ *  May return less parts than requested.
+ */
+std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(
+    const NProto::TInputChunk& chunk,
+    int count);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,7 +12,7 @@ namespace NYTree {
  *  \note
  *  This factory is a singleton so returning a raw pointer is OK.
  */
-INodeFactory* GetEphemeralNodeFactory();
+INodeFactoryPtr GetEphemeralNodeFactory();
 
 ////////////////////////////////////////////////////////////////////////////////
 

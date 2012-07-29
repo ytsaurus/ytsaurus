@@ -63,30 +63,32 @@ struct IMetaStateManager
      */
     virtual TCancelableContextPtr GetEpochContext() const = 0;
 
-    //! Commits the change.
+    //! Commits the mutation.
     /*!
      *  If the peer is not the leader then #ECommitResult::InvalidStatus is returned.
      *  If the peer is the leader but has no active quorum, then #ECommitResult::NotCommitted is returned.
      *  If the state is read-only, then #ECommitResult::ReadOnly is returned.
      *  
-     *  \param changeData A blob describing the change to be send to followers.
-     *  \param changeAction An optional action that is called to perform the changes at the leader,
-     *  if NULL then #IMetaState::ApplyChange is invoked with #changeData.
+     *  \param mutationType A string describing the type of the mutation.
+     *  \param mutationData A blob describing the mutation itself to be send to followers.
+     *  \param mutationAction An optional action that is called to perform the mutation at the leader,
+     *  if NULL then #IMetaState::ApplyMutation is invoked.
      *
      *  \note Thread affinity: StateThread
      */
-    virtual TAsyncCommitResult CommitChange(
-        const TSharedRef& changeData,
-        TClosure changeAction) = 0;
+    virtual TAsyncCommitResult CommitMutation(
+        const Stroka& mutationType,
+        const TRef& mutationData,
+        const TClosure& mutationAction) = 0;
 
-    //! Returns True if #CommitChange is currently in progress.
+    //! Returns the current mutation context or NULL if no mutation is currently being applied.
     /*!
-     *  This is typically used to prevent recursive commits and only log "top-level"
-     *  changes that trigger the whole transformation chain.
+     *  Checking the return value for NULL can be useful to prevent recursive commits and only log "top-level"
+     *  mutations that trigger the whole transformation chain.
      *  
      *  \note Thread affinity: StateThread
      */
-    virtual bool IsInCommit() const = 0;
+    virtual TMutationContext* GetMutationContext() = 0;
 
     //! Toggles read-only mode.
     /*!

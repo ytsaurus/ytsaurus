@@ -15,7 +15,7 @@ using namespace NMetaState;
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -14,9 +14,10 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NCellMaster;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NYTree;
 using namespace NChunkServer;
+using namespace NObjectServer;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,12 +30,6 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(NULL)
     , UpdateMode_(ETableUpdateMode::None)
-{ }
-
-TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
-    : TCypressNodeBase(id, other)
-    , ChunkList_(other.ChunkList_)
-    , UpdateMode_(other.UpdateMode_)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -86,24 +81,18 @@ public:
             mode == ELockMode::Snapshot;
     }
 
-    virtual TNodeId CreateDynamic(
+    virtual TAutoPtr<ICypressNode> CreateDynamic(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
-        TRspCreate* response)
+        TRspCreate* response) OVERRIDE
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
-        // Parse and validate channels, if any.
+        // Set default channels, if not given explicitly.
         auto ysonChannels = request->Attributes().FindYson("channels");
-        if (ysonChannels) {
-            try {
-                ChannelsFromYson(ysonChannels.Get());
-            } catch (const std::exception& ex) {
-                ythrow yexception() << Sprintf("Invalid table channels\n%s", ex.what());
-            }
-        } else {
+        if (!ysonChannels) {
             request->Attributes().SetYson("channels", TYsonString("[]"));
         }
 
@@ -114,17 +103,15 @@ public:
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
         YCHECK(chunkList->OwningNodes().insert(~node).second);
-
         objectManager->RefObject(chunkList);
 
-        cypressManager->RegisterNode(transaction, node.Release());
-
-        return nodeId;
+        // TODO(babenko): Release is needed due to cast to ICypressNode.
+        return node.Release();
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction)
+        NTransactionServer::TTransaction* transaction) OVERRIDE
     {
         return New<TTableNodeProxy>(
             this,
@@ -134,123 +121,145 @@ public:
     }
 
 protected:
-    virtual void DoDestroy(TTableNode* node)
+    virtual void DoDestroy(TTableNode* node) OVERRIDE
     {
-        YCHECK(node->GetChunkList()->OwningNodes().erase(node) == 1);
-        Bootstrap->GetObjectManager()->UnrefObject(node->GetChunkList());
+        auto objectManager = Bootstrap->GetObjectManager();
+
+        auto* chunkList = node->GetChunkList();
+        YCHECK(chunkList->OwningNodes().erase(node) == 1);
+        objectManager->UnrefObject(chunkList);
     }
 
-    virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode)
+    virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode) OVERRIDE
     {
-        // branchedNode is a copy of originatingNode.
+        auto objectManager = Bootstrap->GetObjectManager();
+
+        auto* chunkList = originatingNode->GetChunkList();
+
+        branchedNode->SetChunkList(chunkList);
+        objectManager->RefObject(branchedNode->GetChunkList());
+        YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
         
-        auto chunkManager = Bootstrap->GetChunkManager();
-        auto objectManager = Bootstrap->GetObjectManager();
-
-        // Default branch mode is Append.
-        branchedNode->SetUpdateMode(ETableUpdateMode::Append);
-
-        // Create composite chunk list and place it in the root of branchedNode.
-        auto* branchedChunkList = chunkManager->CreateChunkList();
-
-        // For Append mode, the first child of the branched chunk list has a special
-        // meaning: it captures the state of the table at the moment it was branched.
-        // Mark this chunk list to prevent
-        // unwanted modifications of the children set.
-        branchedChunkList->SetBranchedRoot(true);
-
-        branchedNode->SetChunkList(branchedChunkList);
-        YCHECK(branchedChunkList->OwningNodes().insert(branchedNode).second);
-        objectManager->RefObject(branchedChunkList);
-
-        // Make the original chunk list a child of the composite one.
-        std::vector<TChunkTreeRef> children;
-        auto* originatingChunkList = originatingNode->GetChunkList();
-        children.push_back(TChunkTreeRef(originatingChunkList));
-        chunkManager->AttachToChunkList(branchedChunkList, children);
-
-        // Propagate "sorted" and "key_columns" attributes.
-        branchedChunkList->SetSorted(originatingChunkList->GetSorted());
-        branchedChunkList->KeyColumns() = originatingChunkList->KeyColumns();
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, OriginatingChunkListId: %s, BranchedChunkListId: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, ChunkListId: %s)",
             ~branchedNode->GetId().ToString(),
-            ~originatingChunkList->GetId().ToString(),
-            ~branchedChunkList->GetId().ToString());
+            ~originatingNode->GetChunkList()->GetId().ToString());
     }
 
-    virtual void DoMerge(TTableNode* originatingNode, TTableNode* branchedNode)
+    virtual void DoMerge(TTableNode* originatingNode, TTableNode* branchedNode) OVERRIDE
+    {
+        auto originatingChunkListId = originatingNode->GetChunkList()->GetId();
+        auto branchedChunkListId = branchedNode->GetChunkList()->GetId();
+
+        auto originatingUpdateMode = originatingNode->GetUpdateMode();
+        auto branchedUpdateMode = originatingNode->GetUpdateMode();
+
+        MergeChunkLists(originatingNode, branchedNode);
+
+        LOG_DEBUG_UNLESS(IsRecovery(),
+            "Table node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, "
+            "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, "
+            "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
+            ~originatingNode->GetId().ToString(),
+            ~originatingChunkListId.ToString(),
+            ~originatingUpdateMode.ToString(),
+            ~branchedNode->GetId().ToString(),
+            ~branchedChunkListId.ToString(),
+            ~branchedUpdateMode.ToString(),
+            ~originatingNode->GetChunkList()->GetId().ToString(),
+            ~originatingNode->GetUpdateMode().ToString());
+    }
+
+    void MergeChunkLists(TTableNode* originatingNode, TTableNode* branchedNode)
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
-        // Create a new chunk list obtained from the branched one
-        // by replacing the first child with its up-to-date state.
+        auto* originatingChunkList = originatingNode->GetChunkList();
         auto* branchedChunkList = branchedNode->GetChunkList();
-        auto* currentChunkList = originatingNode->GetChunkList();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table node merged (BranchedNodeId: %s, UpdateMode: %s, CurrentChunkListId: %s, BranchedChunkListId: %s)",
-            ~branchedNode->GetId().ToString(),
-            ~branchedNode->GetUpdateMode().ToString(),
-            ~currentChunkList->GetId().ToString(),
-            ~branchedChunkList->GetId().ToString());
+        auto originatingMode = originatingNode->GetUpdateMode();
+        auto branchedMode = branchedNode->GetUpdateMode();
 
-        // If originatingNode is branched too, then it must inherit the branching mode.
-        if (originatingNode->GetId().IsBranched()) {
-            originatingNode->SetUpdateMode(branchedNode->GetUpdateMode());
+        YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
+
+        if (branchedMode == ETableUpdateMode::None) {
+            objectManager->UnrefObject(branchedChunkList);
+
+            return;
         }
 
-        switch (branchedNode->GetUpdateMode()) {
-            case ETableUpdateMode::Append: {
-                // Construct newChunkList that will replace currentChunkList in originatingNode.
-                // Append the following items to it:
-                // 1) all children of currentChunkList
-                // 2) all children of branchedChunkList except the first one
-                auto* newChunkList = chunkManager->CreateChunkList();
-                objectManager->RefObject(newChunkList);
-                chunkManager->AttachToChunkList(
-                    newChunkList,
-                    currentChunkList->Children());
-                const auto& branchedChildren = branchedChunkList->Children();
-                YASSERT(!branchedChildren.empty());
-                chunkManager->AttachToChunkList(
-                    newChunkList,
-                    &*branchedChildren.begin() + 1,
-                    &*branchedChildren.begin() + branchedChildren.size());
+        if (branchedMode == ETableUpdateMode::Overwrite) {
+            YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
+            YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
+            originatingNode->SetChunkList(branchedChunkList);
 
-                // Configure rebalancing depending on its mode for currentChunkList.
-                newChunkList->SetBranchedRoot(currentChunkList->GetBranchedRoot());
+            objectManager->UnrefObject(originatingChunkList);
 
-                // Propagate "sorted" and "key_columns" attributes back.
-                newChunkList->SetSorted(branchedChunkList->GetSorted());
-                newChunkList->KeyColumns() = branchedChunkList->KeyColumns();
-
-                // Assign newChunkList to originatingNode.
-                originatingNode->SetChunkList(newChunkList);
-                YCHECK(newChunkList->OwningNodes().insert(originatingNode).second);
-                YCHECK(currentChunkList->OwningNodes().erase(originatingNode) == 1);
-                objectManager->UnrefObject(currentChunkList);
-                YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
-                objectManager->UnrefObject(branchedChunkList);
-
-                break;
+            if (originatingNode->GetId().IsBranched()) {
+                originatingNode->SetUpdateMode(ETableUpdateMode::Overwrite);
             }
 
-            case ETableUpdateMode::Overwrite: {
-                // Just replace currentChunkList with branchedChunkList.
-                originatingNode->SetChunkList(branchedChunkList);
-                objectManager->UnrefObject(currentChunkList);
-                YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
-                YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
-                YCHECK(!branchedChunkList->GetBranchedRoot());
-                break;
-            }
-
-            default:
-                YUNREACHABLE();
+            return;
         }
+
+        if ((originatingMode == ETableUpdateMode::None || originatingMode == ETableUpdateMode::Overwrite) &&
+            branchedMode == ETableUpdateMode::Append)
+        {
+            YCHECK(branchedChunkList->Children().size() == 2);
+
+            auto* newOriginatingChunkList = chunkManager->CreateChunkList();
+            branchedChunkList->CopySortAttributesTo(newOriginatingChunkList);
+
+            YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
+            YCHECK(newOriginatingChunkList->OwningNodes().insert(originatingNode).second);
+            originatingNode->SetChunkList(newOriginatingChunkList);
+            objectManager->RefObject(newOriginatingChunkList);
+         
+            chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
+            chunkManager->AttachToChunkList(newOriginatingChunkList, branchedChunkList->Children()[1]);
+
+            objectManager->UnrefObject(originatingChunkList);
+            objectManager->UnrefObject(branchedChunkList);
+
+
+            if (originatingMode == ETableUpdateMode::None && originatingNode->GetId().IsBranched()) {
+                originatingNode->SetUpdateMode(ETableUpdateMode::Append);
+            }
+            return;
+        }
+
+        if (originatingMode == ETableUpdateMode::Append &&
+            branchedMode == ETableUpdateMode::Append)
+        {
+            YCHECK(originatingChunkList->Children().size() == 2);
+            YCHECK(branchedChunkList->Children().size() == 2);
+
+            auto* newOriginatingChunkList = chunkManager->CreateChunkList();
+            newOriginatingChunkList->SetRigid(true);
+            branchedChunkList->CopySortAttributesTo(newOriginatingChunkList);
+
+            YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
+            YCHECK(newOriginatingChunkList->OwningNodes().insert(originatingNode).second);
+            originatingNode->SetChunkList(newOriginatingChunkList);
+            objectManager->RefObject(newOriginatingChunkList);
+
+            chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
+
+            auto* newDeltaChunkList = chunkManager->CreateChunkList();
+            chunkManager->AttachToChunkList(newOriginatingChunkList, newDeltaChunkList);
+
+            chunkManager->AttachToChunkList(newDeltaChunkList, originatingChunkList->Children()[1]);
+            chunkManager->AttachToChunkList(newDeltaChunkList, branchedChunkList->Children()[1]);
+
+            objectManager->UnrefObject(originatingChunkList);
+            objectManager->UnrefObject(branchedChunkList);
+
+            // originatingMode remains Append.
+            return;
+        }
+
+        YUNREACHABLE();
     }
-
 };
 
 INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)

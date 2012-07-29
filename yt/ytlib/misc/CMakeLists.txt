@@ -1,21 +1,21 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/misc )
 set( SRCS
+  ${BASE}/address.cpp
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
   ${BASE}/checksum.cpp
   ${BASE}/codec.cpp
+  ${BASE}/crash_handler.cpp
   ${BASE}/delayed_invoker.cpp
   ${BASE}/demangle.cpp
   ${BASE}/error.cpp
-  ${BASE}/errortrace.cpp
   ${BASE}/fs.cpp
   ${BASE}/guid.cpp
   ${BASE}/high_resolution_clock.cpp
   ${BASE}/home.cpp
-  ${BASE}/host_name.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/linux.cpp
   ${BASE}/metric.cpp
@@ -30,10 +30,12 @@ set( SRCS
   ${BASE}/serialize.cpp
   ${BASE}/small_vector.cpp
   ${BASE}/source_location.cpp
+  ${BASE}/stack_trace.cpp
   ${BASE}/thread.cpp
   ${BASE}/url.cpp
 )
 set( HDRS
+  ${BASE}/address.h
   ${BASE}/arcadia_helper.h
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
@@ -45,18 +47,17 @@ set( HDRS
   ${BASE}/checksum.h
   ${BASE}/codec.h
   ${BASE}/common.h
+  ${BASE}/crash_handler.h
   ${BASE}/delayed_invoker.h
   ${BASE}/demangle.h
   ${BASE}/enum.h
   ${BASE}/error.h
-  ${BASE}/errortrace.h
   ${BASE}/foreach.h
   ${BASE}/fs.h
   ${BASE}/guid.h
   ${BASE}/hash.h
   ${BASE}/high_resolution_clock.h
   ${BASE}/home.h
-  ${BASE}/host_name.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h
   ${BASE}/lazy_holder.h
@@ -75,6 +76,9 @@ set( HDRS
   ${BASE}/property.h
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h
+  ${BASE}/random-inl.h
+  ${BASE}/random.h
+  ${BASE}/raw_formatter.h
   ${BASE}/ref.h
   ${BASE}/ref_counted.h
   ${BASE}/ref_counted_tracker.h
@@ -86,6 +90,7 @@ set( HDRS
   ${BASE}/small_string.h
   ${BASE}/small_vector.h
   ${BASE}/source_location.h
+  ${BASE}/stack_trace.h
   ${BASE}/string.h
   ${BASE}/sync.h
   ${BASE}/tclap_helpers.h

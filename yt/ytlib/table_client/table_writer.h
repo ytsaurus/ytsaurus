@@ -43,7 +43,7 @@ public:
     //! Opens the writer.
     void Open();
 
-    void WriteRow(TRow& column, const TNonOwningKey& value);
+    void WriteRow(const TRow& column);
     void Close();
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;

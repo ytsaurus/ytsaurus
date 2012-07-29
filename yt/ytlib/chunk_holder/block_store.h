@@ -21,12 +21,12 @@ public:
     TCachedBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
-        const Stroka& source);
+        const TNullable<Stroka>& sourceAddress);
 
     ~TCachedBlock();
 
     DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
-    DEFINE_BYREF_RO_PROPERTY(Stroka, Source);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<Stroka>, SourceAddress);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,9 +38,8 @@ class TBlockStore
 public:
     //! Constructs a store.
     TBlockStore(
-        TChunkHolderConfigPtr config,
-        TChunkRegistryPtr chunkRegistry,
-        TReaderCachePtr readerCache);
+        TDataNodeConfigPtr config,
+        TBootstrap* bootstrap);
 
     ~TBlockStore();
 
@@ -54,7 +53,9 @@ public:
      * (i.e. requires no context switch). Fetching an uncached block
      * enqueues a disk-read action to the appropriate IO queue.
      */
-    TAsyncGetBlockResult GetBlock(const TBlockId& blockId);
+    TAsyncGetBlockResult GetBlock(
+        const TBlockId& blockId,
+        bool enableCaching);
 
     //! Tries to find a block in the cache.
     /*!
@@ -71,7 +72,7 @@ public:
     TCachedBlockPtr PutBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
-        const Stroka& source);
+        const TNullable<Stroka>& sourceAddress);
 
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
     std::vector<TCachedBlockPtr> GetAllBlocks() const;

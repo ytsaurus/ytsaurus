@@ -122,7 +122,7 @@ void AtomicWriteHeader(
     WritePod(tempFile, header);
     tempFile.Close();
 
-    Move(tempFileName, fileName);
+    CheckedMoveFile(tempFileName, fileName);
     fileHolder->Reset(new FileType(fileName, RdWr));
     (*fileHolder)->Seek(0, sEnd);
 }

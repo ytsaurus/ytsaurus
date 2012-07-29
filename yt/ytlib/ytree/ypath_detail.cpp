@@ -1,12 +1,10 @@
 #include "stdafx.h"
 #include "ypath_detail.h"
-
 #include "ypath_client.h"
 #include "tokenizer.h"
 #include "ypath_format.h"
 
 #include <ytlib/rpc/rpc.pb.h>
-
 #include <ytlib/bus/message.h>
 #include <ytlib/rpc/server_detail.h>
 #include <ytlib/rpc/message.h>
@@ -456,7 +454,7 @@ void TSupportsAttributes::ListAttribute(
 
     std::sort(keys.begin(), keys.end());
 
-    NYT::ToProto(response->mutable_keys(), keys);
+    response->set_keys(ConvertToYsonString(keys).Data());
     context->Reply();
 }
 
@@ -566,7 +564,7 @@ void TSupportsAttributes::RemoveAttribute(
     
     TTokenizer tokenizer(path);
 
-    if (!tokenizer.ParseNext()) {
+    if (!tokenizer.ParseNext() || tokenizer.CurrentToken().GetType() == WildcardToken) {
         if (userAttributes) {
             auto userKeys = userAttributes->List();
             FOREACH (const auto& key, userKeys) {
@@ -693,7 +691,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
+TNodeSetterBase::TNodeSetterBase(INodePtr node, ITreeBuilder* builder)
     : Node(node)
     , TreeBuilder(builder)
     , NodeFactory(node->CreateFactory())

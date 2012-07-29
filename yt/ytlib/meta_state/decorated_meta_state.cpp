@@ -1,10 +1,11 @@
 #include "stdafx.h"
 #include "decorated_meta_state.h"
-#include "common.h"
+#include "private.h"
 #include "change_log_cache.h"
 #include "snapshot_store.h"
 #include "meta_state.h"
 #include "snapshot.h"
+#include "serialize.h"
 
 #include <ytlib/actions/callback.h>
 #include <ytlib/profiling/profiler.h>
@@ -14,8 +15,8 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("/meta_state");
+static NLog::TLogger& Logger = MetaStateLogger;
+static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,17 +32,17 @@ TDecoratedMetaState::TDecoratedMetaState(
     , ChangeLogCache(changeLogCache)
     , Started(false)
 {
-    YASSERT(state);
-    YASSERT(stateInvoker);
-    YASSERT(snapshotStore);
-    YASSERT(changeLogCache);
+    YCHECK(state);
+    YCHECK(stateInvoker);
+    YCHECK(snapshotStore);
+    YCHECK(changeLogCache);
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 }
 
 void TDecoratedMetaState::Start()
 {
-    YASSERT(!Started);
+    YCHECK(!Started);
     ComputeReachableVersion();
     Started = true;
 }
@@ -49,7 +50,7 @@ void TDecoratedMetaState::Start()
 void TDecoratedMetaState::SetEpoch(const TEpoch& epoch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(Started);
+    YCHECK(Started);
     Epoch = epoch;
 }
 
@@ -67,7 +68,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
         // Let's pretend we have snapshot 0.
         maxSnapshotId = 0;
     } else {
-        LOG_INFO("Latest snapshot is %d", maxSnapshotId);
+        LOG_INFO("Found latest snapshot %d", maxSnapshotId);
     }
 
     auto currentVersion = TMetaVersion(maxSnapshotId, 0);
@@ -82,7 +83,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
         auto changeLog = result.Value();
         bool isFinal = !ChangeLogCache->Get(segmentId + 1).IsOK();
 
-        LOG_DEBUG("Found changelog (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+        LOG_DEBUG("Found changelog %d (RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),
@@ -122,8 +123,8 @@ void TDecoratedMetaState::Clear()
 
 void TDecoratedMetaState::Save(TOutputStream* output)
 {
-    YASSERT(output);
-    YASSERT(Started);
+    YCHECK(output);
+    YCHECK(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     State->Save(output);
@@ -133,8 +134,8 @@ void TDecoratedMetaState::Load(
     i32 segmentId,
     TInputStream* input)
 {
-    YASSERT(input);
-    YASSERT(Started);
+    YCHECK(input);
+    YCHECK(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     LOG_INFO("Started loading snapshot %d", segmentId);
@@ -149,15 +150,17 @@ void TDecoratedMetaState::Load(
     LOG_INFO("Finished loading snapshot");
 }
 
-void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
+void TDecoratedMetaState::ApplyMutation(const TSharedRef& recordData)
 {
     YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     try {
-        State->ApplyChange(changeData);
+        EnterMutation(recordData);
+        State->ApplyMutation(*MutationContext);
+        LeaveMutation();
     } catch (const std::exception& ex) {
-        LOG_FATAL("Error applying change (Version: %s)\n%s",
+        LOG_FATAL("Error applying mutation (Version: %s)\n%s",
             ~Version.ToString(),
             ex.what());
     }
@@ -165,16 +168,19 @@ void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
     IncrementRecordCount();
 }
 
-void TDecoratedMetaState::ApplyChange(const TClosure& changeAction)
+void TDecoratedMetaState::ApplyMutation(
+    const TSharedRef& recordData,
+    const TClosure& mutationAction)
 {
-    YASSERT(!changeAction.IsNull());
     YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     try {
-        changeAction.Run();
+        EnterMutation(recordData);
+        mutationAction.Run();
+        LeaveMutation();
     } catch (const std::exception& ex) {
-        LOG_FATAL("Error applying change (Version: %s)\n%s",
+        LOG_FATAL("Error applying mutation (Version: %s)\n%s",
             ~Version.ToString(),
             ex.what());
     }
@@ -202,15 +208,15 @@ TCachedAsyncChangeLogPtr TDecoratedMetaState::GetCurrentChangeLog()
     return CurrentChangeLog;
 }
 
-TAsyncChangeLog::TAppendResult TDecoratedMetaState::LogChange(
+TFuture<void> TDecoratedMetaState::LogMutation(
     const TMetaVersion& version,
-    const TSharedRef& changeData)
+    const TSharedRef& recordData)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(version.SegmentId == Version.SegmentId);
 
     auto changeLog = GetCurrentChangeLog();
-    return changeLog->Append(version.RecordCount, changeData);
+    return changeLog->Append(version.RecordCount, recordData);
 }
 
 void TDecoratedMetaState::AdvanceSegment()
@@ -226,7 +232,7 @@ void TDecoratedMetaState::AdvanceSegment()
 
 void TDecoratedMetaState::RotateChangeLog()
 {
-    YASSERT(Started);
+    YCHECK(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto changeLog = GetCurrentChangeLog();
@@ -284,6 +290,31 @@ void TDecoratedMetaState::UpdateVersion(const TMetaVersion& newVersion)
     TGuard<TSpinLock> guard(VersionSpinLock);
     Version = newVersion;
     ReachableVersion = Max(ReachableVersion, Version);
+}
+
+TMutationContext* TDecoratedMetaState::GetMutationContext()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    return ~MutationContext;
+}
+
+void TDecoratedMetaState::EnterMutation(const TSharedRef& recordData)
+{
+    NProto::TMutationHeader mutationHeader;
+    TSharedRef mutationData;
+    DeserializeMutationRecord(recordData, &mutationHeader, &mutationData);
+    MutationContext.Reset(new TMutationContext(
+        Version,
+        mutationHeader.mutation_type(),
+        mutationData,
+        TInstant(mutationHeader.timestamp()),
+        mutationHeader.random_seed()));
+}
+
+void TDecoratedMetaState::LeaveMutation()
+{
+    MutationContext.Destroy();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

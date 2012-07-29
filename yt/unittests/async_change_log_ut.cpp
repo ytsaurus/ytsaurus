@@ -23,7 +23,7 @@ protected:
     TChangeLogPtr ChangeLog;
     THolder<TAsyncChangeLog> AsyncChangeLog;
 
-    TActionQueue::TPtr ActionQueue;
+    TActionQueuePtr ActionQueue;
     IInvokerPtr Invoker;
 
     virtual void SetUp()

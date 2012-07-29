@@ -9,7 +9,7 @@
 #include <ytlib/cell_scheduler/bootstrap.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ytree.h>
@@ -18,7 +18,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 using namespace NChunkServer;
 
@@ -72,8 +72,10 @@ public:
                 ythrow yexception() << Sprintf("Failed to get operations list\n%s",
                     ~rsp->GetError().ToString());
             }
-            LOG_INFO("Found %d operations", rsp->keys_size());
-            FOREACH (const auto& key, rsp->keys()) {
+            auto keys = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->keys()));
+            LOG_INFO("Found %d operations", static_cast<int>(keys.size()));
+
+            FOREACH (const auto& key, keys) {
                 operationIds.push_back(TOperationId::FromString(key));
             }
         }
@@ -255,9 +257,9 @@ private:
 
     NTransactionClient::ITransactionPtr BootstrapTransaction;
 
-    TPeriodicInvoker::TPtr TransactionRefreshInvoker;
-    TPeriodicInvoker::TPtr ExecNodesRefreshInvoker;
-    TPeriodicInvoker::TPtr OperationNodesUpdateInvoker;
+    TPeriodicInvokerPtr TransactionRefreshInvoker;
+    TPeriodicInvokerPtr ExecNodesRefreshInvoker;
+    TPeriodicInvokerPtr OperationNodesUpdateInvoker;
 
     struct TOperationUpdateList
     {
@@ -350,7 +352,10 @@ private:
                     .Item("opaque").Scalar("true")
                 .EndAttributes()
                 .BeginMap()
-                    .Item("jobs").BeginMap()
+                    .Item("jobs").BeginAttributes()
+                        .Item("opaque").Scalar("true")
+                    .EndAttributes()
+                    .BeginMap()
                     .EndMap()
                 .EndMap().GetYsonString();
     }
@@ -377,11 +382,7 @@ private:
 
     TOperationPtr ParseOperationYson(const TOperationId& operationId, const TYsonString& yson)
     {
-        // TODO(babenko): simplify
-        auto node = ConvertToNode(yson)->AsMap();
-        auto attributes = CreateEphemeralAttributes();
-        attributes->MergeFrom(node);
-
+        auto attributes = ConvertToAttributes(yson);
         return New<TOperation>(
             operationId,
             attributes->Get<EOperationType>("operation_type"),
@@ -702,7 +703,7 @@ private:
             return rsp->GetError();
         }
 
-        LOG_ERROR("Operation node created successfully (OperationId: %s)",
+        LOG_INFO("Operation node created successfully (OperationId: %s)",
             ~operationId.ToString());
 
         return TError();

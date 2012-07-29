@@ -3,21 +3,31 @@
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
+#include "job_resources.h"
 
 #include <ytlib/transaction_client/transaction.h>
+
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+
 #include <ytlib/object_server/object_ypath_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/convert.h>
+
 #include <ytlib/formats/format.h>
+
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
+#include <ytlib/table_client/key.h>
 
 #include <cmath>
 
 namespace NYT {
 namespace NScheduler {
 
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NFileServer;
 using namespace NTableServer;
@@ -25,7 +35,7 @@ using namespace NChunkServer;
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NFormats;
-using namespace NTableClient::NProto;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -39,11 +49,23 @@ i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
     return ChunkPool->GetLocality(address);
 }
 
+int TOperationControllerBase::TTask::GetPriority() const
+{
+    return 0;
+}
+
 void TOperationControllerBase::TTask::AddStripe(TChunkStripePtr stripe)
 {
     ChunkPool->Add(stripe);
     AddInputLocalityHint(stripe);
     AddPendingHint();
+}
+
+void TOperationControllerBase::TTask::AddStripes(const std::vector<TChunkStripePtr>& stripes)
+{
+    FOREACH (auto stripe, stripes) {
+        AddStripe(stripe);
+    }
 }
 
 TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
@@ -58,15 +80,26 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     auto weightThreshold = GetJobWeightThreshold();
     jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold);
 
-    LOG_DEBUG("Chunks extracted (Address: %s, TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
-        ~node->GetAddress(),
+    LOG_DEBUG("Chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
         jip->PoolResult->TotalChunkCount,
         jip->PoolResult->LocalChunkCount,
         jip->PoolResult->TotalChunkWeight,
         ~ToString(weightThreshold));
 
-    auto jobSpec = GetJobSpec(jip);
-    jip->Job = Controller->Host->CreateJob(Controller->Operation, node, jobSpec);
+    NProto::TJobSpec jobSpec;
+    BuildJobSpec(jip, &jobSpec);
+
+    *jobSpec.mutable_resource_utilization() = GetRequestedResourcesForJip(jip);
+
+    LOG_DEBUG("Job prepared (Utilization: {%s})",
+        ~FormatResources(jobSpec.resource_utilization()));
+
+    jip->Job = Controller->Host->CreateJob(
+        EJobType(jobSpec.type()),
+        Controller->Operation,
+        node);
+    jip->Job->Spec().Swap(&jobSpec);
+
     Controller->RegisterJobInProgress(jip);
 
     OnJobStarted(jip);
@@ -175,10 +208,24 @@ void TOperationControllerBase::TTask::AddInputChunks(
 {
     FOREACH (const auto& weightedChunk, stripe->Chunks) {
         auto* inputChunk = inputSpec->add_chunks();
-        *inputChunk = weightedChunk.InputChunk;
+        *inputChunk = *weightedChunk.InputChunk;
         inputChunk->set_data_weight(weightedChunk.DataWeightOverride);
         inputChunk->set_row_count(weightedChunk.RowCountOverride);
     }
+}
+
+NProto::TNodeResources TOperationControllerBase::TTask::GetRequestedResourcesForJip(TJobInProgressPtr jip) const
+{
+    UNUSED(jip);
+    return GetMinRequestedResources();
+}
+
+bool TOperationControllerBase::TTask::HasEnoughResources(TExecNodePtr node) const
+{
+    return NScheduler::HasEnoughResources(
+        node->ResourceUtilization(),
+        GetMinRequestedResources(),
+        node->ResourceLimits());
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -208,10 +255,7 @@ void TOperationControllerBase::Initialize()
     
     LOG_INFO("Initializing operation");
 
-    ExecNodeCount = Host->GetExecNodeCount();
-    if (ExecNodeCount == 0) {
-        ythrow yexception() << "No online exec nodes";
-    }
+    ExecNodeCount = static_cast<int>(Host->GetExecNodes().size());
 
     FOREACH (const auto& path, GetInputTablePaths()) {
         TInputTable table;
@@ -246,6 +290,11 @@ void TOperationControllerBase::Initialize()
 
 void TOperationControllerBase::DoInitialize()
 { }
+
+void TOperationControllerBase::DoGetProgress(IYsonConsumer* consumer)
+{
+    UNUSED(consumer);
+}
 
 TFuture<void> TOperationControllerBase::Prepare()
 {
@@ -308,13 +357,15 @@ TFuture<void> TOperationControllerBase::Commit()
         ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
         ->Run()
-        .Apply(BIND([=] (TValueOrError<void> result) {
+        .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
             Active = false;
             if (result.IsOK()) {
                 LOG_INFO("Operation committed");
+                return MakeFuture();
             } else {
                 LOG_WARNING("Operation has failed to commit\n%s", ~result.ToString());
                 this_->Host->OnOperationFailed(this_->Operation, result);
+                return NewPromise<void>();
             }
         }));
 }
@@ -420,6 +471,15 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
         return NULL;
     }
 
+    // Make a course check to see if the node has enough resources.
+    if (!HasEnoughResources(
+            node->ResourceUtilization(),
+            GetMinRequestedResources(),
+            node->ResourceLimits()))
+    {
+        return NULL;
+    }
+
     auto job = DoScheduleJob(node);
     if (job) {
         ++RunningJobCount;
@@ -452,7 +512,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 {
     FOREACH (const auto& chunk, stripe->Chunks) {
         const auto& inputChunk = chunk.InputChunk;
-        FOREACH (const auto& address, inputChunk.node_addresses()) {
+        FOREACH (const auto& address, inputChunk->node_addresses()) {
             AddTaskLocalityHint(task, address);
         }
     }
@@ -460,85 +520,73 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 
 TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
 {
-    // Look for local tasks first.
-    auto address = node->GetAddress();
-    auto localIt = AddressToLocalTasks.find(address);
-    if (localIt != AddressToLocalTasks.end()) {
-        // Find the best with max locality among hinted ones.
-        // Perform lazy cleanup of locality hints.
-        auto& candidates = localIt->second;
-        TTaskPtr bestTask = NULL;
-        i64 bestLocality = 0;
-        auto it = candidates.begin();
-        while (it != candidates.end()) {
-            auto jt = it++;
-            const auto& candidate = *jt;
-            bool isValid = false;
-            if (candidate->GetPendingJobCount() > 0) {
-                i64 locality = candidate->GetLocality(address);
-                if (locality > 0) {
-                    if (locality > bestLocality) {
-                        bestTask = candidate;
-                        bestLocality = locality;
-                    }
-                } else {
-                    LOG_TRACE("Task locality hint removed (Task: %s, Address: %s)",
-                        ~candidate->GetId(),
-                        ~address);
-                    candidates.erase(jt);
-                }
-            }
-        }
-
-        if (bestTask) {
-            // Reset locality timestamp and run custom scheduling.
-            bestTask->SetNonLocalRequestTime(Null);
-            LOG_DEBUG("Scheduling a local job (Task: %s, Address: %s, Locality: %" PRId64 ")",
-                ~bestTask->GetId(),
-                ~node->GetAddress(),
-                bestLocality);
-            return bestTask->ScheduleJob(node);
-        }
-    }
-
-    // Examine all (potentially) pending tasks.
+    // Examine all (potentially) pending tasks, pick one with the best priority.
     // Perform lazy cleanup of pending hints.
-    {
-        auto now = TInstant::Now();
-        TTaskPtr feasibleTask = NULL;
-        auto it = PendingTasks.begin();
-        while (it != PendingTasks.end()) {
-            auto jt = it++;
-            auto candidate = *jt;
-            bool isValid = false;
-            if (candidate->GetPendingJobCount() > 0) {
-                // Check for locality timeout.
-                if (!candidate->GetNonLocalRequestTime()) {
-                    candidate->SetNonLocalRequestTime(now);
-                }
-                if (candidate->GetNonLocalRequestTime().Get() + candidate->GetMaxLocalityDelay() <= now) {
-                    feasibleTask = candidate;
-                }
-            } else {
-                LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
-                PendingTasks.erase(jt);
+
+    auto address = node->GetAddress();
+
+    TTaskPtr bestTask;
+
+    typedef std::pair<int, i64> TWeightedLocality;
+    TWeightedLocality bestLocality(-1, -1);
+
+    auto now = TInstant::Now();
+    auto it = PendingTasks.begin();
+    while (it != PendingTasks.end()) {
+        auto jt = it++;
+        auto candidate = *jt;
+
+        if (candidate->GetPendingJobCount() == 0 ) {
+            LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
+            PendingTasks.erase(jt);
+            continue;
+        }
+
+        if (!candidate->HasEnoughResources(node)) {
+            continue;
+        }
+
+        TWeightedLocality locality(candidate->GetPriority(), candidate->GetLocality(address));
+        if (locality.second < 0) {
+            continue;
+        }
+
+        if (locality.second == 0) {
+            if (!candidate->GetNonLocalRequestTime()) {
+                candidate->SetNonLocalRequestTime(now);
+            }
+            if (candidate->GetNonLocalRequestTime().Get() + candidate->GetLocalityTimeout() > now) {
+                continue;
             }
         }
 
-        if (feasibleTask) {
-            LOG_DEBUG("Scheduling a non-local job (Task: %s, Address: %s, LocalityDelay: %s)",
-                ~feasibleTask->GetId(),
-                ~node->GetAddress(),
-                ~ToString(now - feasibleTask->GetNonLocalRequestTime().Get()));
-            auto job = feasibleTask->ScheduleJob(node);
-            if (job) {
-                feasibleTask->SetNonLocalRequestTime(Null);
-                return job;
-            }
+        if (locality > bestLocality) {
+            bestTask = candidate;
+            bestLocality = locality;
         }
     }
 
-    return NULL;
+    if (!bestTask) {
+        return NULL;
+    }
+
+    LOG_DEBUG("Scheduling a %s job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ")",
+        bestLocality.second == 0 ? "non-local" : "local",
+        ~bestTask->GetId(),
+        ~node->GetAddress(),
+        bestLocality.first,
+        bestLocality.second);
+
+    auto job = bestTask->ScheduleJob(node);
+    if (!job) {
+        return NULL;
+    }
+
+    if (bestLocality.second > 0) {
+        bestTask->SetNonLocalRequestTime(Null);
+    }
+
+    return job;
 }
 
 int TOperationControllerBase::GetPendingJobCount()
@@ -661,6 +709,13 @@ void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecu
         auto rsps = batchRsp->GetResponses("attach_out");
         FOREACH (auto rsp, rsps) {
             CheckResponse(rsp, "Error attaching chunk trees");
+        }
+    }
+
+    {
+        auto rsps = batchRsp->GetResponses("set_out_sorted");
+        FOREACH (auto rsp, rsps) {
+            CheckResponse(rsp, "Error marking output table as sorted");
         }
     }
 
@@ -881,19 +936,18 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "get_out_channels");
         }
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(ypath, OutputTransaction->GetId()));
-            batchReq->AddRequest(req, "get_out_chunk_list");
-        }
-        {
             auto req = TYPathProxy::Get(WithTransaction(ypath, OutputTransaction->GetId()) + "/@row_count");
             batchReq->AddRequest(req, "get_out_row_count");
         }
         {
             auto req = TTableYPathProxy::Clear(WithTransaction(ypath, OutputTransaction->GetId()));
-            // If |Clear| is false then we add a dummy request to keep "clear_out" requests aligned with output tables.
-            batchReq->AddRequest(
-                table.Clear ? req : NULL,
-                "clear_out");
+            // Even if |Clear| is False we still add a dummy request
+            // to keep "clear_out" requests aligned with output tables.
+            batchReq->AddRequest(table.Clear ? req : NULL, "clear_out");
+        }
+        {
+            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(ypath, OutputTransaction->GetId()));
+            batchReq->AddRequest(req, "get_out_chunk_list");
         }
     }
 
@@ -997,7 +1051,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.Channels = TYsonString(rsp->value());
                 LOG_INFO("Output table %s has channels %s",
                     ~table.Path,
-                    // TODO(babenko): refactor
                     ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data());
             }
             {
@@ -1006,6 +1059,14 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error getting \"row_count\" attribute for output table %s", ~table.Path));
                 table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
+            }
+            if (table.Clear) {
+                auto rsp = clearOutRsps[index];
+                CheckResponse(
+                    rsp,
+                    Sprintf("Error clearing output table %s", ~table.Path));
+                LOG_INFO("Output table %s was cleared successfully",
+                    ~table.Path);
             }
             {
                 auto rsp = getOutChunkListRsps[index];
@@ -1016,14 +1077,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 LOG_INFO("Output table %s has output chunk list %s",
                     ~table.Path,
                     ~table.OutputChunkListId.ToString());
-            }
-            if (table.Clear) {
-                auto rsp = clearOutRsps[index];
-                CheckResponse(
-                    rsp,
-                    Sprintf("Error clearing output table %s", ~table.Path));
-                LOG_INFO("Output table %s was cleared successfully",
-                    ~table.Path);
             }
         }
     }
@@ -1115,6 +1168,71 @@ void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExe
     }
 }
 
+std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTablesChunks()
+{
+    // TODO(babenko): set row_attributes
+    std::vector<TRefCountedInputChunkPtr> result;
+    FOREACH (const auto& table, InputTables) {
+        FOREACH (const auto& inputChunk, table.FetchResponse->chunks()) {
+            result.push_back(New<TRefCountedInputChunk>(inputChunk));
+        }
+    }
+    return result;
+}
+
+std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
+    const std::vector<TRefCountedInputChunkPtr>& inputChunks,
+    TNullable<int> jobCount,
+    i64 jobSliceWeight)
+{
+    using ::ToString;
+
+    i64 sliceWeight = jobSliceWeight;
+    if (jobCount) {
+        i64 totalWeight = 0;
+        FOREACH (auto inputChunk, inputChunks) {
+            totalWeight += inputChunk->data_weight();
+        }
+        sliceWeight = std::min(sliceWeight, totalWeight / jobCount.Get() + 1);
+    }
+
+    YCHECK(sliceWeight > 0);
+
+    LOG_DEBUG("Preparing chunk stripes (ChunkCount: %d, JobCount: %s, JobSliceWeight: %" PRId64 ", SliceWeight: %" PRId64 ")",
+        static_cast<int>(inputChunks.size()),
+        ~ToString(jobCount),
+        jobSliceWeight,
+        sliceWeight);
+
+    std::vector<TChunkStripePtr> result;
+
+    // Ensure that no input chunk has weight larger than sliceWeight.
+    FOREACH (auto inputChunk, inputChunks) {
+        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
+        if (inputChunk->data_weight() > sliceWeight) {
+            int sliceCount = (int) std::ceil((double) inputChunk->data_weight() / (double) sliceWeight);
+            auto slicedInputChunks = SliceChunkEvenly(*inputChunk, sliceCount);
+            FOREACH (auto slicedInputChunk, slicedInputChunks) {
+                auto stripe = New<TChunkStripe>(slicedInputChunk);
+                result.push_back(stripe);
+            }
+            LOG_DEBUG("Slicing chunk (ChunkId: %s, SliceCount: %d)",
+                ~chunkId.ToString(),
+                sliceCount);
+        } else {
+            auto stripe = New<TChunkStripe>(inputChunk);
+            result.push_back(stripe);
+            LOG_DEBUG("Taking whole chunk (ChunkId: %s)",
+                ~chunkId.ToString());
+        }
+    }
+
+    LOG_DEBUG("Chunk stripes prepared (StripeCount: %d)",
+        static_cast<int>(result.size()));
+
+    return result;
+}
+
 std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns)
 {
     YCHECK(!InputTables.empty());
@@ -1176,7 +1294,14 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
     }
 }
 
-void TOperationControllerBase::SetOutputTablesSorted(const std::vector<Stroka>& keyColumns)
+void TOperationControllerBase::ScheduleClearOutputTables()
+{
+    FOREACH (auto& table, OutputTables) {
+        table.Clear = true;
+    }
+}
+
+void TOperationControllerBase::ScheduleSetOutputTablesSorted(const std::vector<Stroka>& keyColumns)
 {
     FOREACH (auto& table, OutputTables) {
         table.SetSorted = true;

@@ -151,7 +151,7 @@ Stroka TCreateExecutor::GetCommandName() const
 TLockExecutor::TLockExecutor()
     : TTransactedExecutor(true)
     , PathArg("path", "path to an object in Cypress that must be locked", true, "", "YPATH")
-    , ModeArg("", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive")
+    , ModeArg("", "mode", "lock mode", false, NCypressClient::ELockMode::Exclusive, "snapshot, shared, exclusive")
 {
     CmdLine.add(PathArg);
     CmdLine.add(ModeArg);
@@ -171,6 +171,62 @@ void TLockExecutor::BuildArgs(IYsonConsumer* consumer)
 Stroka TLockExecutor::GetCommandName() const
 {
     return "lock";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCopyExecutor::TCopyExecutor()
+    : TTransactedExecutor(false)
+    , SourcePathArg("src_path", "path to a source object in Cypress", true, "", "YPATH")
+    , DestinationPathArg("dst_path", "destination path in Cypress", true, "", "YPATH")
+{
+    CmdLine.add(SourcePathArg);
+    CmdLine.add(DestinationPathArg);
+}
+
+void TCopyExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto sourcePath = PreprocessYPath(SourcePathArg.getValue());
+    auto destinationPath = PreprocessYPath(DestinationPathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("source_path").Scalar(sourcePath)
+        .Item("destination_path").Scalar(destinationPath);
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TCopyExecutor::GetCommandName() const
+{
+    return "copy";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMoveExecutor::TMoveExecutor()
+    : TTransactedExecutor(false)
+    , SourcePathArg("src_path", "path to a source object in Cypress", true, "", "YPATH")
+    , DestinationPathArg("dst_path", "destination path in Cypress", true, "", "YPATH")
+{
+    CmdLine.add(SourcePathArg);
+    CmdLine.add(DestinationPathArg);
+}
+
+void TMoveExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto sourcePath = PreprocessYPath(SourcePathArg.getValue());
+    auto destinationPath = PreprocessYPath(DestinationPathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("source_path").Scalar(sourcePath)
+        .Item("destination_path").Scalar(destinationPath);
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TMoveExecutor::GetCommandName() const
+{
+    return "move";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

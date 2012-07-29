@@ -5,6 +5,7 @@
 #include "exec_node.h"
 #include "job.h"
 #include "operation_controller.h"
+#include "job_resources.h"
 
 namespace NYT {
 namespace NScheduler {
@@ -33,19 +34,13 @@ public:
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort)
     {
-        // TODO(babenko): fixme
         // Process operations in FIFO order asking them to perform job scheduling.
-        // Stop when no free slots are left.
-        // Try not to schedule more then 2 jobs from an operation to a node (no guarantees, though).
-        int freeCount = node->Utilization().free_slot_count();
-        int allocatedCount = 0;
+        // Stop when no spare resources are left (coarse check).
         FOREACH (auto operation, Queue) {
-            while (freeCount > 0 && allocatedCount <= 2) {
+            while (HasSpareResources(node->ResourceUtilization(), node->ResourceLimits())) {
                 if (operation->GetState() != EOperationState::Running) {
                     break;
                 }
-            
-                int startCountBefore = static_cast<int>(jobsToStart->size());
             
                 auto job = operation->GetController()->ScheduleJob(node);
                 if (!job) {
@@ -53,9 +48,10 @@ public:
                 }
 
                 jobsToStart->push_back(job);
-                --freeCount;
-                ++allocatedCount;
-                node->Utilization().set_free_slot_count(freeCount);
+
+                IncreaseResourceUtilization(
+                    &node->ResourceUtilization(),
+                    job->Spec().resource_utilization());
             }
         }
     }

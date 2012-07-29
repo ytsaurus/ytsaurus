@@ -251,26 +251,30 @@ TEST(TTskvWriterTest, Escaping)
 
     writer.OnListItem();
     writer.OnBeginMap();
-    writer.OnEndMap();
-
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("a=b");
-        writer.OnStringScalar("c=d");
-    writer.OnEndMap();
-
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key_with_\t");
-        writer.OnStringScalar("value_with_\t,\\_and_\n");
-        writer.OnKeyedItem("another_key");
-        writer.OnStringScalar("another_value");
+        writer.OnKeyedItem(Stroka("\0 is escaped", 12));
+        writer.OnStringScalar(Stroka("\0 is escaped", 12));
+        writer.OnKeyedItem("Escaping in in key: \t \n \\ =");
+        writer.OnStringScalar("Escaping in value: \t \n \\ =");
     writer.OnEndMap();
 
     Stroka output =
-        "tskv\n"
-        "tskv\t" "a\\=b=c\\=d\n"
-        "tskv\t" "key_with_\\\t=value_with_\\\t,\\\\_and_\\\n" "\tanother_key=another_value\n";
+        "tskv"
+        "\t"
+
+        "\\0 is escaped"
+        "="
+        "\\0 is escaped"
+
+        "\t"
+
+        "Escaping in in key: \\t \\n \\\\ \\="
+        "="
+        "Escaping in value: \\t \\n \\\\ =" // Note: = is not escaped
+
+        "\n";
+
+    Cout << outputStream.Str();
+    Cout << output;
 
     EXPECT_EQ(outputStream.Str(), output);
 }

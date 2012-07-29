@@ -36,10 +36,11 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, ReadChangeLog);
     DEFINE_RPC_PROXY_METHOD(NProto, GetSnapshotInfo);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChangeLogInfo);
-    DEFINE_RPC_PROXY_METHOD(NProto, ApplyChanges);
+    DEFINE_RPC_PROXY_METHOD(NProto, ApplyMutations);
     DEFINE_RPC_PROXY_METHOD(NProto, AdvanceSegment);
     DEFINE_RPC_PROXY_METHOD(NProto, PingFollower);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetQuorum);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

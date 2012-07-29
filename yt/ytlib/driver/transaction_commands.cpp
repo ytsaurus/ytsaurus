@@ -4,7 +4,7 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
@@ -13,7 +13,7 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +24,8 @@ void TStartTransactionCommand::DoExecute()
     auto transactionManager = Context->GetTransactionManager();
     auto newTransaction = transactionManager->Start(
         ~attributes,
-        Request->TransactionId);
+        Request->TransactionId,
+        Request->PingAncestorTransactions);
 
     BuildYsonFluently(~Context->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
@@ -37,7 +38,9 @@ void TStartTransactionCommand::DoExecute()
 void TRenewTransactionCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(GetTransactionId(true)));
+    auto req = TTransactionYPathProxy::RenewLease(
+        FromObjectId(GetTransactionId(true)));
+    req->set_renew_ancestors(Request->PingAncestorTransactions);
     auto rsp = proxy.Execute(req).Get();
 
     if (!rsp->IsOK()) {

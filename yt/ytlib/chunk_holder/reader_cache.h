@@ -16,7 +16,7 @@ class TReaderCache
 {
 public:
     //! Constructs a new instance.
-    TReaderCache(TChunkHolderConfigPtr config);
+    TReaderCache(TDataNodeConfigPtr config);
 
     ~TReaderCache();
 

@@ -1,7 +1,9 @@
 #pragma once
 
+#include "public.h"
 #include "async_writer.h"
 #include "format.h"
+
 #include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <util/system/file.h>
@@ -16,10 +18,8 @@ class TFileWriter
     : public IAsyncWriter
 {
 public:
-    typedef TIntrusivePtr<TFileWriter> TPtr;
-
     //! Creates a new writer.
-    explicit TFileWriter(const Stroka& fileName);
+    TFileWriter(const Stroka& fileName, bool directMode = false);
 
     virtual void Open();
 
@@ -40,6 +40,7 @@ private:
     Stroka FileName;
     bool IsOpen;
     bool IsClosed;
+    const bool DirectMode;
     i64 DataSize;
     THolder<TFile> DataFile;
     NChunkHolder::NProto::TChunkInfo ChunkInfo;

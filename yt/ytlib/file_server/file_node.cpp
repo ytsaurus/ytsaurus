@@ -13,10 +13,11 @@ namespace NFileServer {
 
 using namespace NCellMaster;
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NChunkServer;
 using namespace NTransactionServer;
-using namespace NCypress::NProto;
+using namespace NObjectServer;
+using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,11 +28,6 @@ static NLog::TLogger& Logger = FileServerLogger;
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(NULL)
-{ }
-
-TFileNode::TFileNode(const TVersionedNodeId& id, const TFileNode& other)
-    : TCypressNodeBase(id, other)
-    , ChunkList_(other.ChunkList_)
 { }
 
 EObjectType TFileNode::GetObjectType() const
@@ -54,7 +50,7 @@ void TFileNode::Load(const TLoadContext& context, TInputStream* input)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeTypeHandler
-    : public NCypress::TCypressNodeTypeHandlerBase<TFileNode>
+    : public NCypressServer::TCypressNodeTypeHandlerBase<TFileNode>
 {
 public:
     typedef TCypressNodeTypeHandlerBase<TFileNode> TBase;
@@ -73,7 +69,7 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual TNodeId CreateDynamic(
+    virtual TAutoPtr<ICypressNode> CreateDynamic(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response)
@@ -109,12 +105,11 @@ public:
         children.push_back(TChunkTreeRef(chunk));
         chunkManager->AttachToChunkList(chunkList, children);
 
-        cypressManager->RegisterNode(transaction, node.Release());
-
-        return nodeId;
+        // TODO(babenko): Release is needed due to cast to ICypressNode.
+        return node.Release();
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         TTransaction* transaction)
     {
@@ -135,11 +130,8 @@ protected:
 
     virtual void DoBranch(const TFileNode* originatingNode, TFileNode* branchedNode)
     {
-        UNUSED(originatingNode);
-
-        // branchedNode is a copy of originatingNode.
-        // Reference the list chunk from branchedNode.
-        auto* chunkList = branchedNode->GetChunkList();
+        auto* chunkList = originatingNode->GetChunkList();
+        branchedNode->SetChunkList(chunkList);
         Bootstrap->GetObjectManager()->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
     }
@@ -148,7 +140,6 @@ protected:
     {
         UNUSED(originatingNode);
 
-        // Drop the reference from branchedNode.
         auto* chunkList = branchedNode->GetChunkList();
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
         YVERIFY(chunkList->OwningNodes().erase(branchedNode) == 1);

@@ -2,21 +2,24 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state )
 set( SRCS
   ${BASE}/async_change_log.cpp
-  ${BASE}/change_committer.cpp
   ${BASE}/change_log.cpp
   ${BASE}/change_log_cache.cpp
   ${BASE}/change_log_downloader.cpp
   ${BASE}/change_log_impl.cpp
-  ${BASE}/common.cpp
   ${BASE}/composite_meta_state.cpp
-  ${BASE}/composite_meta_state_detail.cpp
   ${BASE}/decorated_meta_state.cpp
   ${BASE}/file_helpers.cpp
   ${BASE}/follower_pinger.cpp
   ${BASE}/follower_tracker.cpp
+  ${BASE}/leader_channel.cpp
+  ${BASE}/master_discovery.cpp
   ${BASE}/meta_state_manager.cpp
+  ${BASE}/mutation_committer.cpp
+  ${BASE}/mutation_context.cpp
   ${BASE}/persistent_state_manager.cpp
+  ${BASE}/private.cpp
   ${BASE}/recovery.cpp
+  ${BASE}/serialize.cpp
   ${BASE}/snapshot.cpp
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
@@ -25,32 +28,34 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/async_change_log.h
-  ${BASE}/change_committer.h
   ${BASE}/change_log.h
   ${BASE}/change_log_cache.h
   ${BASE}/change_log_downloader.h
   ${BASE}/change_log_impl.h
-  ${BASE}/common.h
   ${BASE}/composite_meta_state-inl.h
   ${BASE}/composite_meta_state.h
-  ${BASE}/composite_meta_state_detail-inl.h
-  ${BASE}/composite_meta_state_detail.h
   ${BASE}/config.h
   ${BASE}/decorated_meta_state.h
   ${BASE}/file_helpers.h
   ${BASE}/follower_pinger.h
   ${BASE}/follower_tracker.h
+  ${BASE}/leader_channel.h
   ${BASE}/map-inl.h
   ${BASE}/map.h
-  ${BASE}/meta_change-inl.h
-  ${BASE}/meta_change.h
+  ${BASE}/master_discovery.h
   ${BASE}/meta_state.h
   ${BASE}/meta_state_manager.h
   ${BASE}/meta_state_manager_proxy.h
   ${BASE}/meta_version.h
+  ${BASE}/mutation-inl.h
+  ${BASE}/mutation.h
+  ${BASE}/mutation_committer.h
+  ${BASE}/mutation_context.h
   ${BASE}/persistent_state_manager.h
+  ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/recovery.h
+  ${BASE}/serialize.h
   ${BASE}/snapshot.h
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h

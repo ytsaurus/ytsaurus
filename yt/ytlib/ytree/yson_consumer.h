@@ -9,7 +9,7 @@ namespace NYTree {
 
 //! A SAX-like interface to YTree.
 /*!
- *  Describes a bunch of events that are raised during a YTree traversal.
+ *  Describes a bunch of events that are raised during YTree traversal.
  */
 struct IYsonConsumer
 {
@@ -43,8 +43,6 @@ struct IYsonConsumer
      *  - #OnBeginList
      *  - For each item: #OnListItem followed by the description of the item
      *  - #OnEndList
-     *  
-     *  The list may also have attributes attached to it (see #OnEndList).
      */
     virtual void OnBeginList() = 0;
 
@@ -74,6 +72,8 @@ struct IYsonConsumer
 
     //! Starts attributes.
     /*!
+     *  An arbitrary node may be preceeded by attributes.
+     *
      *  The events describing attributes are raised as follows:
      *  - #OnBeginAttributes
      *  - For each item: #OnKeyedItem followed by the description of the item

@@ -6,7 +6,7 @@
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/config.h>
 
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/job_proxy/config.h>
@@ -17,7 +17,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NScheduler;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,15 +29,13 @@ TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
 
 void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
-    auto transaction = GetTransaction(false);
-
     TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
 
     TOperationId operationId;
     {
         auto startOpReq = proxy.StartOperation();
         startOpReq->set_type(type);
-        *startOpReq->mutable_transaction_id() = (transaction ? transaction->GetId() : NullTransactionId).ToProto();
+        *startOpReq->mutable_transaction_id() = GetTransactionId(false).ToProto();
         startOpReq->set_spec(ConvertToYsonString(Request->Spec).Data());
 
         auto startOpRsp = startOpReq->Invoke().Get();

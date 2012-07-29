@@ -3,7 +3,7 @@
 #include "config.h"
 
 #include <ytlib/file_server/file_ypath_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/transaction_client/transaction.h>
@@ -12,7 +12,7 @@ namespace NYT {
 namespace NFileClient {
 
 using namespace NObjectServer;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NFileServer;
@@ -48,12 +48,12 @@ void TFileReader::Open()
             ~fetchRsp->GetError().ToString());
     }
     auto chunkId = TChunkId::FromProto(fetchRsp->chunk_id());
-    auto holderAddresses = FromProto<Stroka>(fetchRsp->node_addresses());
-    LOG_INFO("File info received (ChunkId: %s, HolderAddresses: [%s])",
+    auto addresses = FromProto<Stroka>(fetchRsp->node_addresses());
+    LOG_INFO("File info received (ChunkId: %s, Addresses: [%s])",
         ~chunkId.ToString(),
-        ~JoinToString(holderAddresses));
+        ~JoinToString(addresses));
 
-    TFileReaderBase::Open(chunkId, holderAddresses);
+    TFileReaderBase::Open(chunkId, addresses);
 
     if (Transaction) {
         ListenTransaction(Transaction);

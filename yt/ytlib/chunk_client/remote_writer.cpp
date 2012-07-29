@@ -152,7 +152,7 @@ struct TRemoteWriter::TNode
     bool IsAlive;
     const Stroka Address;
     TProxy Proxy;
-    TPeriodicInvoker::TPtr PingInvoker;
+    TPeriodicInvokerPtr PingInvoker;
 
     TNode(int index, const Stroka& address)
         : Index(index)
@@ -342,6 +342,7 @@ TRemoteWriter::TGroup::PutBlocks(TNodePtr node)
     *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
+    req->set_enable_caching(writer->Config->EnableNodeCaching);
 
     LOG_DEBUG("Putting blocks %d-%d to %s",
         StartBlockIndex, 
@@ -411,7 +412,7 @@ TRemoteWriter::TGroup::SendBlocks(
     *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->set_block_count(Blocks.size());
-    req->set_address(dstNod->Address);
+    req->set_target_address(dstNod->Address);
     return req->Invoke();
 }
 
@@ -553,11 +554,11 @@ TRemoteWriter::TImpl::TImpl(
     for (int index = 0; index < static_cast<int>(addresses.size()); ++index) {
         auto address = addresses[index];
         auto node = New<TNode>(index, address);
-        node->Proxy.SetDefaultTimeout(Config->HolderRpcTimeout);
+        node->Proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
             WriterThread->GetInvoker(),
             BIND(&TRemoteWriter::TImpl::SendPing, MakeWeak(this), node),
-            Config->SessionPingInterval);
+            Config->NodePingInterval);
         Nodes.push_back(node);
     }
 }
@@ -576,7 +577,9 @@ TRemoteWriter::TImpl::~TImpl()
 
 void TRemoteWriter::TImpl::Open()
 {
-    LOG_INFO("Opening writer (Addresses: [%s])", ~JoinToString(Addresses));
+    LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s)",
+        ~JoinToString(Addresses),
+        ~FormatBool(Config->EnableNodeCaching));
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto node, Nodes) {
@@ -772,6 +775,7 @@ TRemoteWriter::TImpl::StartChunk(TNodePtr node)
 
     auto req = node->Proxy.StartChunk();
     *req->mutable_chunk_id() = ChunkId.ToProto();
+    req->set_direct_mode(Config->DirectMode);
     return req->Invoke();
 }
 
@@ -868,6 +872,7 @@ TRemoteWriter::TImpl::FinishChunk(TNodePtr node)
     auto req = node->Proxy.FinishChunk();
     *req->mutable_chunk_id() = ChunkId.ToProto();
     *req->mutable_chunk_meta() = ChunkMeta;
+    req->set_block_count(BlockCount);
     return req->Invoke();
 }
 

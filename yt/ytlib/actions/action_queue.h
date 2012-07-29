@@ -4,105 +4,29 @@
 #include "invoker.h"
 #include "callback.h"
 
-#include <ytlib/profiling/profiler.h>
-
-#include <util/system/thread.h>
-#include <util/system/event.h>
-#include <util/thread/lfqueue.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TActionQueueBase;
+// TODO(babenko): move to public.h
+class TActionQueue;
+typedef TIntrusivePtr<TActionQueue> TActionQueuePtr;
 
-// TODO(sandello): Consider moving this into .cpp.
-class TQueueInvoker
-    : public IInvoker
-{
-public:
-    TQueueInvoker(
-        const Stroka& name,
-        TActionQueueBase* owner,
-        bool enableLogging);
+class TFairShareActionQueue;
+typedef TIntrusivePtr<TFairShareActionQueue> TFairShareActionQueuePtr;
 
-    void Invoke(const TClosure& action);
-    bool IsEmpty() const;
-    void Shutdown();
-    bool DequeueAndExecute();
+class TPrioritizedActionQueue;
+typedef TIntrusivePtr<TPrioritizedActionQueue> TPrioritizedActionQueuePtr;
 
-private:
-    struct TItem
-    {
-        NProfiling::TCpuInstant StartInstant;
-        TClosure Action;
-    };
-
-    TActionQueueBase* Owner;
-    bool EnableLogging;
-    NProfiling::TProfiler Profiler;
-
-    NProfiling::TRateCounter EnqueueCounter;
-    NProfiling::TRateCounter DequeueCounter;
-    TAtomic QueueSize;
-    NProfiling::TAggregateCounter QueueSizeCounter;
-    NProfiling::TAggregateCounter WaitTimeCounter;
-    NProfiling::TAggregateCounter ExecTimeCounter;
-    NProfiling::TAggregateCounter TotalTimeCounter;
-
-    TLockFreeQueue<TItem> Queue;
-};
-
-typedef TIntrusivePtr<TQueueInvoker> TQueueInvokerPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TActionQueueBase
-    : public TRefCounted
-{
-public:
-    typedef TIntrusivePtr<TActionQueueBase> TPtr;
-
-    virtual ~TActionQueueBase();
-
-protected:
-    TActionQueueBase(const Stroka& threadName, bool enableLogging);
-
-    void Start();
-    void Shutdown();
-    void Signal();
-
-    virtual bool DequeueAndExecute() = 0;
-    virtual void OnIdle();
-
-    virtual void OnThreadStart();
-    virtual void OnThreadShutdown();
-
-    bool IsRunning() const;
-
-private:
-    friend class TQueueInvoker;
-
-    static void* ThreadFunc(void* param);
-    void ThreadMain();
-
-    bool EnableLogging;
-    volatile bool Running;
-    Event WakeupEvent;
-    TThread Thread;
-    Stroka ThreadName;
-
-};
+class TThreadPool;
+typedef TIntrusivePtr<TThreadPool> TThreadPoolPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TActionQueue
-    : public TActionQueueBase
+    : public TRefCounted
 {
 public:
-    // TODO: TActionQueue::TPtr -> TActionQueuePtr, place to public.h
-    typedef TIntrusivePtr<TActionQueue> TPtr;
-
     // TActionQueue is used internally by the logging infrastructure,
     // which passes enableLogging = false to prevent infinite recursion.
     TActionQueue(const Stroka& threadName = "<ActionQueue>", bool enableLogging = true);
@@ -111,29 +35,32 @@ public:
     void Shutdown();
 
     IInvokerPtr GetInvoker();
+    int GetSize() const;
 
-    static TCallback<TPtr()> CreateFactory(const Stroka& threadName);
+    static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
     
-protected:
-    virtual bool DequeueAndExecute();
-
 private:
-    TQueueInvokerPtr QueueInvoker;
+    friend class TThreadPool;
+
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiActionQueue
+class TFairShareActionQueue
     : public TRefCounted
 {
 public:
-    TMultiActionQueue(int queueCount, const Stroka& threadName);
-    virtual ~TMultiActionQueue();
+    explicit TFairShareActionQueue(int queueCount = 1, const Stroka& threadName = "<FSActionQueue>");
+    virtual ~TFairShareActionQueue();
 
     void Shutdown();
 
     IInvokerPtr GetInvoker(int queueIndex);
+
+    static TCallback<TFairShareActionQueuePtr()> CreateFactory(int queueCount, const Stroka& threadName);
 
 private:
     class TImpl;
@@ -141,7 +68,52 @@ private:
 
 };
 
-typedef TIntrusivePtr<TMultiActionQueue> TMultiActionQueuePtr;
+////////////////////////////////////////////////////////////////////////////////
+
+class TThreadPool
+    : public TRefCounted
+{
+public:
+    TThreadPool(int threadCount, const Stroka& threadName);
+    virtual ~TThreadPool();
+
+    void Shutdown();
+
+    IInvokerPtr GetInvoker();
+
+private:
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPrioritizedActionQueue
+    : public TRefCounted
+{
+public:
+    explicit TPrioritizedActionQueue(const Stroka& threadName);
+    virtual ~TPrioritizedActionQueue();
+
+    void Shutdown();
+
+    IInvokerPtr CreateInvoker(i64 priority);
+
+private:
+    class TInvoker;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns an invoker that executes all queues actions in the
+//! context of #underlyingInvoker (possibly in different threads)
+//! but in a serialized fashion (i.e. all queued actions are executed
+//! in the proper order and no two actions are executed in parallel).
+IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

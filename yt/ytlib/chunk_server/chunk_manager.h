@@ -6,7 +6,7 @@
 #include <ytlib/chunk_server/chunk_manager.pb.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/meta_change.h>
+#include <ytlib/meta_state/mutation.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/rpc/service.h>
@@ -31,21 +31,21 @@ public:
 
     ~TChunkManager();
 
-    NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
+    NMetaState::TMutation<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
+    NMetaState::TMutation<TVoid>::TPtr InitiateUnregisterHolder(
         const NProto::TMsgUnregisterHolder& message);
 
     // Pass RPC service context to full heartbeat handler to avoid copying request message.
     typedef NRpc::TTypedServiceContext<NProto::TReqFullHeartbeat, NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
+    NMetaState::TMutation<TVoid>::TPtr InitiateFullHeartbeat(
         TCtxFullHeartbeat::TPtr context);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateIncrementalHeartbeat(
+    NMetaState::TMutation<TVoid>::TPtr InitiateIncrementalHeartbeat(
         const NProto::TMsgIncrementalHeartbeat& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateUpdateJobs(
+    NMetaState::TMutation<TVoid>::TPtr InitiateUpdateJobs(
         const NProto::TMsgUpdateJobs& message);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
@@ -69,6 +69,7 @@ public:
 
     //! Returns a holder registered at the given address (|NULL| if none).
     THolder* FindHolderByAddress(const Stroka& address);
+
     //! Returns an arbitrary holder registered at the host (|NULL| if none).
     THolder* FindHolderByHostName(const Stroka& hostName);
 
@@ -88,8 +89,15 @@ public:
     void AttachToChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTreeRef>& children);
+    void AttachToChunkList(
+        TChunkList* chunkList,
+        const TChunkTreeRef childRef);
 
     void ClearChunkList(TChunkList* chunkList);
+
+    // TODO(babenko): consider making private
+    void SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef);
+    void ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef);
 
     void ScheduleJobs(
         THolder* holder,
@@ -97,7 +105,7 @@ public:
         std::vector<NProto::TJobStartInfo>* jobsToStart,
         std::vector<NProto::TJobStopInfo>* jobsToStop);
 
-    bool IsBalancerEnabled();
+    bool IsReplicatorEnabled();
 
     //! Fills a given protobuf structure with the list of data node addresses.
     /*!

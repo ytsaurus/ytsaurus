@@ -2,8 +2,6 @@
 
 #include <util/system/yassert.h>
 
-#include "preprocessor.h"
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,13 +29,16 @@ namespace NYT {
 #endif
 
 // TODO: Add extended diagnostics why the process was terminated.
+#define _ASSERT_X(s) _ASSERT_Y(s)
+#define _ASSERT_Y(s) #s
+#define _ASSERT_AT __FILE__ ":" _ASSERT_X(s)
 
 //! Marker for unreachable code. Abnormally terminates current process.
 #ifdef __GNUC__
 #define YUNREACHABLE() \
     do { \
         ::std::fputs( \
-            "YUNREACHABLE(): " __FILE__ ":" PP_STRINGIZE(__LINE__) "\n", \
+            "YUNREACHABLE(): " _ASSERT_AT "\n", \
             stderr); \
         __builtin_trap(); \
         __builtin_unreachable(); \
@@ -52,7 +53,7 @@ namespace NYT {
 #define YUNIMPLEMENTED() \
     do { \
         ::std::fputs( \
-            "YUNIMPLEMENTED(): " __FILE__ ":" PP_STRINGIZE(__LINE__) "\n", \
+            "YUNIMPLEMENTED(): " _ASSERT_AT "\n", \
             stderr); \
         __builtin_trap(); \
         __builtin_unreachable(); \

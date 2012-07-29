@@ -91,19 +91,19 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
     if (!holderInfo)
         return;
 
-    LOG_INFO("Holder expired (HolderId: %d)", holderId);
+    LOG_INFO("Node expired (HolderId: %d)", holderId);
 
     TMsgUnregisterHolder message;
     message.set_holder_id(holderId);
     Bootstrap
         ->GetChunkManager()
         ->InitiateUnregisterHolder(message)
-        ->SetRetriable(Config->HolderExpirationBackoffTime)
+        ->SetRetriable(Config->NodeExpirationBackoffTime)
         ->OnSuccess(BIND([=] (TVoid) {
-            LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
+            LOG_INFO("Node expiration commit success (HolderId: %d)", holderId);
         }))
         ->OnError(BIND([=] () {
-            LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
+            LOG_INFO("Node expiration commit failed (HolderId: %d)", holderId);
         }))
         ->Commit();
 }
@@ -111,11 +111,11 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
 TDuration THolderLeaseTracker::GetTimeout(const THolder* holder, const THolderInfo& holderInfo)
 {
     if (!holderInfo.Confirmed) {
-        return Config->UnconfirmedHolderTimeout;
+        return Config->UnconfirmedNodeTimeout;
     }
     return holder->GetState() == EHolderState::Registered
-        ? Config->RegisteredHolderTimeout
-        : Config->OnlineHolderTimeout;
+        ? Config->RegisteredNodeTimeout
+        : Config->OnlineNodeTimeout;
 }
 
 void THolderLeaseTracker::RenewLease(const THolder* holder, const THolderInfo& holderInfo)

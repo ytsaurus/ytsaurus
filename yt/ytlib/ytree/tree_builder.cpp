@@ -20,7 +20,7 @@ class TTreeBuilder
     , public ITreeBuilder
 {
 public:
-    TTreeBuilder(INodeFactory* factory)
+    TTreeBuilder(INodeFactoryPtr factory)
         : Factory(factory)
     { }
 
@@ -38,7 +38,7 @@ public:
         return ResultNode;
     }
 
-    virtual void OnNode(INode* node)
+    virtual void OnNode(INodePtr node)
     {
         AddNode(node, false);
     }
@@ -47,7 +47,7 @@ public:
     {
         auto node = Factory->CreateString();
         node->SetValue(Stroka(value));
-        AddNode(~node, false);
+        AddNode(node, false);
     }
 
     virtual void OnMyIntegerScalar(i64 value)
@@ -55,25 +55,25 @@ public:
 
         auto node = Factory->CreateInteger();
         node->SetValue(value);
-        AddNode(~node, false);
+        AddNode(node, false);
     }
 
     virtual void OnMyDoubleScalar(double value)
     {
         auto node = Factory->CreateDouble();
         node->SetValue(value);
-        AddNode(~node, false);
+        AddNode(node, false);
     }
 
     virtual void OnMyEntity()
     {
-        AddNode(~Factory->CreateEntity(), false);
+        AddNode(Factory->CreateEntity(), false);
     }
 
 
     virtual void OnMyBeginList()
     {
-        AddNode(~Factory->CreateList(), true);
+        AddNode(Factory->CreateList(), true);
     }
 
     virtual void OnMyListItem()
@@ -89,7 +89,7 @@ public:
 
     virtual void OnMyBeginMap()
     {
-        AddNode(~Factory->CreateMap(), true);
+        AddNode(Factory->CreateMap(), true);
     }
 
     virtual void OnMyKeyedItem(const TStringBuf& key)
@@ -117,7 +117,7 @@ public:
     }
 
 private:
-    INodeFactory* Factory;
+    INodeFactoryPtr Factory;
     //! Contains nodes forming the current path in the tree.
     std::stack<INodePtr> NodeStack;
     TNullable<Stroka> Key;
@@ -125,7 +125,7 @@ private:
     THolder<TAttributeConsumer> AttributeConsumer;
     THolder<IAttributeDictionary> Attributes;
 
-    void AddNode(INode* node, bool push)
+    void AddNode(INodePtr node, bool push)
     {
         if (Attributes.Get()) {
             node->Attributes().MergeFrom(*Attributes);
@@ -150,7 +150,7 @@ private:
     }
 };
 
-TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
+TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory)
 {
     return new TTreeBuilder(factory);
 }

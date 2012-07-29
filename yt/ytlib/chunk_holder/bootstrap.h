@@ -4,8 +4,7 @@
 
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/cell_node/public.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/bus/server.h>
+#include <ytlib/bus/public.h>
 #include <ytlib/rpc/public.h>
 
 namespace NYT {
@@ -17,20 +16,20 @@ class TBootstrap
 {
 public:
     TBootstrap(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         NCellNode::TBootstrap* nodeBootstrap);
     ~TBootstrap();
 
     void Init();
 
-    TChunkHolderConfigPtr GetConfig() const;
+    TDataNodeConfigPtr GetConfig() const;
     NChunkServer::TIncarnationId GetIncarnationId() const;
     TChunkStorePtr GetChunkStore() const;
     TChunkCachePtr GetChunkCache() const;
     TSessionManagerPtr GetSessionManager() const;
     TJobExecutorPtr GetJobExecutor() const;
     IInvokerPtr GetControlInvoker() const;
-    IInvokerPtr GetWorkInvoker() const;
+    TChunkRegistryPtr GetChunkRegistry() const;
     TBlockStorePtr GetBlockStore();
     TPeerBlockTablePtr GetPeerBlockTable() const;
     TReaderCachePtr GetReaderCache() const;
@@ -38,10 +37,10 @@ public:
     Stroka GetPeerAddress() const;
 
 private:
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* NodeBootstrap;
     
-    TActionQueue::TPtr WorkQueue;
+    TChunkRegistryPtr ChunkRegistry;
     TChunkStorePtr ChunkStore;
     TChunkCachePtr ChunkCache;
     TSessionManagerPtr SessionManager;

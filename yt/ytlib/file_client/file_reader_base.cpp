@@ -8,14 +8,14 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
 
 namespace NYT {
 namespace NFileClient {
 
 using namespace NObjectServer;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NFileServer;
@@ -71,26 +71,25 @@ void TFileReaderBase::Open(
 
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkMeta.extensions());
     Size = miscExt.uncompressed_data_size();
-    auto codecId = ECodecId(miscExt.codec_id());
 
-    Codec = GetCodec(codecId);
-    LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ", CodecId: %s)",
+    LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ")",
         BlockCount,
-        Size,
-        ~codecId.ToString());
+        Size);
 
-    // Take all blocks.
-    std::vector<int> blockIndexes;
-    blockIndexes.reserve(BlockCount);
+    // Read all blocks.
+    std::vector<TSequentialReader::TBlockInfo> blockSequence;
+    blockSequence.reserve(BlockCount);
     for (int index = 0; index < BlockCount; ++index) {
-        blockIndexes.push_back(index);
+        blockSequence.push_back(TSequentialReader::TBlockInfo(
+            index, 
+            blocksExt.blocks(index).size()));
     }
 
     SequentialReader = New<TSequentialReader>(
         Config->SequentialReader,
-        blockIndexes,
+        MoveRV(blockSequence),
         remoteReader,
-        blocksExt);
+        ECodecId(miscExt.codec_id()));
 
     LOG_INFO("File reader opened");
 
@@ -110,8 +109,7 @@ TSharedRef TFileReaderBase::Read()
 
     LOG_INFO("Reading block (BlockIndex: %d)", BlockIndex);
     Sync(~SequentialReader, &TSequentialReader::AsyncNextBlock);
-    auto compressedBlock = SequentialReader->GetBlock();
-    auto block = Codec->Decompress(compressedBlock);
+    auto block = SequentialReader->GetBlock();
     ++BlockIndex;
     LOG_INFO("Block read (BlockIndex: %d)", BlockIndex);
 

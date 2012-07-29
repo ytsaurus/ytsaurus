@@ -3,16 +3,25 @@
 #include "public.h"
 #include "config.h"
 
-#include <ytlib/table_client/table_reader.pb.h>
-#include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
+
+#include <ytlib/actions/parallel_awaiter.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/remote_writer.h>
+
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
+
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
+#include <ytlib/table_client/table_reader.pb.h>
+
 #include <ytlib/object_server/object_service_proxy.h>
+
 #include <ytlib/transaction_client/transaction.h>
+
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
@@ -38,6 +47,7 @@ public:
 
     TAsyncError GetReadyEvent();
 
+    bool TryWriteRow(const TRow& row);
     void SetProgress(double progress);
 
     /*! 
@@ -98,6 +108,8 @@ protected:
 
     TChunkSequenceWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
+
+    i64 RowCount;
 
     volatile double Progress;
 

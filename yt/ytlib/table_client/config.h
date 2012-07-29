@@ -4,7 +4,6 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/misc/codec.h>
 #include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -12,47 +11,29 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableConsumerConfig
-    : public TYsonSerializable
-{
-    /*! 
-     *  If true consumer fails when encounters repeated column name.
-     *  Otherwise the last feeded value is used.
-     */
-
-    bool Strict;
-
-    TTableConsumerConfig()
-    {
-        Register("strict", Strict).Default(true);
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChunkWriterConfig
     : public TYsonSerializable
 {
     i64 BlockSize;
-    ECodecId CodecId;
 
     //! Fraction of rows data size samples are allowed to occupy.
     double SampleRate;
 
-    //! Fraction of rows data size samples are allowed to occupy.
+    //! Fraction of rows data size chunk index allowed to occupy.
     double IndexRate;
 
     double EstimatedCompressionRatio;
 
+    NChunkClient::TEncodingWriterConfigPtr EncodingWriter;
+
+    bool AllowDuplicateColumnNames;
+
     TChunkWriterConfig()
     {
-        // Block less than 1Kb is nonsense.
+        // Block less than 1M is nonsense.
         Register("block_size", BlockSize)
             .GreaterThan(1024)
-            .Default(1024 * 1024);
-        Register("codec_id", CodecId)
-            .Default(ECodecId::Snappy);
+            .Default(16 * 1024 * 1024);
         Register("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThan(0.001)
@@ -65,6 +46,11 @@ struct TChunkWriterConfig
             .GreaterThan(0)
             .LessThan(1)
             .Default(0.2);
+        Register("encoding_writer", EncodingWriter)
+            .DefaultNew();
+        EncodingWriter->CodecId = ECodecId::Snappy;
+        Register("allow_duplicate_column_names", AllowDuplicateColumnNames)
+            .Default(true);
     }
 };
 
@@ -106,7 +92,7 @@ struct TChunkSequenceWriterConfig
     virtual void DoValidate() const
     {
         if (ReplicationFactor < UploadReplicationFactor) {
-            ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
+            ythrow yexception() << "\"replication_factor\" cannot be less than \"upload_replication_factor\"";
         }
     }
 };
@@ -122,8 +108,10 @@ struct TChunkSequenceReaderConfig
 
     TChunkSequenceReaderConfig()
     {
-        Register("remote_reader", RemoteReader).DefaultNew();
-        Register("sequential_reader", SequentialReader).DefaultNew();
+        Register("remote_reader", RemoteReader)
+            .DefaultNew();
+        Register("sequential_reader", SequentialReader)
+            .DefaultNew();
         Register("prefetch_window", PrefetchWindow)
             .GreaterThan(0)
             .LessThanOrEqual(1000)

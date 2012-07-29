@@ -40,6 +40,11 @@ void TResourceTracker::EnqueueUsage()
 {
     PeriodicInvoker->ScheduleNext();
 
+    int pid = getpid();
+    EnqueueMemoryUsage();
+
+
+    // update proc ticks
     VectorStrok cpuFields;
     try {
         TIFStream procStat("/proc/stat");
@@ -55,7 +60,6 @@ void TResourceTracker::EnqueueUsage()
     if (totalProcTicks == 0)
         return;
 
-    int pid = getpid();
     Stroka path = Sprintf("/proc/%d/task/", pid);
     TDirsList dirsList;
     dirsList.Fill(path);
@@ -72,6 +76,7 @@ void TResourceTracker::EnqueueUsage()
             continue;
         }
 
+        // get rid of quotes
         Stroka threadName = cpuStatFields[1].substr(1, cpuStatFields[1].size() - 2);
         TYPath baseProfilingPath = "/resource_usage/" + EscapeYPathToken(threadName);
 
@@ -98,26 +103,29 @@ void TResourceTracker::EnqueueUsage()
         }
         PreviousUserTicks[threadName] = userTicks;
         PreviousKernelTicks[threadName] = kernelTicks;
-
-        Stroka memoryStat = NFS::CombinePaths(threadStatPath, "statm");
-        VectorStrok memoryStatFields;
-        try {
-            TIFStream memoryStatFile(memoryStat);
-            memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
-        } catch (const TIoException&) {
-            // Ignore all IO exceptions.
-            continue;
-        }
-
-        i64 residentSetSize = FromString<i64>(memoryStatFields[1]);
-        TQueuedSample memorySample;
-        memorySample.Time = GetCpuInstant();
-        memorySample.Path = baseProfilingPath + "/memory";
-        memorySample.Value = residentSetSize;
-        TProfilingManager::Get()->Enqueue(memorySample, false);
     }
 
     PreviousProcTicks = procTicks;
+}
+
+void TResourceTracker::EnqueueMemoryUsage()
+{
+    int pid = getpid();
+    VectorStrok memoryStatFields;
+    try {
+        TIFStream memoryStatFile(Sprintf("/proc/%d/statm", pid));
+        memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
+    } catch (const TIoException&) {
+        // Ignore all IO exceptions.
+        return;
+    }
+
+    i64 residentSetSize = FromString<i64>(memoryStatFields[1]);
+    TQueuedSample memorySample;
+    memorySample.Time = GetCpuInstant();
+    memorySample.Path = "/resource_usage/Total/memory";
+    memorySample.Value = residentSetSize;
+    TProfilingManager::Get()->Enqueue(memorySample, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

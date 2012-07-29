@@ -18,12 +18,12 @@ class TSession
 {
 public:
     TSession(
-        TSessionManagerPtr sessionManager,
+        TBootstrap* bootstrap,
         const TChunkId& chunkId,
         TLocationPtr location);
 
     //! Starts the session.
-    void Start();
+    void Start(bool directMode);
 
     ~TSession();
 
@@ -36,14 +36,19 @@ public:
     //! Returns the total data size received so far.
     i64 GetSize() const;
 
+    int GetWrittenBlockCount() const;
+
     //! Returns the info of the just-uploaded chunk
     NProto::TChunkInfo GetChunkInfo() const;
 
-    //! Returns a cached block that is still in the session window.
-    TCachedBlockPtr GetBlock(i32 blockIndex);
+    //! Returns a block that is still in the session window.
+    TSharedRef GetBlock(i32 blockIndex);
 
     //! Puts a block into the window.
-    void PutBlock(i32 blockIndex, const TSharedRef& data);
+    void PutBlock(
+        i32 blockIndex,
+        const TSharedRef& data,
+        bool enableCaching);
 
     //! Flushes a block and moves the window
     /*!
@@ -72,30 +77,30 @@ private:
     {
         TSlot()
             : State(ESlotState::Empty)
-            , Block(NULL)
             , IsWritten(NewPromise<TVoid>())
         { }
 
         ESlotState State;
-        TCachedBlockPtr Block;
+        TSharedRef Block;
         TPromise<TVoid> IsWritten;
     };
 
     typedef std::vector<TSlot> TWindow;
 
-    TSessionManagerPtr SessionManager;
+    TBootstrap* Bootstrap;
     TChunkId ChunkId;
     TLocationPtr Location;
 
     TWindow Window;
     i32 WindowStart;
-    i32 FirstUnwritten;
     i64 Size;
 
     Stroka FileName;
     NChunkClient::TFileWriterPtr Writer;
 
     TLeaseManager::TLease Lease;
+
+    IInvokerPtr WriteInvoker;
 
     NLog::TTaggedLogger Logger;
 
@@ -110,21 +115,18 @@ private:
     TSlot& GetSlot(i32 blockIndex);
     void ReleaseBlocks(i32 flushedBlockIndex);
 
-    IInvokerPtr GetIOInvoker();
-
     void OpenFile();
-    void DoOpenFile();
+    void DoOpenFile(bool directMode);
 
-    TFuture<TVoid> DeleteFile(const TError& error);
-    TVoid DoDeleteFile(const TError& error);
-    TVoid OnFileDeleted(TVoid);
+    TFuture<TVoid> AbortWriter();
+    TVoid DoAbortWriter();
+    TVoid OnWriterAborted(TVoid);
 
     TFuture<TVoid> CloseFile(const NProto::TChunkMeta& chunkMeta);
     TVoid DoCloseFile(const NProto::TChunkMeta& chunkMeta);
     TChunkPtr OnFileClosed(TVoid);
 
-    void EnqueueWrites();
-    TVoid DoWrite(TCachedBlockPtr block, i32 blockIndex);
+    TVoid DoWrite(const TSharedRef& block, i32 blockIndex);
     void OnBlockWritten(i32 blockIndex, TVoid);
 
     void OnBlockFlushed(i32 blockIndex, TVoid);
@@ -143,13 +145,11 @@ public:
 
     //! Constructs a manager.
     TSessionManager(
-        TChunkHolderConfigPtr config,
-        TBlockStorePtr blockStore,
-        TChunkStorePtr chunkStore,
-        IInvokerPtr serviceInvoker);
+        TDataNodeConfigPtr config,
+        TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
-    TSessionPtr StartSession(const TChunkId& chunkId);
+    TSessionPtr StartSession(const TChunkId& chunkId, bool directMode);
 
     //! Completes an earlier opened upload session.
     /*!
@@ -180,10 +180,8 @@ public:
 private:
     friend class TSession;
 
-    TChunkHolderConfigPtr Config;
-    TBlockStorePtr BlockStore;
-    TChunkStorePtr ChunkStore;
-    IInvokerPtr ServiceInvoker;
+    TDataNodeConfigPtr Config;
+    TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;

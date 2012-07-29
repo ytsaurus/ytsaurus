@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "reader_cache.h"
 #include "config.h"
+#include "bootstrap.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/chunk_client/format.h>
@@ -17,23 +18,25 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocation::TLocation(
     ELocationType type,
+    const Stroka& id,
     TLocationConfigPtr config,
-    TReaderCachePtr readerCache,
-    const Stroka& threadName)
+    TBootstrap* bootstrap)
     : Type(type)
+    , Id(id)
     , Config(config)
-    , ReaderCache(readerCache)
+    , Bootstrap(bootstrap)
     , AvailableSpace(0)
     , UsedSpace(0)
-    , ActionQueue(New<TActionQueue>(threadName))
     , SessionCount(0)
-    , Logger(ChunkHolderLogger)
+    , ReadQueue(New<TFairShareActionQueue>(2, Sprintf("Read:%s", ~Id)))
+    , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
+    , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
 }
@@ -44,6 +47,11 @@ TLocation::~TLocation()
 ELocationType TLocation::GetType() const
 {
     return Type;
+}
+
+Stroka TLocation::GetId() const
+{
+    return Id;
 }
 
 void TLocation::UpdateUsedSpace(i64 size)
@@ -70,14 +78,9 @@ i64 TLocation::GetAvailableSpace() const
     return AvailableSpace;
 }
 
-IInvokerPtr TLocation::GetInvoker() const
+TBootstrap* TLocation::GetBootstrap() const
 {
-    return ActionQueue->GetInvoker();
-}
-
-TIntrusivePtr<TReaderCache> TLocation::GetReaderCache() const
-{
-    return ReaderCache;
+    return Bootstrap;
 }
 
 i64 TLocation::GetUsedSpace() const
@@ -136,6 +139,21 @@ bool TLocation::HasEnoughSpace(i64 size) const
     return GetAvailableSpace() - size >= Config->HighWatermark;
 }
 
+IInvokerPtr TLocation::GetDataReadInvoker()
+{
+    return ReadQueue->GetInvoker(0);
+}
+
+IInvokerPtr TLocation::GetMetaReadInvoker()
+{
+    return ReadQueue->GetInvoker(1);
+}
+
+IInvokerPtr TLocation::GetWriteInvoker()
+{
+    return WriteQueue->GetInvoker();
+}
+
 namespace {
 
 void RemoveFile(const Stroka& fileName)
@@ -189,7 +207,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
             i64 chunkDataSize = NFS::GetFileSize(chunkDataFileName);
             i64 chunkMetaSize = NFS::GetFileSize(chunkMetaFileName);
             if (chunkMetaSize == 0) {
-                LOG_FATAL("Chunk %s has empty meta file", ~chunkMetaFileName);
+                LOG_FATAL("Chunk meta file %s is empty", ~chunkMetaFileName);
             }
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
@@ -206,21 +224,28 @@ std::vector<TChunkDescriptor> TLocation::Scan()
 
     LOG_INFO("Done, %" PRISZT " chunks found", result.size());
 
+    // Force subdirectories.
+    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
+        NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)));
+    }
+
     return result;
 }
 
-void TLocation::RemoveChunk(TChunkPtr chunk)
+void TLocation::ScheduleChunkRemoval(TChunk* chunk)
 {
     auto id = chunk->GetId();
-    Stroka fileName = chunk->GetFileName();
-    GetInvoker()->Invoke(BIND([=] ()
-        {
-            // TODO: retry on failure
-            LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
-            RemoveFile(fileName);
-            RemoveFile(fileName + ChunkMetaSuffix);
-            LOG_DEBUG("Finished removing chunk files (ChunkId: %s)", ~id.ToString());
-        }));
+    Stroka fileName = GetChunkFileName(id);
+
+    LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
+
+    GetWriteInvoker()->Invoke(BIND([=] () {
+        // TODO: retry on failure
+        LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
+        RemoveFile(fileName);
+        RemoveFile(fileName + ChunkMetaSuffix);
+        LOG_DEBUG("Finished removing chunk files (ChunkId: %s)", ~id.ToString());
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

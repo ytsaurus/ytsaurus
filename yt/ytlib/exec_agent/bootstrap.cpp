@@ -52,6 +52,7 @@ void TBootstrap::Init()
     JobProxyConfig->SupervisorConnection->Priority = 6;
 
     JobManager = New<TJobManager>(Config->JobManager, this);
+    JobManager->Initialize();
 
     auto supervisorService = New<TSupervisorService>(this);
     NodeBootstrap->GetRpcServer()->RegisterService(supervisorService);

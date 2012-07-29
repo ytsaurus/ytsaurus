@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -x
+set -e
+
+yt remove //home/proskurnev/tmp/st1 || true
+yt remove //home/proskurnev/tmp/st2 || true
+
+yt remove //home/proskurnev/tmp/st1_s || true
+yt remove //home/proskurnev/tmp/st2_s || true
+
+yt remove //home/proskurnev/result || true
+yt create table //home/proskurnev/tmp/st1 || true
+yt create table //home/proskurnev/tmp/st2 || true
+
+yt create table //home/proskurnev/tmp/st1_s || true
+yt create table //home/proskurnev/tmp/st2_s || true
+
+yt create table //home/proskurnev/result || true
+
+for file in map.pl reduce.pl finalize.pl
+do
+    yt remove //home/proskurnev/tmp/$file || true
+    cat ./$file | yt upload //home/proskurnev/tmp/$file
+    yt set //home/proskurnev/tmp/$file/@executable true
+done
+
+time yt map \
+    --mapper "./map.pl" \
+    --in '//statbox/access-log/"2012-06-15"' \
+    --out '//home/proskurnev/tmp/st1' \
+    --file '//home/proskurnev/tmp/map.pl' \
+    --format '<line_prefix=tskv>dsv' \
+    --opt '/spec/mapper/input_format=<line_prefix=tskv>dsv' \
+    --opt '/spec/mapper/output_format=dsv'
+
+time yt sort \
+    --key_columns "_key" \
+    --opt '/spec/partition_count=400' \
+    --in '//home/proskurnev/tmp/st1' \
+    --out '//home/proskurnev/tmp/st1_s' \
+    --format 'dsv'
+
+
+time yt reduce \
+    --reducer "./reduce.pl" \
+    --in '//home/proskurnev/tmp/st1_s' \
+    --out '//home/proskurnev/tmp/st2' \
+    --file '//home/proskurnev/tmp/reduce.pl' \
+    --format 'dsv' \
+    --opt '/spec/max_weight_per_job=50000000' \
+    --opt '/spec/reducer/format=dsv'
+
+
+time yt sort \
+    --key_columns "_key" \
+    --opt '/spec/partition_count=400' \
+    --in '//home/proskurnev/tmp/st2' \
+    --out '//home/proskurnev/tmp/st2_s' \
+    --format 'dsv'
+
+
+time yt reduce \
+    --reducer "./finalize.pl" \
+    --in '//home/proskurnev/tmp/st2_s' \
+    --out '//home/proskurnev/result' \
+    --file '//home/proskurnev/tmp/finalize.pl' \
+    --format 'dsv' \
+    --opt '/spec/max_weight_per_job=50000000' \
+    --opt '/spec/reducer/format=dsv'
+
+
+time yt read '//home/proskurnev/result' \
+    --format '<line_prefix=tskv>dsv' \
+    > result.yt

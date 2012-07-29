@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include <ytlib/cypress/virtual.h>
+#include <ytlib/cypress_server/virtual.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/misc/string.h>
@@ -12,7 +12,7 @@ namespace NYT {
 namespace NTransactionServer {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NCellMaster;
 using namespace NObjectServer;
 
@@ -50,7 +50,7 @@ private:
     }
 };
 
-NCypress::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
+NCypressServer::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 

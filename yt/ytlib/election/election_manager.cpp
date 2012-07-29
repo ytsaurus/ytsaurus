@@ -1,7 +1,7 @@
-
 #include "election_manager.h"
 
 #include <ytlib/actions/invoker.h>
+#include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/ytree/fluent.h>
@@ -92,7 +92,7 @@ private:
     void OnPingResponse(TPeerId id, TProxy::TRspPingFollowerPtr response)
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
-        YASSERT(ElectionManager->State == TProxy::EState::Leading);
+        YASSERT(ElectionManager->State == EPeerState::Leading);
 
         if (!response->IsOK()) {
             auto error = response->GetError();
@@ -181,7 +181,7 @@ public:
     void Run() 
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
-        YASSERT(ElectionManager->State == TProxy::EState::Voting);
+        YASSERT(ElectionManager->State == EPeerState::Voting);
 
         auto callbacks = ElectionManager->ElectionCallbacks;
         auto cellManager = ElectionManager->CellManager;
@@ -221,13 +221,13 @@ private:
 
     struct TStatus
     {
-        TProxy::EState State;
+        EPeerState State;
         TPeerId VoteId;
         TPeerPriority Priority;
         TEpoch VoteEpoch;
 
         TStatus(
-            TProxy::EState state = TProxy::EState::Stopped,
+            EPeerState state = EPeerState::Stopped,
             TPeerId vote = InvalidPeerId,
             TPeerPriority priority = -1,
             TEpoch epoch = TEpoch())
@@ -263,7 +263,7 @@ private:
             return;
         }
 
-        auto state = TProxy::EState(response->state());
+        auto state = EPeerState(response->state());
         auto vote = response->vote_id();
         auto priority = response->priority();
         auto epoch = TEpoch::FromProto(response->vote_epoch());
@@ -378,11 +378,11 @@ private:
 
         if (candidateId == ElectionManager->CellManager->GetSelfId()) {
             // Check that we're voting.
-            YASSERT(candidateStatus.State == TProxy::EState::Voting);
+            YASSERT(candidateStatus.State == EPeerState::Voting);
             return true;
         } else {
             // The candidate must be aware of his leadership.
-            return candidateStatus.State == TProxy::EState::Leading;
+            return candidateStatus.State == EPeerState::Leading;
         }
     }
 
@@ -438,7 +438,7 @@ TElectionManager::TElectionManager(
     controlInvoker,
     TProxy::GetServiceName(),
     Logger.GetCategory())
-    , State(TProxy::EState::Stopped)
+    , State(EPeerState::Stopped)
     , VoteId(InvalidPeerId)
     , Config(config)
     , CellManager(cellManager)
@@ -488,7 +488,7 @@ void TElectionManager::Reset()
 {
     // May be called from ControlThread and also from ctor.
 
-    UpdateState(TProxy::EState::Stopped);
+    UpdateState(EPeerState::Stopped);
     VoteId = InvalidPeerId;
     LeaderId = InvalidPeerId;
     VoteEpoch = TGuid();
@@ -507,7 +507,7 @@ void TElectionManager::Reset()
 void TElectionManager::OnLeaderPingTimeout()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(State == TProxy::EState::Following);
+    YASSERT(State == EPeerState::Following);
     
     LOG_INFO("No recurrent ping from leader within timeout");
     
@@ -518,7 +518,7 @@ void TElectionManager::OnLeaderPingTimeout()
 void TElectionManager::DoStart()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(State == TProxy::EState::Stopped);
+    YASSERT(State == EPeerState::Stopped);
 
     StartVoteForSelf();
 }
@@ -528,15 +528,15 @@ void TElectionManager::DoStop()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     switch (State) {
-        case TProxy::EState::Stopped:
+        case EPeerState::Stopped:
             break;
-        case TProxy::EState::Voting:
+        case EPeerState::Voting:
             Reset();
             break;            
-        case TProxy::EState::Leading:
+        case EPeerState::Leading:
             StopLeading();
             break;
-        case TProxy::EState::Following:
+        case EPeerState::Following:
             StopFollowing();
             break;
         default:
@@ -548,7 +548,7 @@ void TElectionManager::StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    State = TProxy::EState::Voting;
+    State = EPeerState::Voting;
     VoteId = voteId;
     VoteEpoch = voteEpoch;
 
@@ -562,7 +562,7 @@ void TElectionManager::StartVoteForSelf()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    State = TProxy::EState::Voting;
+    State = EPeerState::Voting;
     VoteId = CellManager->GetSelfId();
     VoteEpoch = TGuid::Create();
 
@@ -583,7 +583,7 @@ void TElectionManager::StartVoteForSelf()
 void TElectionManager::StartVotingRound()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(State == TProxy::EState::Voting);
+    YASSERT(State == EPeerState::Voting);
 
     New<TVotingRound>(this)->Run();
 }
@@ -594,7 +594,7 @@ void TElectionManager::StartFollowing(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    UpdateState(TProxy::EState::Following);
+    UpdateState(EPeerState::Following);
     VoteId = leaderId;
     VoteEpoch = epoch;
 
@@ -617,7 +617,7 @@ void TElectionManager::StartLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    UpdateState(TProxy::EState::Leading);
+    UpdateState(EPeerState::Leading);
     YASSERT(VoteId == CellManager->GetSelfId());
 
     // Initialize followers state.
@@ -641,7 +641,7 @@ void TElectionManager::StartLeading()
 void TElectionManager::StopLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(State == TProxy::EState::Leading);
+    YASSERT(State == EPeerState::Leading);
     
     LOG_INFO("Stopping leading (Epoch: %s)",
         ~Epoch.ToString());
@@ -660,7 +660,7 @@ void TElectionManager::StopLeading()
 void TElectionManager::StopFollowing()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(State == TProxy::EState::Following);
+    YASSERT(State == EPeerState::Following);
 
     LOG_INFO("Stopping following leader %d (Epoch: %s)",
         LeaderId,
@@ -706,7 +706,7 @@ void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
         .EndMap();
 }
 
-void TElectionManager::UpdateState(TProxy::EState newState)
+void TElectionManager::UpdateState(EPeerState newState)
 {
     if (newState == State)
         return;
@@ -730,7 +730,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
         ~epoch.ToString(),
         leaderId);
 
-    if (State != TProxy::EState::Following) {
+    if (State != EPeerState::Following) {
         ythrow TServiceException(EErrorCode::InvalidState) <<
             Sprintf("Cannot process ping from a leader while in %s (LeaderId: %d, Epoch: %s)",
             ~State.ToString(),

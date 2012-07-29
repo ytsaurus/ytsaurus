@@ -2,6 +2,9 @@
 
 #include "common.h"
 
+#include <util/stream/input.h>
+#include <util/stream/output.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "chunk.h"
 #include "chunk_holder_service_proxy.h"
 
+#include <ytlib/table_client/public.h>
 #include <ytlib/rpc/service.h>
+#include <ytlib/actions/action_queue.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -15,14 +18,15 @@ class TChunkHolderService
 {
 public:
     //! Creates an instance.
-    TChunkHolderService(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
+    TChunkHolderService(TDataNodeConfigPtr config, TBootstrap* bootstrap);
 
 private:
     typedef TChunkHolderService TThis;
     typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
+    TActionQueuePtr WorkerThread;
     TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);
@@ -42,8 +46,16 @@ private:
 
     TIntrusivePtr<TSession> GetSession(const TChunkId& chunkId);
     TIntrusivePtr<TChunk> GetChunk(const TChunkId& chunkId);
+    void ProcessSample(
+        const NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
+        NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const NTableClient::TKeyColumns& keyColumns,
+        TChunk::TGetMetaResult result);
+
+    void OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int> artitionTag, TChunk::TGetMetaResult result);
 
     bool CheckThrottling() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

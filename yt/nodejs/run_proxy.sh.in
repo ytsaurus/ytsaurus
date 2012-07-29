@@ -1,0 +1,15 @@
+#!/bin/bash
+
+CMB=@CMAKE_CURRENT_BINARY_DIR@
+CMS=@CMAKE_CURRENT_SOURCE_DIR@
+
+make cmake_check_build_system || (echo "Re-run $0" && exit)
+
+[[ ! -L $CMS/lib/ytnode.node       ]] && ln -s $CMB/ytnode.node $CMS/lib
+[[ ! -L $CMS/lib/ytnode_stubs.node ]] && ln -s $CMB/ytnode_stubs.node $CMS/lib
+
+export NODE_PATH=$CMB/node_modules:$NODE_PATH
+
+(cd $CMB && npm install); [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
+(cd $CMB && exec $CMB/node_modules/yt/bin/yt_http_api "$@")
+

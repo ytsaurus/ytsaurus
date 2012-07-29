@@ -1,0 +1,140 @@
+#include "stdafx.h"
+#include "virtual.h"
+
+#include <ytlib/ytree/ypath_format.h>
+#include <ytlib/cypress_server/node_detail.h>
+#include <ytlib/cypress_server/node_proxy_detail.h>
+#include <ytlib/cell_master/bootstrap.h>
+
+namespace NYT {
+namespace NCypressServer {
+
+using namespace NYTree;
+using namespace NCellMaster;
+using namespace NTransactionServer;
+using namespace NObjectServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualNode
+    : public TCypressNodeBase
+{
+public:
+    explicit TVirtualNode(const TVersionedNodeId& id)
+        : TCypressNodeBase(id)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualNodeProxy
+    : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
+{
+public:
+    typedef TCypressNodeProxyBase<IEntityNode, TVirtualNode> TBase;
+
+    TVirtualNodeProxy(
+        INodeTypeHandlerPtr typeHandler,
+        TBootstrap* bootstrap,
+        TTransaction* transaction,
+        const TNodeId& nodeId,
+        IYPathServicePtr service)
+        : TBase(
+            typeHandler,
+            bootstrap,
+            transaction,
+            nodeId)
+        , Service(service)
+    { }
+
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    {
+        TTokenizer tokenizer(path);
+        tokenizer.ParseNext();
+        if (tokenizer.GetCurrentType() == SuppressRedirectToken) {
+            return TBase::Resolve(TYPath(tokenizer.GetCurrentSuffix()), verb);
+        }
+        return TResolveResult::There(Service, path);
+    }
+
+private:
+    IYPathServicePtr Service;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualNodeTypeHandler
+    : public TCypressNodeTypeHandlerBase<TVirtualNode>
+{
+public:
+    typedef TVirtualNodeTypeHandler TThis;
+
+    TVirtualNodeTypeHandler(
+        TBootstrap* bootstrap,
+        TYPathServiceProducer producer,
+        EObjectType objectType)
+        : TCypressNodeTypeHandlerBase<TVirtualNode>(bootstrap)
+        , Producer(producer)
+        , ObjectType(objectType)
+    { }
+
+    virtual ICypressNodeProxyPtr GetProxy(
+        const TNodeId& id,
+        TTransaction* transaction)
+    {
+        auto service = Producer.Run(id);
+        return New<TVirtualNodeProxy>(
+            this,
+            Bootstrap,
+            transaction,
+            id,
+            service);
+    }
+
+    virtual EObjectType GetObjectType()
+    {
+        return ObjectType;
+    }
+
+    virtual ENodeType GetNodeType()
+    {
+        return ENodeType::Entity;
+    }
+
+private:
+    TYPathServiceProducer Producer;
+    EObjectType ObjectType;
+
+};
+
+INodeTypeHandlerPtr CreateVirtualTypeHandler(
+    TBootstrap* bootstrap,
+    EObjectType objectType,
+    TYPathServiceProducer producer)
+{
+    return New<TVirtualNodeTypeHandler>(
+        bootstrap,
+        producer,
+        objectType);
+}
+
+INodeTypeHandlerPtr CreateVirtualTypeHandler(
+    TBootstrap* bootstrap,
+    EObjectType objectType,
+    IYPathServicePtr service)
+{
+    IYPathServicePtr service_ = service;
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        objectType,
+        BIND([=] (const TNodeId& id) -> IYPathServicePtr {
+            UNUSED(id);
+            return service_;
+        }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NCypressServer
+} // namespace NYT

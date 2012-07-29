@@ -11,7 +11,7 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress_server/cypress_manager.h>
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/object_server/type_handler_detail.h>
 
@@ -22,7 +22,7 @@ using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +63,7 @@ private:
         attributes->push_back("created_object_ids");
         attributes->push_back("created_node_ids");
         attributes->push_back("branched_node_ids");
-        attributes->push_back("lock_ids");
+        attributes->push_back("locked_node_ids");
         TBase::GetSystemAttributes(attributes);
     }
 
@@ -115,11 +115,11 @@ private:
             return true;
         }
 
-        if (name == "lock_ids") {
+        if (name == "locked_node_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
-                    fluent.Item().Scalar(lock->GetId().ToString());
-                });
+                .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
+                    fluent.Item().Scalar(node->GetId().ObjectId.ToString());
+            });
             return true;
         }
 
@@ -171,14 +171,15 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RenewLease)
     {
-        UNUSED(request);
         UNUSED(response);
 
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        context->SetRequestInfo("");
-        Owner->RenewLease(transaction);
+        bool renewAncestors = request->renew_ancestors();
+        context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
+
+        Owner->RenewLease(transaction, request->renew_ancestors());
         context->Reply();
     }
 
@@ -367,17 +368,19 @@ TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
         objectManager->RefObject(id);
     }
 
+    auto actualTimeout = GetActualTimeout(timeout);
     if (IsLeader()) {
-        CreateLease(transaction, timeout);
+        CreateLease(transaction, actualTimeout);
     }
 
     transaction->SetState(ETransactionState::Active);
 
     TransactionStarted_.Fire(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Started transaction %s (ParentId: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "Started transaction %s (ParentId: %s, Timeout: %" PRIu64 ")",
         ~id.ToString(),
-        ~GetObjectId(parent).ToString());
+        ~GetObjectId(parent).ToString(),
+        actualTimeout.MilliSeconds());
 
     return transaction;
 }
@@ -449,16 +452,30 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
     objectManager->UnrefObject(transaction);
 }
 
-void TTransactionManager::RenewLease(const TTransaction* transaction)
+void TTransactionManager::RenewLease(const TTransaction* transaction, bool renewAncestors)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    DoRenewLease(transaction);
 
+    if (renewAncestors) {
+        auto parentTransaction = transaction->GetParent();
+        while (parentTransaction) {
+            DoRenewLease(parentTransaction);
+            parentTransaction = parentTransaction->GetParent();
+        }
+    }
+}
+
+void TTransactionManager::DoRenewLease(const TTransaction* transaction)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(transaction->IsActive());
 
     auto it = LeaseMap.find(transaction->GetId());
     YCHECK(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
 }
+
 
 void TTransactionManager::SaveKeys(TOutputStream* output)
 {
@@ -495,6 +512,13 @@ void TTransactionManager::Clear()
     TransactionMap.Clear();
 }
 
+TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
+{
+    return Min(
+        timeout.Get(Config->DefaultTransactionTimeout),
+        Config->MaximumTransactionTimeout);
+}
+
 void TTransactionManager::OnLeaderRecoveryComplete()
 {
     auto objectManager = Bootstrap->GetObjectManager();
@@ -503,7 +527,7 @@ void TTransactionManager::OnLeaderRecoveryComplete()
         const auto* transaction = pair.second;
         auto proxy = objectManager->GetProxy(id, NULL);
         auto timeout = proxy->Attributes().Find<TDuration>("timeout");
-        CreateLease(transaction, timeout);
+        CreateLease(transaction, GetActualTimeout(timeout));
     }
 }
 
@@ -515,13 +539,10 @@ void TTransactionManager::OnStopLeading()
     LeaseMap.clear();
 }
 
-void TTransactionManager::CreateLease(const TTransaction* transaction, TNullable<TDuration> timeout)
+void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration timeout)
 {
-    auto actualTimeout = Min(
-        timeout.Get(Config->DefaultTransactionTimeout),
-        Config->MaximumTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
-        actualTimeout,
+        timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
         .Via(
             Bootstrap->GetStateInvoker(),

@@ -18,6 +18,55 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+Stroka GetNodePathHelper(IConstNodePtr node)
+{
+    auto path = node->GetPath();
+    return path.empty() ? "Node" : Sprintf("Node %s", ~path);
+}
+
+} // namespace
+
+void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType)
+{
+    ythrow yexception() << Sprintf("%s has invalid type: expected %s, actual %s",
+        ~GetNodePathHelper(node),
+        ~expectedType.ToString(),
+        ~actualType.ToString());
+}
+
+void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
+{
+    ythrow yexception() << Sprintf("%s has no child with key %s",
+        ~GetNodePathHelper(node),
+        ~YsonizeString(key, EYsonFormat::Text));
+}
+
+void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
+{
+    ythrow yexception() << Sprintf("%s has no child with index %d",
+        ~GetNodePathHelper(node),
+        index);
+}
+
+void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb)
+{
+    ythrow TServiceException(TError(
+        NRpc::EErrorCode::NoSuchVerb,
+        "%s does not support verb %s",
+        ~GetNodePathHelper(node),
+        ~verb));
+}
+
+void ThrowCannotHaveChildren(IConstNodePtr node)
+{
+    ythrow yexception() << Sprintf("%s cannot have children",
+        ~GetNodePathHelper(node));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TNodeBase::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
@@ -62,6 +111,12 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
     context->Reply();
 }
 
+IYPathService::TResolveResult TNodeBase::ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb)
+{
+    ThrowCannotHaveChildren(this);
+    YUNREACHABLE();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCompositeNodeMixin::SetRecursive(
@@ -74,7 +129,7 @@ void TCompositeNodeMixin::SetRecursive(
 
     auto factory = CreateFactory();
     auto value = ConvertToNode(TYsonString(request->value()), ~factory);
-    SetRecursive(path, ~value);
+    SetRecursive(path, value);
     context->Reply();
 }
 
@@ -90,7 +145,7 @@ void TCompositeNodeMixin::RemoveRecursive(
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.CurrentToken().GetType()) {
-        case RemoveAllToken:
+        case WildcardToken:
             YASSERT(!tokenizer.ParseNext());
             Clear();
             break;
@@ -112,34 +167,38 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
-        case RemoveAllToken:
+        case WildcardToken:
+            if (verb != "Remove") {
+                ythrow yexception() << "Wildcard is only allowed for Remove verb";
+            }
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here(
                 TokenTypeToString(PathSeparatorToken) + path);
 
         case ETokenType::String: {
-            Stroka name(tokenizer.CurrentToken().GetStringValue());
-
-            if (name.Empty()) {
-                ythrow yexception() << Sprintf("Child name cannot be empty");
+            Stroka key(tokenizer.CurrentToken().GetStringValue());
+            if (key.Empty()) {
+                ythrow yexception() << Sprintf("Child key cannot be empty");
             }
 
-            auto child = FindChild(name);
+            auto child = FindChild(key);
             if (child) {
                 return IYPathService::TResolveResult::There(
                     child, TYPath(tokenizer.GetCurrentSuffix()));
             }
 
-            if (verb == "Set" || verb == "Create") {
+            if (verb == "Set" ||
+                verb == "Create" ||
+                verb == "Copy")
+            {
                 if (!tokenizer.ParseNext()) {
                     return IYPathService::TResolveResult::Here(
                         TokenTypeToString(PathSeparatorToken) + path);
                 }
             }
 
-            ythrow yexception() << Sprintf("Key %s is not found",
-                ~Stroka(name).Quote());
+            ThrowNoSuchChildKey(this, key);
         }
 
         default:
@@ -152,21 +211,20 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* co
 {
     UNUSED(request);
 
-    NYT::ToProto(response->mutable_keys(), GetKeys());
+    auto keys = GetKeys();
+    response->set_keys(ConvertToYsonString(keys).Data());
     context->Reply();
 }
 
-void TMapNodeMixin::SetRecursive(
-    const TYPath& path,
-    INode* value)
+void TMapNodeMixin::SetRecursive(const TYPath& path, INodePtr value)
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    Stroka childName(tokenizer.CurrentToken().GetStringValue());
+    Stroka key(tokenizer.CurrentToken().GetStringValue());
     YASSERT(!tokenizer.ParseNext());
-    YASSERT(!childName.empty());
-    YASSERT(!FindChild(childName));
-    AddChild(value, childName);
+    YASSERT(!key.empty());
+    YASSERT(!FindChild(key));
+    AddChild(value, key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,34 +237,31 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
         case ListAppendToken:
-        case RemoveAllToken:
+        case WildcardToken:
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-            return IYPathService::TResolveResult::Here(
-                TokenTypeToString(PathSeparatorToken) + path);
+            return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
 
         case ETokenType::Integer: {
-            int index = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
+            int index = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
+            auto child = GetChild(index);
             tokenizer.ParseNext();
             if (tokenizer.GetCurrentType() == ListInsertToken) {
                 tokenizer.ParseNext();
                 tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-                return IYPathService::TResolveResult::Here(
-                    TokenTypeToString(PathSeparatorToken) + path);
+                return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
             } else {
-                auto child = FindChild(index);
-                YASSERT(child);
                 return IYPathService::TResolveResult::There(child, TYPath(tokenizer.CurrentInput()));
             }
         }
 
-        case ListInsertToken:
+        case ListInsertToken: {
             tokenizer.ParseNext();
-            NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
+            int index = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-            return IYPathService::TResolveResult::Here(
-                TokenTypeToString(PathSeparatorToken) + path);
+            return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
+        }
 
         default:
             ThrowUnexpectedToken(tokenizer.CurrentToken());
@@ -216,7 +271,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 
 void TListNodeMixin::SetRecursive(
     const TYPath& path,
-    INode* value)
+    INodePtr value)
 {
     int beforeIndex = -1;
 
@@ -229,18 +284,16 @@ void TListNodeMixin::SetRecursive(
 
         case ListInsertToken:
             tokenizer.ParseNext();
-            beforeIndex = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue());
+            beforeIndex = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
             YASSERT(!tokenizer.ParseNext());
             break;
 
         case ETokenType::Integer:
-            beforeIndex = NormalizeAndCheckIndex(tokenizer.CurrentToken().GetIntegerValue()) + 1;
+            beforeIndex = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
+            ++beforeIndex;
             tokenizer.ParseNext();
             YASSERT(tokenizer.GetCurrentType() == ListInsertToken);
             YASSERT(!tokenizer.ParseNext());
-            if (beforeIndex == GetChildCount()) {
-                beforeIndex = -1;
-            }
             break;
 
         default:
@@ -248,21 +301,6 @@ void TListNodeMixin::SetRecursive(
     }
 
     AddChild(value, beforeIndex);
-}
-
-i64 TListNodeMixin::NormalizeAndCheckIndex(i64 index) const
-{
-    auto result = index;
-    auto count = GetChildCount();
-    if (result < 0) {
-        result += count;
-    }
-    if (result < 0 || result >= count) {
-        ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId32 ")",
-            index,
-            count);
-    }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

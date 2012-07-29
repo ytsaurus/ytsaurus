@@ -1,15 +1,12 @@
-#!/usr/bin/python
-#!-*-coding:utf-8-*-
-from collections import namedtuple
+#!/usr/bin/env python
 from metabase import *
-import os, stat
-import sys, inspect
 
-# Importing yson folder...
-cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
-yson_path = os.path.abspath(os.path.join(cmd_folder, "..", "..", "yson"))
-if os.path.exists(yson_path) and not yson_path in sys.path:
-    sys.path.append(yson_path)
+import inspect
+import os
+import stat
+import sys
+from collections import namedtuple
+
 import yson
 
 if os.name == 'nt':
@@ -78,7 +75,7 @@ class Node(AggrBase):
         return os.path.join(cls.work_dir, cls.__name__ + '.debug.log')
 
     def makeConfig(cls, fd):
-        yson.dump(cls.config, fd, indent='  ')
+        yson.yson.dump(cls.config, fd, indent='  ')
 
     def defaultFile(cls, fd, descr):
         raise "No file creation method for node (%s) and file %s" % (cls.path, desrc.name)

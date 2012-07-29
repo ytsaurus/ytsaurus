@@ -7,9 +7,9 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/cypress/virtual.h>
-#include <ytlib/cypress/node_proxy_detail.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_server/virtual.h>
+#include <ytlib/cypress_server/node_proxy_detail.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/chunk_server/holder_authority.h>
 #include <ytlib/orchid/cypress_integration.h>
@@ -19,7 +19,8 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressServer;
+using namespace NCypressClient;
 using namespace NMetaState;
 using namespace NOrchid;
 using namespace NObjectServer;
@@ -208,9 +209,8 @@ public:
     virtual bool IsHolderAuthorized(const Stroka& address)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto rootNodeProxy =
-            cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNodeId());
-        auto holderMap = GetNodeByYPath(rootNodeProxy, "/sys/holders")->AsMap();
+        auto resolver = cypressManager->CreateResolver();
+        auto holderMap = resolver->ResolvePath("//sys/holders")->AsMap();
         auto holderNode = holderMap->FindChild(address);
 
         if (!holderNode) {
@@ -353,7 +353,7 @@ public:
         return EObjectType::Holder;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         TTransaction* transaction)
     {
@@ -456,7 +456,7 @@ private:
         attributes->push_back("chunk_count");
         attributes->push_back("session_count");
         attributes->push_back("online_holder_count");
-        attributes->push_back("chunk_balancer_enabled");
+        attributes->push_back("chunk_replicator_enabled");
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -527,9 +527,9 @@ private:
             return true;
         }
 
-        if (name == "chunk_balancer_enabled") {
+        if (name == "chunk_replicator_enabled") {
             BuildYsonFluently(consumer)
-                .Scalar(chunkManager->IsBalancerEnabled());
+                .Scalar(chunkManager->IsReplicatorEnabled());
             return true;
         }
 
@@ -550,7 +550,7 @@ public:
         return EObjectType::HolderMap;
     }
     
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+    virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
         TTransaction* transaction)
     {
@@ -561,7 +561,7 @@ public:
             nodeId);
     }
 
-    virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& nodeId)
+    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& nodeId)
     {
         return New<THolderMapBehavior>(Bootstrap, nodeId);
     }

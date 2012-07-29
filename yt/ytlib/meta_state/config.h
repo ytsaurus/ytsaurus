@@ -139,7 +139,7 @@ struct TChangeLogCacheConfig
     //! Maximum number of cached changelogs.
     int MaxSize;
 
-    //! Minimum size of records between consecutive index records in changelog.
+    //! Minimum total index records size between consecutive index records.
     i64 IndexBlockSize;
 
     TChangeLogCacheConfig()
@@ -161,6 +161,8 @@ struct TSnapshotStoreConfig
 {
     //! A path where snapshots are stored.
     Stroka Path;
+
+    //! Controls if snapshots are compressed.
     bool EnableCompression;
 
     TSnapshotStoreConfig()
@@ -241,6 +243,32 @@ struct TPersistentStateManagerConfig
             .DefaultNew();
         Register("change_log_cache", ChangeLogCache)
             .DefaultNew();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+//! Master discovery configuration.
+struct TMasterDiscoveryConfig
+    : public TYsonSerializable
+{
+    //! List of peer addresses.
+    std::vector<Stroka> Addresses;
+
+    //! Timeout for RPC requests to masters.
+    TDuration RpcTimeout;
+
+    //! Master connection priority. 
+    int ConnectionPriority;
+
+    TMasterDiscoveryConfig()
+    {
+        Register("addresses", Addresses)
+            .NonEmpty();
+        Register("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
+        Register("connection_priority", ConnectionPriority)
+            .InRange(0, 6)
+            .Default(6);
     }
 };
 

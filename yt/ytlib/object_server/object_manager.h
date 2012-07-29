@@ -5,13 +5,12 @@
 #include "type_handler.h"
 
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/id_generator.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/object_server/object_manager.pb.h>
-#include <ytlib/cypress/public.h>
+#include <ytlib/cypress_server/public.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -39,13 +38,13 @@ public:
     void RegisterHandler(IObjectTypeHandlerPtr handler);
 
     //! Returns the handler for a given type or NULL if the type is unknown.
-    IObjectTypeHandler* FindHandler(EObjectType type) const;
+    IObjectTypeHandlerPtr FindHandler(EObjectType type) const;
 
     //! Returns the handler for a given type.
-    IObjectTypeHandler* GetHandler(EObjectType type) const;
+    IObjectTypeHandlerPtr GetHandler(EObjectType type) const;
     
     //! Returns the handler for a given id.
-    IObjectTypeHandler* GetHandler(const TObjectId& id) const;
+    IObjectTypeHandlerPtr GetHandler(const TObjectId& id) const;
 
     //! Returns the cell id.
     TCellId GetCellId() const;
@@ -57,13 +56,13 @@ public:
     void RefObject(const TObjectId& id);
     void RefObject(const TVersionedObjectId& id);
     void RefObject(TObjectWithIdBase* object);
-    void RefObject(NCypress::ICypressNode* node);
+    void RefObject(NCypressServer::ICypressNode* node);
 
     //! Removes a reference.
     void UnrefObject(const TObjectId& id);
     void UnrefObject(const TVersionedObjectId& id);
     void UnrefObject(TObjectWithIdBase* object);
-    void UnrefObject(NCypress::ICypressNode* node);
+    void UnrefObject(NCypressServer::ICypressNode* node);
 
     //! Returns the current reference counter.
     i32 GetObjectRefCounter(const TObjectId& id);
@@ -131,7 +130,6 @@ private:
 
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
-    std::vector< TIdGenerator<ui64> > TypeToCounter;
     std::vector<IObjectTypeHandlerPtr> TypeToHandler;
     TIntrusivePtr<TRootService> RootService;
 
@@ -142,11 +140,10 @@ private:
     void SaveValues(TOutputStream* output);
     void LoadKeys(TInputStream* input);
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
-    virtual void Clear();
+    
+    virtual void Clear() OVERRIDE;
 
-    TVoid ReplayVerb(
-        const NMetaState::NProto::TChangeHeader& changeHeader,
-        const NProto::TMsgExecuteVerb& message);
+    TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);

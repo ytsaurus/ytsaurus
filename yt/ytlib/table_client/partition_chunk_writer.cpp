@@ -9,6 +9,7 @@
 #include <ytlib/ytree/lexer.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/private.h>
+#include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 namespace NYT {
@@ -36,43 +37,18 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     const TKeyColumns& keyColumns,
     const std::vector<NProto::TKey>& partitionKeys)
     : TChunkWriterBase(chunkWriter, config)
-    , Channel(TChannel::CreateUniversal())
-    , KeyColumnCount(keyColumns.size())
+    , KeyColumns(keyColumns)
     , CurrentSize(0)
     , BasicMetaSize(0)
 {
     {
-        int columnIndex = 0;
-        for (; columnIndex < keyColumns.size(); ++columnIndex) {
-            Channel.AddColumn(keyColumns[columnIndex]);
-            YVERIFY(ColumnIndexes.insert(std::make_pair(
-                Channel.GetColumns()[columnIndex], 
-                columnIndex)).second);
+        auto channel = TChannel::CreateUniversal();
+        for (int i = 0; i < KeyColumns.size(); ++i) {
+            KeyColumnIndexes[KeyColumns[i]] = i;
+            channel.AddColumn(KeyColumns[i]);
         }
-
-        // Compose single channel that contains all fixed columns.
-        FOREACH (const auto& channel, channels) {
-            FOREACH (const auto& column, channel.GetColumns()) {
-                bool isKnownColumn = false;
-                FOREACH (const auto& existingColumns, Channel.GetColumns()) {
-                    if (existingColumns == column) {
-                        isKnownColumn = true;
-                        break;
-                    }
-                }
-
-                if (!isKnownColumn) {
-                    Channel.AddColumn(column);
-                    YVERIFY(ColumnIndexes.insert(std::make_pair(
-                        Channel.GetColumns()[columnIndex], 
-                        columnIndex)).second);
-                    ++columnIndex;
-                }
-            }
-        }
+        *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
     }
-
-    *ChannelsExt.add_items()->mutable_channel() = Channel.ToProto();
 
     PartitionKeys.reserve(partitionKeys.size());
     FOREACH (const auto& key, partitionKeys) {
@@ -80,7 +56,8 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     }
 
     for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
-        ChannelWriters.push_back(New<TChannelWriter>(Channel, ColumnIndexes));
+        // Write range column sizes to effectively skip during reading.
+        ChannelWriters.push_back(New<TChannelWriter>(0, true));
         auto* partitionAttributes = PartitionsExt.add_partitions();
         partitionAttributes->set_data_weight(0);
         partitionAttributes->set_row_count(0);
@@ -98,19 +75,22 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
 {
     YASSERT(!State.IsClosed());
 
-    if (!PendingSemaphore.IsReady())
+    if (!State.IsActive() || !EncodingWriter->IsReady())
         return false;
 
-    if (!State.IsActive())
-        return false;
-
-    TNonOwningKey key(KeyColumnCount);
+    TNonOwningKey key(KeyColumns.size());
+    RowValueIndexes.assign(row.size() + KeyColumns.size(), -1);
     {
-        TLexer lexer;
-        FOREACH (const auto& pair, row) {
-            auto it = ColumnIndexes.find(pair.first);
-            if (it != ColumnIndexes.end() && it->second < KeyColumnCount) {
-                key.SetKeyPart(it->second, pair.second, lexer);
+        int nonKeyIndex = KeyColumns.size();
+        for (int i = 0; i < row.size(); ++i) {
+            const auto& pair = row[i];
+            auto it = KeyColumnIndexes.find(pair.first);
+            if (it != KeyColumnIndexes.end()) {
+                key.SetKeyPart(it->second, pair.second, Lexer);
+                RowValueIndexes[it->second] = i;
+            } else {
+                RowValueIndexes[nonKeyIndex] = i;
+                ++nonKeyIndex;
             }
         }
     }
@@ -120,16 +100,15 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
     auto& channelWriter = ChannelWriters[partitionTag];
 
     i64 rowDataWeight = 1;
-    FOREACH (const auto& pair, row) {
-        auto it = ColumnIndexes.find(pair.first);
-        channelWriter->Write(
-            it == ColumnIndexes.end() ? TChannelWriter::UnknownIndex : it->second,
-            pair.first,
-            pair.second);
+    FOREACH (int valueIndex, RowValueIndexes) {
+        if (valueIndex >= 0) {
+            const auto& pair = row[valueIndex];
+            channelWriter->WriteRange(pair.first, pair.second);
 
-        rowDataWeight += pair.first.size();
-        rowDataWeight += pair.second.size();
-        ValueCount += 1;
+            rowDataWeight += pair.first.size();
+            rowDataWeight += pair.second.size();
+            ValueCount += 1;
+        }
     }
     channelWriter->EndRow();
 
@@ -146,25 +125,28 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
         PrepareBlock(partitionTag);
     }
 
-    CurrentSize = SentSize + channelWriter->GetCurrentSize();
+    CurrentSize = EncodingWriter->GetCompressedSize() + channelWriter->GetCurrentSize();
     return true;
 }
 
 void TPartitionChunkWriter::PrepareBlock(int partitionTag)
 {
-    PendingSemaphore.Acquire();
-
     auto& channelWriter = ChannelWriters[partitionTag];
     auto* blockInfo = ChannelsExt.mutable_items(0)->add_blocks();
     blockInfo->set_row_count(channelWriter->GetCurrentRowCount());
     blockInfo->set_partition_tag(partitionTag);
+    blockInfo->set_block_index(CurrentBlockIndex);
 
-    auto block = channelWriter->FlushBlock();
-    WriterThread->GetInvoker()->Invoke(BIND(
-        &TPartitionChunkWriter::CompressAndWriteBlock, 
-        MakeWeak(this),
-        block, 
-        blockInfo));
+    ++CurrentBlockIndex;
+
+    int size = 0;
+    auto blockParts(channelWriter->FlushBlock());
+    FOREACH (auto& part, blockParts) {
+        size += part.Size();
+    }
+    blockInfo->set_block_size(size);
+
+    EncodingWriter->WriteBlock(MoveRV(blockParts));
 }
 
 i64 TPartitionChunkWriter::GetMetaSize() const
@@ -178,6 +160,15 @@ i64 TPartitionChunkWriter::GetCurrentSize() const
 }
 
 NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
+{
+    NChunkHolder::NProto::TChunkMeta meta;
+    meta.set_type(EChunkType::Table);
+    SetProtoExtension(meta.mutable_extensions(), MiscExt);
+
+    return meta;
+}
+
+NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
 {
     NChunkHolder::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
@@ -200,15 +191,20 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
         }
     }
 
-    PendingSemaphore.GetFreeEvent().Subscribe(BIND(
+    EncodingWriter->AsyncFlush().Subscribe(BIND(
         &TPartitionChunkWriter::OnFinalBlocksWritten,
         MakeWeak(this)).Via(WriterThread->GetInvoker()));
 
     return State.GetOperationError();
 }
 
-void TPartitionChunkWriter::OnFinalBlocksWritten()
+void TPartitionChunkWriter::OnFinalBlocksWritten(TError error)
 {
+    if (!error.IsOK()) {
+        State.FinishOperation(error);
+        return;
+    }
+
     SetProtoExtension(Meta.mutable_extensions(), PartitionsExt);
     FinalizeWriter();
 }

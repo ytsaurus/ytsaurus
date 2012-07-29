@@ -5,7 +5,7 @@
 #include "stderr_output.h"
 
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_sequence_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 
@@ -30,7 +30,7 @@ using namespace NChunkServer;
 
 TMapJobIO::TMapJobIO(
     TJobIOConfigPtr config,
-    NElection::TLeaderLookup::TConfigPtr mastersConfig,
+    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
     : TUserJobIO(config, mastersConfig, jobSpec)
 { }
@@ -50,12 +50,12 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
         index, 
         static_cast<int>(chunks.size()));
 
-    auto reader = New<TChunkSequenceReader>(
+    auto reader = New<TTableChunkSequenceReader>(
         Config->ChunkSequenceReader,
         MasterChannel,
         blockCache,
-        chunks);
-    auto syncReader = New<TSyncReaderAdapter>(reader);
+        MoveRV(chunks));
+    auto syncReader = CreateSyncReader(reader);
     syncReader->Open();
 
     return new TTableProducer(syncReader, consumer);

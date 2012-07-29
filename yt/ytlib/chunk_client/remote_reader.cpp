@@ -9,14 +9,14 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/chunk_server/block_id.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
 #include <ytlib/object_server/object_service_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <util/random/shuffle.h>
 
@@ -29,7 +29,8 @@ using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
 using namespace NChunkServer::NProto;
 using namespace NObjectServer;
-using namespace NCypress;
+using namespace NCypressClient;
+using ::ToString;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -58,24 +59,35 @@ public:
         , BlockCache(blockCache)
         , ChunkId(chunkId)
         , Logger(ChunkReaderLogger)
+        , ChunkProxy(new TChunkServiceProxy(masterChannel))
+        , ObjectProxy(new TObjectServiceProxy(masterChannel))
+        , InitialSeedAddresses(seedAddresses)
         , GetSeedsPromise(Null)
+
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-        LOG_INFO("Reader created (SeedAddresses: [%s], FetchPromPeers: %s, PublishPeer: %s)",
-            ~JoinToString(seedAddresses),
-            ~ToString(Config->FetchFromPeers),
-            ~ToString(Config->PublishPeer));
+    }
 
-        if (!seedAddresses.empty()) {
-            GetSeedsPromise = MakePromise(TGetSeedsResult(seedAddresses));
+    void Initialize()
+    {
+        if (!Config->AllowFetchingSeedsFromMaster && InitialSeedAddresses.empty()) {
+            ythrow yexception() << "Reader is unusable: master seeds retries are disabled and no initial seeds are given";
         }
 
-        ChunkProxy = new TChunkServiceProxy(masterChannel);
-        ObjectProxy = new TObjectServiceProxy(masterChannel);
+        if (!InitialSeedAddresses.empty()) {
+            GetSeedsPromise = MakePromise(TGetSeedsResult(InitialSeedAddresses));
+        }
+
+        LOG_INFO("Reader initialized (InitialSeedAddresses: [%s], FetchPromPeers: %s, PublishPeer: %s, EnableCaching: %s)",
+            ~JoinToString(InitialSeedAddresses),
+            ~ToString(Config->FetchFromPeers),
+            ~ToString(Config->PublishPeer),
+            ~FormatBool(Config->EnableNodeCaching));
     }
 
     TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
+
     TAsyncGetMetaResult AsyncGetChunkMeta(
         const TNullable<int>& partitionTag,
         const std::vector<i32>* tags = NULL);
@@ -104,6 +116,12 @@ public:
 
         TGuard<TSpinLock> guard(SpinLock);
 
+        if (!Config->AllowFetchingSeedsFromMaster) {
+            // We're not allowed to ask master for seeds.
+            // Better keep the initial ones.
+            return;
+        }
+
         if (GetSeedsPromise.ToFuture() != result) {
             return;
         }
@@ -131,6 +149,7 @@ private:
     TAutoPtr<TObjectServiceProxy> ObjectProxy;
 
     TSpinLock SpinLock;
+    std::vector<Stroka> InitialSeedAddresses;
     TAsyncGetSeedsPromise GetSeedsPromise;
     TInstant SeedsTimestamp;
 
@@ -253,7 +272,7 @@ protected:
         LOG_INFO("Pass completed (PassIndex: %d)", PassIndex);
         ++PassIndex;
         if (PassIndex >= reader->Config->PassCount) {
-            OnRetryFailed(TError("Unable to fetch all chunk blocks"));
+            OnRetryFailed(TError("Unable to fetch chunk blocks"));
         } else {
             TDelayedInvoker::Submit(
                 BIND(&TSessionBase::NewPass, MakeStrong(this))
@@ -290,7 +309,7 @@ protected:
     {
         // Prefer local node if in seeds.
         for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it) {
-            if (GetServiceHostName(*it) == GetHostName()) {
+            if (GetServiceHostName(*it) == GetLocalHostName()) {
                 auto localSeed = *it;
                 SeedAddresses.erase(it);
                 SeedAddresses.insert(SeedAddresses.begin(), localSeed);
@@ -487,11 +506,12 @@ private:
                 }
 
                 TChunkHolderServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
+                proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
 
                 auto request = proxy.GetBlocks();
                 *request->mutable_chunk_id() = reader->ChunkId.ToProto();
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
+                request->set_enable_caching(reader->Config->EnableNodeCaching);
                 if (reader->Config->PublishPeer) {
                     request->set_peer_address(reader->Config->PeerAddress);
                     request->set_peer_expiration_time((TInstant::Now() + reader->Config->PeerExpirationTimeout).GetValue());
@@ -553,9 +573,9 @@ private:
             TBlockId blockId(reader->ChunkId, blockIndex);
             const auto& blockInfo = response->blocks(index);
             if (blockInfo.data_attached()) {
-                LOG_INFO("Block received from %s (BlockIndex: %d)",
-                    ~address,
-                    blockIndex);
+                LOG_INFO("Received block %d from %s",
+                    blockIndex,
+                    ~address);
                 auto block = response->Attachments()[index];
                 YASSERT(block);
                 
@@ -687,7 +707,7 @@ private:
         }
 
         TChunkHolderServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
+        proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
 
         auto request = proxy.GetChunkMeta();
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
@@ -765,12 +785,14 @@ IAsyncReaderPtr CreateRemoteReader(
     YASSERT(blockCache);
     YASSERT(masterChannel);
 
-    return New<TRemoteReader>(
+    auto reader = New<TRemoteReader>(
         config,
         blockCache,
         masterChannel,
         chunkId,
         seedAddresses);
+    reader->Initialize();
+    return reader;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

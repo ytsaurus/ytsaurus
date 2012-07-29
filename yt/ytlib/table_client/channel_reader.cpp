@@ -23,8 +23,11 @@ void TChannelReader::SetBlock(const TSharedRef& block)
 
     TMemoryInput input(CurrentBlock.Begin(), CurrentBlock.Size());
     std::vector<size_t> columnSizes;
-    columnSizes.reserve(Channel.GetColumns().size());
-    for (int columnIndex = 0; columnIndex < Channel.GetColumns().size(); ++columnIndex) {
+
+    int bufferCount = Channel.GetColumns().size() + 1;
+    // One buffer for RangeColumn.
+    columnSizes.reserve(bufferCount);
+    for (int columnIndex = 0; columnIndex < bufferCount; ++columnIndex) {
         ui64 size;
         ReadVarUInt64(&input, &size);
         YASSERT(size <= static_cast<ui64>(Max<size_t>()));
@@ -32,13 +35,11 @@ void TChannelReader::SetBlock(const TSharedRef& block)
     }
 
     const char* currentPos = input.Buf();
-    for (int columnIndex = 0; columnIndex < columnSizes.size(); ++columnIndex) {
+    for (int columnIndex = 0; columnIndex < bufferCount; ++columnIndex) {
         size_t size = columnSizes[columnIndex];
         ColumnBuffers[columnIndex].Reset(currentPos, size);
         currentPos += size;
     }
-
-    ColumnBuffers.back().Reset(currentPos, CurrentBlock.End() - currentPos);
 }
 
 bool TChannelReader::NextRow()
@@ -78,8 +79,18 @@ bool TChannelReader::NextColumn()
                 ++CurrentColumnIndex;
                 return false;
             }
-            CurrentColumn = value.ToStringBuf();
-            CurrentValue = TValue::Load(&rangeBuffer).ToStringBuf();
+            CurrentValue = value.ToStringBuf();
+            i32 nameSize;
+            ReadVarInt32(&rangeBuffer, &nameSize);
+
+            if (nameSize < 0) {
+                // global key column index, not implemented yet.
+                YUNREACHABLE();
+            } else {
+                CurrentColumn = TStringBuf(rangeBuffer.Buf(), nameSize);
+                rangeBuffer.Skip(nameSize);
+            }
+
             return true;
         } 
 
@@ -112,7 +123,7 @@ TStringBuf TChannelReader::GetColumn() const
     }
 }
 
-TStringBuf TChannelReader::GetValue() const
+const TStringBuf& TChannelReader::GetValue() const
 {
     YASSERT(CurrentColumnIndex >= 0);
     YASSERT(CurrentColumnIndex <= static_cast<int>(ColumnBuffers.size()));

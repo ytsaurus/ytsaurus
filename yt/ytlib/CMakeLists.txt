@@ -15,7 +15,8 @@ set( DIRS
   rpc
   bus
   ytree
-  cypress
+  cypress_server
+  cypress_client
   orchid
   file_server
   file_client
@@ -55,6 +56,10 @@ target_link_libraries ( ytlib
   ytext-uv
   protobuf
 )
+
+if (HAVE_LIBUNWIND)
+  target_link_libraries( ytlib libunwind.a )
+endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}

@@ -7,8 +7,7 @@
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/chunk_server/chunk_manager.h>
-#include <ytlib/cypress/lock.h>
-#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress_server/cypress_manager.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -16,7 +15,7 @@ namespace NCellMaster {
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NChunkServer;
-using namespace NCypress;
+using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,12 +45,6 @@ template <>
 TJob* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetChunkManager()->GetJob(id);
-}
-
-template <>
-TLock* TLoadContext::Get(const TObjectId& id) const
-{
-    return Bootstrap_->GetCypressManager()->GetLock(id);
 }
 
 template <>

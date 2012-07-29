@@ -191,26 +191,75 @@ gdb \
     --args \
     ./bin/unittester \
         --gtest_color=no \
-        --gtest_output=xml:$WORKING_DIRECTORY/test_unit.xml
+        --gtest_output=xml:$WORKING_DIRECTORY/unit_tests.xml
 b=$?
 a=$((a+b))
 
 tc "blockClosed name='Unit Tests'"
 
-tc "blockOpened name='Integration Tests'"
 
-shout "Running integration tests..."
-tc "progressMessage 'Running integration tests...'"
+# TODO(ignat): add correct installation for package "python-requests (>=0.13.1)"
+# Unfortunetly python-requests of proper version is absent in debian repository.
+# So I need to use easy_install.
+# Now it is installed to teamcity manually.
 
-cd $CHECKOUT_DIRECTORY/scripts/testing
-PATH=$WORKING_DIRECTORY/bin:$PATH \
-    py.test \
-        -rx -s -v \
-        --junitxml=$WORKING_DIRECTORY/test_integration.xml
-b=$?
-a=$((a+b))
+ulimit -c unlimited
 
-tc "blockClosed name='Integration Tests'"
+run_python_test()
+{
+    local dir=$1
+    local test_name=$2
+    local block_name="'${test_name} tests'"
+
+    shout "Running $test_name tests..."
+
+    tc "blockOpened name=${block_name}"
+    tc "progressMessage 'Running $test_name tests...'"
+
+    cd $dir
+    PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
+    PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
+        py.test \
+            -rx -v \
+            --timeout 300 \
+            --junitxml="$WORKING_DIRECTORY/test_${test_name}.prexml"
+    b=$?
+    a=$((a+b))
+    cat > /tmp/fix_xml_entities.py <<-EOP
+#!/usr/bin/python
+
+import xml.etree.ElementTree as etree
+import sys
+
+tree = etree.parse(sys.stdin)
+for node in tree.iter():
+    if isinstance(node.text, str):
+        node.text = node.text \
+            .replace("&quot;", "\"") \
+            .replace("&apos;", "\'") \
+            .replace("&amp;", "&") \
+            .replace("&lt;", "<") \
+            .replace("&gt;", ">")
+tree.write(sys.stdout, encoding="utf-8")
+EOP
+    cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
+    tc "blockClosed name=${block_name}"
+}
+
+run_python_test "$CHECKOUT_DIRECTORY/tests/integration" "integration"
+
+if [ "$b" != "0" ]; then
+    tmpdir="$HOME/failed_tests/$BUILD_VCS_NUMBER"
+    mkdir -p "$tmpdir"
+
+    shout "Integration tests failed, output was put to $tmpdir"
+    cp -r $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/* "$tmpdir"
+fi
+
+cd "$CHECKOUT_DIRECTORY/python/yt_wrapper" && make
+run_python_test "$CHECKOUT_DIRECTORY/python/yt_wrapper" "python_wrapper"
+
+run_python_test "$CHECKOUT_DIRECTORY/python/yson" "python_yson"
 
 tc "blockOpened name='JavaScript Tests'"
 

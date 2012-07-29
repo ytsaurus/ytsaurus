@@ -19,6 +19,7 @@ namespace NJobProxy {
 
 class TJobProxy
     : public TRefCounted
+    , public IJobHost
 {
 public:
     TJobProxy(
@@ -32,7 +33,7 @@ private:
     void SendHeartbeat();
     void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
 
-    NScheduler::NProto::TJobSpec GetJobSpec();
+    void RetrieveJobSpec();
     void ReportResult(const NScheduler::NProto::TJobResult& result);
 
     TJobProxyConfigPtr Config;
@@ -41,7 +42,17 @@ private:
     NLog::TTaggedLogger Logger;
 
     TAutoPtr<IJob> Job;
-    TPeriodicInvoker::TPtr HeartbeatInvoker;
+    TPeriodicInvokerPtr HeartbeatInvoker;
+
+    NScheduler::NProto::TJobSpec JobSpec;
+    NScheduler::NProto::TNodeResources ResourceUtilization;
+
+    // IJobHost implementation.
+    virtual TJobProxyConfigPtr GetConfig() OVERRIDE;
+    virtual const NScheduler::NProto::TJobSpec& GetJobSpec() OVERRIDE;
+
+    virtual NScheduler::NProto::TNodeResources GetResourceUtilization() OVERRIDE;
+    virtual void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization) OVERRIDE;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

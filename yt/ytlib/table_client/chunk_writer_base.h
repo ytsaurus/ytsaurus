@@ -10,8 +10,6 @@
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/misc/semaphore.h>
-#include <ytlib/misc/codec.h>
 
 
 namespace NYT {
@@ -26,19 +24,15 @@ public:
     TAsyncError GetReadyEvent();
 
 protected:
+    TChunkWriterBase(
+        NChunkClient::IAsyncWriterPtr chunkWriter,
+        TChunkWriterConfigPtr config);
+
     TChunkWriterConfigPtr Config;
     NChunkClient::IAsyncWriterPtr ChunkWriter;
-    ICodec* Codec;
+    NChunkClient::TEncodingWriterPtr EncodingWriter;
 
     int CurrentBlockIndex;
-
-    //! Uncompressed size of completed blocks.
-    i64 UncompressedSize;
-    
-    //! Total size of completed and sent blocks.
-    i64 SentSize;
-
-    double CompressionRatio;
 
     //! Approximate data size counting all written rows.
     i64 DataWeight;
@@ -49,9 +43,7 @@ protected:
     //! Total number of values ("cells") in all written rows.
     i64 ValueCount;
 
-    //! Compressed blocks waiting to be sent to 
-    std::deque<TSharedRef> PendingBlocks;
-    TAsyncSemaphore PendingSemaphore;
+    i64 CurrentSize;
 
     TAsyncStreamState State;
 
@@ -61,16 +53,7 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
-    TChunkWriterBase(
-        NChunkClient::IAsyncWriterPtr chunkWriter,
-        TChunkWriterConfigPtr config);
-    void CompressAndWriteBlock(
-        const TSharedRef& block, 
-        NTableClient::NProto::TBlockInfo* blockInfo);
-    void WritePendingBlock(TError error);
-
     void FinalizeWriter();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,8 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "input_stream.h"
-#include "output_stream.h"
 
 #include <ytlib/driver/public.h>
 #include <ytlib/ytree/public.h>
@@ -15,7 +13,7 @@ class TNodeJSDriver
     : public node::ObjectWrap
 {
 protected:
-    TNodeJSDriver(v8::Handle<v8::Object> configObject);
+    TNodeJSDriver(bool echo, v8::Handle<v8::Object> configObject);
     ~TNodeJSDriver();
 
 public:
@@ -43,6 +41,8 @@ public:
 private:
     NDriver::IDriverPtr Driver;
     Stroka Message;
+
+    const bool Echo;
 
 private:
     TNodeJSDriver(const TNodeJSDriver&);

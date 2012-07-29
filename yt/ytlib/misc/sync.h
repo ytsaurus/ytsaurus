@@ -19,6 +19,17 @@ void Sync(
     }
 }
 
+template <class TTarget, class TTargetConvertible>
+void Sync(
+    TTarget* target,
+    TFuture<TError>&(TTargetConvertible::*method)())
+{
+    auto& result = (target->*method)().Get();
+    if (!result.IsOK()) {
+        ythrow yexception() << result.ToString();
+    }
+}
+
 template <class TTarget, class TTargetConvertible,  class TArg1, class TArg1_>
 void Sync(
     TTarget* target,

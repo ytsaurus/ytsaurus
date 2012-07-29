@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_client )
 set( SRCS
   ${BASE}/client_block_cache.cpp
+  ${BASE}/encoding_writer.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
   ${BASE}/holder_channel_cache.cpp
@@ -17,6 +18,7 @@ set( HDRS
   ${BASE}/block_cache.h
   ${BASE}/client_block_cache.h
   ${BASE}/config.h
+  ${BASE}/encoding_writer.h
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/format.h

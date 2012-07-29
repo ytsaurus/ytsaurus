@@ -20,11 +20,14 @@
   },
   "devDependencies": {
     "chai": "*",
+    "sinon": "*",
+    "sinon-chai": "*",
     "mocha": "*",
+    "cover": "*",
     "v8-profiler" : "*",
     "webkit-devtools-agent": "*"
   },
   "engines": {
-    "node": ">= 0.6.x < 0.7.0"
+    "node": ">= 0.8.0"
   }
 }

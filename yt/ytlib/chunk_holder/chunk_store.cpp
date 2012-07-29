@@ -23,11 +23,11 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStore::TChunkStore(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
+TChunkStore::TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
 { }
@@ -42,13 +42,13 @@ void TChunkStore::Start()
 
             auto location = New<TLocation>(
                 ELocationType::Store,
-                ~locationConfig,
-                ~Bootstrap->GetReaderCache(),
-                Sprintf("ChunkStore_%d", i));
+                "store" + ToString(i),
+                locationConfig,
+                Bootstrap);
             Locations_.push_back(location);
 
             FOREACH (const auto& descriptor, location->Scan()) {
-                auto chunk = New<TStoredChunk>(~location, descriptor);
+                auto chunk = New<TStoredChunk>(location, descriptor);
                 RegisterChunk(chunk);
             }
         }
@@ -79,17 +79,14 @@ TStoredChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 
 void TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
 {
-    // Hold the chunk during removal.
-    TStoredChunkPtr chunk_ = chunk;
     auto chunkId = chunk->GetId();
 
     YVERIFY(ChunkMap.erase(chunkId) == 1);
     
     auto location = chunk->GetLocation();
     location->UpdateUsedSpace(-chunk->GetInfo().size());
-    location->RemoveChunk(chunk);
 
-    LOG_INFO("Chunk removed (ChunkId: %s)", ~chunkId.ToString());
+    chunk->ScheduleRemoval();
 
     ChunkRemoved_.Fire(chunk);
 }

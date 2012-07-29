@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "public.h"
+
 #include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {
@@ -7,12 +9,31 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents a context for running jobs inside job proxy.
+struct IJobHost
+{
+    ~IJobHost()
+    { }
+
+    virtual TJobProxyConfigPtr GetConfig() = 0;
+    virtual const NScheduler::NProto::TJobSpec& GetJobSpec() = 0;
+
+    virtual NScheduler::NProto::TNodeResources GetResourceUtilization() = 0;
+    virtual void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization) = 0;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Represents a job running inside job proxy.
 struct IJob
 {
-    virtual ~IJob();
+    virtual ~IJob()
+    { }
 
     virtual NScheduler::NProto::TJobResult Run() = 0;
-    // virtual TProgress GetProgress() = 0 const;
+    virtual NScheduler::NProto::TJobProgress GetProgress() const = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

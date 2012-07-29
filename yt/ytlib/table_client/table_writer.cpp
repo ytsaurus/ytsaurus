@@ -7,7 +7,7 @@
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/misc/sync.h>
@@ -17,7 +17,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NYTree;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NTableServer;
 using namespace NChunkServer;
@@ -68,28 +68,29 @@ void TTableWriter::Open()
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());
     }
+    auto uploadTransactionId = UploadTransaction->GetId();
     ListenTransaction(UploadTransaction);
-    LOG_INFO("Upload transaction created (TransactionId: %s)", ~UploadTransaction->GetId().ToString());
+    LOG_INFO("Upload transaction created (TransactionId: %s)", ~uploadTransactionId.ToString());
 
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
     std::vector<TChannel> channels;
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
+
         if (KeyColumns.IsInitialized()) {
             {
-                auto req = TCypressYPathProxy::Lock(WithTransaction(Path, UploadTransaction->GetId()));
-                req->set_mode(ELockMode::Exclusive);
-                batchReq->AddRequest(req, "lock");
+                auto req = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@row_count");
+                batchReq->AddRequest(req, "get_row_count");
             }
             {
-                auto req = TYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@row_count");
-                batchReq->AddRequest(req, "get_row_count");
+                auto req = TTableYPathProxy::Clear(WithTransaction(Path, uploadTransactionId));
+                batchReq->AddRequest(req, "clear");
             }
         }
 
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, UploadTransaction->GetId()));
+            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, uploadTransactionId));
             batchReq->AddRequest(req, "get_chunk_list_for_update");
         }
         {
@@ -105,21 +106,21 @@ void TTableWriter::Open()
 
         if (KeyColumns.IsInitialized()) {
             {
-                auto rsp = batchRsp->GetResponse("lock");
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_row_count");
                 if (!rsp->IsOK()) {
-                    LOG_ERROR_AND_THROW(yexception(), "Error locking table for sorted write\n%s",
+                    LOG_ERROR_AND_THROW(yexception(), "Error requesting table row count\n%s",
                         ~rsp->GetError().ToString());
+                }
+                i64 rowCount = ConvertTo<i64>(TYsonString(rsp->value()));
+                if (rowCount > 0) {
+                    LOG_ERROR_AND_THROW(yexception(), "Cannot write sorted data into a non-empty table");
                 }
             }
             {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_row_count");
+                auto rsp = batchRsp->GetResponse("clear");
                 if (!rsp->IsOK()) {
-                    LOG_ERROR_AND_THROW(yexception(), "Error getting table row count\n%s",
+                    LOG_ERROR_AND_THROW(yexception(), "Error clearing table for sorted write\n%s",
                         ~rsp->GetError().ToString());
-                }
-                auto rowCount = ConvertTo<i64>(TYsonString(rsp->value()));
-                if (rowCount > 0) {
-                    LOG_ERROR_AND_THROW(yexception(), "Cannot perform sorted write to a nonempty table");
                 }
             }
         }
@@ -152,7 +153,7 @@ void TTableWriter::Open()
     Writer = New<TTableChunkSequenceWriter>(
         Config, 
         MasterChannel,
-        UploadTransaction->GetId(),
+        uploadTransactionId,
         chunkListId,
         channels,
         KeyColumns);
@@ -168,13 +169,13 @@ void TTableWriter::Open()
     LOG_INFO("Table writer opened");
 }
 
-void TTableWriter::WriteRow(TRow& row, const TNonOwningKey& key)
+void TTableWriter::WriteRow(const TRow& row)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YVERIFY(IsOpen);
 
     CheckAborted();
-    while (!Writer->TryWriteRow(row, key)) {
+    while (!Writer->TryWriteRow(row)) {
         Sync(~Writer, &TTableChunkSequenceWriter::GetReadyEvent);
     }
 }

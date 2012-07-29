@@ -53,13 +53,16 @@ private:
     bool FirstLine;
     bool FirstItem;
 
-    void EscapeAndWrite(const TStringBuf& key);
-    const char* FindNextEscapedSymbol(const char* begin, const char* end);
+    void EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol);
+    const char* FindNextEscapedSymbol(const char* begin, const char* end, const bool* IsStopSymbol);
+    char EscapingTable[256];
 
     bool AllowBeginList;
     bool AllowBeginMap;
 
-    bool IsStopSymbol[256];
+    bool IsKeyStopSymbol[256];
+    bool IsValueStopSymbol[256];
+
 
     NYTree::TLexer Lexer;
 };

@@ -92,9 +92,8 @@ class Master(Server):
             },
         },
         'chunks' : {
-            'registered_holder_timeout' : 180000,
-            'balancer' : {
-                'min_online_holder_count' : 250,
+            'registered_node_timeout' : 180000,
+            'chunk_replicator' : {
                 'max_lost_chunk_fraction' : 0.01
             }
         },
@@ -123,7 +122,12 @@ class Scheduler(Server):
             'addresses' : MasterAddresses
         },
         'scheduler' : {   
-            'strategy' : 'fifo'
+            'strategy' : 'fifo',
+            'sort_job_io' : {
+                'chunk_sequence_reader' : {
+                    'prefetch_window' : 100
+                }
+            }
         },
         'rpc_port' : 9001,
         'monitoring_port' : 10001, 
@@ -136,16 +140,16 @@ DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
 class Holder(Server):
     files = Server.files + [CleanCache, DoCleanCache]
 
-    groupid = Subclass(xrange(10))
-    nodeid = Subclass(xrange(30), 1)
+    groupid = Subclass(xrange(5))
+    nodeid = Subclass(xrange(10), 1)
 
     log_disk = 'disk1'
-    log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
-    debug_log_path = Template("holder-%(groupid)d-%(nodeid)d.debug.log")
+    log_path = Template("node-%(groupid)d-%(nodeid)d.log")
+    debug_log_path = Template("node-%(groupid)d-%(nodeid)d.debug.log")
     
     @propmethod
     def host(cls):
-        return 'n01-0%dg' % (400 + 30 * cls.groupid + cls.nodeid)
+        return 'n01-0%dg' % (650 + 10 * cls.groupid + cls.nodeid)
     
     params = Template('--node --config %(config_path)s')
 
@@ -157,9 +161,10 @@ class Holder(Server):
     cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
         'masters' : {
-            'addresses' : MasterAddresses
+            'addresses' : MasterAddresses,
+            'rpc_timeout' : 20000
         },
-        'chunk_holder' : {
+        'data_node' : {
             'store_locations' : [
                 { 'path' : '/yt/disk1/data/chunk_store', 'quota' : storeQuota },
                 { 'path' : '/yt/disk2/data/chunk_store', 'quota' : storeQuota },
@@ -186,7 +191,12 @@ class Holder(Server):
                 }
             },
             'job_manager': {
-                'slot_location' : '%(work_dir)s/slots',
+                'resource_limits' : {
+                    'slots' : 24,
+                    'cores' : 18,
+                    'memory' : 36 * 1024 * 1024 * 1024
+                },
+                'slot_location' : '%(work_dir)s/slots'
             },
             'job_proxy_logging' : proxyLogging,
         },
@@ -199,61 +209,14 @@ class Holder(Server):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
         print >>fd, 'rm -f %s' % cls.debug_log_path
-        for location in cls.config['chunk_holder']['store_locations']:
+        for location in cls.config['data_node']['store_locations']:
             print >>fd, 'rm -rf %s' % location['path']
-        print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['data_node']['cache_location']['path']
 
     def do_clean_cache(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['data_node']['cache_location']['path']
 
-
-class Driver(Base, RemoteNode):
-    bin_path = '/home/yt/build/bin/yt'
-
-    nodeid = Subclass(xrange(400, 700))
-    host = Template('n01-0%(nodeid)dg')
-
-    params = Template('--config %(config_path)s')
-
-    log_disk = 'disk1'
-    log_path = Template("driver-%(nodeid)d.log")
-    debug_log_path = Template("driver-%(nodeid)d.debug.log")
-
-    stderr_path = Template('%(work_dir)s/driver.err')
-
-    config = Template({ 
-        'masters' : { 'addresses' : MasterAddresses },
-        'logging' : Logging
-    })
-
-    def run(cls, fd):
-        print >>fd, shebang
-        print >>fd, cmd_ssh % (cls.host, 
-            'start-stop-daemon -d ./ -b --exec %s --pidfile %s/pid -m -S' % (cls.do_run_path, cls.work_dir))
-
-    def do_run(cls, fd):
-        print >>fd, shebang
-        print >>fd, ulimit
-        print >>fd, cls.export_ld_path
-        suffix = '%s 2>&1 1>%s' % (cls.params, cls.stderr_path)
-        prefix = '%s/%s' % (cls.work_dir, cls.binary)
-        path = '//tmp/table%d' % cls.nodeid
-        print >>fd, ' '.join([prefix, 'create table', path, suffix])
-        print >>fd, 'for i in {1..3000}'
-        print >>fd, 'do'
-        print >>fd, ' '.join([prefix, 'write', path, '{hello=world}', suffix])
-        print >>fd, 'done'
-
-#    def do_stop(cls, fd):
-#        print >>fd, shebang
-#        print >>fd, 'killall yt'
-    
-    def do_clean(cls, fd):
-        print >>fd, shebang
-        print >>fd, 'rm -f %s' % cls.log_path
-        print >>fd, 'rm -f %s' % cls.debug_log_path
-        print >>fd, 'rm -f %s' % cls.stderr_path
 
 configure(Base)
     

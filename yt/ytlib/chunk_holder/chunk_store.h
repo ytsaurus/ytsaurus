@@ -22,7 +22,7 @@ public:
     typedef std::vector<TLocationPtr> TLocations;
 
     //! Constructs a new instance.
-    TChunkStore(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
+    TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap);
 
     //! Initializes the store.
     void Start();
@@ -62,7 +62,7 @@ public:
     DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
 
 private:
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;

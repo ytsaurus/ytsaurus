@@ -20,6 +20,20 @@ struct TScalarTypeTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Resolves YPaths into nodes and vice versa.
+struct IYPathResolver
+    : public virtual TRefCounted
+{
+    //! Returns a node corresponding to a given path.
+    //! Throws if resolution fails.
+    virtual INodePtr ResolvePath(const TYPath& path) = 0;
+
+    //! Returns a path for a given node.
+    virtual TYPath GetPath(INodePtr node) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A base DOM-like interface representing a node.
 struct INode
     : public virtual IYPathService
@@ -38,11 +52,14 @@ struct INode
      *  
      *  Note that each call may produce a new factory instance.
      *  This is used in Cypress where the factory instance acts as a container holding
-     *  temporary referencing to newly created nodes.
+     *  temporary references to newly created nodes.
      *  Each created node must be somehow attached to the tree before
      *  the factory dies. Otherwise the node also gets disposed.
      */
     virtual INodeFactoryPtr CreateFactory() const = 0;
+
+    //! Returns the resolver associated with the tree.
+    virtual IYPathResolverPtr GetResolver() const = 0;
 
     // A bunch of "AsSomething" methods that return a pointer
     // to the same node but typed as "Something".
@@ -51,6 +68,7 @@ struct INode
     virtual TIntrusivePtr<I##name##Node> As##name() = 0; \
     virtual TIntrusivePtr<const I##name##Node> As##name() const = 0;
 
+    DECLARE_AS_METHODS(Entity)
     DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
     DECLARE_AS_METHODS(Integer)
@@ -69,10 +87,10 @@ struct INode
      *  
      *  This method must not be called explicitly.
      */
-    virtual void SetParent(ICompositeNode* parent) = 0;
+    virtual void SetParent(ICompositeNodePtr parent) = 0;
 
     //! A helper method for retrieving a scalar value from a node.
-    //! Invokes an appropriate "AsSomething" call followed by "GetValue".
+    //! Invokes the appropriate |AsSomething| followed by |GetValue|.
     template <class T>
     T GetValue() const
     {
@@ -80,12 +98,15 @@ struct INode
     }
 
     //! A helper method for assigning a scalar value to a node.
-    //! Invokes an appropriate "AsSomething" call followed by "SetValue".
+    //! Invokes the appropriate |AsSomething| followed by |SetValue|.
     template <class T>
     void SetValue(typename NDetail::TScalarTypeTraits<T>::TParamType value)
     {
         NDetail::TScalarTypeTraits<T>::SetValue(this, value);
     }
+
+    //! A shortcut for |node->GetResolver()->GetPath(node)|.
+    TYPath GetPath() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,12 +141,12 @@ struct IScalarNode
         \
         static const ENodeType::EDomain NodeType; \
         \
-        static type GetValue(const INode* node) \
+        static type GetValue(IConstNodePtr node) \
         { \
             return node->As##name()->GetValue(); \
         } \
         \
-        static void SetValue(INode* node, TParamType value) \
+        static void SetValue(INodePtr node, TParamType value) \
         { \
             node->As##name()->SetValue(TType(value)); \
         } \
@@ -152,10 +173,10 @@ struct ICompositeNode
     virtual int GetChildCount() const = 0;
     //! Replaces one child by the other.
     //! #newChild must be a root.
-    virtual void ReplaceChild(INode* oldChild, INode* newChild) = 0;
+    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild) = 0;
     //! Removes a child.
     //! The removed child becomes a root.
-    virtual void RemoveChild(INode* child) = 0;
+    virtual void RemoveChild(INodePtr child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,7 +215,7 @@ struct IMapNode
      *  \note
      *  #child must be a root.
      */
-    virtual bool AddChild(INode* child, const TStringBuf& key) = 0;
+    virtual bool AddChild(INodePtr child, const TStringBuf& key) = 0;
 
     //! Removes a child by its key.
     /*!
@@ -203,20 +224,15 @@ struct IMapNode
      */
     virtual bool RemoveChild(const TStringBuf& key) = 0;
 
-    //! Similar to #FindChild but fails if no child is found.
-    INodePtr GetChild(const Stroka& key) const
-    {
-        auto child = FindChild(key);
-        YASSERT(child);
-        return child;
-    }
+    //! Similar to #FindChild but throws if no child is found.
+    INodePtr GetChild(const TStringBuf& key) const;
 
     //! Returns the key for a given child.
     /*!
      *  \param child A node that must be a child.
      *  \return Child's key.
      */
-    virtual Stroka GetChildKey(const INode* child) = 0;
+    virtual Stroka GetChildKey(IConstNodePtr child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,7 +263,7 @@ struct IListNode
      *  #child must be a root.
      */
 
-    virtual void AddChild(INode* child, int beforeIndex = -1) = 0;
+    virtual void AddChild(INodePtr child, int beforeIndex = -1) = 0;
     
     //! Removes a child by its index.
     /*!
@@ -257,19 +273,23 @@ struct IListNode
     virtual bool RemoveChild(int index) = 0;
 
     //! Similar to #FindChild but fails if the index is not valid.
-    INodePtr GetChild(int index) const
-    {
-        auto child = FindChild(index);
-        YASSERT(child);
-        return child;
-    }
+    INodePtr GetChild(int index) const;
 
     //! Returns the index for a given child.
     /*!
      *  \param child A node that must be a child.
      *  \return Child's index.
      */
-    virtual int GetChildIndex(const INode* child) = 0;
+    virtual int GetChildIndex(IConstNodePtr child) = 0;
+
+    //! Normalizes negative indexes (by adding child count).
+    //! Throws if the index is invalid.
+    /*!
+     *  \param index Original (possibly negative) index.
+     *  \returns Adjusted (valid non-negative) index.
+     */
+    int AdjustAndValidateChildIndex(int index) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

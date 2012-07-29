@@ -13,6 +13,8 @@ namespace NMetaState {
 struct IMetaState;
 typedef TIntrusivePtr<IMetaState> IMetaStatePtr;
 
+struct TMutationContext;
+
 struct IMetaStateManager;
 typedef TIntrusivePtr<IMetaStateManager> IMetaStateManagerPtr;
 
@@ -40,7 +42,7 @@ class TFollowerPinger;
 typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
 
 template <class TResult>
-class TMetaChange;
+class TMutation;
 
 struct TMetaVersion;
 
@@ -70,6 +72,9 @@ typedef TIntrusivePtr<TSnapshotStoreConfig> TSnapshotStoreConfigPtr;
 
 struct TPersistentStateManagerConfig;
 typedef TIntrusivePtr<TPersistentStateManagerConfig> TPersistentStateManagerConfigPtr;
+
+struct TMasterDiscoveryConfig;
+typedef TIntrusivePtr<TMasterDiscoveryConfig> TMasterDiscoveryConfigPtr;
 
 class TRecovery;
 typedef TIntrusivePtr<TRecovery> TRecoveryPtr;
@@ -107,6 +112,9 @@ typedef TIntrusivePtr<TChangeLogCache> TChangeLogCachePtr;
 
 class TSnapshotStore;
 typedef TIntrusivePtr<TSnapshotStore> TSnapshotStorePtr;
+
+class TMasterDiscovery;
+typedef TIntrusivePtr<TMasterDiscovery> TMasterDiscoveryPtr;
 
 DECLARE_ENUM(EPeerStatus,
     (Stopped)

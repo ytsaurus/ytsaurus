@@ -24,6 +24,8 @@ DECLARE_ENUM(ENodeType,
     (List)
     // Node is atomic, i.e. has no visible properties (aside from attributes).
     (Entity)
+    // Either List or Map.
+    (Composite)
 );
 
 class EYsonType;
@@ -38,6 +40,7 @@ struct IParser;
 
 struct INode;
 typedef TIntrusivePtr<INode> INodePtr;
+typedef TIntrusivePtr<const INode> IConstNodePtr;
 
 struct ICompositeNode;
 typedef TIntrusivePtr<ICompositeNode> ICompositeNodePtr;
@@ -62,6 +65,9 @@ typedef TIntrusivePtr<IEntityNode> IEntityNodePtr;
 
 struct INodeFactory;
 typedef TIntrusivePtr<INodeFactory> INodeFactoryPtr;
+
+struct IYPathResolver;
+typedef TIntrusivePtr<IYPathResolver> IYPathResolverPtr;
 
 struct IYsonConsumer;
 class TYsonProducer;

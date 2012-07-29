@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/ytree/yson_serializable.h>
+
 namespace NYT {
 namespace NTransactionClient {
 

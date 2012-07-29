@@ -1,9 +1,9 @@
 #pragma once
 
 #include "common.h"
-#include <ytlib/chunk_server/chunk_service.pb.h>
 
 #include <ytlib/rpc/client.h>
+#include <ytlib/chunk_server/chunk_service.pb.h>
 
 namespace NYT {
 namespace NChunkServer {

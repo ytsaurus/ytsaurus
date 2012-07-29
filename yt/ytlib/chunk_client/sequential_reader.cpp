@@ -16,27 +16,27 @@ static NLog::TLogger& Logger = ChunkReaderLogger;
 
 TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
-    const std::vector<int>& blockIndexes,
+    std::vector<TBlockInfo>&& blocks,
     IAsyncReaderPtr chunkReader,
-    const TBlocksExt& blocksExt)
-    : BlockIndexSequence(blockIndexes)
-    , BlocksExt(blocksExt)
+    ECodecId codecId)
+    : BlockSequence(blocks)
     , Config(config)
     , ChunkReader(chunkReader)
     , AsyncSemaphore(config->WindowSize)
     , NextSequenceIndex(0)
     , NextUnfetchedIndex(0)
+    , Codec(GetCodec(codecId))
 {
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
 
     YASSERT(ChunkReader);
-    YASSERT(blockIndexes.size() > 0);
-    YASSERT(blockIndexes.size() <= BlocksExt.blocks_size());
+    YASSERT(blocks.size() > 0);
 
     LOG_DEBUG("Creating sequential reader (BlockCount: %d)", 
-        static_cast<int>(blockIndexes.size()));
+        static_cast<int>(blocks.size()));
 
-    for (int i = 0; i < BlockIndexSequence.size(); ++i) {
+    BlockWindow.reserve(BlockSequence.size());
+    for (int i = 0; i < BlockSequence.size(); ++i) {
         BlockWindow.push_back(NewPromise<TSharedRef>());
     }
 
@@ -72,8 +72,7 @@ TAsyncError TSequentialReader::AsyncNextBlock()
     YASSERT(!State.HasRunningOperation());
 
     if (NextSequenceIndex > 0) {
-        AsyncSemaphore.Release(BlocksExt.blocks(
-            BlockIndexSequence[NextSequenceIndex - 1]).size());
+        AsyncSemaphore.Release(BlockWindow[NextSequenceIndex - 1].Get().Size());
         BlockWindow[NextSequenceIndex - 1].Reset();
     }
 
@@ -110,15 +109,44 @@ void TSequentialReader::OnGotBlocks(
         firstSequenceIndex, 
         static_cast<int>(readResult.Value().size()));
 
-    int sequenceIndex = firstSequenceIndex;
-    FOREACH (auto& block, readResult.Value()) {
-        BlockWindow[sequenceIndex].Set(block);
-        ++sequenceIndex;
-    }
-
     ReaderThread->GetInvoker()->Invoke(BIND(
-        &TSequentialReader::FetchNextGroup,
-        MakeWeak(this)));
+        &TSequentialReader::DecompressBlock,
+        MakeWeak(this),
+        firstSequenceIndex,
+        0,
+        readResult));
+}
+
+void TSequentialReader::DecompressBlock(
+    int firstSequenceIndex,
+    int blockIndex,
+    const IAsyncReader::TReadResult& readResult)
+{
+    int globalIndex = firstSequenceIndex + blockIndex;
+
+    auto& block = readResult.Value()[blockIndex];
+    auto data = Codec->Decompress(block);
+    BlockWindow[globalIndex].Set(data);
+
+    int delta = data.Size();
+    delta -= BlockSequence[globalIndex].Size;
+
+    if (delta > 0)
+        AsyncSemaphore.Acquire(delta);
+    else
+        AsyncSemaphore.Release(-delta);
+
+    LOG_DEBUG("Decompressed block %d", globalIndex);
+
+    ++blockIndex;
+    if (blockIndex < readResult.Value().size()) {
+        ReaderThread->GetInvoker()->Invoke(BIND(
+            &TSequentialReader::DecompressBlock,
+            MakeWeak(this),
+            firstSequenceIndex,
+            blockIndex,
+            readResult));
+    }
 }
 
 void TSequentialReader::FetchNextGroup()
@@ -129,10 +157,10 @@ void TSequentialReader::FetchNextGroup()
     auto firstUnfetched = NextUnfetchedIndex;
     std::vector<int> blockIndexes;
     int groupSize = 0;
-    while (groupSize < Config->GroupSize && NextUnfetchedIndex < BlockIndexSequence.size()) {
-        auto blockIndex = BlockIndexSequence[NextUnfetchedIndex];
-        blockIndexes.push_back(blockIndex);
-        groupSize += BlocksExt.blocks(blockIndex).size();
+    while (groupSize < Config->GroupSize && NextUnfetchedIndex < BlockSequence.size()) {
+        auto& blockInfo = BlockSequence[NextUnfetchedIndex];
+        blockIndexes.push_back(blockInfo.Index);
+        groupSize += blockInfo.Size;
         ++NextUnfetchedIndex;
     }
 
@@ -150,7 +178,7 @@ void TSequentialReader::FetchNextGroup()
         MakeWeak(this),
         firstUnfetched,
         blockIndexes,
-        groupSize));
+        groupSize).Via(ReaderThread->GetInvoker()));
 }
 
 void TSequentialReader::RequestBlocks(
@@ -163,6 +191,10 @@ void TSequentialReader::RequestBlocks(
         &TSequentialReader::OnGotBlocks, 
         MakeWeak(this),
         firstIndex).Via(ReaderThread->GetInvoker()));
+
+    ReaderThread->GetInvoker()->Invoke(BIND(
+        &TSequentialReader::FetchNextGroup,
+        MakeWeak(this)));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

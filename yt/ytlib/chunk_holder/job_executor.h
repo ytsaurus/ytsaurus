@@ -25,7 +25,7 @@ class TJob
 public:
     TJob(
         TJobExecutorPtr owner,
-        IInvokerPtr serviceInvoker,
+        IInvokerPtr controlInvoker,
         EJobType jobType,
         const TJobId& jobId,
         TStoredChunkPtr chunk,
@@ -96,10 +96,10 @@ class TJobExecutor
 public:
     //! Constructs a new instance.
     TJobExecutor(
-        TChunkHolderConfigPtr config,
+        TDataNodeConfigPtr config,
         TChunkStorePtr chunkStore,
         TBlockStorePtr blockStore,
-        IInvokerPtr serviceInvoker);
+        IInvokerPtr controlInvoker);
     
     //! Starts a new job with the given parameters.
     TJobPtr StartJob(
@@ -125,11 +125,11 @@ private:
     friend class TJob;
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
 
-    TChunkHolderConfigPtr Config;
+    TDataNodeConfigPtr Config;
 
     TChunkStorePtr ChunkStore;
     TBlockStorePtr BlockStore;
-    IInvokerPtr ServiceInvoker;
+    IInvokerPtr ControlInvoker;
 
     TJobMap Jobs;
 

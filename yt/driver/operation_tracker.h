@@ -44,6 +44,8 @@ private:
     EExitCode DumpResult();
 
     NScheduler::EOperationType GetOperationType(const NScheduler::TOperationId& operationId);
+
+    bool OperationFinished();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

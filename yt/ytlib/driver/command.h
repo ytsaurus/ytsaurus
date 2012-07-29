@@ -36,11 +36,14 @@ struct TTransactedRequest
     : public TRequestBase
 {
     NObjectServer::TTransactionId TransactionId;
+    bool PingAncestorTransactions;
 
     TTransactedRequest()
     {
         Register("transaction_id", TransactionId)
             .Default(NObjectServer::NullTransactionId);
+        Register("ping_ancestor_transactions", PingAncestorTransactions)
+            .Default(false);
     }
 };
 
@@ -141,19 +144,25 @@ public:
 protected:
     NTransactionClient::TTransactionId GetTransactionId(bool required)
     {
-        if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
-            ythrow yexception() << "Transaction is required";
+        auto transaction = GetTransaction(required);
+        if (transaction) {
+            return transaction->GetId();
+        } else {
+            return NTransactionClient::NullTransactionId;
         }
-        return this->Request->TransactionId;
     }
 
     NTransactionClient::ITransactionPtr GetTransaction(bool required)
     {
-        auto transactionId = GetTransactionId(required);
+        if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
+            ythrow yexception() << "Transaction is required";
+        }
+        auto transactionId = this->Request->TransactionId;
         if (transactionId == NTransactionClient::NullTransactionId) {
             return NULL;
         }
-        return this->Context->GetTransactionManager()->Attach(transactionId, false);
+        bool pingAncestorTransactions = this->Request->PingAncestorTransactions;
+        return this->Context->GetTransactionManager()->Attach(transactionId, false, pingAncestorTransactions);
     }
 
 };

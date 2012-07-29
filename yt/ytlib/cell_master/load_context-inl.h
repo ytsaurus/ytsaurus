@@ -6,7 +6,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/chunk_server/chunk_tree_ref.h>
-#include <ytlib/cypress/node.h>
+#include <ytlib/cypress_server/node.h>
 
 // Some forward declarations.
 namespace NYT {
@@ -47,10 +47,10 @@ inline void SetObjectRefImpl(
     auto type = NObjectServer::TypeFromId(id);
     switch (type) {
         case NObjectServer::EObjectType::Chunk:
-            object = NChunkServer::TChunkTreeRef(context.Get<NChunkServer::TChunk>(id));
+            object = context.Get<NChunkServer::TChunk>(id);
             break;
         case NObjectServer::EObjectType::ChunkList:
-            object = NChunkServer::TChunkTreeRef(context.Get<NChunkServer::TChunkList>(id));
+            object = context.Get<NChunkServer::TChunkList>(id);
             break;
         default:
             YUNREACHABLE();
@@ -158,12 +158,59 @@ struct TObjectRefMultisetSerializer
     }
 };
 
+struct TObjectRefHashMapSerializer
+{
+    template <class T>
+    static void SaveRefs(TOutputStream* output, const T& items)
+    {
+        typedef typename T::const_iterator I;
+
+        ::SaveSize(output, items.size());
+
+        std::vector<I> sortedIterators;
+        sortedIterators.reserve(items.size());
+        for (auto it = items.begin(); it != items.end(); ++it) {
+            sortedIterators.push_back(it);
+        }
+        
+        std::sort(
+            sortedIterators.begin(),
+            sortedIterators.end(),
+            [] (const I& lhs, const I& rhs) {
+                return NObjectServer::GetObjectId(lhs->first) < NObjectServer::GetObjectId(rhs->first);
+            });
+
+        FOREACH (const auto& it, sortedIterators) {
+            SaveObjectRef(output, it->first);
+            Save(output, it->second);
+        }
+    }
+
+    template <class T>
+    static void LoadRefs(TInputStream* input, T& items, const TLoadContext& context)
+    {
+        typedef typename T::key_type K;
+        typedef typename T::mapped_type V;
+        typedef typename T::value_type P;
+
+        auto size = ::LoadSize(input);
+        items.clear();
+        for (size_t i = 0; i < size; ++i) {
+            K key;
+            LoadObjectRef(input, key, context);
+            V value;
+            Load(input, value);
+            YVERIFY(items.insert(std::make_pair(key, value)).second);
+        }
+    }
+};
+
 template <class T>
 struct TObjectRefSerializerTraits
 { };
 
-template <class V, class A>
-struct TObjectRefSerializerTraits< std::vector<V, A> >
+template <class K, class A>
+struct TObjectRefSerializerTraits< std::vector<K, A> >
 {
     typedef TObjectRefVectorSerializer TSerializer;
 };
@@ -174,16 +221,22 @@ struct TObjectRefSerializerTraits< TSmallVector<V, N> >
     typedef TObjectRefVectorSerializer TSerializer;
 };
 
-template <class V, class H, class E, class A>
-struct TObjectRefSerializerTraits< yhash_set<V, H, E, A> >
+template <class K, class H, class E, class A>
+struct TObjectRefSerializerTraits< yhash_set<K, H, E, A> >
 {
     typedef TObjectRefSetSerializer TSerializer;
 };
 
-template <class V, class H, class E, class A>
-struct TObjectRefSerializerTraits< yhash_multiset<V, H, E, A> >
+template <class K, class H, class E, class A>
+struct TObjectRefSerializerTraits< yhash_multiset<K, H, E, A> >
 {
     typedef TObjectRefMultisetSerializer TSerializer;
+};
+
+template <class K, class V, class H, class E, class A>
+struct TObjectRefSerializerTraits< yhash_map<K, V, H, E, A> >
+{
+    typedef TObjectRefHashMapSerializer TSerializer;
 };
 
 template <class T>

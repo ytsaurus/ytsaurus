@@ -17,7 +17,8 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +48,7 @@ class TReaderCache::TImpl
     : public TSizeLimitedCache<TChunkId, TCachedReader>
 {
 public:
-    TImpl(TChunkHolderConfigPtr config)
+    explicit TImpl(TDataNodeConfigPtr config)
         : TSizeLimitedCache<TChunkId, TCachedReader>(config->MaxCachedReaders)
     { }
 
@@ -63,15 +64,25 @@ public:
                     Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString())));
             }
 
-            try {
-                auto reader = New<TCachedReader>(chunkId, fileName);
-                reader->Open();
-                cookie.EndInsert(reader);
-            } catch (const std::exception& ex) {
-                LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
-                    ~chunkId.ToString(),
-                    ex.what());
+            LOG_DEBUG("Started opening chunk reader (LocationId: %s, ChunkId: %s)",
+                ~chunk->GetLocation()->GetId(),
+                ~chunkId.ToString());
+
+            PROFILE_TIMING ("/chunk_io/chunk_reader_open_time") {
+                try {
+                    auto reader = New<TCachedReader>(chunkId, fileName);
+                    reader->Open();
+                    cookie.EndInsert(reader);
+                } catch (const std::exception& ex) {
+                    LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
+                        ~chunkId.ToString(),
+                        ex.what());
+                }
             }
+
+            LOG_DEBUG("Finished opening chunk reader (LocationId: %s, ChunkId: %s)",
+                ~chunk->GetLocation()->GetId(),
+                ~chunkId.ToString());
         }
 
         return cookie.GetValue().Get();
@@ -85,7 +96,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReaderCache::TReaderCache(TChunkHolderConfigPtr config)
+TReaderCache::TReaderCache(TDataNodeConfigPtr config)
     : Impl(New<TImpl>(config))
 { }
 

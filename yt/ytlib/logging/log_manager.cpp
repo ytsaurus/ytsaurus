@@ -3,10 +3,13 @@
 #include "writer.h"
 
 #include <ytlib/misc/pattern_formatter.h>
-#include <ytlib/actions/action_queue.h>
+
+#include <ytlib/actions/action_queue_detail.h>
+
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/yson_serializable.h>
+
 #include <ytlib/profiling/profiler.h>
 
 #include <util/system/sigset.h>
@@ -160,28 +163,34 @@ public:
     {
         auto config = New<TLogConfig>();
 
-        config->Writers.insert(
-            MakePair(DefaultStdErrWriterName, New<TStdErrLogWriter>(SystemPattern)));
+        config->Writers.insert(MakePair(
+            DefaultStdErrWriterName,
+            New<TStdErrLogWriter>(SystemPattern)));
         
-        config->Writers.insert(
-            MakePair(DefaultFileWriterName, New<TFileLogWriter>(DefaultFileName, DefaultFilePattern)));
+        config->Writers.insert(MakePair(
+            DefaultFileWriterName,
+            New<TFileLogWriter>(DefaultFileName, DefaultFilePattern)));
 
-        auto stdErrRule = New<TRule>();
-        stdErrRule->AllCategories = true;
-        stdErrRule->MinLevel = DefaultStdErrMinLevel;
-        stdErrRule->Writers.push_back(DefaultStdErrWriterName);
-        config->Rules.push_back(stdErrRule);
+        {
+            auto rule = New<TRule>();
+            rule->AllCategories = true;
+            rule->MinLevel = DefaultStdErrMinLevel;
+            rule->Writers.push_back(DefaultStdErrWriterName);
+            config->Rules.push_back(rule);
+        }
 
-        auto fileRule = New<TRule>();
-        fileRule->AllCategories = true;
-        fileRule->MinLevel = DefaultFileMinLevel;
-        fileRule->Writers.push_back(DefaultFileWriterName);
-        config->Rules.push_back(fileRule);
+        {
+            auto rule = New<TRule>();
+            rule->AllCategories = true;
+            rule->MinLevel = DefaultFileMinLevel;
+            rule->Writers.push_back(DefaultFileWriterName);
+            config->Rules.push_back(rule);
+        }
 
         return config;
     }
 
-    static TPtr CreateFromNode(INode* node, const TYPath& path = "")
+    static TPtr CreateFromNode(INodePtr node, const TYPath& path = "")
     {
         auto config = New<TLogConfig>();
         config->Load(node, true, path);
@@ -271,7 +280,7 @@ public:
         Shutdown();
     }
 
-    void Configure(INode* node, const TYPath& path = "")
+    void Configure(INodePtr node, const TYPath& path = "")
     {
         if (IsRunning()) {
             auto config = TLogConfig::CreateFromNode(node, path);
@@ -283,11 +292,10 @@ public:
     void Configure(const Stroka& fileName, const TYPath& path)
     {
         try {
-            LOG_TRACE("Configuring logging (FileName: %s, Path: %s)", ~fileName, ~path);
             TIFStream configStream(fileName);
-            INodePtr root = ConvertToNode(&configStream);
-            INodePtr configNode = GetNodeByYPath(root, path);
-            Configure(~configNode, path);
+            auto root = ConvertToNode(&configStream);
+            auto configNode = GetNodeByYPath(root, path);
+            Configure(configNode, path);
         } catch (const std::exception& ex) {
             LOG_ERROR("Error while configuring logging\n%s", ex.what())
         }
@@ -439,7 +447,7 @@ TLogManager* TLogManager::Get()
     return Singleton<TLogManager>();
 }
 
-void TLogManager::Configure(INode* node)
+void TLogManager::Configure(INodePtr node)
 {
     Impl->Configure(node);
 }

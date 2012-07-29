@@ -179,21 +179,29 @@ TEST_F(TTskvParserTest, Escaping)
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("a=b"));
-        EXPECT_CALL(Mock, OnStringScalar("c=d"));
+        EXPECT_CALL(Mock, OnStringScalar("c=d or e=f"));
     EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("key_with_\t"));
+        EXPECT_CALL(Mock, OnKeyedItem("key_with_\t,\\_and_\n"));
         EXPECT_CALL(Mock, OnStringScalar("value_with_\t,\\_and_\n"));
         EXPECT_CALL(Mock, OnKeyedItem("another_key"));
         EXPECT_CALL(Mock, OnStringScalar("another_value"));
     EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input =
-        "\\ts\\kv\n"
-        "tskv\t" "a\\=b=c\\=d\n"
-        "tskv\t" "key_with_\\\t=value_with_\\\t,\\\\_and_\\\n" "\tan\\other_\\key=anoth\\er_v\\alue";
+        "t\\s\\kv\n"
+
+        "tskv" "\t" "a\\=b"  "="  "c\\=d or e=f" "\n" // Note: unescaping is less strict
+
+        "tskv" "\t"
+        "key_with_\\t,\\\\_and_\\n"
+        "="
+        "value_with_\\t,\\\\_and_\\n"
+        "\t"
+        "an\\other_\\key=anoth\\er_v\\alue"
+        "\n";
 
     ParseDsv(input, &Mock, Config);
 }
@@ -234,8 +242,8 @@ TEST_F(TTskvParserTest, UndefinedValues)
 
     Stroka input =
         "tskv" "\t" "tskv" "\t" "tskv" "\n"
-        "tskv\t" "some_key" "\t\t\t" "a=b" "\t" "another_key" "\n"
-        "tskv\n"; // Note: consequent \t
+        "tskv\t" "some_key" "\t\t\t" "a=b" "\t" "another_key" "\n" // Note: consequent \t
+        "tskv\n";
 
 
     ParseDsv(input, &Mock, Config);

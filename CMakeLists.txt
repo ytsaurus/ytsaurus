@@ -3,30 +3,6 @@ project(YT)
 
 # set(YT_BUILD_ENABLE_NODEJS 1)
 
-# TODO(sandello): Move this version-related stuff into a separate file.
-set(YT_VERSION_MAJOR 0)
-set(YT_VERSION_MINOR 4)
-set(YT_VERSION_PATCH 3)
-
-if(NOT YT_BUILD_NUMBER)
-  set(YT_BUILD_NUMBER 0)
-endif()
-
-if(NOT YT_BUILD_BRANCH)
-  set(YT_BUILD_BRANCH "unknown")
-endif()
-
-if(NOT YT_BUILD_TAG)
-  set(YT_BUILD_TAG "local")
-endif()
-
-set(YT_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}.${YT_VERSION_PATCH}")
-set(YT_VERSION "${YT_VERSION}-${YT_BUILD_BRANCH}")
-set(YT_VERSION "${YT_VERSION}~${YT_BUILD_NUMBER}")
-set(YT_VERSION "${YT_VERSION}+${YT_BUILD_TAG}")
-
-message(STATUS "Configuring YT ${YT_VERSION}")
-
 ################################################################################
 # Include various CMake modules.
 
@@ -35,20 +11,59 @@ set(CMAKE_MODULE_PATH
 )
 
 include(CMakeDependentOption)
+
+include(CheckCSourceCompiles)
+include(CheckCXXSourceCompiles)
 include(CheckCXXCompilerFlag)
+include(CheckIncludeFiles)
+include(CheckFunctionExists)
+
 include(FindPythonInterp)
 
 include(DumpCMakeVariables)
+
 include(LocalFunctions)
 include(LocalConfiguration)
+
+include(Version)
 include(PCH)
+
+# TODO(sandello): We all have to migrate to a newer CMake aforehead.
+# include(cotire)
+
+message(STATUS "Configuring YT ${YT_VERSION}")
 
 ################################################################################
 # Setup targets.
 
+check_include_files(cxxabi.h       HAVE_CXXABI_H)
+check_include_files(dlfcn.h        HAVE_DLFCN_H)
+check_include_files(execinfo.h     HAVE_EXECINFO_H)
+check_include_files(libunwind.h    HAVE_LIBUNWIND_H)
+check_include_files(pthread.h      HAVE_PTHREAD_H)
+check_include_files(sys/types.h    HAVE_SYS_TYPES_H)
+check_include_files(sys/ucontext.h HAVE_SYS_UCONTEXT_H)
+check_include_files(ucontext.h     HAVE_UCONTEXT_H)
+check_include_files(unwind.h       HAVE_UNWIND_H)
+check_include_files(unistd.h       HAVE_UNISTD_H)
+
+include(PCFromUcontext)
+
+find_library(HAVE_LIBUNWIND unwind)
+
+# For some reason this header cannot be reliably located with CMake.
+if (CMAKE_COMPILER_IS_GNUCXX)
+  set(HAVE_CXXABI_H 1)
+endif()
+
 configure_file(
   ${CMAKE_SOURCE_DIR}/yt/build.h.in
   ${CMAKE_BINARY_DIR}/yt/build.h
+)
+
+configure_file(
+  ${CMAKE_SOURCE_DIR}/yt/config.h.in
+  ${CMAKE_BINARY_DIR}/yt/config.h
 )
 
 # TODO(sandello): Check whether these two directories differ.
@@ -112,4 +127,3 @@ add_custom_target( install-debian-yandex-yt-http-api
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   COMMENT "Installing for package 'yandex-yt-http-api'..."
 )
-

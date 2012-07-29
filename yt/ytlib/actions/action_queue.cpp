@@ -1,216 +1,93 @@
 #include "stdafx.h"
 #include "action_queue.h"
 #include "bind.h"
-#include "callback.h"
-#include "invoker.h"
+#include "action_queue_detail.h"
 
-#include <ytlib/misc/common.h>
-#include <ytlib/logging/log.h>
-#include <ytlib/ytree/ypath_client.h>
-#include <ytlib/profiling/timing.h>
-
-#include <util/thread/lfqueue.h>
+#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 
-using namespace NYTree;
 using namespace NProfiling;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ActionQueue");
-
-///////////////////////////////////////////////////////////////////////////////
-
-TQueueInvoker::TQueueInvoker(
-    const Stroka& name,
-    TActionQueueBase* owner,
-    bool enableLogging)
-    : Owner(owner)
-    , EnableLogging(enableLogging)
-    , Profiler("/action_queues/" + EscapeYPathToken(name))
-    , EnqueueCounter("/enqueue_rate")
-    , DequeueCounter("/dequeue_rate")
-    , QueueSize(0)
-    , QueueSizeCounter("/size")
-    , WaitTimeCounter("/time/wait")
-    , ExecTimeCounter("/time/exec")
-    , TotalTimeCounter("/time/total")
-{ }
-
-void TQueueInvoker::Invoke(const TClosure& action)
+class TActionQueue::TImpl
+    : public TActionQueueBase
 {
-    if (!Owner) {
-        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", action.GetHandle());
-        return;
+public:
+    TImpl(const Stroka& threadName, bool enableLogging)
+        : TActionQueueBase(threadName, enableLogging)
+    {
+        QueueInvoker = New<TQueueInvoker>(threadName, this, enableLogging);
+        Start();
     }
 
-    AtomicIncrement(QueueSize);
-    Profiler.Increment(EnqueueCounter);
-
-    TItem item;
-    item.StartInstant = GetCpuInstant();
-    item.Action = action;
-    Queue.Enqueue(item);
-
-    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", action.GetHandle());
-
-    Owner->Signal();
-}
-
-void TQueueInvoker::Shutdown()
-{
-    Owner = NULL;
-}
-
-bool TQueueInvoker::DequeueAndExecute()
-{
-    TItem item;
-    if (!Queue.Dequeue(&item))
-        return false;
-
-    Profiler.Increment(DequeueCounter);
-
-    auto startExecInstant = GetCpuInstant();
-    Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(startExecInstant - item.StartInstant));
-
-    auto size = AtomicDecrement(QueueSize);
-    Profiler.Aggregate(QueueSizeCounter, size);
-
-    auto action = item.Action;
-    LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", action.GetHandle());
-    action.Run();
-    LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", action.GetHandle());
-
-    auto endExecInstant = GetCpuInstant();
-    Profiler.Aggregate(ExecTimeCounter, CpuDurationToValue(endExecInstant - startExecInstant));
-    Profiler.Aggregate(TotalTimeCounter, CpuDurationToValue(endExecInstant - item.StartInstant));
-        
-    return true;
-}
-
-bool TQueueInvoker::IsEmpty() const
-{
-    return const_cast< TLockFreeQueue<TItem>& >(Queue).IsEmpty();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-TActionQueueBase::TActionQueueBase(const Stroka& threadName, bool enableLogging)
-    : EnableLogging(enableLogging)
-    , Running(true)
-    , WakeupEvent(Event::rManual)
-    , Thread(ThreadFunc, (void*) this)
-    , ThreadName(threadName)
-{ }
-
-TActionQueueBase::~TActionQueueBase()
-{
-    // Derived classes must call Shutdown in dtor.
-    YASSERT(!Running);
-}
-
-void TActionQueueBase::Start()
-{
-    Thread.Start();
-}
-
-void* TActionQueueBase::ThreadFunc(void* param)
-{
-    auto* queue = (TActionQueue*) param;
-    queue->ThreadMain();
-    return NULL;
-}
-
-void TActionQueueBase::ThreadMain()
-{
-    OnThreadStart();
-    NThread::SetCurrentThreadName(~ThreadName);
-    while (true) {
-        if (!DequeueAndExecute()) {
-            WakeupEvent.Reset();
-            if (!DequeueAndExecute()) {
-                if (!Running) {
-                    break;
-                }
-                OnIdle();
-                WakeupEvent.Wait();
-            }
-        }
+    ~TImpl()
+    {
+        QueueInvoker->Shutdown();
+        Shutdown();
     }
-    YASSERT(!DequeueAndExecute());
-    OnThreadShutdown();
-}
 
-void TActionQueueBase::Shutdown()
-{
-    if (!Running) {
-        return;
+    void Shutdown()
+    {
+        TActionQueueBase::Shutdown();
     }
-    Running = false;
-    WakeupEvent.Signal();
-    Thread.Join();
-}
 
-void TActionQueueBase::OnIdle()
-{ }
+    IInvokerPtr GetInvoker()
+    {
+        return QueueInvoker;
+    }
 
-void TActionQueueBase::Signal()
-{
-    WakeupEvent.Signal();
-}
+    int GetSize() const
+    {
+        return QueueInvoker->GetSize();
+    }
 
-bool TActionQueueBase::IsRunning() const
-{
-    return Running;
-}
+    static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
 
-void TActionQueueBase::OnThreadStart()
-{ }
+protected:
+    virtual bool DequeueAndExecute() OVERRIDE
+    {
+        return QueueInvoker->DequeueAndExecute();
+    }
 
-void TActionQueueBase::OnThreadShutdown()
-{ }
+private:
+    TQueueInvokerPtr QueueInvoker;
 
-///////////////////////////////////////////////////////////////////////////////
+};
 
 TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
-    : TActionQueueBase(threadName, enableLogging)
-{
-    QueueInvoker = New<TQueueInvoker>(threadName, this, enableLogging);
-    Start();
-}
+    : Impl(New<TImpl>(threadName, enableLogging))
+{ }
 
 TActionQueue::~TActionQueue()
-{
-    QueueInvoker->Shutdown();
-    Shutdown();
-}
+{ }
 
-bool TActionQueue::DequeueAndExecute()
+void TActionQueue::Shutdown()
 {
-    return QueueInvoker->DequeueAndExecute();
+    return Impl->Shutdown();
 }
 
 IInvokerPtr TActionQueue::GetInvoker()
 {
-    return QueueInvoker;
+    return Impl->GetInvoker();
 }
 
-TCallback<TActionQueue::TPtr()> TActionQueue::CreateFactory(const Stroka& threadName)
+TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(const Stroka& threadName)
 {
     return BIND([=] () {
-        return NYT::New<NYT::TActionQueue>(threadName);
+        return New<TActionQueue>(threadName);
     });
 }
 
-void TActionQueue::Shutdown()
+int TActionQueue::GetSize() const
 {
-    TActionQueueBase::Shutdown();
+    return Impl->GetSize();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TMultiActionQueue::TImpl
+class TFairShareActionQueue::TImpl
     : public TActionQueueBase
 {
 public:
@@ -262,7 +139,7 @@ private:
     std::vector<TQueue> Queues;
 
 
-    bool DequeueAndExecute()
+    virtual bool DequeueAndExecute() OVERRIDE
     {
         // Compute min excess over non-empty queues.
         i64 minExcess = std::numeric_limits<i64>::max();
@@ -291,7 +168,7 @@ private:
         // Pump the min queue and update its excess.
         auto& minQueue = Queues[minQueueIndex];
         auto startTime = GetCpuInstant();
-        YVERIFY(minQueue.Invoker->DequeueAndExecute());
+        YCHECK(minQueue.Invoker->DequeueAndExecute());
         auto endTime = GetCpuInstant();
         minQueue.ExcessTime += (endTime - startTime);
 
@@ -299,22 +176,263 @@ private:
     }
 };
 
-TMultiActionQueue::TMultiActionQueue(int queueCount, const Stroka& threadName)
+TFairShareActionQueue::TFairShareActionQueue(int queueCount, const Stroka& threadName)
     : Impl(New<TImpl>(queueCount, threadName))
 { }
 
-TMultiActionQueue::~TMultiActionQueue()
+TFairShareActionQueue::~TFairShareActionQueue()
 { }
 
-IInvokerPtr TMultiActionQueue::GetInvoker(int queueIndex)
+IInvokerPtr TFairShareActionQueue::GetInvoker(int queueIndex)
 {
     return Impl->GetInvoker(queueIndex);
 }
 
-
-void TMultiActionQueue::Shutdown()
+void TFairShareActionQueue::Shutdown()
 {
     return Impl->Shutdown();
+}
+
+TCallback<TFairShareActionQueuePtr()> TFairShareActionQueue::CreateFactory(int queueCount, const Stroka& threadName)
+{
+    return BIND([=] () {
+        return NYT::New<NYT::TFairShareActionQueue>(queueCount, threadName);
+    });
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TThreadPool::TImpl
+    : public IInvoker
+{
+public:
+    TImpl(int threadCount, const Stroka& threadName)
+    {
+        for (int i = 0; i < threadCount; ++i) {
+            Threads.push_back(New<TActionQueue::TImpl>(
+                Sprintf("%s:%d", ~threadName, i),
+                true));
+        }
+    }
+
+    void Shutdown()
+    {
+        FOREACH (const auto& thread, Threads) {
+            thread->Shutdown();
+        }
+    }
+
+    IInvokerPtr GetInvoker()
+    {
+        // I am the invoker! :)
+        return this;
+    }
+
+    virtual void Invoke(const TClosure& action) OVERRIDE
+    {
+        // Pick a seemingly least-loaded thread in the pool.
+        // Do not lock, just scan and choose the minimum.
+        // This should be fast enough since threadCount is small.
+        int minSize = std::numeric_limits<int>::max();
+        TIntrusivePtr<TActionQueue::TImpl> minThread;
+        FOREACH (const auto& thread, Threads) {
+            int size = thread->GetSize();
+            if (size < minSize) {
+                minSize = size;
+                minThread = thread;
+            }
+        }
+
+        minThread->GetInvoker()->Invoke(action);
+    }
+
+private:
+    std::vector< TIntrusivePtr<TActionQueue::TImpl> > Threads;
+
+};
+
+TThreadPool::TThreadPool(int threadCount, const Stroka& threadName)
+    : Impl(New<TImpl>(threadCount, threadName))
+{ }
+
+TThreadPool::~TThreadPool()
+{ }
+
+void TThreadPool::Shutdown()
+{
+    return Impl->Shutdown();
+}
+
+IInvokerPtr TThreadPool::GetInvoker()
+{
+    return Impl->GetInvoker();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TPrioritizedActionQueue::TImpl
+    : public TActionQueueBase
+{
+public:
+    TImpl(const Stroka& threadName)
+        : TActionQueueBase(threadName, true)
+        , CurrentSequenceNumber(0)
+    {
+        Start();
+    }
+
+    ~TImpl()
+    {
+        Shutdown();
+    }
+
+    void Shutdown()
+    {
+        TActionQueueBase::Shutdown();
+    }
+
+    void Enqueue(const TClosure& action, i64 priority)
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            TItem item;
+            item.Action = action;
+            item.Priority = priority;
+            item.SequenceNumber = CurrentSequenceNumber++;
+            Items.push_back(item);
+            std::push_heap(Items.begin(), Items.end());
+        }
+
+        Signal();
+    }
+
+private:
+    struct TItem
+    {
+        TClosure Action;
+        i64 Priority;
+        i64 SequenceNumber;
+
+        bool operator < (const TItem& other) const
+        {
+            if (this->Priority < other.Priority)
+                return true;
+            if (this->Priority > other.Priority)
+                return false;
+            return this->SequenceNumber > other.SequenceNumber;
+        }
+    };
+
+    TSpinLock SpinLock;
+    std::vector<TItem> Items;
+    i64 CurrentSequenceNumber;
+
+    virtual bool DequeueAndExecute() OVERRIDE
+    {
+        TClosure action;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (Items.empty()) {
+                return false;
+            }
+
+            action = MoveRV(Items.front().Action);
+            std::pop_heap(Items.begin(), Items.end());
+            Items.pop_back();
+        }
+        action.Run();
+        return true;
+    }
+};
+
+class TPrioritizedActionQueue::TInvoker
+    : public IInvoker
+{
+public:
+    TInvoker(TIntrusivePtr<TImpl> impl, i64 priority)
+        : Impl(impl)
+        , Priority(priority)
+    { }
+
+    virtual void Invoke(const TClosure& action) OVERRIDE
+    {
+        Impl->Enqueue(action, Priority);
+    }
+
+private:
+    TIntrusivePtr<TImpl> Impl;
+    i64 Priority;
+
+};
+
+TPrioritizedActionQueue::TPrioritizedActionQueue(const Stroka& threadName)
+    : Impl(New<TImpl>(threadName))
+{ }
+
+TPrioritizedActionQueue::~TPrioritizedActionQueue()
+{ }
+
+IInvokerPtr TPrioritizedActionQueue::CreateInvoker(i64 priority)
+{
+    return New<TInvoker>(Impl, priority);
+}
+
+void TPrioritizedActionQueue::Shutdown()
+{
+    return Impl->Shutdown();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TSerializedInvoker
+    : public IInvoker
+{
+public:
+    explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
+        : UnderlyingInvoker(underlyingInvoker)
+        , Lock(0)
+    { }
+
+    virtual void Invoke(const TClosure& action) OVERRIDE
+    {
+        Queue.Enqueue(action);
+        TrySchedule();
+    }
+
+private:
+    IInvokerPtr UnderlyingInvoker;
+    TLockFreeQueue<TClosure> Queue;
+    TAtomic Lock;
+
+    void TrySchedule()
+    {
+        if (Queue.IsEmpty()) {
+            return;
+        }
+
+        if (AtomicTryAndTryLock(&Lock)) {
+            UnderlyingInvoker->Invoke(BIND(&TSerializedInvoker::DoInvoke, MakeStrong(this)));
+        }
+    }
+
+    void DoInvoke()
+    {
+        // Execute as many actions as possible to minimize context switches.
+        TClosure action;
+        while (Queue.Dequeue(&action)) {
+            action.Run();
+        }
+
+        AtomicUnlock(&Lock);
+
+        TrySchedule();
+    }
+
+};
+
+IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
+{
+    return New<TSerializedInvoker>(underlyingInvoker);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

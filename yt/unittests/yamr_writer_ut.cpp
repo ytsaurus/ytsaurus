@@ -16,17 +16,17 @@ TEST(TYamrWriterTest, Simple)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key2");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value2");
     writer.OnEndMap();
 
@@ -45,21 +45,21 @@ TEST(TYamrWriterTest, SimpleWithSubkey)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
-        writer.OnKeyedItem("sk");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey1");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key2");
-        writer.OnKeyedItem("sk");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value2");
     writer.OnEndMap();
 
@@ -76,17 +76,17 @@ TEST(TYamrWriterTest, NonStringValues)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("integer");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnIntegerScalar(42);
     writer.OnEndMap();
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("double");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnDoubleScalar(10);
     writer.OnEndMap();
 
@@ -105,9 +105,9 @@ TEST(TYamrWriterTest, SkippedValues)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("foo");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("bar");
     writer.OnEndMap();
 
@@ -133,21 +133,21 @@ TEST(TYamrWriterTest, Lenval)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
-        writer.OnKeyedItem("sk");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey1");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value1");
     writer.OnEndMap();
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("k");
+        writer.OnKeyedItem("key");
         writer.OnStringScalar("key2");
-        writer.OnKeyedItem("sk");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("v");
+        writer.OnKeyedItem("value");
         writer.OnStringScalar("value2");
     writer.OnEndMap();
 
@@ -160,6 +160,59 @@ TEST(TYamrWriterTest, Lenval)
         "\x07\x00\x00\x00" "subkey2"
         "\x06\x00\x00\x00" "value2"
         , 2 * (3 * 4 + 4 + 6 + 7) // all i32 + lengths of keys
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TYamrWriterTest, LenvalWithoutFields)
+{
+    TStringStream outputStream;
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+    config->Lenval = true;
+    TYamrWriter writer(&outputStream, config);
+
+    // Note: order is unusual (value, key)
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("value1");
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("key1");
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("subkey2");
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("key2");
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("value3");
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("subkey3");
+    writer.OnEndMap();
+
+
+    Stroka output = Stroka(
+        "\x04\x00\x00\x00" "key1"
+        "\x00\x00\x00\x00"
+        "\x06\x00\x00\x00" "value1"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x07\x00\x00\x00" "subkey2"
+        "\x00\x00\x00\x00" ""
+
+        "\x00\x00\x00\x00" ""
+        "\x07\x00\x00\x00" "subkey3"
+        "\x06\x00\x00\x00" "value3"
+
+        , 9 * 4 + (4 + 6) + (4 + 7) + (7 + 6) // all i32 + lengths of keys
     );
 
     EXPECT_EQ(output, outputStream.Str());

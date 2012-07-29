@@ -19,7 +19,7 @@ public:
      *  If the stream has already failed, the result indicates the error.
      *  Otherwise (the stream active is already closed) the result is OK.
      */
-    TError GetCurrentError();
+    const TError& GetCurrentError();
 
     //! Moves stream to failed state if it is active.
     /*!

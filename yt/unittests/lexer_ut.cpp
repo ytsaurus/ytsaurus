@@ -13,7 +13,8 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLexerTest: public ::testing::Test
+class TLexerTest
+    : public ::testing::Test
 {
 public:
     typedef TLexer::EState EState;

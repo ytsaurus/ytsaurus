@@ -10,6 +10,7 @@ import "yt/ytlib/table_client/table_chunk_meta.proto";
 message TReqStartChunk
 {
     required NYT.NProto.TGuid chunk_id = 1;
+    required bool direct_mode = 2;
 }
 
 message TRspStartChunk
@@ -21,6 +22,9 @@ message TReqFinishChunk
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required TChunkMeta chunk_meta = 2;
+
+    // Used to ensure that we received exactly the same amount of blocks that we sent.
+    required int32 block_count = 3;
 }
 
 message TRspFinishChunk
@@ -34,6 +38,7 @@ message TReqPutBlocks
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required int32 start_block_index = 2;
+    optional bool enable_caching = 5 [default = false];
 }
 
 message TRspPutBlocks
@@ -44,7 +49,7 @@ message TRspPutBlocks
 message TReqSendBlocks
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    required string address = 2;
+    required string target_address = 2;
     required int32 start_block_index = 3;
     required int32 block_count = 4;
 }
@@ -71,6 +76,7 @@ message TReqGetBlocks
     repeated int32 block_indexes = 2;
     optional string peer_address = 3;
     optional uint64 peer_expiration_time = 4;
+    optional bool enable_caching = 5 [default = true];
 }
 
 message TRspGetBlocks
@@ -140,7 +146,12 @@ message TReqUpdatePeer
 
 message TReqGetTableSamples
 {
-    repeated NYT.NProto.TGuid chunk_ids = 1;
+    message TSampleRequest {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required int32 sample_count = 2;
+    }
+
+    repeated TSampleRequest sample_requests = 1;
     repeated string key_columns = 2;
 }
 

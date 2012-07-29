@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "change_log_cache.h"
-#include "common.h"
+#include "private.h"
 #include "meta_state_manager.h"
 #include "change_log.h"
 #include "config.h"

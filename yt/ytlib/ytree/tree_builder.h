@@ -27,14 +27,14 @@ struct ITreeBuilder
     /*!
      *  The given subtree is injected as-is, no cloning is done.
      */
-    virtual void OnNode(INode* node) = 0;
+    virtual void OnNode(INodePtr node) = 0;
 };
 
 //! Creates a builder that makes explicit calls to the factory.
 /*!
  *  \param factory A factory used for materializing the nodes.
  */
-TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory);
+TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

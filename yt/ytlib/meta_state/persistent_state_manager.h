@@ -11,11 +11,11 @@ namespace NMetaState {
 
 //! Creates the manager and also registers its RPC service at #server.
 IMetaStateManagerPtr CreatePersistentStateManager(
-    TPersistentStateManagerConfig* config,
+    TPersistentStateManagerConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr stateInvoker,
-    IMetaState* metaState,
-    NRpc::IServer* server);
+    IMetaStatePtr metaState,
+    NRpc::IServerPtr server);
 
 ///////////////////////////////////////////////////////////////////////////////
 

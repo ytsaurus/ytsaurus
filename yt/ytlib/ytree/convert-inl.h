@@ -59,7 +59,7 @@ TYsonString ConvertToYsonString(
 template <class T>
 INodePtr ConvertToNode(
     const T& value,
-    INodeFactory* factory)
+    INodeFactoryPtr factory)
 {
     EYsonType type = GetYsonType(value);
   

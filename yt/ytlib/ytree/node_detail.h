@@ -13,6 +13,14 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType);
+void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key);
+void ThrowNoSuchChildIndex(IConstNodePtr node, int index);
+void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb);
+void ThrowCannotHaveChildren(IConstNodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeBase
     : public virtual TYPathServiceBase
     , public virtual TSupportsGet
@@ -24,19 +32,17 @@ class TNodeBase
 public:
     typedef TIntrusivePtr<TNodeBase> TPtr;
 
-#define IMPLEMENT_AS_METHODS(name) \
-    virtual TIntrusivePtr<I##name##Node> As##name() \
+#define IMPLEMENT_AS_METHODS(key) \
+    virtual TIntrusivePtr<I##key##Node> As##key() OVERRIDE \
     { \
-        ythrow yexception() << Sprintf("Invalid node type: expected: %s, found %s", \
-            #name, \
-            ~GetType().ToString()); \
+        ThrowInvalidNodeType(this, ENodeType::key, GetType()); \
+        YUNREACHABLE(); \
     } \
     \
-    virtual TIntrusivePtr<const I##name##Node> As##name() const \
+    virtual TIntrusivePtr<const I##key##Node> As##key() const OVERRIDE \
     { \
-        ythrow yexception() << Sprintf("Invalid node type: expected %s, found %s", \
-            #name, \
-            ~GetType().ToString()); \
+        ThrowInvalidNodeType(this, ENodeType::key, GetType()); \
+        YUNREACHABLE(); \
     }
 
     IMPLEMENT_AS_METHODS(Entity)
@@ -48,7 +54,7 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const OVERRIDE;
 
 protected:
     template <class TNode>
@@ -59,9 +65,12 @@ protected:
         SetNodeFromProducer(node, ConvertToProducer(value), ~builder);
     }
     
-    virtual void DoInvoke(NRpc::IServiceContextPtr context);
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) OVERRIDE;
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context) OVERRIDE;
+    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context) OVERRIDE;
+
+    virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb) OVERRIDE;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,17 +85,17 @@ protected:
         const TYPath &path,
         TReqRemove *request,
         TRspRemove *response,
-        TCtxRemove *context);
+        TCtxRemove *context) OVERRIDE;
 
     virtual void SetRecursive(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
-        TCtxSet* context);
+        TCtxSet* context) OVERRIDE;
 
     virtual void SetRecursive(
         const TYPath& path,
-        INode* value) = 0;
+        INodePtr value) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,18 +106,18 @@ class TMapNodeMixin
     , public virtual TSupportsList
 {
 protected:
-    virtual IYPathService::TResolveResult ResolveRecursive(
+    IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const Stroka& verb);
 
-    virtual void ListSelf(
+    void ListSelf(
         TReqList* request,
         TRspList* response,
         TCtxList* context);
 
-    virtual void SetRecursive(
+    void SetRecursive(
         const TYPath& path,
-        INode* value);
+        INodePtr value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,32 +127,31 @@ class TListNodeMixin
     , public virtual IListNode
 {
 protected:
-    virtual IYPathService::TResolveResult ResolveRecursive(
+    IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const Stroka& verb);
 
-    virtual void SetRecursive(
+    void SetRecursive(
         const TYPath& path,
-        INode* value);
+        INodePtr value);
 
-    i64 NormalizeAndCheckIndex(i64 index) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YTREE_NODE_TYPE_OVERRIDES(name) \
+#define YTREE_NODE_TYPE_OVERRIDES(key) \
 public: \
     virtual ::NYT::NYTree::ENodeType GetType() const \
     { \
-        return ::NYT::NYTree::ENodeType::name; \
+        return ::NYT::NYTree::ENodeType::key; \
     } \
     \
-    virtual TIntrusivePtr<const ::NYT::NYTree::I##name##Node> As##name() const \
+    virtual TIntrusivePtr<const ::NYT::NYTree::I##key##Node> As##key() const \
     { \
         return this; \
     } \
     \
-    virtual TIntrusivePtr< ::NYT::NYTree::I##name##Node > As##name() \
+    virtual TIntrusivePtr< ::NYT::NYTree::I##key##Node > As##key() \
     { \
         return this; \
     } \
@@ -151,7 +159,7 @@ public: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context) \
     { \
         UNUSED(response); \
-        DoSetSelf< ::NYT::NYTree::I##name##Node >(this, NYTree::TYsonString(request->value())); \
+        DoSetSelf< ::NYT::NYTree::I##key##Node >(this, NYTree::TYsonString(request->value())); \
         context->Reply(); \
     }
 

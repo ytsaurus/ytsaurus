@@ -6,6 +6,8 @@
 #include "block_store.h"
 #include "chunk.h"
 #include "chunk_store.h"
+#include "bootstrap.h"
+
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/chunk_client/file_writer.h>
 
@@ -21,26 +23,31 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TProfiler& Profiler = DataNodeProfiler;
+
+static NProfiling::TRateCounter WriteThroughputCounter("/chunk_io/write_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
-    TSessionManagerPtr sessionManager,
+    TBootstrap* bootstrap,
     const TChunkId& chunkId,
     TLocationPtr location)
-    : SessionManager(sessionManager)
+    : Bootstrap(bootstrap)
     , ChunkId(chunkId)
     , Location(location)
     , WindowStart(0)
-    , FirstUnwritten(0)
     , Size(0)
-    , Logger(ChunkHolderLogger)
+    , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
+    , Logger(DataNodeLogger)
 {
-    YASSERT(sessionManager);
-    YASSERT(location);
+    YCHECK(bootstrap);
+    YCHECK(location);
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s",
+        ~Location->GetId(),
+        ~ChunkId.ToString()));
 
     Location->UpdateSessionCount(+1);
     FileName = Location->GetChunkFileName(ChunkId);
@@ -51,22 +58,28 @@ TSession::~TSession()
     Location->UpdateSessionCount(-1);
 }
 
-void TSession::Start()
+void TSession::Start(bool directMode)
 {
-    GetIOInvoker()->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
+    LOG_DEBUG("Session started");
+
+    WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this), directMode));
 }
 
-void TSession::DoOpenFile()
+void TSession::DoOpenFile(bool directMode)
 {
-    try {
-        NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        Writer = New<TFileWriter>(FileName);
-        Writer->Open();
+    LOG_DEBUG("Started opening chunk writer");
+    
+    PROFILE_TIMING ("/chunk_io/chunk_writer_open_time") {
+        try {
+            Writer = New<TFileWriter>(FileName, directMode);
+            Writer->Open();
+        }
+        catch (const std::exception& ex) {
+            LOG_FATAL("Error opening chunk writer\n%s", ex.what());
+        }
     }
-    catch (const std::exception& ex) {
-        LOG_FATAL("Error opening chunk file\n%s", ex.what());
-    }
-    LOG_DEBUG("Chunk file opened");
+
+    LOG_DEBUG("Finished opening chunk writer");
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)
@@ -84,11 +97,6 @@ void TSession::CloseLease()
     TLeaseManager::CloseLease(Lease);
 }
 
-IInvokerPtr TSession::GetIOInvoker()
-{
-    return Location->GetInvoker();
-}
-
 TChunkId TSession::GetChunkId() const
 {
     return ChunkId;
@@ -104,12 +112,17 @@ i64 TSession::GetSize() const
     return Size;
 }
 
+int TSession::GetWrittenBlockCount() const
+{
+    return WindowStart;
+}
+
 TChunkInfo TSession::GetChunkInfo() const
 {
     return Writer->GetChunkInfo();
 }
 
-TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
+TSharedRef TSession::GetBlock(i32 blockIndex)
 {
     VerifyInWindow(blockIndex);
 
@@ -119,8 +132,8 @@ TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Trying to retrieve a block %d that is not received yet (WindowStart: %d)",
-            blockIndex,
-            WindowStart);
+                blockIndex,
+                WindowStart);
     }
 
     LOG_DEBUG("Chunk block %d retrieved", blockIndex);
@@ -128,7 +141,10 @@ TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
     return slot.Block;
 }
 
-void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
+void TSession::PutBlock(
+    i32 blockIndex,
+    const TSharedRef& data,
+    bool enableCaching)
 {
     TBlockId blockId(ChunkId, blockIndex);
 
@@ -143,73 +159,64 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        return;
-        // TODO(babenko): switched off for now
-        //if (TRef::CompareContent(slot.Block->GetData(), data)) {
-        //    LOG_WARNING("Block %d is already received", blockIndex);
-        //    return;
-        //}
+        if (TRef::CompareContent(slot.Block, data)) {
+            LOG_WARNING("Block %d is already received", blockIndex);
+            return;
+        }
 
-        //ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
-        //    Sprintf("Block %d with a different content already received (WindowStart: %d)",
-        //        blockIndex,
-        //        WindowStart);
+        ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
+            Sprintf("Block %d with a different content already received (WindowStart: %d)",
+                blockIndex,
+                WindowStart);
     }
 
     slot.State = ESlotState::Received;
-    slot.Block = SessionManager->BlockStore->PutBlock(blockId, data, Stroka());
+    slot.Block = data;
+
+    if (enableCaching) {
+        Bootstrap->GetBlockStore()->PutBlock(blockId, data, Null);
+    }
 
     Location->UpdateUsedSpace(data.Size());
     Size += data.Size();
 
     LOG_DEBUG("Chunk block %d received", blockIndex);
 
-    EnqueueWrites();
+    BIND(
+        &TSession::DoWrite,
+        MakeStrong(this),
+        data, 
+        blockIndex)
+    .AsyncVia(WriteInvoker)
+    .Run()
+    .Subscribe(BIND(
+        &TSession::OnBlockWritten,
+        MakeStrong(this),
+        blockIndex)
+    .Via(Bootstrap->GetControlInvoker()));
 }
 
-void TSession::EnqueueWrites()
+TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
 {
-    while (IsInWindow(FirstUnwritten)) {
-        i32 blockIndex = FirstUnwritten;
+    LOG_DEBUG("Started writing block (Index: %d)", blockIndex);
 
-        const auto& slot = GetSlot(blockIndex);
-        if (slot.State != ESlotState::Received)
-            break;
-
-        BIND(
-            &TSession::DoWrite,
-            MakeStrong(this),
-            slot.Block,
-            blockIndex)
-        .AsyncVia(GetIOInvoker())
-        .Run()
-        .Subscribe(BIND(
-            &TSession::OnBlockWritten,
-            MakeStrong(this),
-            blockIndex)
-        .Via(SessionManager->ServiceInvoker));
-
-        ++FirstUnwritten;
-    }
-}
-
-TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
-{
-    LOG_DEBUG("Start writing chunk block %d",
-        blockIndex);
-
-    try {
-        if (!Writer->TryWriteBlock(block->GetData())) {
-            Sync(~Writer, &TFileWriter::GetReadyEvent);
-            YUNREACHABLE();
+    PROFILE_TIMING ("/chunk_io/block_write_time") {
+        try {
+            if (!Writer->TryWriteBlock(block)) {
+                Sync(~Writer, &TFileWriter::GetReadyEvent);
+                YUNREACHABLE();
+            }
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Error writing chunk block %d\n%s",
+                blockIndex,
+                ex.what());
         }
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error writing chunk block %d\n%s",
-            blockIndex,
-            ex.what());
     }
 
-    LOG_DEBUG("Chunk block %d written", blockIndex);
+    LOG_DEBUG("Finished writing block (Index: %d)", blockIndex);
+
+    Profiler.Enqueue("/chunk_io/block_write_size", block.Size());
+    Profiler.Increment(WriteThroughputCounter, block.Size());
 
     return TVoid();
 }
@@ -230,7 +237,7 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
 
     RenewLease();
 
-    const TSlot& slot = GetSlot(blockIndex);
+    const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Attempt to flush an unreceived block %d (WindowStart: %d, WindowSize: %" PRISZT ")",
@@ -239,7 +246,7 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
                 Window.size());
     }
 
-    // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
+    // IsWritten is set in the control thread, hence no need for AsyncVia.
     return slot.IsWritten.ToFuture().Apply(BIND(
         &TSession::OnBlockFlushed,
         MakeStrong(this),
@@ -249,7 +256,6 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
 void TSession::OnBlockFlushed(i32 blockIndex, TVoid)
 {
     ReleaseBlocks(blockIndex);
-    return;
 }
 
 TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
@@ -267,38 +273,46 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
         }
     }
 
+    LOG_DEBUG("Session finished");
+
     return CloseFile(chunkMeta).Apply(
         BIND(&TSession::OnFileClosed, MakeStrong(this))
-        .AsyncVia(SessionManager->ServiceInvoker));
+        .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
 void TSession::Cancel(const TError& error)
 {
+    LOG_DEBUG("Session canceled\n%s", ~error.ToString());
+
     CloseLease();
-    DeleteFile(error)
-        .Apply(BIND(&TSession::OnFileDeleted, MakeStrong(this))
-        .AsyncVia(SessionManager->ServiceInvoker));
+    AbortWriter()
+        .Apply(BIND(&TSession::OnWriterAborted, MakeStrong(this))
+        .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
-TFuture<TVoid> TSession::DeleteFile(const TError& error)
+TFuture<TVoid> TSession::AbortWriter()
 {
     return
-        BIND(&TSession::DoDeleteFile, MakeStrong(this), error)
-        .AsyncVia(GetIOInvoker())
+        BIND(&TSession::DoAbortWriter, MakeStrong(this))
+        .AsyncVia(WriteInvoker)
         .Run();
 }
 
-TVoid TSession::DoDeleteFile(const TError& error)
+TVoid TSession::DoAbortWriter()
 {
-    Writer->Abort();
-    Writer.Reset();
+    LOG_DEBUG("Started aborting chunk writer");
 
-    LOG_DEBUG("Chunk file deleted\n%s", ~error.ToString());
+    PROFILE_TIMING ("/chunk_io/chunk_abort_time") {
+        Writer->Abort();
+        Writer.Reset();
+    }
+
+    LOG_DEBUG("Finished aborting chunk writer");
 
     return TVoid();
 }
 
-TVoid TSession::OnFileDeleted(TVoid)
+TVoid TSession::OnWriterAborted(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
     return TVoid();
@@ -308,19 +322,23 @@ TFuture<TVoid> TSession::CloseFile(const TChunkMeta& chunkMeta)
 {
     return
         BIND(&TSession::DoCloseFile,MakeStrong(this), chunkMeta)
-        .AsyncVia(GetIOInvoker())
+        .AsyncVia(WriteInvoker)
         .Run();
 }
 
 TVoid TSession::DoCloseFile(const TChunkMeta& chunkMeta)
 {
-    try {
-        Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error closing chunk file\n%s", ex.what());
+    LOG_DEBUG("Started closing chunk writer");
+
+    PROFILE_TIMING ("/chunk_io/chunk_writer_close_time") {
+        try {
+            Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Error closing chunk writer\n%s", ex.what());
+        }
     }
 
-    LOG_DEBUG("Chunk file closed");
+    LOG_DEBUG("Finished closing chunk writer");
 
     return TVoid();
 }
@@ -329,11 +347,11 @@ TChunkPtr TSession::OnFileClosed(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
     auto chunk = New<TStoredChunk>(
-        ~Location, 
+        Location, 
         ChunkId, 
         Writer->GetChunkMeta(), 
         Writer->GetChunkInfo());
-    SessionManager->ChunkStore->RegisterChunk(chunk);
+    Bootstrap->GetChunkStore()->RegisterChunk(chunk);
     return chunk;
 }
 
@@ -344,7 +362,7 @@ void TSession::ReleaseBlocks(i32 flushedBlockIndex)
     while (WindowStart <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStart);
         YASSERT(slot.State == ESlotState::Written);
-        slot.Block.Reset();
+        slot.Block = TSharedRef();
         slot.IsWritten.Reset();
         ++WindowStart;
     }
@@ -372,18 +390,14 @@ void TSession::VerifyInWindow(i32 blockIndex)
 TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
     YASSERT(IsInWindow(blockIndex));
-    if (Window.size() <= blockIndex)
-        Window.reserve(blockIndex + 1);
+    
+    Window.reserve(blockIndex + 1);
 
     while (Window.size() <= blockIndex) {
         // NB: do not use resize here! 
         // Newly added slots must get a fresh copy of IsWritten promise.
         // Using resize would cause all of these slots to share a single promise.
         Window.push_back(TSlot());
-    }
-
-    if (Window.size() <= blockIndex) {
-        Window.resize(1 + blockIndex);
     }
 
     return Window[blockIndex];
@@ -397,18 +411,13 @@ void TSession::ReleaseSpaceOccupiedByBlocks()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionManager::TSessionManager(
-    TChunkHolderConfigPtr config,
-    TBlockStorePtr blockStore,
-    TChunkStorePtr chunkStore,
-    IInvokerPtr serviceInvoker)
+    TDataNodeConfigPtr config,
+    TBootstrap* bootstrap)
     : Config(config)
-    , BlockStore(blockStore)
-    , ChunkStore(chunkStore)
-    , ServiceInvoker(serviceInvoker)
+    , Bootstrap(bootstrap)
 {
-    YASSERT(blockStore);
-    YASSERT(chunkStore);
-    YASSERT(serviceInvoker);
+    YCHECK(config);
+    YCHECK(bootstrap);
 }
 
 TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
@@ -422,13 +431,12 @@ TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
     return session;
 }
 
-TSessionPtr TSessionManager::StartSession(
-    const TChunkId& chunkId)
+TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId, bool directMode)
 {
-    auto location = ChunkStore->GetNewChunkLocation();
+    auto location = Bootstrap->GetChunkStore()->GetNewChunkLocation();
 
-    auto session = New<TSession>(this, chunkId, ~location);
-    session->Start();
+    auto session = New<TSession>(Bootstrap, chunkId, location);
+    session->Start(directMode);
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
@@ -436,15 +444,12 @@ TSessionPtr TSessionManager::StartSession(
             &TSessionManager::OnLeaseExpired,
             MakeStrong(this),
             session)
-        .Via(ServiceInvoker));
+        .Via(Bootstrap->GetControlInvoker()));
     session->SetLease(lease);
 
     AtomicIncrement(SessionCount);
     YCHECK(SessionMap.insert(MakePair(chunkId, session)).second);
 
-    LOG_INFO("Session %s started at %s",
-        ~chunkId.ToString(),
-        ~location->GetPath().Quote());
     return session;
 }
 
@@ -481,7 +486,7 @@ TFuture<TChunkPtr> TSessionManager::FinishSession(
 
 TChunkPtr TSessionManager::OnSessionFinished(TSessionPtr session, TChunkPtr chunk)
 {
-    LOG_INFO("Session %s finished", ~session->GetChunkId().ToString());
+    LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
     return chunk;
 }
 

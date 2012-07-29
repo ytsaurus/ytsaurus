@@ -75,8 +75,6 @@ class TObjectProxyBase
     , public virtual IObjectProxy
 {
 public:
-    typedef TIntrusivePtr<TObjectProxyBase> TPtr;
-
     TObjectProxyBase(NCellMaster::TBootstrap* bootstrap, const TObjectId& id);
     ~TObjectProxyBase();
 

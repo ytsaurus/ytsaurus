@@ -5,7 +5,7 @@
 
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/public.h>
-#include <ytlib/cypress/node_proxy_detail.h>
+#include <ytlib/cypress_server/node_proxy_detail.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/cell_master/public.h>
 
@@ -15,25 +15,29 @@ namespace NTableServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeProxy
-    : public NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode>
+    : public NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode>
 {
 public:
-    typedef TIntrusivePtr<TTableNodeProxy> TPtr;
-
     TTableNodeProxy(
-        NCypress::INodeTypeHandlerPtr typeHandler,
+        NCypressServer::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        const NCypress::TNodeId& nodeId);
+        const NCypressServer::TNodeId& nodeId);
 
     virtual TResolveResult Resolve(const NYTree::TYPath& path, const Stroka& verb);
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
 
 private:
-    typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
+    typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
+
+    virtual void DoCloneTo(TTableNode* clonedNode);
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
+    virtual void OnUpdateAttribute(
+        const Stroka& key,
+        const TNullable<NYTree::TYsonString>& oldValue,
+        const TNullable<NYTree::TYsonString>& newValue);
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
 
@@ -58,6 +62,9 @@ private:
         NTableClient::TChannel* channel,
         NTableClient::NProto::TReadLimit* lowerBound,
         NTableClient::NProto::TReadLimit* upperBound);
+
+    NChunkServer::TChunkList* EnsureNodeMutable(TTableNode* node);
+    void ClearNode(TTableNode* node);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);

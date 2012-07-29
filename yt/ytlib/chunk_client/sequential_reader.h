@@ -9,6 +9,7 @@
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/codec.h>
 #include <ytlib/misc/ref.h>
 
 namespace NYT {
@@ -24,13 +25,23 @@ class TSequentialReader
 public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
 
+    struct TBlockInfo
+    {
+        int Index;
+        int Size;
+
+        TBlockInfo(int index, int size)
+            : Index(index)
+            , Size(size)
+        { }
+    };
+
     TSequentialReader(
         TSequentialReaderConfigPtr config,
         // ToDo: use move semantics
-        const std::vector<int>& blockIndexes,
+        std::vector<TBlockInfo>&& blocks,
         IAsyncReaderPtr chunkReader,
-        // ToDo: use move semantics
-        const NChunkHolder::NProto::TBlocksExt& blocksExt);
+        ECodecId codecId);
 
     bool HasNext() const;
 
@@ -58,8 +69,12 @@ private:
         const std::vector<int>& blockIndexes,
         int groupSize);
 
-    const std::vector<int> BlockIndexSequence;
-    NChunkHolder::NProto::TBlocksExt BlocksExt;
+    void DecompressBlock(
+        int firstSequenceIndex,
+        int blockIndex,
+        const IAsyncReader::TReadResult& readResult);
+
+    const std::vector<TBlockInfo> BlockSequence;
 
     TSequentialReaderConfigPtr Config;
     IAsyncReaderPtr ChunkReader;
@@ -73,6 +88,7 @@ private:
     int NextUnfetchedIndex;
 
     TAsyncStreamState State;
+    ICodec* Codec;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "snapshot.h"
-#include "common.h"
+#include "private.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/common.h>
@@ -30,7 +30,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 struct TSnapshotHeader
 {
-    static const ui64 CorrectSignature =  0x3130303053535459ull; // YTSS0002
+    static const ui64 CorrectSignature =  0x3130303053535459ull; // YTSS0001    
 
     ui64 Signature;
     i32 SegmentId;
@@ -180,6 +180,14 @@ void TSnapshotWriter::Close()
         return;
     }
 
+    ChecksummableOutput->Finish();
+
+    if (EnableCompression) {
+        // This ensures that the compressed stream gets finalized properly,
+        // in particular, flushes its trailer.
+        CompressedOutput->Finish();
+    }
+
     Header->Checksum = ChecksummableOutput->GetChecksum();
     Header->DataLength = File->GetLength() - sizeof(TSnapshotHeader);
 
@@ -187,7 +195,7 @@ void TSnapshotWriter::Close()
     WritePod(*File, *Header);
     File->Close();
 
-    Move(TempFileName, FileName);
+    CheckedMoveFile(TempFileName, FileName);
 }
 
 TChecksum TSnapshotWriter::GetChecksum() const

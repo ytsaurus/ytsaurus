@@ -23,10 +23,7 @@ protected:
     TCompositeMetaStatePtr MetaState;
 
     template <class TMessage, class TResult>
-    void RegisterMethod(TCallback<TResult(const NProto::TChangeHeader& header, const TMessage& message)> changeMethod);
-
-    template <class TMessage, class TResult>
-    void RegisterMethod(TCallback<TResult(const TMessage& message)> changeMethod);
+    void RegisterMethod(TCallback<TResult(const TMessage& message)> handler);
 
     bool IsLeader() const;
     bool IsFolllower() const;
@@ -50,16 +47,9 @@ private:
     typedef TMetaStatePart TThis;
 
     template <class TMessage, class TResult>
-    void MethodThunkWithHeader(
-        TCallback<TResult(const NProto::TChangeHeader& header, const TMessage& message)> changeMethod,
-        const NProto::TChangeHeader& header,
-        const TRef& changeData);
-
-    template <class TMessage, class TResult>
-    void MethodThunkWithoutHeader(
+    void MethodThunk(
         TCallback<TResult(const TMessage& message)> changeMethod,
-        const NProto::TChangeHeader& header,
-        const TRef& changeData);
+        const TMutationContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +84,7 @@ private:
         TSaverInfo(const Stroka& name, TSaver saver, ESavePhase phase);
     };
 
-    typedef yhash_map< Stroka, TCallback<void(const NProto::TChangeHeader& header, const TRef& message)> > TMethodMap;
+    typedef yhash_map< Stroka, TCallback<void(const TMutationContext& context)> > TMethodMap;
     TMethodMap Methods;
 
     std::vector<TMetaStatePartPtr> Parts;
@@ -108,7 +98,7 @@ private:
     virtual void Save(TOutputStream* output);
     virtual void Load(TInputStream* input);
 
-    virtual void ApplyChange(const TRef& changeData);
+    virtual void ApplyMutation(const TMutationContext& context);
 
     virtual void Clear();
 

@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/fifo_strategy.cpp
   ${BASE}/helpers.cpp
   ${BASE}/job.cpp
+  ${BASE}/job_resources.cpp
   ${BASE}/map_controller.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/merge_controller.cpp
@@ -28,6 +29,7 @@ set( HDRS
   ${BASE}/fifo_strategy.h
   ${BASE}/helpers.h
   ${BASE}/job.h
+  ${BASE}/job_resources.h
   ${BASE}/map_controller.h
   ${BASE}/master_connector.h
   ${BASE}/merge_controller.h

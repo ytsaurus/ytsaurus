@@ -129,6 +129,12 @@ if (opts.argv.profiler) {
     console.error("*** Send SIGUSR2 to take a heap snapshot and fire up DT");
 }
 
+if (configuration.logging) {
+    var user = configuration.user || -1;
+    var group = configuration.group || -1;
+    fs.chownSync(configuration.logging, user, group);
+}
+
 if (configuration.number_of_workers > 0 && cluster.isMaster) {
     function spawnWorker() {
         var worker = cluster.fork();

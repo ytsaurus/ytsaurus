@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/election/leader_lookup.h>
+#include <ytlib/meta_state/config.h>
 //#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/config.h>
 #include <ytlib/file_client/config.h>
@@ -17,11 +17,10 @@ namespace NDriver {
 struct TDriverConfig
     : public TYsonSerializable
 {
-    NElection::TLeaderLookup::TConfigPtr Masters;
+    NMetaState::TMasterDiscoveryConfigPtr Masters;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;
     NFileClient::TFileWriterConfigPtr FileWriter;
-    NTableClient::TTableConsumerConfigPtr TableConsumer;
     NTableClient::TChunkSequenceReaderConfigPtr ChunkSequenceReader;
     NTableClient::TChunkSequenceWriterConfigPtr ChunkSequenceWriter;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
@@ -34,8 +33,6 @@ struct TDriverConfig
         Register("file_reader", FileReader)
             .DefaultNew();
         Register("file_writer", FileWriter)
-            .DefaultNew();
-        Register("table_consumer", TableConsumer)
             .DefaultNew();
         Register("chunk_sequence_reader", ChunkSequenceReader)
             .DefaultNew();

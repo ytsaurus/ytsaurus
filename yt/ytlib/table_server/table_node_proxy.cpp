@@ -21,7 +21,7 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NChunkServer;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectServer;
@@ -284,6 +284,20 @@ TTableNodeProxy::TTableNodeProxy(
         nodeId)
 { }
 
+void TTableNodeProxy::DoCloneTo(TTableNode* clonedNode)
+{
+    TBase::DoCloneTo(clonedNode);
+
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto* node = GetTypedImpl();
+    auto* chunkList = node->GetChunkList();
+    
+    clonedNode->SetChunkList(chunkList);
+    objectManager->RefObject(chunkList);
+    YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
+}
+
 void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
@@ -363,11 +377,18 @@ void TTableNodeProxy::TraverseChunkTree(
         auto child = chunkList->Children()[index];
         switch (child.GetType()) {
             case EObjectType::Chunk: {
-                i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
+                const auto* chunk = child.AsChunk();
+
+                i64 rowCount = chunk->GetStatistics().RowCount;
                 i64 lastRowIndex = firstRowIndex + rowCount; // exclusive
                 YASSERT(lowerBound < lastRowIndex);
 
                 auto* inputChunk = response->add_chunks();
+
+                auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
+                inputChunk->set_data_weight(miscExt.data_weight());
+                inputChunk->set_row_count(miscExt.row_count());
+
                 auto* slice = inputChunk->mutable_slice();
                 *slice->mutable_chunk_id() = child.GetId().ToProto();
 
@@ -439,9 +460,16 @@ void TTableNodeProxy::TraverseChunkTree(
 
         switch (child.GetType()) {
             case EObjectType::Chunk: {
+                const auto* chunk = child.AsChunk();
+
                 auto* inputChunk = response->add_chunks();
+
+                auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
+                inputChunk->set_data_weight(miscExt.data_weight());
+                inputChunk->set_row_count(miscExt.row_count());
+
                 auto* slice = inputChunk->mutable_slice();
-                *slice->mutable_chunk_id() = child.GetId().ToProto();
+                *slice->mutable_chunk_id() = chunk->GetId().ToProto();
 
                 slice->mutable_start_limit();
                 if (lowerBound > minKey) {
@@ -563,6 +591,19 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
     return TBase::GetSystemAttribute(name, consumer);
 }
 
+void TTableNodeProxy::OnUpdateAttribute(
+    const Stroka& key,
+    const TNullable<TYsonString>& oldValue,
+    const TNullable<TYsonString>& newValue)
+{
+    if (key == "channels") {
+        if (!newValue) {
+            ythrow yexception() << "Attribute \"channels\" cannot be removed";
+        }
+        ChannelsFromYson(newValue.Get());
+    }
+}
+
 void TTableNodeProxy::ParseYPath(
     const TYPath& path,
     TChannel* channel,
@@ -576,18 +617,87 @@ void TTableNodeProxy::ParseYPath(
     tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
 }
 
+TChunkList* TTableNodeProxy::EnsureNodeMutable(TTableNode* node)
+{
+    switch (node->GetUpdateMode()) {
+        case ETableUpdateMode::Append:
+            YCHECK(node->GetChunkList()->Children().size() == 2);
+            return node->GetChunkList()->Children()[1].AsChunkList();
+
+        case ETableUpdateMode::Overwrite:
+            return node->GetChunkList();
+
+        case ETableUpdateMode::None: {
+            auto chunkManager = Bootstrap->GetChunkManager();
+            auto objectManager = Bootstrap->GetObjectManager();
+
+            auto* snapshotChunkList = node->GetChunkList();
+
+            auto* newChunkList = chunkManager->CreateChunkList();
+            YCHECK(newChunkList->OwningNodes().insert(node).second);
+            newChunkList->SetRigid(true);
+
+            YCHECK(snapshotChunkList->OwningNodes().erase(node) == 1);
+            node->SetChunkList(newChunkList);
+            objectManager->RefObject(newChunkList);
+
+            snapshotChunkList->CopySortAttributesTo(newChunkList);
+            chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
+
+            auto* deltaChunkList = chunkManager->CreateChunkList();
+            chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
+
+            node->SetUpdateMode(ETableUpdateMode::Append);
+
+            objectManager->UnrefObject(snapshotChunkList);
+
+            LOG_DEBUG_UNLESS(Bootstrap->GetMetaStateManager()->IsRecovery(),
+                "Table node is switched to append mode (NodeId: %s, NewChunkListId: %s, SnapshotChunkListId: %s, DeltaChunkListId: %s)",
+                ~node->GetId().ToString(),
+                ~newChunkList->GetId().ToString(),
+                ~snapshotChunkList->GetId().ToString(),
+                ~deltaChunkList->GetId().ToString());
+            return deltaChunkList;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+void TTableNodeProxy::ClearNode(TTableNode* node)
+{
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto* oldChunkList = node->GetChunkList();
+    YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
+    objectManager->UnrefObject(oldChunkList);
+
+    auto* newChunkList = chunkManager->CreateChunkList();
+    YCHECK(newChunkList->OwningNodes().insert(node).second);
+    node->SetChunkList(newChunkList);
+    objectManager->RefObject(newChunkList);
+
+    node->SetUpdateMode(ETableUpdateMode::Overwrite);
+
+    LOG_DEBUG_UNLESS(Bootstrap->GetMetaStateManager()->IsRecovery(),
+        "Table node is cleared and switched to overwrite mode (NodeId: %s, NewChunkListId: %s)",
+        ~node->GetId().ToString(),
+        ~newChunkList->GetId().ToString());
+}
+
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 {
     UNUSED(request);
-
     context->SetRequestInfo("");
 
-    auto* tableNode = GetTypedImplForUpdate(ELockMode::Shared);
+    // This takes a shared lock.
+    auto* node = GetTypedImplForUpdate(ELockMode::Shared);
+    const auto* chunkList = EnsureNodeMutable(node);
 
-    const auto& chunkListId = tableNode->GetChunkList()->GetId();
-    *response->mutable_chunk_list_id() = chunkListId.ToProto();
-
-    context->SetResponseInfo("ChunkListId: %s", ~chunkListId.ToString());
+    *response->mutable_chunk_list_id() = chunkList->GetId().ToProto();
+    context->SetResponseInfo("ChunkListId: %s", ~chunkList->GetId().ToString());
 
     context->Reply();
 }
@@ -673,16 +783,16 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
     auto keyColumns = FromProto<Stroka>(request->key_columns());
-
     context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
     // This takes an exclusive lock.
-    auto* tableNode = GetTypedImplForUpdate();
+    auto* node = GetTypedImplForUpdate();
 
-    auto* rootChunkList = tableNode->GetChunkList();
-    YCHECK(rootChunkList->Parents().empty());
-    rootChunkList->SetSorted(true);
-    rootChunkList->KeyColumns() = keyColumns;
+    if (node->GetUpdateMode() != ETableUpdateMode::Overwrite) {
+        ythrow TServiceException(TError("Table node must be in overwrite mode"));
+    }
+
+    node->GetChunkList()->SetSorted(keyColumns);
 
     context->Reply();
 }
@@ -692,13 +802,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
     context->SetRequestInfo("");
 
     // This takes an exclusive lock.
-    auto* tableNode = GetTypedImplForUpdate();
+    auto* node = GetTypedImplForUpdate();
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto* chunkList = tableNode->GetChunkList();
-    chunkManager->ClearChunkList(chunkList);
-    chunkList->SetBranchedRoot(false);
-    tableNode->SetUpdateMode(ETableUpdateMode::Overwrite);
+    ClearNode(node);
 
     context->Reply();
 }

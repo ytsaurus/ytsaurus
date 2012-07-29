@@ -3,7 +3,6 @@
 #include "common.h"
 #include "public.h"
 #include "config.h"
-#include "leader_lookup.h"
 #include "election_manager_proxy.h"
 #include "cell_manager.h"
 
@@ -76,7 +75,7 @@ private:
     class TVotingRound;
     class TFollowerPinger;
 
-    TProxy::EState State;
+    EPeerState State;
     
     // Voting parameters.
     TPeerId VoteId;
@@ -125,7 +124,7 @@ private:
     void StartEpoch(TPeerId leaderId, const TEpoch& epoch);
     void StopEpoch();
 
-    void UpdateState(TProxy::EState newState);
+    void UpdateState(EPeerState newState);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

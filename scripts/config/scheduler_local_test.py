@@ -1,10 +1,8 @@
 #!/usr/bin/python
 import sys
-sys.path.insert(0, "../yson")
 
 from cfglib.ytunix import *
 import cfglib.opts as opts
-import yson
 from copy import deepcopy
 
 BIN_DIR = '/home/psushin/github/yt/bin/'

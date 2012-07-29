@@ -49,7 +49,7 @@ public:
 
 protected:
     // C++ API.
-    size_t DoRead(void* data, size_t length);
+    size_t DoRead(void* data, size_t length) OVERRIDE;
 
 private:
     void DisposeHandles(std::deque<TInputPart*>* queue);

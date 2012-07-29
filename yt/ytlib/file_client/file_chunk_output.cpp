@@ -4,11 +4,11 @@
 #include "config.h"
 
 #include <ytlib/misc/sync.h>
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
-#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/object_server/object_service_proxy.h>
 
@@ -20,7 +20,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NTransactionServer;
 using namespace NObjectServer;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer::NProto;
 
@@ -60,7 +60,7 @@ void TFileChunkOutput::Open()
         req->set_type(EObjectType::Chunk);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk);
-        reqExt->set_preferred_host_name(Stroka(GetHostName()));
+        reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Config->ReplicationFactor);
 

@@ -2,7 +2,7 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <ytlib/misc/host_name.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/actions/action_queue.h>
@@ -13,7 +13,9 @@
 #include <ytlib/rpc/channel.h>
 #include <ytlib/rpc/server.h>
 
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/leader_channel.h>
+
+#include <ytlib/meta_state/config.h>
 
 #include <ytlib/orchid/orchid_service.h>
 
@@ -43,13 +45,14 @@ namespace NYT {
 namespace NCellNode {
 
 using namespace NBus;
-using namespace NRpc;
-using namespace NYTree;
+using namespace NChunkServer;
+using namespace NElection;
 using namespace NMonitoring;
 using namespace NOrchid;
-using namespace NChunkServer;
 using namespace NProfiling;
+using namespace NRpc;
 using namespace NScheduler;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,8 +72,10 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
+    srand(time(NULL));
+
     IncarnationId = TIncarnationId::Create();
-    PeerAddress = BuildServiceAddress(GetHostName(), Config->RpcPort);
+    PeerAddress = BuildServiceAddress(GetLocalHostName(), Config->RpcPort);
 
     LOG_INFO("Starting node (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
         ~IncarnationId.ToString(),
@@ -98,7 +103,7 @@ void TBootstrap::Run()
     SetNodeByYPath(
         OrchidRoot,
         "/monitoring",
-        CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
+        CreateVirtualNode(CreateMonitoringProducer(monitoringManager)));
     SetNodeByYPath(
         OrchidRoot,
         "/profiling",
@@ -120,7 +125,7 @@ void TBootstrap::Run()
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
-    ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->ChunkHolder, this));
+    ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->DataNode, this));
     ChunkHolderBootstrap->Init();
 
     ExecAgentBootstrap.Reset(new NExecAgent::TBootstrap(Config->ExecAgent, this));

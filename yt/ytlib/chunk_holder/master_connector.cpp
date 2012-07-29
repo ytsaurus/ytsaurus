@@ -17,7 +17,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/chunk_server/holder_statistics.h>
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/leader_channel.h>
 #include <ytlib/logging/tagged_logger.h>
 
 #include <util/random/random.h>
@@ -31,11 +31,11 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnector::TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
+TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
     , ControlInvoker(bootstrap->GetControlInvoker())
@@ -304,10 +304,11 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
 
 void TMasterConnector::OnHeartbeatError(const TError& error)
 {
+    auto errorCode = error.GetCode();
+
     LOG_WARNING("Error sending heartbeat to master\n%s", ~error.ToString());
 
     // Don't panic upon getting Timeout, TransportError or Unavailable.
-    auto errorCode = error.GetCode();
     if (errorCode != NRpc::EErrorCode::Timeout && 
         errorCode != NRpc::EErrorCode::TransportError && 
         errorCode != NRpc::EErrorCode::Unavailable)
@@ -328,7 +329,7 @@ void TMasterConnector::Disconnect()
 
 void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 {
-    NLog::TTaggedLogger Logger(ChunkHolderLogger);
+    NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));
@@ -354,7 +355,7 @@ void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 
 void TMasterConnector::OnChunkRemoved(TChunkPtr chunk)
 {
-    NLog::TTaggedLogger Logger(ChunkHolderLogger);
+    NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));

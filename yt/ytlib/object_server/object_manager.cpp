@@ -12,13 +12,11 @@
 #include <ytlib/transaction_server/transaction.h>
 #include <ytlib/rpc/message.h>
 
-#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress_server/cypress_manager.h>
 
 #include <ytlib/cell_master/bootstrap.h>
 
 #include <ytlib/profiling/profiler.h>
-
-#include <util/digest/murmur.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -29,7 +27,7 @@ using namespace NMetaState;
 using namespace NRpc;
 using namespace NBus;
 using namespace NProto;
-using namespace NCypress;
+using namespace NCypressServer;
 using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,7 +177,6 @@ public:
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
         auto transactionManager = Bootstrap->GetTransactionManager();
-        TObjectId objectId;
 
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
@@ -201,23 +198,27 @@ public:
         }
 
         if (tokenizer.GetCurrentType() == RootToken) {
-            objectId = cypressManager->GetRootNodeId();
+            auto root = cypressManager->FindVersionedNodeProxy(
+                cypressManager->GetRootNodeId(),
+                transaction);
+            return TResolveResult::There(root, TYPath(tokenizer.GetCurrentSuffix()));
         } else if (tokenizer.GetCurrentType() == NodeGuidMarkerToken) {
             tokenizer.ParseNext();
-            Stroka objectToken(tokenizer.CurrentToken().GetStringValue());
-            if (!TObjectId::FromString(objectToken, &objectId)) {
-                ythrow yexception() << Sprintf("Error parsing object id %s", ~Stroka(objectToken).Quote());
+            Stroka objectIdToken(tokenizer.CurrentToken().GetStringValue());
+            TObjectId objectId;
+            if (!TObjectId::FromString(objectIdToken, &objectId)) {
+                ythrow yexception() << Sprintf("Error parsing object id %s", ~Stroka(objectIdToken).Quote());
             }
+
+            auto proxy = objectManager->FindProxy(objectId, transaction);
+            if (!proxy) {
+                ythrow yexception() << Sprintf("No such object %s", ~objectId.ToString());
+            }
+
+            return TResolveResult::There(proxy, TYPath(tokenizer.GetCurrentSuffix()));
         } else {
             ythrow yexception() << "Invalid YPath syntax";
         }
-
-        auto proxy = objectManager->FindProxy(objectId, transaction);
-        if (!proxy) {
-            ythrow yexception() << Sprintf("No such object %s", ~objectId.ToString());
-        }
-
-        return TResolveResult::There(proxy, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
     virtual void Invoke(IServiceContextPtr context)
@@ -252,7 +253,6 @@ TObjectManager::TObjectManager(
     , Config(config)
     , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)
-    , TypeToCounter(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
 {
     YASSERT(config);
@@ -305,10 +305,9 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
     YASSERT(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
-    TypeToCounter[typeValue] = TIdGenerator<ui64>();
 }
 
-IObjectTypeHandler* TObjectManager::FindHandler(EObjectType type) const
+IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -317,10 +316,10 @@ IObjectTypeHandler* TObjectManager::FindHandler(EObjectType type) const
         return NULL;
     }
 
-    return ~TypeToHandler[typeValue];
+    return TypeToHandler[typeValue];
 }
 
-IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
+IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -329,7 +328,7 @@ IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
     return handler;
 }
 
-IObjectTypeHandler* TObjectManager::GetHandler(const TObjectId& id) const
+IObjectTypeHandlerPtr TObjectManager::GetHandler(const TObjectId& id) const
 {
     return GetHandler(TypeFromId(id));
 }
@@ -345,23 +344,23 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    auto metaStateManager = Bootstrap->GetMetaStateManager();
+    auto* mutationContext = metaStateManager->GetMutationContext();
+
+    const auto& version = mutationContext->GetVersion();
+
+    auto random = mutationContext->RandomGenerator().GetNext<ui64>();
+
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
 
-    ui64 counter = TypeToCounter[typeValue].Next();
     auto cellId = GetCellId();
 
-    char data[12];
-    *reinterpret_cast<ui64*>(&data[ 0]) = counter;
-    *reinterpret_cast<ui16*>(&data[ 8]) = typeValue;
-    *reinterpret_cast<ui16*>(&data[10]) = cellId;
-    ui32 hash = MurmurHash<ui32>(&data, sizeof (data), 0);
-
     TObjectId id(
-        hash,
-        (cellId << 16) + type.ToValue(),
-        counter & 0xffffffff,
-        counter >> 32);
+        random,
+        (cellId << 16) + typeValue,
+        version.RecordCount,
+        version.SegmentId);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object id generated (Type: %s, Id: %s)",
         ~type.ToString(),
@@ -444,7 +443,6 @@ void TObjectManager::SaveValues(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Save(output, TypeToCounter);
     Attributes.SaveValues(output);
 }
 
@@ -459,8 +457,6 @@ void TObjectManager::LoadValues(TLoadContext context, TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Load(input, TypeToCounter);
-
     Attributes.LoadValues(context, input);
 }
 
@@ -468,25 +464,20 @@ void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    for (int i = 0; i < MaxObjectType; ++i) {
-        TypeToCounter[i].Reset();
-    }
+    Attributes.Clear();
 }
 
 bool TObjectManager::ObjectExists(const TObjectId& id)
 {
     auto handler = FindHandler(TypeFromId(id));
-    if (!handler) {
-        return false;
-    }
-    return handler->Exists(id);
+    return handler ? handler->Exists(id) : false;
 }
 
 IObjectProxyPtr TObjectManager::FindProxy(
     const TObjectId& id,
     TTransaction* transaction)
 {
-    // (NullObjectId, NullTransaction) means the root transaction->
+    // (NullObjectId, NullTransaction) means the root transaction.
     if (id == NullObjectId && !transaction) {
         return Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
     }
@@ -581,7 +572,7 @@ void TObjectManager::ExecuteVerb(
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
         !isWrite ||
-        MetaStateManager->IsInCommit())
+        MetaStateManager->GetMutationContext())
     {
         PROFILE_TIMING (profilingPath) {
             action.Run(context);
@@ -600,7 +591,7 @@ void TObjectManager::ExecuteVerb(
 
     auto wrappedContext = New<TServiceContextWrapper>(context);
 
-    auto change = CreateMetaChange(
+    auto change = CreateMutation(
         MetaStateManager,
         message,
         BIND([=] () -> TVoid {
@@ -622,9 +613,7 @@ void TObjectManager::ExecuteVerb(
         ->Commit();
 }
 
-TVoid TObjectManager::ReplayVerb(
-    const NMetaState::NProto::TChangeHeader& changeHeader,
-    const TMsgExecuteVerb& message)
+TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
 {
     auto objectId = TObjectId::FromProto(message.object_id());
     auto transactionId = TTransactionId::FromProto(message.transaction_id());

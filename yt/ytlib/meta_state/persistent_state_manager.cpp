@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "persistent_state_manager.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "change_log.h"
 #include "change_log_cache.h"
@@ -8,12 +8,14 @@
 #include "snapshot.h"
 #include "snapshot_builder.h"
 #include "recovery.h"
-#include "change_committer.h"
+#include "mutation_committer.h"
 #include "follower_tracker.h"
 #include "follower_pinger.h"
 #include "meta_state.h"
 #include "snapshot_store.h"
 #include "decorated_meta_state.h"
+#include "mutation_context.h"
+#include "serialize.h"
 
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_manager.h>
@@ -21,8 +23,10 @@
 #include <ytlib/actions/bind.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/meta_state/meta_state_manager.pb.h>
 
 #include <util/folder/dirut.h>
+#include <util/random/random.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -45,13 +49,11 @@ class TPersistentStateManager
     , public IMetaStateManager
 {
 public:
-    typedef TPersistentStateManagerConfig TConfig;
-
     class TElectionCallbacks
         : public IElectionCallbacks
     {
     public:
-        TElectionCallbacks(TPersistentStateManager* owner)
+        TElectionCallbacks(TPersistentStateManagerPtr owner)
             : Owner(owner)
         { }
 
@@ -90,11 +92,11 @@ public:
     };
 
     TPersistentStateManager(
-        TConfig* config,
+        TPersistentStateManagerConfigPtr config,
         IInvokerPtr controlInvoker,
         IInvokerPtr stateInvoker,
-        IMetaState* metaState,
-        NRpc::IServer* server)
+        IMetaStatePtr metaState,
+        NRpc::IServerPtr server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , ControlStatus(EPeerStatus::Stopped)
         , StateStatus(EPeerStatus::Stopped)
@@ -102,16 +104,16 @@ public:
         , LeaderId(NElection::InvalidPeerId)
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
-        , InCommit(false)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyChanges));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyMutations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuorum));
 
         ChangeLogCache = New<TChangeLogCache>(Config->ChangeLogs);
 
@@ -252,12 +254,13 @@ public:
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
 
-    virtual TAsyncCommitResult CommitChange(
-        const TSharedRef& changeData,
-        TClosure changeAction)
+    virtual TAsyncCommitResult CommitMutation(
+        const Stroka& mutationType,
+        const TRef& mutationData,
+        const TClosure& mutationAction)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        YASSERT(!InCommit);
+        YASSERT(!DecoratedState->GetMutationContext());
 
         if (GetStateStatus() != EPeerStatus::Leading) {
             return MakeFuture(ECommitResult(ECommitResult::InvalidStatus));
@@ -273,26 +276,21 @@ public:
             return MakeFuture(ECommitResult(ECommitResult::NotCommitted));
         }
 
-        InCommit = true;
+        NProto::TMutationHeader header;
+        header.set_mutation_type(mutationType);
+        header.set_timestamp(TInstant::Now().GetValue());
+        header.set_random_seed(RandomNumber<ui64>());
+        auto recordData = SerializeMutationRecord(header, mutationData);
 
-        auto actualChangeAction =
-            changeAction.IsNull()
-            ? BIND(&IMetaState::ApplyChange, DecoratedState->GetState(), changeData)
-            : changeAction;
-
-        auto result =
+        return
             LeaderCommitter
-            ->Commit(actualChangeAction, changeData)
-            .Apply(BIND(&TThis::OnChangeCommitted, MakeStrong(this)));
-
-        InCommit = false;
-
-        return result;
+            ->Commit(recordData, mutationAction)
+            .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
     }
 
-    virtual bool IsInCommit() const
+    virtual TMutationContext* GetMutationContext()
     {
-        return InCommit;
+        return DecoratedState->GetMutationContext();
     }
 
  private:
@@ -307,14 +305,13 @@ public:
     TCellManagerPtr CellManager;
     IInvokerPtr ControlInvoker;
     bool ReadOnly;
-    bool InCommit;
 
     NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCachePtr ChangeLogCache;
     TSnapshotStorePtr SnapshotStore;
     TDecoratedMetaStatePtr DecoratedState;
 
-    TActionQueue::TPtr IOQueue;
+    TActionQueuePtr IOQueue;
 
     TCancelableContextPtr EpochContext;
 
@@ -502,7 +499,7 @@ public:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, ApplyChanges)
+    DECLARE_RPC_SERVICE_METHOD(NProto, ApplyMutations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -543,7 +540,7 @@ public:
                         ~version.ToString(),
                         changeCount);
 
-                    auto result = FollowerRecovery->PostponeChanges(version, request->Attachments());
+                    auto result = FollowerRecovery->PostponeMutations(version, request->Attachments());
                     if (result != TRecovery::EResult::OK) {
                         Restart();
                     }
@@ -566,7 +563,7 @@ public:
         }
     }
 
-    void OnFollowerCommitted(TCtxApplyChanges::TPtr context, TLeaderCommitter::EResult result)
+    void OnFollowerCommitted(TCtxApplyMutations::TPtr context, TLeaderCommitter::EResult result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -578,13 +575,13 @@ public:
                 context->Reply();
                 break;
 
-            case TCommitter::EResult::LateChanges:
+            case TCommitter::EResult::LateMutations:
                 context->Reply(
                     TProxy::EErrorCode::InvalidVersion,
                     "Changes are late");
                 break;
 
-            case TCommitter::EResult::OutOfOrderChanges:
+            case TCommitter::EResult::OutOfOrderMutations:
                 context->Reply(
                     TProxy::EErrorCode::InvalidVersion,
                     "Changes are out of order");
@@ -795,6 +792,34 @@ public:
         context->SetResponseInfo("SnapshotId: %d", snapshotId);
         context->Reply();
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetQuorum)
+    {
+        UNUSED(request);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        context->SetRequestInfo("");
+
+        if (GetControlStatus() != EPeerStatus::Leading) {
+            ythrow TServiceException(EErrorCode::InvalidStatus) <<
+                Sprintf("Cannot answer quorum queries while in %s", ~GetControlStatus().ToString());
+        }
+
+        auto tracker = FollowerTracker;
+        YASSERT(tracker);
+
+        response->set_leader_address(CellManager->GetSelfAddress());
+        for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+            if (tracker->IsFollowerActive(id)) {
+                CellManager->GetPeerAddress(id);
+            }
+        }
+
+        *response->mutable_epoch() = DecoratedState->GetEpoch().ToProto();
+
+        context->Reply();
+    }
+
     // End of RPC methods
 
 
@@ -811,7 +836,7 @@ public:
         ElectionManager->Restart();
     }
 
-    ECommitResult OnChangeCommitted(TLeaderCommitter::EResult result)
+    ECommitResult OnMutationCommitted(TLeaderCommitter::EResult result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -856,7 +881,7 @@ public:
             epoch,
             ~EpochControlInvoker,
             ~EpochStateInvoker);
-        LeaderCommitter->SubscribeChangeApplied(BIND(&TThis::OnChangeApplied, MakeWeak(this)));
+        LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnMutationApplied, MakeWeak(this)));
 
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
@@ -1167,8 +1192,7 @@ public:
     }
 
 
-
-    void OnChangeApplied()
+    void OnMutationApplied()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         YASSERT(StateStatus == EPeerStatus::Leading);
@@ -1210,11 +1234,11 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 IMetaStateManagerPtr CreatePersistentStateManager(
-    TPersistentStateManagerConfig* config,
+    TPersistentStateManagerConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr stateInvoker,
-    IMetaState* metaState,
-    NRpc::IServer* server)
+    IMetaStatePtr metaState,
+    NRpc::IServerPtr server)
 {
     YASSERT(controlInvoker);
     YASSERT(metaState);

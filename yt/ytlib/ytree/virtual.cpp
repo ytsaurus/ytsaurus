@@ -15,7 +15,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int DefaultMaxSize = 1000;
+static const int DefaultMaxSize = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +36,9 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 
     auto service = GetItemService(key);
     if (!service) {
-        ythrow yexception() << Sprintf("Key %s is not found", ~Stroka(key).Quote());
+        // TODO(babenko): improve diagnostics
+        ythrow yexception() << Sprintf("No such child key %s",
+            ~YsonizeString(key, EYsonFormat::Text));
     }
 
     return TResolveResult::There(service, TYPath(tokenizer.GetCurrentSuffix()));
@@ -48,11 +50,11 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 
     int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
     auto keys = GetKeys(max_size);
     auto size = GetSize();
 
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
     // TODO(MRoizner): use fluent
     BuildYsonFluently(&writer);
 
@@ -79,8 +81,29 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* 
     UNUSED(request);
     YASSERT(!TTokenizer(context->GetPath()).ParseNext());
 
-    auto keys = GetKeys();
-    NYT::ToProto(response->mutable_keys(), keys);
+    int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
+    auto keys = GetKeys(max_size);
+    auto size = GetSize();
+
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
+    BuildYsonFluently(&writer);
+
+    if (keys.size() != size) {
+        writer.OnBeginAttributes();
+        writer.OnKeyedItem("incomplete");
+        writer.OnStringScalar("true");
+        writer.OnEndAttributes();
+    }
+
+    writer.OnBeginList();
+    FOREACH (const auto& key, keys) {
+        writer.OnListItem();
+        writer.OnStringScalar(key);
+    }
+    writer.OnEndList();
+
+    response->set_keys(stream.Str());
     context->Reply();
 }
 
@@ -133,14 +156,20 @@ public:
         return Parent->CreateFactory();
     }
 
+    virtual IYPathResolverPtr GetResolver() const
+    {
+        YASSERT(Parent);
+        return Parent->GetResolver();
+    }
+
     virtual ICompositeNodePtr GetParent() const
     {
         return Parent;
     }
 
-    virtual void SetParent(ICompositeNode* parent)
+    virtual void SetParent(ICompositeNodePtr parent)
     {
-        Parent = parent;
+        Parent = ~parent;
     }
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)

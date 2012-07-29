@@ -36,11 +36,7 @@ class YtCollector(Collector):
     def get_default_config(self):
         return {
             'interval': 30, # collector invocation period
-            'sources': [
-                'meta01-001g.yt.yandex.net:10000', 
-                'meta01-002g.yt.yandex.net:10000', 
-                'meta01-003g.yt.yandex.net:10000'
-            ],
+            'sources': [ ],
             'window': 30, # aggregation window size in seconds
             'metric_sync_period': 10 # reload metric names each N collect cycles
         }
@@ -181,10 +177,10 @@ class YtCollector(Collector):
         paths = []
         subpaths = []
         for (key, value) in data.items():
-            if '$type' not in value or value['$type'] != 'entity':
-                subpaths = subpaths + YtCollector.get_paths(value, key)
-            else:
+            if value is None:
                 subpaths.append(key)
+            else:
+                subpaths = subpaths + YtCollector.get_paths(value, key)
         for subpath in subpaths:
             paths.append(root + '/' + subpath)
         return paths

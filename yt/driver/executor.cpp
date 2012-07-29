@@ -1,7 +1,7 @@
 #include "executor.h"
 #include "preprocess.h"
 
-#include <build.h>
+#include <yt/build.h>
 
 #include <ytlib/misc/home.h>
 #include <ytlib/misc/fs.h>
@@ -147,7 +147,7 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
 
     InitConfig();
 
-    NLog::TLogManager::Get()->Configure(~Config->Logging);
+    NLog::TLogManager::Get()->Configure(Config->Logging);
    
     Driver = CreateDriver(Config);
 
@@ -180,10 +180,20 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     // GetArgs() must be called before GetInputStream()
     request.Arguments = GetArgs();
     request.CommandName = GetCommandName();
+
     request.InputStream = GetInputStream();
-    request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
+    try {
+        request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing input format\n%s", ex.what());
+    }
+
     request.OutputStream = &outputStream;
-    request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);;
+    try {
+        request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing output format\n%s", ex.what());
+    }
 
     return DoExecute(request);
 }
@@ -241,8 +251,10 @@ TInputStream* TExecutor::GetInputStream()
 
 TTransactedExecutor::TTransactedExecutor(bool required)
     : TxArg("", "tx", "set transaction id", required, "", "GUID")
+    , PingAncestorTxsArg("", "ping_ancestor_txs", "ping ancestor transactions while executing this command", false)
 {
     CmdLine.add(TxArg);
+    CmdLine.add(PingAncestorTxsArg);
 }
 
 void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -250,7 +262,8 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
             fluent.Item("transaction_id").Scalar(TxArg.getValue());
-        });
+        })
+        .Item("ping_ancestor_transactions").Scalar(PingAncestorTxsArg.getValue());
 
     TExecutor::BuildArgs(consumer);
 }

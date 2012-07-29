@@ -60,8 +60,8 @@ private:
     static const TDuration Period; // TODO: make yson serializable
 
     bool IsStarted;
-    TActionQueue::TPtr ActionQueue;
-    TPeriodicInvoker::TPtr PeriodicInvoker;
+    TActionQueuePtr ActionQueue;
+    TPeriodicInvokerPtr PeriodicInvoker;
 
     //! Protects #MonitoringMap.
     TSpinLock SpinLock;

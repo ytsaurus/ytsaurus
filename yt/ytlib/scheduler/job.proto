@@ -9,6 +9,15 @@ import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Measures limits and utilization of various resources.
+message TNodeResources
+{
+    required int32 slots = 1;
+    required int32 cores = 2;
+    required int64 memory = 3;
+    optional int32 network = 4 [default = 0];
+}
+
 // Describes a part of input table(s) to be processed by a job.
 message TTableInputSpec
 {
@@ -47,6 +56,9 @@ message TJobSpec
     // Job output.
     repeated TTableOutputSpec output_specs = 5;
 
+    // Expected resource utilization.
+    required TNodeResources resource_utilization = 6;
+
     extensions 100 to max;
 }
 
@@ -61,6 +73,10 @@ message TJobResult
     repeated NYT.NProto.TGuid failed_chunk_ids = 2;
 
     extensions 100 to max;
+}
+
+message TJobProgress
+{
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +216,7 @@ message TSortJobSpecExt
     }
 
     repeated string key_columns = 5;
+    required double shuffle_network_release_threshold = 6;
 }
 
 message TSortJobResultExt

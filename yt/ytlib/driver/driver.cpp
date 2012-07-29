@@ -15,7 +15,8 @@
 
 #include <rpc/scoped_channel.h>
 
-#include <ytlib/election/leader_channel.h>
+#include <ytlib/meta_state/config.h>
+#include <ytlib/meta_state/leader_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 
@@ -73,7 +74,9 @@ public:
         REGISTER(TSetCommand,               "set",       Structured, Null,       true,  false);
         REGISTER(TGetCommand,               "get",       Null,       Structured, false, false);
         REGISTER(TListCommand,              "list",      Null,       Structured, false, false);
-        REGISTER(TLockCommand,              "lock",      Null,       Structured, true,  false);
+        REGISTER(TLockCommand,              "lock",      Null,       Null,       true,  false);
+        REGISTER(TCopyCommand,              "copy",      Null,       Structured, true,  false);
+        REGISTER(TMoveCommand,              "move",      Null,       Null,       true,  false);
 
         REGISTER(TUploadCommand,            "upload",    Binary,     Structured, true,  true );
         REGISTER(TDownloadCommand,          "download",  Null,       Binary,     false, true );

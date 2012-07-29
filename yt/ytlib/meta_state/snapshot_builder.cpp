@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "snapshot_builder.h"
-#include "common.h"
+#include "private.h"
 #include "config.h"
 #include "meta_state_manager_proxy.h"
 #include "meta_version.h"
@@ -9,6 +9,7 @@
 #include "snapshot.h"
 #include "change_log_cache.h"
 
+#include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/actions/bind.h>
@@ -32,8 +33,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("/meta_state");
+static NLog::TLogger& Logger = MetaStateLogger;
+static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/errortrace.h>
+#include <ytlib/misc/crash_handler.h>
 #include <ytlib/bus/tcp_dispatcher.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
@@ -20,7 +20,7 @@
 #include <ytlib/misc/tclap_helpers.h>
 #include <tclap/CmdLine.h>
 
-#include <build.h>
+#include <yt/build.h>
 
 #include <util/system/sigset.h>
 
@@ -123,6 +123,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // Configure logging.
         NLog::TLogManager::Get()->Configure(configFileName, "/logging");
 
+        if (configFileName.empty()) {
+            ythrow yexception() << "Missing --config option";
+        }
+
         // Parse configuration file.
         try {
             TIFStream configStream(configFileName);
@@ -206,6 +210,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         try {
             config->Load(configNode);
+
+            // Override RPC port.
+            if (port >= 0) {
+                config->RpcPort = port;
+            }
+            config->Validate();
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing cell scheduler configuration\n%s",
                 ex.what());
@@ -249,7 +259,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 int Main(int argc, const char* argv[])
 {
-    NYT::SetupErrorHandler();
+    NYT::InstallCrashSignalHandler();
 
 #ifdef _unix_
     sigset_t sigset;

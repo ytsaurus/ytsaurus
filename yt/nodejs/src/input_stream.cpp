@@ -362,8 +362,7 @@ void TNodeJSInputStream::DoDrain()
 
     UpdateV8Properties();
 
-    // TODO(sandello): Use OnDrainSymbol here.
-    node::MakeCallback(this->handle_, "on_drain", 0, NULL);
+    node::MakeCallback(this->handle_, OnDrainSymbol, 0, NULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

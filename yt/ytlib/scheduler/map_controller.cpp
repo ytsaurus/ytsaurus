@@ -4,12 +4,19 @@
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
+#include "job_resources.h"
 
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/table_client/schema.h>
+
 #include <ytlib/job_proxy/config.h>
+
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
 #include <ytlib/transaction_client/transaction.h>
+
+#include <ytlib/table_client/key.h>
 
 #include <cmath>
 
@@ -19,8 +26,6 @@ namespace NScheduler {
 using namespace NYTree;
 using namespace NChunkServer;
 using namespace NScheduler::NProto;
-using namespace NChunkHolder::NProto;
-using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -63,14 +68,18 @@ private:
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool();
+
+            MinRequestedResources = GetMapJobResources(
+                Controller->Config->MapJobIO,
+                Controller->Spec);
         }
 
-        virtual Stroka GetId() const
+        virtual Stroka GetId() const OVERRIDE
         {
             return "Map";
         }
 
-        virtual int GetPendingJobCount() const
+        virtual int GetPendingJobCount() const OVERRIDE
         {
             return
                 IsPending()
@@ -78,40 +87,46 @@ private:
                 : 0;
         }
 
-        virtual TDuration GetMaxLocalityDelay() const
+        virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
-            // TODO(babenko): make configurable
-            return TDuration::Seconds(5);
+            return Controller->Spec->LocalityTimeout;
+        }
+
+        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+        {
+            return MinRequestedResources;
         }
 
     private:
         friend class TMapController;
 
         TMapController* Controller;
+        NProto::TNodeResources MinRequestedResources;
 
-        virtual int GetChunkListCountPerJob() const 
+        virtual int GetChunkListCountPerJob() const OVERRIDE
         {
             return static_cast<int>(Controller->OutputTables.size());
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const
+        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
         {
             return GetJobWeightThresholdGeneric(
                 GetPendingJobCount(),
                 WeightCounter().GetPending());
         }
 
-        virtual TJobSpec GetJobSpec(TJobInProgressPtr jip)
+        virtual void BuildJobSpec(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec) OVERRIDE
         {
-            auto jobSpec = Controller->JobSpecTemplate;
-            AddSequentialInputSpec(&jobSpec, jip);
+            jobSpec->CopyFrom(Controller->JobSpecTemplate);
+            AddSequentialInputSpec(jobSpec, jip);
             for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
-                AddTabularOutputSpec(&jobSpec, jip, index);
+                AddTabularOutputSpec(jobSpec, jip, index);
             }
-            return jobSpec;
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip)
+        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
         {
             TTask::OnJobCompleted(jip);
 
@@ -129,62 +144,44 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TYPath> GetInputTablePaths()
+    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths()
+    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths()
+    virtual std::vector<TYPath> GetFilePaths() OVERRIDE
     {
         return Spec->Mapper->FilePaths;
     }
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
     {
         return pipeline->Add(BIND(&TMapController::ProcessInputs, MakeStrong(this)));
     }
 
-    void ProcessInputs()
+    TFuture<void> ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
             
             // Compute statistics and populate the pool.
-            for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
-                const auto& table = InputTables[tableIndex];
-
-                TNullable<TYsonString> rowAttributes;
-                if (InputTables.size() > 1) {
-                    rowAttributes = BuildYsonFluently()
-                        .BeginMap()
-                            .Item("table_index").Scalar(tableIndex)
-                        .EndMap().GetYsonString();
-                }
-
-                FOREACH (auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
-                    // Currently fetch never returns row attributes.
-                    YCHECK(!inputChunk.has_row_attributes());
-
-                    if (rowAttributes) {
-                        inputChunk.set_row_attributes(rowAttributes->Data());
-                    }
-
-                    // TODO(babenko): make customizable: choose either data_weight or row_count as weight
-                    auto stripe = New<TChunkStripe>(inputChunk);
-                    MapTask->AddStripe(stripe);
-                }
-            }
+            auto inputChunks = CollectInputTablesChunks();
+            auto stripes = PrepareChunkStripes(
+                inputChunks,
+                Spec->JobCount,
+                Spec->JobSliceWeight);
+            MapTask->AddStripes(stripes);
 
             // Check for empty inputs.
             if (MapTask->IsCompleted()) {
                 LOG_INFO("Empty input");
                 OnOperationCompleted();
-                return;
+                return NewPromise<void>();
             }
 
             TotalJobCount = GetJobCount(
@@ -206,31 +203,28 @@ private:
             // Kick-start the map task.
             AddTaskPendingHint(MapTask);
         }
+
+        return MakeFuture();
+    }
+
+
+    virtual NProto::TNodeResources GetMinRequestedResources() const
+    {
+        return MapTask ? MapTask->GetMinRequestedResources() : InfiniteResources();
     }
 
 
     // Progress reporting.
 
-    virtual void LogProgress()
+    virtual void LogProgress() OVERRIDE
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}, "
-            "Chunks = {%s}, "
-            "Weight = {%s}",
+            "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}",
             TotalJobCount,
             RunningJobCount,
             CompletedJobCount,
             GetPendingJobCount(),
-            FailedJobCount,
-            ~ToString(MapTask->ChunkCounter()),
-            ~ToString(MapTask->WeightCounter()));
-    }
-
-    virtual void DoGetProgress(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &MapTask->ChunkCounter()))
-            .Item("weight").Do(BIND(&TProgressCounter::ToYson, &MapTask->WeightCounter()));
+            FailedJobCount);
     }
 
 

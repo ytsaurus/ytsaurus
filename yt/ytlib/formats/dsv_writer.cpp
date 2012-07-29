@@ -30,11 +30,27 @@ TDsvWriter::TDsvWriter(
         AllowBeginList = false;
     }
 
-    memset(IsStopSymbol, 0, sizeof(IsStopSymbol));
-    IsStopSymbol[Config->EscapingSymbol] = true;
-    IsStopSymbol[Config->KeyValueSeparator] = true;
-    IsStopSymbol[Config->FieldSeparator] = true;
-    IsStopSymbol[Config->RecordSeparator] = true;
+    memset(IsKeyStopSymbol, 0, sizeof(IsKeyStopSymbol));
+    IsKeyStopSymbol[Config->RecordSeparator] = true;
+    IsKeyStopSymbol[Config->FieldSeparator] = true;
+    IsKeyStopSymbol[Config->KeyValueSeparator] = true;
+    IsKeyStopSymbol[Config->EscapingSymbol] = true;
+    IsKeyStopSymbol['\0'] = true;
+
+    // Note:: KeyValueSeparator is not escaped
+    memset(IsValueStopSymbol, 0, sizeof(IsValueStopSymbol));
+    IsValueStopSymbol[Config->RecordSeparator] = true;
+    IsValueStopSymbol[Config->FieldSeparator] = true;
+    IsValueStopSymbol[Config->EscapingSymbol] = true;
+    IsValueStopSymbol['\0'] = true;
+
+    // Init escaping table
+    for (int i = 0; i < 256; ++i) {
+        EscapingTable[i] = i;
+    }
+    EscapingTable['\0'] = '0';
+    EscapingTable['\n'] = 'n';
+    EscapingTable['\t'] = 't';
 }
 
 TDsvWriter::~TDsvWriter()
@@ -42,7 +58,7 @@ TDsvWriter::~TDsvWriter()
 
 void TDsvWriter::OnStringScalar(const TStringBuf& value)
 {
-    EscapeAndWrite(value);
+    EscapeAndWrite(value, IsValueStopSymbol);
 }
 
 void TDsvWriter::OnIntegerScalar(i64 value)
@@ -105,7 +121,7 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
         Stream->Write(Config->FieldSeparator);
     }
 
-    EscapeAndWrite(key);
+    EscapeAndWrite(key, IsKeyStopSymbol);
     Stream->Write(Config->KeyValueSeparator);
 
     FirstItem = false;
@@ -177,17 +193,17 @@ void TDsvWriter::OnRaw(const TStringBuf& yson, EYsonType type)
     }
 }
 
-void TDsvWriter::EscapeAndWrite(const TStringBuf& key)
+void TDsvWriter::EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol)
 {
     if (Config->EnableEscaping) {
         auto current = key.begin();
         auto end = key.end();
         while (current != end) {
-            auto next = FindNextEscapedSymbol(current, end);
+            auto next = FindNextEscapedSymbol(current, end, IsStopSymbol);
             Stream->Write(current, next - current);
             if (next != end) {
                 Stream->Write(Config->EscapingSymbol);
-                Stream->Write(*next);
+                Stream->Write(EscapingTable[*next]);
                 ++next;
             }
             current = next;
@@ -197,7 +213,10 @@ void TDsvWriter::EscapeAndWrite(const TStringBuf& key)
     }
 }
 
-const char* TDsvWriter::FindNextEscapedSymbol(const char* begin, const char* end)
+const char* TDsvWriter::FindNextEscapedSymbol(
+    const char* begin,
+    const char* end,
+    const bool* IsStopSymbol)
 {
     auto current = begin;
     for ( ; current != end; ++current) {

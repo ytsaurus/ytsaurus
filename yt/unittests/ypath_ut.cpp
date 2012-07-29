@@ -239,6 +239,24 @@ TEST_F(TYPathTest, Attributes)
     Check("/root/\"3\"/@dir/@file/@", "{}");
 }
 
+TEST_F(TYPathTest, RemoveAll)
+{
+    // from map
+    Set("/map", "{foo=bar;key=vaue}");
+    Remove("/map/*");
+    Check("/map", "{}");
+
+    // from list
+    Set("/list", "[10;20;30]");
+    Remove("/list/*");
+    Check("/list", "[]");
+
+    // from attributes
+    Set("/attr", "<foo=bar;key=vaue>42");
+    Remove("/attr/@*");
+    Check("/attr/@", "{}");
+}
+
 TEST_F(TYPathTest, InvalidCases)
 {
     Set("/root", "{}");

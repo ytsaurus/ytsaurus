@@ -17,7 +17,7 @@ const ETokenType::EDomain ListAppendToken = ETokenType::Plus;
 const ETokenType::EDomain ListInsertToken = ETokenType::Caret;
 const ETokenType::EDomain HomeDirToken = ETokenType::Tilde;
 const ETokenType::EDomain SuppressRedirectToken = ETokenType::Ampersand;
-const ETokenType::EDomain RemoveAllToken = ETokenType::Asterisk;
+const ETokenType::EDomain WildcardToken = ETokenType::Asterisk;
 
 // Table selectors
 const ETokenType::EDomain BeginColumnSelectorToken = ETokenType::LeftBrace;

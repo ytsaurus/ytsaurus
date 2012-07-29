@@ -13,23 +13,24 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// How yson is mapped into json?
-// * ListFragments and MapFragments are not supported
-// * Simple types (without attributes) are mapped almost as is:
-//     YSon <----> Json
+// YSON-to-JSON Mapping Conventions
+// 
+// * ListFragments and MapFragments (which exist in YSON) are not supported.
+// * Bool type (which exists in JSON) is not supported.
+// * Other types (without attributes) are mapped almost as is:
+//      YSON <----> JSON
 //    * List <---> Array
 //    * Map  <---> Object
 //    * Int  <---> Int
 //    * Double <---> Double
 //    * String (s) <---> String (t):
-//      * If s[0] != '&' and s is valid UTF8 string: t := s
+//      * If s[0] != '&' and s is a valid UTF8 string: t := s
 //      * else: t := '&' + Base64(s)
 //    * Entity <---> null
-//    * Not supported (yexception) <---> bool
-// * Types with attributes are mapped to Json object:
+// * Nodes with attributes are mapped to the following JSON map:
 //    {
-//        '$attributes': attributes->AsMap(),
-//        '$value': value (see conversion of basic types)
+//        '$attributes': (attributes map),
+//        '$value': (value, as explained above)
 //    }
 
 //! Translates YSON events into a series of calls to TJsonWriter
@@ -43,7 +44,6 @@ namespace NFormats {
  *  
  *  Explicit #Flush calls should be made when finished writing via the adapter.
  */
-// XXX(babenko): YSON strings vs JSON strings.
 class TJsonWriter
     : public NYTree::TForwardingYsonConsumer
 {

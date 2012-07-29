@@ -45,7 +45,7 @@ void TYsonSerializable::Load(NYTree::INodePtr node, bool validate, const NYTree:
             const auto& key = pair.first;
             auto child = pair.second;
             if (Parameters.find(key) == Parameters.end()) {
-                Options->AddChild(~ConvertToNode(child), key);
+                Options->AddChild(ConvertToNode(child), key);
             }
         }
     }

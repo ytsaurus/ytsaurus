@@ -1,0 +1,15 @@
+#include "stdafx.h"
+#include "private.h"
+
+namespace NYT {
+namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NLog::TLogger MetaStateLogger("MetaState");
+NProfiling::TProfiler MetaStateProfiler("/meta_state");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NMetaState
+} // namespace NYT

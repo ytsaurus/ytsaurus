@@ -23,14 +23,17 @@ class TLocation
 public:
     TLocation(
         ELocationType type,
+        const Stroka& id,
         TLocationConfigPtr config,
-        TReaderCachePtr readerCache,
-        const Stroka& threadName);
+        TBootstrap* bootstrap);
 
     ~TLocation();
 
     //! Returns the type.
     ELocationType GetType() const;
+
+    //! Returns string id.
+    Stroka GetId() const;
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     std::vector<TChunkDescriptor> Scan();
@@ -39,16 +42,15 @@ public:
     void UpdateUsedSpace(i64 size);
 
     //! Schedules physical removal of a chunk.
-    void RemoveChunk(TChunkPtr chunk);
+    // NB: Don't try replacing TChunk with TChunkPtr since
+    // this method is called from TCachedChunk::dtor.
+    void ScheduleChunkRemoval(TChunk* chunk);
 
     //! Updates #AvailalbleSpace with a system call and returns the result.
     i64 GetAvailableSpace() const;
 
-    //! Returns the invoker that handles all IO requests to this location.
-    IInvokerPtr GetInvoker() const;
-
-    //! Returns the reader cache.
-    TIntrusivePtr<TReaderCache> GetReaderCache() const;
+    //! Returns the bootstrap.
+    TBootstrap* GetBootstrap() const;
 
     //! Returns the number of bytes used at the location.
     /*!
@@ -82,14 +84,27 @@ public:
     //! Checks whether to location has enough space to contain file of size #size
     bool HasEnoughSpace(i64 size) const;
 
+    //! Returns an invoker for reading chunk data.
+    IInvokerPtr GetDataReadInvoker();
+
+    //! Returns an invoker for reading chunk meta.
+    IInvokerPtr GetMetaReadInvoker();
+
+    //! Returns an invoker for writing chunks.
+    IInvokerPtr GetWriteInvoker();
+
 private:
     ELocationType Type;
+    Stroka Id;
     TLocationConfigPtr Config;
-    TReaderCachePtr ReaderCache;
+    TBootstrap* Bootstrap;
+
     mutable i64 AvailableSpace;
     i64 UsedSpace;
-    TActionQueue::TPtr ActionQueue;
     int SessionCount;
+
+    TFairShareActionQueuePtr ReadQueue;
+    TActionQueuePtr WriteQueue;
 
     mutable NLog::TTaggedLogger Logger;
 };

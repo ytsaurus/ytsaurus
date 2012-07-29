@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/property.h>
-#include <ytlib/cypress/node_detail.h>
+#include <ytlib/cypress_server/node_detail.h>
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {
@@ -16,25 +16,23 @@ DECLARE_ENUM(ETableUpdateMode,
 );
 
 class TTableNode
-    : public NCypress::TCypressNodeBase
+    : public NCypressServer::TCypressNodeBase
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(ETableUpdateMode, UpdateMode);
 
 public:
-    explicit TTableNode(const NCypress::TVersionedNodeId& id);
-    TTableNode(const NCypress::TVersionedNodeId& id, const TTableNode& other);
+    explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
 
-    virtual NCypress::EObjectType GetObjectType() const;
+    virtual NObjectServer::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
-    
     virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandlerPtr CreateTableTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateTableTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

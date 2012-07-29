@@ -7,15 +7,14 @@
 #include "tcp_connection.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/address.h>
 #include <ytlib/logging/tagged_logger.h>
 
-// TODO(babenko): get rid of this
-#include <util/network/address.h>
-#include <util/system/error.h>
+#include <errno.h>
 
 #ifndef _WIN32
-#include <netinet/tcp.h>
-#include <sys/socket.h>
+    #include <netinet/tcp.h>
+    #include <sys/socket.h>
 #endif
 
 namespace NYT {
@@ -199,11 +198,11 @@ private:
         }
 
         while (true) {
-            // TODO(babenko): get rid of this
-            NAddr::TOpaqueAddr clientAddress;
+            TNetworkAddress clientAddress;
+            socklen_t clientAddressLen = clientAddress.GetLength();
             SOCKET clientSocket;
             PROFILE_AGGREGATED_TIMING (AcceptTime) {
-                clientSocket = accept(ServerSocket, clientAddress.Addr(), clientAddress.LenPtr());
+                clientSocket = accept(ServerSocket, clientAddress.GetSockAddr(), &clientAddressLen);
             }
 
             if (clientSocket == INVALID_SOCKET) {
@@ -229,14 +228,12 @@ private:
 #endif
             InitSocket(clientSocket);
 
-            // TODO(babenko): get rid of this
-            auto clientAddressStr = ToString(static_cast<const NAddr::IRemoteAddr&>(clientAddress));
-
             auto connection = New<TTcpConnection>(
                 EConnectionType::Server,
                 TConnectionId::Create(),
                 clientSocket,
-                clientAddressStr,
+                ToString(clientAddress, true),
+                0,
                 Handler);
             connection->SubscribeTerminated(BIND(
                 &TTcpBusServer::OnConnectionTerminated,

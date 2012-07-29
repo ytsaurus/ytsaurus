@@ -10,6 +10,7 @@
 #include "scheduler_proxy.h"
 #include "helpers.h"
 #include "master_connector.h"
+#include "job_resources.h"
 #include "private.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -30,8 +31,7 @@
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
-#include <ytlib/cypress/cypress_ypath_proxy.h>
-#include <ytlib/cypress/id.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_server/object_ypath_proxy.h>
 
@@ -42,12 +42,11 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NCellScheduler;
 using namespace NTransactionClient;
-using namespace NCypress;
+using namespace NCypressClient;
 using namespace NYTree;
 using namespace NObjectServer;
-using namespace NProto;
+using namespace NScheduler::NProto;
 
 using NChunkServer::TChunkId;
 
@@ -124,15 +123,15 @@ public:
         return operations;
     }
 
-    std::vector<TExecNodePtr> GetExecNodes()
+    virtual std::vector<TExecNodePtr> GetExecNodes() OVERRIDE
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        std::vector<TExecNodePtr> execNodes;
+        std::vector<TExecNodePtr> result;
         FOREACH (const auto& pair, ExecNodes) {
-            execNodes.push_back(pair.second);
+            result.push_back(pair.second);
         }
-        return execNodes;
+        return result;
     }
 
 private:
@@ -140,7 +139,7 @@ private:
 
     TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* Bootstrap;
-    TActionQueue::TPtr BackgroundQueue;
+    TActionQueuePtr BackgroundQueue;
     THolder<TMasterConnector> MasterConnector;
 
     TAutoPtr<ISchedulerStrategy> Strategy;
@@ -224,7 +223,7 @@ private:
             TInstant::Now());
 
         LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s)",
-            ~FormatEnum(type).Quote(),
+            ~type.ToString(),
             ~operationId.ToString(),
             ~transactionId.ToString());
 
@@ -262,8 +261,8 @@ private:
 
     void InitializeOperation(TOperationPtr operation)
     {
-        if (GetExecNodeCount() == 0) {
-            ythrow yexception() << "No online exec nodes";
+        if (ExecNodes.empty()) {
+            ythrow yexception() << "No online exec nodes to start operation";
         }
 
         operation->GetController()->Initialize();
@@ -476,9 +475,9 @@ private:
             ~job->GetOperation()->GetOperationId().ToString());
     }
 
-    void UpdateJobCounters(TJobPtr changedJob, int delta)
+    void UpdateJobCounters(TJobPtr job, int delta)
     {
-        auto jobType = EJobType(changedJob->Spec().type());
+        auto jobType = job->GetType();
         JobTypeCounters[jobType] += delta;
 
         Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
@@ -501,10 +500,10 @@ private:
         }
     }
 
-    void OnJobCompleted(TJobPtr job, const NProto::TJobResult& result)
+    void OnJobCompleted(TJobPtr job, NProto::TJobResult* result)
     {
         job->SetState(EJobState::Completed);
-        job->Result() = result;
+        job->Result().Swap(result);
 
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
@@ -514,10 +513,10 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobFailed(TJobPtr job, const NProto::TJobResult& result)
+    void OnJobFailed(TJobPtr job, NProto::TJobResult* result)
     {
         job->SetState(EJobState::Failed);
-        job->Result() = result;
+        job->Result().Swap(result);
 
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
@@ -531,7 +530,8 @@ private:
     {
         NProto::TJobResult result;
         *result.mutable_error() = error.ToProto();
-        OnJobFailed(job, result);
+
+        OnJobFailed(job, &result);
     }
 
     void UpdateJobNodeOnFinish(TJobPtr job)
@@ -614,37 +614,30 @@ private:
     
 
     // IOperationHost methods
-    NRpc::IChannelPtr GetMasterChannel() OVERRIDE
+    virtual NRpc::IChannelPtr GetMasterChannel() OVERRIDE
     {
         return Bootstrap->GetMasterChannel();
     }
 
-    TTransactionManagerPtr GetTransactionManager() OVERRIDE
+    virtual TTransactionManagerPtr GetTransactionManager() OVERRIDE
     {
         return Bootstrap->GetTransactionManager();
     }
 
-    IInvokerPtr GetControlInvoker() OVERRIDE
+    virtual IInvokerPtr GetControlInvoker() OVERRIDE
     {
         return Bootstrap->GetControlInvoker();
     }
 
-    IInvokerPtr GetBackgroundInvoker() OVERRIDE
+    virtual IInvokerPtr GetBackgroundInvoker() OVERRIDE
     {
         return BackgroundQueue->GetInvoker();
     }
 
-    int GetExecNodeCount() OVERRIDE
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return static_cast<int>(ExecNodes.size());
-    }
-
-    TJobPtr CreateJob(
+    virtual TJobPtr CreateJob(
+        EJobType type,
         TOperationPtr operation,
-        TExecNodePtr node,
-        const NProto::TJobSpec& spec) OVERRIDE
+        TExecNodePtr node) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -652,14 +645,14 @@ private:
         // Instead we wait until this job is returned back to us by the strategy.
         return New<TJob>(
             TJobId::Create(),
+            type,
             operation.Get(),
             node,
-            spec,
             TInstant::Now());
     }
 
 
-    void OnOperationCompleted(TOperationPtr operation) OVERRIDE
+    virtual void OnOperationCompleted(TOperationPtr operation) OVERRIDE
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -715,10 +708,11 @@ private:
         UNUSED(finalizeError);
 
         operation->SetFinished();
+        operation->SetController(NULL);
     }
 
 
-    void OnOperationFailed(
+    virtual void OnOperationFailed(
         TOperationPtr operation,
         const TError& error) OVERRIDE
     {
@@ -758,6 +752,7 @@ private:
 
         operation->GetController()->Abort();
         operation->SetFinished();
+        operation->SetController(NULL);
     }
 
 
@@ -865,13 +860,13 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
         auto address = request->address();
-        auto utilization = request->utilization();
+        const auto& resourceLimits = request->resource_limits();
+        const auto& resourceUtilization = request->resource_utilization();
 
-        context->SetRequestInfo("Address: %s, JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d",
+        context->SetRequestInfo("Address: %s, JobCount: %d, Utilization: {%s}",
             ~address,
             request->jobs_size(),
-            utilization.total_slot_count(),
-            utilization.free_slot_count());
+            ~FormatResourceUtilization(resourceUtilization, resourceLimits));
 
         auto node = FindNode(address);
         if (!node) {
@@ -880,16 +875,17 @@ private:
             return;
         }
 
-        node->Utilization() = utilization;
+        node->ResourceUtilization() = resourceUtilization;
+        node->ResourceLimits() = resourceLimits;
 
         PROFILE_TIMING ("/analysis_time") {
             auto missingJobs = node->Jobs();
 
-            FOREACH (const auto& jobStatus, request->jobs()) {
+            FOREACH (auto& jobStatus, *request->mutable_jobs()) {
                 auto job = ProcessJobHeartbeat(
                     request,
                     response,
-                    jobStatus);
+                    &jobStatus);
                 if (job) {
                     YCHECK(missingJobs.erase(job) == 1);
                 }
@@ -914,13 +910,13 @@ private:
         FOREACH (auto job, jobsToStart) {
             LOG_INFO("Starting job on %s (JobType: %s, JobId: %s, OperationId: %s)",
                 ~address,
-                ~EJobType(job->Spec().type()).ToString(),
+                ~job->GetType().ToString(),
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
             
             auto* jobInfo = response->add_jobs_to_start();
             *jobInfo->mutable_job_id() = job->GetId().ToProto();
-            *jobInfo->mutable_spec() = job->Spec();
+            jobInfo->mutable_spec()->Swap(&job->Spec());
 
             RegisterJob(job);
             MasterConnector->CreateJobNode(job);
@@ -942,11 +938,11 @@ private:
     TJobPtr ProcessJobHeartbeat(
         NProto::TReqHeartbeat* request,
         NProto::TRspHeartbeat* response,
-        const NProto::TJobStatus& jobStatus)
+        NProto::TJobStatus* jobStatus)
     {
         auto address = request->address();
-        auto jobId = TJobId::FromProto(jobStatus.job_id());
-        auto state = EJobState(jobStatus.state());
+        auto jobId = TJobId::FromProto(jobStatus->job_id());
+        auto state = EJobState(jobStatus->state());
             
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("Address: %s, JobId: %s",
@@ -989,7 +985,7 @@ private:
         auto operation = job->GetOperation();
         
         Logger.AddTag(Sprintf("JobType: %s, State: %s, OperationId: %s",
-            ~EJobType(job->Spec().type()).ToString(),
+            ~job->GetType().ToString(),
             ~state.ToString(),
             ~operation->GetOperationId().ToString()));
 
@@ -1012,14 +1008,14 @@ private:
         switch (state) {
             case EJobState::Completed:
                 LOG_INFO("Job completed, removal scheduled");
-                OnJobCompleted(job, jobStatus.result());
+                OnJobCompleted(job, jobStatus->mutable_result());
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 break;
 
             case EJobState::Failed:
                 LOG_INFO("Job failed, removal scheduled\n%s",
-                    ~TError::FromProto(jobStatus.result().error()).ToString());
-                OnJobFailed(job, jobStatus.result());
+                    ~TError::FromProto(jobStatus->result().error()).ToString());
+                OnJobFailed(job, jobStatus->mutable_result());
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 break;
 
@@ -1052,7 +1048,7 @@ private:
 
 TScheduler::TScheduler(
     TSchedulerConfigPtr config,
-    TBootstrap* bootstrap)
+    NCellScheduler::TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
 
