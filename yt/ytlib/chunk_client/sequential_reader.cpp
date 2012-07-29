@@ -197,6 +197,11 @@ void TSequentialReader::RequestBlocks(
         MakeWeak(this)));
 }
 
+bool TSequentialReader::IsFetchingComplete() const
+{
+    return NextUnfetchedIndex >= BlockSequence.size();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

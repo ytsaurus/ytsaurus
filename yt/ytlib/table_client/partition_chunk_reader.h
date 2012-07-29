@@ -35,6 +35,8 @@ public:
 
     TValue ReadValue(const TStringBuf& name);
 
+    bool IsFetchingComplete() const;
+
 private:
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
     NChunkClient::IAsyncReaderPtr AsyncReader;

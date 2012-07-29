@@ -212,6 +212,12 @@ bool TChunkSequenceReaderBase<TReader>::IsValid() const
     return CurrentReader_->IsValid();
 }
 
+template <class TReader>
+bool TChunkSequenceReaderBase<TReader>::IsFetchingComplete() const
+{
+    return CurrentReader_->IsFetchingComplete();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
