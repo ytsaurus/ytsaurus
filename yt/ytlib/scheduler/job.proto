@@ -216,7 +216,6 @@ message TSortJobSpecExt
     }
 
     repeated string key_columns = 5;
-    required double shuffle_network_release_threshold = 6;
 }
 
 message TSortJobResultExt
