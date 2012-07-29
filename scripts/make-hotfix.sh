@@ -42,7 +42,7 @@ git flow hotfix start "${version}"
 update_cmakelists $major $minor $patch
 update_debian_changelog $major $minor $patch "Hotfix '${cause}'"
 
-git add 'CMakeLists.txt'
+git add 'cmake/Version.cmake'
 git add 'debian/changelog'
 git commit -m "Version bump; hotfix ${version} (${cause})"
 
