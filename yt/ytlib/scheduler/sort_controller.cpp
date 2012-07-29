@@ -853,10 +853,6 @@ private:
                 return NewPromise< TValueOrError<void> >();
             }
 
-            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ")",
-                PartitionTask->WeightCounter().GetTotal(),
-                PartitionTask->ChunkCounter().GetTotal());
-
             return SamplesFetcher->Run(GetPartitionCountEstimate() * Spec->SamplesPerPartition);
         }
     }
@@ -1139,6 +1135,10 @@ private:
             Spec->PartitionJobCount,
             Spec->PartitionJobSliceWeight);
         PartitionTask->AddStripes(stripes);
+
+        LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ")",
+            PartitionTask->WeightCounter().GetTotal(),
+            PartitionTask->ChunkCounter().GetTotal());
 
         // Init counters.
         PartitionJobCounter.Set(GetJobCount(

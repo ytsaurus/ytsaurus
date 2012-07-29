@@ -52,7 +52,11 @@ TFuture< TValueOrError<void> > TSamplesFetcher::Run(int desiredSampleCount)
 {
     YCHECK(desiredSampleCount > 0);
     YCHECK(TotalWeight > 0);
-    WeightBetweenSamples = TotalWeight / desiredSampleCount;
+    if (TotalWeight < desiredSampleCount) {
+        WeightBetweenSamples = 1;
+    } else {
+        WeightBetweenSamples = TotalWeight / desiredSampleCount;
+    }
 
     SendRequests();
     return Promise;
@@ -101,7 +105,7 @@ void TSamplesFetcher::SendRequests()
         });
 
     i64 currentWeight = WeightBetweenSamples; // This ensures that we will request at least one sample.
-    int currentSampleCount = 0;
+    i64 currentSampleCount = 0;
 
     // Pick nodes greedily.
     auto awaiter = New<TParallelAwaiter>(Invoker);
@@ -122,10 +126,10 @@ void TSamplesFetcher::SendRequests()
                 const auto& chunk = Chunks[chunkIndex];
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
                 currentWeight += miscExt.data_weight();
-                int sampleCount = currentWeight / WeightBetweenSamples;
+                i64 sampleCount = currentWeight / WeightBetweenSamples;
 
                 if (sampleCount > currentSampleCount) {
-                    int chunkSampleCount = sampleCount - currentSampleCount;
+                    auto chunkSampleCount = sampleCount - currentSampleCount;
                     currentSampleCount = sampleCount;
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     chunkIndexes.push_back(chunkIndex);
