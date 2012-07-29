@@ -109,13 +109,12 @@ void TChunkSequenceReaderBase<TReader>::OnReaderOpened(
 
     if (error.IsOK()) {
         Readers[newReader].Set(reader);
+        LastInitializedReader = newReader;
         return;
     }
 
     State.Fail(error);
     Readers[newReader].Set(TReaderPtr());
-
-    LastInitializedReader = newReader;
 }
 
 template <class TReader>
