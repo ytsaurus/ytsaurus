@@ -1434,10 +1434,11 @@ void TOperationControllerBase::InitUserJobSpec(
 
 TJobIOConfigPtr TOperationControllerBase::BuildJobIOConfig(
     TJobIOConfigPtr schedulerConfig,
-    INodePtr specConfig)
+    INodePtr specConfigNode)
 {
-    if (specConfig) {
+    if (specConfigNode) {
         auto schedulerConfigNode = ConvertTo<INodePtr>(schedulerConfig);
+        UpdateNode(schedulerConfigNode, specConfigNode);
         return ConvertTo<TJobIOConfigPtr>(schedulerConfigNode);
     } else {
         return CloneConfigurable(schedulerConfig);

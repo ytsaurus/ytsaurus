@@ -427,7 +427,7 @@ protected:
 
     static NJobProxy::TJobIOConfigPtr BuildJobIOConfig(
         NJobProxy::TJobIOConfigPtr schedulerConfig,
-        NYTree::INodePtr specConfig);
+        NYTree::INodePtr specConfigNode);
 
     static void InitIntermediateOutputConfig(NJobProxy::TJobIOConfigPtr config);
 
