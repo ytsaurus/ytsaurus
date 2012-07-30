@@ -103,9 +103,7 @@ void TJob::RunRemove()
 
     Owner->ChunkStore->RemoveChunk(Chunk);
 
-    LOG_DEBUG("Removal job completed");
-
-    State = EJobState::Completed;
+    SetCompleted();
 }
 
 void TJob::RunReplicate()
@@ -119,11 +117,10 @@ void TJob::RunReplicate()
         ->GetMeta()
         .Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
             if (!result.IsOK()) {
-                LOG_WARNING("Error getting chunk meta (ChunkId: %s)\n%s",
+                this_->SetFailed(TError(
+                    "Error getting chunk meta (ChunkId: %s)\n%s",
                     ~Chunk->GetId().ToString(),
-                    ~result.ToString());
-
-                this_->State = EJobState::Failed;
+                    ~result.ToString()));
                 return;
             }
 
@@ -148,9 +145,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
     auto this_ = MakeStrong(this);
 
     if (!error.IsOK()) {
-        LOG_WARNING("Replication failed\n%s", ~error.ToString());
-
-        State = EJobState::Failed;
+        SetFailed(error);
         return;
     }
 
@@ -161,16 +156,11 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
         Writer
             ->AsyncClose(ChunkMeta)
             .Subscribe(BIND([=] (TError error) {
+                this_->Writer.Reset();
                 if (error.IsOK()) {
-                    LOG_DEBUG("Replication job completed");
-
-                    this_->Writer.Reset();
-                    this_->State = EJobState::Completed;
+                    this_->SetCompleted();
                 } else {
-                    LOG_WARNING("Replication job failed\n%s", ~error.ToString());
-
-                    this_->Writer.Reset();
-                    this_->State = EJobState::Failed;
+                    this_->SetFailed(error);
                 }
             })
             .Via(CancelableInvoker));
@@ -187,11 +177,10 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
         .Subscribe(
             BIND([=] (TBlockStore::TGetBlockResult result) {
                 if (!result.IsOK()) {
-                    LOG_WARNING("Error getting block %d for replication\n%s",
+                    this_->SetFailed(TError(
+                        "Error getting block %d for replication\n%s",
                         blockIndex,
-                        ~result.ToString());
-
-                    State = EJobState::Failed;
+                        ~result.ToString()));
                     return;
                 } 
 
@@ -208,6 +197,18 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
                 .Via(CancelableInvoker));
             })
             .Via(CancelableInvoker));
+}
+
+void TJob::SetCompleted()
+{
+    State = EJobState::Completed;
+    LOG_INFO("Job completed");
+}
+
+void TJob::SetFailed(const TError& error)
+{
+    State = EJobState::Failed;
+    LOG_ERROR("Job failed\n%s", ~error.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

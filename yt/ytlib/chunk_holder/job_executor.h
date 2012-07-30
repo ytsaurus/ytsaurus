@@ -69,6 +69,9 @@ private:
 
     void RunReplicate();
     void ReplicateBlock(int blockIndex, TError error);
+
+    void SetCompleted();
+    void SetFailed(const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
