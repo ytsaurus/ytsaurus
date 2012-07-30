@@ -64,6 +64,10 @@ private:
 
     void Start();
     void Stop();
+
+    void RunRemove();
+
+    void RunReplicate();
     void ReplicateBlock(int blockIndex, TError error);
 };
 

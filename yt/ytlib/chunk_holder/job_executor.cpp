@@ -76,54 +76,14 @@ TChunkPtr TJob::GetChunk() const
 
 void TJob::Start()
 {
-    auto this_ = MakeStrong(this);
-
     switch (JobType) {
-        case EJobType::Remove: {
-            LOG_INFO("Removal job started (ChunkId: %s)",
-                ~Chunk->GetId().ToString());
-
-            Owner->ChunkStore->RemoveChunk(Chunk);
-
-            LOG_DEBUG("Removal job completed");
-
-            State = EJobState::Completed;
+        case EJobType::Remove:
+            RunRemove();
             break;
-        }
 
-        case EJobType::Replicate: {
-            LOG_INFO("Replication job started (TargetAddresses: [%s], ChunkId: %s)",
-                ~JoinToString(TargetAddresses),
-                ~Chunk->GetId().ToString());
-
-            Chunk
-                ->GetMeta()
-                .Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
-                    if (!result.IsOK()) {
-                        LOG_WARNING("Error getting chunk meta (ChunkId: %s)\n%s",
-                            ~Chunk->GetId().ToString(),
-                            ~result.ToString());
-
-                        this_->State = EJobState::Failed;
-                        return;
-                    }
-
-                    LOG_INFO("Received chunk meta for replication (ChunkId: %s)",
-                        ~Chunk->GetId().ToString());
-
-                    this_->ChunkMeta = result.Value();
-
-                    this_->Writer = New<TRemoteWriter>(
-                        this_->Owner->Config->ReplicationRemoteWriter,
-                        this_->Chunk->GetId(),
-                        this_->TargetAddresses);
-                    this_->Writer->Open();
-
-                    ReplicateBlock(0, TError());
-                })
-                .Via(CancelableInvoker));
+        case EJobType::Replicate:
+            RunReplicate();
             break;
-        }
 
         default:
             YUNREACHABLE();
@@ -134,6 +94,53 @@ void TJob::Stop()
 {
     CancelableContext->Cancel();
     Writer.Reset();
+}
+
+void TJob::RunRemove()
+{
+    LOG_INFO("Removal job started (ChunkId: %s)",
+        ~Chunk->GetId().ToString());
+
+    Owner->ChunkStore->RemoveChunk(Chunk);
+
+    LOG_DEBUG("Removal job completed");
+
+    State = EJobState::Completed;
+}
+
+void TJob::RunReplicate()
+{
+    LOG_INFO("Replication job started (TargetAddresses: [%s], ChunkId: %s)",
+        ~JoinToString(TargetAddresses),
+        ~Chunk->GetId().ToString());
+
+    auto this_ = MakeStrong(this);
+    Chunk
+        ->GetMeta()
+        .Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
+            if (!result.IsOK()) {
+                LOG_WARNING("Error getting chunk meta (ChunkId: %s)\n%s",
+                    ~Chunk->GetId().ToString(),
+                    ~result.ToString());
+
+                this_->State = EJobState::Failed;
+                return;
+            }
+
+            LOG_INFO("Received chunk meta for replication (ChunkId: %s)",
+                ~Chunk->GetId().ToString());
+
+            this_->ChunkMeta = result.Value();
+
+            this_->Writer = New<TRemoteWriter>(
+                this_->Owner->Config->ReplicationRemoteWriter,
+                this_->Chunk->GetId(),
+                this_->TargetAddresses);
+            this_->Writer->Open();
+
+            ReplicateBlock(0, TError());
+        })
+        .Via(CancelableInvoker));
 }
 
 void TJob::ReplicateBlock(int blockIndex, TError error)
