@@ -282,7 +282,7 @@ class YTEnv(unittest.TestCase):
             return all(nodes_status.values())
 
         self._wait_for(all_nodes_ready, name = "nodes",
-                       max_wait_time = self.NUM_HOLDERS * 6.0)
+                       max_wait_time = max(self.NUM_HOLDERS * 6.0, 20))
 
 
     def _run_schedulers(self):
