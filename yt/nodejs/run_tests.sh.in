@@ -21,4 +21,5 @@ export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
   test_streams.js \
   test_utils.js \
   test_command.js \
+  test_host_discovery.js \
   )

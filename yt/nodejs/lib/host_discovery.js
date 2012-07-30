@@ -43,15 +43,15 @@ exports.that = function YtHostDiscovery(hosts) {
         var body = shuffle(hosts);
         var accept = req.headers["accept"];
 
-        // TODO: Use proper accepts() implementation which respects order and quality.
+        // TODO: Use proper acceptsType() implementation which respects order and quality.
         if (typeof(accept) === "string") {
-            /****/ if (utils.accepts("application/json", accept)) {
+            /****/ if (utils.acceptsType("application/json", accept)) {
                 body = JSON.stringify(body);
                 rsp.writeHead(200, {
                     "Content-Length" : body.length,
                     "Content-Type" : "application/json"
                 });
-            } else if (utils.accepts("text/plain", accept)) {
+            } else if (utils.acceptsType("text/plain", accept)) {
                 body = body.toString("\n");
                 rsp.writeHead(200, {
                     "Content-Length" : body.length,
