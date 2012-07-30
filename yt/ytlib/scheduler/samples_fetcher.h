@@ -36,7 +36,7 @@ private:
     TSortOperationSpecPtr Spec;
     IInvokerPtr Invoker;
 
-    int WeightBetweenSamples;
+    i64 WeightBetweenSamples;
     i64 TotalWeight;
 
     NLog::TTaggedLogger Logger;

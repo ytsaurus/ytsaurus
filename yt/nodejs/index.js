@@ -1,7 +1,7 @@
-exports.YtApplication = require("./lib/application");
-exports.YtHostDiscovery = require("./lib/host_discovery");
-exports.YtAssignRequestId = require("./lib/mark_request");
-exports.YtLogger = require("./lib/log_request");
+exports.YtApplication = require("./lib/application").that;
+exports.YtHostDiscovery = require("./lib/host_discovery").that;
+exports.YtAssignRequestId = require("./lib/mark_request").that;
+exports.YtLogger = require("./lib/log_request").that;
 
 // var application = require("./lib/application");
 
