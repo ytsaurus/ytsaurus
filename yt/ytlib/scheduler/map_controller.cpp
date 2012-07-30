@@ -243,7 +243,8 @@ private:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(Config->MapJobIO).Data());
+        auto ioConfig = BuildJobIOConfig(Config->MapJobIO, Spec->JobIO);
+        JobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
     }
 
 };

@@ -36,6 +36,7 @@ using namespace NObjectServer;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NTableClient;
+using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1429,6 +1430,34 @@ void TOperationControllerBase::InitUserJobSpec(
     FOREACH (const auto& file, files) {
         *proto->add_files() = *file.FetchResponse;
     }
+}
+
+TJobIOConfigPtr TOperationControllerBase::BuildJobIOConfig(
+    TJobIOConfigPtr schedulerConfig,
+    INodePtr specConfig)
+{
+    if (specConfig) {
+        auto schedulerConfigNode = ConvertTo<INodePtr>(schedulerConfig);
+        return ConvertTo<TJobIOConfigPtr>(schedulerConfigNode);
+    } else {
+        return CloneConfigurable(schedulerConfig);
+    }
+}
+
+void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
+{
+    // Don't replicate intermediate output.
+    config->TableWriter->ReplicationFactor = 1;
+    config->TableWriter->UploadReplicationFactor = 1;
+
+    // Cache blocks on nodes.
+    config->TableWriter->EnableNodeCaching = true;
+}
+
+void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)
+{
+    // Disable master requests.
+    config->TableReader->AllowFetchingSeedsFromMaster = false;
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -425,8 +425,18 @@ protected:
         TUserJobSpecPtr config,
         const std::vector<TFile>& files);
 
+    static NJobProxy::TJobIOConfigPtr BuildJobIOConfig(
+        NJobProxy::TJobIOConfigPtr schedulerConfig,
+        NYTree::INodePtr specConfig);
+
+    static void InitIntermediateOutputConfig(NJobProxy::TJobIOConfigPtr config);
+
+    static void InitIntermediateInputConfig(NJobProxy::TJobIOConfigPtr config);
+
 private:
-    static bool AreKeysCompatible(const std::vector<Stroka>& fullColumns, const std::vector<Stroka>& prefixColumns);
+    static bool AreKeysCompatible(
+        const std::vector<Stroka>& fullColumns,
+        const std::vector<Stroka>& prefixColumns);
 
     void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 

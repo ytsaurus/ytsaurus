@@ -139,6 +139,7 @@ struct TMapOperationSpec
     i64 JobSliceWeight;
     i64 MaxWeightPerJob;
     TDuration LocalityTimeout;
+    NYTree::INodePtr JobIO;
 
     TMapOperationSpec()
     {
@@ -156,6 +157,34 @@ struct TMapOperationSpec
             .GreaterThan(0);
         Register("locality_timeout", LocalityTimeout)
             .Default(TDuration::Seconds(5));
+        Register("job_io", JobIO)
+            .Default(NULL);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMergeOperationSpecBase
+    : public TOperationSpecBase
+{
+    //! During sorted merge the scheduler tries to ensure that large connected
+    //! groups of chunks are partitioned into tasks of this or smaller size.
+    //! This number, however, is merely an estimate, i.e. some tasks may still
+    //! be larger.
+    i64 MaxWeightPerJob;
+
+    TDuration LocalityTimeout;
+    NYTree::INodePtr JobIO;
+
+    TMergeOperationSpecBase()
+    {
+        Register("max_weight_per_job", MaxWeightPerJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("locality_timeout", LocalityTimeout)
+            .Default(TDuration::Seconds(5));
+        Register("job_io", JobIO)
+            .Default(NULL);
     }
 };
 
@@ -168,21 +197,13 @@ DECLARE_ENUM(EMergeMode,
 );
 
 struct TMergeOperationSpec
-    : public TOperationSpecBase
+    : public TMergeOperationSpecBase
 {
     std::vector<NYTree::TYPath> InputTablePaths;
     NYTree::TYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
     TNullable< std::vector<Stroka> > KeyColumns;
-
-    //! During sorted merge the scheduler tries to ensure that large connected
-    //! groups of chunks are partitioned into tasks of this or smaller size.
-    //! This number, however, is merely an estimate, i.e. some tasks may still
-    //! be larger.
-    i64 MaxWeightPerJob;
-
-    TDuration LocalityTimeout;
 
     TMergeOperationSpec()
     {
@@ -194,34 +215,42 @@ struct TMergeOperationSpec
             .Default(false);
         Register("key_columns", KeyColumns)
             .Default();
-        Register("max_weight_per_job", MaxWeightPerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("locality_timeout", LocalityTimeout)
-            .Default(TDuration::Seconds(5));
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TEraseOperationSpec
-    : public TOperationSpecBase
+    : public TMergeOperationSpecBase
 {
     NYTree::TYPath TablePath;
     bool CombineChunks;
-    i64 MaxWeightPerJob;
-    TDuration LocalityTimeout;
 
     TEraseOperationSpec()
     {
         Register("table_path", TablePath);
         Register("combine_chunks", CombineChunks)
             .Default(false);
-        Register("max_weight_per_job", MaxWeightPerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("locality_timeout", LocalityTimeout)
-            .Default(TDuration::Seconds(5));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReduceOperationSpec
+    : public TMergeOperationSpecBase
+{
+    TUserJobSpecPtr Reducer;
+    std::vector<NYTree::TYPath> InputTablePaths;
+    std::vector<NYTree::TYPath> OutputTablePaths;
+    TNullable< std::vector<Stroka> > KeyColumns;
+
+    TReduceOperationSpec()
+    {
+        Register("reducer", Reducer);
+        Register("input_table_paths", InputTablePaths);
+        Register("output_table_paths", OutputTablePaths);
+        Register("key_columns", KeyColumns)
+            .Default();
     }
 };
 
@@ -279,6 +308,10 @@ struct TSortOperationSpec
 
     int ShuffleNetworkLimit;
 
+    NYTree::INodePtr PartitionJobIO;
+    NYTree::INodePtr SortJobIO;
+    NYTree::INodePtr MergeJobIO;
+
     TSortOperationSpec()
     {
         Register("input_table_paths", InputTablePaths);
@@ -329,33 +362,12 @@ struct TSortOperationSpec
             .Default(TDuration::Seconds(10));
         Register("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(20);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TReduceOperationSpec
-    : public TOperationSpecBase
-{
-    TUserJobSpecPtr Reducer;
-    std::vector<NYTree::TYPath> InputTablePaths;
-    std::vector<NYTree::TYPath> OutputTablePaths;
-    TNullable< std::vector<Stroka> > KeyColumns;
-    i64 MaxWeightPerJob;
-    TDuration LocalityTimeout;
-
-    TReduceOperationSpec()
-    {
-        Register("reducer", Reducer);
-        Register("input_table_paths", InputTablePaths);
-        Register("output_table_paths", OutputTablePaths);
-        Register("key_columns", KeyColumns)
-            .Default();
-        Register("max_weight_per_job", MaxWeightPerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("locality_timeout", LocalityTimeout)
-            .Default(TDuration::Seconds(5));
+        Register("partition_job_io", PartitionJobIO)
+            .Default(NULL);
+        Register("sort_job_io", SortJobIO)
+            .Default(NULL);
+        Register("merge_job_io", MergeJobIO)
+            .Default(NULL);
     }
 };
 

@@ -46,13 +46,18 @@ class TMergeControllerBase
 public:
     TMergeControllerBase(
         TSchedulerConfigPtr config,
+        TMergeOperationSpecBasePtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
+        , Spec(spec)
         , TotalJobCount(0)
         , CurrentTaskWeight(0)
         , PartitionCount(0)
     { }
+
+private:
+    TMergeOperationSpecBasePtr Spec;
 
 protected:
     // Counters.
@@ -112,7 +117,7 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const OVERRIDE
         {
-            return Controller->GetJobLocalityTimeout();
+            return Controller->Spec->LocalityTimeout;
         }
         
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
@@ -236,7 +241,7 @@ protected:
     //! Returns True if the total weight of currently queued stripes exceeds the pre-configured limit.
     bool HasLargeActiveTask()
     {
-        return CurrentTaskWeight >= GetMaxTaskWeight();
+        return CurrentTaskWeight >= Spec->MaxWeightPerJob;
     }
 
     //! Add chunk to the current task's pool.
@@ -426,19 +431,14 @@ protected:
         return combineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
 
-    //! Returns the maximum desired weight of a single task.
-    virtual i64 GetMaxTaskWeight() = 0;
-
-    //! Returns the maximum time to wait for a local job.
-    virtual TDuration GetJobLocalityTimeout() = 0;
-
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate()
     {
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
         // ToDo(psushin): set larger PrefetchWindow for unordered merge.
-        JobSpecTemplate.set_io_config(ConvertToYsonString(Config->MergeJobIO).Data());
+        auto ioConfig = BuildJobIOConfig(Config->MergeJobIO, Spec->JobIO);
+        JobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
     }
 };
 
@@ -454,7 +454,7 @@ public:
         TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, host, operation)
+        : TMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
     { }
 
@@ -496,20 +496,9 @@ private:
         EndTaskIfLarge();
     }
 
-    virtual i64 GetMaxTaskWeight() OVERRIDE
-    {
-        return Spec->MaxWeightPerJob;
-    }
-
-    virtual TDuration GetJobLocalityTimeout() OVERRIDE
-    {
-        return Spec->LocalityTimeout;
-    }
-
     virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::UnorderedMerge);
-
         TMergeControllerBase::InitJobSpecTemplate();
     }
 
@@ -528,9 +517,10 @@ class TOrderedMergeControllerBase
 public:
     TOrderedMergeControllerBase(
         TSchedulerConfigPtr config,
+        TMergeOperationSpecBasePtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, host, operation)
+        : TMergeControllerBase(config, spec, host, operation)
     { }
 
 private:
@@ -564,7 +554,7 @@ public:
         TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedMergeControllerBase(config, host, operation)
+        : TOrderedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
     { }
 
@@ -588,20 +578,9 @@ private:
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
-    virtual i64 GetMaxTaskWeight() OVERRIDE
-    {
-        return Spec->MaxWeightPerJob;
-    }
-
-    virtual TDuration GetJobLocalityTimeout() OVERRIDE
-    {
-        return Spec->LocalityTimeout;
-    }
-
     virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
-
         TMergeControllerBase::InitJobSpecTemplate();
     }
 
@@ -622,7 +601,7 @@ public:
         TEraseOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedMergeControllerBase(config, host, operation)
+        : TOrderedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
     { }
 
@@ -670,16 +649,6 @@ private:
         }
     }
 
-    virtual i64 GetMaxTaskWeight() OVERRIDE
-    {
-        return Spec->MaxWeightPerJob;
-    }
-
-    virtual TDuration GetJobLocalityTimeout() OVERRIDE
-    {
-        return Spec->LocalityTimeout;
-    }
-
     virtual void InitJobSpecTemplate() OVERRIDE
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
@@ -711,9 +680,10 @@ class TSortedMergeControllerBase
 public:
     TSortedMergeControllerBase(
         TSchedulerConfigPtr config,
+        TMergeOperationSpecBasePtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, host, operation)
+        : TMergeControllerBase(config, spec, host, operation)
     { }
 
 protected:
@@ -889,7 +859,7 @@ public:
         TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, host, operation)
+        : TSortedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
     { }
 
@@ -921,16 +891,6 @@ private:
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
     {
         return Spec->KeyColumns;
-    }
-
-    virtual i64 GetMaxTaskWeight() OVERRIDE
-    {
-        return Spec->MaxWeightPerJob;
-    }
-
-    virtual TDuration GetJobLocalityTimeout() OVERRIDE
-    {
-        return Spec->LocalityTimeout;
     }
 
     virtual void InitJobSpecTemplate() OVERRIDE
@@ -967,7 +927,7 @@ public:
         TReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, host, operation)
+        : TSortedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
     { }
 
@@ -998,16 +958,6 @@ private:
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
     {
         return Spec->KeyColumns;
-    }
-
-    virtual i64 GetMaxTaskWeight() OVERRIDE
-    {
-        return Spec->MaxWeightPerJob;
-    }
-
-    virtual TDuration GetJobLocalityTimeout() OVERRIDE
-    {
-        return Spec->LocalityTimeout;
     }
 
     virtual void InitJobSpecTemplate() OVERRIDE

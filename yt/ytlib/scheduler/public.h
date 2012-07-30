@@ -109,6 +109,9 @@ typedef TIntrusivePtr<TUserJobSpec> TUserJobSpecPtr;
 struct  TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 
+struct TMergeOperationSpecBase;
+typedef TIntrusivePtr<TMergeOperationSpecBase> TMergeOperationSpecBasePtr;
+
 struct TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
 

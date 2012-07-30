@@ -159,7 +159,8 @@ private:
     
     //! Templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
-    TJobSpec SortJobSpecTemplate;
+    TJobSpec IntermediateSortJobSpecTemplate;
+    TJobSpec FinalSortJobSpecTemplate;
     TJobSpec SortedMergeJobSpecTemplate;
     TJobSpec UnorderedMergeJobSpecTemplate;
 
@@ -487,24 +488,14 @@ private:
             TJobInProgressPtr jip,
             NProto::TJobSpec* jobSpec) OVERRIDE
         {
-            jobSpec->CopyFrom(Controller->SortJobSpecTemplate);
+            if (Controller->IsSortedMergeNeeded(Partition)) {
+                jobSpec->CopyFrom(Controller->IntermediateSortJobSpecTemplate);
+            } else {
+                jobSpec->CopyFrom(Controller->FinalSortJobSpecTemplate);
+            }
 
             AddSequentialInputSpec(jobSpec, jip);
             AddTabularOutputSpec(jobSpec, jip, 0);
-
-            {
-                auto ioConfig = CloneConfigurable(Controller->Config->SortJobIO);
-                // Disable master requests for inputs coming from partition jobs.
-                if (Controller->Partitions.size() > 1) {
-                    InitIntermediateInputConfig(ioConfig);
-                }
-                // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
-                // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-                if (Controller->IsSortedMergeNeeded(Partition)) {
-                    InitIntermediateOutputConfig(ioConfig);
-                }
-                jobSpec->set_io_config(ConvertToYsonString(ioConfig).Data());
-            }
 
             {
                 auto* jobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -1241,22 +1232,6 @@ private:
 
     // Unsorted helpers.
 
-    static void InitIntermediateOutputConfig(TJobIOConfigPtr config)
-    {
-        // Don't replicate intermediate output.
-        config->TableWriter->ReplicationFactor = 1;
-        config->TableWriter->UploadReplicationFactor = 1;
-
-        // Cache blocks on nodes.
-        config->TableWriter->EnableNodeCaching = true;
-    }
-
-    static void InitIntermediateInputConfig(TJobIOConfigPtr config)
-    {
-        // Disable master requests.
-        config->TableReader->AllowFetchingSeedsFromMaster = false;
-    }
-
     void InitJobSpecTemplates()
     {
         {
@@ -1269,19 +1244,36 @@ private:
             }
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
-            auto ioConfig = CloneConfigurable(Config->PartitionJobIO);
+            auto ioConfig = BuildJobIOConfig(Config->PartitionJobIO, Spec->PartitionJobIO);
             InitIntermediateOutputConfig(ioConfig);
             PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
         }
         {
-            SortJobSpecTemplate.set_type(Partitions.size() == 1 ? EJobType::SimpleSort : EJobType::PartitionSort);
-            *SortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            TJobSpec sortJobSpecTemplate;
+            sortJobSpecTemplate.set_type(Partitions.size() == 1 ? EJobType::SimpleSort : EJobType::PartitionSort);
+            *sortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-            auto* specExt = SortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+            auto* specExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
-            // Can't fill io_config right away.
-            // Leave this customization to #TSortTask::BuildJobSpec.
+            auto ioConfig = BuildJobIOConfig(Config->SortJobIO, Spec->SortJobIO);
+            
+            // Disable master requests for inputs coming from partition jobs.
+            if (Partitions.size() > 1) {
+                InitIntermediateInputConfig(ioConfig);
+            }
+
+            // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
+            // Don't use replication for sort jobs in large partitions since their chunks will be merged.
+
+            auto finalIOConfig = ioConfig;
+            FinalSortJobSpecTemplate = sortJobSpecTemplate;
+            FinalSortJobSpecTemplate.set_io_config(ConvertToYsonString(finalIOConfig).Data());
+
+            auto intermediateIOConfig = CloneConfigurable(ioConfig);
+            InitIntermediateOutputConfig(ioConfig);
+            IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
+            IntermediateSortJobSpecTemplate.set_io_config(ConvertToYsonString(intermediateIOConfig).Data());
         }
         {
             SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
@@ -1290,7 +1282,7 @@ private:
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
-            auto ioConfig = CloneConfigurable(Config->MergeJobIO);
+            auto ioConfig = BuildJobIOConfig(Config->MergeJobIO, Spec->MergeJobIO);
             InitIntermediateInputConfig(ioConfig);
             InitIntermediateOutputConfig(ioConfig);
             SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
@@ -1302,7 +1294,7 @@ private:
             auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
-            auto ioConfig = CloneConfigurable(Config->MergeJobIO);
+            auto ioConfig = BuildJobIOConfig(Config->MergeJobIO, Spec->MergeJobIO);
             InitIntermediateInputConfig(ioConfig);
             InitIntermediateOutputConfig(ioConfig);
             UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
