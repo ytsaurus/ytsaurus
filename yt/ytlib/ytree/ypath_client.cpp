@@ -519,6 +519,41 @@ TYPath GetNodeYPath(INodePtr node, INodePtr* root)
     return path;
 }
 
+INodePtr CloneNode(INodePtr node)
+{
+    return ConvertToNode(node);
+}
+
+INodePtr UpdateNode(INodePtr base, INodePtr patch)
+{
+    if (base->GetType() == ENodeType::Map && patch->GetType() == ENodeType::Map) {
+        auto result = CloneNode(base);
+        auto resultMap = result->AsMap();
+        auto patchMap = patch->AsMap();
+        auto baseMap = base->AsMap();
+        FOREACH (Stroka key, patchMap->GetKeys()) {
+            if (baseMap->FindChild(key)) {
+                resultMap->RemoveChild(key);
+                resultMap->AddChild(UpdateNode(patchMap->GetChild(key), baseMap->GetChild(key)), key);
+            }
+            else {
+                resultMap->AddChild(patchMap->GetChild(key), key);
+            }
+        }
+        result->Attributes().MergeFrom(patch->Attributes());
+        return result;
+    }
+    else {
+        auto result = CloneNode(patch);
+        result->Attributes().Clear();
+        if (base->GetType() == patch->GetType()) {
+            result->Attributes().MergeFrom(base->Attributes());
+        }
+        result->Attributes().MergeFrom(patch->Attributes());
+        return result;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

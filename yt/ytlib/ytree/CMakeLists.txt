@@ -7,7 +7,6 @@ set( SRCS
   ${BASE}/ephemeral.cpp
   ${BASE}/forwarding_yson_consumer.cpp
   ${BASE}/lexer.cpp
-  ${BASE}/merge.cpp
   ${BASE}/node_detail.cpp
   ${BASE}/null_yson_consumer.cpp
   ${BASE}/parser.cpp
@@ -41,7 +40,6 @@ set( HDRS
   ${BASE}/fluent.h
   ${BASE}/forwarding_yson_consumer.h
   ${BASE}/lexer.h
-  ${BASE}/merge.h
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h
   ${BASE}/parser.h

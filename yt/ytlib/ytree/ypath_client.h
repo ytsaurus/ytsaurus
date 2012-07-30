@@ -186,6 +186,13 @@ void ForceYPath(INodePtr root, const TYPath& path);
 //! Computes a full YPath for a given #node and (optionally) returns the root.
 TYPath GetNodeYPath(INodePtr node, INodePtr* root = NULL);
 
+//! Constructs an ephemeral deep copy of #node.
+INodePtr CloneNode(INodePtr node);
+
+//! Applies changes given by #patch to #base.
+//! Returns the resulting tree.
+INodePtr UpdateNode(INodePtr base, INodePtr patch);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
