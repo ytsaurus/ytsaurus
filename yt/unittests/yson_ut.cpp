@@ -4,6 +4,9 @@
 #include <ytlib/ytree/yson_stream.h>
 #include <ytlib/ytree/convert.h>
 
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/merge.h>
+
 #include <contrib/testing/framework.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +20,7 @@ using NYT::NYTree::TYsonInput;
 using NYT::NYTree::TYsonWriter;
 using NYT::NYTree::EYsonType;
 using NYT::NYTree::EYsonFormat;
+using NYT::NYTree::BuildYsonFluently;
 
 class TYsonTest: public ::testing::Test
 {
@@ -124,6 +128,59 @@ TEST_F(TYsonTest, ConvertToForPODTypes)
         EXPECT_EQ(EYsonType::Node, yson.GetType());
         EXPECT_EQ("[1;2]", yson.Data());
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TYsonTest, MergeNodes)
+{
+    auto base = ConvertToNode(
+        BuildYsonFluently()
+            .BeginMap()
+                .Item("key_a")
+                .Scalar(0)
+
+                .Item("key_b")
+                .BeginAttributes()
+                    .Item("attr")
+                    .Scalar("some_attr")
+                .EndAttributes()
+                .Scalar(3.0)
+
+                .Item("key_c")
+                .BeginMap()
+                    .Item("ignat")
+                    .Scalar(70.0)
+                .EndMap()
+            .EndMap().GetYsonString());
+
+    auto patch = ConvertToNode(
+        BuildYsonFluently()
+            .BeginMap()
+                .Item("key_a")
+                .Scalar(100)
+
+                .Item("key_b")
+                .Scalar(0.0)
+
+                .Item("key_c")
+                .BeginMap()
+                    .Item("max")
+                    .Scalar(75.0)
+                .EndMap()
+
+                .Item("key_d")
+                .BeginMap()
+                    .Item("x")
+                    .Scalar("y")
+                .EndMap()
+            .EndMap().GetYsonString());
+
+    auto res = Update(patch, base);
+
+    EXPECT_EQ(
+        "{\"key_a\"=100;\"key_b\"=<\"attr\"=\"some_attr\">0.;\"key_c\"={\"ignat\"=70.;\"max\"=75.};\"key_d\"={\"x\"=\"y\"}}",
+        ConvertToYsonString(res, EYsonFormat::Text).Data());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
