@@ -5,10 +5,10 @@ import "yt/ytlib/transaction_server/transaction_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqFetch
+message TReqLocate
 { }
 
-message TRspFetch
+message TRspLocate
 {
     repeated string node_addresses = 1;
 }
