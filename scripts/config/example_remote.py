@@ -41,7 +41,7 @@ class Base(AggrBase):
         '/home/yt/build/lib/libyajl.so.2',
         '/home/yt/build/lib/libytext-fastlz.so.0.1',
         '/home/yt/build/lib/libytext-json.so',
-        '/home/yt/build/lib/libytext-lz4.so.0.1',
+        '/home/yt/build/lib/libytext-lz4.so.0.71',
         '/home/yt/build/lib/libytext-minilzo.so.2.0',
         '/home/yt/build/lib/libytext-quality-misc.so',
         '/home/yt/build/lib/libytext-quality-netliba_v6.so',

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assert.h"
 #include "mpl.h"
 #include "rvalue.h"
 

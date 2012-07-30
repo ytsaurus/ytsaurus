@@ -59,20 +59,29 @@ class TGzipCodec
     : public ICodec
 {
 public:
+    explicit TGzipCodec(int level)
+        : Compressor_(
+            BIND([=] (StreamSource* source, std::vector<char>* output)
+                    {ZlibCompress(source, output, level);}))
+    { }
+
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
-        return Apply(BIND(ZlibCompress), block);
+        return Apply(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
-        return Apply(BIND(ZlibCompress), blocks);
+        return Apply(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
         return Apply(BIND(ZlibDecompress), block);
     }
+
+private:
+    TConverter Compressor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,38 +90,53 @@ class TLz4Codec
     : public ICodec
 {
 public:
+    explicit TLz4Codec(bool highCompression)
+        : Compressor_(
+            BIND([=] (StreamSource* source, std::vector<char>* output)
+                    {Lz4Compress(source, output, highCompression);}))
+    { }
+
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
-        return Apply(BIND(Lz4Compress), block);
+        return Apply(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
-        return Apply(BIND(Lz4Compress), blocks);
+        return Apply(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
         return Apply(BIND(Lz4Decompress), block);
     }
+
+private:
+    TConverter Compressor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICodec* GetCodec(ECodecId id)
+TCodecPtr GetCodec(ECodecId id)
 {
     switch (id) {
         case ECodecId::None:
-            return Singleton<TNoneCodec>();
+            return New<TNoneCodec>();
 
         case ECodecId::Snappy:
-            return Singleton<TSnappyCodec>();
+            return New<TSnappyCodec>();
 
-        case ECodecId::Gzip:
-            return Singleton<TGzipCodec>();
+        case ECodecId::GzipNormal:
+            return New<TGzipCodec>(6);
+
+        case ECodecId::GzipBestCompression:
+            return New<TGzipCodec>(9);
 
         case ECodecId::Lz4:
-            return Singleton<TLz4Codec>();
+            return New<TLz4Codec>(false);
+
+        case ECodecId::Lz4HighCompression:
+            return New<TLz4Codec>(true);
 
         default:
             YUNREACHABLE();

@@ -58,7 +58,7 @@ private:
     i32 BlockCount;
     NChunkClient::TRemoteWriterPtr Writer;
     NChunkServer::TChunkId ChunkId;
-    ICodec* Codec;
+    TCodecPtr Codec;
     TBlob Buffer;
     NChunkHolder::NProto::TChunkMeta Meta;
 

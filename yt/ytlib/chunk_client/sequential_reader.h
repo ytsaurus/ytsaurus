@@ -88,7 +88,7 @@ private:
     int NextUnfetchedIndex;
 
     TAsyncStreamState State;
-    ICodec* Codec;
+    TCodecPtr Codec;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };

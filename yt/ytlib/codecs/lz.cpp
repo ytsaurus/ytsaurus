@@ -1,7 +1,7 @@
 #include "lz.h"
 
 #include <contrib/z-lz-lzo/lz4.h>
-//#include <contrib/z-lz-lzo/lz4hc.h>
+#include <contrib/z-lz-lzo/lz4hc.h>
 
 namespace NYT {
 
@@ -14,7 +14,7 @@ struct THeader {
 
 } // anonymous namespace
 
-void Lz4Compress(StreamSource* source, std::vector<char>* output)
+void Lz4Compress(StreamSource* source, std::vector<char>* output, bool highCompression)
 {
     size_t currentPos = 0;
     while (source->Available() > 0) {
@@ -36,7 +36,12 @@ void Lz4Compress(StreamSource* source, std::vector<char>* output)
 
         THeader header;
         header.InputSize = len;
-        header.OutputSize = LZ4_compress(input, output->data() + currentPos, len);
+        if (highCompression) {
+            header.OutputSize = LZ4_compressHC(input, output->data() + currentPos, len);
+        }
+        else {
+            header.OutputSize = LZ4_compress(input, output->data() + currentPos, len);
+        }
         YCHECK(header.OutputSize >= 0);
 
         currentPos += header.OutputSize;

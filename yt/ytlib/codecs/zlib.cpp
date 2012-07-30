@@ -9,11 +9,9 @@
 
 namespace NYT {
 
-const int Level = 9;
-
 const size_t BufferSize = 1 << 20;
 
-void ZlibCompress(StreamSource* source, StreamSink* sink) {
+void ZlibCompress(StreamSource* source, StreamSink* sink, int level) {
     char buffer[BufferSize];
 
     z_stream stream;
@@ -22,7 +20,7 @@ void ZlibCompress(StreamSource* source, StreamSink* sink) {
     stream.opaque = Z_NULL;
 
     int flush, returnCode;
-    returnCode = deflateInit(&stream, Level);
+    returnCode = deflateInit(&stream, level);
     YCHECK(returnCode == Z_OK);
 
     do {
@@ -47,7 +45,7 @@ void ZlibCompress(StreamSource* source, StreamSink* sink) {
     deflateEnd(&stream);
 }
 
-void ZlibCompress(StreamSource* source, std::vector<char>* output)
+void ZlibCompress(StreamSource* source, std::vector<char>* output, int level)
 {
     output->resize(sizeof(size_t));
     {
@@ -57,7 +55,7 @@ void ZlibCompress(StreamSource* source, std::vector<char>* output)
     }
 
     DynamicByteArraySink sink(output);
-    ZlibCompress(source, &sink);
+    ZlibCompress(source, &sink, level);
 }
 
 void ZlibDecompress(StreamSource* source, std::vector<char>* output)
