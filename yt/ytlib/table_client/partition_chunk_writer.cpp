@@ -61,6 +61,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         auto* partitionAttributes = PartitionsExt.add_partitions();
         partitionAttributes->set_data_weight(0);
         partitionAttributes->set_row_count(0);
+        partitionAttributes->set_uncompressed_data_size(0);
     }
 
     BasicMetaSize = ChannelsExt.ByteSize() + sizeof(i64) * PartitionKeys.size() + 
@@ -145,6 +146,10 @@ void TPartitionChunkWriter::PrepareBlock(int partitionTag)
         size += part.Size();
     }
     blockInfo->set_block_size(size);
+
+    auto* partitionAttributes = PartitionsExt.mutable_partitions(partitionTag);
+    partitionAttributes->set_uncompressed_data_size(
+        partitionAttributes->uncompressed_data_size() + size);
 
     EncodingWriter->WriteBlock(MoveRV(blockParts));
 }
