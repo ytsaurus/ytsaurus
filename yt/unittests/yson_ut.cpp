@@ -132,7 +132,7 @@ TEST_F(TYsonTest, ConvertToForPODTypes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYsonTest, MergeNodes)
+TEST_F(TYsonTest, UpdateNodes)
 {
     auto base = ConvertToNode(
         BuildYsonFluently()

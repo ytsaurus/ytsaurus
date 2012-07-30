@@ -537,7 +537,7 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
                 resultMap->AddChild(UpdateNode(patchMap->GetChild(key), baseMap->GetChild(key)), key);
             }
             else {
-                resultMap->AddChild(patchMap->GetChild(key), key);
+                resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key);
             }
         }
         result->Attributes().MergeFrom(patch->Attributes());
