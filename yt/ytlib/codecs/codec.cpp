@@ -38,17 +38,17 @@ class TSnappyCodec
 public:
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
-        return Perform(block, BIND(SnappyCompress));
+        return Apply(BIND(SnappyCompress), block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
-        return Perform(blocks, BIND(SnappyCompress));
+        return Apply(BIND(SnappyCompress), blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
-        return Perform(block, BIND(SnappyDecompress));
+        return Apply(BIND(SnappyDecompress), block);
     }
 
 };
@@ -61,17 +61,17 @@ class TGzipCodec
 public:
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
-        return Perform(block, BIND(ZlibCompress));
+        return Apply(BIND(ZlibCompress), block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
-        return Perform(blocks, BIND(ZlibCompress));
+        return Apply(BIND(ZlibCompress), blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
-        return Perform(block, BIND(ZlibDecompress));
+        return Apply(BIND(ZlibDecompress), block);
     }
 };
 
@@ -83,17 +83,17 @@ class TLz4Codec
 public:
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
-        return Perform(block, BIND(Lz4Compress));
+        return Apply(BIND(Lz4Compress), block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
-        return Perform(blocks, BIND(Lz4Compress));
+        return Apply(BIND(Lz4Compress), blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
-        return Perform(block, BIND(Lz4Decompress));
+        return Apply(BIND(Lz4Decompress), block);
     }
 };
 

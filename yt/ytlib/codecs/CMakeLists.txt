@@ -2,6 +2,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/codecs )
 
 set( SRCS
   ${BASE}/codec.cpp
+  ${BASE}/snappy.cpp
   ${BASE}/zlib.cpp
   ${BASE}/lz.cpp
   ${BASE}/shared_ref_helpers.cpp

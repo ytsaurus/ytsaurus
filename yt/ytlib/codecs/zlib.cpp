@@ -9,12 +9,12 @@
 
 namespace NYT {
 
-const int LEVEL = 9;
+const int Level = 9;
 
-const size_t BUFFER_SIZE = 1 << 20;
+const size_t BufferSize = 1 << 20;
 
 void ZlibCompress(StreamSource* source, StreamSink* sink) {
-    char buffer[BUFFER_SIZE];
+    char buffer[BufferSize];
 
     z_stream stream;
     stream.zalloc = Z_NULL;
@@ -22,7 +22,7 @@ void ZlibCompress(StreamSource* source, StreamSink* sink) {
     stream.opaque = Z_NULL;
 
     int flush, returnCode;
-    returnCode = deflateInit(&stream, LEVEL);
+    returnCode = deflateInit(&stream, Level);
     YCHECK(returnCode == Z_OK);
 
     do {
@@ -32,12 +32,12 @@ void ZlibCompress(StreamSource* source, StreamSink* sink) {
         flush = (stream.avail_in == source->Available()) ? Z_FINISH : Z_NO_FLUSH;
         do {
             stream.next_out = reinterpret_cast<Bytef*>(buffer);
-            stream.avail_out = BUFFER_SIZE;
+            stream.avail_out = BufferSize;
             returnCode = deflate(&stream, flush);
             YCHECK(returnCode != Z_STREAM_ERROR);
 
             source->Skip(available - stream.avail_in);
-            sink->Append(buffer, BUFFER_SIZE - stream.avail_out);
+            sink->Append(buffer, BufferSize - stream.avail_out);
         } while(stream.avail_out == 0);
         YCHECK(stream.avail_in == 0);
 

@@ -7,9 +7,9 @@ namespace NYT {
 
 namespace {
 
-struct Header {
-    i32 outputSize;
-    i32 inputSize;
+struct THeader {
+    i32 OutputSize;
+    i32 InputSize;
 };
 
 } // anonymous namespace
@@ -24,24 +24,25 @@ void Lz4Compress(StreamSource* source, std::vector<char>* output)
         // LZ4 support only integer length
         YCHECK(len <= 1 << 30);
 
-        size_t bound = currentPos + sizeof(Header) + LZ4_compressBound(len);
+        size_t bound = currentPos + sizeof(THeader) + LZ4_compressBound(len);
 
         if (output->capacity() < bound) {
-            output->reserve(2 * output->size());
+            output->reserve(std::max(bound, 2 * output->size()));
         }
         output->resize(bound);
 
         size_t headerPos = currentPos;
-        currentPos += sizeof(Header);
+        currentPos += sizeof(THeader);
 
-        Header header;
-        header.inputSize = len;
-        header.outputSize = LZ4_compress(input, output->data() + currentPos, len);
+        THeader header;
+        header.InputSize = len;
+        header.OutputSize = LZ4_compress(input, output->data() + currentPos, len);
+        YCHECK(header.OutputSize >= 0);
 
-        currentPos += header.outputSize;
+        currentPos += header.OutputSize;
         output->resize(currentPos);
 
-        TMemoryOutput memoryOutput(output->data() + headerPos, sizeof(Header));
+        TMemoryOutput memoryOutput(output->data() + headerPos, sizeof(THeader));
         WritePod(memoryOutput, header);
 
         source->Skip(len);
@@ -51,20 +52,20 @@ void Lz4Compress(StreamSource* source, std::vector<char>* output)
 void Lz4Decompress(StreamSource* source, std::vector<char>* output)
 {
     while (source->Available() > 0) {
-        Header header;
+        THeader header;
         ReadPod(source, header);
 
         size_t outputPos = output->size();
-        size_t newSize = output->size() + header.inputSize;
+        size_t newSize = output->size() + header.InputSize;
         if (output->capacity() < newSize) {
-            output->reserve(2 * output->capacity());
+            output->reserve(std::max(newSize, 2 * output->capacity()));
         }
         output->resize(newSize);
 
-        std::vector<char> input(header.outputSize);
+        std::vector<char> input(header.OutputSize);
         Read(source, input.data(), input.size());
 
-        LZ4_uncompress(input.data(), output->data() + outputPos, header.inputSize);
+        YCHECK(LZ4_uncompress(input.data(), output->data() + outputPos, header.InputSize) >= 0);
     }
 }
 

@@ -75,24 +75,26 @@ private:
     size_t Position_;
 };
 
-class DynamicByteArraySink : public StreamSink {
+class DynamicByteArraySink
+    : public StreamSink
+{
 public:
     DynamicByteArraySink(std::vector<char>* output):
-        output_(output)
+        Output_(output)
     { }
 
     ~DynamicByteArraySink()
     { }
     
-    virtual void Append(const char* data, size_t n)
+    virtual void Append(const char* data, size_t n) OVERRIDE
     {
         for (size_t i = 0; i < n; ++i) {
-            output_->push_back(data[i]);
+            Output_->push_back(data[i]);
         }
     }
 
 private:
-    std::vector<char>* output_;
+    std::vector<char>* Output_;
 };
 
 template<class T>

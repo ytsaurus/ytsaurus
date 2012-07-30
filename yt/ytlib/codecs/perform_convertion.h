@@ -6,25 +6,25 @@
 
 namespace NYT {
 
-typedef TCallback<void (StreamSource*, std::vector<char>*)> Converter;
+typedef TCallback<void (StreamSource*, std::vector<char>*)> TConverter;
 
 //TODO(ignat): rename this methods
-inline TSharedRef Perform(const TSharedRef& ref, Converter convert)
+inline TSharedRef Apply(TConverter converter, const TSharedRef& ref)
 {
     ByteArraySource source(ref.Begin(), ref.Size());
     std::vector<char> output;
-    convert.Run(&source, &output);
+    converter.Run(&source, &output);
     return TSharedRef(MoveRV(output));
 }
 
-inline TSharedRef Perform(const std::vector<TSharedRef>& refs, Converter convert)
+inline TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
 {
     if (refs.size() == 1) {
-        return Perform(refs.front(), convert);
+        return Apply(converter, refs.front());
     }
     VectorRefsSource source(refs);
     std::vector<char> output;
-    convert.Run(&source, &output);
+    converter.Run(&source, &output);
     return TSharedRef(MoveRV(output));
 }
 

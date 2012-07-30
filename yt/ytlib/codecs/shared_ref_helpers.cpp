@@ -16,9 +16,9 @@ size_t TotalLength(const std::vector<TSharedRef>& refs)
 TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks) {
     TBlob result(TotalLength(blocks));
     size_t pos = 0;
-    for (size_t i = 0; i < blocks.size(); ++i) {
-        std::copy(blocks[i].Begin(), blocks[i].End(), result.begin() + pos);
-        pos += blocks[i].Size();
+    FOREACH(const auto& block, blocks) {
+        std::copy(block.Begin(), block.End(), result.begin() + pos);
+        pos += block.Size();
     }
     return TSharedRef(MoveRV(result));
 }
