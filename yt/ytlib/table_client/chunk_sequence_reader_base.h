@@ -25,7 +25,7 @@ class TChunkSequenceReaderBase
 
 public:
     TChunkSequenceReaderBase(
-        TChunkSequenceReaderConfigPtr config,
+        TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         std::vector<NProto::TInputChunk>&& inputChunks);
@@ -41,7 +41,7 @@ public:
 protected:
     typedef TIntrusivePtr<TReader> TReaderPtr;
 
-    TChunkSequenceReaderConfigPtr Config;
+    TTableReaderConfigPtr Config;
     NChunkClient::IBlockCachePtr BlockCache;
     std::vector<NProto::TInputChunk> InputChunks;
 

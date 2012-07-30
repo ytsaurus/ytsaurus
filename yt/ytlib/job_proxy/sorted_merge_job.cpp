@@ -61,7 +61,7 @@ public:
                     inputSpec.chunks().end());
 
                 auto reader = New<TTableChunkSequenceReader>(
-                    config->JobIO->ChunkSequenceReader,
+                    config->JobIO->TableReader,
                     masterChannel,
                     blockCache,
                     MoveRV(chunks),
@@ -78,7 +78,7 @@ public:
 
             // ToDo(psushin): estimate row count for writer.
             Writer = New<TTableChunkSequenceWriter>(
-                config->JobIO->ChunkSequenceWriter,
+                config->JobIO->TableWriter,
                 masterChannel,
                 TTransactionId::FromProto(jobSpec.output_transaction_id()),
                 TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),

@@ -35,7 +35,7 @@ class TChunkSequenceWriterBase
 {
 public:
     TChunkSequenceWriterBase(
-        TChunkSequenceWriterConfigPtr config,
+        TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList);
@@ -106,7 +106,7 @@ protected:
 
     void SwitchSession();
 
-    TChunkSequenceWriterConfigPtr Config;
+    TTableWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
 
     i64 RowCount;

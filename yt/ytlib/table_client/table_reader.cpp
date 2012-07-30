@@ -21,7 +21,7 @@ using namespace NTableServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReader::TTableReader(
-    TChunkSequenceReaderConfigPtr config,
+    TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransactionPtr transaction,
     NChunkClient::IBlockCachePtr blockCache,

@@ -25,7 +25,7 @@ using namespace NTableClient;
 void TReadCommand::DoExecute()
 {
     auto reader = New<TTableReader>(
-        Context->GetConfig()->ChunkSequenceReader,
+        Context->GetConfig()->TableReader,
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetBlockCache(),
@@ -45,7 +45,7 @@ void TReadCommand::DoExecute()
 void TWriteCommand::DoExecute()
 {
     auto writer = New<TTableWriter>(
-        Context->GetConfig()->ChunkSequenceWriter,
+        Context->GetConfig()->TableWriter,
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetTransactionManager(),

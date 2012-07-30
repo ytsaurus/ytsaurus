@@ -1143,7 +1143,7 @@ private:
         // Init counters.
         PartitionJobCounter.Set(GetJobCount(
             PartitionTask->WeightCounter().GetTotal(),
-            Config->PartitionJobIO->ChunkSequenceWriter->DesiredChunkSize,
+            Config->PartitionJobIO->TableWriter->DesiredChunkSize,
             Spec->PartitionJobCount,
             PartitionTask->ChunkCounter().GetTotal()));
 
@@ -1244,17 +1244,17 @@ private:
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config)
     {
         // Don't replicate intermediate output.
-        config->ChunkSequenceWriter->ReplicationFactor = 1;
-        config->ChunkSequenceWriter->UploadReplicationFactor = 1;
+        config->TableWriter->ReplicationFactor = 1;
+        config->TableWriter->UploadReplicationFactor = 1;
 
         // Cache blocks on nodes.
-        config->ChunkSequenceWriter->EnableNodeCaching = true;
+        config->TableWriter->EnableNodeCaching = true;
     }
 
     static void InitIntermediateInputConfig(TJobIOConfigPtr config)
     {
         // Disable master requests.
-        config->ChunkSequenceReader->AllowFetchingSeedsFromMaster = false;
+        config->TableReader->AllowFetchingSeedsFromMaster = false;
     }
 
     void InitJobSpecTemplates()

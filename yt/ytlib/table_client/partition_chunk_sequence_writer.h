@@ -14,7 +14,7 @@ class TPartitionChunkSequenceWriter
 {
 public:
     TPartitionChunkSequenceWriter(
-        TChunkSequenceWriterConfigPtr config,
+        TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList,

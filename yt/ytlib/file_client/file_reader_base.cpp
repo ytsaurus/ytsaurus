@@ -50,7 +50,7 @@ void TFileReaderBase::Open(
     YASSERT(!IsOpen);
 
     auto remoteReader = CreateRemoteReader(
-        Config->RemoteReader,
+        Config,
         BlockCache,
         MasterChannel,
         chunkId,
@@ -86,7 +86,7 @@ void TFileReaderBase::Open(
     }
 
     SequentialReader = New<TSequentialReader>(
-        Config->SequentialReader,
+        Config,
         MoveRV(blockSequence),
         remoteReader,
         ECodecId(miscExt.codec_id()));

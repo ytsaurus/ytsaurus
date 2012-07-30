@@ -55,7 +55,7 @@ NTableClient::ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
     YASSERT(!channelsString.empty());
     const TYsonString& channels = TYsonString(channelsString);
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
-        Config->ChunkSequenceWriter,
+        Config->TableWriter,
         MasterChannel,
         TTransactionId::FromProto(JobSpec.output_transaction_id()),
         TChunkListId::FromProto(JobSpec.output_specs(index).chunk_list_id()),

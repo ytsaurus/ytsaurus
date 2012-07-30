@@ -47,7 +47,7 @@ TReduceJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
             inputSpec.chunks().end());
 
         auto reader = New<TTableChunkSequenceReader>(
-            Config->ChunkSequenceReader,
+            Config->TableReader,
             MasterChannel,
             blockCache,
             MoveRV(chunks),

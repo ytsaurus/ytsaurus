@@ -17,15 +17,15 @@ namespace NJobProxy {
 struct TJobIOConfig
     : public TYsonSerializable
 {
-    NTableClient::TChunkSequenceReaderConfigPtr ChunkSequenceReader;
-    NTableClient::TChunkSequenceWriterConfigPtr ChunkSequenceWriter;
+    NTableClient::TTableReaderConfigPtr TableReader;
+    NTableClient::TTableWriterConfigPtr TableWriter;
     NFileClient::TFileWriterConfigPtr ErrorFileWriter;
 
     TJobIOConfig()
     {
-        Register("chunk_sequence_reader", ChunkSequenceReader)
+        Register("table_reader", TableReader)
             .DefaultNew();
-        Register("chunk_sequence_writer", ChunkSequenceWriter)
+        Register("table_writer", TableWriter)
             .DefaultNew();
         Register("error_file_writer", ErrorFileWriter)
             .DefaultNew();

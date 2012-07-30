@@ -63,14 +63,14 @@ public:
         std::random_shuffle(chunks.begin(), chunks.end());
 
         Reader = New<TTableChunkSequenceReader>(
-            config->JobIO->ChunkSequenceReader, 
+            config->JobIO->TableReader, 
             masterChannel, 
             blockCache, 
             MoveRV(chunks),
             options);
 
         Writer = New<TTableChunkSequenceWriter>(
-            config->JobIO->ChunkSequenceWriter,
+            config->JobIO->TableWriter,
             masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),

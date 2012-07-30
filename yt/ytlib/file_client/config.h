@@ -14,13 +14,12 @@ namespace NFileClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFileWriterConfig
-    : public TYsonSerializable
+    : public NChunkClient::TRemoteWriterConfig
 {
     i64 BlockSize;
     ECodecId CodecId;
     int ReplicationFactor;
     int UploadReplicationFactor;
-    NChunkClient::TRemoteWriterConfigPtr RemoteWriter;
 
     TFileWriterConfig()
     {
@@ -35,8 +34,6 @@ struct TFileWriterConfig
         Register("upload_replication_factor", UploadReplicationFactor)
             .Default(2)
             .GreaterThanOrEqual(1);
-        Register("remote_writer", RemoteWriter)
-            .DefaultNew();
     }
 
     virtual void DoValidate()
@@ -50,19 +47,9 @@ struct TFileWriterConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFileReaderConfig
-    : public TYsonSerializable
-{
-    NChunkClient::TSequentialReaderConfigPtr SequentialReader;
-    NChunkClient::TRemoteReaderConfigPtr RemoteReader;
-
-    TFileReaderConfig()
-    {
-        Register("sequential_reader", SequentialReader)
-            .DefaultNew();
-        Register("remote_reader", RemoteReader)
-            .DefaultNew();
-    }
-};
+    : public NChunkClient::TSequentialReaderConfig
+    , public NChunkClient::TRemoteReaderConfig
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

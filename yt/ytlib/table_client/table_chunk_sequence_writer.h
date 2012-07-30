@@ -14,7 +14,7 @@ class TTableChunkSequenceWriter
 {
 public:
     TTableChunkSequenceWriter(
-        TChunkSequenceWriterConfigPtr config,
+        TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList,

@@ -26,7 +26,7 @@ using namespace NChunkServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableWriter::TTableWriter(
-    TChunkSequenceWriterConfigPtr config,
+    TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransactionPtr transaction,
     NTransactionClient::TTransactionManagerPtr transactionManager,

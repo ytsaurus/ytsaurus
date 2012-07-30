@@ -18,7 +18,7 @@ static NLog::TLogger& Logger = TableWriterLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableChunkSequenceWriter::TTableChunkSequenceWriter(
-    TChunkSequenceWriterConfigPtr config,
+    TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkList,

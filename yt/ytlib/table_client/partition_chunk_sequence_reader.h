@@ -24,7 +24,7 @@ class TPartitionChunkSequenceReader
 
 public:
     TPartitionChunkSequenceReader(
-        TChunkSequenceReaderConfigPtr config,
+        TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         std::vector<NProto::TInputChunk>&& inputChunks);

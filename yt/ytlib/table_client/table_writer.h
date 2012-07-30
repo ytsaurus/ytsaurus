@@ -33,7 +33,7 @@ class TTableWriter
 public:
     //! Initializes an instance.
     TTableWriter(
-        TChunkSequenceWriterConfigPtr config,
+        TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NTransactionClient::TTransactionManagerPtr transactionManager,
@@ -54,7 +54,7 @@ public:
     const TOwningKey& GetLastKey() const;
 
 private:
-    TChunkSequenceWriterConfigPtr Config;
+    TTableWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;

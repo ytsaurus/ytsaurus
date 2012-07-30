@@ -74,11 +74,11 @@ typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
 class TChannelReader;
 typedef TIntrusivePtr<TChannelReader> TChannelReaderPtr;
 
-struct TChunkSequenceWriterConfig;
-typedef TIntrusivePtr<TChunkSequenceWriterConfig> TChunkSequenceWriterConfigPtr;
+struct TTableWriterConfig;
+typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
 
-struct TChunkSequenceReaderConfig;
-typedef TIntrusivePtr<TChunkSequenceReaderConfig> TChunkSequenceReaderConfigPtr;
+struct TTableReaderConfig;
+typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 
 class TTableProducer;
 class TTableConsumer;

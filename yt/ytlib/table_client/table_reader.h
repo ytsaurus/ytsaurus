@@ -35,7 +35,7 @@ class TTableReader
 public:
     //! Initializes an instance.
     TTableReader(
-        TChunkSequenceReaderConfigPtr config,
+        TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NChunkClient::IBlockCachePtr blockCache,
@@ -55,7 +55,7 @@ public:
     //const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
-    TChunkSequenceReaderConfigPtr Config;
+    TTableReaderConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;

@@ -53,7 +53,7 @@ public:
             jobSpec.input_specs(0).chunks().end());
 
         Reader = New<TTableChunkSequenceReader>(
-            config->JobIO->ChunkSequenceReader, 
+            config->JobIO->TableReader, 
             masterChannel, 
             blockCache, 
             MoveRV(chunks));
@@ -63,7 +63,7 @@ public:
             jobSpecExt.partition_keys().end());
 
         Writer = New<TPartitionChunkSequenceWriter>(
-            config->JobIO->ChunkSequenceWriter,
+            config->JobIO->TableWriter,
             masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),

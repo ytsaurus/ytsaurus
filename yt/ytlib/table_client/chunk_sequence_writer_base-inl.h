@@ -25,7 +25,7 @@ namespace NTableClient {
 
 template <class TChunkWriter>
 TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
-    TChunkSequenceWriterConfigPtr config,
+    TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const NObjectServer::TTransactionId& transactionId,
     const NChunkServer::TChunkListId& parentChunkList)

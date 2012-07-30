@@ -19,7 +19,7 @@ namespace NTableClient {
 
 template <class TReader>
 TChunkSequenceReaderBase<TReader>::TChunkSequenceReaderBase(
-    TChunkSequenceReaderConfigPtr config,
+    TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     std::vector<NProto::TInputChunk>&& inputChunks)

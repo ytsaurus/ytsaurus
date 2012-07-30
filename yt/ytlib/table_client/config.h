@@ -53,7 +53,7 @@ struct TChunkWriterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkSequenceWriterConfig
+struct TTableWriterConfig
     : public TChunkWriterConfig
     , public NChunkClient::TRemoteWriterConfig
 {
@@ -63,7 +63,7 @@ struct TChunkSequenceWriterConfig
     int ReplicationFactor;
     int UploadReplicationFactor;
 
-    TChunkSequenceWriterConfig()
+    TTableWriterConfig()
     {
         Register("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
@@ -90,13 +90,13 @@ struct TChunkSequenceWriterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkSequenceReaderConfig
+struct TTableReaderConfig
     : public NChunkClient::TRemoteReaderConfig
     , public NChunkClient::TSequentialReaderConfig
 {
     int PrefetchWindow;
 
-    TChunkSequenceReaderConfig()
+    TTableReaderConfig()
     {
         Register("prefetch_window", PrefetchWindow)
             .GreaterThan(0)

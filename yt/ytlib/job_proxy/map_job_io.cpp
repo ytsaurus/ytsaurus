@@ -51,7 +51,7 @@ TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
         static_cast<int>(chunks.size()));
 
     auto reader = New<TTableChunkSequenceReader>(
-        Config->ChunkSequenceReader,
+        Config->TableReader,
         MasterChannel,
         blockCache,
         MoveRV(chunks));

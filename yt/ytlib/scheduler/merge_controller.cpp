@@ -413,7 +413,7 @@ protected:
         auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * miscExt.compressed_data_size() >= Config->MergeJobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        if (0.9 * miscExt.compressed_data_size() >= Config->MergeJobIO->TableWriter->DesiredChunkSize) {
             return true;
         }
 

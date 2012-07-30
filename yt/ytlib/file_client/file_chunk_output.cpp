@@ -84,10 +84,7 @@ void TFileChunkOutput::Open()
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-    Writer = New<TRemoteWriter>(
-        Config->RemoteWriter,
-        ChunkId,
-        addresses);
+    Writer = New<TRemoteWriter>(Config, ChunkId, addresses);
 
     Writer->Open();
 
