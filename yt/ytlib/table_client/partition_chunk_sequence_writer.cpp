@@ -42,7 +42,7 @@ TPartitionChunkSequenceWriter::~TPartitionChunkSequenceWriter()
 void TPartitionChunkSequenceWriter::PrepareChunkWriter(TSession& newSession)
 {
     newSession.ChunkWriter = New<TPartitionChunkWriter>(
-        Config->ChunkWriter,
+        Config,
         newSession.RemoteWriter,
         Channels,
         KeyColumns,

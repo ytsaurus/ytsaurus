@@ -17,7 +17,7 @@ static NLog::TLogger& Logger = ChunkWriterLogger;
 TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPtr asyncWriter)
     : Config(config)
     , AsyncWriter(asyncWriter)
-    , Semaphore(Config->WindowSize)
+    , Semaphore(Config->EncodeWindowSize)
     , Codec(GetCodec(Config->CodecId))
     , UncompressedSize_(0)
     , CompressedSize_(0)

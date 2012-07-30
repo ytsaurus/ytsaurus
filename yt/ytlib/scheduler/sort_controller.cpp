@@ -1239,7 +1239,6 @@ private:
             .Item("unordered_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &UnorderedMergeJobCounter));
     }
 
-
     // Unsorted helpers.
 
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config)
@@ -1249,13 +1248,13 @@ private:
         config->ChunkSequenceWriter->UploadReplicationFactor = 1;
 
         // Cache blocks on nodes.
-        config->ChunkSequenceWriter->RemoteWriter->EnableNodeCaching = true;
+        config->ChunkSequenceWriter->EnableNodeCaching = true;
     }
 
     static void InitIntermediateInputConfig(TJobIOConfigPtr config)
     {
         // Disable master requests.
-        config->ChunkSequenceReader->RemoteReader->AllowFetchingSeedsFromMaster = false;
+        config->ChunkSequenceReader->AllowFetchingSeedsFromMaster = false;
     }
 
     void InitJobSpecTemplates()

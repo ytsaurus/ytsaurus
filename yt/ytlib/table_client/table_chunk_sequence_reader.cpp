@@ -44,7 +44,7 @@ TTableChunkReaderPtr TTableChunkSequenceReader::CreateNewReader(
 {
     const auto& slice = inputChunk.slice();
     return New<TTableChunkReader>(
-        Config->SequentialReader,
+        Config,
         TChannel::FromProto(inputChunk.channel()),
         asyncReader,
         slice.start_limit(),

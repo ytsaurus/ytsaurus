@@ -120,9 +120,9 @@ i64 GetIOMemorySize(
     int outputStreamCount)
 {
     return
-        ioConfig->ChunkSequenceReader->SequentialReader->WindowSize * ioConfig->ChunkSequenceReader->PrefetchWindow * inputStreamCount +
-        ioConfig->ChunkSequenceWriter->RemoteWriter->WindowSize * outputStreamCount +
-        ioConfig->ChunkSequenceWriter->ChunkWriter->EncodingWriter->WindowSize * outputStreamCount;
+        ioConfig->ChunkSequenceReader->WindowSize * ioConfig->ChunkSequenceReader->PrefetchWindow * inputStreamCount +
+        ioConfig->ChunkSequenceWriter->WindowSize * outputStreamCount +
+        ioConfig->ChunkSequenceWriter->WindowSize * outputStreamCount;
 }
 
 TNodeResources GetMapJobResources(
@@ -191,7 +191,7 @@ TNodeResources GetPartitionJobResources(
     result.set_cores(1);
     result.set_memory(
         GetIOMemorySize(ioConfig, 1, 1) +
-        std::min(ioConfig->ChunkSequenceWriter->ChunkWriter->BlockSize * partitionCount, dataWeight) +
+        std::min(ioConfig->ChunkSequenceWriter->BlockSize * partitionCount, dataWeight) +
         FootprintMemorySize);
     return result;
 }

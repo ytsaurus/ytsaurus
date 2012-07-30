@@ -11,7 +11,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteReaderConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     //! Timeout for a block request.
     TDuration NodeRpcTimeout;
@@ -74,7 +74,7 @@ struct TRemoteReaderConfig
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TClientBlockCacheConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     //! The maximum number of bytes that block are allowed to occupy.
     //! Zero means that no blocks are cached.
@@ -91,7 +91,7 @@ struct TClientBlockCacheConfig
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TSequentialReaderConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     //! Prefetch window size (in bytes).
     i64 WindowSize;
@@ -120,7 +120,7 @@ struct TSequentialReaderConfig
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteWriterConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     //! Maximum window size (in bytes).
     i64 WindowSize;
@@ -176,9 +176,9 @@ struct TRemoteWriterConfig
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TEncodingWriterConfig 
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
-    i64 WindowSize;
+    i64 EncodeWindowSize;
 
     ECodecId CodecId;
 
@@ -186,7 +186,7 @@ struct TEncodingWriterConfig
 
     TEncodingWriterConfig()
     {
-        Register("window_size", WindowSize)
+        Register("encode_window_size", EncodeWindowSize)
             .Default(4 * 1024 * 1024)
             .GreaterThan(0);
         Register("codec_id", CodecId)
@@ -195,22 +195,6 @@ struct TEncodingWriterConfig
             .Default(0.2);
     }
 };
-
-///////////////////////////////////////////////////////////////////////////////
-
-struct TDecodingReaderConfig
-    : public TYsonSerializable
-{
-    i64 WindowSize;
-
-    TDecodingReaderConfig()
-    {
-        Register("window_size", WindowSize)
-            .Default(16 * 1024 * 1024)
-            .GreaterThan(0);
-    }
-};
-
 
 ///////////////////////////////////////////////////////////////////////////////
 

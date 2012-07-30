@@ -129,7 +129,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
 
     TSession session;
     session.RemoteWriter = New<NChunkClient::TRemoteWriter>(
-        Config->RemoteWriter,
+        Config,
         chunkId,
         addresses);
     session.RemoteWriter->Open();

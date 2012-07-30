@@ -40,7 +40,7 @@ TTableChunkSequenceWriter::~TTableChunkSequenceWriter()
 void TTableChunkSequenceWriter::PrepareChunkWriter(TSession& newSession)
 {
     newSession.ChunkWriter = New<TTableChunkWriter>(
-        Config->ChunkWriter,
+        Config,
         newSession.RemoteWriter,
         Channels,
         KeyColumns);

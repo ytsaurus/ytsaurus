@@ -28,7 +28,7 @@ TPartitionChunkReaderPtr TPartitionChunkSequenceReader::CreateNewReader(
     auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
 
     return New<TPartitionChunkReader>(
-        Config->SequentialReader,
+        Config,
         asyncReader,
         inputChunk.partition_tag(),
         ECodecId(miscExt.codec_id()));

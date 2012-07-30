@@ -23,7 +23,7 @@ TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config)
     : Config(config)
     , ChunkWriter(chunkWriter)
-    , EncodingWriter(New<TEncodingWriter>(Config->EncodingWriter, chunkWriter))
+    , EncodingWriter(New<TEncodingWriter>(Config, chunkWriter))
     , CurrentBlockIndex(0)
     , DataWeight(0)
     , RowCount(0)
@@ -43,7 +43,7 @@ void TChunkWriterBase::FinalizeWriter()
         MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
         MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
         MiscExt.set_meta_size(Meta.ByteSize());
-        MiscExt.set_codec_id(Config->EncodingWriter->CodecId);
+        MiscExt.set_codec_id(Config->CodecId);
         MiscExt.set_data_weight(DataWeight);
         MiscExt.set_row_count(RowCount);
         MiscExt.set_value_count(ValueCount);

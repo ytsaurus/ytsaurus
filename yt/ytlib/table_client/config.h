@@ -12,7 +12,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkWriterConfig
-    : public TYsonSerializable
+    : public NChunkClient::TEncodingWriterConfig
 {
     i64 BlockSize;
 
@@ -23,8 +23,6 @@ struct TChunkWriterConfig
     double IndexRate;
 
     double EstimatedCompressionRatio;
-
-    NChunkClient::TEncodingWriterConfigPtr EncodingWriter;
 
     bool AllowDuplicateColumnNames;
 
@@ -46,27 +44,24 @@ struct TChunkWriterConfig
             .GreaterThan(0)
             .LessThan(1)
             .Default(0.2);
-        Register("encoding_writer", EncodingWriter)
-            .DefaultNew();
-        EncodingWriter->CodecId = ECodecId::Snappy;
         Register("allow_duplicate_column_names", AllowDuplicateColumnNames)
             .Default(true);
+
+        CodecId = ECodecId::Snappy;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequenceWriterConfig
-    : public TYsonSerializable
+    : public TChunkWriterConfig
+    , public NChunkClient::TRemoteWriterConfig
 {
     i64 DesiredChunkSize;
     i64 MaxMetaSize;
 
     int ReplicationFactor;
     int UploadReplicationFactor;
-
-    TChunkWriterConfigPtr ChunkWriter;
-    NChunkClient::TRemoteWriterConfigPtr RemoteWriter;
 
     TChunkSequenceWriterConfig()
     {
@@ -83,10 +78,6 @@ struct TChunkSequenceWriterConfig
         Register("upload_replication_factor", UploadReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(2);
-        Register("chunk_writer", ChunkWriter)
-            .DefaultNew();
-        Register("remote_writer", RemoteWriter)
-            .DefaultNew();
     }
 
     virtual void DoValidate() const
@@ -100,18 +91,13 @@ struct TChunkSequenceWriterConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequenceReaderConfig
-    : public TYsonSerializable
+    : public NChunkClient::TRemoteReaderConfig
+    , public NChunkClient::TSequentialReaderConfig
 {
-    NChunkClient::TRemoteReaderConfigPtr RemoteReader;
-    NChunkClient::TSequentialReaderConfigPtr SequentialReader;
     int PrefetchWindow;
 
     TChunkSequenceReaderConfig()
     {
-        Register("remote_reader", RemoteReader)
-            .DefaultNew();
-        Register("sequential_reader", SequentialReader)
-            .DefaultNew();
         Register("prefetch_window", PrefetchWindow)
             .GreaterThan(0)
             .LessThanOrEqual(1000)

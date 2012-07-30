@@ -80,7 +80,7 @@ void TChunkSequenceReaderBase<TReader>::PrepareNextChunk()
         ~chunkId.ToString());
 
     auto remoteReader = CreateRemoteReader(
-        Config->RemoteReader,
+        Config,
         BlockCache,
         MasterChannel,
         chunkId,
