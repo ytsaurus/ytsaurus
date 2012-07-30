@@ -42,9 +42,6 @@ public:
     //! Returns the addresses of chunk holders where the chunk is being replicated to.
     std::vector<Stroka> GetTargetAddresses() const;
 
-    //! Returns the chunk that is being replicated.
-    TChunkPtr GetChunk() const;
-
 private:
     friend class TJobExecutor;
 
@@ -56,7 +53,6 @@ private:
     NProto::TChunkMeta ChunkMeta;
     std::vector<Stroka> TargetAddresses;
 
-    TStoredChunkPtr Chunk;
     NChunkClient::IAsyncWriterPtr Writer;
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableInvoker;

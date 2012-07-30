@@ -8,6 +8,7 @@
 #include "location.h"
 #include "chunk_meta_extensions.h"
 #include "bootstrap.h"
+#include "chunk_registry.h"
 
 #include <ytlib/misc/string.h>
 
@@ -70,20 +71,8 @@ std::vector<Stroka> TJob::GetTargetAddresses() const
     return TargetAddresses;
 }
 
-TChunkPtr TJob::GetChunk() const
-{
-    return Chunk;
-}
-
 void TJob::Start()
 {
-    Chunk = Bootstrap->GetChunkStore()->FindChunk(ChunkId);
-    if (!Chunk) {
-        SetFailed(TError("No such chunk %s", ~ChunkId.ToString()));
-        return;
-    }
-
-
     switch (JobType) {
         case EJobType::Remove:
             RunRemove();
@@ -106,10 +95,15 @@ void TJob::Stop()
 
 void TJob::RunRemove()
 {
-    LOG_INFO("Removal job started",
-        ~Chunk->GetId().ToString());
+    LOG_INFO("Removal job started");
 
-    Bootstrap->GetChunkStore()->RemoveChunk(Chunk);
+    auto chunk = Bootstrap->GetChunkStore()->FindChunk(ChunkId);
+    if (!chunk) {
+        SetFailed(TError("No such chunk %s", ~ChunkId.ToString()));
+        return;
+    }
+
+    Bootstrap->GetChunkStore()->RemoveChunk(chunk);
 
     SetCompleted();
 }
@@ -117,34 +111,35 @@ void TJob::RunRemove()
 void TJob::RunReplicate()
 {
     LOG_INFO("Replication job started (TargetAddresses: [%s])",
-        ~JoinToString(TargetAddresses),
-        ~Chunk->GetId().ToString());
+        ~JoinToString(TargetAddresses));
+
+    auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(ChunkId);
+    if (!chunk) {
+        SetFailed(TError("No such chunk %s", ~ChunkId.ToString()));
+        return;
+    }
 
     auto this_ = MakeStrong(this);
-    Chunk
-        ->GetMeta()
-        .Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
-            if (!result.IsOK()) {
-                this_->SetFailed(TError(
-                    "Error getting chunk meta\n%s",
-                    ~Chunk->GetId().ToString(),
-                    ~result.ToString()));
-                return;
-            }
+    chunk->GetMeta().Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
+        if (!result.IsOK()) {
+            this_->SetFailed(TError(
+                "Error getting chunk meta\n%s",
+                ~result.ToString()));
+            return;
+        }
 
-            LOG_INFO("Chunk meta received");
+        LOG_INFO("Chunk meta received");
 
-            this_->ChunkMeta = result.Value();
+        this_->ChunkMeta = result.Value();
 
-            this_->Writer = New<TRemoteWriter>(
-                this_->Bootstrap->GetConfig()->ReplicationRemoteWriter,
-                this_->Chunk->GetId(),
-                this_->TargetAddresses);
-            this_->Writer->Open();
+        this_->Writer = New<TRemoteWriter>(
+            this_->Bootstrap->GetConfig()->ReplicationRemoteWriter,
+            this_->ChunkId,
+            this_->TargetAddresses);
+        this_->Writer->Open();
 
-            ReplicateBlock(0, TError());
-        })
-        .Via(CancelableInvoker));
+        ReplicateBlock(0, TError());
+    }).Via(CancelableInvoker));
 }
 
 void TJob::ReplicateBlock(int blockIndex, TError error)
@@ -160,21 +155,18 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
     if (blockIndex >= static_cast<int>(blocksExt.blocks_size())) {
         LOG_DEBUG("All blocks are enqueued for replication");
 
-        Writer
-            ->AsyncClose(ChunkMeta)
-            .Subscribe(BIND([=] (TError error) {
-                this_->Writer.Reset();
-                if (error.IsOK()) {
-                    this_->SetCompleted();
-                } else {
-                    this_->SetFailed(error);
-                }
-            })
-            .Via(CancelableInvoker));
+        Writer->AsyncClose(ChunkMeta).Subscribe(BIND([=] (TError error) {
+            this_->Writer.Reset();
+            if (error.IsOK()) {
+                this_->SetCompleted();
+            } else {
+                this_->SetFailed(error);
+            }
+        }).Via(CancelableInvoker));
         return;
     }
 
-    TBlockId blockId(Chunk->GetId(), blockIndex);
+    TBlockId blockId(ChunkId, blockIndex);
 
     LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)", blockIndex);
 
@@ -197,13 +189,10 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
                     ++nextBlockIndex;
                 }
 
-                Writer->GetReadyEvent().Subscribe(BIND(
-                    &TJob::ReplicateBlock,
-                    this_,
-                    nextBlockIndex)
-                .Via(CancelableInvoker));
-            })
-            .Via(CancelableInvoker));
+                Writer->GetReadyEvent().Subscribe(
+                    BIND(&TJob::ReplicateBlock, this_, nextBlockIndex)
+                    .Via(CancelableInvoker));
+            }).Via(CancelableInvoker));
 }
 
 void TJob::SetCompleted()
