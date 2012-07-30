@@ -21,7 +21,7 @@
 #include "pipes.h"
 #include <errno.h>
 
-#ifndef _win_
+#ifdef _linux_
 
 #include <unistd.h>
 #include <sys/types.h> 
@@ -48,7 +48,7 @@ static NLog::TLogger& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _win_
+#ifdef _linux_
 
 // ToDo(psushin): set sigint handler?
 // ToDo(psushin): extract to a separate file.
@@ -376,7 +376,7 @@ TAutoPtr<IJob> CreateUserJob(
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     TAutoPtr<TUserJobIO> userJobIO)
 {
-    ythrow yexception() << "Streaming jobs are not supported under Windows";    
+    ythrow yexception() << "Streaming jobs are supported only under Linux";    
 }
 
 #endif

@@ -13,10 +13,12 @@
 #if defined(_linux_) || defined(_darwin_)
     #include <unistd.h>
     #include <fcntl.h>
+#endif
 #if defined(_linux_)
     #include <sys/epoll.h>
 #endif
-#else
+
+#if defined(_win_)
     #include <io.h>
 #endif
 
