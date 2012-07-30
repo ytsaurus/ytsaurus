@@ -4,7 +4,6 @@
 
 #include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/meta_state/config.h>
-//#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/config.h>
 #include <ytlib/file_client/config.h>
 #include <ytlib/table_client/config.h>
