@@ -202,8 +202,8 @@ void TBootstrap::Run()
         orchidRoot,
         "/config",
         CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
-    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
 
+    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
     SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
     SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
     SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));

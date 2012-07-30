@@ -7,12 +7,13 @@
 #include "config.h"
 #include "location.h"
 #include "chunk_meta_extensions.h"
+#include "bootstrap.h"
 
 #include <ytlib/misc/string.h>
+
 #include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/async_writer.h>
-
 
 namespace NYT {
 namespace NChunkHolder {
@@ -27,26 +28,26 @@ static NLog::TLogger& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJob::TJob(
-    TJobExecutorPtr owner,
-    IInvokerPtr controlInvoker,
+    TBootstrap* bootstrap,
     EJobType jobType,
     const TJobId& jobId,
-    TStoredChunkPtr chunk,
+    const TChunkId& chunkId,
     const std::vector<Stroka>& targetAddresses)
-    : Owner(owner)
+    : Bootstrap(bootstrap)
     , JobType(jobType)
     , JobId(jobId)
     , State(EJobState::Running)
-    , Chunk(chunk)
+    , ChunkId(chunkId)
     , TargetAddresses(targetAddresses)
     , CancelableContext(New<TCancelableContext>())
-    , CancelableInvoker(CancelableContext->CreateInvoker(controlInvoker))
+    , CancelableInvoker(CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker()))
     , Logger(DataNodeLogger)
 {
-    YCHECK(controlInvoker);
-    YCHECK(chunk);
+    YCHECK(bootstrap);
 
-    Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
+    Logger.AddTag(Sprintf("ChunkId: %s, JobId: %s",
+        ~ChunkId.ToString(),
+        ~JobId.ToString()));
 }
 
 EJobType TJob::GetType() const
@@ -76,6 +77,13 @@ TChunkPtr TJob::GetChunk() const
 
 void TJob::Start()
 {
+    Chunk = Bootstrap->GetChunkStore()->FindChunk(ChunkId);
+    if (!Chunk) {
+        SetFailed(TError("No such chunk %s", ~ChunkId.ToString()));
+        return;
+    }
+
+
     switch (JobType) {
         case EJobType::Remove:
             RunRemove();
@@ -98,17 +106,17 @@ void TJob::Stop()
 
 void TJob::RunRemove()
 {
-    LOG_INFO("Removal job started (ChunkId: %s)",
+    LOG_INFO("Removal job started",
         ~Chunk->GetId().ToString());
 
-    Owner->ChunkStore->RemoveChunk(Chunk);
+    Bootstrap->GetChunkStore()->RemoveChunk(Chunk);
 
     SetCompleted();
 }
 
 void TJob::RunReplicate()
 {
-    LOG_INFO("Replication job started (TargetAddresses: [%s], ChunkId: %s)",
+    LOG_INFO("Replication job started (TargetAddresses: [%s])",
         ~JoinToString(TargetAddresses),
         ~Chunk->GetId().ToString());
 
@@ -118,19 +126,18 @@ void TJob::RunReplicate()
         .Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
             if (!result.IsOK()) {
                 this_->SetFailed(TError(
-                    "Error getting chunk meta (ChunkId: %s)\n%s",
+                    "Error getting chunk meta\n%s",
                     ~Chunk->GetId().ToString(),
                     ~result.ToString()));
                 return;
             }
 
-            LOG_INFO("Received chunk meta for replication (ChunkId: %s)",
-                ~Chunk->GetId().ToString());
+            LOG_INFO("Chunk meta received");
 
             this_->ChunkMeta = result.Value();
 
             this_->Writer = New<TRemoteWriter>(
-                this_->Owner->Config->ReplicationRemoteWriter,
+                this_->Bootstrap->GetConfig()->ReplicationRemoteWriter,
                 this_->Chunk->GetId(),
                 this_->TargetAddresses);
             this_->Writer->Open();
@@ -171,8 +178,8 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
     LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)", blockIndex);
 
-    Owner
-        ->BlockStore
+    Bootstrap
+        ->GetBlockStore()
         ->GetBlock(blockId, false)
         .Subscribe(
             BIND([=] (TBlockStore::TGetBlockResult result) {
@@ -213,33 +220,23 @@ void TJob::SetFailed(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobExecutor::TJobExecutor(
-    TDataNodeConfigPtr config,
-    TChunkStorePtr chunkStore,
-    TBlockStorePtr blockStore,
-    IInvokerPtr controlInvoker)
-    : Config(config)
-    , ChunkStore(chunkStore)
-    , BlockStore(blockStore)
-    , ControlInvoker(controlInvoker)
+TJobExecutor::TJobExecutor(TBootstrap* bootstrap)
+    : Bootstrap(bootstrap)
 {
-    YCHECK(chunkStore);
-    YCHECK(blockStore);
-    YCHECK(controlInvoker);
+    YCHECK(bootstrap);
 }
 
 TJobPtr TJobExecutor::StartJob(
     EJobType jobType,
     const TJobId& jobId,
-    TStoredChunkPtr chunk,
+    const TChunkId& chunkId,
     const std::vector<Stroka>& targetAddresses)
 {
     auto job = New<TJob>(
-        this,
-        ControlInvoker,
+        Bootstrap,
         jobType,
         jobId,
-        chunk,
+        chunkId,
         targetAddresses);
     YCHECK(Jobs.insert(MakePair(jobId, job)).second);
     job->Start();
@@ -270,16 +267,6 @@ std::vector<TJobPtr> TJobExecutor::GetAllJobs()
         result.push_back(pair.second);
     }
     return result;
-}
-
-void TJobExecutor::StopAllJobs()
-{
-    FOREACH (auto& pair, Jobs) {
-        pair.second->Stop();
-    }
-    Jobs.clear();
-
-    LOG_INFO("All jobs stopped");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

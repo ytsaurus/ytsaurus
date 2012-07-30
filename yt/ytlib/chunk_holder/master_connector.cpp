@@ -281,23 +281,13 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
     }
 
     FOREACH (const auto& startInfo, response->jobs_to_start()) {
-        auto chunkId = TChunkId::FromProto(startInfo.chunk_id());
         auto jobId = TJobId::FromProto(startInfo.job_id());
         auto jobType = EJobType(startInfo.type());
-
-        auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
-        if (!chunk) {
-            LOG_WARNING("Job request for non-existing chunk is ignored (ChunkId: %s, JobId: %s, JobType: %s)",
-                ~chunkId.ToString(),
-                ~jobId.ToString(),
-                ~jobType.ToString());
-            continue;
-        }
-
+        auto chunkId = TChunkId::FromProto(startInfo.chunk_id());
         Bootstrap->GetJobExecutor()->StartJob(
             jobType,
             jobId,
-            chunk,
+            chunkId,
             FromProto<Stroka>(startInfo.target_addresses()));
     }
 }

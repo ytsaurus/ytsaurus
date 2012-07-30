@@ -24,11 +24,10 @@ class TJob
 {
 public:
     TJob(
-        TJobExecutorPtr owner,
-        IInvokerPtr controlInvoker,
+        TBootstrap* bootstrap,
         EJobType jobType,
         const TJobId& jobId,
-        TStoredChunkPtr chunk,
+        const TChunkId& chunkId,
         const std::vector<Stroka>& targetAddresses);
 
     //! Returns the type.
@@ -49,13 +48,15 @@ public:
 private:
     friend class TJobExecutor;
 
-    TJobExecutorPtr Owner;
+    TBootstrap* Bootstrap;
     EJobType JobType;
     TJobId JobId;
     EJobState State;
-    TStoredChunkPtr Chunk;
+    TChunkId ChunkId;
     NProto::TChunkMeta ChunkMeta;
     std::vector<Stroka> TargetAddresses;
+
+    TStoredChunkPtr Chunk;
     NChunkClient::IAsyncWriterPtr Writer;
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableInvoker;
@@ -102,25 +103,17 @@ class TJobExecutor
 {
 public:
     //! Constructs a new instance.
-    TJobExecutor(
-        TDataNodeConfigPtr config,
-        TChunkStorePtr chunkStore,
-        TBlockStorePtr blockStore,
-        IInvokerPtr controlInvoker);
+    explicit TJobExecutor(TBootstrap* bootstrap);
     
     //! Starts a new job with the given parameters.
     TJobPtr StartJob(
         EJobType jobType,
         const TJobId& jobId,
-        TStoredChunkPtr chunk,
+        const TChunkId& chunkId,
         const std::vector<Stroka>& targetAddresses);
 
     //! Stops the job.
     void StopJob(TJobPtr job);
-
-    // TODO: is it needed?
-    //! Stop all currently active jobs.
-    void StopAllJobs();
 
     //! Finds job by its id. Returns NULL if no job is found.
     TJobPtr FindJob(const TJobId& jobId);
@@ -132,11 +125,7 @@ private:
     friend class TJob;
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
 
-    TDataNodeConfigPtr Config;
-
-    TChunkStorePtr ChunkStore;
-    TBlockStorePtr BlockStore;
-    IInvokerPtr ControlInvoker;
+    TBootstrap* Bootstrap;
 
     TJobMap Jobs;
 

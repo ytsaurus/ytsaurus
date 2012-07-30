@@ -71,11 +71,7 @@ void TBootstrap::Init()
 
     SessionManager = New<TSessionManager>(Config, this);
 
-    JobExecutor = New<TJobExecutor>(
-        Config,
-        ChunkStore,
-        BlockStore,
-        NodeBootstrap->GetControlInvoker());
+    JobExecutor = New<TJobExecutor>(this);
 
     MasterConnector = New<TMasterConnector>(Config, this);
 
@@ -92,8 +88,8 @@ void TBootstrap::Init()
         orchidRoot,
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
-    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("node"));
 
+    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("node"));
     SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
     SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
     SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
