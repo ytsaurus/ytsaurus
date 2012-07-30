@@ -159,13 +159,13 @@ private:
 
         LOG_INFO("Requesting chunk seeds from the master");
 
-        auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
+        auto req = TChunkYPathProxy::Locate(FromObjectId(ChunkId));
         ObjectProxy->Execute(req).Subscribe(
             BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this))
             .Via(ReaderThread->GetInvoker()));
     }
 
-    void OnChunkFetched(TChunkYPathProxy::TRspFetchPtr rsp)
+    void OnChunkFetched(TChunkYPathProxy::TRspLocatePtr rsp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(!GetSeedsPromise.IsNull());

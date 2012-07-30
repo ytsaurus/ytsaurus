@@ -33,6 +33,8 @@
 #include <ytlib/cypress_server/cypress_manager.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_server/table_ypath.pb.h>
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -1566,12 +1568,13 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
+        DISPATCH_YPATH_SERVICE_METHOD(Locate);
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Confirm);
         TBase::DoInvoke(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Fetch)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Locate)
     {
         UNUSED(request);
 
@@ -1580,6 +1583,32 @@ private:
 
         context->SetResponseInfo("NodeAddresses: [%s]",
             ~JoinToString(response->node_addresses()));
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTableServer::NProto, Fetch)
+    {
+        UNUSED(request);
+
+        const auto* chunk = GetTypedImpl();
+
+        if (chunk->ChunkMeta().type() != EChunkType::Table) {
+            ythrow yexception() << Sprintf("Unable to execute Fetch verb for non-table chunk.");
+        }
+
+        auto* inputChunk = response->add_chunks();
+        *inputChunk->mutable_slice()->mutable_chunk_id() = chunk->GetId().ToProto();
+        *inputChunk->mutable_channel() = NTableClient::TChannel::CreateUniversal().ToProto();
+        inputChunk->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
+
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+        inputChunk->set_row_count(miscExt.row_count());
+        inputChunk->set_data_weight(miscExt.data_weight());
+
+        if (request->fetch_node_addresses()) {
+            Owner->FillHolderAddresses(inputChunk->mutable_node_addresses(), chunk);
+        }
 
         context->Reply();
     }
