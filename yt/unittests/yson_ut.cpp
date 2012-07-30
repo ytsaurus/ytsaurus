@@ -5,7 +5,7 @@
 #include <ytlib/ytree/convert.h>
 
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/merge.h>
+#include <ytlib/ytree/ypath_client.h>
 
 #include <contrib/testing/framework.h>
 
@@ -176,7 +176,7 @@ TEST_F(TYsonTest, MergeNodes)
                 .EndMap()
             .EndMap().GetYsonString());
 
-    auto res = Update(patch, base);
+    auto res = UpdateNode(base, patch);
 
     EXPECT_EQ(
         "{\"key_a\"=100;\"key_b\"=<\"attr\"=\"some_attr\">0.;\"key_c\"={\"ignat\"=70.;\"max\"=75.};\"key_d\"={\"x\"=\"y\"}}",
