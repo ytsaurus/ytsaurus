@@ -135,15 +135,15 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk
     i64 startRowIndex = startLimit.has_row_index() ? startLimit.row_index() : 0;
 
     const auto& endLimit = inputChunk.slice().end_limit();
-    // Not inclusive.
+    // Exclusive.
     i64 endRowIndex = endLimit.has_row_index() ? endLimit.row_index() : miscExt.row_count();
 
     i64 rowCount = endRowIndex - startRowIndex;
+    i64 lastRowIndex = startRowIndex;
 
     for (int i = 0; i < count; ++i) {
-        i64 sliceStartRowIndex = startRowIndex + rowCount * i / count;
-        i64 sliceEndRowIndex = startRowIndex + rowCount * (i + 1) / count;
-        if (sliceStartRowIndex < sliceEndRowIndex) {
+        i64 nextRowIndex = startRowIndex + rowCount * (i + 1) / count;
+        if (lastRowIndex < nextRowIndex) {
             auto slicedChunk = New<TRefCountedInputChunk>(inputChunk);
             slicedChunk->mutable_slice()->mutable_start_limit()->set_row_index(sliceStartRowIndex);
             slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(sliceEndRowIndex);
@@ -153,6 +153,8 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk
             slicedChunk->set_row_count(sliceEndRowIndex - sliceStartRowIndex);
          
             result.push_back(slicedChunk);
+
+            lastRowIndex = nextRowIndex;
         }
     }
     
