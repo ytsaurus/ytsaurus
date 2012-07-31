@@ -48,24 +48,6 @@ from itertools import imap
 
 PREFIX = "//statbox/"
 
-SPECIAL_SYMBOLS = "*\"=:; "
-
-def normalize(name):
-    require(name.find("\\") == -1, YtError("Using \\ in table names is forbidden, name " + name))
-
-    for sym in SPECIAL_SYMBOLS:
-        name.replace(sym, "\\" + sym)
-    return '"%s"' % name
-
-def denormalize(name):
-    for sym in SPECIAL_SYMBOLS:
-        name.replace("\\" + sym, sym)
-    return name[1:-1]
-
-def process_path(path, func):
-    return "//" + "/".join(map(func, path.strip("/").split("/")))
-
-
 def add_prefix(table):
     return PREFIX + table
 
@@ -75,17 +57,18 @@ def remove_prefix(table):
     return table
 
 def list_all_tables():
+    # TODO(ignat): use get with attributes here to eliminate excess queries to server
     result = []
     def walk(path, object):
         if isinstance(object, dict):
             for key, value in object.iteritems():
-                walk(path + '/%s' % normalize(key), value)
+                walk(path + '/%s' % key, value)
         else:
             attributes = yt.get(path + "/@")
-            if attributes.get("type", None) == "table":
+            if path.startswith(PREFIX) and attributes.get("type", None) == "table":
                 result.append(path)
     walk("/", yt.get("/"))
-    return map(compose(remove_prefix, partial(process_path, func=denormalize)), result)
+    return map(remove_prefix, result)
 
 def add_eoln(str):
     return str + "\n"
@@ -143,7 +126,7 @@ if __name__ == "__main__":
 
 
     # Fix table names
-    method = compose(partial(process_path, func=normalize), add_prefix)
+    method = add_prefix
     for option in ["src", "dst", "dstappend"]:
         if vars(args)[option] is not None:
             vars(args)[option] = map(method, vars(args)[option])
