@@ -251,7 +251,6 @@ private:
         {
             TTask::OnJobCompleted(jip);
 
-            Controller->CheckSortStartThreshold();
             Controller->PartitionJobCounter.Completed(1);
 
             auto* resultExt = jip->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
@@ -288,6 +287,8 @@ private:
                     }
                 }
             }
+
+            Controller->CheckSortStartThreshold();
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -536,7 +537,6 @@ private:
         {
             TPartitionBoundTask::OnJobCompleted(jip);
 
-            Controller->CheckMergeStartThreshold();
             Controller->SortJobCounter.Completed(1);
             Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
 
@@ -554,6 +554,8 @@ private:
                 Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
                 Controller->OnPartitionCompeted(Partition);
             }
+
+            Controller->CheckMergeStartThreshold();
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
