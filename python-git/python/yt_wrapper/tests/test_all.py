@@ -31,7 +31,8 @@ class YtTest(YTEnv):
     def setUpClass(cls):
         if os.path.exists("test.log"):
             os.remove("test.log")
-        logging.basicConfig(filename="test.log", level=logging.INFO)
+        logging.basicConfig(level=logging.WARNING)
+        logging.disable(logging.INFO)
 
         ports = {
             "master": 18001,
@@ -40,7 +41,7 @@ class YtTest(YTEnv):
             "proxy": 18080}
         # (TODO): remake this strange stuff.
         cls.env = cls()
-        cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports, supress_yt_output=False)
+        cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports)
 
         config.PROXY = "localhost:%d" % ports["proxy"]
     
@@ -99,12 +100,11 @@ class YtTest(YTEnv):
     def test_common_operations(self):
         self.assertTrue(yt.exists("/"))
         self.assertTrue(yt.exists("//sys"))
-        self.assertTrue(yt.exists("//\"sys\""))
+        self.assertFalse(yt.exists("//\"sys\""))
         
-        self.assertFalse(yt.exists('//"%s"/"%s"' %
+        self.assertFalse(yt.exists('//%s/%s' %
                                 (self.random_string(10), self.random_string(10))))
 
-        
         random_strA = self.random_string(10)
         random_strB = self.random_string(10)
 

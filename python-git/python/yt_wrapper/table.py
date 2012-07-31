@@ -1,4 +1,5 @@
 from common import flatten, require, YtError
+from path_tools import escape_path
 
 class Table(object):
     """ Columns should be list of string (column) or string pairs(column range) """
@@ -8,6 +9,9 @@ class Table(object):
         self.columns = columns
         self.lower_key = lower_key
         self.upper_key = upper_key
+
+    def escaped_name(self):
+        return escape_path(self.name)
 
     def yson_name(self):
         def column_to_str(column):
@@ -24,7 +28,7 @@ class Table(object):
                 return ""
             return '("%s")' % ",".join(flatten(key))
         
-        name = self.name
+        name = self.escaped_name()
         if self.columns is not None:
             name = "%s{%s}" % \
                 (name, ",".join(map(column_to_str, self.columns)))

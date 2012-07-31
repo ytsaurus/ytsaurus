@@ -47,8 +47,7 @@ def get_operation_stderr(operation):
     jobs = list(operation_path + "/jobs")
     stderr_paths = ("%s/jobs/%s/stderr" % (operation_path, job) for job in jobs)
     return "\n\n".join("".join(download_file(path))
-                       for path in stderr_paths
-                       if exists(path, hint=os.path.dirname(path)))
+                       for path in stderr_paths if exists(path))
 
 def get_operation_result(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
@@ -64,7 +63,7 @@ def get_jobs_errors(operation):
 
 def abort_operation(operation):
     if not get_operation_state(operation).is_final():
-        make_request("POST", "abort_op", {"operation_id": operation.strip('"')})
+        make_request("POST", "abort_op", {"operation_id": operation})
 
 def wait_operation(operation, timeout=None, print_progress=True):
     if timeout is None: timeout = config.WAIT_TIMEOUT
