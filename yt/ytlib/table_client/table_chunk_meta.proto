@@ -97,9 +97,8 @@ message TPartitionsExt
 {
     message TPartitionAttributes
     {
-        required int64 data_weight = 1;
-        required int64 row_count = 2;
-        required int64 uncompressed_data_size = 3;
+        required int64 row_count = 1;
+        required int64 uncompressed_data_size = 2;
     }
 
     repeated TPartitionAttributes partitions = 1;

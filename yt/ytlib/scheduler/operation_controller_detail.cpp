@@ -78,14 +78,14 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     }
 
     auto jip = New<TJobInProgress>(this);
-    auto weightThreshold = GetJobWeightThreshold();
-    jip->PoolResult = ChunkPool->Extract(node->GetAddress(), weightThreshold);
+    auto dataSizeThreshold = GetJobDataSizeThreshold();
+    jip->PoolResult = ChunkPool->Extract(node->GetAddress(), dataSizeThreshold );
 
-    LOG_DEBUG("Chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedWeight: %" PRId64 ", WeightThreshold: %s)",
+    LOG_DEBUG("Chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedDataSize: %" PRId64 ", DataSizeThreshold: %s)",
         jip->PoolResult->TotalChunkCount,
         jip->PoolResult->LocalChunkCount,
-        jip->PoolResult->TotalChunkWeight,
-        ~ToString(weightThreshold));
+        jip->PoolResult->TotalDataSize,
+        ~ToString(dataSizeThreshold));
 
     NProto::TJobSpec jobSpec;
     BuildJobSpec(jip, &jobSpec);
@@ -118,9 +118,9 @@ bool TOperationControllerBase::TTask::IsCompleted() const
     return ChunkPool->IsCompleted();
 }
 
-const TProgressCounter& TOperationControllerBase::TTask::WeightCounter() const
+const TProgressCounter& TOperationControllerBase::TTask::DataSizeCounter() const
 {
-    return ChunkPool->WeightCounter();
+    return ChunkPool->DataSizeCounter();
 }
 
 const TProgressCounter& TOperationControllerBase::TTask::ChunkCounter() const
@@ -165,9 +165,9 @@ void TOperationControllerBase::TTask::AddInputLocalityHint(TChunkStripePtr strip
     Controller->AddTaskLocalityHint(this, stripe);
 }
 
-i64 TOperationControllerBase::TTask::GetJobWeightThresholdGeneric(int pendingJobCount, i64 pendingWeight)
+i64 TOperationControllerBase::TTask::GetJobDataSizeThresholdGeneric(int pendingJobCount, i64 pendingDataSize)
 {
-    return static_cast<i64>(std::ceil((double) pendingWeight / pendingJobCount));
+    return static_cast<i64>(std::ceil((double) pendingDataSize / pendingJobCount));
 }
 
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
@@ -210,7 +210,7 @@ void TOperationControllerBase::TTask::AddInputChunks(
     FOREACH (const auto& weightedChunk, stripe->Chunks) {
         auto* inputChunk = inputSpec->add_chunks();
         *inputChunk = *weightedChunk.InputChunk;
-        inputChunk->set_data_weight(weightedChunk.DataWeightOverride);
+        inputChunk->set_uncompressed_data_size(weightedChunk.DataSizeOverride);
         inputChunk->set_row_count(weightedChunk.RowCountOverride);
     }
 }
@@ -1185,34 +1185,34 @@ std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTabl
 std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
     const std::vector<TRefCountedInputChunkPtr>& inputChunks,
     TNullable<int> jobCount,
-    i64 jobSliceWeight)
+    i64 jobSliceDataSize)
 {
     using ::ToString;
 
-    i64 sliceWeight = jobSliceWeight;
+    i64 sliceDataSize = jobSliceDataSize;
     if (jobCount) {
-        i64 totalWeight = 0;
+        i64 totalDataSize = 0;
         FOREACH (auto inputChunk, inputChunks) {
-            totalWeight += inputChunk->data_weight();
+            totalDataSize += inputChunk->uncompressed_data_size();
         }
-        sliceWeight = std::min(sliceWeight, totalWeight / jobCount.Get() + 1);
+        sliceDataSize = std::min(sliceDataSize, totalDataSize / jobCount.Get() + 1);
     }
 
-    YCHECK(sliceWeight > 0);
+    YCHECK(sliceDataSize > 0);
 
-    LOG_DEBUG("Preparing chunk stripes (ChunkCount: %d, JobCount: %s, JobSliceWeight: %" PRId64 ", SliceWeight: %" PRId64 ")",
+    LOG_DEBUG("Preparing chunk stripes (ChunkCount: %d, JobCount: %s, JobSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
         static_cast<int>(inputChunks.size()),
         ~ToString(jobCount),
-        jobSliceWeight,
-        sliceWeight);
+        jobSliceDataSize,
+        sliceDataSize);
 
     std::vector<TChunkStripePtr> result;
 
-    // Ensure that no input chunk has weight larger than sliceWeight.
+    // Ensure that no input chunk has size larger than sliceSize.
     FOREACH (auto inputChunk, inputChunks) {
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        if (inputChunk->data_weight() > sliceWeight) {
-            int sliceCount = (int) std::ceil((double) inputChunk->data_weight() / (double) sliceWeight);
+        if (inputChunk->uncompressed_data_size() > sliceDataSize) {
+            int sliceCount = (int) std::ceil((double) inputChunk->uncompressed_data_size() / (double) sliceDataSize);
             auto slicedInputChunks = SliceChunkEvenly(*inputChunk, sliceCount);
             FOREACH (auto slicedInputChunk, slicedInputChunks) {
                 auto stripe = New<TChunkStripe>(slicedInputChunk);
@@ -1395,14 +1395,14 @@ std::vector<TYPath> TOperationControllerBase::GetFilePaths()
 }
 
 int TOperationControllerBase::GetJobCount(
-    i64 totalWeight,
-    i64 weightPerJob,
+    i64 totalDataSize,
+    i64 dataSizePerJob,
     TNullable<int> configJobCount,
     int chunkCount)
 {
     int result = configJobCount
         ? configJobCount.Get()
-        : static_cast<int>(std::ceil((double) totalWeight / weightPerJob));
+        : static_cast<int>(std::ceil((double) totalDataSize / dataSizePerJob));
     result = std::min(result, chunkCount);
     YCHECK(result > 0);
     return result;

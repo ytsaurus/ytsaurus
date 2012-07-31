@@ -207,7 +207,7 @@ protected:
         bool IsPending() const;
         bool IsCompleted() const;
 
-        const TProgressCounter& WeightCounter() const;
+        const TProgressCounter& DataSizeCounter() const;
         const TProgressCounter& ChunkCounter() const;
 
     private:
@@ -217,7 +217,7 @@ protected:
         NLog::TTaggedLogger& Logger;
         TAutoPtr<IChunkPool> ChunkPool;
 
-        virtual TNullable<i64> GetJobWeightThreshold() const = 0;
+        virtual TNullable<i64> GetJobDataSizeThreshold() const = 0;
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
@@ -228,7 +228,7 @@ protected:
         void AddPendingHint();
         virtual void AddInputLocalityHint(TChunkStripePtr stripe);
 
-        static i64 GetJobWeightThresholdGeneric(int pendingJobCount, i64 pendingWeight);
+        static i64 GetJobDataSizeThresholdGeneric(int pendingJobCount, i64 pendingWeight);
 
         void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
         void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);

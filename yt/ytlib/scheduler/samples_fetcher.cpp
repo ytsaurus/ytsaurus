@@ -27,7 +27,7 @@ TSamplesFetcher::TSamplesFetcher(
     : Config(config)
     , Spec(spec)
     , Invoker(invoker)
-    , TotalWeight(0)
+    , TotalSize(0)
     , Logger(OperationLogger)
     , Promise(NewPromise< TValueOrError<void> >())
 {
@@ -40,7 +40,7 @@ void TSamplesFetcher::AddChunk(const TInputChunk& chunk)
     Chunks.push_back(chunk);
 
     auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-    TotalWeight += miscExt.data_weight();
+    TotalSize += miscExt.uncompressed_data_size();
 }
 
 const std::vector<TKey>& TSamplesFetcher::GetSamples() const
@@ -51,11 +51,11 @@ const std::vector<TKey>& TSamplesFetcher::GetSamples() const
 TFuture< TValueOrError<void> > TSamplesFetcher::Run(int desiredSampleCount)
 {
     YCHECK(desiredSampleCount > 0);
-    YCHECK(TotalWeight > 0);
-    if (TotalWeight < desiredSampleCount) {
-        WeightBetweenSamples = 1;
+    YCHECK(TotalSize > 0);
+    if (TotalSize < desiredSampleCount) {
+        SizeBetweenSamples = 1;
     } else {
-        WeightBetweenSamples = TotalWeight / desiredSampleCount;
+        SizeBetweenSamples = TotalSize / desiredSampleCount;
     }
 
     SendRequests();
@@ -104,7 +104,7 @@ void TSamplesFetcher::SendRequests()
             return lhs->second.size() > rhs->second.size();
         });
 
-    i64 currentWeight = WeightBetweenSamples; // This ensures that we will request at least one sample.
+    i64 currentSize = SizeBetweenSamples; // This ensures that we will request at least one sample.
     i64 currentSampleCount = 0;
 
     // Pick nodes greedily.
@@ -125,15 +125,15 @@ void TSamplesFetcher::SendRequests()
 
                 const auto& chunk = Chunks[chunkIndex];
                 auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                currentWeight += miscExt.data_weight();
-                i64 sampleCount = currentWeight / WeightBetweenSamples;
+                currentSize += miscExt.uncompressed_data_size();
+                i64 sampleCount = currentSize / SizeBetweenSamples;
 
                 if (sampleCount > currentSampleCount) {
                     auto chunkSampleCount = sampleCount - currentSampleCount;
                     currentSampleCount = sampleCount;
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     chunkIndexes.push_back(chunkIndex);
-                    
+
                     auto* sampleRequest = req->add_sample_requests();
                     *sampleRequest->mutable_chunk_id() = chunkId.ToProto();
                     sampleRequest->set_sample_count(chunkSampleCount);

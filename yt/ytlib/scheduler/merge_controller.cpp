@@ -52,7 +52,7 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Spec(spec)
         , TotalJobCount(0)
-        , CurrentTaskWeight(0)
+        , CurrentTaskDataSize(0)
         , PartitionCount(0)
     { }
 
@@ -62,7 +62,7 @@ private:
 protected:
     // Counters.
     int TotalJobCount;
-    TProgressCounter WeightCounter;
+    TProgressCounter SizeCounter;
     TProgressCounter ChunkCounter;
 
     //! For each input table, the corresponding entry holds the stripe
@@ -70,8 +70,8 @@ protected:
     //! and are denoted by |NULL|.
     std::vector<TChunkStripePtr> CurrentTaskStripes;
 
-    //! The total weight accumulated in #CurrentTaskStripes.
-    i64 CurrentTaskWeight;
+    //! The total data size accumulated in #CurrentTaskStripes.
+    i64 CurrentTaskDataSize;
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
@@ -143,7 +143,7 @@ protected:
             return 1;
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
         {
             return Null;
         }
@@ -162,7 +162,7 @@ protected:
             TTask::OnJobStarted(jip);
 
             Controller->ChunkCounter.Start(jip->PoolResult->TotalChunkCount);
-            Controller->WeightCounter.Start(jip->PoolResult->TotalChunkWeight);
+            Controller->SizeCounter.Start(jip->PoolResult->TotalDataSize);
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
@@ -170,7 +170,7 @@ protected:
             TTask::OnJobCompleted(jip);
 
             Controller->ChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
-            Controller->WeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
+            Controller->SizeCounter.Completed(jip->PoolResult->TotalDataSize);
 
             Controller->RegisterOutputChunkTree(jip->ChunkListIds[0], PartitionIndex, 0);
         }
@@ -180,7 +180,7 @@ protected:
             TTask::OnJobFailed(jip);
 
             Controller->ChunkCounter.Failed(jip->PoolResult->TotalChunkCount);
-            Controller->WeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
+            Controller->SizeCounter.Failed(jip->PoolResult->TotalDataSize);
         }
 
     };
@@ -216,11 +216,11 @@ protected:
         ++PartitionCount;
         MergeTasks.push_back(task);
 
-        LOG_DEBUG("Finished task (Task: %d, Weight: %" PRId64 ")",
+        LOG_DEBUG("Finished task (Task: %d, TaskDataSize: %" PRId64 ")",
             static_cast<int>(MergeTasks.size()) - 1,
-            CurrentTaskWeight);
+            CurrentTaskDataSize);
 
-        CurrentTaskWeight = 0;
+        CurrentTaskDataSize = 0;
         ClearCurrentTaskStripes();
     }
 
@@ -235,13 +235,13 @@ protected:
     //! Returns True if some stripes are currently queued.
     bool HasActiveTask()
     {
-        return CurrentTaskWeight > 0;
+        return CurrentTaskDataSize > 0;
     }
 
-    //! Returns True if the total weight of currently queued stripes exceeds the pre-configured limit.
+    //! Returns True if the total data size of currently queued stripes exceeds the pre-configured limit.
     bool HasLargeActiveTask()
     {
-        return CurrentTaskWeight >= Spec->MaxWeightPerJob;
+        return CurrentTaskDataSize >= Spec->MaxDataSizePerJob;
     }
 
     //! Add chunk to the current task's pool.
@@ -249,7 +249,7 @@ protected:
     {
         // Merge is IO-bound, use data size as weight.
         auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
-        i64 weight = miscExt.data_weight();
+        i64 dataSize = miscExt.uncompressed_data_size();
         i64 rowCount = miscExt.row_count();
 
         auto stripe = CurrentTaskStripes[tableIndex];
@@ -257,19 +257,19 @@ protected:
             stripe = CurrentTaskStripes[tableIndex] = New<TChunkStripe>();
         }
 
-        WeightCounter.Increment(weight);
+        SizeCounter.Increment(dataSize);
         ChunkCounter.Increment(1);
-        CurrentTaskWeight += weight;
-        stripe->AddChunk(inputChunk, weight, rowCount);
+        CurrentTaskDataSize += dataSize;
+        stripe->AddChunk(inputChunk, dataSize, rowCount);
 
         auto& table = OutputTables[0];
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, Weight: %" PRId64 ", RowCount: %" PRId64 ")",
+        LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
             ~chunkId.ToString(),
             PartitionCount,
             static_cast<int>(MergeTasks.size()),
             tableIndex,
-            weight,
+            dataSize,
             rowCount);
     }
 
@@ -321,11 +321,11 @@ protected:
                 FOREACH (auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
                     auto miscExt = GetProtoExtension<TMiscExt>(inputChunk.extensions());
-                    i64 weight = miscExt.data_weight();
+                    i64 dataSize = miscExt.uncompressed_data_size();
                     i64 rowCount = miscExt.row_count();
-                    LOG_DEBUG("Processing chunk (ChunkId: %s, DataWeight: %" PRId64 ", RowCount: %" PRId64 ")",
+                    LOG_DEBUG("Processing chunk (ChunkId: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
-                        weight,
+                        dataSize,
                         rowCount);
                     ProcessInputChunk(New<TRefCountedInputChunk>(inputChunk), tableIndex);
                 }
@@ -345,8 +345,8 @@ protected:
 
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
-                WeightCounter.GetTotal(),
+            LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
+                SizeCounter.GetTotal(),
                 ChunkCounter.GetTotal(),
                 TotalJobCount);
 
@@ -369,7 +369,7 @@ protected:
     virtual void EndInputChunks()
     {
         // Close the last task, if any.
-        if (CurrentTaskWeight > 0) {
+        if (CurrentTaskDataSize > 0) {
             EndTask();
         }
     }

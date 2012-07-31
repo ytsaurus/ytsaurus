@@ -1604,7 +1604,7 @@ private:
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
         inputChunk->set_row_count(miscExt.row_count());
-        inputChunk->set_data_weight(miscExt.data_weight());
+        inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
 
         if (request->fetch_node_addresses()) {
             Owner->FillHolderAddresses(inputChunk->mutable_node_addresses(), chunk);

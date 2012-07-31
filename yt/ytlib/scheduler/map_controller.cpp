@@ -108,11 +108,11 @@ private:
             return static_cast<int>(Controller->OutputTables.size());
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
         {
-            return GetJobWeightThresholdGeneric(
+            return GetJobDataSizeThresholdGeneric(
                 GetPendingJobCount(),
-                WeightCounter().GetPending());
+                DataSizeCounter().GetPending());
         }
 
         virtual void BuildJobSpec(
@@ -174,7 +174,7 @@ private:
             auto stripes = PrepareChunkStripes(
                 inputChunks,
                 Spec->JobCount,
-                Spec->JobSliceWeight);
+                Spec->JobSliceDataSize);
             MapTask->AddStripes(stripes);
 
             // Check for empty inputs.
@@ -185,15 +185,15 @@ private:
             }
 
             TotalJobCount = GetJobCount(
-                MapTask->WeightCounter().GetTotal(),
-                Spec->MaxWeightPerJob,
+                MapTask->DataSizeCounter().GetTotal(),
+                Spec->MaxDataSizePerJob,
                 Spec->JobCount,
                 MapTask->ChunkCounter().GetTotal());
             
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
-                MapTask->WeightCounter().GetTotal(),
+                MapTask->DataSizeCounter().GetTotal(),
                 MapTask->ChunkCounter().GetTotal(),
                 TotalJobCount);
 

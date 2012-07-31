@@ -17,8 +17,7 @@ struct TWeightedChunk
     TWeightedChunk();
 
     NTableClient::TRefCountedInputChunkPtr InputChunk;
-    i64 Weight;
-    i64 DataWeightOverride;
+    i64 DataSizeOverride;
     i64 RowCountOverride;
 };
 
@@ -31,13 +30,13 @@ struct TChunkStripe
     TChunkStripe(NTableClient::TRefCountedInputChunkPtr inputChunk);
     TChunkStripe(
         NTableClient::TRefCountedInputChunkPtr inputChunk,
-        i64 weight,
+        i64 dataSizeOverride,
         i64 rowCount);
 
     void AddChunk(NTableClient::TRefCountedInputChunkPtr inputChunk);
     void AddChunk(
         NTableClient::TRefCountedInputChunkPtr inputChunk,
-        i64 dataWeightOverride,
+        i64 dataSizeOverride,
         i64 rowCountOverride);
 
     std::vector<NChunkServer::TChunkId> GetChunkIds() const;
@@ -56,7 +55,7 @@ struct TPoolExtractionResult
     void AddStripe(TChunkStripePtr stripe);
 
     std::vector<TChunkStripePtr> Stripes;
-    i64 TotalChunkWeight;
+    i64 TotalDataSize;
     int TotalChunkCount;
     int LocalChunkCount;
     int RemoteChunkCount;
@@ -74,12 +73,12 @@ struct IChunkPool
 
     virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        TNullable<i64> weightThreshold) = 0;
+        TNullable<i64> dataSizeThreshold) = 0;
     virtual void OnFailed(TPoolExtractionResultPtr result) = 0;
     virtual void OnCompleted(TPoolExtractionResultPtr result) = 0;
 
     virtual const TProgressCounter& StripeCounter() const = 0;
-    virtual const TProgressCounter& WeightCounter() const = 0;
+    virtual const TProgressCounter& DataSizeCounter() const = 0;
     virtual const TProgressCounter& ChunkCounter() const = 0;
 
     virtual bool IsCompleted() const = 0;

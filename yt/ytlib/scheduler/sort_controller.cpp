@@ -53,7 +53,7 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Config(config)
         , Spec(spec)
-        , TotalDataWeight(0)
+        , TotalDataSize(0)
         , TotalRowCount(0)
         , TotalValueCount(0)
         , CompletedPartitionCount(0)
@@ -72,7 +72,7 @@ private:
     TSortOperationSpecPtr Spec;
 
     // Totals.
-    i64 TotalDataWeight;
+    i64 TotalDataSize;
     i64 TotalRowCount;
     i64 TotalValueCount;
 
@@ -82,7 +82,7 @@ private:
     
     // Sort job counters.
     TProgressCounter SortJobCounter;
-    TProgressCounter SortWeightCounter;
+    TProgressCounter SortDataSizeCounter;
 
     // Start thresholds.
     bool SortStartThresholdReached;
@@ -205,7 +205,7 @@ private:
         {
             return GetPartitionJobResources(
                 Controller->Config->PartitionJobIO,
-                std::min(Controller->Spec->MaxWeightPerPartitionJob, Controller->TotalDataWeight),
+                std::min(Controller->Spec->MaxDataSizePerPartitionJob, Controller->TotalDataSize),
                 Controller->Partitions.size());
         }
 
@@ -213,7 +213,7 @@ private:
         {
             return GetPartitionJobResources(
                 Controller->Config->PartitionJobIO,
-                jip->PoolResult->TotalChunkWeight,
+                jip->PoolResult->TotalDataSize,
                 Controller->Partitions.size());
         }
 
@@ -225,11 +225,11 @@ private:
             return 1;
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
         {
-            return GetJobWeightThresholdGeneric(
+            return GetJobDataSizeThresholdGeneric(
                 GetPendingJobCount(),
-                WeightCounter().GetPending());
+                DataSizeCounter().GetPending());
         }
 
         virtual void BuildJobSpec(
@@ -273,13 +273,14 @@ private:
                     // Add up attributes.
                     auto partition = Controller->Partitions[index];
                     auto& totalAttributes = partition->TotalAttributes;
-                    totalAttributes.set_data_weight(totalAttributes.data_weight() + jobPartitionAttributes.data_weight());
+                    totalAttributes.set_uncompressed_data_size(
+                        totalAttributes.uncompressed_data_size() + jobPartitionAttributes.uncompressed_data_size());
                     totalAttributes.set_row_count(totalAttributes.row_count() + jobPartitionAttributes.row_count());
 
-                    if (jobPartitionAttributes.data_weight() > 0) {
+                    if (jobPartitionAttributes.uncompressed_data_size() > 0) {
                         auto stripe = New<TChunkStripe>(
                             rcPartitionChunk,
-                            jobPartitionAttributes.data_weight(),
+                            jobPartitionAttributes.uncompressed_data_size(),
                             jobPartitionAttributes.row_count());
                         auto destinationTask = partition->Megalomaniac
                             ? TTaskPtr(partition->UnorderedMergeTask)
@@ -308,9 +309,9 @@ private:
                 if (partition->Megalomaniac) {
                     Controller->UnorderedMergeJobCounter.Increment(1);
                 } else {
-                    if (partition->SortTask->WeightCounter().GetTotal() > Controller->Spec->MaxWeightPerSortJob) {
+                    if (partition->SortTask->DataSizeCounter().GetTotal() > Controller->Spec->MaxDataSizePerSortJob) {
                         // This is still an estimate: sort job may occasionally get more input that
-                        // dictated by MaxWeightPerSortJob bound.
+                        // dictated by MaxSizePerSortJob bound.
                         Controller->SortedMergeJobCounter.Increment(1);
                     }
                 }
@@ -326,7 +327,7 @@ private:
 
             // Mark empty partitions are completed.
             FOREACH (auto partition, Controller->Partitions) {
-                if (partition->TotalAttributes.data_weight() == 0) {
+                if (partition->TotalAttributes.uncompressed_data_size() == 0) {
                     LOG_DEBUG("Partition is empty (Partition: %d)", partition->Index);
                     Controller->OnPartitionCompeted(partition);
                 }
@@ -369,9 +370,9 @@ private:
                 return -1;
             }
 
-            // Report locality proportional to the pending weight.
+            // Report locality proportional to the pending data size.
             // This facilitates uniform sort progress across partitions.
-            return WeightCounter().GetPending();
+            return DataSizeCounter().GetPending();
         }
 
     protected:
@@ -409,12 +410,12 @@ private:
                 return 0;
             }
 
-            // Compute pending job count based on pooled weight and weight per job.
-            // If partition phase is completed, take any remaining weight.
-            // If partition phase is still in progress, only take weight exceeding weight per job.
-            i64 weight = ChunkPool->WeightCounter().GetPending();
-            i64 weightPerJob = Controller->Spec->MaxWeightPerSortJob;
-            double fractionalJobCount = (double) weight / weightPerJob;
+            // Compute pending job count based on pooled data size and data size per job.
+            // If partition phase is completed, take any remaining da.
+            // If partition phase is still in progress, only take size exceeding size per job.
+            i64 dataSize = ChunkPool->DataSizeCounter().GetPending();
+            i64 dataSizePerJob = Controller->Spec->MaxDataSizePerSortJob;
+            double fractionalJobCount = (double) dataSize / dataSizePerJob;
             return
                 Controller->PartitionTask->IsCompleted()
                 ? static_cast<int>(ceil(fractionalJobCount))
@@ -423,22 +424,22 @@ private:
 
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
         {
-            return GetRequestedResourcesForWeight(std::min(
-                Controller->Spec->MaxWeightPerSortJob,
-                Controller->TotalDataWeight));
+            return GetRequestedResourcesForDataSize(std::min(
+                Controller->Spec->MaxDataSizePerSortJob,
+                Controller->TotalDataSize));
         }
 
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const OVERRIDE
         {
-            return GetRequestedResourcesForWeight(jip->PoolResult->TotalChunkWeight);
+            return GetRequestedResourcesForDataSize(jip->PoolResult->TotalDataSize);
         }
 
         virtual void AddStripe(TChunkStripePtr stripe) OVERRIDE
         {
-            i64 oldTotal = ChunkPool->WeightCounter().GetTotal();
+            i64 oldTotal = ChunkPool->DataSizeCounter().GetTotal();
             TPartitionBoundTask::AddStripe(stripe);
-            i64 newTotal = ChunkPool->WeightCounter().GetTotal();
-            Controller->SortWeightCounter.Increment(newTotal - oldTotal);
+            i64 newTotal = ChunkPool->DataSizeCounter().GetTotal();
+            Controller->SortDataSizeCounter.Increment(newTotal - oldTotal);
         }
 
         bool IsCompleted() const
@@ -449,22 +450,22 @@ private:
         }
 
     private:
-        NProto::TNodeResources GetRequestedResourcesForWeight(i64 dataWeight) const
+        NProto::TNodeResources GetRequestedResourcesForDataSize(i64 dataSize) const
         {
-            i64 rowCount = Controller->GetRowCountEstimate(dataWeight);
-            i64 valueCount = Controller->GetValueCountEstimate(dataWeight);
+            i64 rowCount = Controller->GetRowCountEstimate(dataSize);
+            i64 valueCount = Controller->GetValueCountEstimate(dataSize);
             if (Controller->Partitions.size() == 1) {
                 return GetSimpleSortJobResources(
                     Controller->Config->SortJobIO,
                     Controller->Spec,
-                    dataWeight,
+                    dataSize,
                     rowCount,
                     valueCount);
             } else {
                 return GetPartitionSortJobResources(
                     Controller->Config->SortJobIO,
                     Controller->Spec,
-                    dataWeight,
+                    dataSize,
                     rowCount);
             }
         }
@@ -479,9 +480,9 @@ private:
             return 1;
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
         {
-            return Controller->Spec->MaxWeightPerSortJob;
+            return Controller->Spec->MaxDataSizePerSortJob;
         }
 
         virtual void BuildJobSpec(
@@ -515,7 +516,7 @@ private:
             YCHECK(!Partition->Megalomaniac);
 
             Controller->SortJobCounter.Start(1);
-            Controller->SortWeightCounter.Start(jip->PoolResult->TotalChunkWeight);
+            Controller->SortDataSizeCounter.Start(jip->PoolResult->TotalDataSize);
 
             // Notify the controller that we're willing to use this node
             // for all subsequent jobs.
@@ -528,7 +529,7 @@ private:
             TPartitionBoundTask::OnJobCompleted(jip);
 
             Controller->SortJobCounter.Completed(1);
-            Controller->SortWeightCounter.Completed(jip->PoolResult->TotalChunkWeight);
+            Controller->SortDataSizeCounter.Completed(jip->PoolResult->TotalDataSize);
 
             if (!Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
@@ -552,7 +553,7 @@ private:
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
         {
             Controller->SortJobCounter.Failed(1);
-            Controller->SortWeightCounter.Failed(jip->PoolResult->TotalChunkWeight);
+            Controller->SortDataSizeCounter.Failed(jip->PoolResult->TotalDataSize);
 
             TPartitionBoundTask::OnJobFailed(jip);
         }
@@ -638,7 +639,7 @@ private:
             return 1;
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
         {
             return Null;
         }
@@ -709,9 +710,9 @@ private:
                 return 0;
             }
 
-            i64 weight = ChunkPool->WeightCounter().GetPending();
-            i64 weightPerJob = Controller->Spec->MaxWeightPerUnorderedMergeJob;
-            return static_cast<int>(ceil((double) weight / weightPerJob));
+            i64 dataSize = ChunkPool->DataSizeCounter().GetPending();
+            i64 dataSizePerJob = Controller->Spec->MaxDataSizePerUnorderedMergeJob;
+            return static_cast<int>(ceil((double) dataSize / dataSizePerJob));
         }
 
         virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
@@ -727,9 +728,9 @@ private:
             return 1;
         }
 
-        virtual TNullable<i64> GetJobWeightThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
         {
-            return Controller->Spec->MaxWeightPerUnorderedMergeJob;
+            return Controller->Spec->MaxDataSizePerUnorderedMergeJob;
         }
 
         virtual void BuildJobSpec(
@@ -823,7 +824,7 @@ private:
             FOREACH (const auto& table, InputTables) {
                 FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                     auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                    TotalDataWeight += miscExt.data_weight();
+                    TotalDataSize += miscExt.uncompressed_data_size();
                     TotalRowCount += miscExt.row_count();
                     TotalValueCount += miscExt.value_count();
 
@@ -832,8 +833,8 @@ private:
                 }
             }
 
-            LOG_INFO("Totals collected (DataWeight: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
-                TotalDataWeight,
+            LOG_INFO("Totals collected (DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
+                TotalDataSize,
                 TotalRowCount,
                 TotalValueCount);
 
@@ -913,8 +914,8 @@ private:
         if (SortStartThresholdReached)
             return;
 
-        const auto& partitionWeightCounter = PartitionTask->WeightCounter();
-        if (partitionWeightCounter.GetCompleted() < partitionWeightCounter.GetTotal() * Spec->SortStartThreshold)
+        const auto& partitionDataSizeCounter = PartitionTask->DataSizeCounter();
+        if (partitionDataSizeCounter.GetCompleted() < partitionDataSizeCounter.GetTotal() * Spec->SortStartThreshold)
             return;
 
         LOG_INFO("Sort start threshold reached");
@@ -932,7 +933,7 @@ private:
         if (!PartitionTask->IsCompleted())
             return;
 
-        if (SortWeightCounter.GetCompleted() < SortWeightCounter.GetTotal() * Spec->MergeStartThreshold)
+        if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
             return;
 
         LOG_INFO("Merge start threshold reached");
@@ -1034,13 +1035,13 @@ private:
         auto stripes = PrepareChunkStripes(
             inputChunks,
             Spec->SortJobCount,
-            Spec->SortJobSliceWeight);
+            Spec->SortJobSliceDataSize);
         partition->SortTask->AddStripes(stripes);
 
         // A pretty accurate estimate.
         SortJobCounter.Set(GetJobCount(
-            partition->SortTask->WeightCounter().GetTotal(),
-            Spec->MaxWeightPerSortJob,
+            partition->SortTask->DataSizeCounter().GetTotal(),
+            Spec->MaxDataSizePerSortJob,
             Spec->SortJobCount,
             partition->SortTask->ChunkCounter().GetTotal()));
 
@@ -1124,16 +1125,16 @@ private:
         auto stripes = PrepareChunkStripes(
             inputChunks,
             Spec->PartitionJobCount,
-            Spec->PartitionJobSliceWeight);
+            Spec->PartitionJobSliceDataSize);
         PartitionTask->AddStripes(stripes);
 
-        LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ")",
-            PartitionTask->WeightCounter().GetTotal(),
+        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ")",
+            PartitionTask->DataSizeCounter().GetTotal(),
             PartitionTask->ChunkCounter().GetTotal());
 
         // Init counters.
         PartitionJobCounter.Set(GetJobCount(
-            PartitionTask->WeightCounter().GetTotal(),
+            PartitionTask->DataSizeCounter().GetTotal(),
             Config->PartitionJobIO->TableWriter->DesiredChunkSize,
             Spec->PartitionJobCount,
             PartitionTask->ChunkCounter().GetTotal()));
@@ -1141,8 +1142,8 @@ private:
         // Some upper bound.
         SortJobCounter.Set(
             GetJobCount(
-                PartitionTask->WeightCounter().GetTotal(),
-                Spec->MaxWeightPerSortJob,
+                PartitionTask->DataSizeCounter().GetTotal(),
+                Spec->MaxDataSizePerSortJob,
                 Null,
                 std::numeric_limits<int>::max()) +
             Partitions.size());
@@ -1294,25 +1295,25 @@ private:
         }
     }
 
-    i64 GetRowCountEstimate(i64 weight) const
+    i64 GetRowCountEstimate(i64 dataSize) const
     {
-        return static_cast<i64>((double) TotalRowCount * weight / TotalDataWeight);
+        return static_cast<i64>((double) TotalRowCount * dataSize / TotalDataSize);
     }
 
-    i64 GetValueCountEstimate(i64 weight) const
+    i64 GetValueCountEstimate(i64 dataSize) const
     {
-        return static_cast<i64>((double) TotalValueCount * weight / TotalDataWeight);
+        return static_cast<i64>((double) TotalValueCount * dataSize / TotalDataSize);
     }
 
     int GetPartitionCountEstimate() const
     {
-        YCHECK(TotalDataWeight > 0);
+        YCHECK(TotalDataSize > 0);
 
         int result = Spec->PartitionCount ? 
             Spec->PartitionCount.Get() : 
             static_cast<int>(ceil(
-                (double) TotalDataWeight /
-                Spec->MaxWeightPerSortJob *
+                (double) TotalDataSize /
+                Spec->MaxDataSizePerSortJob *
                 Spec->PartitionCountBoostFactor));
         return std::max(1, result);
     }

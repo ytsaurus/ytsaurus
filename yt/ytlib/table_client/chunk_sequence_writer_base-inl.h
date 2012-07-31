@@ -308,7 +308,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         *slice->mutable_chunk_id() = remoteWriter->GetChunkId().ToProto();
 
         auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkWriter->GetMasterMeta().extensions());
-        inputChunk.set_data_weight(miscExt.data_weight());
+        inputChunk.set_uncompressed_data_size(miscExt.uncompressed_data_size());
         inputChunk.set_row_count(miscExt.row_count());
 
         ToProto(inputChunk.mutable_node_addresses(), remoteWriter->GetNodeAddresses());

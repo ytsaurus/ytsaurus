@@ -386,7 +386,7 @@ void TTableNodeProxy::TraverseChunkTree(
                 auto* inputChunk = response->add_chunks();
 
                 auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
-                inputChunk->set_data_weight(miscExt.data_weight());
+                inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
                 inputChunk->set_row_count(miscExt.row_count());
 
                 auto* slice = inputChunk->mutable_slice();
@@ -465,7 +465,7 @@ void TTableNodeProxy::TraverseChunkTree(
                 auto* inputChunk = response->add_chunks();
 
                 auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
-                inputChunk->set_data_weight(miscExt.data_weight());
+                inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
                 inputChunk->set_row_count(miscExt.row_count());
 
                 auto* slice = inputChunk->mutable_slice();

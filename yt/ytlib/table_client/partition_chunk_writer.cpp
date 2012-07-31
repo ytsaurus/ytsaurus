@@ -59,7 +59,6 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         // Write range column sizes to effectively skip during reading.
         ChannelWriters.push_back(New<TChannelWriter>(0, true));
         auto* partitionAttributes = PartitionsExt.add_partitions();
-        partitionAttributes->set_data_weight(0);
         partitionAttributes->set_row_count(0);
         partitionAttributes->set_uncompressed_data_size(0);
     }
@@ -115,7 +114,6 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
 
     // Update partition counters.
     auto* partitionAttributes = PartitionsExt.mutable_partitions(partitionTag);
-    partitionAttributes->set_data_weight(partitionAttributes->data_weight() + rowDataWeight);
     partitionAttributes->set_row_count(partitionAttributes->row_count() + 1);
 
     // Update global counters.

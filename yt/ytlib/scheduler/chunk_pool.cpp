@@ -13,8 +13,7 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////
 
 TWeightedChunk::TWeightedChunk()
-    : Weight(0)
-    , DataWeightOverride(0)
+    : DataSizeOverride(0)
     , RowCountOverride(0)
 { }
 
@@ -28,11 +27,11 @@ TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk)
     AddChunk(inputChunk);
 }
 
-TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
+TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk, i64 dataSizeOverride, i64 rowCountOverride)
 {
     AddChunk(
         inputChunk,
-        dataWeightOverride,
+        dataSizeOverride,
         rowCountOverride);
 }
 
@@ -40,20 +39,18 @@ void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk)
 {
     AddChunk(
         inputChunk,
-        inputChunk->data_weight(),
+        inputChunk->uncompressed_data_size(),
         inputChunk->row_count());
 }
 
-void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk, i64 dataWeightOverride, i64 rowCountOverride)
+void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk, i64 dataSizeOverride, i64 rowCountOverride)
 {
     Chunks.push_back(TWeightedChunk());
     auto& weightedChunk = Chunks.back();
-    
+
     weightedChunk.InputChunk = inputChunk;
-    weightedChunk.DataWeightOverride = dataWeightOverride;
+    weightedChunk.DataSizeOverride = dataSizeOverride;
     weightedChunk.RowCountOverride = rowCountOverride;
-    // TODO(babenko): make customizable
-    weightedChunk.Weight = weightedChunk.DataWeightOverride;
 }
 
 std::vector<NChunkServer::TChunkId> TChunkStripe::GetChunkIds() const
@@ -68,7 +65,7 @@ std::vector<NChunkServer::TChunkId> TChunkStripe::GetChunkIds() const
 ////////////////////////////////////////////////////////////////////
 
 TPoolExtractionResult::TPoolExtractionResult()
-    : TotalChunkWeight(0)
+    : TotalDataSize(0)
     , TotalChunkCount(0)
     , LocalChunkCount(0)
     , RemoteChunkCount(0)
@@ -79,7 +76,7 @@ void TPoolExtractionResult::AddStripe(TChunkStripePtr stripe, const Stroka& addr
     Stripes.push_back(stripe);
     TotalChunkCount += stripe->Chunks.size();
     FOREACH (const auto& chunk, stripe->Chunks) {
-        TotalChunkWeight += chunk.Weight;
+        TotalDataSize += chunk.DataSizeOverride;
         const auto& chunkAddresses = chunk.InputChunk->node_addresses();
         if (std::find_if(
             chunkAddresses.begin(),
@@ -101,7 +98,7 @@ void TPoolExtractionResult::AddStripe(TChunkStripePtr stripe)
     TotalChunkCount += stripe->Chunks.size();
     RemoteChunkCount += stripe->Chunks.size();
     FOREACH (const auto& chunk, stripe->Chunks) {
-        TotalChunkWeight += chunk.Weight;
+        TotalDataSize += chunk.DataSizeOverride;
     }
 }
 
@@ -111,9 +108,9 @@ class TChunkPoolBase
     : public IChunkPool
 {
 public:
-    virtual const TProgressCounter& WeightCounter() const OVERRIDE
+    virtual const TProgressCounter& DataSizeCounter() const OVERRIDE
     {
-        return WeightCounter_;
+        return DataSizeCounter_;
     }
 
     virtual const TProgressCounter& ChunkCounter() const OVERRIDE
@@ -128,17 +125,17 @@ public:
 
     virtual bool IsCompleted() const OVERRIDE
     {
-        return WeightCounter_.GetCompleted() == WeightCounter_.GetTotal();
+        return DataSizeCounter_.GetCompleted() == DataSizeCounter_.GetTotal();
     }
 
     virtual bool IsPending() const OVERRIDE
     {
-        return WeightCounter_.GetPending() > 0;
+        return DataSizeCounter_.GetPending() > 0;
     }
 
 
 protected:
-    TProgressCounter WeightCounter_;
+    TProgressCounter DataSizeCounter_;
     TProgressCounter ChunkCounter_;
     TProgressCounter StripeCounter_;
 
@@ -160,7 +157,7 @@ public:
         StripeCounter_.Increment(1);
 
         FOREACH (const auto& chunk, stripe->Chunks) {
-            WeightCounter_.Increment(chunk.Weight);
+            DataSizeCounter_.Increment(chunk.DataSizeOverride);
         }
 
         Register(stripe);
@@ -168,7 +165,7 @@ public:
 
     virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        TNullable<i64> weightThreshold) OVERRIDE
+        TNullable<i64> dataSizeThreshold) OVERRIDE
     {
         auto result = New<TPoolExtractionResult>();
 
@@ -181,7 +178,7 @@ public:
                     result,
                     entry.Stripes.begin(),
                     entry.Stripes.end(),
-                    weightThreshold,
+                    dataSizeThreshold,
                     address);
             }
         }
@@ -191,10 +188,10 @@ public:
             result,
             GlobalChunks.begin(),
             GlobalChunks.end(),
-            weightThreshold,
+            dataSizeThreshold,
             address);
 
-        WeightCounter_.Start(result->TotalChunkWeight);
+        DataSizeCounter_.Start(result->TotalDataSize);
         ChunkCounter_.Start(result->TotalChunkCount);
         StripeCounter_.Start(result->Stripes.size());
 
@@ -203,7 +200,7 @@ public:
 
     virtual void OnFailed(TPoolExtractionResultPtr result) OVERRIDE
     {
-        WeightCounter_.Failed(result->TotalChunkWeight);
+        DataSizeCounter_.Failed(result->TotalDataSize);
         ChunkCounter_.Failed(result->TotalChunkCount);
         StripeCounter_.Failed(result->Stripes.size());
 
@@ -214,7 +211,7 @@ public:
 
     virtual void OnCompleted(TPoolExtractionResultPtr result) OVERRIDE
     {
-        WeightCounter_.Completed(result->TotalChunkWeight);
+        DataSizeCounter_.Completed(result->TotalDataSize);
         ChunkCounter_.Completed(result->TotalChunkCount);
         StripeCounter_.Completed(result->Stripes.size());
     }
@@ -223,7 +220,7 @@ public:
     {
         YASSERT(TrackLocality);
         auto it = LocalChunks.find(address);
-        return it == LocalChunks.end() ? 0 : it->second.TotalWeight;
+        return it == LocalChunks.end() ? 0 : it->second.TotalDataSize;
     }
 
 private:
@@ -247,10 +244,10 @@ private:
     struct TLocalityEntry
     {
         TLocalityEntry()
-            : TotalWeight(0)
+            : TotalDataSize(0)
         { }
 
-        i64 TotalWeight;
+        i64 TotalDataSize;
         yhash_set<TChunkStripePtr, TChunkStripeHasher> Stripes;
     };
     
@@ -264,7 +261,7 @@ private:
                 FOREACH (const auto& address, inputChunk->node_addresses()) {
                     auto& entry = LocalChunks[address];
                     YVERIFY(entry.Stripes.insert(stripe).second);
-                    entry.TotalWeight += chunk.Weight;
+                    entry.TotalDataSize += chunk.DataSizeOverride;
                 }
             }
         }
@@ -280,7 +277,7 @@ private:
                 FOREACH (const auto& address, inputChunk->node_addresses()) {
                     auto& entry = LocalChunks[address];
                     YVERIFY(entry.Stripes.erase(stripe) == 1);
-                    entry.TotalWeight -= chunk.Weight;
+                    entry.TotalDataSize -= chunk.DataSizeOverride;
                 }
             }
         }
@@ -293,12 +290,12 @@ private:
         TPoolExtractionResultPtr result,
         const TIterator& begin,
         const TIterator& end,
-        TNullable<i64> weightThreshold,
+        TNullable<i64> dataSizeThreshold,
         const Stroka& address)
     {
         int oldSize = static_cast<int>(result->Stripes.size());
         for (auto it = begin; it != end; ++it) {
-            if (weightThreshold && result->TotalChunkWeight >= weightThreshold.Get()) {
+            if (dataSizeThreshold && result->TotalDataSize >= dataSizeThreshold.Get()) {
                 break;
             }
             if (TrackLocality) {
@@ -340,19 +337,19 @@ public:
         Stripes.push_back(stripe);
         
         FOREACH (const auto& chunk, stripe->Chunks) {
-            WeightCounter_.Increment(chunk.Weight);
+            DataSizeCounter_.Increment(chunk.DataSizeOverride);
             auto inputChunk = chunk.InputChunk;
             FOREACH (const auto& address, inputChunk->node_addresses()) {
-                AddressToLocality[address] += chunk.Weight;
+                AddressToLocality[address] += chunk.DataSizeOverride;
             }
         }
     }
 
     virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        TNullable<i64> weightThreshold) OVERRIDE
+        TNullable<i64> dataSizeThreshold) OVERRIDE
     {
-        UNUSED(weightThreshold);
+        UNUSED(dataSizeThreshold);
 
         Initialized = true;
         YCHECK(!Extracted);
@@ -363,7 +360,7 @@ public:
         }
 
         Extracted = true;
-        WeightCounter_.Start(result->TotalChunkWeight);
+        DataSizeCounter_.Start(result->TotalDataSize);
         ChunkCounter_.Start(result->TotalChunkCount);
         StripeCounter_.Start(result->Stripes.size());
 
@@ -376,7 +373,7 @@ public:
         YCHECK(Extracted);
 
         Extracted = false;
-        WeightCounter_.Failed(result->TotalChunkWeight);
+        DataSizeCounter_.Failed(result->TotalDataSize);
         ChunkCounter_.Failed(result->TotalChunkCount);
         StripeCounter_.Failed(result->Stripes.size());
     }
@@ -386,7 +383,7 @@ public:
         YCHECK(Initialized);
         YCHECK(Extracted);
 
-        WeightCounter_.Completed(result->TotalChunkWeight);
+        DataSizeCounter_.Completed(result->TotalDataSize);
         ChunkCounter_.Completed(result->TotalChunkCount);
         StripeCounter_.Completed(result->Stripes.size());
     }

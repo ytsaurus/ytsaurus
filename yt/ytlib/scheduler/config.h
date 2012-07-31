@@ -141,8 +141,8 @@ struct TMapOperationSpec
     std::vector<NYTree::TYPath> InputTablePaths;
     std::vector<NYTree::TYPath> OutputTablePaths;
     TNullable<int> JobCount;
-    i64 JobSliceWeight;
-    i64 MaxWeightPerJob;
+    i64 JobSliceDataSize;
+    i64 MaxDataSizePerJob;
     TDuration LocalityTimeout;
     NYTree::INodePtr JobIO;
 
@@ -154,10 +154,10 @@ struct TMapOperationSpec
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
-        Register("job_slice_weight", JobSliceWeight)
+        Register("job_slice_data_size", JobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
-        Register("max_weight_per_job", MaxWeightPerJob)
+        Register("max_data_size_per_job", MaxDataSizePerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("locality_timeout", LocalityTimeout)
@@ -176,14 +176,14 @@ struct TMergeOperationSpecBase
     //! groups of chunks are partitioned into tasks of this or smaller size.
     //! This number, however, is merely an estimate, i.e. some tasks may still
     //! be larger.
-    i64 MaxWeightPerJob;
+    i64 MaxDataSizePerJob;
 
     TDuration LocalityTimeout;
     NYTree::INodePtr JobIO;
 
     TMergeOperationSpecBase()
     {
-        Register("max_weight_per_job", MaxWeightPerJob)
+        Register("max_data_size_per_job", MaxDataSizePerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("locality_timeout", LocalityTimeout)
@@ -273,16 +273,16 @@ struct TSortOperationSpec
     TNullable<int> PartitionCount;
     
     TNullable<int> PartitionJobCount;
-    i64 PartitionJobSliceWeight;
+    i64 PartitionJobSliceDataSize;
     
     //! Only used if no partitioning is done.
     TNullable<int> SortJobCount;
 
     //! Only used if no partitioning is done.
-    i64 SortJobSliceWeight;
+    i64 SortJobSliceDataSize;
 
     //! Maximum amount of (uncompressed) data to be given to a single partition job.
-    i64 MaxWeightPerPartitionJob;
+    i64 MaxDataSizePerPartitionJob;
 
     //! Maximum amount of (uncompressed) data to be given to a single sort job.
     //! By default, the number of partitions is computed as follows:
@@ -292,7 +292,7 @@ struct TSortOperationSpec
     //! The user, however, may override this by specifying #PartitionCount explicitly.
     //! Here #PartitionCountBoostFactor accounts for uneven partition sizes and
     //! enables to fit most of sort jobs into #MaxWeightPerSortJob.
-    i64 MaxWeightPerSortJob;
+    i64 MaxDataSizePerSortJob;
 
     //! See comments for #MaxWeightPerSortJob.
     double PartitionCountBoostFactor;
@@ -302,7 +302,7 @@ struct TSortOperationSpec
 
     //! Maximum amount of (uncompressed) data to be given to a single unordered merge job
     //! that takes care of a megalomaniac partition.
-    i64 MaxWeightPerUnorderedMergeJob;
+    i64 MaxDataSizePerUnorderedMergeJob;
 
     double SortStartThreshold;
     double MergeStartThreshold;
@@ -329,19 +329,19 @@ struct TSortOperationSpec
         Register("partition_job_count", PartitionJobCount)
             .Default()
             .GreaterThan(0);
-        Register("partition_job_slice_weight", PartitionJobSliceWeight)
+        Register("partition_job_slice_data_size", PartitionJobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
         Register("sort_job_count", SortJobCount)
             .Default()
             .GreaterThan(0);
-        Register("sort_job_slice_weight", SortJobSliceWeight)
+        Register("sort_job_slice_data_size", SortJobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
-        Register("max_weight_per_partition_job", MaxWeightPerPartitionJob)
+        Register("max_data_size_per_partition_job", MaxDataSizePerPartitionJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
-        Register("max_weight_per_sort_job", MaxWeightPerSortJob)
+        Register("max_data_size_per_sort_job", MaxDataSizePerSortJob)
             .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("partition_count_boost_factor", PartitionCountBoostFactor)
@@ -350,7 +350,7 @@ struct TSortOperationSpec
         Register("samples_per_partition", SamplesPerPartition)
             .Default(10)
             .GreaterThan(1);
-        Register("max_weight_per_unordered_merge_job", MaxWeightPerUnorderedMergeJob)
+        Register("max_data_size_per_unordered_merge_job", MaxDataSizePerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("sort_start_threshold", SortStartThreshold)
