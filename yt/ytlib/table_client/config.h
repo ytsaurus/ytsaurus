@@ -30,7 +30,7 @@ struct TChunkWriterConfig
     {
         // Block less than 1M is nonsense.
         Register("block_size", BlockSize)
-            .GreaterThan(1024)
+            .GreaterThan(1024 * 1024)
             .Default(16 * 1024 * 1024);
         Register("sample_rate", SampleRate)
             .GreaterThan(0)
