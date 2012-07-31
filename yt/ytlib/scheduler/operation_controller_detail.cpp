@@ -73,7 +73,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
 {
     using ::ToString;
 
-    if (!Controller->HasEnoughChunkLists(GetChunkListCountPerJob())) {
+    if (!Controller->CheckAvailableChunkLists(GetChunkListCountPerJob())) {
         return NULL;
     }
 
@@ -198,7 +198,7 @@ void TOperationControllerBase::TTask::AddTabularOutputSpec(
     const auto& table = Controller->OutputTables[tableIndex];
     auto* outputSpec = jobSpec->add_output_specs();
     outputSpec->set_channels(table.Channels.Data());
-    auto chunkListId = Controller->ChunkListPool->Extract();
+    auto chunkListId = Controller->GetFreshChunkList();
     jip->ChunkListIds.push_back(chunkListId);
     *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
 }
@@ -1123,6 +1123,7 @@ void TOperationControllerBase::CompletePreparation()
         Host->GetControlInvoker(),
         Operation,
         PrimaryTransaction->GetId());
+    ChunkListPool->Allocate(Config->ChunkListPreallocationCount);
 }
 
 void TOperationControllerBase::OnPreparationCompleted()
@@ -1324,17 +1325,26 @@ void TOperationControllerBase::RegisterOutputChunkTree(
         key);
 }
 
-bool TOperationControllerBase::HasEnoughChunkLists(int minSize)
+bool TOperationControllerBase::CheckAvailableChunkLists(int requestedCount)
 {
-    if (ChunkListPool->GetSize() >= minSize) {
+    if (ChunkListPool->GetSize() >= requestedCount + Config->ChunkListWatermarkCount) {
+        // Enough chunk lists. Above the watermark even after extraction.
         return true;
     }
 
-    int allocateCount = minSize * Config->ChunkListAllocationMultiplier;
-    LOG_DEBUG("Insufficient pooled chunk lists left, allocating another %d", allocateCount);
+    // Additional chunk lists are definitely needed but still could be a success.
+    bool success = ChunkListPool->GetSize() >= requestedCount;
 
+    int allocateCount = requestedCount * Config->ChunkListAllocationMultiplier;
+    LOG_DEBUG("Insufficient pooled chunk lists left, requesting another %d", allocateCount);
     ChunkListPool->Allocate(allocateCount);
-    return false;
+
+    return success;
+}
+
+TChunkListId TOperationControllerBase::GetFreshChunkList()
+{
+    return ChunkListPool->Extract();
 }
 
 void TOperationControllerBase::RegisterJobInProgress(TJobInProgressPtr jip)

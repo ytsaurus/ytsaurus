@@ -29,9 +29,11 @@ struct TSchedulerConfig
     //! Once this limit is reached the operation fails.
     int FailedJobsLimit;
 
-    //! The additional number of chunk lists to preallocate during preparation phase.
-    //! These chunk lists are used in case of job failures.
-    int SpareChunkListCount;
+    //! Number of chunk lists to be allocated when an operation starts.
+    int ChunkListPreallocationCount;
+
+    //! Better keep the number of spare chunk lists above this threshold.
+    int ChunkListWatermarkCount;
 
     //! Each time we run out of free chunk lists and unable to provide another |count| chunk lists,
     //! job scheduling gets suspended until |count * ChunkListAllocationMultiplier| chunk lists are allocated.
@@ -62,8 +64,11 @@ struct TSchedulerConfig
         Register("failed_jobs_limit", FailedJobsLimit)
             .Default(100)
             .GreaterThanOrEqual(0);
-        Register("spare_chunk_list_count", SpareChunkListCount)
-            .Default(20)
+        Register("chunk_list_preallocation_count", ChunkListPreallocationCount)
+            .Default(100)
+            .GreaterThanOrEqual(0);
+        Register("chunk_list_watermark_count", ChunkListWatermarkCount)
+            .Default(50)
             .GreaterThanOrEqual(0);
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
             .Default(20)

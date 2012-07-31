@@ -190,9 +190,6 @@ private:
                 Spec->JobCount,
                 MapTask->ChunkCounter().GetTotal());
             
-            // Allocate some initial chunk lists.
-            ChunkListPool->Allocate(OutputTables.size() * TotalJobCount + Config->SpareChunkListCount);
-
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",

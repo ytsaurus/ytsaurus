@@ -1163,13 +1163,6 @@ private:
 
             SamplesFetcher.Reset();
             SortedSamples.clear();
-           
-            // Allocate some initial chunk lists.
-            ChunkListPool->Allocate(
-                PartitionJobCounter.GetTotal() +
-                SortJobCounter.GetTotal() +
-                Partitions.size() + // for merge jobs
-                Config->SpareChunkListCount);
 
             InitJobSpecTemplates();
         }

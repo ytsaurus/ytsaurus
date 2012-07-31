@@ -343,9 +343,6 @@ protected:
             // Init counters.
             TotalJobCount = static_cast<int>(MergeTasks.size());
 
-            // Allocate some initial chunk lists.
-            ChunkListPool->Allocate(TotalJobCount + Config->SpareChunkListCount);
-
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",

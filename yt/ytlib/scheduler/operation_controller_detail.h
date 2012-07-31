@@ -78,8 +78,6 @@ protected:
     int CompletedJobCount;
     int FailedJobCount;
 
-    TChunkListPoolPtr ChunkListPool;
-
     // The primary transaction for the whole operation (nested inside operation's transaction).
     NTransactionClient::ITransactionPtr PrimaryTransaction;
     // The transaction for reading input tables (nested inside the primary one).
@@ -397,7 +395,8 @@ protected:
         int key,
         int tableIndex);
 
-    bool HasEnoughChunkLists(int minSize);
+    bool CheckAvailableChunkLists(int requestedCount);
+    NChunkServer::TChunkListId GetFreshChunkList();
 
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
@@ -434,6 +433,8 @@ protected:
     static void InitIntermediateInputConfig(NJobProxy::TJobIOConfigPtr config);
 
 private:
+    TChunkListPoolPtr ChunkListPool;
+
     static bool AreKeysCompatible(
         const std::vector<Stroka>& fullColumns,
         const std::vector<Stroka>& prefixColumns);
