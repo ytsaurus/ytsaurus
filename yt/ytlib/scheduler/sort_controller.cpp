@@ -332,6 +332,7 @@ private:
             }
 
             // Kick-start sort and unordered merge tasks.
+            Controller->AddSortTasksPendingHints();
             Controller->AddMergeTasksPendingHints();
         }
     };
