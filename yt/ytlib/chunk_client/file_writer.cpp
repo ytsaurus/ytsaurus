@@ -81,6 +81,11 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
     IsClosed = true;
 
     try {
+#ifdef _linux_
+        if (fsync(DataFile->GetHandle()) != 0) {
+            ythrow yexception() << Sprintf("fsync failed: %s", strerror(errno));
+        }
+#endif
         DataFile->Close();
         DataFile.Destroy();
     } catch (const std::exception& ex) {
@@ -109,7 +114,15 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
             CreateAlways | WrOnly | Seq);
         WritePod(chunkMetaFile, header);
         chunkMetaFile.Write(&*metaBlob.begin(), metaBlob.size());
+
+#ifdef _linux_
+        if (fsync(chunkMetaFile.GetHandle()) != 0) {
+            ythrow yexception() << Sprintf("fsync failed: %s", strerror(errno));
+        }
+#endif
+
         chunkMetaFile.Close();
+        TFileHandle(chunkMetaFile.GetHandle()).Flush();
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
             "Failed to write chunk meta to %s\n%s",
