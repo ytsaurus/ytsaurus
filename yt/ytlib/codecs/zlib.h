@@ -4,7 +4,7 @@
 
 namespace NYT {
 
-void ZlibCompress(StreamSource* source, std::vector<char>* output, int level);
+void ZlibCompress(int level, StreamSource* source, std::vector<char>* output);
 
 void ZlibDecompress(StreamSource* source, std::vector<char>* output);
         

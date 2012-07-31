@@ -60,9 +60,7 @@ class TGzipCodec
 {
 public:
     explicit TGzipCodec(int level)
-        : Compressor_(
-            BIND([=] (StreamSource* source, std::vector<char>* output)
-                    {ZlibCompress(source, output, level);}))
+        : Compressor_(BIND(&ZlibCompress, level))
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
@@ -91,9 +89,7 @@ class TLz4Codec
 {
 public:
     explicit TLz4Codec(bool highCompression)
-        : Compressor_(
-            BIND([=] (StreamSource* source, std::vector<char>* output)
-                    {Lz4Compress(source, output, highCompression);}))
+        : Compressor_(BIND(Lz4Compress, highCompression))
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE

@@ -9,6 +9,8 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 const size_t BufferSize = 1 << 20;
 
 void ZlibCompress(StreamSource* source, StreamSink* sink, int level) {
@@ -45,7 +47,7 @@ void ZlibCompress(StreamSource* source, StreamSink* sink, int level) {
     deflateEnd(&stream);
 }
 
-void ZlibCompress(StreamSource* source, std::vector<char>* output, int level)
+void ZlibCompress(int level, StreamSource* source, std::vector<char>* output)
 {
     output->resize(sizeof(size_t));
     {
@@ -97,5 +99,7 @@ void ZlibDecompress(StreamSource* source, std::vector<char>* output)
 
     inflateEnd(&stream);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

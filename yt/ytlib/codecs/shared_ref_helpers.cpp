@@ -4,6 +4,8 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 size_t TotalLength(const std::vector<TSharedRef>& refs)
 {
     size_t size = 0;
@@ -22,5 +24,7 @@ TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks) {
     }
     return TSharedRef(MoveRV(result));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT

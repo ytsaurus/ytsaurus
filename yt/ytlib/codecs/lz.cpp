@@ -5,6 +5,8 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 struct THeader {
@@ -14,7 +16,7 @@ struct THeader {
 
 } // anonymous namespace
 
-void Lz4Compress(StreamSource* source, std::vector<char>* output, bool highCompression)
+void Lz4Compress(bool highCompression, StreamSource* source, std::vector<char>* output)
 {
     size_t currentPos = 0;
     while (source->Available() > 0) {
@@ -73,6 +75,8 @@ void Lz4Decompress(StreamSource* source, std::vector<char>* output)
         YCHECK(LZ4_uncompress(input.data(), output->data() + outputPos, header.InputSize) >= 0);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
