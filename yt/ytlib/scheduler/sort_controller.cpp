@@ -252,6 +252,7 @@ private:
         {
             TTask::OnJobCompleted(jip);
 
+            Controller->CheckSortStartThreshold();
             Controller->PartitionJobCounter.Completed(1);
 
             auto* resultExt = jip->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
@@ -289,8 +290,6 @@ private:
                     }
                 }
             }
-
-            Controller->CheckSortStartThreshold();
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
@@ -529,26 +528,24 @@ private:
         {
             TPartitionBoundTask::OnJobCompleted(jip);
 
+            Controller->CheckMergeStartThreshold();
             Controller->SortJobCounter.Completed(1);
             Controller->SortDataSizeCounter.Completed(jip->PoolResult->TotalDataSize);
 
-            if (!Controller->IsSortedMergeNeeded(Partition)) {
+            if (Controller->IsSortedMergeNeeded(Partition)) {
+                // Sort outputs in large partitions are queued for further merge.
+                // Construct a stripe consisting of sorted chunks and put it into the pool.
+                const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
+                auto stripe = New<TChunkStripe>();
+                FOREACH (const auto& inputChunk, resultExt.chunks()) {
+                    stripe->AddChunk(New<TRefCountedInputChunk>(inputChunk));
+                }
+                Partition->SortedMergeTask->AddStripe(stripe);
+            } else {
+                // Sort outputs in small partitions go directly to the output.
                 Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
                 Controller->OnPartitionCompeted(Partition);
-                return;
-            } 
-
-            // Sort outputs in large partitions are queued for further merge.
-
-            // Construct a stripe consisting of sorted chunks and put it into the pool.
-            const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
-            auto stripe = New<TChunkStripe>();
-            FOREACH (const auto& inputChunk, resultExt.chunks()) {
-                stripe->AddChunk(New<TRefCountedInputChunk>(inputChunk));
             }
-            Partition->SortedMergeTask->AddStripe(stripe);
-
-            Controller->CheckMergeStartThreshold();
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
