@@ -1,8 +1,9 @@
 import config
 from common import flatten, require, YtError, parse_bool, add_quotes, unlist, update
+from path_tools import escape_path
 from http import make_request
 from table import get_yson_name, to_table
-from tree_commands import exists, remove, get_attribute, set, copy
+from tree_commands import exists, remove, get_attribute, set, copy, mkdir
 from file_commands import upload_file
 from operation_commands import \
         get_operation_stderr, get_operation_result, get_jobs_errors
@@ -43,17 +44,6 @@ class Buffer(object):
     def empty(self):
         return self._empty
 
-def _dirs(path):
-    dirs = ["/"]
-    for name in path.strip("/").split("/"):
-        dirs.append(dirs[-1] + "/" + name)
-    return dirs
-
-def _recursive_set_dict(path):
-    for prefix_path in _dirs(path):
-        if not exists(prefix_path):
-            set(prefix_path, "{}")
-
 """ Common table methods """
 def create_table(path, make_it_empty=True):
     create = True
@@ -68,9 +58,10 @@ def create_table(path, make_it_empty=True):
             create = False
     if create:
         dirname = os.path.dirname(path)
-        if not exists(dirname):
-            _recursive_set_dict(dirname)
-        make_request("POST", "create", {"path": path, "type": "table"})
+        mkdir(dirname)
+        make_request("POST", "create",
+                     dict(path=escape_path(path),
+                          type="table"))
 
 def create_temp_table(path=None, prefix=None):
     if path is None: path = config.TEMP_TABLES_STORAGE
@@ -79,12 +70,8 @@ def create_temp_table(path=None, prefix=None):
     LENGTH = 10
     char_set = string.ascii_lowercase + string.ascii_uppercase + string.digits
     while True:
-        add_quote = False
-        if prefix.endswith('"'):
-            prefix = prefix[:-1]
-            add_quote = True
-        name = "%s/%s%s%s" % (path, prefix, "".join(random.sample(char_set, LENGTH)), '"' if add_quote else '')
-        if not exists(name, hint=path):
+        name = "%s/%s%s" % (path, prefix, "".join(random.sample(char_set, LENGTH)))
+        if not exists(name):
             create_table(name)
             return name
 
@@ -94,7 +81,7 @@ def write_table(table, lines, format=None):
     create_table(table.name, not table.append)
     buffer = Buffer(lines)
     while not buffer.empty():
-        make_request("PUT", "write", {"path": table.name}, buffer.get(), format=format)
+        make_request("PUT", "write", dict(path=table.escaped_name()), buffer.get(), format=format)
 
 def read_table(table, format=None):
     def add_eoln(str):
@@ -160,10 +147,10 @@ def sort_table(table, destination_table=None, columns=None, strategy=None, spec=
         create_table(output_table, not destination_table.append)
     params = json.dumps(
         {"spec": update(spec,
-            {"input_table_paths": flatten(table),
-             "output_table_path": output_table,
+            {"input_table_paths": map(escape_path, flatten(table)),
+             "output_table_path": escape_path(output_table),
              "key_columns": columns})})
-    operation = add_quotes(make_request("POST", "sort", None, params))
+    operation = make_request("POST", "sort", None, params)
     strategy.process_operation("sort", operation)
     if in_place:
         move_table(output_table, table)
@@ -180,10 +167,10 @@ def merge_tables(source_table, destination_table, mode, strategy=None, spec=None
 
     params = json.dumps(
         {"spec": update(spec,
-            {"input_table_paths": source_table,
-             "output_table_path": destination_table.name,
+            {"input_table_paths": map(escape_path, source_table),
+             "output_table_path": destination_table.escaped_name(),
              "mode": mode})})
-    operation = add_quotes(make_request("POST", "merge", None, params))
+    operation = make_request("POST", "merge", None, params)
     strategy.process_operation("merge", operation)
 
 
@@ -237,7 +224,7 @@ def run_operation(binary, source_table, destination_table,
             {"input_table_paths": map(get_yson_name, source_table),
              "output_table_paths": map(get_yson_name, destination_table),
              op_key[op_type]: operation_descr})})
-    operation = add_quotes(make_request("POST", op_type, None, params))
+    operation = make_request("POST", op_type, None, params)
     strategy.process_operation(op_type, operation)
 
 def run_map(binary, source_table, destination_table,

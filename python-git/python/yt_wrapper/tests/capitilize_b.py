@@ -2,10 +2,10 @@
 
 from record import line_to_record, record_to_line
 from format import DsvFormat
-from common import partial
 
 import sys
 from itertools import imap
+from functools import partial
 
 def capitilizeB(rec):
     if "b" in rec: rec["b"] = rec["b"].upper()
