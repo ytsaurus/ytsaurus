@@ -42,10 +42,13 @@ message TReqCreateChunkExt
     // Desired number of copies (including those created by background replication).
     required int32 replication_factor = 2;
  
-    // FQDN (without port number!) to be preffered for upload.
+    // Host name (without port number!) to be preferred for upload.
     // The client typically puts the name of the local host here to
     // facilitate local uploads.
     optional string preferred_host_name = 3;
+
+    // Can this chunk be balanced to other nodes?
+    optional bool movable = 4 [default = true];
 }
 
 message TRspCreateChunkExt

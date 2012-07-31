@@ -34,7 +34,7 @@ public:
     std::vector<THolder*> GetReplicationTargets(const TChunk* chunk, int count);
     std::vector<THolder*> GetRemovalTargets(const TChunk* chunk, int count);
     THolder* GetReplicationSource(const TChunk* chunk);
-    std::vector<TChunkId> GetBalancingChunks(THolder* holder, int count);
+    std::vector<TChunk*> GetBalancingChunks(THolder* holder, int count);
     THolder* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:

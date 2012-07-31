@@ -20,6 +20,7 @@ struct TFileWriterConfig
     ECodecId CodecId;
     int ReplicationFactor;
     int UploadReplicationFactor;
+    bool ChunkMovable;
 
     TFileWriterConfig()
     {
@@ -34,6 +35,8 @@ struct TFileWriterConfig
         Register("upload_replication_factor", UploadReplicationFactor)
             .Default(2)
             .GreaterThanOrEqual(1);
+        Register("chunk_movable", ChunkMovable)
+            .Default(true);
     }
 
     virtual void DoValidate()

@@ -1463,6 +1463,9 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Cache blocks on nodes.
     config->TableWriter->EnableNodeCaching = true;
+
+    // Don't move intermediate chunks.
+    config->TableWriter->ChunksMovable = false;
 }
 
 void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)

@@ -238,7 +238,7 @@ bool TChunkPlacement::IsValidBalancingTarget(THolder* targetHolder, TChunk* chun
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& job, targetHolder->Jobs()) {
+    FOREACH (const auto* job, targetHolder->Jobs()) {
         if (job->GetChunkId() == chunk->GetId()) {
             // Do not balance to a holder already having a job associated with this chunk.
             return false;
@@ -252,7 +252,7 @@ bool TChunkPlacement::IsValidBalancingTarget(THolder* targetHolder, TChunk* chun
             return false;
         }
 
-        FOREACH (auto& job, sink->Jobs()) {
+        FOREACH (auto* job, sink->Jobs()) {
             if (job->GetChunkId() == chunk->GetId()) {
                 // Do not balance to a holder that is a replication target for the very same chunk.
                 return false;
@@ -264,24 +264,29 @@ bool TChunkPlacement::IsValidBalancingTarget(THolder* targetHolder, TChunk* chun
     return true;
 }
 
-std::vector<TChunkId> TChunkPlacement::GetBalancingChunks(THolder* holder, int count)
+std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(THolder* holder, int count)
 {
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& job, holder->Jobs()) {
+    FOREACH (const auto* job, holder->Jobs()) {
         forbiddenChunkIds.insert(job->GetChunkId());
     }
 
     // Right now we just pick some (not even random!) chunks.
-    std::vector<TChunkId> result;
+    std::vector<TChunk*> result;
     result.reserve(count);
-    FOREACH (auto& chunk, holder->StoredChunks()) {
-        if (static_cast<int>(result.size()) >= count)
+    FOREACH (auto* chunk, holder->StoredChunks()) {
+        if (static_cast<int>(result.size()) >= count) {
             break;
-        if (forbiddenChunkIds.find(chunk->GetId()) == forbiddenChunkIds.end()) {
-            result.push_back(chunk->GetId());
         }
+        if (!chunk->GetMovable()) {
+            continue;
+        }
+        if (forbiddenChunkIds.find(chunk->GetId()) != forbiddenChunkIds.end()) {
+            continue;
+        }
+        result.push_back(chunk);
     }
 
     return result;

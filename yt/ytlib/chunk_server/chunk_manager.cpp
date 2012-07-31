@@ -1211,7 +1211,7 @@ private:
 
         // Use the size reported by the holder, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
-            auto message = Sprintf("Mismatched chunk size reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, Address: %s, HolderId: %d)",
+            auto message = Sprintf("Mismatched chunk info reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~ToString(cached),
                 ~chunk->ChunkInfo().DebugString(),
@@ -1219,7 +1219,7 @@ private:
                 ~holder->GetAddress(),
                 holder->GetId());
             LOG_ERROR("%s", ~message);
-            ythrow NRpc::TServiceException(TError(NRpc::EErrorCode::PoisonPill, message));
+            return;
         }
         chunk->ChunkInfo() = chunkAddInfo.chunk_info();
 
@@ -1640,7 +1640,7 @@ private:
                 ~chunk->ChunkInfo().DebugString(),
                 ~request->chunk_info().DebugString());
         }
-        chunk->ChunkInfo().CopyFrom(request->chunk_info());
+        chunk->ChunkInfo().Swap(request->mutable_chunk_info());
 
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolderByAddresss(address);
@@ -1669,7 +1669,7 @@ private:
             }
         }
 
-        chunk->ChunkMeta().CopyFrom(request->chunk_meta());
+        chunk->ChunkMeta().Swap(request->mutable_chunk_meta());
         LOG_INFO_UNLESS(Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
 
         context->Reply();
@@ -1703,25 +1703,29 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 
     auto* chunk = Owner->CreateChunk();
     chunk->SetReplicationFactor(requestExt->replication_factor());
+    chunk->SetMovable(requestExt->movable());
 
     if (Owner->IsLeader()) {
-        int nodeCount = requestExt->upload_replication_factor();
         auto preferredHostName =
             requestExt->has_preferred_host_name()
             ? TNullable<Stroka>(requestExt->preferred_host_name())
             : Null;
 
-        auto nodes = Owner->AllocateUploadTargets(nodeCount, preferredHostName);
+        auto nodes = Owner->AllocateUploadTargets(
+            requestExt->upload_replication_factor(),
+            preferredHostName);
+
         FOREACH (auto* node, nodes) {
             responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_INFO_UNLESS(Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
+        LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, Movable: %s)",
             ~JoinToString(responseExt->node_addresses()),
             ~chunk->GetId().ToString(),
             ~ToString(preferredHostName),
             requestExt->replication_factor(),
-            requestExt->upload_replication_factor());
+            requestExt->upload_replication_factor(),
+            ~FormatBool(requestExt->movable()));
     }
 
     return chunk->GetId();

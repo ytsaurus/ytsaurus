@@ -103,7 +103,7 @@ private:
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         THolder* sourceHolder,
-        const TChunkId& chunkId,
+        TChunk* chunk,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         THolder* holder,

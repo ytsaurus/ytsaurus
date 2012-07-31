@@ -91,6 +91,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
+    reqExt->set_movable(Config->ChunksMovable);
 
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriterBase::OnChunkCreated, MakeWeak(this))

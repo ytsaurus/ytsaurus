@@ -63,6 +63,7 @@ void TFileChunkOutput::Open()
         reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Config->ReplicationFactor);
+        reqExt->set_movable(Config->ChunkMovable);
 
         auto rsp = objectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {

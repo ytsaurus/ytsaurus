@@ -24,6 +24,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 TChunk::TChunk(const TChunkId& id)
     : TObjectWithIdBase(id)
     , ReplicationFactor_(1)
+    , Movable_(true)
 {
     // Set required proto fields, otherwise #Save would fail.
     ChunkInfo_.set_size(UnknownSize);
@@ -55,6 +56,7 @@ void TChunk::Save(TOutputStream* output) const
     SaveProto(output, ChunkInfo_);
     SaveProto(output, ChunkMeta_);
     ::Save(output, ReplicationFactor_);
+    ::Save(output, Movable_);
     SaveObjectRefs(output, Parents_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
@@ -67,6 +69,7 @@ void TChunk::Load(const TLoadContext& context, TInputStream* input)
     LoadProto(input, ChunkInfo_);
     LoadProto(input, ChunkMeta_);
     ::Load(input, ReplicationFactor_);
+    ::Load(input, Movable_);
     LoadObjectRefs(input, Parents_, context);
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);
@@ -122,11 +125,14 @@ bool TChunk::ValidateChunkInfo(const NChunkHolder::NProto::TChunkInfo& chunkInfo
     if (ChunkInfo_.size() == UnknownSize)
         return true;
 
+    /*
+    Switched off for now.
     if (chunkInfo.has_meta_checksum() && ChunkInfo_.has_meta_checksum() &&
         ChunkInfo_.meta_checksum() != chunkInfo.meta_checksum())
     {
         return false;
     }
+    */
 
     return ChunkInfo_.size() == chunkInfo.size();
 }

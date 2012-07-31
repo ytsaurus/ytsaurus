@@ -213,7 +213,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     std::vector<TJobStartInfo>* jobsToStart)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto* chunk = chunkManager->FindChunk(chunkId);
+    auto chunk = chunkManager->FindChunk(chunkId);
     if (!chunk) {
         LOG_TRACE("Chunk %s we're about to replicate is missing on %s",
             ~chunkId.ToString(),
@@ -283,11 +283,10 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     THolder* sourceHolder,
-    const TChunkId& chunkId,
+    TChunk* chunk,
     std::vector<TJobStartInfo>* jobsToStart)
 {
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto* chunk = chunkManager->GetChunk(chunkId);
+    auto chunkId = chunk->GetId();
 
     if (IsRefreshScheduled(chunkId)) {
         LOG_DEBUG("Chunk %s we're about to balance is scheduled for another refresh",
@@ -389,19 +388,13 @@ void TChunkReplicator::ScheduleNewJobs(
         ChunkPlacement->GetFillCoeff(holder) > Config->ChunkReplicator->MinBalancingFillCoeff)
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
-        if (!chunksToBalance.empty()) {
-            LOG_DEBUG("Balancing chunks [%s] on %s",
-                ~JoinToString(chunksToBalance),
-                ~holder->GetAddress());
-
-            FOREACH (const auto& chunkId, chunksToBalance) {
-                if (maxReplicationJobsToStart == 0) {
-                    break;
-                }
-                auto flags = ScheduleBalancingJob(holder, chunkId, jobsToStart);
-                if (flags & EScheduleFlags::Scheduled) {
-                    --maxReplicationJobsToStart;
-                }
+        FOREACH (auto* chunk, chunksToBalance) {
+            if (maxReplicationJobsToStart == 0) {
+                break;
+            }
+            auto flags = ScheduleBalancingJob(holder, chunk, jobsToStart);
+            if (flags & EScheduleFlags::Scheduled) {
+                --maxReplicationJobsToStart;
             }
         }
     }
@@ -523,7 +516,7 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
         LostChunkIds_.insert(chunkId);
 
         LOG_TRACE("Chunk %s is lost: %d replicas needed but only %s exist",
-            ~chunk->GetId().ToString(),
+            ~chunkId.ToString(),
             replicationFactor,
             ~replicaCountStr);
     } else if (storedCount - minusCount > replicationFactor) {
@@ -532,7 +525,7 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
         // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (plusCount > 0) {
             LOG_WARNING("Chunk %s is over-replicated: %s replicas exist but only %d needed, waiting for pending replications to complete",
-                ~chunk->GetId().ToString(),
+                ~chunkId.ToString(),
                 ~replicaCountStr,
                 replicationFactor);
             return;
@@ -541,7 +534,7 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
         auto holders = ChunkPlacement->GetRemovalTargets(chunk, storedCount - minusCount - replicationFactor);
         FOREACH (auto* holder, holders) {
             auto* holderInfo = GetHolderInfo(holder->GetId());
-            holderInfo->ChunksToRemove.insert(chunk->GetId());
+            holderInfo->ChunksToRemove.insert(chunkId);
         }
 
         std::vector<Stroka> holderAddresses;
@@ -550,7 +543,7 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
         }
 
         LOG_DEBUG("Chunk %s is over-replicated: %s replicas exist but only %d needed, removal is scheduled on [%s]",
-            ~chunk->GetId().ToString(),
+            ~chunkId.ToString(),
             ~replicaCountStr,
             replicationFactor,
             ~JoinToString(holderAddresses));
@@ -560,7 +553,7 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
         // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
         if (minusCount > 0) {
             LOG_WARNING("Chunk %s is under-replicated: %s replicas exist but %d needed, waiting for pending removals to complete",
-                ~chunk->GetId().ToString(),
+                ~chunkId.ToString(),
                 ~replicaCountStr,
                 replicationFactor);
             return;
@@ -569,16 +562,16 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
         auto* holder = ChunkPlacement->GetReplicationSource(chunk);
         auto* holderInfo = GetHolderInfo(holder->GetId());
 
-        holderInfo->ChunksToReplicate.insert(chunk->GetId());
+        holderInfo->ChunksToReplicate.insert(chunkId);
 
         LOG_DEBUG("Chunk %s is under-replicated: %s replicas exist but %d needed, replication is scheduled on %s",
-            ~chunk->GetId().ToString(),
+            ~chunkId.ToString(),
             ~replicaCountStr,
             replicationFactor,
             ~holder->GetAddress());
     } else {
         LOG_TRACE("Chunk %s is OK: %s replicas exist and %d needed",
-            ~chunk->GetId().ToString(),
+            ~chunkId.ToString(),
             ~replicaCountStr,
             replicationFactor);
     }

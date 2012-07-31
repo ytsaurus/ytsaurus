@@ -63,6 +63,8 @@ struct TTableWriterConfig
     int ReplicationFactor;
     int UploadReplicationFactor;
 
+    bool ChunksMovable;
+
     TTableWriterConfig()
     {
         Register("desired_chunk_size", DesiredChunkSize)
@@ -78,6 +80,8 @@ struct TTableWriterConfig
         Register("upload_replication_factor", UploadReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(2);
+        Register("chunks_movable", ChunksMovable)
+            .Default(true);
     }
 
     virtual void DoValidate() const
