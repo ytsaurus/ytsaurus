@@ -60,7 +60,7 @@ class TGzipCodec
 {
 public:
     explicit TGzipCodec(int level)
-        : Compressor_(BIND(&ZlibCompress, level))
+        : Compressor_(BIND(ZlibCompress, level))
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
