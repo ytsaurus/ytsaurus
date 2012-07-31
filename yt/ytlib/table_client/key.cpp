@@ -145,12 +145,12 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk
         i64 nextRowIndex = startRowIndex + rowCount * (i + 1) / count;
         if (lastRowIndex < nextRowIndex) {
             auto slicedChunk = New<TRefCountedInputChunk>(inputChunk);
-            slicedChunk->mutable_slice()->mutable_start_limit()->set_row_index(sliceStartRowIndex);
-            slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(sliceEndRowIndex);
+            slicedChunk->mutable_slice()->mutable_start_limit()->set_row_index(lastRowIndex);
+            slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(nextRowIndex);
             
             // This is merely an approximation.
             slicedChunk->set_data_weight(inputChunk.data_weight() / count + 1);
-            slicedChunk->set_row_count(sliceEndRowIndex - sliceStartRowIndex);
+            slicedChunk->set_row_count(nextRowIndex - lastRowIndex);
          
             result.push_back(slicedChunk);
 
