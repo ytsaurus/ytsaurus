@@ -239,6 +239,8 @@ void TTcpConnection::OnResolved(ev::async&, int)
         return;
     }
 
+    LOG_DEBUG("Address resolved, connecting");
+
     TNetworkAddress netAddress(result.Value(), Port);
     try {
         ConnectSocket(netAddress);
