@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/object_server/public.h>
@@ -58,7 +58,7 @@ private:
     i32 BlockCount;
     NChunkClient::TRemoteWriterPtr Writer;
     NChunkServer::TChunkId ChunkId;
-    ICodec* Codec;
+    TCodecPtr Codec;
     TBlob Buffer;
     NChunkHolder::NProto::TChunkMeta Meta;
 

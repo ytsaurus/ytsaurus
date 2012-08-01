@@ -1,6 +1,8 @@
 ﻿#pragma once
 
-#include "ref.h"
+#include "public.h"
+
+#include <ytlib/misc/ref.h>
 
 namespace NYT {
 
@@ -9,12 +11,18 @@ namespace NYT {
 DECLARE_ENUM(ECodecId,
     ((None)(0))
     ((Snappy)(1))
+    ((GzipNormal)(2))
+    ((GzipBestCompression)(3))
+    ((Lz4)(4))
+    ((Lz4HighCompression)(5))
 );
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A generic interface for compression/decompression.
 struct ICodec
+    : public TRefCounted
 {
     //! Compress a given block.
     virtual TSharedRef Compress(const TSharedRef& block) = 0;
@@ -24,16 +32,14 @@ struct ICodec
 
     //! Decompress a given block.
     virtual TSharedRef Decompress(const TSharedRef& block) = 0;
-
-    virtual ~ICodec() { }
-
 };
+
 
 //! Returns a codec for the registered id.
 /*!
  *  Codec instances are singletons.
  */
-ICodec* GetCodec(ECodecId id);
+TCodecPtr GetCodec(ECodecId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,7 +9,7 @@
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 #include <ytlib/misc/ref.h>
 
 namespace NYT {
@@ -90,7 +90,7 @@ private:
     int NextUnfetchedIndex;
 
     TAsyncStreamState State;
-    ICodec* Codec;
+    TCodecPtr Codec;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };

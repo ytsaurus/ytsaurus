@@ -1,7 +1,11 @@
 #include <ytlib/misc/foreach.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 
 #include <contrib/testing/framework.h>
+
+
+#include <contrib/libs/snappy/snappy.h>
+#include <contrib/libs/snappy/snappy-sinksource.h>
 
 using NYT::TSharedRef;
 using NYT::ECodecId;
@@ -15,7 +19,7 @@ class TCodecTest:
 TEST_F(TCodecTest, Compression)
 {
     FOREACH (const auto& codecId, ECodecId::GetDomainValues()) {
-        auto codec = GetCodec(static_cast<ECodecId>(codecId));
+        auto codec = GetCodec(codecId);
 
         Stroka data = "hello world";
 
@@ -23,15 +27,15 @@ TEST_F(TCodecTest, Compression)
         TSharedRef decompressed = codec->Decompress(compressed);
 
         EXPECT_EQ(
-            Stroka(decompressed.Begin(), decompressed.End()),
-            data);
+            data,
+            Stroka(decompressed.Begin(), decompressed.End()));
     }
 }
 
 TEST_F(TCodecTest, VectorCompression)
 {
     FOREACH (const auto& codecId, ECodecId::GetDomainValues()) {
-        auto codec = GetCodec(static_cast<ECodecId>(codecId));
+        auto codec = GetCodec(codecId);
 
         {
             Stroka data[] = {"", "", "hello", "", " ", "world", "", "", ""};
@@ -58,5 +62,21 @@ TEST_F(TCodecTest, VectorCompression)
             EXPECT_EQ(Stroka(decompressed.Begin(), decompressed.End()), "");
         }
 
+    }
+}
+
+
+TEST_F(TCodecTest, LargeTest) {
+    FOREACH (const auto& codecId, ECodecId::GetDomainValues()) {
+        auto codec = GetCodec(codecId);
+
+        Stroka data(static_cast<int>(1e7), 'a');
+
+        TSharedRef compressed = codec->Compress(TSharedRef::FromString(data));
+        TSharedRef decompressed = codec->Decompress(compressed);
+
+        EXPECT_EQ(
+            data,
+            Stroka(decompressed.Begin(), decompressed.End()));
     }
 }

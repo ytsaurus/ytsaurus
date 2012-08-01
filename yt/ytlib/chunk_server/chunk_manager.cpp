@@ -21,7 +21,7 @@
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/codec.h>
 
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 

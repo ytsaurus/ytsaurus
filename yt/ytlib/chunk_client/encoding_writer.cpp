@@ -154,6 +154,10 @@ TAsyncError TEncodingWriter::AsyncFlush()
 }
 
 
+TEncodingWriter::~TEncodingWriter()
+{ }
+
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

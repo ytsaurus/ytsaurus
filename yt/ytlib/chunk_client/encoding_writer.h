@@ -3,9 +3,10 @@
 #include "public.h"
 
 #include <ytlib/actions/callback.h>
+#include <ytlib/misc/ref.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/misc/codec.h>
+#include <ytlib/codecs/public.h>
 
 #include <util/thread/lfqueue.h>
 
@@ -33,12 +34,14 @@ public:
     // Future is set when all block get written to underlying writer.
     TAsyncError AsyncFlush();
 
+    ~TEncodingWriter();
+
 private:
     TEncodingWriterConfigPtr Config;
     IAsyncWriterPtr AsyncWriter;
 
     TAsyncSemaphore Semaphore;
-    ICodec* Codec;
+    TCodecPtr Codec;
 
     TAsyncStreamState State;
 
