@@ -49,19 +49,19 @@ public:
      *  Initial lease timeout for registered nodes is #TChunkManagerConfig::RegisteredNodeTimeout.
      *  For online nodes it is decreased to #TChunkManagerConfig::OnlineNodeTimeout.
      */
-    void OnNodeRegistered(const THolder* node, bool recovery);
+    void OnNodeRegistered(const TDataNode* node, bool recovery);
 
     //! Notifies that the node has become online and hence its lease timeout must be updated.
-    void OnNodeOnline(const THolder* node, bool recovery);
+    void OnNodeOnline(const TDataNode* node, bool recovery);
 
     //! Renews the lease.
-    void OnNodeHeartbeat(const THolder* node);
+    void OnNodeHeartbeat(const TDataNode* node);
 
     //! Unregisters the node and stop tracking its lease.
-    void OnNodeUnregistered(const THolder* node);
+    void OnNodeUnregistered(const TDataNode* node);
 
     //! Returns True iff the node is confirmed.
-    bool IsNodeConfirmed(const THolder* node);
+    bool IsNodeConfirmed(const TDataNode* node);
 
     //! Returns the number of nodes that are currently online (including unconfirmed).
     int GetOnlineNodeCount();
@@ -87,8 +87,8 @@ private:
 
     TNodeInfo* FindNodeInfo(TNodeId nodeId);
     TNodeInfo& GetNodeInfo(TNodeId nodeId);
-    void RenewLease(const THolder* node, const TNodeInfo& nodeInfo);
-    TDuration GetTimeout(const THolder* node, const TNodeInfo& nodeInfo);
+    void RenewLease(const TDataNode* node, const TNodeInfo& nodeInfo);
+    TDuration GetTimeout(const TDataNode* node, const TNodeInfo& nodeInfo);
 
     void OnExpired(TNodeId nodeId);
 

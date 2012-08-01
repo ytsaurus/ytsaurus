@@ -25,7 +25,7 @@
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/chunk_server/chunk_service.h>
 #include <ytlib/chunk_server/cypress_integration.h>
-#include <ytlib/chunk_server/holder_authority.h>
+#include <ytlib/chunk_server/node_authority.h>
 
 #include <ytlib/monitoring/monitoring_manager.h>
 #include <ytlib/monitoring/ytree_integration.h>

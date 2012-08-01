@@ -14,8 +14,7 @@ class TChunkService
     : public NCellMaster::TMetaStateServiceBase
 {
 public:
-    //! Creates an instance.
-    TChunkService(NCellMaster::TBootstrap* bootstrap);
+    explicit TChunkService(NCellMaster::TBootstrap* bootstrap);
 
 private:
     typedef TChunkService TThis;

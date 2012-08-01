@@ -51,7 +51,7 @@ public:
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
-    DECLARE_METAMAP_ACCESSORS(Node, THolder, TNodeId);
+    DECLARE_METAMAP_ACCESSORS(Node, TDataNode, TNodeId);
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
     DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
@@ -60,23 +60,23 @@ public:
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_SIGNAL(void(const THolder*), NodeRegistered);
+    DECLARE_SIGNAL(void(const TDataNode*), NodeRegistered);
     //! Fired when a node gets unregistered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_SIGNAL(void(const THolder*), NodeUnregistered);
+    DECLARE_SIGNAL(void(const TDataNode*), NodeUnregistered);
 
     //! Returns a node registered at the given address (|NULL| if none).
-    THolder* FindNodeByAddress(const Stroka& address);
+    TDataNode* FindNodeByAddress(const Stroka& address);
 
     //! Returns an arbitrary node registered at the host (|NULL| if none).
-    THolder* FindNodeByHostName(const Stroka& hostName);
+    TDataNode* FindNodeByHostName(const Stroka& hostName);
 
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
-    std::vector<THolder*> AllocateUploadTargets(
+    std::vector<TDataNode*> AllocateUploadTargets(
         int nodeCount,
         TNullable<Stroka> preferredHostName);
 
@@ -101,7 +101,7 @@ public:
     void ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef);
 
     void ScheduleJobs(
-        THolder* node,
+        TDataNode* node,
         const std::vector<NProto::TJobInfo>& runningJobs,
         std::vector<NProto::TJobStartInfo>* jobsToStart,
         std::vector<NProto::TJobStopInfo>* jobsToStop);
@@ -122,7 +122,7 @@ public:
 
     TTotalNodeStatistics GetTotalNodeStatistics();
 
-    bool IsNodeConfirmed(const THolder* node);
+    bool IsNodeConfirmed(const TDataNode* node);
 
     //! Returns the total number of all chunk replicas.
     i32 GetChunkReplicaCount();

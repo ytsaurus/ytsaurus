@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
-#include "holder.h"
-#include "holder_statistics.h"
+#include "node.h"
+#include "node_statistics.h"
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/misc/string.h>
@@ -11,7 +11,7 @@
 #include <ytlib/cypress_server/node_proxy_detail.h>
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_manager.h>
-#include <ytlib/chunk_server/holder_authority.h>
+#include <ytlib/chunk_server/node_authority.h>
 #include <ytlib/orchid/cypress_integration.h>
 #include <ytlib/cell_master/bootstrap.h>
 
@@ -251,7 +251,7 @@ public:
     { }
 
 private:
-    THolder* GetNode() const
+    TDataNode* GetNode() const
     {
         auto address = GetParent()->AsMap()->GetChildKey(this);
         return Bootstrap->GetChunkManager()->FindNodeByAddress(address);
@@ -387,7 +387,7 @@ public:
     }
 
 private:
-    void OnRegistered(const THolder* node)
+    void OnRegistered(const TDataNode* node)
     {
         Stroka address = node->GetAddress();
         auto proxy = GetProxy();
@@ -427,11 +427,11 @@ private:
 
 };
 
-class THolderMapProxy
+class TNodeMapProxy
     : public TMapNodeProxy
 {
 public:
-    THolderMapProxy(
+    TNodeMapProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
@@ -477,9 +477,9 @@ private:
         if (name == "registered" || name == "online") {
             auto state = name == "registered" ? ENodeState::Registered : ENodeState::Online;
             BuildYsonFluently(consumer)
-                .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, THolder* holder) {
-                    if (holder->GetState() == state) {
-                        fluent.Item().Scalar(holder->GetAddress());
+                .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
+                    if (node->GetState() == state) {
+                        fluent.Item().Scalar(node->GetAddress());
                     }
                 });
             return true;
@@ -488,9 +488,9 @@ private:
         if (name == "unconfirmed" || name == "confirmed") {
             bool state = name == "confirmed";
             BuildYsonFluently(consumer)
-                .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, THolder* holder) {
-                    if (chunkManager->IsNodeConfirmed(holder) == state) {
-                        fluent.Item().Scalar(holder->GetAddress());
+                .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
+                    if (chunkManager->IsNodeConfirmed(node) == state) {
+                        fluent.Item().Scalar(node->GetAddress());
                     }
                 });
             return true;
@@ -537,11 +537,11 @@ private:
     }
 };
 
-class THolderMapTypeHandler
+class TNodeMapTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    explicit THolderMapTypeHandler(TBootstrap* bootstrap)
+    explicit TNodeMapTypeHandler(TBootstrap* bootstrap)
         : TMapNodeTypeHandler(bootstrap)
     { }
 
@@ -554,7 +554,7 @@ public:
         const NCypressServer::TNodeId& nodeId,
         TTransaction* transaction)
     {
-        return New<THolderMapProxy>(
+        return New<TNodeMapProxy>(
             this,
             Bootstrap,
             transaction,
@@ -571,7 +571,7 @@ INodeTypeHandlerPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
-    return New<THolderMapTypeHandler>(bootstrap);
+    return New<TNodeMapTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

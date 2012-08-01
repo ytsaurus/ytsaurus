@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "chunk_placement.h"
-#include "holder.h"
+#include "node.h"
 #include "chunk.h"
 #include "job.h"
 #include "job_list.h"
@@ -33,85 +33,85 @@ TChunkPlacement::TChunkPlacement(
     YASSERT(bootstrap);
 }
 
-void TChunkPlacement::OnNodeRegistered(THolder* holder)
+void TChunkPlacement::OnNodeRegistered(TDataNode* node)
 {
-    double loadFactor = GetLoadFactor(holder);
-    auto it = LoadFactorMap.insert(MakePair(loadFactor, holder));
-    YCHECK(IteratorMap.insert(MakePair(holder, it)).second);
-    YCHECK(HintedSessionsMap.insert(MakePair(holder, 0)).second);
+    double loadFactor = GetLoadFactor(node);
+    auto it = LoadFactorMap.insert(MakePair(loadFactor, node));
+    YCHECK(IteratorMap.insert(MakePair(node, it)).second);
+    YCHECK(HintedSessionsMap.insert(MakePair(node, 0)).second);
 }
 
-void TChunkPlacement::OnNodeUnregistered(THolder* holder)
+void TChunkPlacement::OnNodeUnregistered(TDataNode* node)
 {
-    auto iteratorIt = IteratorMap.find(holder);
+    auto iteratorIt = IteratorMap.find(node);
     YASSERT(iteratorIt != IteratorMap.end());
     auto preferenceIt = iteratorIt->second;
     LoadFactorMap.erase(preferenceIt);
     IteratorMap.erase(iteratorIt);
-    YCHECK(HintedSessionsMap.erase(holder) == 1);
+    YCHECK(HintedSessionsMap.erase(node) == 1);
 }
 
-void TChunkPlacement::OnNodeUpdated(THolder* holder)
+void TChunkPlacement::OnNodeUpdated(TDataNode* node)
 {
-    OnNodeUnregistered(holder);
-    OnNodeRegistered(holder);
+    OnNodeUnregistered(node);
+    OnNodeRegistered(node);
 }
 
-void TChunkPlacement::OnSessionHinted(THolder* holder)
+void TChunkPlacement::OnSessionHinted(TDataNode* node)
 {
-    ++HintedSessionsMap[holder];
+    ++HintedSessionsMap[node];
 }
 
-std::vector<THolder*> TChunkPlacement::GetUploadTargets(
+std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
     int count,
     const yhash_set<Stroka>* forbiddenAddresses,
     Stroka* preferredHostName)
 {
     // TODO: check replication fan-in in case this is a replication job
 
-    std::vector<THolder*> resultHolders;
-    resultHolders.reserve(count);
+    std::vector<TDataNode*> resultNodes;
+    resultNodes.reserve(count);
 
-    std::vector<THolder*> feasibleHolders;
-    feasibleHolders.reserve(LoadFactorMap.size());
+    std::vector<TDataNode*> feasibleNodes;
+    feasibleNodes.reserve(LoadFactorMap.size());
 
-    THolder* preferredHolder = NULL;
+    TDataNode* preferredNode = NULL;
 
     auto chunkManager = Bootstrap->GetChunkManager();
 
-    // Look for preferred holder first.
+    // Look for preferred node first.
     if (preferredHostName) {
-        preferredHolder = chunkManager->FindNodeByHostName(*preferredHostName);
-        if (preferredHolder && IsValidUploadTarget(preferredHolder)) {
-            resultHolders.push_back(preferredHolder);
+        preferredNode = chunkManager->FindNodeByHostName(*preferredHostName);
+        if (preferredNode && IsValidUploadTarget(preferredNode)) {
+            resultNodes.push_back(preferredNode);
             --count;
         }
     }
 
-    // Put other feasible holders in |feasibleHolders|.
+    // Put other feasible nodes to feasibleNodes.
     FOREACH (auto& pair, LoadFactorMap) {
-        auto* holder = pair.second;
-        if (holder != preferredHolder &&
-            IsValidUploadTarget(holder) &&
-            (!forbiddenAddresses || forbiddenAddresses->find(holder->GetAddress()) == forbiddenAddresses->end()))
+        auto* node = pair.second;
+        if (node != preferredNode &&
+            IsValidUploadTarget(node) &&
+            (!forbiddenAddresses || forbiddenAddresses->find(node->GetAddress()) == forbiddenAddresses->end()))
         {
-            feasibleHolders.push_back(holder);
+            feasibleNodes.push_back(node);
         }
     }
 
-    // Take a sample from |feasibleHolders|.
+    // Take a sample from feasibleNodes.
     std::sort(
-        feasibleHolders.begin(),
-        feasibleHolders.end(),
-        [=] (THolder* lhs, THolder* rhs) {
+        feasibleNodes.begin(),
+        feasibleNodes.end(),
+        [=] (TDataNode* lhs, TDataNode* rhs) {
             return GetSessionCount(lhs) < GetSessionCount(rhs);
         });
 
-    auto beginGroupIt = feasibleHolders.begin();
-    while (beginGroupIt != feasibleHolders.end() && count > 0) {
+    auto beginGroupIt = feasibleNodes.begin();
+    while (beginGroupIt != feasibleNodes.end() && count > 0) {
         auto endGroupIt = beginGroupIt;
         int groupSize = 0;
-        while (endGroupIt != feasibleHolders.end() && GetSessionCount(*beginGroupIt) == GetSessionCount(*endGroupIt)) {
+        while (endGroupIt != feasibleNodes.end() && GetSessionCount(*beginGroupIt) == GetSessionCount(*endGroupIt)) {
             ++endGroupIt;
             ++groupSize;
         }
@@ -120,24 +120,24 @@ std::vector<THolder*> TChunkPlacement::GetUploadTargets(
         RandomSampleN(
             beginGroupIt,
             endGroupIt,
-            std::back_inserter(resultHolders),
+            std::back_inserter(resultNodes),
             sampleCount);
 
         beginGroupIt = endGroupIt;
         count -= sampleCount;
     }
 
-    return resultHolders;
+    return resultNodes;
 }
 
-std::vector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk* chunk, int count)
+std::vector<TDataNode*> TChunkPlacement::GetReplicationTargets(const TChunk* chunk, int count)
 {
     yhash_set<Stroka> forbiddenAddresses;
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto nodeId, chunk->StoredLocations()) {
-        const auto* holder = chunkManager->GetNode(nodeId);
-        forbiddenAddresses.insert(holder->GetAddress());
+        const auto* node = chunkManager->GetNode(nodeId);
+        forbiddenAddresses.insert(node->GetAddress());
     }
 
     const auto* jobList = chunkManager->FindJobList(chunk->GetId());
@@ -152,7 +152,7 @@ std::vector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk* chunk
     return GetUploadTargets(count, &forbiddenAddresses, NULL);
 }
 
-THolder* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
+TDataNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
 {
     // Right now we are just picking a random location (including cached ones).
     const auto& locations = chunk->GetLocations();
@@ -161,17 +161,17 @@ THolder* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
     return Bootstrap->GetChunkManager()->GetNode(locations[index]);
 }
 
-std::vector<THolder*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, int count)
+std::vector<TDataNode*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, int count)
 {
     // Construct a list of (nodeId, loadFactor) pairs.
-    typedef TPair<THolder*, double> TCandidatePair;
+    typedef TPair<TDataNode*, double> TCandidatePair;
     std::vector<TCandidatePair> candidates;
     auto chunkManager = Bootstrap->GetChunkManager();
     candidates.reserve(chunk->StoredLocations().size());
     FOREACH (auto nodeId, chunk->StoredLocations()) {
-        auto* holder = chunkManager->GetNode(nodeId);
-        double loadFactor = GetLoadFactor(holder);
-        candidates.push_back(MakePair(holder, loadFactor));
+        auto* node = chunkManager->GetNode(nodeId);
+        double loadFactor = GetLoadFactor(node);
+        candidates.push_back(MakePair(node, loadFactor));
     }
 
     // Sort by loadFactor in descending order.
@@ -182,8 +182,8 @@ std::vector<THolder*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, in
             return lhs.second > rhs.second;
         });
 
-    // Take first count holders.
-    std::vector<THolder*> result;
+    // Take first count nodes.
+    std::vector<TDataNode*> result;
     result.reserve(count);
     FOREACH (const auto& pair, candidates) {
         if (static_cast<int>(result.size()) >= count) {
@@ -194,30 +194,30 @@ std::vector<THolder*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, in
     return result;
 }
 
-THolder* TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoeff)
+TDataNode* TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoeff)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& pair, LoadFactorMap) {
-        auto holder = pair.second;
-        if (GetFillCoeff(holder) > maxFillCoeff) {
+        auto node = pair.second;
+        if (GetFillCoeff(node) > maxFillCoeff) {
             break;
         }
-        if (IsValidBalancingTarget(holder, chunk)) {
-            return holder;
+        if (IsValidBalancingTarget(node, chunk)) {
+            return node;
         }
     }
     return NULL;
 }
 
-bool TChunkPlacement::IsValidUploadTarget(THolder* tarGetNode) const
+bool TChunkPlacement::IsValidUploadTarget(TDataNode* targetNode) const
 {
-    if (tarGetNode->GetState() != ENodeState::Online) {
-        // Do not upload anything to holders before first heartbeat.
+    if (targetNode->GetState() != ENodeState::Online) {
+        // Do not upload anything to nodes before first heartbeat.
         return false;
     }
 
-    if (IsFull(tarGetNode)) {
-        // Do not upload anything to full holders.
+    if (IsFull(targetNode)) {
+        // Do not upload anything to full nodes.
         return false;
     }
             
@@ -225,36 +225,36 @@ bool TChunkPlacement::IsValidUploadTarget(THolder* tarGetNode) const
     return true;
 }
 
-bool TChunkPlacement::IsValidBalancingTarget(THolder* targetNode, TChunk* chunk) const
+bool TChunkPlacement::IsValidBalancingTarget(TDataNode* targetNode, TChunk* chunk) const
 {
-    if (!IsValidUploadTarget(tarGetNode)) {
+    if (!IsValidUploadTarget(targetNode)) {
         // Balancing implies upload, after all.
         return false;
     }
 
-    if (targetNode->StoredChunks().find(chunk) != tarGetNode->StoredChunks().end())  {
-        // Do not balance to a holder already having the chunk.
+    if (targetNode->StoredChunks().find(chunk) != targetNode->StoredChunks().end())  {
+        // Do not balance to a node already having the chunk.
         return false;
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto* job, targetNode->Jobs()) {
         if (job->GetChunkId() == chunk->GetId()) {
-            // Do not balance to a holder already having a job associated with this chunk.
+            // Do not balance to a node already having a job associated with this chunk.
             return false;
         }
     }
 
-    auto* sink = chunkManager->FindReplicationSink(tarGetNode->GetAddress());
+    auto* sink = chunkManager->FindReplicationSink(targetNode->GetAddress());
     if (sink) {
         if (static_cast<int>(sink->Jobs().size()) >= Config->ChunkReplicator->MaxReplicationFanIn) {
-            // Do not balance to a holder with too many incoming replication jobs.
+            // Do not balance to a node with too many incoming replication jobs.
             return false;
         }
 
         FOREACH (auto* job, sink->Jobs()) {
             if (job->GetChunkId() == chunk->GetId()) {
-                // Do not balance to a holder that is a replication target for the very same chunk.
+                // Do not balance to a node that is a replication target for the very same chunk.
                 return false;
             }
         }
@@ -264,7 +264,7 @@ bool TChunkPlacement::IsValidBalancingTarget(THolder* targetNode, TChunk* chunk)
     return true;
 }
 
-std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(THolder* holder, int count)
+std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(TDataNode* node, int count)
 {
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
@@ -292,31 +292,31 @@ std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(THolder* holder, int co
     return result;
 }
 
-int TChunkPlacement::GetSessionCount(THolder* holder) const
+int TChunkPlacement::GetSessionCount(TDataNode* node) const
 {
-    auto hintIt = HintedSessionsMap.find(holder);
+    auto hintIt = HintedSessionsMap.find(node);
     return hintIt == HintedSessionsMap.end() ? 0 : hintIt->second;
 }
 
-double TChunkPlacement::GetLoadFactor(THolder* holder) const
+double TChunkPlacement::GetLoadFactor(TDataNode* node) const
 {
-    const auto& statistics = holder->Statistics();
+    const auto& statistics = node->Statistics();
     return
-        GetFillCoeff(holder) +
-        Config->ActiveSessionsPenalityCoeff * (statistics.session_count() + GetSessionCount(holder));
+        GetFillCoeff(node) +
+        Config->ActiveSessionsPenalityCoeff * (statistics.session_count() + GetSessionCount(node));
 }
 
-double TChunkPlacement::GetFillCoeff(THolder* holder) const
+double TChunkPlacement::GetFillCoeff(TDataNode* node) const
 {
-    const auto& statistics = holder->Statistics();
+    const auto& statistics = node->Statistics();
     return
         (1.0 + statistics.used_space()) /
         (1.0 + statistics.used_space() + statistics.available_space());
 }
 
-bool TChunkPlacement::IsFull(THolder* holder) const
+bool TChunkPlacement::IsFull(TDataNode* node) const
 {
-    return holder->Statistics().full();
+    return node->Statistics().full();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

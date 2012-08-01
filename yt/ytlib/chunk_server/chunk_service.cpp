@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "chunk_service.h"
-#include "holder_statistics.h"
-#include "holder.h"
-#include "holder_authority.h"
+#include "node_statistics.h"
+#include "node.h"
+#include "node_authority.h"
 
 #include <ytlib/misc/string.h>
 
@@ -59,7 +59,7 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
  void TChunkService::ValidateNodeId(TNodeId nodeId)
 {
     if (!Bootstrap->GetChunkManager()->FindNode(nodeId)) {
-        ythrow TServiceException(EErrorCode::NoSuchHolder) <<
+        ythrow TServiceException(EErrorCode::NoSuchNode) <<
             Sprintf("Invalid or expired node id %d", nodeId);
     }
 }
@@ -130,14 +130,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
     ValidateNodeId(nodeId);
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto* holder = chunkManager->GetNode(nodeId);
-    if (holder->GetState() != ENodeState::Registered) {
+    const auto* node = chunkManager->GetNode(nodeId);
+    if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
             EErrorCode::InvalidState,
-            Sprintf("Cannot process a full heartbeat in %s state", ~holder->GetState().ToString())));
+            Sprintf("Cannot process a full heartbeat in %s state", ~node->GetState().ToString())));
         return;
     }
-    CheckAuthorization(holder->GetAddress());
+    CheckAuthorization(node->GetAddress());
 
     chunkManager
         ->CreateFullHeartbeatMutation(context)
@@ -155,14 +155,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     ValidateNodeId(nodeId);
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto* holder = chunkManager->GetNode(nodeId);
-    if (holder->GetState() != ENodeState::Online) {
+    auto* node = chunkManager->GetNode(nodeId);
+    if (node->GetState() != ENodeState::Online) {
         context->Reply(TError(
             EErrorCode::InvalidState,
-            Sprintf("Cannot process an incremental heartbeat in %s state", ~holder->GetState().ToString())));
+            Sprintf("Cannot process an incremental heartbeat in %s state", ~node->GetState().ToString())));
         return;
     }
-    CheckAuthorization(holder->GetAddress());
+    CheckAuthorization(node->GetAddress());
 
     TMetaReqIncrementalHeartbeat heartbeatReq;
     heartbeatReq.set_node_id(nodeId);
@@ -178,7 +178,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     std::vector<TJobStartInfo> jobsToStart;
     std::vector<TJobStopInfo> jobsToStop;
     chunkManager->ScheduleJobs(
-        holder,
+        node,
         runningJobs,
         &jobsToStart,
         &jobsToStop);
@@ -218,8 +218,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
 void TChunkService::CheckAuthorization(const Stroka& address) const
 {
-    auto holderAuthority = Bootstrap->GetNodeAuthority();
-    if (!holderAuthority->IsAuthorized(address)) {
+    auto nodeAuthority = Bootstrap->GetNodeAuthority();
+    if (!nodeAuthority->IsAuthorized(address)) {
         ythrow TServiceException(TError(
             EErrorCode::NotAuthorized,
             Sprintf("Node %s is not authorized", ~address)));

@@ -1,7 +1,7 @@
 #include "stdafx.h"
-#include "holder_lease_tracker.h"
+#include "node_lease_tracker.h"
 #include "chunk_manager.h"
-#include "holder.h"
+#include "node.h"
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -31,7 +31,7 @@ TNodeLeaseTracker::TNodeLeaseTracker(
     YASSERT(bootstrap);
 }
 
-void TNodeLeaseTracker::OnNodeRegistered(const THolder* node, bool recovery)
+void TNodeLeaseTracker::OnNodeRegistered(const TDataNode* node, bool recovery)
 {
     TNodeInfo nodeInfo;
     nodeInfo.Confirmed = !recovery;
@@ -47,7 +47,7 @@ void TNodeLeaseTracker::OnNodeRegistered(const THolder* node, bool recovery)
     YCHECK(HolderInfoMap.insert(MakePair(node->GetId(), holderInfo)).second);
 }
 
-void TNodeLeaseTracker::OnNodeOnline(const THolder* node, bool recovery)
+void TNodeLeaseTracker::OnNodeOnline(const TDataNode* node, bool recovery)
 {
     auto& nodeInfo = GetNodeInfo(node->GetId());
     nodeInfo.Confirmed = !recovery;
@@ -56,7 +56,7 @@ void TNodeLeaseTracker::OnNodeOnline(const THolder* node, bool recovery)
     ++OnlineNodeCount;
 }
 
-void TNodeLeaseTracker::OnNodeUnregistered(const THolder* node)
+void TNodeLeaseTracker::OnNodeUnregistered(const TDataNode* node)
 {
     auto nodeId = node->GetId();
     auto& nodeInfo = GetNodeInfo(nodeId);
@@ -67,14 +67,14 @@ void TNodeLeaseTracker::OnNodeUnregistered(const THolder* node)
     }
 }
 
-void TNodeLeaseTracker::OnNodeHeartbeat(const THolder* node)
+void TNodeLeaseTracker::OnNodeHeartbeat(const TDataNode* node)
 {
     auto& nodeInfo = GetNodeInfo(node->GetId());
     nodeInfo.Confirmed = true;
     RenewLease(node, nodeInfo);
 }
 
-bool TNodeLeaseTracker::IsNodeConfirmed(const THolder* node)
+bool TNodeLeaseTracker::IsNodeConfirmed(const TDataNode* node)
 {
     const auto& nodeInfo = GetNodeInfo(node->GetId());
     return nodeInfo.Confirmed;
@@ -111,7 +111,7 @@ void TNodeLeaseTracker::OnExpired(TNodeId nodeId)
         ->Commit();
 }
 
-TDuration TNodeLeaseTracker::GetTimeout(const THolder* node, const TNodeInfo& nodeInfo)
+TDuration TNodeLeaseTracker::GetTimeout(const TDataNode* node, const TNodeInfo& nodeInfo)
 {
     if (!nodeInfo.Confirmed) {
         return Config->UnconfirmedNodeTimeout;
@@ -122,7 +122,7 @@ TDuration TNodeLeaseTracker::GetTimeout(const THolder* node, const TNodeInfo& no
     }
 }
 
-void TNodeLeaseTracker::RenewLease(const THolder* node, const TNodeInfo& nodeInfo)
+void TNodeLeaseTracker::RenewLease(const TDataNode* node, const TNodeInfo& nodeInfo)
 {
     TLeaseManager::RenewLease(
         nodeInfo.Lease,

@@ -20,7 +20,7 @@ DECLARE_ENUM(ENodeState,
     (Online)
 );
 
-class THolder
+class TDataNode
 {
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
@@ -33,12 +33,12 @@ class THolder
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJob*>, Jobs);
 
 public:
-    THolder(
+    TDataNode(
         TNodeId id,
         const Stroka& address,
         const TIncarnationId& incarnationId);
 
-    explicit THolder(TNodeId id);
+    explicit TDataNode(TNodeId id);
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

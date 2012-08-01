@@ -12,7 +12,7 @@ class TChunk;
 class TChunkList;
 class TJob;
 class TJobList;
-class THolder;
+class TDataNode;
 class TReplicationSink;
 
 struct TChunkTreeStatistics;

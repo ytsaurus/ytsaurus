@@ -24,14 +24,14 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement,
-        TNodeLeaseTrackerPtr holderLeaseTracker);
+        TNodeLeaseTrackerPtr nodeLeaseTracker);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, OverreplicatedChunkIds);
 
-    void OnNodeRegistered(const THolder* holder);
-    void OnNodeUnregistered(const THolder* holder);
+    void OnNodeRegistered(const TDataNode* node);
+    void OnNodeUnregistered(const TDataNode* node);
 
     void OnChunkRemoved(const TChunk* chunk);
 
@@ -39,10 +39,10 @@ public:
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
 
-    void ScheduleChunkRemoval(const THolder* holder, const TChunkId& chunkId);
+    void ScheduleChunkRemoval(const TDataNode* node, const TChunkId& chunkId);
 
     void ScheduleJobs(
-        THolder* holder,
+        TDataNode* node,
         const std::vector<NProto::TJobInfo>& runningJobs,
         std::vector<NProto::TJobStartInfo>* jobsToStart,
         std::vector<NProto::TJobStopInfo>* jobsToStop);
@@ -53,7 +53,7 @@ private:
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
     TChunkPlacementPtr ChunkPlacement;
-    TNodeLeaseTrackerPtr HolderLeaseTracker;
+    TNodeLeaseTrackerPtr NodeLeaseTracker;
 
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
@@ -69,21 +69,21 @@ private:
     yhash_set<TChunkId> RefreshSet;
     std::deque<TRefreshEntry> RefreshList;
 
-    struct THolderInfo
+    struct TNodeInfo
     {
         typedef yhash_set<TChunkId> TChunkIds;
         TChunkIds ChunksToReplicate;
         TChunkIds ChunksToRemove;
     };
 
-    typedef yhash_map<TNodeId, THolderInfo> THolderInfoMap;
-    THolderInfoMap HolderInfoMap;
+    typedef yhash_map<TNodeId, TNodeInfo> TNodeInfoMap;
+    TNodeInfoMap NodeInfoMap;
 
-    THolderInfo* FindNodeInfo(TNodeId nodeId);
-    THolderInfo* GetNodeInfo(TNodeId nodeId);
+    TNodeInfo* FindNodeInfo(TNodeId nodeId);
+    TNodeInfo* GetNodeInfo(TNodeId nodeId);
 
     void ProcessExistingJobs(
-        const THolder* holder,
+        const TDataNode* node,
         const std::vector<NProto::TJobInfo>& runningJobs,
         std::vector<NProto::TJobStopInfo>* jobsToStop,
         int* replicationJobCount,
@@ -98,19 +98,19 @@ private:
     );
 
     EScheduleFlags ScheduleReplicationJob(
-        THolder* sourceHolder,
+        TDataNode* sourceNode,
         const TChunkId& chunkId,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
-        THolder* sourceHolder,
-        TChunk* chunk,
+        TDataNode* sourceNode,
+        const TChunkId& chunkId,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
-        THolder* holder,
+        TDataNode* node,
         const TChunkId& chunkId,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     void ScheduleNewJobs(
-        THolder* holder,
+        TDataNode* node,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
         std::vector<NProto::TJobStartInfo>* jobsToStart);

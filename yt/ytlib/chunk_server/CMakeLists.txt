@@ -13,10 +13,10 @@ set( SRCS
   ${BASE}/chunk_tree_statistics.cpp
   ${BASE}/common.cpp
   ${BASE}/cypress_integration.cpp
-  ${BASE}/holder.cpp
-  ${BASE}/holder_authority.cpp
-  ${BASE}/holder_lease_tracker.cpp
-  ${BASE}/holder_statistics.cpp
+  ${BASE}/node.cpp
+  ${BASE}/node_authority.cpp
+  ${BASE}/node_lease_tracker.cpp
+  ${BASE}/node_statistics.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
   ${BASE}/public.cpp
@@ -38,10 +38,10 @@ set( HDRS
   ${BASE}/common.h
   ${BASE}/config.h
   ${BASE}/cypress_integration.h
-  ${BASE}/holder.h
-  ${BASE}/holder_authority.h
-  ${BASE}/holder_lease_tracker.h
-  ${BASE}/holder_statistics.h
+  ${BASE}/node.h
+  ${BASE}/node_authority.h
+  ${BASE}/node_lease_tracker.h
+  ${BASE}/node_statistics.h
   ${BASE}/job.h
   ${BASE}/job_list.h
   ${BASE}/public.h

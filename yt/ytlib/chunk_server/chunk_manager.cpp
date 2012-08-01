@@ -1,18 +1,18 @@
 #include "stdafx.h"
 #include "chunk_manager.h"
 #include "config.h"
-#include "holder.h"
+#include "node.h"
 #include "chunk.h"
 #include "chunk_list.h"
 #include "job.h"
 #include "job_list.h"
 #include "chunk_placement.h"
 #include "chunk_replicator.h"
-#include "holder_lease_tracker.h"
-#include "holder_statistics.h"
+#include "node_lease_tracker.h"
+#include "node_statistics.h"
 #include "chunk_service_proxy.h"
-#include "holder_authority.h"
-#include "holder_statistics.h"
+#include "node_authority.h"
+#include "node_statistics.h"
 #include "chunk_tree_balancer.h"
 
 #include <ytlib/misc/foreach.h>
@@ -229,21 +229,21 @@ public:
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
-    DECLARE_METAMAP_ACCESSORS(Node, THolder, TNodeId);
+    DECLARE_METAMAP_ACCESSORS(Node, TDataNode, TNodeId);
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
     DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
-    DEFINE_SIGNAL(void(const THolder*), NodeRegistered);
-    DEFINE_SIGNAL(void(const THolder*), NodeUnregistered);
+    DEFINE_SIGNAL(void(const TDataNode*), NodeRegistered);
+    DEFINE_SIGNAL(void(const TDataNode*), NodeUnregistered);
 
 
-    THolder* FindNodeByAddresss(const Stroka& address)
+    TDataNode* FindNodeByAddresss(const Stroka& address)
     {
         auto it = NodeAddressMap.find(address);
         return it == NodeAddressMap.end() ? NULL : it->second;
     }
 
-    THolder* FindNodeByHostName(const Stroka& hostName)
+    TDataNode* FindNodeByHostName(const Stroka& hostName)
     {
         auto it = NodeHostNameMap.find(hostName);
         return it == NodeAddressMap.end() ? NULL : it->second;
@@ -255,7 +255,7 @@ public:
         return it == ReplicationSinkMap.end() ? NULL : &it->second;
     }
 
-    std::vector<THolder*> AllocateUploadTargets(
+    std::vector<TDataNode*> AllocateUploadTargets(
         int nodeCount,
         TNullable<Stroka> preferredHostName)
     {
@@ -411,7 +411,7 @@ public:
 
 
     void ScheduleJobs(
-        THolder* node,
+        TDataNode* node,
         const std::vector<TJobInfo>& runningJobs,
         std::vector<TJobStartInfo>* jobsToStart,
         std::vector<TJobStopInfo>* jobsToStop)
@@ -460,7 +460,7 @@ public:
         return result;
     }
 
-    bool IsNodeConfirmed(const THolder* node)
+    bool IsNodeConfirmed(const TDataNode* node)
     {
         return NodeLeaseTracker->IsNodeConfirmed(node);
     }
@@ -527,9 +527,9 @@ private:
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
 
-    TMetaStateMap<TNodeId, THolder> NodeMap;
-    yhash_map<Stroka, THolder*> NodeAddressMap;
-    yhash_multimap<Stroka, THolder*> NodeHostNameMap;
+    TMetaStateMap<TNodeId, TDataNode> NodeMap;
+    yhash_map<Stroka, TDataNode*> NodeAddressMap;
+    yhash_multimap<Stroka, TDataNode*> NodeHostNameMap;
 
     TMetaStateMap<TChunkId, TJobList> JobListMap;
     TMetaStateMap<TJobId, TJob> JobMap;
@@ -625,7 +625,7 @@ private:
             ~incarnationId.ToString(),
             ~ToString(statistics));
 
-        auto* newNode = new THolder(
+        auto* newNode = new TDataNode(
             nodeId,
             address,
             incarnationId);
@@ -910,7 +910,7 @@ private:
     }
 
 
-    void StartNodeTracking(THolder* node, bool recovery)
+    void StartNodeTracking(TDataNode* node, bool recovery)
     {
         NodeLeaseTracker->OnNodeRegistered(node, recovery);
         if (node->GetState() == ENodeState::Online) {
@@ -924,7 +924,7 @@ private:
         NodeRegistered_.Fire(node);
     }
 
-    void StopNodeTracking(THolder* node)
+    void StopNodeTracking(TDataNode* node)
     {
         NodeLeaseTracker->OnNodeUnregistered(node);
         ChunkPlacement->OnNodeUnregistered(node);
@@ -934,7 +934,7 @@ private:
     }
 
 
-    void DoUnregisterNode(THolder* node)
+    void DoUnregisterNode(TDataNode* node)
     { 
         PROFILE_TIMING ("/node_unregistration_time") {
             auto nodeId = node->GetId();
@@ -982,7 +982,7 @@ private:
         (Confirmation)
     );
 
-    void AddChunkReplica(THolder* node, TChunk* chunk, bool cached, EAddReplicaReason reason)
+    void AddChunkReplica(TDataNode* node, TChunk* chunk, bool cached, EAddReplicaReason reason)
     {
         auto chunkId = chunk->GetId();
         auto nodeId = node->GetId();
@@ -1037,7 +1037,7 @@ private:
         (Reset)
     );
 
-    void RemoveChunkReplica(THolder* node, TChunk* chunk, bool cached, ERemoveReplicaReason reason)
+    void RemoveChunkReplica(TDataNode* node, TChunk* chunk, bool cached, ERemoveReplicaReason reason)
     {
         auto chunkId = chunk->GetId();
         auto nodeId = node->GetId();
@@ -1085,7 +1085,7 @@ private:
     }
 
 
-    void AddJob(THolder* node, const TJobStartInfo& jobInfo)
+    void AddJob(TDataNode* node, const TJobStartInfo& jobInfo)
     {
         auto metaStateManager = Bootstrap->GetMetaStateManager();
         auto* mutationContext = metaStateManager->GetMutationContext();
@@ -1152,7 +1152,7 @@ private:
 
 
     void ProcessAddedChunk(
-        THolder* node,
+        TDataNode* node,
         const TChunkAddInfo& chunkAddInfo,
         bool incremental)
     {
@@ -1213,7 +1213,7 @@ private:
     }
 
     void ProcessRemovedChunk(
-        THolder* node,
+        TDataNode* node,
         const TChunkRemoveInfo& chunkInfo)
     {
         auto nodeId = node->GetId();
@@ -1374,7 +1374,7 @@ private:
 
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
-DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Node, THolder, TNodeId, NodeMap)
+DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Node, TDataNode, TNodeId, NodeMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
@@ -1943,12 +1943,12 @@ TChunkManager::TChunkManager(
 TChunkManager::~TChunkManager()
 { }
 
-THolder* TChunkManager::FindNodeByAddress(const Stroka& address)
+TDataNode* TChunkManager::FindNodeByAddress(const Stroka& address)
 {
     return Impl->FindNodeByAddresss(address);
 }
 
-THolder* TChunkManager::FindNodeByHostName(const Stroka& hostName)
+TDataNode* TChunkManager::FindNodeByHostName(const Stroka& hostName)
 {
     return Impl->FindNodeByHostName(hostName);
 }
@@ -1958,7 +1958,7 @@ const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address
     return Impl->FindReplicationSink(address);
 }
 
-std::vector<THolder*> TChunkManager::AllocateUploadTargets(
+std::vector<TDataNode*> TChunkManager::AllocateUploadTargets(
     int nodeCount,
     TNullable<Stroka> preferredHostName)
 {
@@ -2043,7 +2043,7 @@ void TChunkManager::ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef child
 }
 
 void TChunkManager::ScheduleJobs(
-    THolder* node,
+    TDataNode* node,
     const std::vector<TJobInfo>& runningJobs,
     std::vector<TJobStartInfo>* jobsToStart,
     std::vector<TJobStopInfo>* jobsToStop)
@@ -2072,7 +2072,7 @@ TTotalNodeStatistics TChunkManager::GetTotalNodeStatistics()
     return Impl->GetTotalNodeStatistics();
 }
 
-bool TChunkManager::IsNodeConfirmed(const THolder* node)
+bool TChunkManager::IsNodeConfirmed(const TDataNode* node)
 {
     return Impl->IsNodeConfirmed(node);
 }
@@ -2084,12 +2084,12 @@ i32 TChunkManager::GetChunkReplicaCount()
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TChunkManager, Node, THolder, TNodeId, *Impl)
+DELEGATE_METAMAP_ACCESSORS(TChunkManager, Node, TDataNode, TNodeId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, JobList, TJobList, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Job, TJob, TJobId, *Impl)
 
-DELEGATE_SIGNAL(TChunkManager, void(const THolder*), NodeRegistered, *Impl);
-DELEGATE_SIGNAL(TChunkManager, void(const THolder*), NodeUnregistered, *Impl);
+DELEGATE_SIGNAL(TChunkManager, void(const TDataNode*), NodeRegistered, *Impl);
+DELEGATE_SIGNAL(TChunkManager, void(const TDataNode*), NodeUnregistered, *Impl);
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostChunkIds, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, OverreplicatedChunkIds, *Impl);
