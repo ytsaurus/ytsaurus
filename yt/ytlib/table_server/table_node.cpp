@@ -208,6 +208,7 @@ protected:
             YCHECK(branchedChunkList->Children().size() == 2);
 
             auto* newOriginatingChunkList = chunkManager->CreateChunkList();
+            newOriginatingChunkList->SetRigid(true);
             branchedChunkList->CopySortAttributesTo(newOriginatingChunkList);
 
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
