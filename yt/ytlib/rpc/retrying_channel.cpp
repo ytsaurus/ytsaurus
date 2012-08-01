@@ -149,7 +149,7 @@ private:
             int count = AtomicIncrement(CurrentAttempt);
 
             CumulativeErrorMessage.append(Sprintf("\n[#%d] %s",
-                count,
+                count - 1,
                 ~error.ToString()));
 
             if (count <= Config->MaxAttempts && TInstant::Now() + Config->BackoffTime < Deadline) {
