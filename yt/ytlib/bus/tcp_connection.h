@@ -138,6 +138,8 @@ private:
     int Priority;
     IMessageHandlerPtr Handler;
 
+    NLog::TTaggedLogger Logger;
+
     // Only used for client sockets.
     int Port;
     TFuture< TValueOrError<TNetworkAddress> > AsyncAddress;
