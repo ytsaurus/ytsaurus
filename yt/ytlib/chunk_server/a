@@ -1,9 +1,0 @@
-chunk.cpp:#include <ytlib/chunk_holder/chunk_meta_extensions.h>
-chunk.h:#include <ytlib/chunk_holder/chunk.pb.h>
-chunk.h:    // Keeping a holder is very space efficient (takes just 8 bytes).
-chunk_manager.cpp:#include <ytlib/chunk_holder/chunk_meta_extensions.h>
-chunk_service.proto:import "yt/ytlib/chunk_holder/chunk.proto";
-chunk_ypath.proto:import "yt/ytlib/chunk_holder/chunk.proto";
-cypress_integration.cpp:        auto nodeMap = resolver->ResolvePath("//sys/holders")->AsMap();
-cypress_integration.cpp:        attributes->push_back("online_holder_count");
-cypress_integration.cpp:        if (name == "online_holder_count") {
