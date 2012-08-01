@@ -1448,8 +1448,7 @@ TJobIOConfigPtr TOperationControllerBase::BuildJobIOConfig(
 {
     if (specConfigNode) {
         auto schedulerConfigNode = ConvertTo<INodePtr>(schedulerConfig);
-        UpdateNode(schedulerConfigNode, specConfigNode);
-        return ConvertTo<TJobIOConfigPtr>(schedulerConfigNode);
+        return ConvertTo<TJobIOConfigPtr>(UpdateNode(schedulerConfigNode, specConfigNode));
     } else {
         return CloneConfigurable(schedulerConfig);
     }
