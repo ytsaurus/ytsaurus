@@ -16,8 +16,8 @@ namespace NYT {
 #define YCHECK_FAILED(expr) \
     do { \
         ::std::fputs( \
-        "YCHECK(" #expr "): " _ASSERT_AT "\n", \
-        stderr); \
+            "YCHECK(" #expr "): " _ASSERT_AT "\n", \
+            stderr); \
         __builtin_trap(); \
         __builtin_unreachable(); \
     } while (0)
@@ -25,8 +25,8 @@ namespace NYT {
 #define YVERIFY_FAILED(expr) \
     do { \
         ::std::fputs( \
-        "YVERIFY(" #expr "): " _ASSERT_AT "\n", \
-        stderr); \
+            "YVERIFY(" #expr "): " _ASSERT_AT "\n", \
+            stderr); \
         __builtin_trap(); \
         __builtin_unreachable(); \
     } while (0)
