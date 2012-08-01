@@ -60,6 +60,7 @@ def get_attribute(path, attribute, check_errors=True):
 def set_attribute(path, attribute, value):
     return set("%s/@%s" % (path, attribute), value)
 
-def list_attributes(path):
-    return list(path + "/@")
+def list_attributes(path, attribute_path=""):
+    # TODO(ignat): it doesn't work now. We need support attributes in exists
+    return list("%s/@%s" % (path, attribute_path))
 

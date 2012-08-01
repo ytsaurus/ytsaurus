@@ -38,6 +38,13 @@ class Table(object):
 
         return name
 
+    def has_limiters(self):
+        return \
+            self.columns is not None or \
+            self.lower_key is not None or \
+            self.upper_key is not None or \
+            self.append
+
     def __eq__(self, other):
         return self.name == other.name
 
