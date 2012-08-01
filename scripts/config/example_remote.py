@@ -178,7 +178,7 @@ class Holder(Server):
                 'publish_peer' : 'true'
             },
             'full_heartbeat_timeout' : 180000,
-            'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
+            'max_cached_blocks_size' : 4 * 1024 * 1024 * 1024,
             'max_cached_readers' : 256,
             'response_throttling_size' : 500 * 1024 * 1024
         },
@@ -194,7 +194,7 @@ class Holder(Server):
                 'resource_limits' : {
                     'slots' : 24,
                     'cores' : 18,
-                    'memory' : 36 * 1024 * 1024 * 1024
+                    'memory' : 34 * 1024 * 1024 * 1024
                 },
                 'slot_location' : '%(work_dir)s/slots'
             },
