@@ -149,7 +149,7 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk
             slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(nextRowIndex);
 
             // This is merely an approximation.
-            slicedChunk->set_data_weight(inputChunk.data_weight() / count + 1);
+            slicedChunk->set_uncompressed_data_size(inputChunk.uncompressed_data_size() / count + 1);
             slicedChunk->set_row_count(nextRowIndex - lastRowIndex);
 
             result.push_back(slicedChunk);
