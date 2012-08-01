@@ -35,7 +35,7 @@ public:
     typedef TFuture<TResult> TAsyncResult;
 
     //! Initializes a new instance.
-    TMasterDiscovery(TMasterDiscoveryConfigPtr config);
+    explicit TMasterDiscovery(TMasterDiscoveryConfigPtr config);
 
     //! Performs an asynchronous lookup of a master.
     /*!
@@ -54,25 +54,12 @@ public:
 
 private:
     typedef TMetaStateManagerProxy TProxy;
+    class TQuorumRequester;
 
     TMasterDiscoveryConfigPtr Config;
-
-    //! Protects from simultaneously reporting conflicting results.
-    /*! 
-     *  We shall reuse the same spinlock for all (possibly concurrent)
-     *  #GetLeader requests. This should not harm since the protected region
-     *  is quite tiny.
-     */
-    TSpinLock SpinLock;
-    
+  
     TFuture<TProxy::TRspGetQuorumPtr> GetQuorum();
 
-    void OnResponse(
-        TParallelAwaiterPtr awaiter,
-        TPromise<TProxy::TRspGetQuorumPtr> promise,
-        const Stroka& address,
-        TProxy::TRspGetQuorumPtr response);
-    void OnComplete(TPromise<TProxy::TRspGetQuorumPtr> promise);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
