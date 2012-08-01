@@ -1433,6 +1433,7 @@ private:
         attributes->push_back("cached_locations");
         attributes->push_back("stored_locations");
         attributes->push_back("replication_factor");
+        attributes->push_back("movable");
         attributes->push_back("master_meta_size");
         attributes->push_back(TAttributeInfo("meta_size", miscExt.has_meta_size()));
         attributes->push_back(TAttributeInfo("compressed_data_size", miscExt.has_compressed_data_size()));
@@ -1489,6 +1490,18 @@ private:
             return true;
         }
 
+        if (name == "movable") {
+            BuildYsonFluently(consumer)
+                .Scalar(chunk->GetMovable());
+            return true;
+        }
+
+        if (name == "master_meta_size") {
+            BuildYsonFluently(consumer)
+                .Scalar(chunk->ChunkMeta().ByteSize());
+            return true;
+        }
+
         if (name == "meta_size") {
             BuildYsonFluently(consumer)
                 .Scalar(miscExt.meta_size());
@@ -1534,12 +1547,6 @@ private:
         if (name == "sorted") {
             BuildYsonFluently(consumer)
                 .Scalar(FormatBool(miscExt.sorted()));
-            return true;
-        }
-
-        if (name == "master_meta_size") {
-            BuildYsonFluently(consumer)
-                .Scalar(chunk->ChunkMeta().ByteSize());
             return true;
         }
 
