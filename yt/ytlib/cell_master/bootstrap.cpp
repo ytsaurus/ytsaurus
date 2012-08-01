@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "bootstrap.h"
-#include "world_initializer.h"
+#include "meta_state_facade.h"
 #include "config.h"
 
 #include <ytlib/misc/ref_counted_tracker.h>
@@ -10,9 +10,6 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/virtual.h>
-
-#include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/persistent_state_manager.h>
 
 #include <ytlib/object_server/object_manager.h>
 #include <ytlib/object_server/object_service.h>
@@ -44,6 +41,8 @@
 #include <ytlib/ytree/ypath_client.h>
 
 #include <ytlib/bus/tcp_server.h>
+
+#include <ytlib/rpc/server.h>
 
 #include <ytlib/profiling/profiling_manager.h>
 
@@ -88,6 +87,11 @@ TCellMasterConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
+IServerPtr TBootstrap::GetRpcServer() const
+{
+    return RpcServer;
+}
+
 TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
     return TransactionManager;
@@ -98,19 +102,9 @@ TCypressManagerPtr TBootstrap::GetCypressManager() const
     return CypressManager;
 }
 
-TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
+TMetaStateFacadePtr TBootstrap::GetMetaStateFacade() const
 {
-    return WorldInitializer;
-}
-
-IMetaStateManagerPtr TBootstrap::GetMetaStateManager() const
-{
-    return MetaStateManager;
-}
-
-TCompositeMetaStatePtr TBootstrap::GetMetaState() const
-{
-    return MetaState;
+    return MetaStateFacade;
 }
 
 TObjectManagerPtr TBootstrap::GetObjectManager() const
@@ -133,30 +127,16 @@ IInvokerPtr TBootstrap::GetControlInvoker()
     return ControlQueue->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetStateInvoker(EStateThreadQueue queue)
-{
-    return StateQueue->GetInvoker(queue.ToValue());
-}
-
 void TBootstrap::Run()
 {
     LOG_INFO("Starting cell master");
 
-    MetaState = New<TCompositeMetaState>();
-
     ControlQueue = New<TActionQueue>("Control");
-    StateQueue = New<TFairShareActionQueue>(EStateThreadQueue::GetDomainSize(), "MetaState");
 
     auto busServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->MetaState->Cell->RpcPort));
+    RpcServer = CreateRpcServer(busServer);
 
-    auto rpcServer = CreateRpcServer(busServer);
-
-    MetaStateManager = CreatePersistentStateManager(
-        Config->MetaState,
-        GetControlInvoker(),
-        GetStateInvoker(),
-        MetaState,
-        rpcServer);
+    MetaStateFacade = New<TMetaStateFacade>(Config, this);
 
     TransactionManager = New<TTransactionManager>(Config->Transactions, this);
 
@@ -168,14 +148,14 @@ void TBootstrap::Run()
     TransactionManager->Init();
 
     auto objectService = New<TObjectService>(this);
-    rpcServer->RegisterService(objectService);
+    RpcServer->RegisterService(objectService);
 
     HolderAuthority = CreateNodeAuthority(this);
 
     ChunkManager = New<TChunkManager>(Config->Chunks, this);
 
     auto chunkService = New<TChunkService>(this);
-    rpcServer->RegisterService(chunkService);
+    RpcServer->RegisterService(chunkService);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -183,7 +163,7 @@ void TBootstrap::Run()
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "/meta_state",
-        BIND(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
+        BIND(&IMetaStateManager::GetMonitoringInfo, MetaStateFacade->GetManager()));
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
@@ -211,7 +191,7 @@ void TBootstrap::Run()
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         orchidRoot,
         GetControlInvoker());
-    rpcServer->RegisterService(orchidRpcService);
+    RpcServer->RegisterService(orchidRpcService);
 
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateLostChunkMapTypeHandler(this));
@@ -225,10 +205,7 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager->RegisterHandler(CreateTableTypeHandler(this));
 
-    MetaStateManager->Start();
-
-    WorldInitializer = New<TWorldInitializer>(this);
-
+    MetaStateFacade->Start();
     monitoringManager->Start();
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
@@ -243,7 +220,7 @@ void TBootstrap::Run()
     httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->MetaState->Cell->RpcPort);
-    rpcServer->Start();
+    RpcServer->Start();
 
     Sleep(TDuration::Max());
 }

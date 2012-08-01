@@ -3,10 +3,15 @@
 #include "object_manager.h"
 
 #include <ytlib/misc/string.h>
+
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/tokenizer.h>
+
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
+
+#include <ytlib/meta_state/meta_state_manager.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -194,6 +199,11 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
 TVersionedObjectId TObjectProxyBase::GetVersionedId() const
 {
     return Id;
+}
+
+bool TObjectProxyBase::IsRecovery() const
+{
+    return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

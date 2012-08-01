@@ -2,16 +2,25 @@
 #include "cypress_integration.h"
 
 #include <ytlib/misc/lazy_ptr.h>
+
 #include <ytlib/actions/action_queue.h>
+
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/ypath_detail.h>
+
 #include <ytlib/cypress_server/virtual.h>
+
 #include <ytlib/orchid/orchid_service_proxy.h>
+
 #include <ytlib/rpc/channel.h>
 #include <ytlib/rpc/message.h>
 #include <ytlib/rpc/channel_cache.h>
+
 #include <ytlib/bus/message.h>
+
 #include <ytlib/cell_master/bootstrap.h>
+
+#include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NOrchid {
@@ -36,8 +45,6 @@ class TOrchidYPathService
     : public IYPathService
 {
 public:
-    typedef TIntrusivePtr<TOrchidYPathService> TPtr;
-
     TOrchidYPathService(
         TBootstrap* bootstrap,
         const TNodeId& id)

@@ -3,15 +3,21 @@
 #include "transaction.h"
 #include "transaction_ypath_proxy.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/transaction_server/transaction_ypath.pb.h>
+
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
-#include <ytlib/misc/string.h>
+#include <ytlib/cell_master/meta_state_facade.h>
+
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/cypress_server/cypress_manager.h>
+
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/object_server/type_handler_detail.h>
 
@@ -329,18 +335,18 @@ TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
-        bootstrap->GetMetaStateManager(),
-        bootstrap->GetMetaState())
+        bootstrap->GetMetaStateFacade()->GetManager(),
+        bootstrap->GetMetaStateFacade()->GetState())
     , Config(config)
     , Bootstrap(bootstrap)
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
+    YCHECK(config);
+    YCHECK(bootstrap);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
 
     TLoadContext context(Bootstrap);
 
-    auto metaState = Bootstrap->GetMetaState();
+    auto metaState = Bootstrap->GetMetaStateFacade()->GetState();
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
         BIND(&TTransactionManager::LoadKeys, MakeStrong(this)));
@@ -559,12 +565,13 @@ void TTransactionManager::OnStopLeading()
 
 void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration timeout)
 {
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto lease = TLeaseManager::CreateLease(
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
         .Via(
-            Bootstrap->GetStateInvoker(),
-            Bootstrap->GetMetaStateManager()->GetEpochContext()));
+            metaStateFacade->GetInvoker(),
+            metaStateFacade->GetManager()->GetEpochContext()));
     YCHECK(LeaseMap.insert(MakePair(transaction->GetId(), lease)).second);
 }
 
@@ -585,7 +592,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (!proxy)
         return;
 
-    LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
+    LOG_INFO("Transaction has expired (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::Abort();
     ExecuteVerb(proxy, req);

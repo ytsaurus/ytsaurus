@@ -10,9 +10,13 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
+
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
+#include <ytlib/cell_master/meta_state_facade.h>
+
 #include <ytlib/chunk_server/chunk_manager.h>
+
 #include <ytlib/profiling/profiler.h>
 #include <ytlib/profiling/timing.h>
 
@@ -599,13 +603,13 @@ void TChunkReplicator::RefreshAllChunks()
 
 void TChunkReplicator::ScheduleNextRefresh()
 {
-    auto context = Bootstrap->GetMetaStateManager()->GetEpochContext();
+    auto context = Bootstrap->GetMetaStateFacade()->GetManager()->GetEpochContext();
     if (!context)
         return;
     TDelayedInvoker::Submit(
         BIND(&TChunkReplicator::OnRefresh, MakeStrong(this))
         .Via(
-            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
+            Bootstrap->GetMetaStateFacade()->GetInvoker(EStateThreadQueue::ChunkRefresh),
             context),
         Config->ChunkRefreshQuantum);
 }

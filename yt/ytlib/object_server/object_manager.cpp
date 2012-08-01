@@ -18,6 +18,7 @@
 #include <ytlib/cypress_server/cypress_manager.h>
 
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
 
 #include <ytlib/profiling/profiler.h>
 
@@ -272,15 +273,15 @@ TObjectManager::TObjectManager(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
-        bootstrap->GetMetaStateManager(),
-        bootstrap->GetMetaState())
+        bootstrap->GetMetaStateFacade()->GetManager(),
+        bootstrap->GetMetaStateFacade()->GetState())
     , Config(config)
     , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
+    YCHECK(config);
+    YCHECK(bootstrap);
 
     auto transactionManager = bootstrap->GetTransactionManager();
     transactionManager->SubscribeTransactionCommitted(BIND(
@@ -290,7 +291,7 @@ TObjectManager::TObjectManager(
         &TThis::OnTransactionAborted,
         MakeStrong(this)));
 
-    auto metaState = bootstrap->GetMetaState();
+    auto metaState = bootstrap->GetMetaStateFacade()->GetState();
     TLoadContext context(bootstrap);
     metaState->RegisterLoader(
         "ObjectManager.Keys.1",
@@ -380,8 +381,10 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto metaStateManager = Bootstrap->GetMetaStateManager();
-    auto* mutationContext = metaStateManager->GetMutationContext();
+    auto* mutationContext = Bootstrap
+        ->GetMetaStateFacade()
+        ->GetManager()
+        ->GetMutationContext();
 
     const auto& version = mutationContext->GetVersion();
 

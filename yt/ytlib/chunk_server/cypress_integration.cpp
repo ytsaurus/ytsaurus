@@ -392,6 +392,7 @@ private:
         Stroka address = node->GetAddress();
         auto proxy = GetProxy();
 
+        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
         auto cypressManager = Bootstrap->GetCypressManager();
 
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
@@ -420,8 +421,8 @@ private:
             }
         })
         .Via(
-            Bootstrap->GetStateInvoker(),
-            Bootstrap->GetMetaStateManager()->GetEpochContext())
+            metaStateFacade->GetInvoker(),
+            metaStateFacade->GetManager()->GetEpochContext())
         .Run();
     }
 

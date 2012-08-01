@@ -1,12 +1,17 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include <ytlib/cypress_server/virtual.h>
-#include <ytlib/ytree/virtual.h>
-#include <ytlib/ytree/fluent.h>
 #include <ytlib/misc/string.h>
+
+#include <ytlib/ytree/virtual.h>
+
+#include <ytlib/cypress_server/virtual.h>
+
 #include <ytlib/cell_master/bootstrap.h>
+
 #include <ytlib/transaction_server/transaction_manager.h>
+
+#include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -22,7 +27,7 @@ class TVirtualTransactionMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualTransactionMap(TBootstrap* bootstrap)
+    explicit TVirtualTransactionMap(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
     { }
 

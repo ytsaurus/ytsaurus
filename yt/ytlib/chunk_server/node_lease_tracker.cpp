@@ -3,9 +3,9 @@
 #include "chunk_manager.h"
 #include "node.h"
 
-#include <ytlib/actions/bind.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
+#include <ytlib/cell_master/meta_state_facade.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -33,6 +33,7 @@ TNodeLeaseTracker::TNodeLeaseTracker(
 
 void TNodeLeaseTracker::OnNodeRegistered(const TDataNode* node, bool recovery)
 {
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     TNodeInfo nodeInfo;
     nodeInfo.Confirmed = !recovery;
     nodeInfo.Lease = TLeaseManager::CreateLease(
@@ -42,9 +43,9 @@ void TNodeLeaseTracker::OnNodeRegistered(const TDataNode* node, bool recovery)
             MakeStrong(this),
             node->GetId())
         .Via(
-            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
-            Bootstrap->GetMetaStateManager()->GetEpochContext()));
-    YCHECK(HolderInfoMap.insert(MakePair(node->GetId(), holderInfo)).second);
+            metaStateFacade->GetInvoker(EStateThreadQueue::ChunkRefresh),
+            metaStateFacade->GetManager()->GetEpochContext()));
+    YCHECK(NodeInfoMap.insert(MakePair(node->GetId(), nodeInfo)).second);
 }
 
 void TNodeLeaseTracker::OnNodeOnline(const TDataNode* node, bool recovery)

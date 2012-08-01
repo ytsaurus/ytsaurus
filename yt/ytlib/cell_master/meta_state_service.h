@@ -38,9 +38,10 @@ protected:
         const Stroka& loggingCategory);
 
 private:
-    virtual void InvokeHandler(
-        TRuntimeMethodInfo* runtimeInfo,
-        const TClosure& handler,
+    //virtual void InvokeHandler(
+    //    TRuntimeMethodInfo* runtimeInfo,
+    //    const TClosure& handler,
+    //    NRpc::IServiceContextPtr context);
 
 };
 

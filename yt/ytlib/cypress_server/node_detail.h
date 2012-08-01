@@ -4,13 +4,19 @@
 #include "cypress_manager.h"
 
 #include <ytlib/misc/serialize.h>
+
 #include <ytlib/ytree/node_detail.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ypath.pb.h>
+
 #include <ytlib/object_server/object_detail.h>
+
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
+
+#include <ytlib/meta_state/meta_state_manager.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -184,7 +190,7 @@ protected:
 
     bool IsRecovery() const
     {
-        return Bootstrap->GetMetaStateManager()->IsRecovery();
+        return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
     }
 
 private:

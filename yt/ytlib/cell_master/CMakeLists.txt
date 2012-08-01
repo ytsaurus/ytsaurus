@@ -4,7 +4,7 @@ set( SRCS
   ${BASE}/bootstrap.cpp
   ${BASE}/load_context.cpp
   ${BASE}/meta_state_service.cpp
-  ${BASE}/world_initializer.cpp
+  ${BASE}/meta_state_facade.cpp
 )
 set( HDRS
   ${BASE}/bootstrap.h
@@ -13,7 +13,7 @@ set( HDRS
   ${BASE}/load_context.h
   ${BASE}/meta_state_service.h
   ${BASE}/public.h
-  ${BASE}/world_initializer.h
+  ${BASE}/meta_state_facade.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -12,6 +12,7 @@
 #include <ytlib/object_server/object_manager.h>
 
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
 
@@ -50,10 +51,11 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetHeavyRequest(true),
-        bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh));
+        bootstrap->GetMetaStateFacade()->GetInvoker(EStateThreadQueue::ChunkRefresh));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetHeavyRequest(true));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat));
 }
 
  void TChunkService::ValidateNodeId(TNodeId nodeId)

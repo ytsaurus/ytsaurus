@@ -125,6 +125,8 @@ protected:
         TObjectManagerPtr ObjectManager;
         TObjectId ObjectId;
     };
+
+    bool IsRecovery() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

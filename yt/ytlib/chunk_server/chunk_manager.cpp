@@ -38,6 +38,7 @@
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
@@ -137,8 +138,8 @@ public:
         TChunkManagerConfigPtr config,
         TBootstrap* bootstrap)
         : TMetaStatePart(
-            bootstrap->GetMetaStateManager(),
-            bootstrap->GetMetaState())
+            bootstrap->GetMetaStateFacade()->GetManager(),
+            bootstrap->GetMetaStateFacade()->GetState())
         , Config(config)
         , Bootstrap(bootstrap)
         , ChunkTreeBalancer(Bootstrap, Config->ChunkTreeBalancer)
@@ -163,7 +164,7 @@ public:
 
         TLoadContext context(bootstrap);
 
-        auto metaState = bootstrap->GetMetaState();
+        auto metaState = bootstrap->GetMetaStateFacade()->GetState();
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
             BIND(&TImpl::LoadKeys, MakeStrong(this)));
@@ -1086,8 +1087,10 @@ private:
 
     void AddJob(TDataNode* node, const TJobStartInfo& jobInfo)
     {
-        auto metaStateManager = Bootstrap->GetMetaStateManager();
-        auto* mutationContext = metaStateManager->GetMutationContext();
+        auto* mutationContext = Bootstrap
+            ->GetMetaStateFacade()
+            ->GetManager()
+            ->GetMutationContext();
 
         auto chunkId = TChunkId::FromProto(jobInfo.chunk_id());
         auto jobId = TJobId::FromProto(jobInfo.job_id());

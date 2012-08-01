@@ -10,6 +10,7 @@
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
 
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -169,14 +170,14 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedN
 
 TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : TMetaStatePart(
-        bootstrap->GetMetaStateManager(),
-        bootstrap->GetMetaState())
+        bootstrap->GetMetaStateFacade()->GetManager(),
+        bootstrap->GetMetaStateFacade()->GetState())
     , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType)
 {
     YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
 
     auto transactionManager = bootstrap->GetTransactionManager();
     transactionManager->SubscribeTransactionCommitted(BIND(
@@ -192,7 +193,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));
 
-    auto metaState = bootstrap->GetMetaState();
+    auto metaState = bootstrap->GetMetaStateFacade()->GetState();
     TLoadContext context(bootstrap);
     metaState->RegisterLoader(
         "Cypress.Keys.1",
@@ -340,7 +341,7 @@ public:
         UNUSED(verb);
 
         // Make a rigorous check at the right thread.
-        if (Bootstrap->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading) {
+        if (Bootstrap->GetMetaStateFacade()->GetManager()->GetStateStatus() != EPeerStatus::Leading) {
             ythrow yexception() << "Not a leader";
         }
 
@@ -359,7 +360,7 @@ private:
 
 TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 {
-    auto stateInvoker = MetaStateManager->GetStateInvoker();
+    auto stateInvoker = Bootstrap->GetMetaStateFacade()->GetInvoker();
     auto this_ = MakeStrong(this);
     return BIND([=] () -> IYPathServicePtr
         {
@@ -724,9 +725,10 @@ void TCypressManager::RegisterNode(
     auto nodeId = node->GetId().ObjectId;
     YASSERT(node->GetId().TransactionId == NullTransactionId);
     
-    auto metaStateManager = Bootstrap->GetMetaStateManager();
-    auto* mutationContext = metaStateManager->GetMutationContext();
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto* mutationContext = Bootstrap
+        ->GetMetaStateFacade()
+        ->GetManager()
+        ->GetMutationContext();
 
     node->SetCreationTime(mutationContext->GetTimestamp());
 
