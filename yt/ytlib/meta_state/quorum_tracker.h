@@ -11,23 +11,23 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFollowerTracker
+class TQuorumTracker
     : public TRefCounted
 {
 public:
-    TFollowerTracker(
-        TFollowerTrackerConfig* config,
-        NElection::TCellManager* cellManager,
+    TQuorumTracker(
+        TFollowerTrackerConfigPtr config,
+        NElection::TCellManagerPtr cellManager,
         IInvokerPtr epochControlInvoker);
 
-    void Start();
+    void Start(TPeerId leaderId);
     void Stop();
     bool HasActiveQuorum() const;
     bool IsFollowerActive(TPeerId followerId) const;
     void ProcessPing(TPeerId followerId, EPeerStatus status);
 
 private:
-    struct TFollowerState
+    struct TPeerInfo
     {
         EPeerStatus Status;
         TLeaseManager::TLease Lease;
@@ -36,12 +36,13 @@ private:
     void ChangeFollowerStatus(int followerId, EPeerStatus  status);
     void ResetFollowerState(int followerId);
     void OnLeaseExpired(TPeerId followerId);
+    void UpdateActiveQuorum();
 
     TFollowerTrackerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     IInvokerPtr EpochControlInvoker;
-    std::vector<TFollowerState> FollowerStates;
-    int ActiveFollowerCount;
+    std::vector<TPeerInfo> Peers;
+    int ActivePeerCount;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

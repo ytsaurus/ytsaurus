@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <ytlib/misc/hash.h>
 #include <ytlib/misc/ref.h>
@@ -27,7 +27,7 @@ class TAsyncChangeLog
     : private TNonCopyable
 {
 public:
-    TAsyncChangeLog(const TChangeLogPtr& changeLog);
+    explicit TAsyncChangeLog(TChangeLogPtr changeLog);
     ~TAsyncChangeLog();
 
     //! Enqueues record to be appended to the changelog.

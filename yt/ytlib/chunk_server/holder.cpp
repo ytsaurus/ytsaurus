@@ -18,7 +18,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 THolder::THolder(
-    THolderId id,
+    TNodeId id,
     const Stroka& address,
     const TIncarnationId& incarnationId)
     : Id_(id)
@@ -26,7 +26,7 @@ THolder::THolder(
     , IncarnationId_(incarnationId)
 { }
 
-THolder::THolder(THolderId id)
+THolder::THolder(TNodeId id)
     : Id_(id)
 { }
 

@@ -34,7 +34,7 @@ TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
     TChunkPlacementPtr chunkPlacement,
-    THolderLeaseTrackerPtr holderLeaseTracker)
+    TNodeLeaseTrackerPtr holderLeaseTracker)
     : Config(config)
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
@@ -75,7 +75,7 @@ void TChunkReplicator::ScheduleJobs(
     }
 }
 
-void TChunkReplicator::OnHolderRegistered(const THolder* holder)
+void TChunkReplicator::OnNodeRegistered(const THolder* holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -86,7 +86,7 @@ void TChunkReplicator::OnHolderRegistered(const THolder* holder)
     }
 }
 
-void TChunkReplicator::OnHolderUnregistered(const THolder* holder)
+void TChunkReplicator::OnNodeUnregistered(const THolder* holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -103,7 +103,7 @@ void TChunkReplicator::OnChunkRemoved(const TChunk* chunk)
 
 void TChunkReplicator::ScheduleChunkRemoval(const THolder* holder, const TChunkId& chunkId)
 {
-    auto* holderInfo = GetHolderInfo(holder->GetId());
+    auto* holderInfo = GetNodeInfo(holder->GetId());
     holderInfo->ChunksToReplicate.erase(chunkId);
     holderInfo->ChunksToRemove.insert(chunkId);
 }
@@ -297,28 +297,28 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     double maxFillCoeff =
         ChunkPlacement->GetFillCoeff(sourceHolder) -
         Config->ChunkReplicator->MinBalancingFillCoeffDiff;
-    auto targetHolder = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
-    if (targetHolder == NULL) {
+    auto targetNode = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
+    if (targetNode == NULL) {
         LOG_DEBUG("No suitable target nodes to balance chunk %s",
             ~chunkId.ToString());
         return EScheduleFlags::None;
     }
 
-    ChunkPlacement->OnSessionHinted(targetHolder);
+    ChunkPlacement->OnSessionHinted(targetNode);
     
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
     *startInfo.mutable_job_id() = jobId.ToProto();
     startInfo.set_type(EJobType::Replicate);
     *startInfo.mutable_chunk_id() = chunkId.ToProto();
-    startInfo.add_target_addresses(targetHolder->GetAddress());
+    startInfo.add_target_addresses(targetNode->GetAddress());
     jobsToStart->push_back(startInfo);
 
     LOG_DEBUG("Job %s is scheduled on %s: balance chunk %s to [%s]",
         ~jobId.ToString(),
         ~sourceHolder->GetAddress(),
         ~chunkId.ToString(),
-        ~targetHolder->GetAddress());
+        ~targetNode->GetAddress());
 
     // TODO: flagged enums
     return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
@@ -357,7 +357,7 @@ void TChunkReplicator::ScheduleNewJobs(
     int maxRemovalJobsToStart,
     std::vector<TJobStartInfo>* jobsToStart)
 {
-    auto* holderInfo = FindHolderInfo(holder->GetId());
+    auto* holderInfo = FindNodeInfo(holder->GetId());
     if (!holderInfo)
         return;
 
@@ -444,8 +444,8 @@ void TChunkReplicator::GetReplicaStatistics(
     const auto* jobList = chunkManager->FindJobList(chunk->GetId());
     if (jobList) {
         yhash_set<Stroka> storedAddresses(*storedCount);
-        FOREACH (auto holderId, chunk->StoredLocations()) {
-            const auto& holder = chunkManager->GetHolder(holderId);
+        FOREACH (auto nodeId, chunk->StoredLocations()) {
+            const auto& holder = chunkManager->GetNode(nodeId);
             storedAddresses.insert(holder->GetAddress());
         }
 
@@ -499,8 +499,8 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
         plusCount,
         minusCount);
 
-    FOREACH (auto holderId, chunk->StoredLocations()) {
-        auto* holderInfo = FindHolderInfo(holderId);
+    FOREACH (auto nodeId, chunk->StoredLocations()) {
+        auto* holderInfo = FindNodeInfo(nodeId);
         if (holderInfo) {
             holderInfo->ChunksToReplicate.erase(chunk->GetId());
             holderInfo->ChunksToRemove.erase(chunk->GetId());
@@ -533,8 +533,8 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
 
         auto holders = ChunkPlacement->GetRemovalTargets(chunk, storedCount - minusCount - replicationFactor);
         FOREACH (auto* holder, holders) {
-            auto* holderInfo = GetHolderInfo(holder->GetId());
-            holderInfo->ChunksToRemove.insert(chunkId);
+            auto* nodeInfo = GetNodeInfo(holder->GetId());
+            nodeInfo->ChunksToRemove.insert(chunk->GetId());
         }
 
         std::vector<Stroka> holderAddresses;
@@ -560,7 +560,7 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
         }
 
         auto* holder = ChunkPlacement->GetReplicationSource(chunk);
-        auto* holderInfo = GetHolderInfo(holder->GetId());
+        auto* holderInfo = GetNodeInfo(holder->GetId());
 
         holderInfo->ChunksToReplicate.insert(chunkId);
 
@@ -639,15 +639,15 @@ void TChunkReplicator::OnRefresh()
     ScheduleNextRefresh();
 }
 
-TChunkReplicator::THolderInfo* TChunkReplicator::FindHolderInfo(THolderId holderId)
+TChunkReplicator::THolderInfo* TChunkReplicator::FindNodeInfo(TNodeId nodeId)
 {
-    auto it = HolderInfoMap.find(holderId);
+    auto it = HolderInfoMap.find(nodeId);
     return it == HolderInfoMap.end() ? NULL : &it->second;
 }
 
-TChunkReplicator::THolderInfo* TChunkReplicator::GetHolderInfo(THolderId holderId)
+TChunkReplicator::THolderInfo* TChunkReplicator::GetNodeInfo(TNodeId nodeId)
 {
-    auto it = HolderInfoMap.find(holderId);
+    auto it = HolderInfoMap.find(nodeId);
     YASSERT(it != HolderInfoMap.end());
     return &it->second;
 }
@@ -659,7 +659,7 @@ bool TChunkReplicator::IsEnabled()
     auto config = Config->ChunkReplicator;
     if (config->MinOnlineNodeCount) {
         int needOnline = config->MinOnlineNodeCount.Get();
-        int gotOnline = HolderLeaseTracker->GetOnlineHolderCount();
+        int gotOnline = HolderLeaseTracker->GetOnlineNodeCount();
         if (gotOnline < needOnline) {
             if (!LastEnabled || LastEnabled.Get()) {
                 LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %d but got %d",

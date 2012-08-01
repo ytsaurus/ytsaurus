@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "meta_version.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -18,6 +18,7 @@ class TDecoratedMetaState
 {
 public:
     TDecoratedMetaState(
+        TPersistentStateManagerConfigPtr config,
         IMetaStatePtr state,
         IInvokerPtr stateInvoker,
         IInvokerPtr controlInvoker,
@@ -106,19 +107,18 @@ public:
      */
     void Load(i32 segmentId, TInputStream* input);
 
-    //! Delegates the call to IMetaState::ApplyMutation and updates the version.
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    void ApplyMutation(const TSharedRef& recordData);
+    //! Checks if the mutation with this particular id was already applied.
+    //! Fill mutation response data on success.
+    bool FindKeptResponse(const TMutationId& id, TSharedRef* data);
 
-    //! Executes a given action and updates the version.
+    //! Invokes IMetaState::ApplyMutation and updates the version.
     /*!
      * \note Thread affinity: StateThread
      */
-    void ApplyMutation(
-        const TSharedRef& recordData,
-        const TClosure& mutationAction);
+    void ApplyMutation(TMutationContext* context) throw();
+
+    //! Deserializes the mutation, invokes IMetaState::ApplyMutation, and updates the version.
+    void ApplyMutation(const TSharedRef& recordData) throw();
 
     //! Appends a new record into an appropriate changelog.
     /*!
@@ -148,9 +148,12 @@ private:
     IInvokerPtr StateInvoker;
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;
-    TEpoch Epoch;
-    bool Started;
+    
+    TResponseKeeperPtr ResponseKeeper;
 
+    bool Started;
+    TEpoch Epoch;
+    TMutationContext* MutationContext;
     TCachedAsyncChangeLogPtr CurrentChangeLog;
 
     TSpinLock VersionSpinLock;
@@ -158,15 +161,10 @@ private:
     TMetaVersion ReachableVersion;
     TMetaVersion PingVersion;
 
-    TAutoPtr<TMutationContext> MutationContext;
-
     void IncrementRecordCount();
     void ComputeReachableVersion();
     void UpdateVersion(const TMetaVersion& newVersion);
     TCachedAsyncChangeLogPtr GetCurrentChangeLog();
-
-    void EnterMutation(const TSharedRef& recordData);
-    void LeaveMutation();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

@@ -27,7 +27,7 @@ using namespace NTransactionClient;
 TFileReaderBase::TFileReaderBase(
     TFileReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    IBlockCache* blockCache)
+    IBlockCachePtr blockCache)
     : Config(config)
     , MasterChannel(masterChannel)
     , BlockCache(blockCache)
@@ -37,9 +37,9 @@ TFileReaderBase::TFileReaderBase(
     , Proxy(masterChannel)
     , Logger(FileReaderLogger)
 {
-    YASSERT(config);
-    YASSERT(masterChannel);
-    YASSERT(blockCache);
+    YCHECK(config);
+    YCHECK(masterChannel);
+    YCHECK(blockCache);
 }
 
 void TFileReaderBase::Open(
@@ -47,7 +47,7 @@ void TFileReaderBase::Open(
     const std::vector<Stroka>& nodeAddresses)
 {
     VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(!IsOpen);
+    YCHECK(!IsOpen);
 
     auto remoteReader = CreateRemoteReader(
         Config,
@@ -65,7 +65,7 @@ void TFileReaderBase::Open(
     }
 
     auto& chunkMeta = getMetaResult.Value();
-    YASSERT(chunkMeta.type() == NChunkServer::EChunkType::File);
+    YCHECK(chunkMeta.type() == NChunkServer::EChunkType::File);
     auto blocksExt = GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(chunkMeta.extensions());
     BlockCount = blocksExt.blocks_size();
 
@@ -99,7 +99,7 @@ void TFileReaderBase::Open(
 TSharedRef TFileReaderBase::Read()
 {
     VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(IsOpen);
+    YCHECK(IsOpen);
 
     CheckAborted();
 
@@ -119,7 +119,7 @@ TSharedRef TFileReaderBase::Read()
 i64 TFileReaderBase::GetSize() const
 {
     VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(IsOpen);
+    YCHECK(IsOpen);
 
     return Size;
 }

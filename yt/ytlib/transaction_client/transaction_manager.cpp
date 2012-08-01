@@ -8,7 +8,9 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
-#include <ytlib/actions/signal.h>
+
+#include <ytlib/meta_state/rpc_helpers.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT {
@@ -142,6 +144,8 @@ public:
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
+        NMetaState::GenerateRpcMutationId(req);
+
         auto rsp = Proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             // Let's pretend the transaction was aborted.
@@ -263,13 +267,16 @@ private:
     {
         // Fire and forget in case of no wait.
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
-        auto result = Proxy.Execute(req);
         if (wait) {
-            auto rsp = result.Get();
+            NMetaState::GenerateRpcMutationId(req);
+        }
+
+        auto asyncRsp = Proxy.Execute(req);
+        if (wait) {
+            auto rsp = asyncRsp.Get();
             if (!rsp->IsOK()) {
-                throw yexception() <<
-                    Sprintf("Error aborting transaction\n%s",
-                        ~rsp->GetError().ToString());
+                throw yexception() << Sprintf("Error aborting transaction\n%s",
+                    ~rsp->GetError().ToString());
             }
         }
     }

@@ -37,21 +37,10 @@ protected:
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
-    template <class TContext>
-    TClosure CreateErrorHandler(TIntrusivePtr<TContext> context)
-    {
-        // TODO: Add check that error is not yet in place.
-        return BIND(
-            (void (TContext::*)(int, const Stroka&)) &TContext::Reply,
-            context,
-            NRpc::EErrorCode::Unavailable,
-            "Error committing meta state changes");
-    }
-
 private:
     virtual void InvokeHandler(
-        TActiveRequestPtr activeRequest,
-        const TClosure& handler) override;
+        TRuntimeMethodInfo* runtimeInfo,
+        const TClosure& handler,
 
 };
 

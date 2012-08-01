@@ -46,10 +46,8 @@ private:
     IServicePtr Service;
     NLog::TLogger Logger;
 
-    virtual void DoReply(const TError& error, IMessagePtr responseMessage)
+    virtual void DoReply(IMessagePtr responseMessage)
     {
-        UNUSED(error);
-
         ReplyBus->Send(responseMessage);
         Service->OnEndRequest(MakeStrong(this));
     }

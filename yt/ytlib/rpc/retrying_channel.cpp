@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "retriable_channel.h"
+#include "retrying_channel.h"
 #include "private.h"
 #include "client.h"
 
@@ -19,14 +19,11 @@ static NLog::TLogger& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRetriableChannel
+class TRetryingChannel
     : public IChannel
 {
-    DEFINE_BYVAL_RO_PROPERTY(IChannelPtr, UnderlyingChannel);
-    DEFINE_BYVAL_RO_PROPERTY(TRetryConfigPtr, Config);
-
 public:
-    TRetriableChannel(
+    TRetryingChannel(
         TRetryConfigPtr config,
         IChannelPtr underlyingChannel);
 
@@ -39,35 +36,42 @@ public:
 
     virtual void Terminate(const TError& error);
 
+private:
+    TRetryConfigPtr Config;
+    IChannelPtr UnderlyingChannel;
+
 };
 
-IChannelPtr CreateRetriableChannel(
+IChannelPtr CreateRetryingChannel(
     TRetryConfigPtr config,
     IChannelPtr underlyingChannel)
 {
-    return New<TRetriableChannel>(
+    return New<TRetryingChannel>(
         config,
         underlyingChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRetriableRequest
+class TRetryingRequest
     : public IClientResponseHandler
 {
 public:
-    TRetriableRequest(
-        TRetriableChannelPtr channel,
+    TRetryingRequest(
+        TRetryConfigPtr config,
+        IChannelPtr underlyingChannel,
         IClientRequestPtr request,
         IClientResponseHandlerPtr originalHandler,
         TNullable<TDuration> timeout)
-        : CurrentAttempt(0)
-        , Channel(channel)
+        : Config(config)
+        , UnderlyingChannel(underlyingChannel)
+        , CurrentAttempt(1)
         , Request(request)
         , OriginalHandler(originalHandler)
         , Timeout(timeout)
     {
-        YASSERT(channel);
+        YASSERT(config);
+        YASSERT(underlyingChannel);
         YASSERT(request);
         YASSERT(originalHandler);
 
@@ -76,25 +80,25 @@ public:
 
     void Send() 
     {
-        LOG_DEBUG("Retriable request sent (RequestId: %s, Attempt: %d)",
+        LOG_DEBUG("Request attempt started (RequestId: %s, Attempt: %d of %d)",
             ~Request->GetRequestId().ToString(),
-            static_cast<int>(CurrentAttempt));
+            static_cast<int>(CurrentAttempt),
+            Config->MaxAttempts);
 
         auto now = TInstant::Now();
         if (now < Deadline) {
-            Channel->GetUnderlyingChannel()->Send(
-                Request,
-                this,
-                Deadline - now);
+            UnderlyingChannel->Send(Request, this, Deadline - now);
         } else {
             ReportUnavailable();
         }
     }
 
 private:
-    //! The current attempt number (starting from 0).
+    TRetryConfigPtr Config;
+    IChannelPtr UnderlyingChannel;
+
+    //! The current attempt number (1-based).
     TAtomic CurrentAttempt;
-    TRetriableChannelPtr Channel;
     IClientRequestPtr Request;
     IClientResponseHandlerPtr OriginalHandler;
     TNullable<TDuration> Timeout;
@@ -113,7 +117,7 @@ private:
 
     virtual void OnAcknowledgement()
     {
-        LOG_DEBUG("Retriable request acknowledged (RequestId: %s)",
+        LOG_DEBUG("Request attempt acknowledged (RequestId: %s)",
             ~Request->GetRequestId().ToString());
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -127,29 +131,31 @@ private:
 
     virtual void OnError(const TError& error) 
     {
-        LOG_DEBUG("Retriable request attempt failed (RequestId: %s, Attempt: %d)\n%s",
+        LOG_DEBUG("Request attempt failed (RequestId: %s, Attempt: %d of %d)\n%s",
             ~Request->GetRequestId().ToString(),
             static_cast<int>(CurrentAttempt),
+            Config->MaxAttempts,
             ~error.ToString());
 
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done)
             return;
 
-        if (IsRpcError(error)) {
+        auto errorCode = error.GetCode();
+        if (errorCode == EErrorCode::Timeout || 
+            errorCode == EErrorCode::TransportError || 
+            errorCode == EErrorCode::Unavailable)
+        {
             int count = AtomicIncrement(CurrentAttempt);
 
             CumulativeErrorMessage.append(Sprintf("\n[#%d] %s",
                 count,
                 ~error.ToString()));
 
-            TDuration backoffTime = Channel->GetConfig()->BackoffTime;
-            if (count < Channel->GetConfig()->RetryCount &&
-                TInstant::Now() + backoffTime < Deadline)
-            {
+            if (count <= Config->MaxAttempts && TInstant::Now() + Config->BackoffTime < Deadline) {
                 TDelayedInvoker::Submit(
-                    BIND(&TRetriableRequest::Send, MakeStrong(this)),
-                    backoffTime);
+                    BIND(&TRetryingRequest::Send, MakeStrong(this)),
+                    Config->BackoffTime);
             } else {
                 State = EState::Done;
                 guard.Release();
@@ -165,7 +171,7 @@ private:
 
     virtual void OnResponse(IMessagePtr message)
     {
-        LOG_DEBUG("Retriable response received (RequestId: %s)",
+        LOG_DEBUG("Request attempt succeeded (RequestId: %s)",
             ~Request->GetRequestId().ToString());
 
         {
@@ -182,22 +188,23 @@ private:
     {
         OriginalHandler->OnError(TError(
             EErrorCode::Unavailable,
-            "Retriable request failed, details follow" + CumulativeErrorMessage));
+            "All retries have failed:" + CumulativeErrorMessage));
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRetriableChannel::TRetriableChannel(
+TRetryingChannel::TRetryingChannel(
     TRetryConfigPtr config,
     IChannelPtr underlyingChannel)
-    : UnderlyingChannel_(underlyingChannel)
-    , Config_(config)
+    : UnderlyingChannel(underlyingChannel)
+    , Config(config)
 {
-    YASSERT(underlyingChannel);
+    YCHECK(config);
+    YCHECK(underlyingChannel);
 }
 
-void TRetriableChannel::Send(
+void TRetryingChannel::Send(
     IClientRequestPtr request, 
     IClientResponseHandlerPtr responseHandler, 
     TNullable<TDuration> timeout)
@@ -205,23 +212,23 @@ void TRetriableChannel::Send(
     YASSERT(request);
     YASSERT(responseHandler);
 
-    auto retriableRequest = New<TRetriableRequest>(
-        this,
+    New<TRetryingRequest>(
+        Config,
+        UnderlyingChannel,
         request,
         responseHandler,
-        timeout);
-
-    return retriableRequest->Send();
+        timeout)
+    ->Send();
 }
 
-void TRetriableChannel::Terminate(const TError& error)
+void TRetryingChannel::Terminate(const TError& error)
 {
-    UnderlyingChannel_->Terminate(error);
+    UnderlyingChannel->Terminate(error);
 }
 
-TNullable<TDuration> TRetriableChannel::GetDefaultTimeout() const
+TNullable<TDuration> TRetryingChannel::GetDefaultTimeout() const
 {
-    return UnderlyingChannel_->GetDefaultTimeout();
+    return UnderlyingChannel->GetDefaultTimeout();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

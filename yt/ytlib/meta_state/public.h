@@ -14,17 +14,14 @@ struct IMetaState;
 typedef TIntrusivePtr<IMetaState> IMetaStatePtr;
 
 struct TMutationContext;
+struct TMutationRequest;
+struct TMutationResponse;
+
+typedef TGuid TMutationId;
+extern TMutationId NullMutationId;
 
 struct IMetaStateManager;
 typedef TIntrusivePtr<IMetaStateManager> IMetaStateManagerPtr;
-
-class TChangeLog;
-typedef TIntrusivePtr<TChangeLog> TChangeLogPtr;
-
-class TAsyncChangeLog;
-
-class TCachedAsyncChangeLog;
-typedef TIntrusivePtr<TCachedAsyncChangeLog> TCachedAsyncChangeLogPtr;
 
 class TCompositeMetaState;
 typedef TIntrusivePtr<TCompositeMetaState> TCompositeMetaStatePtr;
@@ -32,17 +29,8 @@ typedef TIntrusivePtr<TCompositeMetaState> TCompositeMetaStatePtr;
 class TMetaStatePart;
 typedef TIntrusivePtr<TMetaStatePart> TMetaStatePartPtr;
 
-class TDecoratedMetaState;
-typedef TIntrusivePtr<TDecoratedMetaState> TDecoratedMetaStatePtr;
-
-class TFollowerTracker;
-typedef TIntrusivePtr<TFollowerTracker> TFollowerTrackerPtr;
-
-class TFollowerPinger;
-typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
-
-template <class TResult>
 class TMutation;
+typedef TIntrusivePtr<TMutation> TMutationPtr;
 
 struct TMetaVersion;
 
@@ -76,42 +64,8 @@ typedef TIntrusivePtr<TPersistentStateManagerConfig> TPersistentStateManagerConf
 struct TMasterDiscoveryConfig;
 typedef TIntrusivePtr<TMasterDiscoveryConfig> TMasterDiscoveryConfigPtr;
 
-class TRecovery;
-typedef TIntrusivePtr<TRecovery> TRecoveryPtr;
-
-class TLeaderRecovery;
-typedef TIntrusivePtr<TLeaderRecovery> TLeaderRecoveryPtr;
-
-class TFollowerRecovery;
-typedef TIntrusivePtr<TFollowerRecovery> TFollowerRecoveryPtr;
-
-class TCommitter;
-typedef TIntrusivePtr<TCommitter> TCommitterPtr;
-
-class TLeaderCommitter;
-typedef TIntrusivePtr<TLeaderCommitter> TLeaderCommitterPtr;
-
-class TFollowerCommitter;
-typedef TIntrusivePtr<TFollowerCommitter> TFollowerCommitterPtr;
-
-class TSnapshotReader;
-typedef TIntrusivePtr<TSnapshotReader> TSnapshotReaderPtr;
-
-class TSnapshotWriter;
-typedef TIntrusivePtr<TSnapshotWriter> TSnapshotWriterPtr;
-
-class TSnapshotBuilder;
-typedef TIntrusivePtr<TSnapshotBuilder> TSnapshotBuilderPtr;
-
-class TSnapshotDownloader;
-
-class TSnapshotLookup;
-
-class TChangeLogCache;
-typedef TIntrusivePtr<TChangeLogCache> TChangeLogCachePtr;
-
-class TSnapshotStore;
-typedef TIntrusivePtr<TSnapshotStore> TSnapshotStorePtr;
+struct TResponseKeeperConfig;
+typedef TIntrusivePtr<TResponseKeeperConfig> TResponseKeeperConfigPtr;
 
 class TMasterDiscovery;
 typedef TIntrusivePtr<TMasterDiscovery> TMasterDiscoveryPtr;
@@ -125,15 +79,16 @@ DECLARE_ENUM(EPeerStatus,
     (Leading)
 );
 
-DECLARE_ENUM(ECommitResult,
-    (Committed)
-    (MaybeCommitted)
-    (NotCommitted)
-    (InvalidStatus)
-    (ReadOnly)
+// TODO(babenko): provide unique codes
+DECLARE_ENUM(ECommitCode,
+    ((Committed)(100))
+    ((MaybeCommitted)(101))
+    ((NoQuorum)(102))
+    ((NoLeader)(103))
+    ((ReadOnly)(104))
+    ((LateMutations)(105))
+    ((OutOfOrderMutations)(106))
 );
-
-typedef TFuture<ECommitResult> TAsyncCommitResult;
 
 using NElection::TPeerId;
 using NElection::TPeerPriority;

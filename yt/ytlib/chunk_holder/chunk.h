@@ -86,7 +86,7 @@ public:
 private:
     void Initialize();
 
-    TFuture<TError> ReadMeta();
+    TAsyncError ReadMeta();
 
     mutable TSpinLock SpinLock;
     

@@ -33,13 +33,19 @@ public:
         const NYTree::TYPath& path);
 
     //! Opens the writer.
-    virtual void Open();
+    void Open();
 
-    virtual void Write(TRef data);
+    //! Writes another chunk.
+    void Write(const TRef& data);
 
     //! Closes the writer.
-    virtual void Close();
+    void Close();
 
+    //! Returns the id of the created node.
+    /*!
+     *  \note
+     *  Can only be called after #Close.
+     */
     NCypressClient::TNodeId GetNodeId() const;
 
 private:

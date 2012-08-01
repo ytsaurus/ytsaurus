@@ -100,7 +100,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
         }).AsyncVia(invoker));
 }
 
-TFuture<TError> TChunk::ReadMeta()
+TAsyncError TChunk::ReadMeta()
 {
     if (!TryAcquireReadLock()) {
         return MakeFuture(TError("Cannot read meta of chunk %s: chunk is scheduled for removal",

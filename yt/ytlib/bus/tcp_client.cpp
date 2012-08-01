@@ -11,6 +11,8 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
 
+#include <ytlib/rpc/error.h>
+
 #include <errno.h>
 
 #ifndef _WIN32
@@ -51,7 +53,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         if (Connection) {
-            Connection->Terminate(TError("Bus terminated"));
+            Connection->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
         }
     }
 

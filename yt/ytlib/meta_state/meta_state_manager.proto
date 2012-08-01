@@ -9,6 +9,7 @@ message TMutationHeader
     required string mutation_type = 1;
     optional uint64 timestamp = 2;
     optional uint64 random_seed = 3;
+    optional NYT.NProto.TGuid mutation_id = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

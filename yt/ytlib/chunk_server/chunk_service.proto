@@ -5,7 +5,7 @@ import "yt/ytlib/chunk_holder/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message THolderStatistics
+message TNodeStatistics
 {
     required int64 available_space = 1;
     required int64 used_space = 2;
@@ -48,7 +48,7 @@ message TJobStopInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRegisterHolder
+message TReqRegisterNode
 {
     required bytes address = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
@@ -56,9 +56,9 @@ message TReqRegisterHolder
     required NYT.NProto.TGuid cell_guid = 4;
 }
 
-message TRspRegisterHolder
+message TRspRegisterNode
 {
-    required int32 holder_id = 1;
+    required int32 node_id = 1;
     required NYT.NProto.TGuid cell_guid = 2;
 }
 
@@ -66,8 +66,8 @@ message TRspRegisterHolder
 
 message TReqFullHeartbeat
 {
-    required int32 holder_id = 1;
-    required THolderStatistics statistics = 2;
+    required int32 node_id = 1;
+    required TNodeStatistics statistics = 2;
     repeated TChunkAddInfo chunks = 3;
 }
 
@@ -78,8 +78,8 @@ message TRspFullHeartbeat
 
 message TReqIncrementalHeartbeat
 {
-    required int32 holder_id = 1;
-    required THolderStatistics statistics = 2;
+    required int32 node_id = 1;
+    required TNodeStatistics statistics = 2;
     repeated TChunkAddInfo added_chunks = 3;
     repeated TChunkRemoveInfo removed_chunks = 4;
     repeated TJobInfo jobs = 5;

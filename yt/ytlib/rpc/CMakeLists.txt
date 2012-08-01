@@ -8,7 +8,7 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/redirector_service.cpp
-  ${BASE}/retriable_channel.cpp
+  ${BASE}/retrying_channel.cpp
   ${BASE}/roaming_channel.cpp
   ${BASE}/scoped_channel.cpp
   ${BASE}/server.cpp
@@ -26,7 +26,7 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/redirector_service.h
-  ${BASE}/retriable_channel.h
+  ${BASE}/retrying_channel.h
   ${BASE}/roaming_channel.h
   ${BASE}/scoped_channel.h
   ${BASE}/server.h

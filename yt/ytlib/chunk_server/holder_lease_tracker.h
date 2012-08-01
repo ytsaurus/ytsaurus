@@ -10,27 +10,27 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Controls holder server-side leases.
+//! Controls node server-side leases.
 /*!
- *  Upon receiving a registration request from a holder,
- *  TChunkManager registers its by calling #THolderExpiration::Register.
+ *  Upon receiving a registration request from a node,
+ *  TChunkManager registers its by calling #TNodeLeaseTracker::OnNodeRegistered.
  *  
- *  It also extends the leases by calling #THolderExpiration::RenewHolderLeases.
+ *  It also extends the leases by calling #TNodeLeaseTracker::OnNodeHeartbeat.
  *  
- *  When a lease expires #THolderExpiration triggers holder deregistration
- *  by calling #TChunkManager::InitiateUnregisterHolder.
- *  The latter is a logged operation during which #THolderExpiration::Unregister
+ *  When a lease expires #TNodeLeaseTracker triggers node deregistration
+ *  by calling #TChunkManager::CreateUnregisterNodeMutation.
+ *  The latter is a logged operation during which #TNodeLeaseTracker::OnNodeUnregistered
  *  gets called.
  *  
- *  Each registered holder carries an additional "Confirmed" flag.
- *  The flag is used to distinguish between holders that were registered during an earlier
+ *  Each registered node carries an additional "Confirmed" flag.
+ *  The flag is used to distinguish between nodes that were registered during an earlier
  *  epoch (and whose actual liveness is not yet confirmed) and
- *  those holders that have reported a heartbeat during the current epoch.
+ *  those nodes that have reported a heartbeat during the current epoch.
  *  
- *  This flag is raised automatically in #OnHolderHeartbeat.
+ *  This flag is raised automatically in #OnNodeHeartbeat.
  *  
  */
-class THolderLeaseTracker
+class TNodeLeaseTracker
     : public TRefCounted
 {
 public:
@@ -40,53 +40,57 @@ public:
      *  \param chunkManager A chunk manager.
      *  \param invoker An invoker used for lease expiration callbacks.
      */
-    THolderLeaseTracker(
+    TNodeLeaseTracker(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    //! Registers the holder and assigns it an initial lease.
+    //! Registers the node and assigns it an initial lease.
     /*!
-     *  Initial lease timeout for registered holders is #TChunkManagerConfig::RegisteredHolderTimeout.
-     *  For online holders it is decreased to #TChunkManagerConfig::OnlineHolderTimeout.
+     *  Initial lease timeout for registered nodes is #TChunkManagerConfig::RegisteredNodeTimeout.
+     *  For online nodes it is decreased to #TChunkManagerConfig::OnlineNodeTimeout.
      */
-    void OnHolderRegistered(const THolder* holder, bool recovery);
+    void OnNodeRegistered(const THolder* node, bool recovery);
 
-    //! Notifies that the holder has become online and hence its lease timeout must be updated.
-    void OnHolderOnline(const THolder* holder, bool recovery);
+    //! Notifies that the node has become online and hence its lease timeout must be updated.
+    void OnNodeOnline(const THolder* node, bool recovery);
 
     //! Renews the lease.
-    void OnHolderHeartbeat(const THolder* holder);
+    void OnNodeHeartbeat(const THolder* node);
 
-    //! Unregisters the holder and stop tracking its lease.
-    void OnHolderUnregistered(const THolder* holder);
+    //! Unregisters the node and stop tracking its lease.
+    void OnNodeUnregistered(const THolder* node);
 
-    //! Returns True iff the holder is confirmed.
-    bool IsHolderConfirmed(const THolder* holder);
+    //! Returns True iff the node is confirmed.
+    bool IsNodeConfirmed(const THolder* node);
 
-    //! Returns the number of holders that are currently online (including unconfirmed).
-    int GetOnlineHolderCount();
+    //! Returns the number of nodes that are currently online (including unconfirmed).
+    int GetOnlineNodeCount();
 
 private:
-    struct THolderInfo
+    struct TNodeInfo
     {
+        TNodeInfo()
+            : Confirmed(false)
+        { }
+
         TLeaseManager::TLease Lease;
         bool Confirmed;
     };
 
-    typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
+    typedef yhash_map<TNodeId, TNodeInfo> TNodeInfoMap;
      
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    int OnlineHolderCount;
-    THolderInfoMap HolderInfoMap;
+    int OnlineNodeCount;
+    TNodeInfoMap NodeInfoMap;
 
-    THolderInfo* FindHolderInfo(THolderId holderId);
-    THolderInfo& GetHolderInfo(THolderId holderId);
-    void RenewLease(const THolder* holder, const THolderInfo& holderInfo);
-    TDuration GetTimeout(const THolder* holder, const THolderInfo& holderInfo);
+    TNodeInfo* FindNodeInfo(TNodeId nodeId);
+    TNodeInfo& GetNodeInfo(TNodeId nodeId);
+    void RenewLease(const THolder* node, const TNodeInfo& nodeInfo);
+    TDuration GetTimeout(const THolder* node, const TNodeInfo& nodeInfo);
 
-    void OnExpired(THolderId holderId);
+    void OnExpired(TNodeId nodeId);
 
 };
 

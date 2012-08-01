@@ -6,9 +6,8 @@
 #include "meta_state.h"
 #include "snapshot.h"
 #include "serialize.h"
-
-#include <ytlib/actions/callback.h>
-#include <ytlib/profiling/profiler.h>
+#include "response_keeper.h"
+#include "config.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -21,6 +20,7 @@ static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDecoratedMetaState::TDecoratedMetaState(
+    TPersistentStateManagerConfigPtr config,
     IMetaStatePtr state,
     IInvokerPtr stateInvoker,
     IInvokerPtr controlInvoker,
@@ -32,12 +32,17 @@ TDecoratedMetaState::TDecoratedMetaState(
     , ChangeLogCache(changeLogCache)
     , Started(false)
 {
+    YCHECK(config);
     YCHECK(state);
     YCHECK(stateInvoker);
     YCHECK(snapshotStore);
     YCHECK(changeLogCache);
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+
+    ResponseKeeper = New<TResponseKeeper>(  
+        config->ResponseKeeper,
+        StateInvoker);
 }
 
 void TDecoratedMetaState::Start()
@@ -81,13 +86,13 @@ void TDecoratedMetaState::ComputeReachableVersion()
         }
 
         auto changeLog = result.Value();
-        bool isFinal = !ChangeLogCache->Get(segmentId + 1).IsOK();
+        bool isLast = !ChangeLogCache->Get(segmentId + 1).IsOK();
 
-        LOG_DEBUG("Found changelog %d (RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+        LOG_DEBUG("Changelog found (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsLast: %s)",
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),
-            ~FormatBool(isFinal));
+            ~FormatBool(isLast));
 
         currentVersion = TMetaVersion(segmentId, changeLog->GetRecordCount());
     }
@@ -117,6 +122,7 @@ void TDecoratedMetaState::Clear()
     YASSERT(Started);
 
     State->Clear();
+    ResponseKeeper->Clear();
     Version = TMetaVersion();
     CurrentChangeLog.Reset();
 }
@@ -150,42 +156,47 @@ void TDecoratedMetaState::Load(
     LOG_INFO("Finished loading snapshot");
 }
 
-void TDecoratedMetaState::ApplyMutation(const TSharedRef& recordData)
+bool TDecoratedMetaState::FindKeptResponse(const TMutationId& id, TSharedRef* data)
+{
+    return ResponseKeeper->FindResponse(id, data);
+}
+
+void TDecoratedMetaState::ApplyMutation(TMutationContext* context) throw()
 {
     YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    try {
-        EnterMutation(recordData);
-        State->ApplyMutation(*MutationContext);
-        LeaveMutation();
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error applying mutation (Version: %s)\n%s",
-            ~Version.ToString(),
-            ex.what());
+    MutationContext = context;
+    const auto& action = context->GetRequestAction();
+    if (action.IsNull()) {
+        State->ApplyMutation(context);
+    } else {
+        action.Run();
+    }
+    MutationContext = NULL;
+
+    if (context->GetId() != NullMutationId) {
+        ResponseKeeper->RegisterResponse(context->GetId(), context->GetResponseData());
     }
 
     IncrementRecordCount();
 }
 
-void TDecoratedMetaState::ApplyMutation(
-    const TSharedRef& recordData,
-    const TClosure& mutationAction)
+void TDecoratedMetaState::ApplyMutation(const TSharedRef& recordData) throw()
 {
-    YASSERT(Started);
-    VERIFY_THREAD_AFFINITY(StateThread);
+    NProto::TMutationHeader header;
+    TSharedRef requestData;
+    DeserializeMutationRecord(recordData, &header, &requestData);
 
-    try {
-        EnterMutation(recordData);
-        mutationAction.Run();
-        LeaveMutation();
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error applying mutation (Version: %s)\n%s",
-            ~Version.ToString(),
-            ex.what());
-    }
-
-    IncrementRecordCount();
+    TMutationRequest request(
+        header.mutation_type(),
+        requestData);
+    TMutationContext context(
+        Version,
+        request,
+        TInstant(header.timestamp()),
+        header.random_seed());
+    ApplyMutation(&context);
 }
 
 void TDecoratedMetaState::IncrementRecordCount()
@@ -296,25 +307,7 @@ TMutationContext* TDecoratedMetaState::GetMutationContext()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    return ~MutationContext;
-}
-
-void TDecoratedMetaState::EnterMutation(const TSharedRef& recordData)
-{
-    NProto::TMutationHeader mutationHeader;
-    TSharedRef mutationData;
-    DeserializeMutationRecord(recordData, &mutationHeader, &mutationData);
-    MutationContext.Reset(new TMutationContext(
-        Version,
-        mutationHeader.mutation_type(),
-        mutationData,
-        TInstant(mutationHeader.timestamp()),
-        mutationHeader.random_seed()));
-}
-
-void TDecoratedMetaState::LeaveMutation()
-{
-    MutationContext.Destroy();
+    return MutationContext;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

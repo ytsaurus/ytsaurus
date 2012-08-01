@@ -6,7 +6,9 @@
 
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/property.h>
+
 #include <ytlib/bus/message.h>
+
 #include <ytlib/rpc/client.h>
 
 namespace NYT {
@@ -15,22 +17,31 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathRequest
-    : public TRefCounted
-    , public TEphemeralAttributeProvider
+    : public TEphemeralAttributeProvider
+    , public NRpc::IClientRequest
 {
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
-    DEFINE_BYVAL_RW_PROPERTY(TYPath, Path);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
-
 public:
-    typedef TIntrusivePtr<TYPathRequest> TPtr;
-    
-    TYPathRequest(const Stroka& verb);
+    explicit TYPathRequest(const Stroka& verb);
 
-    NBus::IMessagePtr Serialize();
+    virtual bool IsOneWay() const OVERRIDE;
+    virtual const NRpc::TRequestId& GetRequestId() const OVERRIDE;
+
+    virtual const Stroka& GetVerb() const OVERRIDE;
+    
+    virtual const Stroka& GetPath() const OVERRIDE;
+    void SetPath(const Stroka& path);
+
+    virtual NYTree::IAttributeDictionary& Attributes() OVERRIDE;
+    virtual const NYTree::IAttributeDictionary& Attributes() const OVERRIDE;
+
+    virtual NBus::IMessagePtr Serialize() const OVERRIDE;
 
 protected:
-    virtual TSharedRef SerializeBody() const = 0;
+    Stroka Verb_;
+    Stroka Path_;
+    std::vector<TSharedRef> Attachments_;
+
+    virtual TBlob SerializeBody() const = 0;
 
 };
 
@@ -43,14 +54,13 @@ class TTypedYPathRequest
 {
 public:
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TTypedResponse;
-    typedef TIntrusivePtr< TTypedYPathRequest<TRequestMessage, TResponseMessage> > TPtr;
 
-    TTypedYPathRequest(const Stroka& verb)
+    explicit TTypedYPathRequest(const Stroka& verb)
         : TYPathRequest(verb)
     { }
 
 protected:
-    virtual TSharedRef SerializeBody() const
+    virtual TBlob SerializeBody() const override
     {
         TSharedRef ref;
         YCHECK(SerializeToProto(this, &ref));
@@ -68,8 +78,6 @@ class TYPathResponse
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
-    typedef TIntrusivePtr<TYPathResponse> TPtr;
-
     void Deserialize(NBus::IMessagePtr message);
 
     int GetErrorCode() const;
@@ -89,11 +97,8 @@ class TTypedYPathResponse
     : public TYPathResponse
     , public TResponseMessage
 {
-public:
-    typedef TIntrusivePtr< TTypedYPathResponse<TRequestMessage, TResponseMessage> > TPtr;
-
 protected:
-    virtual void DeserializeBody(const TRef& data)
+    virtual void DeserializeBody(const TRef& data) OVERRIDE
     {
         YCHECK(DeserializeFromProto(this, data));
     }

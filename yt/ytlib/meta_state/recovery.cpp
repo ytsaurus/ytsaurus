@@ -49,34 +49,34 @@ TRecovery::TRecovery(
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
 {
-    YASSERT(config);
-    YASSERT(cellManager);
-    YASSERT(decoratedState);
-    YASSERT(changeLogCache);
-    YASSERT(snapshotStore);
-    YASSERT(epochControlInvoker);
-    YASSERT(epochStateInvoker);
+    YCHECK(config);
+    YCHECK(cellManager);
+    YCHECK(decoratedState);
+    YCHECK(changeLogCache);
+    YCHECK(snapshotStore);
+    YCHECK(epochControlInvoker);
+    YCHECK(epochStateInvoker);
     VERIFY_INVOKER_AFFINITY(epochStateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
 }
 
-TRecovery::TAsyncResult TRecovery::RecoverToState(const TMetaVersion& targetVersion)
+TAsyncError TRecovery::RecoverToState(const TMetaVersion& targetVersion)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     TSnapshotLookup snapshotLookup(Config, CellManager);
     i32 lastestSnapshotId = snapshotLookup.LookupLatestSnapshot(targetVersion.SegmentId);
-    YASSERT(lastestSnapshotId <= targetVersion.SegmentId);
+    YCHECK(lastestSnapshotId <= targetVersion.SegmentId);
 
     return RecoverToStateWithChangeLog(targetVersion, lastestSnapshotId);
 }
 
-TRecovery::TAsyncResult TRecovery::RecoverToStateWithChangeLog(
+TAsyncError TRecovery::RecoverToStateWithChangeLog(
     const TMetaVersion& targetVersion,
     i32 snapshotId)
 {
     auto currentVersion = DecoratedState->GetVersion();
-    YASSERT(snapshotId <= targetVersion.SegmentId);
+    YCHECK(snapshotId <= targetVersion.SegmentId);
 
     LOG_INFO("Recovering state from %s to %s",
         ~currentVersion.ToString(),
@@ -103,10 +103,10 @@ TRecovery::TAsyncResult TRecovery::RecoverToStateWithChangeLog(
 
             auto downloadResult = snapshotDownloader.DownloadSnapshot(snapshotId, tempFileName);
             if (downloadResult != TSnapshotDownloader::EResult::OK) {
-                LOG_ERROR("Error downloading snapshot %d\n%s",
+                TError error("Error downloading snapshot %d\n%s",
                     snapshotId,
                     ~downloadResult.ToString());
-                return MakeFuture(EResult(EResult::Failed));
+                return MakeFuture(error);
             }
 
             try {
@@ -146,7 +146,7 @@ TRecovery::TAsyncResult TRecovery::RecoverToStateWithChangeLog(
     }
 }
 
-TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
+TAsyncError TRecovery::ReplayChangeLogs(
     const TMetaVersion& targetVersion,
     i32 expectedPrevRecordCount)
 {
@@ -157,8 +157,8 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
          segmentId <= targetVersion.SegmentId;
          ++segmentId)
     {
-        bool isFinal = segmentId == targetVersion.SegmentId;
-        bool mayBeMissing = (isFinal && targetVersion.RecordCount == 0) || !IsLeader();
+        bool isLast = segmentId == targetVersion.SegmentId;
+        bool mayBeMissing = (isLast && targetVersion.RecordCount == 0) || !IsLeader();
 
         TCachedAsyncChangeLogPtr changeLog;
         auto changeLogResult = ChangeLogCache->Get(segmentId);
@@ -170,17 +170,17 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
             }
 
             LOG_INFO("Changelog %d is missing and will be created", segmentId);
-            YASSERT(expectedPrevRecordCount != UnknownPrevRecordCount);
+            YCHECK(expectedPrevRecordCount != UnknownPrevRecordCount);
             changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount, Epoch);
         } else {
             changeLog = changeLogResult.Value();
         }
 
-        LOG_DEBUG("Found changelog %d (RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+        LOG_DEBUG("Changelog found (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsLast: %s)",
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),
-            ~ToString(isFinal));
+            ~FormatBool(isLast));
 
         if (expectedPrevRecordCount != UnknownPrevRecordCount &&
             changeLog->GetPrevRecordCount() != expectedPrevRecordCount)
@@ -199,10 +199,10 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
 
             auto response = request->Invoke().Get();
             if (!response->IsOK()) {
-                LOG_ERROR("Error getting changelog %d info from leader\n%s",
+                TError error("Error getting changelog %d info from leader\n%s",
                     segmentId,
                     ~response->GetError().ToString());
-                return MakeFuture(EResult(EResult::Failed));
+                return MakeFuture(error);
             }
 
             i32 localRecordCount = changeLog->GetRecordCount();
@@ -230,16 +230,17 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
             }
 
             auto currentVersion = DecoratedState->GetVersion();
-            YASSERT(currentVersion.SegmentId <= segmentId);
+            YCHECK(currentVersion.SegmentId <= segmentId);
 
             // Check if the current state contains some changes that are not present in the remote changelog.
             // If so, clear the state and restart recovery.
             if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
-                LOG_INFO("Current version is %s while only %d mutations are expected, forcing clear restart",
+                TError error("Current version is %s while only %d mutations are expected, forcing clear restart",
                     ~currentVersion.ToString(),
                     remoteRecordCount);
+                LOG_INFO("%s", ~error.ToString());
                 DecoratedState->Clear();
-                return MakeFuture(EResult(EResult::Failed));
+                return MakeFuture(error);
             }
 
             // Do not download more than actually needed.
@@ -257,35 +258,35 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
                     *changeLog);
 
                 if (changeLogResult != TChangeLogDownloader::EResult::OK) {
-                    LOG_ERROR("Error downloading changelog %d\n%s",
+                    TError error("Error downloading changelog %d\n%s",
                         segmentId,
                         ~changeLogResult.ToString());
-                    return MakeFuture(EResult(EResult::Failed));
+                    return MakeFuture(error);
                 }
             }
         }
 
-        if (!isFinal && !changeLog->IsFinalized()) {
+        if (!isLast && !changeLog->IsFinalized()) {
             LOG_INFO("Finalizing an intermediate changelog %d", segmentId);
             changeLog->Finalize();
         }
 
         if (segmentId == targetVersion.SegmentId) {
-            YASSERT(changeLog->GetRecordCount() == targetVersion.RecordCount);
+            YCHECK(changeLog->GetRecordCount() == targetVersion.RecordCount);
         }
 
         ReplayChangeLog(*changeLog, changeLog->GetRecordCount());
 
-        if (!isFinal) {
+        if (!isLast) {
             DecoratedState->AdvanceSegment();
         }
 
         expectedPrevRecordCount = changeLog->GetRecordCount();
     }
 
-    YASSERT(DecoratedState->GetVersion() == targetVersion);
+    YCHECK(DecoratedState->GetVersion() == targetVersion);
 
-    return MakeFuture(EResult(EResult::OK));
+    return MakeFuture(TError());
 }
 
 void TRecovery::ReplayChangeLog(
@@ -294,7 +295,7 @@ void TRecovery::ReplayChangeLog(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YASSERT(DecoratedState->GetVersion().SegmentId == changeLog.GetId());
+    YCHECK(DecoratedState->GetVersion().SegmentId == changeLog.GetId());
     
     i32 startRecordId = DecoratedState->GetVersion().RecordCount;
     i32 recordCount = targetRecordCount - startRecordId;
@@ -359,7 +360,7 @@ TLeaderRecovery::TLeaderRecovery(
         epochStateInvoker)
 { }
 
-TRecovery::TAsyncResult TLeaderRecovery::Run()
+TAsyncError TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -405,16 +406,16 @@ TFollowerRecovery::TFollowerRecovery(
         leaderId,
         epochControlInvoker,
         epochStateInvoker)
-    , Promise(NewPromise<TAsyncPromise::TValueType>())
+    , Promise(NewPromise<TError>())
     , TargetVersion(targetVersion)
 { }
 
-TRecovery::TAsyncResult TFollowerRecovery::Run()
+TAsyncError TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     PostponedVersion = TargetVersion;
-    YASSERT(PostponedMutations.empty());
+    YCHECK(PostponedMutations.empty());
 
     auto this_ = MakeStrong(this);
     BIND(
@@ -428,19 +429,19 @@ TRecovery::TAsyncResult TFollowerRecovery::Run()
         MakeStrong(this)))
     // TODO(sandello): Remove a lambda here when listeners accept
     // const-reference.
-    .Subscribe(BIND([this, this_] (EResult result) mutable {
-        Promise.Set(MoveRV(result));
+    .Subscribe(BIND([this, this_] (TError error) mutable {
+        Promise.Set(MoveRV(error));
     }));
 
     return Promise;
 }
 
-TRecovery::TAsyncResult TFollowerRecovery::OnSyncReached(EResult result)
+TAsyncError TFollowerRecovery::OnSyncReached(TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (result != EResult::OK) {
-        return MakeFuture(result);
+    if (!error.IsOK()) {
+        return MakeFuture(error);
     }
 
     LOG_INFO("Sync reached");
@@ -450,13 +451,13 @@ TRecovery::TAsyncResult TFollowerRecovery::OnSyncReached(EResult result)
            .Run();
 }
 
-TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedMutations()
+TAsyncError TFollowerRecovery::CapturePostponedMutations()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (PostponedMutations.empty()) {
         LOG_INFO("No postponed changes left");
-        return MakeFuture(EResult(EResult::OK));
+        return MakeFuture(TError());
     }
 
     THolder<TPostponedMutations> changes(new TPostponedMutations());
@@ -472,7 +473,7 @@ TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedMutations()
            .Run();
 }
 
-TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedMutations(
+TAsyncError TFollowerRecovery::ApplyPostponedMutations(
     TAutoPtr<TPostponedMutations> mutations)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -512,7 +513,7 @@ TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedMutations(
            .Run();
 }
 
-TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
+TError TFollowerRecovery::PostponeSegmentAdvance(
     const TMetaVersion& version)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -521,14 +522,14 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
         LOG_DEBUG("Late segment advance received during recovery, ignored: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
-        return EResult::OK;
+        return TError();
     }
 
     if (PostponedVersion < version) {
-        LOG_WARNING("Out-of-order segment advance received during recovery: expected %s but received %s",
+        TError error("Out-of-order segment advance received during recovery: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
-        return EResult::Failed;
+        return error;
     }
 
     PostponedMutations.push_back(TPostponedMutation::CreateSegmentAdvance());
@@ -538,10 +539,10 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
     ++PostponedVersion.SegmentId;
     PostponedVersion.RecordCount = 0;
     
-    return EResult::OK;
+    return TError();
 }
 
-TRecovery::EResult TFollowerRecovery::PostponeMutations(
+TError TFollowerRecovery::PostponeMutations(
     const TMetaVersion& version,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -551,14 +552,14 @@ TRecovery::EResult TFollowerRecovery::PostponeMutations(
         LOG_WARNING("Late mutations received during recovery, ignored: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
-        return EResult::OK;
+        return TError();
     }
 
     if (PostponedVersion != version) {
-        LOG_WARNING("Out-of-order mutations received during recovery: expected %s but received %s",
+        TError error("Out-of-order mutations received during recovery: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
-        return EResult::Failed;
+        return error;
     }
 
     LOG_DEBUG("Postponing %" PRISZT " mutations at version %s",
@@ -571,7 +572,7 @@ TRecovery::EResult TFollowerRecovery::PostponeMutations(
     
     PostponedVersion.RecordCount += recordsData.size();
 
-    return EResult::OK;
+    return TError();
 }
 
 bool TFollowerRecovery::IsLeader() const

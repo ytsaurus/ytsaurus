@@ -9,24 +9,25 @@
 #include "snapshot_builder.h"
 #include "recovery.h"
 #include "mutation_committer.h"
-#include "follower_tracker.h"
+#include "quorum_tracker.h"
 #include "follower_pinger.h"
 #include "meta_state.h"
 #include "snapshot_store.h"
 #include "decorated_meta_state.h"
 #include "mutation_context.h"
-#include "serialize.h"
+
+#include <ytlib/misc/thread_affinity.h>
 
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_manager.h>
+
 #include <ytlib/rpc/service.h>
-#include <ytlib/actions/bind.h>
-#include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/meta_state/meta_state_manager.pb.h>
 
 #include <util/folder/dirut.h>
-#include <util/random/random.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -119,6 +120,7 @@ public:
 
         SnapshotStore = New<TSnapshotStore>(Config->Snapshots);
         DecoratedState = New<TDecoratedMetaState>(
+            Config,
             metaState,
             stateInvoker,
             controlInvoker,
@@ -131,7 +133,7 @@ public:
         VERIFY_INVOKER_AFFINITY(stateInvoker, StateThread);
         VERIFY_INVOKER_AFFINITY(IOQueue->GetInvoker(), IOThread);
 
-        CellManager = New<TCellManager>(~Config->Cell);
+        CellManager = New<TCellManager>(Config->Cell);
 
         LOG_INFO("SelfAddress: %s, PeerId: %d",
             ~CellManager->GetSelfAddress(),
@@ -150,7 +152,7 @@ public:
     virtual void Start()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(ControlStatus == EPeerStatus::Stopped);
+        YCHECK(ControlStatus == EPeerStatus::Stopped);
 
         ChangeLogCache->Start();
         SnapshotStore->Start();
@@ -201,7 +203,7 @@ public:
 
     virtual bool HasActiveQuorum() const
     {
-        auto tracker = FollowerTracker;
+        auto tracker = QuorumTracker;
         if (!tracker) {
             return false;
         }
@@ -224,7 +226,7 @@ public:
 
     virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     {
-        auto tracker = FollowerTracker;
+        auto tracker = QuorumTracker;
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -254,37 +256,34 @@ public:
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
 
-    virtual TAsyncCommitResult CommitMutation(
-        const Stroka& mutationType,
-        const TRef& mutationData,
-        const TClosure& mutationAction)
+    virtual TFuture< TValueOrError<TMutationResponse> > CommitMutation(const TMutationRequest& request)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        YASSERT(!DecoratedState->GetMutationContext());
+        YCHECK(!DecoratedState->GetMutationContext());
 
         if (GetStateStatus() != EPeerStatus::Leading) {
-            return MakeFuture(ECommitResult(ECommitResult::InvalidStatus));
+            return MakeFuture(TValueOrError<TMutationResponse>(TError(
+                ECommitCode::NoLeader,
+                "Not a leader")));
         }
 
         if (ReadOnly) {
-            return MakeFuture(ECommitResult(ECommitResult::ReadOnly));
+            return MakeFuture(TValueOrError<TMutationResponse>(TError(
+                ECommitCode::ReadOnly,
+                "State is read only")));
         }
 
         // FollowerTracker is modified concurrently from the ControlThread.
-        auto followerTracker = FollowerTracker;
+        auto followerTracker = QuorumTracker;
         if (!followerTracker || !followerTracker->HasActiveQuorum()) {
-            return MakeFuture(ECommitResult(ECommitResult::NotCommitted));
+            return MakeFuture(TValueOrError<TMutationResponse>(TError(
+                ECommitCode::NoQuorum,
+                "No active quorum")));
         }
-
-        NProto::TMutationHeader header;
-        header.set_mutation_type(mutationType);
-        header.set_timestamp(TInstant::Now().GetValue());
-        header.set_random_seed(RandomNumber<ui64>());
-        auto recordData = SerializeMutationRecord(header, mutationData);
 
         return
             LeaderCommitter
-            ->Commit(recordData, mutationAction)
+            ->Commit(request)
             .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
     }
 
@@ -325,7 +324,7 @@ public:
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
 
-    TFollowerTrackerPtr FollowerTracker;
+    TQuorumTrackerPtr QuorumTracker;
     TFollowerPingerPtr FollowerPinger;
 
     // RPC methods
@@ -375,8 +374,8 @@ public:
             offset,
             length);
 
-        YASSERT(offset >= 0);
-        YASSERT(length >= 0);
+        YCHECK(offset >= 0);
+        YCHECK(length >= 0);
 
         auto fileName = SnapshotStore->GetSnapshotFileName(snapshotId);
         if (!isexist(~fileName)) {
@@ -458,8 +457,8 @@ public:
             startRecordId,
             recordCount);
 
-        YASSERT(startRecordId >= 0);
-        YASSERT(recordCount >= 0);
+        YCHECK(startRecordId >= 0);
+        YCHECK(recordCount >= 0);
 
         auto result = ChangeLogCache->Get(changeLogId);
         if (!result.IsOK()) {
@@ -503,7 +502,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TEpoch epoch = TEpoch::FromProto(request->epoch());
+        auto epoch = TEpoch::FromProto(request->epoch());
         i32 segmentId = request->segment_id();
         i32 recordCount = request->record_count();
         TMetaVersion version(segmentId, recordCount);
@@ -526,8 +525,6 @@ public:
                     ~version.ToString(),
                     changeCount);
 
-                YASSERT(FollowerCommitter);
-
                 FollowerCommitter
                     ->Commit(version, request->Attachments())
                     .Subscribe(BIND(&TThis::OnFollowerCommitted, MakeStrong(this), context));
@@ -540,8 +537,9 @@ public:
                         ~version.ToString(),
                         changeCount);
 
-                    auto result = FollowerRecovery->PostponeMutations(version, request->Attachments());
-                    if (result != TRecovery::EResult::OK) {
+                    auto error = FollowerRecovery->PostponeMutations(version, request->Attachments());
+                    if (!error.IsOK()) {
+                        LOG_WARNING("Error postponing mutations, restarting\n%s", ~error.ToString());
                         Restart();
                     }
 
@@ -563,34 +561,20 @@ public:
         }
     }
 
-    void OnFollowerCommitted(TCtxApplyMutationsPtr context, TLeaderCommitter::EResult result)
+    void OnFollowerCommitted(TCtxApplyMutationsPtr context, TError error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto& response = context->Response();
-
-        switch (result) {
-            case TCommitter::EResult::Committed:
-                response.set_committed(true);
-                context->Reply();
-                break;
-
-            case TCommitter::EResult::LateMutations:
-                context->Reply(
-                    TProxy::EErrorCode::InvalidVersion,
-                    "Changes are late");
-                break;
-
-            case TCommitter::EResult::OutOfOrderMutations:
-                context->Reply(
-                    TProxy::EErrorCode::InvalidVersion,
-                    "Changes are out of order");
+        if (error.IsOK()) {
+            auto& response = context->Response();
+            response.set_committed(true);
+        } else {
+            if (error.GetCode() == ECommitCode::OutOfOrderMutations) {
                 Restart();
-                break;
-
-            default:
-                YUNREACHABLE();
+            }
         }
+
+        context->Reply(error);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PingFollower)
@@ -628,15 +612,15 @@ public:
                         ~epoch.ToString());
 
                     FollowerRecovery = New<TFollowerRecovery>(
-                        ~Config,
-                        ~CellManager,
-                        ~DecoratedState,
-                        ~ChangeLogCache,
-                        ~SnapshotStore,
+                        Config,
+                        CellManager,
+                        DecoratedState,
+                        ChangeLogCache,
+                        SnapshotStore,
                         epoch,
                         LeaderId,
-                        ~EpochControlInvoker,
-                        ~EpochStateInvoker,
+                        EpochControlInvoker,
+                        EpochStateInvoker,
                         version);
 
                     FollowerRecovery->Run().Subscribe(
@@ -663,7 +647,7 @@ public:
         auto epoch = TEpoch::FromProto(request->epoch());
         i32 segmentId = request->segment_id();
         i32 recordCount = request->record_count();
-        TMetaVersion version(segmentId, recordCount);
+        auto version = TMetaVersion(segmentId, recordCount);
         bool createSnapshot = request->create_snapshot();
 
         context->SetRequestInfo("Epoch: %s, Version: %s, CreateSnapshot: %s",
@@ -704,8 +688,9 @@ public:
                 if (FollowerRecovery) {
                     LOG_DEBUG("AdvanceSegment: postponing snapshot creation");
 
-                    auto result = FollowerRecovery->PostponeSegmentAdvance(version);
-                    if (result != TRecovery::EResult::OK) {
+                    auto error = FollowerRecovery->PostponeSegmentAdvance(version);
+                    if (!error.IsOK()) {
+                        LOG_ERROR("%s", ~error.ToString());
                         Restart();
                     }
 
@@ -756,28 +741,28 @@ public:
         auto& response = context->Response();
 
         switch (result.ResultCode) {
-        case TSnapshotBuilder::EResultCode::OK:
-            response.set_checksum(result.Checksum);
-            context->Reply();
-            break;
-        case TSnapshotBuilder::EResultCode::InvalidVersion:
-            context->Reply(
-                TProxy::EErrorCode::InvalidVersion,
-                "Requested to create a snapshot for an invalid version");
-            break;
-        case TSnapshotBuilder::EResultCode::AlreadyInProgress:
-            context->Reply(
-                TProxy::EErrorCode::SnapshotAlreadyInProgress,
-                "Snapshot creation is already in progress");
-            break;
-        case TSnapshotBuilder::EResultCode::ForkError:
-            context->Reply(TError("Fork error"));
-            break;
-        case TSnapshotBuilder::EResultCode::TimeoutExceeded:
-            context->Reply(TError("Snapshot creation timed out"));
-            break;
-        default:
-            YUNREACHABLE();
+            case TSnapshotBuilder::EResultCode::OK:
+                response.set_checksum(result.Checksum);
+                context->Reply();
+                break;
+            case TSnapshotBuilder::EResultCode::InvalidVersion:
+                context->Reply(
+                    TProxy::EErrorCode::InvalidVersion,
+                    "Requested to create a snapshot for an invalid version");
+                break;
+            case TSnapshotBuilder::EResultCode::AlreadyInProgress:
+                context->Reply(
+                    TProxy::EErrorCode::SnapshotAlreadyInProgress,
+                    "Snapshot creation is already in progress");
+                break;
+            case TSnapshotBuilder::EResultCode::ForkError:
+                context->Reply(TError("Fork error"));
+                break;
+            case TSnapshotBuilder::EResultCode::TimeoutExceeded:
+                context->Reply(TError("Snapshot creation timed out"));
+                break;
+            default:
+                YUNREACHABLE();
         }
     }
 
@@ -805,9 +790,7 @@ public:
                 Sprintf("Cannot answer quorum queries while in %s", ~GetControlStatus().ToString());
         }
 
-        auto tracker = FollowerTracker;
-        YASSERT(tracker);
-
+        auto tracker = QuorumTracker;
         response->set_leader_address(CellManager->GetSelfAddress());
         for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
             if (tracker->IsFollowerActive(id)) {
@@ -836,21 +819,16 @@ public:
         ElectionManager->Restart();
     }
 
-    ECommitResult OnMutationCommitted(TLeaderCommitter::EResult result)
+    TValueOrError<TMutationResponse> OnMutationCommitted(TValueOrError<TMutationResponse> result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        switch (result) {
-            case TLeaderCommitter::EResult::Committed:
-                return ECommitResult::Committed;
-
-            case TLeaderCommitter::EResult::MaybeCommitted:
-                Restart();
-                return ECommitResult::MaybeCommitted;
-
-            default:
-                YUNREACHABLE();
+        if (!result.IsOK()) {
+            LOG_ERROR("Error committing mutation, restarting\n%s", ~result.ToString());
+            Restart();
         }
+
+        return result;
     }
 
 
@@ -865,34 +843,34 @@ public:
 
         StartEpoch(epoch);
 
-        YASSERT(!FollowerTracker);
-        FollowerTracker = New<TFollowerTracker>(
-            ~Config->FollowerTracker,
-            ~CellManager,
-            ~EpochControlInvoker);
+        YCHECK(!QuorumTracker);
+        QuorumTracker = New<TQuorumTracker>(
+            Config->FollowerTracker,
+            CellManager,
+            EpochControlInvoker);
 
-        YASSERT(!LeaderCommitter);
+        YCHECK(!LeaderCommitter);
         LeaderCommitter = New<TLeaderCommitter>(
-            ~Config->LeaderCommitter,
-            ~CellManager,
-            ~DecoratedState,
-            ~ChangeLogCache,
-            ~FollowerTracker,
+            Config->LeaderCommitter,
+            CellManager,
+            DecoratedState,
+            ChangeLogCache,
+            QuorumTracker,
             epoch,
-            ~EpochControlInvoker,
-            ~EpochStateInvoker);
+            EpochControlInvoker,
+            EpochStateInvoker);
         LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnMutationApplied, MakeWeak(this)));
 
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
         DecoratedState->SetPingVersion(version);
 
-        YASSERT(!FollowerPinger);
+        YCHECK(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
             Config->FollowerPinger,
             CellManager,
             DecoratedState,
-            FollowerTracker,
+            QuorumTracker,
             epoch,
             EpochControlInvoker);
         FollowerPinger->Start();
@@ -906,12 +884,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YASSERT(StateStatus == EPeerStatus::Stopped);
+        YCHECK(StateStatus == EPeerStatus::Stopped);
         StateStatus = EPeerStatus::LeaderRecovery;
 
         StartLeading_.Fire();
 
-        YASSERT(!LeaderRecovery);
+        YCHECK(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
             ~Config,
             ~CellManager,
@@ -930,22 +908,22 @@ public:
                 .Via(EpochStateInvoker));
     }
 
-    void OnStateLeaderRecoveryFinished(TRecovery::EResult result)
+    void OnStateLeaderRecoveryFinished(TError error)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YASSERT(LeaderRecovery);
+        YCHECK(LeaderRecovery);
         LeaderRecovery.Reset();
 
-        if (result != TRecovery::EResult::OK) {
-            LOG_WARNING("Leader recovery failed, restarting");
+        if (!error.IsOK()) {
+            LOG_WARNING("Leader recovery failed, restarting\n%s", ~error.ToString());
             Restart();
             return;
         }
 
-        YASSERT(!SnapshotBuilder);
+        YCHECK(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
-            ~Config->SnapshotBuilder,
+            Config->SnapshotBuilder,
             CellManager,
             DecoratedState,
             SnapshotStore,
@@ -963,7 +941,7 @@ public:
 
         LeaderRecoveryComplete_.Fire();
 
-        YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
+        YCHECK(StateStatus == EPeerStatus::LeaderRecovery);
         StateStatus = EPeerStatus::Leading;
 
         EpochControlInvoker->Invoke(BIND(
@@ -976,9 +954,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        FollowerTracker->Start();
+        QuorumTracker->Start(CellManager->GetSelfId());
 
-        YASSERT(ControlStatus == EPeerStatus::LeaderRecovery);
+        YCHECK(ControlStatus == EPeerStatus::LeaderRecovery);
         ControlStatus = EPeerStatus::Leading;
 
         LOG_INFO("Leader recovery complete");
@@ -1009,9 +987,9 @@ public:
             FollowerPinger.Reset();
         }
 
-        if (FollowerTracker) {
-            FollowerTracker->Stop();
-            FollowerTracker.Reset();
+        if (QuorumTracker) {
+            QuorumTracker->Stop();
+            QuorumTracker.Reset();
         }
 
         if (LeaderRecovery) {
@@ -1030,7 +1008,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YASSERT(StateStatus == EPeerStatus::Leading || StateStatus == EPeerStatus::LeaderRecovery);
+        YCHECK(StateStatus == EPeerStatus::Leading || StateStatus == EPeerStatus::LeaderRecovery);
         StateStatus = EPeerStatus::Stopped;
 
         StopLeading_.Fire();
@@ -1057,21 +1035,22 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YASSERT(StateStatus == EPeerStatus::Stopped);
+        YCHECK(StateStatus == EPeerStatus::Stopped);
         StateStatus = EPeerStatus::FollowerRecovery;
 
         StartFollowing_.Fire();
     }
 
-    void OnControlFollowerRecoveryFinished(TRecovery::EResult result)
+    void OnControlFollowerRecoveryFinished(TError error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YASSERT(FollowerRecovery);
+        YCHECK(FollowerRecovery);
         FollowerRecovery.Reset();
 
-        if (result != TRecovery::EResult::OK) {
-            LOG_INFO("Follower recovery failed, restarting");
+        if (!error.IsOK()) {
+            LOG_WARNING("Follower recovery failed, restarting\n%s",
+                ~error.ToString());
             Restart();
             return;
         }
@@ -1080,15 +1059,15 @@ public:
             &TThis::DoStateFollowerRecoveryComplete,
             MakeStrong(this)));
 
-        YASSERT(!FollowerCommitter);
+        YCHECK(!FollowerCommitter);
         FollowerCommitter = New<TFollowerCommitter>(
-            ~DecoratedState,
-            ~EpochControlInvoker,
-            ~EpochStateInvoker);
+            DecoratedState,
+            EpochControlInvoker,
+            EpochStateInvoker);
 
-        YASSERT(!SnapshotBuilder);
+        YCHECK(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
-            ~Config->SnapshotBuilder,
+            Config->SnapshotBuilder,
             CellManager,
             DecoratedState,
             SnapshotStore,
@@ -1105,7 +1084,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YASSERT(StateStatus == EPeerStatus::FollowerRecovery);
+        YCHECK(StateStatus == EPeerStatus::FollowerRecovery);
         StateStatus = EPeerStatus::Following;
 
         FollowerRecoveryComplete_.Fire();
@@ -1147,7 +1126,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YASSERT(StateStatus == EPeerStatus::Following || StateStatus == EPeerStatus::FollowerRecovery);
+        YCHECK(StateStatus == EPeerStatus::Following || StateStatus == EPeerStatus::FollowerRecovery);
         StateStatus = EPeerStatus::Stopped;
 
         StopFollowing_.Fire();
@@ -1158,7 +1137,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YASSERT(!EpochContext);
+        YCHECK(!EpochContext);
         EpochContext = New<TCancelableContext>();
         EpochControlInvoker = EpochContext->CreateInvoker(ControlInvoker);
         EpochStateInvoker = EpochContext->CreateInvoker(GetStateInvoker());
@@ -1173,7 +1152,7 @@ public:
         LeaderId = NElection::InvalidPeerId;
         DecoratedState->SetEpoch(TEpoch());
 
-        YASSERT(EpochContext);
+        YCHECK(EpochContext);
         EpochContext->Cancel();
         EpochContext.Reset();
         EpochControlInvoker.Reset();
@@ -1195,12 +1174,13 @@ public:
     void OnMutationApplied()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        YASSERT(StateStatus == EPeerStatus::Leading);
+        YVERIFY(StateStatus == EPeerStatus::Leading);
 
         auto version = DecoratedState->GetVersion();
-        if (Config->MaxChangesBetweenSnapshots > 0 &&
+        auto period = Config->MaxChangesBetweenSnapshots;
+        if (period &&
             version.RecordCount > 0 &&
-            version.RecordCount % Config->MaxChangesBetweenSnapshots == 0)
+            version.RecordCount % period.Get() == 0)
         {
             LeaderCommitter->Flush(true);
             SnapshotBuilder->CreateDistributedSnapshot();
@@ -1240,9 +1220,9 @@ IMetaStateManagerPtr CreatePersistentStateManager(
     IMetaStatePtr metaState,
     NRpc::IServerPtr server)
 {
-    YASSERT(controlInvoker);
-    YASSERT(metaState);
-    YASSERT(server);
+    YCHECK(controlInvoker);
+    YCHECK(metaState);
+    YCHECK(server);
 
     return New<TPersistentStateManager>(
         config,

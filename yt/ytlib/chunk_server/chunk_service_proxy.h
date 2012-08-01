@@ -31,7 +31,7 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NProto, RegisterHolder);
+    DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);
     DEFINE_RPC_PROXY_METHOD(NProto, FullHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, IncrementalHeartbeat);
 

@@ -106,11 +106,14 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 
 void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
+    if (CachedGuardedInvokeCallback.IsNull()) {
+        CachedGuardedInvokeCallback = BIND(&TYPathServiceBase::GuardedInvoke, Unretained(this));
+    }
     Bootstrap->GetObjectManager()->ExecuteVerb(
         GetVersionedId(),
         IsWriteRequest(context),
         context,
-        BIND(&TYPathServiceBase::GuardedInvoke, TIntrusivePtr<TYPathServiceBase>(this)));
+        CachedGuardedInvokeCallback);
 }
 
 void TObjectProxyBase::DoInvoke(IServiceContextPtr context)

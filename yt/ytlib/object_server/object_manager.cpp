@@ -10,7 +10,10 @@
 
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
+
 #include <ytlib/rpc/message.h>
+
+#include <ytlib/meta_state/rpc_helpers.h>
 
 #include <ytlib/cypress_server/cypress_manager.h>
 
@@ -38,7 +41,7 @@ static NProfiling::TProfiler Profiler("/object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A wrapper that is used to postpone a reply until the change is committed by quorum.
+//! A wrapper that is used to postpone the reply until the mutation is committed by quorum.
 class TObjectManager::TServiceContextWrapper
     : public IServiceContext
 {
@@ -85,13 +88,13 @@ public:
         Error = error;
     }
 
-    void Flush()
+    virtual void Reply(IMessagePtr responseMessage)
     {
-        YASSERT(Replied);
-        UnderlyingContext->Reply(Error);
+        UNUSED(responseMessage);
+        YUNREACHABLE();
     }
 
-    virtual TError GetError() const
+    virtual const TError& GetError() const
     {
         return Error;
     }
@@ -99,6 +102,11 @@ public:
     virtual TSharedRef GetRequestBody() const
     {
         return UnderlyingContext->GetRequestBody();
+    }
+
+    virtual TSharedRef GetResponseBody()
+    {
+        return UnderlyingContext->GetResponseBody();
     }
 
     virtual void SetResponseBody(const TSharedRef& responseBody)
@@ -151,10 +159,21 @@ public:
         return UnderlyingContext->Wrap(action);
     }
 
+
+    IMessagePtr GetResponseMessage()
+    {
+        YASSERT(Replied);
+        if (!ResponseMessage) {
+            ResponseMessage = CreateResponseMessage(this);
+        }
+        return ResponseMessage;
+    }
+
 private:
     IServiceContextPtr UnderlyingContext;
-    TError Error;
     bool Replied;
+    TError Error;
+    IMessagePtr ResponseMessage;
 
 };
 
@@ -244,6 +263,7 @@ public:
 
 private:
     TBootstrap* Bootstrap;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -534,6 +554,16 @@ void TObjectManager::Clear()
     Attributes.Clear();
 }
 
+void TObjectManager::OnStartRecovery()
+{
+    Profiler.SetEnabled(false);
+}
+
+void TObjectManager::OnStopRecovery()
+{
+    Profiler.SetEnabled(true);
+}
+
 bool TObjectManager::ObjectExists(const TObjectId& id)
 {
     auto handler = FindHandler(TypeFromId(id));
@@ -624,10 +654,10 @@ void TObjectManager::ExecuteVerb(
     IServiceContextPtr context,
     TCallback<void(NRpc::IServiceContextPtr)> action)
 {
-    LOG_INFO_UNLESS(IsRecovery(), "Executing %s request with path %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s (ObjectId: %s, Path: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),
-        ~context->GetPath().Quote(),
         ~id.ObjectId.ToString(),
+        ~context->GetPath(),
         ~id.TransactionId.ToString(),
         ~FormatBool(isWrite));
 
@@ -644,42 +674,45 @@ void TObjectManager::ExecuteVerb(
         return;
     }
 
-    // TODO(sandello): We are about to execute verb, have to check that we are leading.
-
-    TMsgExecuteVerb message;
-    *message.mutable_object_id() = id.ObjectId.ToProto();
-    *message.mutable_transaction_id() = id.TransactionId.ToProto();
+    TMetaReqExecute executeReq;
+    *executeReq.mutable_object_id() = id.ObjectId.ToProto();
+    *executeReq.mutable_transaction_id() = id.TransactionId.ToProto();
 
     auto requestMessage = context->GetRequestMessage();
     FOREACH (const auto& part, requestMessage->GetParts()) {
-        message.add_request_parts(part.Begin(), part.Size());
+        executeReq.add_request_parts(part.Begin(), part.Size());
     }
 
+    // Capture everything needed in lambdas below.
     auto wrappedContext = New<TServiceContextWrapper>(context);
+    auto mutationId = GetRpcMutationId(context);
+    auto metaStateManager = MetaStateManager;
 
-    auto change = CreateMutation(
-        MetaStateManager,
-        message,
-        BIND([=] () -> TVoid {
+    New<TMutation>(metaStateManager)
+        ->SetRequestData(executeReq)
+        ->SetId(mutationId)
+        ->SetAction(BIND([=] () {
             PROFILE_TIMING (profilingPath) {
                 action.Run(wrappedContext);
             }
-            return TVoid();
-        }));
-
-    change
-        ->OnSuccess(BIND([=] (TVoid) {
-            wrappedContext->Flush();
+            if (mutationId != NullMutationId) {
+                auto responseMessage = wrappedContext->GetResponseMessage();
+                auto responseData = PackMessage(responseMessage);
+                metaStateManager->GetMutationContext()->SetResponseData(responseData);
+            }
         }))
-        ->OnError(BIND([=] () {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Error committing meta state changes"));
+        ->OnSuccess(BIND([=] (const TMutationResponse& response) {
+            auto responseMessage =
+                response.Applied
+                ? wrappedContext->GetResponseMessage()
+                : UnpackMessage(response.Data);
+            context->Reply(responseMessage);
         }))
+        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 
-TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
+void TObjectManager::ReplayVerb(const TMetaReqExecute& message)
 {
     auto objectId = TObjectId::FromProto(message.object_id());
     auto transactionId = TTransactionId::FromProto(message.transaction_id());
@@ -710,13 +743,11 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
         path,
         verb,
         "",
-        NYTree::TYPathResponseHandler());
+        TYPathResponseHandler());
 
     auto proxy = GetProxy(objectId, transaction);
 
     proxy->Invoke(context);
-
-    return TVoid();
 }
 
 void TObjectManager::OnTransactionCommitted(TTransaction* transaction)

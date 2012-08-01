@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "message.h"
 #include "private.h"
+#include "service.h"
 
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/rpc/rpc.pb.h>
@@ -50,6 +51,22 @@ IMessagePtr CreateResponseMessage(
     }
 
     return CreateMessageFromParts(MoveRV(parts));
+}
+
+IMessagePtr CreateResponseMessage(IServiceContextPtr context)
+{
+    NProto::TResponseHeader header;
+    *header.mutable_request_id() = context->GetRequestId().ToProto();
+    *header.mutable_error() = context->GetError().ToProto();
+    ToProto(header.mutable_attributes(), context->ResponseAttributes());
+
+    return 
+        context->GetError().IsOK()
+        ? CreateResponseMessage(
+            header,
+            context->GetResponseBody(),
+            context->ResponseAttachments())
+        : CreateErrorResponseMessage(header);
 }
 
 IMessagePtr CreateErrorResponseMessage(

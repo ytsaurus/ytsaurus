@@ -21,7 +21,6 @@
 #include <ytlib/transaction_server/cypress_integration.h>
 
 #include <ytlib/cypress_server/cypress_manager.h>
-#include <ytlib/cypress_server/cypress_integration.h>
 
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/chunk_server/chunk_service.h>
@@ -124,7 +123,7 @@ TChunkManagerPtr TBootstrap::GetChunkManager() const
     return ChunkManager;
 }
 
-IHolderAuthorityPtr TBootstrap::GetHolderAuthority() const
+INodeAuthorityPtr TBootstrap::GetNodeAuthority() const
 {
     return HolderAuthority;
 }
@@ -171,7 +170,7 @@ void TBootstrap::Run()
     auto objectService = New<TObjectService>(this);
     rpcServer->RegisterService(objectService);
 
-    HolderAuthority = CreateHolderAuthority(this);
+    HolderAuthority = CreateNodeAuthority(this);
 
     ChunkManager = New<TChunkManager>(Config->Chunks, this);
 
@@ -220,10 +219,9 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateUnderreplicatedChunkMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateNodeMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));
-    CypressManager->RegisterHandler(CreateHolderTypeHandler(this));
-    CypressManager->RegisterHandler(CreateHolderMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateNodeTypeHandler(this));
+    CypressManager->RegisterHandler(CreateNodeMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager->RegisterHandler(CreateTableTypeHandler(this));
 

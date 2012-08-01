@@ -7,12 +7,12 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Provides an interface for checking holder authorization.
-struct IHolderAuthority
+//! Provides an interface for checking node authorization.
+struct INodeAuthority
     : public virtual TRefCounted
 {
-    //! Returns true iff the holder with a given address is authorized to register.
-    virtual bool IsHolderAuthorized(const Stroka& address) = 0;
+    //! Returns true iff a node with the given address is authorized to register.
+    virtual bool IsAuthorized(const Stroka& address) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

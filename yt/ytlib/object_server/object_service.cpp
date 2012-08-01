@@ -31,6 +31,7 @@ public:
     TExecuteSession(TObjectService* owner, TCtxExecutePtr context)
         : Context(context)
         , Owner(owner)
+        , Awaiter(New<TParallelAwaiter>())
     { }
 
     void Run()
@@ -43,7 +44,11 @@ public:
 
         const auto& attachments = request.Attachments();
         int requestPartIndex = 0;
-        auto awaiter = New<TParallelAwaiter>();
+        auto rootService = Owner
+            ->Bootstrap
+            ->GetObjectManager()
+            ->GetRootService();
+
         for (int requestIndex = 0; requestIndex < request.part_counts_size(); ++requestIndex) {
             int partCount = request.part_counts(requestIndex);
             if (partCount == 0) {
@@ -70,25 +75,24 @@ public:
                 ~path,
                 ~verb);
 
-            auto rootService = Owner
-                ->Bootstrap
-                ->GetObjectManager()
-                ->GetRootService();
-
-            awaiter->Await(
+            Awaiter->Await(
                 ExecuteVerb(rootService, requestMessage),
                 BIND(&TExecuteSession::OnResponse, MakeStrong(this), requestIndex));
 
             requestPartIndex += partCount;
         }
 
-        awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
+        Awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
     }
 
 private:
     TCtxExecutePtr Context;
-    TObjectService::TPtr Owner;
+    TObjectServicePtr Owner;
+    TParallelAwaiterPtr Awaiter;
+
     std::vector<IMessagePtr> ResponseMessages;
+
+    TSpinLock UnavilableSpinLock;
 
     void OnResponse(int requestIndex, IMessagePtr responseMessage)
     {
@@ -101,11 +105,27 @@ private:
             requestIndex,
             ~error.ToString());
 
-        ResponseMessages[requestIndex] = responseMessage;
+        if (error.GetCode() == EErrorCode::Unavailable) {
+            // OnResponse call be called from an arbitrary thread.
+            // Make sure that we only reply once.
+            TGuard<TSpinLock> guard(UnavilableSpinLock);
+            Awaiter->Cancel();
+            Awaiter.Reset();
+            if (!Context->IsReplied()) {
+                Context->Reply(error);
+            }
+        } else {
+            // No sync is needed, requestIndexes are distinct.
+            ResponseMessages[requestIndex] = responseMessage;
+        }
     }
 
     void OnComplete()
     {
+        // No sync is needed: OnComplete is called after all OnResponses.
+
+        Awaiter.Reset();
+
         auto& response = Context->Response();
 
         FOREACH (const auto& responseMessage, ResponseMessages) {

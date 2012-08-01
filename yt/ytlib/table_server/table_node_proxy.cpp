@@ -276,7 +276,7 @@ TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
-    const TNodeId& nodeId)
+    const NCypressServer::TNodeId& nodeId)
     : TCypressNodeProxyBase<IEntityNode, TTableNode>(
         typeHandler,
         bootstrap,

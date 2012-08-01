@@ -5,38 +5,43 @@ import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMsgRegisterHolder
+message TMetaReqRegisterNode
 {
     required string address = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
-    required THolderStatistics statistics = 3;
+    required TNodeStatistics statistics = 3;
 }
 
-message TMsgUnregisterHolder
+message TMetaRspRegisterNode
 {
-    required int32 holder_id = 1;
+    required int32 node_id = 1;
+}
+
+message TMetaReqUnregisterNode
+{
+    required int32 node_id = 1;
 }
 
 // Full heartbeat changes are typcially large and as passed as-is in
 // form of RPC requests. Hence we don't have any special
 // TMsgFullHeartbeat type here.
 
-message TMsgIncrementalHeartbeat
+message TMetaReqIncrementalHeartbeat
 {
-    required int32 holder_id = 1;
-    required THolderStatistics statistics = 2;
+    required int32 node_id = 1;
+    required TNodeStatistics statistics = 2;
     repeated TChunkAddInfo added_chunks = 3;
     repeated TChunkRemoveInfo removed_chunks = 4;
 }
 
-message TMsgUpdateJobs
+message TMetaReqUpdateJobs
 {
-    required int32 holder_id = 1;
+    required int32 node_id = 1;
     repeated TJobStartInfo started_jobs = 2;
     repeated TJobStopInfo stopped_jobs = 3;
 }
 
-message TMsgRebalanceChunkTree
+message TMetaReqRebalanceChunkTree
 {
     required NYT.NProto.TGuid root_id = 1;
     required int32 min_chunk_list_size = 2;

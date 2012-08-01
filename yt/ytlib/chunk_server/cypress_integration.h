@@ -20,11 +20,11 @@ NCypressServer::INodeTypeHandlerPtr CreateUnderreplicatedChunkMapTypeHandler(NCe
 
 NCypressServer::INodeTypeHandlerPtr CreateChunkListMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-IHolderAuthorityPtr CreateHolderAuthority(NCellMaster::TBootstrap* bootstrap);
+INodeAuthorityPtr CreateNodeAuthority(NCellMaster::TBootstrap* bootstrap);
 
-NCypressServer::INodeTypeHandlerPtr CreateHolderTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-NCypressServer::INodeTypeHandlerPtr CreateHolderMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateNodeMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

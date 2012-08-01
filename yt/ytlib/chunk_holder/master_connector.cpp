@@ -40,7 +40,7 @@ TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootst
     , Bootstrap(bootstrap)
     , ControlInvoker(bootstrap->GetControlInvoker())
     , State(EState::Offline)
-    , HolderId(InvalidHolderId)
+    , NodeId(InvalidNodeId)
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -96,7 +96,7 @@ void TMasterConnector::OnHeartbeat()
 
 void TMasterConnector::SendRegister()
 {
-    auto request = Proxy->RegisterHolder();
+    auto request = Proxy->RegisterNode();
     *request->mutable_statistics() = ComputeStatistics();
     request->set_address(Bootstrap->GetPeerAddress());
     *request->mutable_incarnation_id() = Bootstrap->GetIncarnationId().ToProto();
@@ -109,7 +109,7 @@ void TMasterConnector::SendRegister()
         ~ToString(*request->mutable_statistics()));
 }
 
-NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
+NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
 {
     i64 availableSpace = 0;
     i64 usedSpace = 0;
@@ -122,7 +122,7 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
         }
     }
 
-    THolderStatistics result;
+    TNodeStatistics result;
     result.set_available_space(availableSpace);
     result.set_used_space(usedSpace);
     result.set_chunk_count(Bootstrap->GetChunkStore()->GetChunkCount());
@@ -132,7 +132,7 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
     return result;
 }
 
-void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolderPtr response)
+void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterNodePtr response)
 {
     if (!response->IsOK()) {
         Disconnect();
@@ -149,10 +149,10 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolderPtr response
         Bootstrap->UpdateCellGuid(cellGuid);
     }
 
-    HolderId = response->holder_id();
+    NodeId = response->node_id();
     State = EState::Registered;
 
-    LOG_INFO("Successfully registered at master (HolderId: %d)", HolderId);
+    LOG_INFO("Successfully registered at master (NodeId: %d)", NodeId);
 
     SendFullHeartbeat();
 }
@@ -163,8 +163,8 @@ void TMasterConnector::SendFullHeartbeat()
         ->FullHeartbeat()
         ->SetTimeout(Config->FullHeartbeatTimeout);
 
-    YASSERT(HolderId != InvalidHolderId);
-    request->set_holder_id(HolderId);
+    YASSERT(NodeId != InvalidNodeId);
+    request->set_node_id(NodeId);
     *request->mutable_statistics() = ComputeStatistics();
 
     FOREACH (const auto& chunk, Bootstrap->GetChunkStore()->GetChunks()) {
@@ -186,8 +186,8 @@ void TMasterConnector::SendIncrementalHeartbeat()
 {
     auto request = Proxy->IncrementalHeartbeat();
 
-    YASSERT(HolderId != InvalidHolderId);
-    request->set_holder_id(HolderId);
+    YASSERT(NodeId != InvalidNodeId);
+    request->set_node_id(NodeId);
     *request->mutable_statistics() = ComputeStatistics();
 
     ReportedAdded = AddedSinceLastSuccess;
@@ -317,7 +317,7 @@ void TMasterConnector::OnHeartbeatError(const TError& error)
 
 void TMasterConnector::Disconnect()
 {
-    HolderId = InvalidHolderId;
+    NodeId = InvalidNodeId;
     State = EState::Offline;
     ReportedAdded.clear();
     ReportedRemoved.clear();

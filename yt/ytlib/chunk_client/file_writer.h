@@ -18,8 +18,7 @@ class TFileWriter
     : public IAsyncWriter
 {
 public:
-    //! Creates a new writer.
-    TFileWriter(const Stroka& fileName, bool directMode = false);
+    explicit TFileWriter(const Stroka& fileName, bool directMode = false);
 
     virtual void Open();
 

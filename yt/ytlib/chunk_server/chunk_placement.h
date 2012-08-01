@@ -17,9 +17,9 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void OnHolderRegistered(THolder* holder);
-    void OnHolderUnregistered(THolder* holder);
-    void OnHolderUpdated(THolder* holder);
+    void OnNodeRegistered(THolder* holder);
+    void OnNodeUnregistered(THolder* holder);
+    void OnNodeUpdated(THolder* holder);
 
     void OnSessionHinted(THolder* holder);
 
@@ -50,8 +50,8 @@ private:
 
     bool IsFull(THolder* holder) const;
     int GetSessionCount(THolder* holder) const;
-    bool IsValidUploadTarget(THolder* targetHolder) const;
-    bool IsValidBalancingTarget(THolder* targetHolder, TChunk *chunk) const;
+    bool IsValidUploadTarget(THolder* tarGetNode) const;
+    bool IsValidBalancingTarget(THolder* tarGetNode, TChunk *chunk) const;
 
 };
 

@@ -15,6 +15,7 @@ namespace NYTree {
 
 using namespace NBus;
 using namespace NRpc;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +23,42 @@ TYPathRequest::TYPathRequest(const Stroka& verb)
     : Verb_(verb)
 { }
 
-IMessagePtr TYPathRequest::Serialize()
+bool TYPathRequest::IsOneWay() const
+{
+    return false;
+}
+
+const TRequestId& TYPathRequest::GetRequestId() const
+{
+    return NullRequestId;
+}
+
+const Stroka& TYPathRequest::GetVerb() const
+{
+    return Verb_;
+}
+
+const Stroka& TYPathRequest::GetPath() const
+{
+    return Path_;
+}
+
+void TYPathRequest::SetPath(const Stroka& path)
+{
+    Path_ = path;
+}
+
+IAttributeDictionary& TYPathRequest::Attributes()
+{
+    return TEphemeralAttributeProvider::Attributes();
+}
+
+const IAttributeDictionary& TYPathRequest::Attributes() const
+{
+    return TEphemeralAttributeProvider::Attributes();
+}
+
+IMessagePtr TYPathRequest::Serialize() const
 {
     auto bodyData = SerializeBody();
 
@@ -41,7 +77,7 @@ IMessagePtr TYPathRequest::Serialize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYPathResponse::Deserialize(NBus::IMessagePtr message)
+void TYPathResponse::Deserialize(IMessagePtr message)
 {
     YASSERT(message);
 
@@ -208,7 +244,7 @@ void OnYPathResponse(
 TFuture<IMessagePtr>
 ExecuteVerb(
     IYPathServicePtr service,
-    NBus::IMessagePtr requestMessage)
+    IMessagePtr requestMessage)
 {
     NLog::TLogger Logger(service->GetLoggingCategory());
 
@@ -260,7 +296,7 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
 {
     auto requestMessage = context->GetRequestMessage();
     ExecuteVerb(service, requestMessage)
-        .Subscribe(BIND([=] (NBus::IMessagePtr responseMessage) {
+        .Subscribe(BIND([=] (IMessagePtr responseMessage) {
             context->Reply(responseMessage);
         }));
 }

@@ -76,18 +76,20 @@ struct IServiceContext
     //! Signals that the request processing is complete and sends reply to the client.
     virtual void Reply(const TError& error) = 0;
 
-    //! An extension method that extracts the error code, the response body, and attachments
-    //! from #message and replies to the client.
-    void Reply(NBus::IMessagePtr message);
+    //! Parses the message and forwards to the client.
+    virtual void Reply(NBus::IMessagePtr message) = 0;
 
     //! Returns the error that was previously set by #Reply.
     /*!
      *  Calling #GetError before #Reply is forbidden.
      */
-    virtual TError GetError() const = 0;
+    virtual const TError& GetError() const = 0;
 
     //! Returns the request body.
     virtual TSharedRef GetRequestBody() const = 0;
+
+    //! Returns the response body.
+    virtual TSharedRef GetResponseBody() = 0;
 
     //! Sets the response body.
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;

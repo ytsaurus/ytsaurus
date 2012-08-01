@@ -25,7 +25,9 @@ TValueOrError<IChannelPtr> OnLeaderFound(
     TMasterDiscovery::TResult result)
 {
     if (!result.Address) {
-        return TError("Unable to determine the leader");
+        return TError(
+            EErrorCode::Unavailable,
+            "Unable to determine the leader");
     }
 
     auto clientConfig = New<TTcpBusClientConfig>();

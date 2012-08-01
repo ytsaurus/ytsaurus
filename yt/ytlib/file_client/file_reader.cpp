@@ -25,7 +25,7 @@ TFileReader::TFileReader(
     TFileReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     ITransactionPtr transaction,
-    IBlockCache* blockCache,
+    IBlockCachePtr blockCache,
     const TYPath& path)
     : TFileReaderBase(config, masterChannel, blockCache)
     , Transaction(transaction)

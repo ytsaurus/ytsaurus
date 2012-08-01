@@ -12,6 +12,7 @@ namespace NChunkServer {
 
 using namespace NProto;
 using namespace NCellMaster;
+using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,122 +20,125 @@ static NLog::TLogger Logger("ChunkServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THolderLeaseTracker::THolderLeaseTracker(
+TNodeLeaseTracker::TNodeLeaseTracker(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    , OnlineHolderCount(0)
+    , OnlineNodeCount(0)
 {
     YASSERT(config);
     YASSERT(bootstrap);
 }
 
-void THolderLeaseTracker::OnHolderRegistered(const THolder* holder, bool recovery)
+void TNodeLeaseTracker::OnNodeRegistered(const THolder* node, bool recovery)
 {
-    THolderInfo holderInfo;
-    holderInfo.Confirmed = !recovery;
-    holderInfo.Lease = TLeaseManager::CreateLease(
-        GetTimeout(holder, holderInfo),
+    TNodeInfo nodeInfo;
+    nodeInfo.Confirmed = !recovery;
+    nodeInfo.Lease = TLeaseManager::CreateLease(
+        GetTimeout(node, nodeInfo),
         BIND(
-            &THolderLeaseTracker::OnExpired,
+            &TNodeLeaseTracker::OnExpired,
             MakeStrong(this),
-            holder->GetId())
+            node->GetId())
         .Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));
-    YCHECK(HolderInfoMap.insert(MakePair(holder->GetId(), holderInfo)).second);
+    YCHECK(HolderInfoMap.insert(MakePair(node->GetId(), holderInfo)).second);
 }
 
-void THolderLeaseTracker::OnHolderOnline(const THolder* holder, bool recovery)
+void TNodeLeaseTracker::OnNodeOnline(const THolder* node, bool recovery)
 {
-    auto& holderInfo = GetHolderInfo(holder->GetId());
-    holderInfo.Confirmed = !recovery;
-    RenewLease(holder, holderInfo);
-    YASSERT(holder->GetState() == EHolderState::Online);
-    ++OnlineHolderCount;
+    auto& nodeInfo = GetNodeInfo(node->GetId());
+    nodeInfo.Confirmed = !recovery;
+    RenewLease(node, nodeInfo);
+    YASSERT(node->GetState() == ENodeState::Online);
+    ++OnlineNodeCount;
 }
 
-void THolderLeaseTracker::OnHolderUnregistered(const THolder* holder)
+void TNodeLeaseTracker::OnNodeUnregistered(const THolder* node)
 {
-    auto holderId = holder->GetId();
-    auto& holderInfo = GetHolderInfo(holderId);
-    TLeaseManager::CloseLease(holderInfo.Lease);
-    YCHECK(HolderInfoMap.erase(holderId) == 1);
-    if (holder->GetState() == EHolderState::Online) {
-        --OnlineHolderCount;
+    auto nodeId = node->GetId();
+    auto& nodeInfo = GetNodeInfo(nodeId);
+    TLeaseManager::CloseLease(nodeInfo.Lease);
+    YVERIFY(NodeInfoMap.erase(nodeId) == 1);
+    if (node->GetState() == ENodeState::Online) {
+        --OnlineNodeCount;
     }
 }
 
-void THolderLeaseTracker::OnHolderHeartbeat(const THolder* holder)
+void TNodeLeaseTracker::OnNodeHeartbeat(const THolder* node)
 {
-    auto& holderInfo = GetHolderInfo(holder->GetId());
-    holderInfo.Confirmed = true;
-    RenewLease(holder, holderInfo);
+    auto& nodeInfo = GetNodeInfo(node->GetId());
+    nodeInfo.Confirmed = true;
+    RenewLease(node, nodeInfo);
 }
 
-bool THolderLeaseTracker::IsHolderConfirmed(const THolder* holder)
+bool TNodeLeaseTracker::IsNodeConfirmed(const THolder* node)
 {
-    const auto& holderInfo = GetHolderInfo(holder->GetId());
-    return holderInfo.Confirmed;
+    const auto& nodeInfo = GetNodeInfo(node->GetId());
+    return nodeInfo.Confirmed;
 }
 
-int THolderLeaseTracker::GetOnlineHolderCount()
+int TNodeLeaseTracker::GetOnlineNodeCount()
 {
-    return OnlineHolderCount;
+    return OnlineNodeCount;
 }
 
-void THolderLeaseTracker::OnExpired(THolderId holderId)
+void TNodeLeaseTracker::OnExpired(TNodeId nodeId)
 {
-    // Check if the holder is still registered.
-    auto* holderInfo = FindHolderInfo(holderId);
-    if (!holderInfo)
+    // Check if the node is still registered.
+    auto* nodeInfo = FindNodeInfo(nodeId);
+    if (!nodeInfo)
         return;
 
-    LOG_INFO("Node expired (HolderId: %d)", holderId);
+    LOG_INFO("Node lease expired (NodeId: %d)", nodeId);
 
-    TMsgUnregisterHolder message;
-    message.set_holder_id(holderId);
+    TMetaReqUnregisterNode message;
+    message.set_node_id(nodeId);
     Bootstrap
         ->GetChunkManager()
-        ->InitiateUnregisterHolder(message)
+        ->CreateUnregisterNodeMutation(message)
         ->SetRetriable(Config->NodeExpirationBackoffTime)
-        ->OnSuccess(BIND([=] (TVoid) {
-            LOG_INFO("Node expiration commit success (HolderId: %d)", holderId);
+        ->OnSuccess(BIND([=] () {
+            LOG_INFO("Node expiration commit success (NodeId: %d)", nodeId);
         }))
-        ->OnError(BIND([=] () {
-            LOG_INFO("Node expiration commit failed (HolderId: %d)", holderId);
+        ->OnError(BIND([=] (const TError& error) {
+            LOG_INFO("Node expiration commit failed (NodeId: %d)\n%s",
+                nodeId,
+                ~error.ToString());
         }))
         ->Commit();
 }
 
-TDuration THolderLeaseTracker::GetTimeout(const THolder* holder, const THolderInfo& holderInfo)
+TDuration TNodeLeaseTracker::GetTimeout(const THolder* node, const TNodeInfo& nodeInfo)
 {
-    if (!holderInfo.Confirmed) {
+    if (!nodeInfo.Confirmed) {
         return Config->UnconfirmedNodeTimeout;
+    } else if (node->GetState() == ENodeState::Registered) {
+        return Config->RegisteredNodeTimeout;
+    } else {
+        return Config->OnlineNodeTimeout;
     }
-    return holder->GetState() == EHolderState::Registered
-        ? Config->RegisteredNodeTimeout
-        : Config->OnlineNodeTimeout;
 }
 
-void THolderLeaseTracker::RenewLease(const THolder* holder, const THolderInfo& holderInfo)
+void TNodeLeaseTracker::RenewLease(const THolder* node, const TNodeInfo& nodeInfo)
 {
     TLeaseManager::RenewLease(
-        holderInfo.Lease,
-        GetTimeout(holder, holderInfo));
+        nodeInfo.Lease,
+        GetTimeout(node, nodeInfo));
 }
 
-THolderLeaseTracker::THolderInfo* THolderLeaseTracker::FindHolderInfo(THolderId holderId)
+TNodeLeaseTracker::TNodeInfo* TNodeLeaseTracker::FindNodeInfo(TNodeId nodeId)
 {
-    auto it = HolderInfoMap.find(holderId);
-    return it == HolderInfoMap.end() ? NULL : &it->second;
+    auto it = NodeInfoMap.find(nodeId);
+    return it == NodeInfoMap.end() ? NULL : &it->second;
 }
 
-THolderLeaseTracker::THolderInfo& THolderLeaseTracker::GetHolderInfo(THolderId holderId)
+TNodeLeaseTracker::TNodeInfo& TNodeLeaseTracker::GetNodeInfo(TNodeId nodeId)
 {
-    auto it = HolderInfoMap.find(holderId);
-    YASSERT(it != HolderInfoMap.end());
+    auto it = NodeInfoMap.find(nodeId);
+    YASSERT(it != NodeInfoMap.end());
     return it->second;
 }
 

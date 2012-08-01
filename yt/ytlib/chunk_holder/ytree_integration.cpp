@@ -20,7 +20,7 @@ class TVirtualChunkMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualChunkMap(TCollection* collection)
+    explicit TVirtualChunkMap(TCollection* collection)
         : Collection(collection)
     { }
 

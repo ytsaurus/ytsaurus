@@ -17,6 +17,8 @@
 
 #include <ytlib/chunk_server/chunk_manager.h>
 
+#include <ytlib/meta_state/rpc_helpers.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -25,9 +27,9 @@ namespace NChunkServer {
 using namespace NRpc;
 using namespace NMetaState;
 using namespace NChunkHolder;
-using namespace NProto;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +46,7 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetHeavyRequest(true),
@@ -54,11 +56,11 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
             .SetHeavyRequest(true));
 }
 
- void TChunkService::ValidateHolderId(THolderId holderId)
+ void TChunkService::ValidateNodeId(TNodeId nodeId)
 {
-    if (!Bootstrap->GetChunkManager()->FindHolder(holderId)) {
+    if (!Bootstrap->GetChunkManager()->FindNode(nodeId)) {
         ythrow TServiceException(EErrorCode::NoSuchHolder) <<
-            Sprintf("Invalid or expired holder id %d", holderId);
+            Sprintf("Invalid or expired node id %d", nodeId);
     }
 }
 
@@ -72,7 +74,7 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
+DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 {
     UNUSED(response);
 
@@ -102,75 +104,74 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 
     CheckHolderAuthorization(address);
 
-    TMsgRegisterHolder message;
+    TMetaReqRegisterNode message;
     message.set_address(address);
     *message.mutable_incarnation_id() = incarnationId.ToProto();
     *message.mutable_statistics() = statistics;
     chunkManager
-        ->InitiateRegisterHolder(message)
-        ->OnSuccess(BIND([=] (THolderId nodeId) {
-            response->set_holder_id(nodeId);
+        ->CreateRegisterNodeMutation(message)
+        ->OnSuccess(BIND([=] (const TMetaRspRegisterNode& response) {
+            TNodeId nodeId = response.node_id();
+            context->Response().set_node_id(nodeId);
             *response->mutable_cell_guid() = expectedCellGuid.ToProto();
-            context->SetResponseInfo("HolderId: %d", nodeId);
+            context->SetResponseInfo("NodeId: %d", nodeId);
             context->Reply();
         }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(CreateRpcErrorHandler(context->GetUntypedContext()))
         ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
-    auto holderId = request->holder_id();
+    auto nodeId = request->node_id();
 
-    context->SetRequestInfo("HolderId: %d", holderId);
+    context->SetRequestInfo("NodeId: %d", nodeId);
 
-    ValidateHolderId(holderId);
+    ValidateNodeId(nodeId);
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto* holder = chunkManager->GetHolder(holderId);
-    if (holder->GetState() != EHolderState::Registered) {
+    const auto* holder = chunkManager->GetNode(nodeId);
+    if (holder->GetState() != ENodeState::Registered) {
         context->Reply(TError(
             EErrorCode::InvalidState,
             Sprintf("Cannot process a full heartbeat in %s state", ~holder->GetState().ToString())));
         return;
     }
-    CheckHolderAuthorization(holder->GetAddress());
+    CheckAuthorization(holder->GetAddress());
 
     chunkManager
-        ->InitiateFullHeartbeat(context)
-        ->OnSuccess(BIND([=] (TVoid) {
-            context->Reply();
-        }))
-        ->OnError(CreateErrorHandler(context))
+        ->CreateFullHeartbeatMutation(context)
+        ->OnSuccess(CreateRpcSuccessHandler(context->GetUntypedContext()))
+        ->OnError(CreateRpcErrorHandler(context->GetUntypedContext()))
         ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 {
-    auto holderId = request->holder_id();
+    auto nodeId = request->node_id();
 
-    context->SetRequestInfo("HolderId: %d");
+    context->SetRequestInfo("NodeId: %d");
 
-    ValidateHolderId(holderId);
+    ValidateNodeId(nodeId);
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto* holder = chunkManager->GetHolder(holderId);
-    if (holder->GetState() != EHolderState::Online) {
+    auto* holder = chunkManager->GetNode(nodeId);
+    if (holder->GetState() != ENodeState::Online) {
         context->Reply(TError(
             EErrorCode::InvalidState,
             Sprintf("Cannot process an incremental heartbeat in %s state", ~holder->GetState().ToString())));
         return;
     }
-    CheckHolderAuthorization(holder->GetAddress());
+    CheckAuthorization(holder->GetAddress());
 
-    TMsgIncrementalHeartbeat heartbeatMsg;
-    heartbeatMsg.set_holder_id(holderId);
-    *heartbeatMsg.mutable_statistics() = request->statistics();
-    heartbeatMsg.mutable_added_chunks()->MergeFrom(request->added_chunks());
-    heartbeatMsg.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
+    TMetaReqIncrementalHeartbeat heartbeatReq;
+    heartbeatReq.set_node_id(nodeId);
+    *heartbeatReq.mutable_statistics() = request->statistics();
+    heartbeatReq.mutable_added_chunks()->MergeFrom(request->added_chunks());
+    heartbeatReq.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
 
     chunkManager
-        ->InitiateIncrementalHeartbeat(heartbeatMsg)
+        ->CreateIncrementalHeartbeatMutation(heartbeatReq)
         ->Commit();
 
     std::vector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
@@ -182,12 +183,12 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
         &jobsToStart,
         &jobsToStop);
 
-    TMsgUpdateJobs updateJobsMsg;
-    updateJobsMsg.set_holder_id(holderId);
+    TMetaReqUpdateJobs updateJobsReq;
+    updateJobsReq.set_node_id(nodeId);
 
     FOREACH (const auto& jobInfo, jobsToStart) {
         *response->add_jobs_to_start() = jobInfo;
-        *updateJobsMsg.add_started_jobs() = jobInfo;
+        *updateJobsReq.add_started_jobs() = jobInfo;
     }
 
     yhash_set<TJobId> runningJobIds;
@@ -200,28 +201,28 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
         if (runningJobIds.find(jobId) != runningJobIds.end()) {
             *response->add_jobs_to_stop() = jobInfo;
         }
-        *updateJobsMsg.add_stopped_jobs() = jobInfo;
+        *updateJobsReq.add_stopped_jobs() = jobInfo;
     }
 
     chunkManager
-        ->InitiateUpdateJobs(updateJobsMsg)
-        ->OnSuccess(BIND([=] (TVoid) {
+        ->CreateUpdateJobsMutation(updateJobsReq)
+        ->OnSuccess(BIND([=] () {
             context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
                 static_cast<int>(response->jobs_to_start_size()),
                 static_cast<int>(response->jobs_to_stop_size()));
             context->Reply();
         }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(CreateRpcErrorHandler(context->GetUntypedContext()))
         ->Commit();
 }
 
-void TChunkService::CheckHolderAuthorization(const Stroka &address) const
+void TChunkService::CheckAuthorization(const Stroka& address) const
 {
-    auto holderAuthority = Bootstrap->GetHolderAuthority();
-    if (!holderAuthority->IsHolderAuthorized(address)) {
+    auto holderAuthority = Bootstrap->GetNodeAuthority();
+    if (!holderAuthority->IsAuthorized(address)) {
         ythrow TServiceException(TError(
             EErrorCode::NotAuthorized,
-            Sprintf("Holder %s is not authorized", ~address.Quote())));
+            Sprintf("Node %s is not authorized", ~address)));
     }
 }
 

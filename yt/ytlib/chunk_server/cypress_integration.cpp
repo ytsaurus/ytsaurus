@@ -196,29 +196,29 @@ INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THolderAuthority
-    : public IHolderAuthority
+class TNodeAuthority
+    : public INodeAuthority
 {
 public:
-    typedef TIntrusivePtr<THolderAuthority> TPtr;
+    typedef TIntrusivePtr<TNodeAuthority> TPtr;
 
-    THolderAuthority(TBootstrap* bootstrap)
+    TNodeAuthority(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
     { }
 
-    virtual bool IsHolderAuthorized(const Stroka& address)
+    virtual bool IsAuthorized(const Stroka& address)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
-        auto holderMap = resolver->ResolvePath("//sys/holders")->AsMap();
-        auto holderNode = holderMap->FindChild(address);
+        auto nodeMap = resolver->ResolvePath("//sys/holders")->AsMap();
+        auto node = nodeMap->FindChild(address);
 
-        if (!holderNode) {
-            // New holder.
+        if (!node) {
+            // New node.
             return true;
         }
 
-        bool banned = holderNode->Attributes().Get<bool>("banned", false);
+        bool banned = node->Attributes().Get<bool>("banned", false);
         return !banned;
     }
     
@@ -227,22 +227,22 @@ private:
 
 };
 
-IHolderAuthorityPtr CreateHolderAuthority(TBootstrap* bootstrap)
+INodeAuthorityPtr CreateNodeAuthority(TBootstrap* bootstrap)
 {
-    return New<THolderAuthority>(bootstrap);
+    return New<TNodeAuthority>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THolderProxy
+class TNodeProxy
     : public TMapNodeProxy
 {
 public:
-    THolderProxy(
+    TNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        const TNodeId& nodeId)
+        const NCypressServer::TNodeId& nodeId)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
@@ -251,51 +251,51 @@ public:
     { }
 
 private:
-    THolder* GetHolder() const
+    THolder* GetNode() const
     {
         auto address = GetParent()->AsMap()->GetChildKey(this);
-        return Bootstrap->GetChunkManager()->FindHolderByAddress(address);
+        return Bootstrap->GetChunkManager()->FindNodeByAddress(address);
     }
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
-        const auto* holder = GetHolder();
+        const auto* node = GetNode();
         attributes->push_back(TAttributeInfo("state"));
-        attributes->push_back(TAttributeInfo("confirmed", holder));
-        attributes->push_back(TAttributeInfo("incarnation_id", holder));
-        attributes->push_back(TAttributeInfo("available_space", holder));
-        attributes->push_back(TAttributeInfo("used_space", holder));
-        attributes->push_back(TAttributeInfo("chunk_count", holder));
-        attributes->push_back(TAttributeInfo("session_count", holder));
-        attributes->push_back(TAttributeInfo("full", holder));
+        attributes->push_back(TAttributeInfo("confirmed", node));
+        attributes->push_back(TAttributeInfo("incarnation_id", node));
+        attributes->push_back(TAttributeInfo("available_space", node));
+        attributes->push_back(TAttributeInfo("used_space", node));
+        attributes->push_back(TAttributeInfo("chunk_count", node));
+        attributes->push_back(TAttributeInfo("session_count", node));
+        attributes->push_back(TAttributeInfo("full", node));
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
-        const auto* holder = GetHolder();
+        const auto* node = GetNode();
 
         if (name == "state") {
-            auto state = holder ? holder->GetState() : EHolderState(EHolderState::Offline);
+            auto state = node ? node->GetState() : ENodeState(ENodeState::Offline);
             BuildYsonFluently(consumer)
                 .Scalar(FormatEnum(state));
             return true;
         }
 
-        if (holder) {
+        if (node) {
             if (name == "confirmed") {
                 BuildYsonFluently(consumer)
-                    .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsHolderConfirmed(holder)));
+                    .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsNodeConfirmed(node)));
                 return true;
             }
 
             if (name == "incarnation_id") {
                 BuildYsonFluently(consumer)
-                    .Scalar(holder->GetIncarnationId());
+                    .Scalar(node->GetIncarnationId());
                 return true;
             }
 
-            const auto& statistics = holder->Statistics();
+            const auto& statistics = node->Statistics();
             if (name == "available_space") {
                 BuildYsonFluently(consumer)
                     .Scalar(statistics.available_space());
@@ -340,24 +340,24 @@ private:
     }
 };
 
-class THolderTypeHandler
+class TNodeTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    explicit THolderTypeHandler(TBootstrap* bootstrap)
+    explicit TNodeTypeHandler(TBootstrap* bootstrap)
         : TMapNodeTypeHandler(bootstrap)
     { }
 
     virtual EObjectType GetObjectType()
     {
-        return EObjectType::Holder;
+        return EObjectType::Node;
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const TNodeId& nodeId,
+        const NCypressServer::TNodeId& nodeId,
         TTransaction* transaction)
     {
-        return New<THolderProxy>(
+        return New<TNodeProxy>(
             this,
             Bootstrap,
             transaction,
@@ -365,40 +365,40 @@ public:
     }
 };
 
-INodeTypeHandlerPtr CreateHolderTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateNodeTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
-    return New<THolderTypeHandler>(bootstrap);
+    return New<TNodeTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THolderMapBehavior
+class TNodeMapBehavior
     : public TNodeBehaviorBase<TMapNode, TMapNodeProxy>
 {
 public:
-    THolderMapBehavior(TBootstrap* bootstrap, const TNodeId& nodeId)
+    TNodeMapBehavior(TBootstrap* bootstrap, const NCypressServer::TNodeId& nodeId)
         : TNodeBehaviorBase<TMapNode, TMapNodeProxy>(bootstrap, nodeId)
     {
-        bootstrap->GetChunkManager()->SubscribeHolderRegistered(BIND(
-            &THolderMapBehavior::OnRegistered,
+        bootstrap->GetChunkManager()->SubscribeNodeRegistered(BIND(
+            &TNodeMapBehavior::OnRegistered,
             MakeWeak(this)));
     }
 
 private:
-    void OnRegistered(const THolder* holder)
+    void OnRegistered(const THolder* node)
     {
-        Stroka address = holder->GetAddress();
-        auto node = GetProxy();
+        Stroka address = node->GetAddress();
+        auto proxy = GetProxy();
 
         auto cypressManager = Bootstrap->GetCypressManager();
 
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
-        // Doing otherwise will turn holder registration and Cypress update into a single
+        // Doing otherwise will turn node registration and Cypress update into a single
         // logged change, which is undesirable.
         BIND([=] () {
-            if (node->FindChild(address))
+            if (proxy->FindChild(address))
                 return;
 
             auto service = cypressManager->GetVersionedNodeProxy(NodeId);
@@ -408,7 +408,7 @@ private:
 
             {
                 auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address));
-                req->set_type(EObjectType::Holder);
+                req->set_type(EObjectType::Node);
                 ExecuteVerb(service, req);
             }
 
@@ -435,7 +435,7 @@ public:
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        const TNodeId& nodeId)
+        const NCypressServer::TNodeId& nodeId)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
@@ -467,7 +467,7 @@ private:
         if (name == "offline") {
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
-                    if (!chunkManager->FindHolderByAddress(address)) {
+                    if (!chunkManager->FindNodeByAddress(address)) {
                         fluent.Item().Scalar(address);
                     }
             });
@@ -475,9 +475,9 @@ private:
         }
 
         if (name == "registered" || name == "online") {
-            auto state = name == "registered" ? EHolderState::Registered : EHolderState::Online;
+            auto state = name == "registered" ? ENodeState::Registered : ENodeState::Online;
             BuildYsonFluently(consumer)
-                .DoListFor(chunkManager->GetHolders(), [=] (TFluentList fluent, THolder* holder) {
+                .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, THolder* holder) {
                     if (holder->GetState() == state) {
                         fluent.Item().Scalar(holder->GetAddress());
                     }
@@ -488,15 +488,15 @@ private:
         if (name == "unconfirmed" || name == "confirmed") {
             bool state = name == "confirmed";
             BuildYsonFluently(consumer)
-                .DoListFor(chunkManager->GetHolders(), [=] (TFluentList fluent, THolder* holder) {
-                    if (chunkManager->IsHolderConfirmed(holder) == state) {
+                .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, THolder* holder) {
+                    if (chunkManager->IsNodeConfirmed(holder) == state) {
                         fluent.Item().Scalar(holder->GetAddress());
                     }
                 });
             return true;
         }
 
-        auto statistics = chunkManager->GetTotalHolderStatistics();
+        auto statistics = chunkManager->GetTotalNodeStatistics();
         if (name == "available_space") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.AvailbaleSpace);
@@ -523,7 +523,7 @@ private:
 
         if (name == "online_holder_count") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.OnlineHolderCount);
+                .Scalar(statistics.OnlineNodeCount);
             return true;
         }
 
@@ -547,11 +547,11 @@ public:
 
     virtual EObjectType GetObjectType()
     {
-        return EObjectType::HolderMap;
+        return EObjectType::NodeMap;
     }
     
     virtual ICypressNodeProxyPtr GetProxy(
-        const TNodeId& nodeId,
+        const NCypressServer::TNodeId& nodeId,
         TTransaction* transaction)
     {
         return New<THolderMapProxy>(
@@ -561,13 +561,13 @@ public:
             nodeId);
     }
 
-    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& nodeId)
+    virtual INodeBehaviorPtr CreateBehavior(const NCypressServer::TNodeId& nodeId)
     {
-        return New<THolderMapBehavior>(Bootstrap, nodeId);
+        return New<TNodeMapBehavior>(Bootstrap, nodeId);
     }
 };
 
-INodeTypeHandlerPtr CreateHolderMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 

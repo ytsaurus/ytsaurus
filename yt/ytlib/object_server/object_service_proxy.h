@@ -121,11 +121,11 @@ public:
         TIntrusivePtr<TTypedResponse> GetResponse(int index) const;
 
         //! Returns the individual generic response with a given index.
-        NYTree::TYPathResponse::TPtr GetResponse(int index) const;
+        NYTree::TYPathResponsePtr GetResponse(int index) const;
 
         //! Returns the individual generic response with a given key.
         //! Such a response must be unique.
-        NYTree::TYPathResponse::TPtr GetResponse(const Stroka& key) const;
+        NYTree::TYPathResponsePtr GetResponse(const Stroka& key) const;
 
         //! Returns the individual response with a given key.
         //! Such a response must be unique.
@@ -137,7 +137,7 @@ public:
         std::vector< TIntrusivePtr<TTypedResponse> > GetResponses(const Stroka& key = "") const;
 
         //! Returns all responses with a given key (all if no key is specified).
-        std::vector<NYTree::TYPathResponse::TPtr> GetResponses(const Stroka& key = "") const;
+        std::vector<NYTree::TYPathResponsePtr> GetResponses(const Stroka& key = "") const;
 
     private:
         TKeyToIndexMultimap KeyToIndexes;

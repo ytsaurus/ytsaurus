@@ -29,8 +29,8 @@ typedef TIntrusivePtr<TOneWayClientResponse> TOneWayClientResponsePtr;
 struct TRetryConfig;
 typedef TIntrusivePtr<TRetryConfig> TRetryConfigPtr;
 
-class TRetriableChannel;
-typedef TIntrusivePtr<TRetriableChannel> TRetriableChannelPtr;
+class TRetryingChannel;
+typedef TIntrusivePtr<TRetryingChannel> TRetriableChannelPtr;
 
 struct IServer;
 typedef TIntrusivePtr<IServer> IServerPtr;

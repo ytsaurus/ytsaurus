@@ -25,7 +25,7 @@ public:
         TFileReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
-        NChunkClient::IBlockCache* blockCache,
+        NChunkClient::IBlockCachePtr blockCache,
         const NYTree::TYPath& path);
 
     //! Opens the reader.

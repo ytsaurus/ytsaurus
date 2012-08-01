@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/periodic_invoker.h>
@@ -19,7 +19,7 @@ public:
         TFollowerPingerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
-        TFollowerTrackerPtr followerTracker,
+        TQuorumTrackerPtr followerTracker,
         const TEpoch& epoch,
         IInvokerPtr epochControlInvoker);
 
@@ -36,7 +36,7 @@ private:
     TFollowerPingerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
-    TFollowerTrackerPtr FollowerTracker;
+    TQuorumTrackerPtr QuorumTracker;
     TSnapshotStorePtr SnapshotStore;
     TEpoch Epoch;
     IInvokerPtr EpochControlInvoker;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "meta_state_manager_proxy.h"
 #include "meta_version.h"
 
@@ -16,18 +16,6 @@ class TRecovery
     : public TRefCounted
 {
 public:
-    DECLARE_ENUM(EResult,
-        (OK)
-        (Failed)
-    );
-
-    typedef TFuture<EResult> TAsyncResult;
-    typedef TPromise<EResult> TAsyncPromise;
-
-    //! Constructs an instance.
-    /*!
-     * \note Thread affinity: ControlThread
-     */
     TRecovery(
         TPersistentStateManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
@@ -39,7 +27,7 @@ public:
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
 
-    virtual TAsyncResult Run() = 0;
+    virtual TAsyncError Run() = 0;
 
 protected:
     friend class TLeaderRecovery;
@@ -61,7 +49,7 @@ protected:
      *  
      *  \note Thread affinity: StateThread
      */
-    TAsyncResult RecoverToState(const TMetaVersion& targetVersion);
+    TAsyncError RecoverToState(const TMetaVersion& targetVersion);
 
     //! Recovers to the desired state by first loading the given snapshot
     //! and then applying changelogs, if necessary.
@@ -72,7 +60,7 @@ protected:
      *  
      *  \note Thread affinity: StateThread
      */
-    TAsyncResult RecoverToStateWithChangeLog(
+    TAsyncError RecoverToStateWithChangeLog(
         const TMetaVersion& targetVersion,
         i32 snapshotId);
 
@@ -87,7 +75,7 @@ protected:
      * 
      *  \note Thread affinity: StateThread
      */
-    TAsyncResult ReplayChangeLogs(
+    TAsyncError ReplayChangeLogs(
         const TMetaVersion& targetVersion,
         i32 expectedPrevRecordCount);
 
@@ -148,7 +136,7 @@ public:
     /*!
      * \note Thread affinity: ControlThread
      */
-    virtual TAsyncResult Run();
+    virtual TAsyncError Run();
 
 private:
     virtual bool IsLeader() const;
@@ -182,7 +170,7 @@ public:
     /*!
      * \note Thread affinity: ControlThread
      */
-    virtual TAsyncResult Run();
+    virtual TAsyncError Run();
 
     //! Postpones an incoming request for advancing the current segment.
     /*!
@@ -191,7 +179,7 @@ public:
      * 
      * \note Thread affinity: ControlThread
      */
-    EResult PostponeSegmentAdvance(const TMetaVersion& version);
+    TError PostponeSegmentAdvance(const TMetaVersion& version);
 
     //! Postpones incoming changes.
     /*!
@@ -201,7 +189,7 @@ public:
      * 
      * \note Thread affinity: ControlThread
      */
-    EResult PostponeMutations(
+    TError PostponeMutations(
         const TMetaVersion& version,
         const std::vector<TSharedRef>& recordsData);
 
@@ -236,16 +224,16 @@ private:
     typedef std::vector<TPostponedMutation> TPostponedMutations;
 
     // Any thread.
-    TAsyncPromise Promise;
+    TAsyncErrorPromise Promise;
     TMetaVersion TargetVersion;
 
     // Control thread
     TPostponedMutations PostponedMutations;
     TMetaVersion PostponedVersion;
     
-    TAsyncResult OnSyncReached(EResult result);
-    TAsyncResult CapturePostponedMutations();
-    TAsyncResult ApplyPostponedMutations(TAutoPtr<TPostponedMutations> changes);
+    TAsyncError OnSyncReached(TError erro);
+    TAsyncError CapturePostponedMutations();
+    TAsyncError ApplyPostponedMutations(TAutoPtr<TPostponedMutations> mutations);
 
     virtual bool IsLeader() const;
 

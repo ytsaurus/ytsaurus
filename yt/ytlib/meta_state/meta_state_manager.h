@@ -1,10 +1,14 @@
 #pragma once
 
 #include "public.h"
+#include "mutation_context.h"
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/actions/cancelable_context.h>
+
 #include <ytlib/misc/ref.h>
+#include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/public.h>
 
 namespace NYT {
@@ -76,10 +80,7 @@ struct IMetaStateManager
      *
      *  \note Thread affinity: StateThread
      */
-    virtual TAsyncCommitResult CommitMutation(
-        const Stroka& mutationType,
-        const TRef& mutationData,
-        const TClosure& mutationAction) = 0;
+    virtual TFuture< TValueOrError<TMutationResponse> > CommitMutation(const TMutationRequest& request) = 0;
 
     //! Returns the current mutation context or NULL if no mutation is currently being applied.
     /*!

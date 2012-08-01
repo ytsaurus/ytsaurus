@@ -319,23 +319,23 @@ public:
         , SystemAttributeProvider(systemAttributeProvider)
     { }
 
-    virtual yhash_set<Stroka> List() const
+    virtual yhash_set<Stroka> List() const override
     {
         auto keys = DoListAttributes(UserAttributes, SystemAttributeProvider);
         return yhash_set<Stroka>(keys.begin(), keys.end());
     }
 
-    virtual TNullable<TYsonString> FindYson(const Stroka& key) const
+    virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
     {
         return DoFindAttribute(UserAttributes, SystemAttributeProvider, key);
     }
 
-    virtual void SetYson(const Stroka& key, const TYsonString& value)
+    virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
         DoSetAttribute(UserAttributes, SystemAttributeProvider, key, value);
     }
 
-    virtual bool Remove(const Stroka& key)
+    virtual bool Remove(const Stroka& key) override
     {
         return DoRemoveAttribute(UserAttributes, SystemAttributeProvider, key);
     }
@@ -675,7 +675,7 @@ private:
     TStringStream AttributeStream;
     THolder<TYsonWriter> AttributeWriter;
 
-    virtual void OnMyKeyedItem(const TStringBuf& key)
+    virtual void OnMyKeyedItem(const TStringBuf& key) OVERRIDE
     {
         Stroka localKey(key);
         AttributeWriter.Reset(new TYsonWriter(&AttributeStream));
@@ -758,13 +758,13 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServiceContext
+class TYPathServiceContext
     : public TServiceContextBase
 {
 public:
-    TServiceContext(
+    TYPathServiceContext(
         const TRequestHeader& header,
-        NBus::IMessagePtr requestMessage,
+        IMessagePtr requestMessage,
         TYPathResponseHandler responseHandler,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
@@ -776,16 +776,14 @@ protected:
     TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
-    virtual void DoReply(const TError& error, IMessagePtr responseMessage)
+    virtual void DoReply(IMessagePtr responseMessage) override
     {
-        UNUSED(error);
-
         if (!ResponseHandler.IsNull()) {
             ResponseHandler.Run(responseMessage);
         }
     }
 
-    virtual void LogRequest()
+    virtual void LogRequest() override
     {
         Stroka str;
         AppendInfo(str, RequestInfo);
@@ -795,7 +793,7 @@ protected:
             ~str);
     }
 
-    virtual void LogResponse(const TError& error)
+    virtual void LogResponse(const TError& error) override
     {
         Stroka str;
         AppendInfo(str, Sprintf("Error: %s", ~error.ToString()));
@@ -809,7 +807,7 @@ protected:
 };
 
 IServiceContextPtr CreateYPathContext(
-    NBus::IMessagePtr requestMessage,
+    IMessagePtr requestMessage,
     const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,
@@ -819,7 +817,7 @@ IServiceContextPtr CreateYPathContext(
 
     NRpc::NProto::TRequestHeader requestHeader;
     YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-    return New<TServiceContext>(
+    return New<TYPathServiceContext>(
         requestHeader,
         requestMessage,
         responseHandler,
@@ -836,13 +834,13 @@ public:
         : UnderlyingService(underlyingService)
     { }
 
-    virtual void Invoke(NRpc::IServiceContextPtr context)
+    virtual void Invoke(IServiceContextPtr context) OVERRIDE
     {
         UNUSED(context);
         YUNREACHABLE();
     }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) OVERRIDE
     {
         UNUSED(verb);
 
@@ -855,12 +853,12 @@ public:
         return TResolveResult::There(UnderlyingService, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
-    virtual Stroka GetLoggingCategory() const
+    virtual Stroka GetLoggingCategory() const OVERRIDE
     {
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
+    virtual bool IsWriteRequest(IServiceContextPtr context) const OVERRIDE
     {
         UNUSED(context);
         YUNREACHABLE();

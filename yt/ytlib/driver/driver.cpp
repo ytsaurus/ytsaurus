@@ -13,7 +13,8 @@
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/ephemeral.h>
 
-#include <rpc/scoped_channel.h>
+#include <ytlib/rpc/scoped_channel.h>
+#include <ytlib/rpc/retrying_channel.h>
 
 #include <ytlib/meta_state/config.h>
 #include <ytlib/meta_state/leader_channel.h>
@@ -51,14 +52,16 @@ public:
     {
         YASSERT(config);
 
-        MasterChannel = CreateLeaderChannel(config->Masters);
+        MasterChannel = CreateRetryingChannel(
+            Config->MasterRetries,
+            CreateLeaderChannel(Config->Masters));
 
         // TODO(babenko): for now we use the same timeout both for masters and scheduler
         SchedulerChannel = CreateSchedulerChannel(
-            config->Masters->RpcTimeout,
+            Config->Masters->RpcTimeout,
             MasterChannel);
 
-        BlockCache = CreateClientBlockCache(config->BlockCache);
+        BlockCache = CreateClientBlockCache(Config->BlockCache);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \

@@ -113,7 +113,7 @@ public:
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const TNodeId& nodeId,
+        const NCypressServer::TNodeId& nodeId,
         TTransaction* transaction)
     {
         return New<TFileNodeProxy>(

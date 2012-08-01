@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "object_service_proxy.h"
 
 #include <ytlib/cell_master/public.h>
@@ -14,10 +15,7 @@ class TObjectService
     : public NCellMaster::TMetaStateServiceBase
 {
 public:
-    typedef TIntrusivePtr<TObjectService> TPtr;
-
-    //! Creates an instance.
-    TObjectService(NCellMaster::TBootstrap* bootstrap);
+    explicit TObjectService(NCellMaster::TBootstrap* bootstrap);
 
 private:
     typedef TObjectService TThis;

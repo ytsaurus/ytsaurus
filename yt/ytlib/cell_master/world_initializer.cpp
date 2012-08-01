@@ -33,7 +33,7 @@ class TWorldInitializer::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TBootstrap* bootstrap)
+    explicit TImpl(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
     {
         YASSERT(bootstrap);
@@ -131,7 +131,7 @@ private:
             SyncYPathCreate(
                 rootService,
                 WithTransaction("//sys/holders", transactionId),
-                EObjectType::HolderMap);
+                EObjectType::NodeMap);
             SyncYPathSet(
                 rootService,
                 WithTransaction("//sys/holders/@opaque", transactionId),

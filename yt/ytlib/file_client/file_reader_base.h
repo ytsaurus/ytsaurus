@@ -30,7 +30,7 @@ public:
     TFileReaderBase(
         TFileReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCache* blockCache);
+        NChunkClient::IBlockCachePtr blockCache);
 
     //! Opens the reader.
     void Open(

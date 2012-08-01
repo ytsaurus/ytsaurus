@@ -24,14 +24,14 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement,
-        THolderLeaseTrackerPtr holderLeaseTracker);
+        TNodeLeaseTrackerPtr holderLeaseTracker);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, OverreplicatedChunkIds);
 
-    void OnHolderRegistered(const THolder* holder);
-    void OnHolderUnregistered(const THolder* holder);
+    void OnNodeRegistered(const THolder* holder);
+    void OnNodeUnregistered(const THolder* holder);
 
     void OnChunkRemoved(const TChunk* chunk);
 
@@ -53,7 +53,7 @@ private:
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
     TChunkPlacementPtr ChunkPlacement;
-    THolderLeaseTrackerPtr HolderLeaseTracker;
+    TNodeLeaseTrackerPtr HolderLeaseTracker;
 
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
@@ -76,11 +76,11 @@ private:
         TChunkIds ChunksToRemove;
     };
 
-    typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
+    typedef yhash_map<TNodeId, THolderInfo> THolderInfoMap;
     THolderInfoMap HolderInfoMap;
 
-    THolderInfo* FindHolderInfo(THolderId holderId);
-    THolderInfo* GetHolderInfo(THolderId holderId);
+    THolderInfo* FindNodeInfo(TNodeId nodeId);
+    THolderInfo* GetNodeInfo(TNodeId nodeId);
 
     void ProcessExistingJobs(
         const THolder* holder,

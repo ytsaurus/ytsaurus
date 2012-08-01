@@ -118,7 +118,7 @@ public:
      *  \param action An action to call that executes the actual verb logic.
      *  
      *  Note that #action takes a context as a parameter. This is because the original #context
-     *  gets wrapped to intercept replies and #action gets the wrapped instance.
+     *  gets wrapped to intercept replies so #action gets the wrapped instance.
      */
     void ExecuteVerb(
         const TVersionedObjectId& id,
@@ -148,9 +148,11 @@ private:
     void LoadKeys(TInputStream* input);
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
     
-    virtual void Clear() override;
+    virtual void Clear() OVERRIDE;
+    virtual void OnStartRecovery() OVERRIDE;
+    virtual void OnStopRecovery() OVERRIDE;
 
-    TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);
+    void ReplayVerb(const NProto::TMetaReqExecute& message);
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);

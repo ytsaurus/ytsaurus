@@ -20,29 +20,6 @@ static NProfiling::TProfiler& Profiler = RpcServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IServiceContext::Reply(NBus::IMessagePtr message)
-{
-    auto parts = message->GetParts();
-    YASSERT(!parts.empty());
-
-    TResponseHeader header;
-    YCHECK(DeserializeFromProto(&header, parts[0]));
-
-    auto error = TError::FromProto(header.error());
-    if (error.IsOK()) {
-        YASSERT(parts.size() >= 2);
-
-        SetResponseBody(parts[1]);
-
-        parts.erase(parts.begin(), parts.begin() + 2);
-        ResponseAttachments() = MoveRV(parts);
-    }
-
-    Reply(error);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
     IInvokerPtr invoker,

@@ -22,8 +22,8 @@ protected:
     IMetaStateManagerPtr MetaStateManager;
     TCompositeMetaStatePtr MetaState;
 
-    template <class TMessage, class TResult>
-    void RegisterMethod(TCallback<TResult(const TMessage& message)> handler);
+    template <class TRequest, class TResponse>
+    void RegisterMethod(TCallback<TResponse(const TRequest& message)> handler);
 
     bool IsLeader() const;
     bool IsFolllower() const;
@@ -43,13 +43,11 @@ protected:
     virtual void OnStopRecovery();
 
 private:
-    friend class TCompositeMetaState;
     typedef TMetaStatePart TThis;
+    friend class TCompositeMetaState;
 
-    template <class TMessage, class TResult>
-    void MethodThunk(
-        TCallback<TResult(const TMessage& message)> changeMethod,
-        const TMutationContext& context);
+    template <class TRequest, class TResponse>
+    struct TThunkTraits;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +82,7 @@ private:
         TSaverInfo(const Stroka& name, TSaver saver, ESavePhase phase);
     };
 
-    typedef yhash_map< Stroka, TCallback<void(const TMutationContext& context)> > TMethodMap;
+    typedef yhash_map< Stroka, TCallback<void(TMutationContext* context)> > TMethodMap;
     TMethodMap Methods;
 
     std::vector<TMetaStatePartPtr> Parts;
@@ -98,7 +96,7 @@ private:
     virtual void Save(TOutputStream* output);
     virtual void Load(TInputStream* input);
 
-    virtual void ApplyMutation(const TMutationContext& context);
+    virtual void ApplyMutation(TMutationContext* context) throw();
 
     virtual void Clear();
 

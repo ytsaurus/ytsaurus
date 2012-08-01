@@ -3,6 +3,7 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -194,9 +195,9 @@ void TChangeLog::TImpl::Open()
     ReadIndex();
     ReadChangeLogUntilEnd();
 
-    LOG_DEBUG("Changelog opened (RecordCount: %d, Finalized: %d)",
+    LOG_DEBUG("Changelog opened (RecordCount: %d, Finalized: %s)",
         RecordCount,
-        header.Finalized);
+        ~FormatBool(header.Finalized));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,8 +262,7 @@ void TChangeLog::TImpl::Flush()
 void TChangeLog::TImpl::Finalize()
 {
     YCHECK(State != EState::Uninitialized);
-    if (State == EState::Finalized)
-    {
+    if (State == EState::Finalized) {
         return;
     }
 
@@ -442,7 +442,7 @@ void TChangeLog::TImpl::ReadIndex()
     // Compute the maximum correct prefix and truncate the index.
     {
         auto correctPrefixSize = GetMaxCorrectIndexPrefix(Index, &(*File));
-        LOG_ERROR_IF(correctPrefixSize < Index.size(), "Changelog index contains incorrect records.");
+        LOG_ERROR_IF(correctPrefixSize < Index.size(), "Changelog index contains incorrect records");
         Index.resize(correctPrefixSize);
 
         IndexFile.Reset(new TFile(IndexFileName, RdWr|Seq));
@@ -492,8 +492,15 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
         recordInfo = ReadRecord(checkableFile);
         if (!recordInfo || recordInfo->Id != RecordCount) {
             // Broken changelog case.
-            LOG_ERROR("Changelog contains incorrect record with id %d at position %" PRIx64,
-                RecordCount, CurrentFilePosition);
+            if (State == EState::Finalized) {
+                LOG_ERROR("Finalized changelog contains a broken record (RecordId: %d, Offset: %" PRId64 ")",
+                    RecordCount,
+                    CurrentFilePosition);
+            } else {
+                LOG_ERROR("Broken record found, changelog trimmed (RecordId: %d, Offset: %" PRId64 ")",
+                    RecordCount,
+                    CurrentFilePosition);
+            }
             File->Resize(CurrentFilePosition);
             File->Seek(0, sEnd);
             break;

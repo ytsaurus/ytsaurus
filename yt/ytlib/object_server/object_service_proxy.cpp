@@ -103,17 +103,17 @@ int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
     return Body.part_counts_size();
 }
 
-TYPathResponse::TPtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
+TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
     return GetResponse<TYPathResponse>(index);
 }
 
-TYPathResponse::TPtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<NYTree::TYPathResponse::TPtr> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+std::vector<NYTree::TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }

@@ -26,16 +26,6 @@ public:
 
     ~TCommitter();
 
-    DECLARE_ENUM(EResult,
-        (Committed)
-        (MaybeCommitted)
-        (LateMutations)
-        (OutOfOrderMutations)
-    );
-
-    typedef TFuture<EResult> TCommitResult;
-    typedef TPromise<EResult> TCommitPromise;
-
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
@@ -62,7 +52,7 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr metaState,
         TChangeLogCachePtr changeLogCache,
-        TFollowerTrackerPtr followerTracker,
+        TQuorumTrackerPtr followerTracker,
         const TEpoch& epoch,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
@@ -83,20 +73,15 @@ public:
 
     //! Initiates a new distributed commit.
     /*!
-     *  \param mutationAction An action that will be called in the context of
-     *  the state thread and will update the state.
-     *  \param mutationData A serialized representation of the mutation that
-     *  will be sent down to follower.
-     *  \return An asynchronous flag indicating the outcome of the distributed commit.
+     *  \param request A mutation request.
+     *  \return An asynchronous response of the distributed commit.
      *  
      *  The current implementation regards a distributed commit as completed when the update is
      *  received, applied, and flushed to the changelog by a quorum of replicas.
      *  
      *  \note Thread affinity: StateThread
      */
-    TCommitResult Commit(
-        const TSharedRef& recordData,
-        const TClosure& mutationAction);
+    TFuture< TValueOrError<TMutationResponse> > Commit(const TMutationRequest& request);
 
     //! Force to send all pending mutations.
     /*!
@@ -116,7 +101,7 @@ private:
 
     void OnBatchTimeout(TBatchPtr batch);
     TIntrusivePtr<TBatch> GetOrCreateBatch(const TMetaVersion& version);
-    TCommitResult AddMutationToBatch(
+    TAsyncError AddMutationToBatch(
         const TMetaVersion& version,
         const TSharedRef& recordData,
         TFuture<void> changeLogResult);
@@ -125,7 +110,7 @@ private:
     TLeaderCommitterConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     TChangeLogCachePtr ChangeLogCache;
-    TFollowerTrackerPtr FollowerTracker;
+    TQuorumTrackerPtr FollowerTracker;
     TEpoch Epoch;
 
     //! Protects the rest.
@@ -160,12 +145,12 @@ public:
      *  
      *  \note Thread affinity: ControlThread
      */
-    TCommitResult Commit(
+    TAsyncError Commit(
         const TMetaVersion& expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
 private:
-    TCommitResult DoCommit(
+    TAsyncError DoCommit(
         const TMetaVersion& expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 

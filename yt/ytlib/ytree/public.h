@@ -81,11 +81,8 @@ struct IAttributeProvider;
 
 struct IYPathService;
 typedef TIntrusivePtr<IYPathService> IYPathServicePtr;
-typedef TCallback<IYPathServicePtr()> TYPathServiceProducer;
 
-// TODO(roizner): Rename it and move somewhere.
-template <class T, class = void>
-struct TDeserializeTraits;
+typedef TCallback<IYPathServicePtr()> TYPathServiceProducer;
 
 class TYPathRequest;
 typedef TIntrusivePtr<TYPathRequest> TYPathRequestPtr;

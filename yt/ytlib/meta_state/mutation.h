@@ -1,7 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "mutation_context.h"
 
+#include <ytlib/misc/error.h>
 #include <ytlib/actions/cancelable_context.h>
 
 namespace NYT {
@@ -9,65 +11,49 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This part of the infrastructure is kinda performance-critical so
-// we try to pass everything by const&.
-
-template <class TResult>
 class TMutation
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
-    typedef TIntrusivePtr<TMutation> TPtr;
-    typedef TCallback<TResult()> TMutationAction;
+    explicit TMutation(IMetaStateManagerPtr metaStateManager);
 
-    TMutation(
-        const IMetaStateManagerPtr& metaStateManager,
-        const TMutationAction& mutationAction,
-        const Stroka& mutationType,
-        const TSharedRef& mutationData);
+    void Commit();
+    void PostCommit();
 
-    TFuture<TResult> Commit();
-    TFuture<TResult> PostCommit();
+    TMutationPtr SetType(const Stroka& type);
 
-    TPtr SetRetriable(TDuration backoffTime);
-    TPtr OnSuccess(const TCallback<void(TResult)>& onSuccess);
-    TPtr OnError(const TCallback<void()>& onError);
+    TMutationPtr SetId(const TMutationId& id);
+
+    TMutationPtr SetRequestData(const TSharedRef& data);
+    template <class TRequest>
+    TMutationPtr SetRequestData(const TRequest& request);
+
+    TMutationPtr SetAction(TClosure action);
+
+    TMutationPtr SetRetriable(TDuration backoffTime);
+
+    TMutationPtr OnSuccess(TClosure onSuccess);
+    TMutationPtr OnSuccess(TCallback<void(const TMutationResponse&)> onSuccess);
+    template <class TResponse>
+    TMutationPtr OnSuccess(TCallback<void(const TResponse&)> onSuccess);
+
+    TMutationPtr OnError(TCallback<void(const TError&)> onError);
 
 private:
-    typedef TMutation<TResult> TThis;
-
     IMetaStateManagerPtr MetaStateManager;
-    TMutationAction MutationAction;
-    Stroka MutationType;
-    TSharedRef MutationData;
     bool Started;
     bool Retriable;
-
     TCancelableContextPtr EpochContext;
+
+    TMutationRequest Request;
     TDuration BackoffTime;
-    TCallback<void(TResult)> OnSuccess_;
-    TClosure OnError_;
-    TPromise<TResult> Promise;
-    TResult Result;
+    TCallback<void(const TMutationResponse&)> OnSuccess_;
+    TCallback<void(const TError&)> OnError_;
 
     void DoCommit();
-    void MutationActionThunk();
-    void OnCommitted(ECommitResult result);
+    void OnCommitted(TValueOrError<TMutationResponse> response);
 
 };
-
-template <class TMessage, class TResult>
-typename TMutation<TResult>::TPtr CreateMutation(
-    const IMetaStateManagerPtr& metaStateManager,
-    const TMessage& message,
-    const TCallback<TResult()>& mutationAction);
-
-template <class TMessage, class TResult>
-typename TMutation<TResult>::TPtr CreateMutation(
-    const IMetaStateManagerPtr& metaStateManager,
-    const TMessage& message,
-    const TSharedRef& serializedMessage,
-    const TCallback<TResult()>& mutationAction);
 
 ////////////////////////////////////////////////////////////////////////////////
 

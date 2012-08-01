@@ -33,7 +33,7 @@ TChunkPlacement::TChunkPlacement(
     YASSERT(bootstrap);
 }
 
-void TChunkPlacement::OnHolderRegistered(THolder* holder)
+void TChunkPlacement::OnNodeRegistered(THolder* holder)
 {
     double loadFactor = GetLoadFactor(holder);
     auto it = LoadFactorMap.insert(MakePair(loadFactor, holder));
@@ -41,7 +41,7 @@ void TChunkPlacement::OnHolderRegistered(THolder* holder)
     YCHECK(HintedSessionsMap.insert(MakePair(holder, 0)).second);
 }
 
-void TChunkPlacement::OnHolderUnregistered(THolder* holder)
+void TChunkPlacement::OnNodeUnregistered(THolder* holder)
 {
     auto iteratorIt = IteratorMap.find(holder);
     YASSERT(iteratorIt != IteratorMap.end());
@@ -51,10 +51,10 @@ void TChunkPlacement::OnHolderUnregistered(THolder* holder)
     YCHECK(HintedSessionsMap.erase(holder) == 1);
 }
 
-void TChunkPlacement::OnHolderUpdated(THolder* holder)
+void TChunkPlacement::OnNodeUpdated(THolder* holder)
 {
-    OnHolderUnregistered(holder);
-    OnHolderRegistered(holder);
+    OnNodeUnregistered(holder);
+    OnNodeRegistered(holder);
 }
 
 void TChunkPlacement::OnSessionHinted(THolder* holder)
@@ -81,7 +81,7 @@ std::vector<THolder*> TChunkPlacement::GetUploadTargets(
 
     // Look for preferred holder first.
     if (preferredHostName) {
-        preferredHolder = chunkManager->FindHolderByHostName(*preferredHostName);
+        preferredHolder = chunkManager->FindNodeByHostName(*preferredHostName);
         if (preferredHolder && IsValidUploadTarget(preferredHolder)) {
             resultHolders.push_back(preferredHolder);
             --count;
@@ -135,8 +135,8 @@ std::vector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk* chunk
     yhash_set<Stroka> forbiddenAddresses;
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto holderId, chunk->StoredLocations()) {
-        const auto* holder = chunkManager->GetHolder(holderId);
+    FOREACH (auto nodeId, chunk->StoredLocations()) {
+        const auto* holder = chunkManager->GetNode(nodeId);
         forbiddenAddresses.insert(holder->GetAddress());
     }
 
@@ -158,18 +158,18 @@ THolder* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
     const auto& locations = chunk->GetLocations();
     YASSERT(!locations.empty());
     int index = RandomNumber<size_t>(locations.size());
-    return Bootstrap->GetChunkManager()->GetHolder(locations[index]);
+    return Bootstrap->GetChunkManager()->GetNode(locations[index]);
 }
 
 std::vector<THolder*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, int count)
 {
-    // Construct a list of (holderId, loadFactor) pairs.
+    // Construct a list of (nodeId, loadFactor) pairs.
     typedef TPair<THolder*, double> TCandidatePair;
     std::vector<TCandidatePair> candidates;
     auto chunkManager = Bootstrap->GetChunkManager();
     candidates.reserve(chunk->StoredLocations().size());
-    FOREACH (auto holderId, chunk->StoredLocations()) {
-        auto* holder = chunkManager->GetHolder(holderId);
+    FOREACH (auto nodeId, chunk->StoredLocations()) {
+        auto* holder = chunkManager->GetNode(nodeId);
         double loadFactor = GetLoadFactor(holder);
         candidates.push_back(MakePair(holder, loadFactor));
     }
@@ -209,14 +209,14 @@ THolder* TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoeff)
     return NULL;
 }
 
-bool TChunkPlacement::IsValidUploadTarget(THolder* targetHolder) const
+bool TChunkPlacement::IsValidUploadTarget(THolder* tarGetNode) const
 {
-    if (targetHolder->GetState() != EHolderState::Online) {
+    if (tarGetNode->GetState() != ENodeState::Online) {
         // Do not upload anything to holders before first heartbeat.
         return false;
     }
 
-    if (IsFull(targetHolder)) {
+    if (IsFull(tarGetNode)) {
         // Do not upload anything to full holders.
         return false;
     }
@@ -225,27 +225,27 @@ bool TChunkPlacement::IsValidUploadTarget(THolder* targetHolder) const
     return true;
 }
 
-bool TChunkPlacement::IsValidBalancingTarget(THolder* targetHolder, TChunk* chunk) const
+bool TChunkPlacement::IsValidBalancingTarget(THolder* targetNode, TChunk* chunk) const
 {
-    if (!IsValidUploadTarget(targetHolder)) {
+    if (!IsValidUploadTarget(tarGetNode)) {
         // Balancing implies upload, after all.
         return false;
     }
 
-    if (targetHolder->StoredChunks().find(chunk) != targetHolder->StoredChunks().end())  {
+    if (targetNode->StoredChunks().find(chunk) != tarGetNode->StoredChunks().end())  {
         // Do not balance to a holder already having the chunk.
         return false;
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto* job, targetHolder->Jobs()) {
+    FOREACH (const auto* job, targetNode->Jobs()) {
         if (job->GetChunkId() == chunk->GetId()) {
             // Do not balance to a holder already having a job associated with this chunk.
             return false;
         }
     }
 
-    auto* sink = chunkManager->FindReplicationSink(targetHolder->GetAddress());
+    auto* sink = chunkManager->FindReplicationSink(tarGetNode->GetAddress());
     if (sink) {
         if (static_cast<int>(sink->Jobs().size()) >= Config->ChunkReplicator->MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.

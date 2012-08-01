@@ -22,6 +22,9 @@ NBus::IMessagePtr CreateResponseMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments);
 
+NBus::IMessagePtr CreateResponseMessage(
+    IServiceContextPtr context);
+
 NBus::IMessagePtr CreateErrorResponseMessage(
     const NProto::TResponseHeader& header);
 

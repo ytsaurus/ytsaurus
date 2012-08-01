@@ -21,14 +21,14 @@ private:
     typedef TChunkService TThis;
     typedef TChunkServiceProxy::EErrorCode EErrorCode;
 
-    void ValidateHolderId(THolderId holderId);
+    void ValidateNodeId(TNodeId nodeId);
     void ValidateTransactionId(const TTransactionId& transactionId);
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, RegisterHolder);
+    DECLARE_RPC_SERVICE_METHOD(NProto, RegisterNode);
     DECLARE_RPC_SERVICE_METHOD(NProto, FullHeartbeat);
     DECLARE_RPC_SERVICE_METHOD(NProto, IncrementalHeartbeat);
 
-    void CheckHolderAuthorization(const Stroka& address) const;
+    void CheckAuthorization(const Stroka& address) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,158 +4,91 @@
 
 #include "meta_state_manager.h"
 
-#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TResult>
-TMutation<TResult>::TMutation(
-    const IMetaStateManagerPtr& metaStateManager,
-    const TMutationAction& mutationAction,
-    const Stroka& mutationType,
-    const TSharedRef& mutationData)
-    : MetaStateManager(metaStateManager)
-    , MutationAction(mutationAction)
-    , MutationType(mutationType)
-    , MutationData(mutationData)
-    , Started(false)
-    , Retriable(false)
-    , Promise(Null)
-{ }
-
-template <class TResult>
-TFuture<TResult> TMutation<TResult>::PostCommit()
-{
-    auto this_ = MakeStrong(this);
-    auto context = MetaStateManager->GetEpochContext();
-    return
-        BIND([=] () -> TFuture<TResult> {
-            if (context->IsCanceled()) {
-                return NewPromise<TResult>();
-            }
-            return this_->Commit();
-        })
-        .AsyncVia(MetaStateManager->GetStateInvoker())
-        .Run();
-}
-
-template <class TResult>
-TFuture<TResult> TMutation<TResult>::Commit()
-{
-    YASSERT(!Started);
-    Started = true;
-
-    Promise = NewPromise<TResult>();
-    EpochContext = MetaStateManager->GetEpochContext();
-    DoCommit();
-    return Promise;
-}
-
-template <class TResult>
-void TMutation<TResult>::DoCommit()
-{
-    YASSERT(Started);
-    MetaStateManager
-        ->CommitMutation(
-            MutationType,
-            MutationData,
-            BIND(&TThis::MutationActionThunk, MakeStrong(this)))
-        .Subscribe(
-            BIND(&TThis::OnCommitted, MakeStrong(this)));
-}
-
-template <class TResult>
-typename TMutation<TResult>::TPtr TMutation<TResult>::SetRetriable(TDuration backoffTime)
-{
-    Retriable = true;
-    BackoffTime = backoffTime;
-    return this;
-}
-
-template <class TResult>
-typename TMutation<TResult>::TPtr
-TMutation<TResult>::OnSuccess(const TCallback<void(TResult)>& onSuccess)
+template <class TResponse>
+TMutationPtr TMutation::OnSuccess(TCallback<void(const TResponse&)> onSuccess)
 {
     YASSERT(OnSuccess_.IsNull());
-    OnSuccess_ = onSuccess;
+    OnSuccess_ = BIND([=] (const TMutationResponse& mutationResponse) {
+        TResponse response;
+        YCHECK(DeserializeFromProto(&response, mutationResponse.Data));
+        onSuccess.Run(response);
+    });
     return this;
 }
 
-template <class TResult>
-typename TMutation<TResult>::TPtr
-TMutation<TResult>::OnError(const TClosure& onError)
+template <class TRequest>
+TMutationPtr TMutation::SetRequestData(const TRequest& request)
 {
-    YASSERT(OnError_.IsNull());
-    OnError_ = onError;
+    TBlob requestData;
+    YCHECK(SerializeToProto(&request, &requestData));
+    SetRequestData(TSharedRef(MoveRV(requestData)));
+    Request.Type = request.GetTypeName();
     return this;
 }
 
-template <class TResult>
-void TMutation<TResult>::MutationActionThunk()
+template <class TResponse>
+struct TMutationFactory
 {
-    Result = MutationAction.Run();
-}
+    template <class TTarget, class TRequest>
+    static TMutationPtr Create(
+        IMetaStateManagerPtr metaStateManager,
+        TTarget* target,
+        const TRequest& request,
+        TResponse (TTarget::* method)(const TRequest& request))
+    {
+        return
+            New<TMutation>(MoveRV(metaStateManager))
+            ->SetRequestData(request)
+            ->SetAction(BIND([=] () {
+                TResponse response((target->*method)(request));
 
-template <class TResult>
-void TMutation<TResult>::OnCommitted(ECommitResult result)
-{
-    if (result == ECommitResult::Committed) {
-        if (!OnSuccess_.IsNull()) {
-            OnSuccess_.Run(Result);
-        }
-    } else {
-        if (!OnError_.IsNull()) {
-            OnError_.Run();
-        }
-        if (Retriable) {
-            TDelayedInvoker::Submit(
-                BIND(&TThis::DoCommit, MakeStrong(this))
-                .Via(MetaStateManager->GetStateInvoker(), EpochContext),
-                BackoffTime);
-        }
+                TBlob responseData;
+                YCHECK(SerializeToProto(&response, &responseData));
+
+                auto* context = metaStateManager->GetMutationContext();
+                YASSERT(context);
+
+                context->SetResponseData(TSharedRef(MoveRV(responseData)));
+            }));
     }
+};
 
-    Result = TResult();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TMessage, class TResult>
-typename TMutation<TResult>::TPtr CreateMutation(
-    const IMetaStateManagerPtr& metaStateManager,
-    const TMessage& message,
-    const TCallback<TResult()>& mutationAction)
+template <>
+struct TMutationFactory<void>
 {
-    YASSERT(metaStateManager);
-    YASSERT(!mutationAction.IsNull());
+    template <class TTarget, class TRequest>
+    static TMutationPtr Create(
+        IMetaStateManagerPtr metaStateManager,
+        TTarget* target,
+        const TRequest& request,
+        void (TTarget::* method)(const TRequest& request))
+    {
+        return
+            New<TMutation>(MoveRV(metaStateManager))
+            ->SetRequestData(request)
+            ->SetAction(BIND(method, Unretained(target), request));
+    }
+};
 
-    TSharedRef serializedMessage;
-    YCHECK(SerializeToProto(&message, &serializedMessage));
-
-    return New< TMutation<TResult> >(
-        metaStateManager,
-        mutationAction,
-        message.GetTypeName(),
-        serializedMessage);
-}
-
-template <class TMessage, class TResult>
-typename TMutation<TResult>::TPtr CreateMutation(
-    const IMetaStateManagerPtr& metaStateManager,
-    const TMessage& message,
-    const TSharedRef& serializedMessage,
-    const TCallback<TResult()>& mutationAction)
+template <class TTarget, class TRequest, class TResponse>
+TMutationPtr CreateMutation(
+    IMetaStateManagerPtr metaStateManager,
+    TTarget* target,
+    const TRequest& request,
+    TResponse (TTarget::* method)(const TRequest& request))
 {
-    YASSERT(metaStateManager);
-
-    return New< TMutation<TResult> >(
+    return TMutationFactory<TResponse>::Create<TTarget, TRequest>(
         metaStateManager,
-        mutationAction,
-        message.GetTypeName(),
-        serializedMessage);
+        target,
+        request,
+        method);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
