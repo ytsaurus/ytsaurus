@@ -17,7 +17,7 @@
 #include <ytlib/rpc/retrying_channel.h>
 
 #include <ytlib/meta_state/config.h>
-#include <ytlib/meta_state/leader_channel.h>
+#include <ytlib/meta_state/master_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 
@@ -52,14 +52,18 @@ public:
     {
         YASSERT(config);
 
-        MasterChannel = CreateRetryingChannel(
+        LeaderChannel = CreateRetryingChannel(
             Config->MasterRetries,
             CreateLeaderChannel(Config->Masters));
+
+        MasterChannel = CreateRetryingChannel(
+            Config->MasterRetries,
+            CreateMasterChannel(Config->Masters));
 
         // TODO(babenko): for now we use the same timeout both for masters and scheduler
         SchedulerChannel = CreateSchedulerChannel(
             Config->Masters->RpcTimeout,
-            MasterChannel);
+            LeaderChannel);
 
         BlockCache = CreateClientBlockCache(Config->BlockCache);
 
@@ -111,7 +115,12 @@ public:
 
         const auto& entry = it->second;
 
-        TCommandContext context(this, entry.Descriptor, &request);
+        TCommandContext context(
+            this,
+            entry.Descriptor,
+            &request,
+            entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
+            SchedulerChannel);
         auto command = entry.Factory.Run(&context);
         command->Execute();
 
@@ -139,7 +148,7 @@ public:
 
     IChannelPtr GetMasterChannel() override
     {
-        return MasterChannel;
+        return LeaderChannel;
     }
 
     IChannelPtr GetSchedulerChannel() override
@@ -150,6 +159,7 @@ public:
 private:
     TDriverConfigPtr Config;
 
+    IChannelPtr LeaderChannel;
     IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
@@ -171,12 +181,14 @@ private:
         TCommandContext(
             TDriver* driver,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest* request)
+            const TDriverRequest* request,
+            IChannelPtr masterChannel,
+            IChannelPtr schedulerChannel)
             : Driver(driver)
             , Descriptor(descriptor)
             , Request(request)
-            , MasterChannel(CreateScopedChannel(Driver->GetMasterChannel()))
-            , SchedulerChannel(CreateScopedChannel(Driver->GetSchedulerChannel()))
+            , MasterChannel(masterChannel)
+            , SchedulerChannel(schedulerChannel)
             , TransactionManager(New<TTransactionManager>(
                 Driver->Config->TransactionManager,
                 MasterChannel))

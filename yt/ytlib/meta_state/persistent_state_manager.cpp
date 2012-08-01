@@ -794,7 +794,7 @@ public:
         response->set_leader_address(CellManager->GetSelfAddress());
         for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
             if (tracker->IsFollowerActive(id)) {
-                CellManager->GetPeerAddress(id);
+                response->add_follower_addresses(CellManager->GetPeerAddress(id));
             }
         }
 

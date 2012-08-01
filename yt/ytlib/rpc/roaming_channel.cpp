@@ -78,7 +78,7 @@ public:
                 return;
             }
 
-            channel = ChannelPromise.TryGet();
+            channel = ChannelPromise.IsNull() ? Null : ChannelPromise.TryGet();
             ChannelPromise.Reset();
             TerminationError = error;
             Terminated = true;

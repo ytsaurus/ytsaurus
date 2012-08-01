@@ -8,7 +8,7 @@
 
 #include <ytlib/object_server/id.h>
 
-#include <ytlib/meta_state/leader_channel.h>
+#include <ytlib/meta_state/master_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>

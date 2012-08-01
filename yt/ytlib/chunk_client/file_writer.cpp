@@ -61,7 +61,7 @@ bool TFileWriter::TryWriteBlock(const TSharedRef& block)
         return true;
     } catch (const std::exception& e) {
         Result = MakeFuture(TError(
-            "Failed to write block to file: %s",
+            "Failed to write block to file\n%s",
             e.what()));
         return false;
     }

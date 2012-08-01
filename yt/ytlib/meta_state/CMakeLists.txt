@@ -12,7 +12,7 @@ set( SRCS
   ${BASE}/file_helpers.cpp
   ${BASE}/follower_pinger.cpp
   ${BASE}/quorum_tracker.cpp
-  ${BASE}/leader_channel.cpp
+  ${BASE}/master_channel.cpp
   ${BASE}/master_discovery.cpp
   ${BASE}/meta_state_manager.cpp
   ${BASE}/mutation.cpp
@@ -43,7 +43,7 @@ set( HDRS
   ${BASE}/file_helpers.h
   ${BASE}/follower_pinger.h
   ${BASE}/quorum_tracker.h
-  ${BASE}/leader_channel.h
+  ${BASE}/master_channel.h
   ${BASE}/map-inl.h
   ${BASE}/map.h
   ${BASE}/master_discovery.h
