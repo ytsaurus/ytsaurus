@@ -6,32 +6,67 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Evaluates the expression #expr.
-//! In debug mode also throws an error if #expr is false.
-#ifndef __clang__
-#define YVERIFY(expr) \
-    do { \
-        if (UNLIKELY( !(expr) )) { \
-            if (YaIsDebuggerPresent()) { \
-                __debugbreak(); \
-            } else { \
-                assert(0&&(expr)); \
-            } \
-        } \
-    } while (0)
-#else
-#define YVERIFY(expr) \
-    do { \
-        if (UNLIKELY( !(expr) )) { \
-            assert(0&&(expr)); \
-        } \
-    } while (0)
-#endif
-
 // TODO: Add extended diagnostics why the process was terminated.
 #define _ASSERT_X(s) _ASSERT_Y(s)
 #define _ASSERT_Y(s) #s
 #define _ASSERT_AT __FILE__ ":" _ASSERT_X(s)
+
+#ifdef __GNUC__
+
+#define YCHECK_FAILED(expr) \
+    do { \
+        ::std::fputs( \
+        "YCHECK(" #expr "): " _ASSERT_AT "\n", \
+        stderr); \
+        __builtin_trap(); \
+        __builtin_unreachable(); \
+    } while (0)
+
+#define YVERIFY_FAILED(expr) \
+    do { \
+        ::std::fputs( \
+        "YVERIFY(" #expr "): " _ASSERT_AT "\n", \
+        stderr); \
+        __builtin_trap(); \
+        __builtin_unreachable(); \
+    } while (0)
+
+#else
+
+#define YCHECK_FAILED(expr) \
+    ::std::terminate()
+
+#define YVERIFY_FAILED(expr) \
+    ::std::terminate()
+
+#endif
+
+//! Evaluates the expression #expr.
+//! In debug mode also throws an error if #expr is false.
+
+#ifdef NDEBUG
+
+#define YVERIFY(expr) \
+    (void) (expr)
+
+#else
+
+#define YVERIFY(expr) \
+    do { \
+        if (UNLIKELY( !(expr) )) { \
+            YVERIFY_FAILED(expr); \
+        } \
+    } while (0)
+
+#endif
+
+//! Do the same as |YASSERT| but both in release and debug mode.
+#define YCHECK(expr) \
+    do { \
+        if (UNLIKELY(!(expr))) { \
+            YCHECK_FAILED(expr); \
+        } \
+    } while (0)
 
 //! Marker for unreachable code. Abnormally terminates current process.
 #ifdef __GNUC__
@@ -62,20 +97,6 @@ namespace NYT {
 #define YUNIMPLEMENTED() \
     ::std::terminate()
 #endif
-
-
-// TODO(panin): extract common part from YASSERT and YCHECK
-//! Do the same as YASSERT but both in release and debug mode.
-#define YCHECK( a ) \
-    do { \
-        try { \
-            if ( UNLIKELY( !(a) ) ) { \
-                if (YaIsDebuggerPresent()) __debugbreak(); else assert(0&&(a)); \
-            } \
-        } catch (...) { \
-            if (YaIsDebuggerPresent()) __debugbreak(); else assert(false && "Exception during assert"); \
-        } \
-    } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
