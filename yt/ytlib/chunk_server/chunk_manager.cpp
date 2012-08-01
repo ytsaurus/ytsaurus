@@ -368,8 +368,7 @@ public:
         chunkList->RowCountSums().clear();
         chunkList->Statistics() = TChunkTreeStatistics();
 
-        // TODO(babenko): IsRecovery
-        LOG_DEBUG("Chunk list cleared (ChunkListId: %s)", ~chunkList->GetId().ToString());
+        LOG_DEBUG_UNLESS(IsRecovery(),"Chunk list cleared (ChunkListId: %s)", ~chunkList->GetId().ToString());
     }
 
     void SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
