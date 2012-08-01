@@ -185,10 +185,19 @@ class YtTest(YTEnv):
         yt.sort_table(table, columns=["subkey"])
         self.assertEqual(self.read_records(table)[0].subkey, "a")
 
+        unexisting_table = TEST_DIR + "/unexisting"
+        yt.sort_table(unexisting_table)
+        self.assertFalse(yt.exists(unexisting_table))
+
     def test_attributes(self):
         table = self.create_temp_table()
         self.assertEqual(yt.records_count(table), 10)
         self.assertFalse(yt.is_sorted(table))
+        
+        yt.set_attribute(table, "my_attribute", "{}")
+        yt.set_attribute(table, "my_attribute/000", "10")
+        self.assertEqual(yt.get_attribute(table, "my_attribute/000"), 10)
+        #self.assertEqual(yt.list_attributes(table, "my_attribute"), ["000"])
 
     def test_operations(self):
         table = self.create_temp_table()
@@ -285,10 +294,19 @@ class YtTest(YTEnv):
         yt.sort_table(table)
         self.assertEqual(self.read_records(table)[0].key, "0")
 
+    def test_empty_input_tables(self):
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+        another_table = TEST_DIR + "/temp_another"
+        yt.run_map("PYTHONPATH=. ./my_op.py",
+                   [table, other_table], another_table,
+                   files=["tests/my_op.py", "tests/helpers.py"])
+        self.assertFalse(yt.exists(other_table))
+
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_operations"))
+    #suite.addTest(YtTest("test_attributes"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 

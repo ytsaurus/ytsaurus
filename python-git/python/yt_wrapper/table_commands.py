@@ -118,7 +118,7 @@ def is_sorted(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
     return parse_bool(get_attribute(table, "sorted"))
 
-def sort_table(table, destination_table=None, columns=None, strategy=None, spec=None):
+def sort_table(source_table, destination_table=None, columns=None, strategy=None, spec=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if spec is None: spec = {}
     if columns is None:
@@ -128,46 +128,50 @@ def sort_table(table, destination_table=None, columns=None, strategy=None, spec=
         if config.DEFAULT_FORMAT.has_subkey:
             columns.append("subkey")
 
-    table = flatten(table)
+    source_table = map(to_table, flatten(source_table))
+    source_table = filter(lambda table: exists(table.name), source_table)
+    if not source_table:
+        return
+
     if destination_table is None:
-        require(len(table) == 1,
+        require(len(source_table) == 1 and not source_table[0].has_limiters(),
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
-        destination_table = to_table(table[0])
+        destination_table = to_table(source_table[0])
     else:
         destination_table = to_table(destination_table)
 
-    in_place = destination_table.name == unlist(table)
+    in_place = destination_table == unlist(source_table)
     if in_place:
-        table = table[0]
-        output_table = create_temp_table(os.path.dirname(table),
-                                         os.path.basename(table))
+        source_table = source_table[0]
+        output_table = create_temp_table(os.path.dirname(source_table.name),
+                                         os.path.basename(source_table.name))
     else:
         output_table = destination_table.name
         create_table(output_table, not destination_table.append)
     params = json.dumps(
         {"spec": update(spec,
-            {"input_table_paths": map(escape_path, flatten(table)),
+            {"input_table_paths": map(get_yson_name, flatten(source_table)),
              "output_table_path": escape_path(output_table),
              "key_columns": columns})})
     operation = make_request("POST", "sort", None, params)
     strategy.process_operation("sort", operation)
     if in_place:
-        move_table(output_table, table)
+        move_table(output_table, source_table)
 
 def merge_tables(source_table, destination_table, mode, strategy=None, spec=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if spec is None: spec = {}
-    source_table = flatten(source_table)
+    source_table = map(to_table, flatten(source_table))
     destination_table = to_table(destination_table)
-    require(destination_table.name not in source_table,
+    require(destination_table.name not in map(lambda x: x.name, source_table),
             YtError("Destination should differ from source tables in merge operation"))
     create_table(destination_table.name,
                  make_it_empty=not destination_table.append)
 
     params = json.dumps(
         {"spec": update(spec,
-            {"input_table_paths": map(escape_path, source_table),
+            {"input_table_paths": map(get_yson_name, source_table),
              "output_table_path": destination_table.escaped_name(),
              "mode": mode})})
     operation = make_request("POST", "merge", None, params)
@@ -194,9 +198,8 @@ def run_operation(binary, source_table, destination_table,
         temp_table = create_temp_table(config.TEMP_TABLES_STORAGE, "map_operation")
         merge_tables(source_table, temp_table, "ordered")
         source_table = [temp_table]
+    source_table = filter(lambda table: exists(table.name), source_table)
     for table in source_table:
-        if not exists(table.name):
-            create_table(table.name)
         if op_type == "reduce" and config.FORCE_SORT_IN_REDUCE and not is_sorted(table.name):
             sort_table(table.name)
     destination_table = map(to_table, flatten(destination_table))
