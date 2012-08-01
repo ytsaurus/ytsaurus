@@ -215,7 +215,7 @@ bool TChunkSequenceReaderBase<TReader>::IsValid() const
 template <class TReader>
 bool TChunkSequenceReaderBase<TReader>::IsFetchingComplete() const
 {
-    if (LastInitializedReader < InputChunks.size()) {
+    if (LastInitializedReader + 1 < InputChunks.size()) {
         return false;
     }
 
@@ -230,7 +230,7 @@ bool TChunkSequenceReaderBase<TReader>::IsFetchingComplete() const
         }
     }
 
-    return false;
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
