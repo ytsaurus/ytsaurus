@@ -151,7 +151,7 @@ protected:
         auto branchedChunkListId = branchedNode->GetChunkList()->GetId();
 
         auto originatingUpdateMode = originatingNode->GetUpdateMode();
-        auto branchedUpdateMode = branchedUpdateMode->GetUpdateMode();
+        auto branchedUpdateMode = branchedNode->GetUpdateMode();
 
         MergeChunkLists(originatingNode, branchedNode);
 
