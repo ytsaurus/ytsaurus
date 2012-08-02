@@ -26,9 +26,9 @@ TMutationPtr TMutation::OnSuccess(TCallback<void(const TResponse&)> onSuccess)
 template <class TRequest>
 TMutationPtr TMutation::SetRequestData(const TRequest& request)
 {
-    TBlob requestData;
+    TSharedRef requestData;
     YCHECK(SerializeToProto(&request, &requestData));
-    SetRequestData(TSharedRef(MoveRV(requestData)));
+    SetRequestData(requestData);
     Request.Type = request.GetTypeName();
     return this;
 }
@@ -49,13 +49,13 @@ struct TMutationFactory
             ->SetAction(BIND([=] () {
                 TResponse response((target->*method)(request));
 
-                TBlob responseData;
+                TSharedRef responseData;
                 YCHECK(SerializeToProto(&response, &responseData));
 
                 auto* context = metaStateManager->GetMutationContext();
                 YASSERT(context);
 
-                context->SetResponseData(TSharedRef(MoveRV(responseData)));
+                context->SetResponseData(responseData);
             }));
     }
 };

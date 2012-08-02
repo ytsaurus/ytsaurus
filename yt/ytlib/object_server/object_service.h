@@ -3,8 +3,9 @@
 #include "public.h"
 #include "object_service_proxy.h"
 
+#include <ytlib/rpc/service.h>
+
 #include <ytlib/cell_master/public.h>
-#include <ytlib/cell_master/meta_state_service.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -12,7 +13,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectService
-    : public NCellMaster::TMetaStateServiceBase
+    : public NRpc::TServiceBase
 {
 public:
     explicit TObjectService(NCellMaster::TBootstrap* bootstrap);
@@ -20,6 +21,8 @@ public:
 private:
     typedef TObjectService TThis;
     class TExecuteSession;
+
+    NCellMaster::TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Execute);
 

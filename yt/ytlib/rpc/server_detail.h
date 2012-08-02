@@ -14,38 +14,38 @@ class TServiceContextBase
     : public IServiceContext
 {
 public:
-    virtual NBus::IMessagePtr GetRequestMessage() const OVERRIDE;
+    virtual NBus::IMessagePtr GetRequestMessage() const override;
 
-    virtual const TRequestId& GetRequestId() const OVERRIDE;
-    virtual const Stroka& GetPath() const OVERRIDE;
-    virtual const Stroka& GetVerb() const OVERRIDE;
+    virtual const TRequestId& GetRequestId() const override;
+    virtual const Stroka& GetPath() const override;
+    virtual const Stroka& GetVerb() const override;
 
-    virtual bool IsReplied() const OVERRIDE;
-    virtual bool IsOneWay() const OVERRIDE;
+    virtual bool IsReplied() const override;
+    virtual bool IsOneWay() const override;
     
-    virtual void Reply(const TError& error) OVERRIDE;
-    virtual void Reply(NBus::IMessagePtr responseMessage) OVERRIDE;
+    virtual void Reply(const TError& error) override;
+    virtual void Reply(NBus::IMessagePtr responseMessage) override;
     
-    virtual const TError& GetError() const OVERRIDE;
+    virtual const TError& GetError() const override;
 
-    virtual TSharedRef GetRequestBody() const OVERRIDE;
+    virtual TSharedRef GetRequestBody() const override;
     
-    virtual TSharedRef GetResponseBody() OVERRIDE;
-    virtual void SetResponseBody(const TSharedRef& responseBody) OVERRIDE;
+    virtual TSharedRef GetResponseBody() override;
+    virtual void SetResponseBody(const TSharedRef& responseBody) override;
 
-    virtual std::vector<TSharedRef>& RequestAttachments() OVERRIDE;
-    virtual std::vector<TSharedRef>& ResponseAttachments() OVERRIDE;
+    virtual std::vector<TSharedRef>& RequestAttachments() override;
+    virtual std::vector<TSharedRef>& ResponseAttachments() override;
 
-    virtual NYTree::IAttributeDictionary& RequestAttributes() OVERRIDE;
-    virtual NYTree::IAttributeDictionary& ResponseAttributes() OVERRIDE;
+    virtual NYTree::IAttributeDictionary& RequestAttributes() override;
+    virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
 
-    virtual void SetRequestInfo(const Stroka& info) OVERRIDE;
-    virtual Stroka GetRequestInfo() const OVERRIDE;
+    virtual void SetRequestInfo(const Stroka& info) override;
+    virtual Stroka GetRequestInfo() const override;
 
-    virtual void SetResponseInfo(const Stroka& info) OVERRIDE;
-    virtual Stroka GetResponseInfo() OVERRIDE;
+    virtual void SetResponseInfo(const Stroka& info) override;
+    virtual Stroka GetResponseInfo() override;
 
-    virtual TClosure Wrap(TClosure action) OVERRIDE;
+    virtual TClosure Wrap(TClosure action) override;
 
 protected:
     TServiceContextBase(
@@ -97,37 +97,37 @@ public:
         IServiceContextPtr underlyingContext,
         TClosure onReply);
 
-    virtual NBus::IMessagePtr GetRequestMessage() const OVERRIDE;
+    virtual NBus::IMessagePtr GetRequestMessage() const override;
 
-    virtual const NRpc::TRequestId& GetRequestId() const OVERRIDE;
+    virtual const NRpc::TRequestId& GetRequestId() const override;
 
-    virtual const Stroka& GetPath() const OVERRIDE;
-    virtual const Stroka& GetVerb() const OVERRIDE;
+    virtual const Stroka& GetPath() const override;
+    virtual const Stroka& GetVerb() const override;
 
     virtual bool IsOneWay() const;
 
-    virtual bool IsReplied() const OVERRIDE;
-    virtual void Reply(const TError& error) OVERRIDE;
-    virtual void Reply(NBus::IMessagePtr responseMessage) OVERRIDE;
+    virtual bool IsReplied() const override;
+    virtual void Reply(const TError& error) override;
+    virtual void Reply(NBus::IMessagePtr responseMessage) override;
 
-    virtual const TError& GetError() const OVERRIDE;
+    virtual const TError& GetError() const override;
 
-    virtual TSharedRef GetRequestBody() const OVERRIDE;
+    virtual TSharedRef GetRequestBody() const override;
 
-    virtual TSharedRef GetResponseBody() OVERRIDE;
-    virtual void SetResponseBody(const TSharedRef& responseBody) OVERRIDE;
+    virtual TSharedRef GetResponseBody() override;
+    virtual void SetResponseBody(const TSharedRef& responseBody) override;
 
-    virtual std::vector<TSharedRef>& RequestAttachments() OVERRIDE;
-    virtual std::vector<TSharedRef>& ResponseAttachments() OVERRIDE;
+    virtual std::vector<TSharedRef>& RequestAttachments() override;
+    virtual std::vector<TSharedRef>& ResponseAttachments() override;
 
-    virtual NYTree::IAttributeDictionary& RequestAttributes() OVERRIDE;
-    virtual NYTree::IAttributeDictionary& ResponseAttributes() OVERRIDE;
+    virtual NYTree::IAttributeDictionary& RequestAttributes() override;
+    virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
 
-    virtual void SetRequestInfo(const Stroka& info) OVERRIDE;
-    virtual Stroka GetRequestInfo() const OVERRIDE;
+    virtual void SetRequestInfo(const Stroka& info) override;
+    virtual Stroka GetRequestInfo() const override;
 
-    virtual void SetResponseInfo(const Stroka& info) OVERRIDE;
-    virtual Stroka GetResponseInfo() OVERRIDE;
+    virtual void SetResponseInfo(const Stroka& info) override;
+    virtual Stroka GetResponseInfo() override;
 
     virtual TClosure Wrap(TClosure action);
 

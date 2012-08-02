@@ -397,7 +397,10 @@ TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
 
     transaction->SetState(ETransactionState::Active);
 
-    auto* mutationContext = Bootstrap->GetMetaStateManager()->GetMutationContext();
+    auto* mutationContext = Bootstrap
+        ->GetMetaStateFacade()
+        ->GetManager()
+        ->GetMutationContext();
     transaction->SetStartTime(mutationContext->GetTimestamp());
 
     TransactionStarted_.Fire(transaction);

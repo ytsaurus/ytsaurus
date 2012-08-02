@@ -110,7 +110,7 @@ class TScheduler::TImpl
 public:
     TImpl(
         TSchedulerConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : NRpc::TServiceBase(
             bootstrap->GetControlInvoker(),
             TSchedulerServiceProxy::GetServiceName(),
@@ -130,8 +130,8 @@ public:
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetHeavyRequest(true)
-                .SetHeavyResponse(true),
-            Bootstrap->GetControlInvoker(EControlQueue::Heartbeat));
+                .SetHeavyResponse(true)
+                .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
 
         JobTypeCounters.resize(EJobType::GetDomainSize());
 

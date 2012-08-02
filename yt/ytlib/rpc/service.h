@@ -216,9 +216,6 @@ struct THandlerInvocationOptions
 
     //! Should we be serializing the response in a separate thread?
     bool HeavyResponse;
-
-    //! The invoker
-    IInvokerPtr Invoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -475,6 +472,10 @@ protected:
             , OneWay(false)
         { }
 
+        //! Invoker used to executing the handler.
+        //! If NULL then the default one is used.
+        IInvokerPtr Invoker;
+
         //! Service method name.
         Stroka Verb;
 
@@ -486,6 +487,13 @@ protected:
 
         //! Options to pass to the handler.
         THandlerInvocationOptions Options;
+
+        TMethodDescriptor SetInvoker(IInvokerPtr invoker)
+        {
+            TMethodDescriptor result(*this);
+            result.Invoker = invoker;
+            return result;
+        }
 
         TMethodDescriptor SetOneWay(bool value)
         {
@@ -515,14 +523,13 @@ protected:
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            IInvokerPtr invoker,
             const NYTree::TYPath& profilingPath);
 
         TMethodDescriptor Descriptor;
-        //! Invoker that is used to handle all requests for this method.
-        IInvokerPtr Invoker;
+
         //! Path prefix for all profiling information regarding this method.
         NYTree::TYPath ProfilingPath;
+
         //! Increments with each method call.
         NProfiling::TRateCounter RequestCounter;
     };
@@ -588,9 +595,6 @@ protected:
     //! Registers a method.
     void RegisterMethod(const TMethodDescriptor& descriptor);
 
-    //! Registers a method with a supplied custom invoker.
-    void RegisterMethod(const TMethodDescriptor& descriptor, IInvokerPtr invoker);
-
 private:
     IInvokerPtr DefaultInvoker;
     Stroka ServiceName;
@@ -607,10 +611,6 @@ private:
 
     virtual void OnBeginRequest(IServiceContextPtr context) override;
     virtual void OnEndRequest(IServiceContextPtr context) override;
-
-    virtual void InvokeHandler(
-        TActiveRequestPtr activeRequest,
-        const TClosure& handler);
 
     void OnInvocationPrepared(
         TActiveRequestPtr activeRequest,

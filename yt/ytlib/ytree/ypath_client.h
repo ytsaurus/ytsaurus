@@ -23,25 +23,25 @@ class TYPathRequest
 public:
     explicit TYPathRequest(const Stroka& verb);
 
-    virtual bool IsOneWay() const OVERRIDE;
-    virtual const NRpc::TRequestId& GetRequestId() const OVERRIDE;
+    virtual bool IsOneWay() const override;
+    virtual const NRpc::TRequestId& GetRequestId() const override;
 
-    virtual const Stroka& GetVerb() const OVERRIDE;
+    virtual const Stroka& GetVerb() const override;
     
-    virtual const Stroka& GetPath() const OVERRIDE;
+    virtual const Stroka& GetPath() const override;
     void SetPath(const Stroka& path);
 
-    virtual NYTree::IAttributeDictionary& Attributes() OVERRIDE;
-    virtual const NYTree::IAttributeDictionary& Attributes() const OVERRIDE;
+    virtual NYTree::IAttributeDictionary& Attributes() override;
+    virtual const NYTree::IAttributeDictionary& Attributes() const override;
 
-    virtual NBus::IMessagePtr Serialize() const OVERRIDE;
+    virtual NBus::IMessagePtr Serialize() const override;
 
 protected:
     Stroka Verb_;
     Stroka Path_;
     std::vector<TSharedRef> Attachments_;
 
-    virtual TBlob SerializeBody() const = 0;
+    virtual TSharedRef SerializeBody() const = 0;
 
 };
 
@@ -60,7 +60,7 @@ public:
     { }
 
 protected:
-    virtual TBlob SerializeBody() const override
+    virtual TSharedRef SerializeBody() const override
     {
         TSharedRef ref;
         YCHECK(SerializeToProto(this, &ref));
@@ -98,7 +98,7 @@ class TTypedYPathResponse
     , public TResponseMessage
 {
 protected:
-    virtual void DeserializeBody(const TRef& data) OVERRIDE
+    virtual void DeserializeBody(const TRef& data) override
     {
         YCHECK(DeserializeFromProto(this, data));
     }

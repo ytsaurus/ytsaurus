@@ -269,14 +269,14 @@ std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(TDataNode* node, int co
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto* job, holder->Jobs()) {
+    FOREACH (const auto* job, node->Jobs()) {
         forbiddenChunkIds.insert(job->GetChunkId());
     }
 
     // Right now we just pick some (not even random!) chunks.
     std::vector<TChunk*> result;
     result.reserve(count);
-    FOREACH (auto* chunk, holder->StoredChunks()) {
+    FOREACH (auto* chunk, node->StoredChunks()) {
         if (static_cast<int>(result.size()) >= count) {
             break;
         }

@@ -675,7 +675,7 @@ private:
     TStringStream AttributeStream;
     THolder<TYsonWriter> AttributeWriter;
 
-    virtual void OnMyKeyedItem(const TStringBuf& key) OVERRIDE
+    virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         Stroka localKey(key);
         AttributeWriter.Reset(new TYsonWriter(&AttributeStream));
@@ -834,13 +834,13 @@ public:
         : UnderlyingService(underlyingService)
     { }
 
-    virtual void Invoke(IServiceContextPtr context) OVERRIDE
+    virtual void Invoke(IServiceContextPtr context) override
     {
         UNUSED(context);
         YUNREACHABLE();
     }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) OVERRIDE
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
     {
         UNUSED(verb);
 
@@ -853,12 +853,12 @@ public:
         return TResolveResult::There(UnderlyingService, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
-    virtual Stroka GetLoggingCategory() const OVERRIDE
+    virtual Stroka GetLoggingCategory() const override
     {
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const OVERRIDE
+    virtual bool IsWriteRequest(IServiceContextPtr context) const override
     {
         UNUSED(context);
         YUNREACHABLE();

@@ -21,10 +21,10 @@ struct TMetaStatePart::TThunkTraits
 
         auto response = handler.Run(request);
 
-        TBlob responseBlob;
-        YCHECK(SerializeToProto(&response, &responseBlob));
+        TSharedRef responseData;
+        YCHECK(SerializeToProto(&response, &responseData));
 
-        context->SetResponseData(TSharedRef(MoveRV(responseBlob)));
+        context->SetResponseData(responseData);
     }
 };
 

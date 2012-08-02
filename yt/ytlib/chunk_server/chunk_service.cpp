@@ -34,31 +34,31 @@ using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger Logger("ChunkServer");
-NProfiling::TProfiler Profiler("/chunk_server");
+static NLog::TLogger& Logger = ChunkServerLogger;
+static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkService::TChunkService(TBootstrap* bootstrap)
-    : TMetaStateServiceBase(
-        bootstrap,
+    : TServiceBase(
+        bootstrap->GetMetaStateFacade()->GetInvoker(),
         TChunkServiceProxy::GetServiceName(),
         ChunkServerLogger.GetCategory())
+    , Bootstrap(bootstrap)
 {
-    YASSERT(bootstrap);
+    YCHECK(bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
-            .SetHeavyRequest(true),
-        bootstrap->GetMetaStateFacade()->GetInvoker(EStateThreadQueue::ChunkRefresh));
+            .SetHeavyRequest(true)
+            .SetInvoker(bootstrap->GetMetaStateFacade()->GetInvoker(EStateThreadQueue::ChunkRefresh)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetHeavyRequest(true));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat));
 }
 
- void TChunkService::ValidateNodeId(TNodeId nodeId)
+void TChunkService::ValidateNodeId(TNodeId nodeId) const
 {
     if (!Bootstrap->GetChunkManager()->FindNode(nodeId)) {
         ythrow TServiceException(EErrorCode::NoSuchNode) <<
@@ -66,11 +66,21 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
     }
 }
 
-void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
+void TChunkService::ValidateTransactionId(const TTransactionId& transactionId) const
 {
     if (!Bootstrap->GetTransactionManager()->FindTransaction(transactionId)) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
             Sprintf("No such transaction %s", ~transactionId.ToString());
+    }
+}
+
+void TChunkService::CheckAuthorization(const Stroka& address) const
+{
+    auto nodeAuthority = Bootstrap->GetNodeAuthority();
+    if (!nodeAuthority->IsAuthorized(address)) {
+        ythrow TServiceException(TError(
+            EErrorCode::NotAuthorized,
+            Sprintf("Node %s is not authorized", ~address)));
     }
 }
 
@@ -79,6 +89,10 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 {
     UNUSED(response);
+
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto objectManager = Bootstrap->GetObjectManager();
 
     Stroka address = request->address();
     auto incarnationId = TIncarnationId::FromProto(request->incarnation_id());
@@ -91,8 +105,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
         ~requestCellGuid.ToString(),
         ~ToString(statistics));
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto objectManager = Bootstrap->GetObjectManager();
+    if (!metaStateFacade->ValidateActiveLeaderStatus(context->GetUntypedContext()))
+        return;
 
     auto expectedCellGuid = objectManager->GetCellGuid();
     if (!requestCellGuid.IsEmpty() && requestCellGuid != expectedCellGuid) {
@@ -104,16 +118,16 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
             ~requestCellGuid.ToString()));
     }
 
-    CheckHolderAuthorization(address);
+    CheckAuthorization(address);
 
-    TMetaReqRegisterNode message;
-    message.set_address(address);
-    *message.mutable_incarnation_id() = incarnationId.ToProto();
-    *message.mutable_statistics() = statistics;
+    TMetaReqRegisterNode registerReq;
+    registerReq.set_address(address);
+    *registerReq.mutable_incarnation_id() = incarnationId.ToProto();
+    *registerReq.mutable_statistics() = statistics;
     chunkManager
-        ->CreateRegisterNodeMutation(message)
-        ->OnSuccess(BIND([=] (const TMetaRspRegisterNode& response) {
-            TNodeId nodeId = response.node_id();
+        ->CreateRegisterNodeMutation(registerReq)
+        ->OnSuccess(BIND([=] (const TMetaRspRegisterNode& registerRsp) {
+            TNodeId nodeId = registerRsp.node_id();
             context->Response().set_node_id(nodeId);
             *response->mutable_cell_guid() = expectedCellGuid.ToProto();
             context->SetResponseInfo("NodeId: %d", nodeId);
@@ -125,13 +139,18 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+    auto chunkManager = Bootstrap->GetChunkManager();
+
     auto nodeId = request->node_id();
 
     context->SetRequestInfo("NodeId: %d", nodeId);
 
+    if (!metaStateFacade->ValidateActiveLeaderStatus(context->GetUntypedContext()))
+        return;
+
     ValidateNodeId(nodeId);
 
-    auto chunkManager = Bootstrap->GetChunkManager();
     const auto* node = chunkManager->GetNode(nodeId);
     if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
@@ -150,13 +169,18 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 {
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+    auto chunkManager = Bootstrap->GetChunkManager();
+
     auto nodeId = request->node_id();
 
     context->SetRequestInfo("NodeId: %d");
 
+    if (!metaStateFacade->ValidateActiveLeaderStatus(context->GetUntypedContext()))
+        return;
+
     ValidateNodeId(nodeId);
 
-    auto chunkManager = Bootstrap->GetChunkManager();
     auto* node = chunkManager->GetNode(nodeId);
     if (node->GetState() != ENodeState::Online) {
         context->Reply(TError(
@@ -216,16 +240,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
         }))
         ->OnError(CreateRpcErrorHandler(context->GetUntypedContext()))
         ->Commit();
-}
-
-void TChunkService::CheckAuthorization(const Stroka& address) const
-{
-    auto nodeAuthority = Bootstrap->GetNodeAuthority();
-    if (!nodeAuthority->IsAuthorized(address)) {
-        ythrow TServiceException(TError(
-            EErrorCode::NotAuthorized,
-            Sprintf("Node %s is not authorized", ~address)));
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

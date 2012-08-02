@@ -34,7 +34,7 @@ public:
     std::vector<TDataNode*> GetReplicationTargets(const TChunk* chunk, int count);
     std::vector<TDataNode*> GetRemovalTargets(const TChunk* chunk, int count);
     TDataNode* GetReplicationSource(const TChunk* chunk);
-    std::vector<TChunkId> GetBalancingChunks(TDataNode* node, int count);
+    std::vector<TChunk*> GetBalancingChunks(TDataNode* node, int count);
     TDataNode* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:

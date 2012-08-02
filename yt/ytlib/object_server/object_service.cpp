@@ -1,12 +1,18 @@
 #include "stdafx.h"
 #include "object_service.h"
+#include "private.h"
 
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/ypath_client.h>
+
 #include <ytlib/rpc/message.h>
+
 #include <ytlib/actions/parallel_awaiter.h>
+
 #include <ytlib/object_server/object_manager.h>
+
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -20,7 +26,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Cypress");
+static NLog::TLogger& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,10 +34,11 @@ class TObjectService::TExecuteSession
     : public TIntrinsicRefCounted
 {
 public:
-    TExecuteSession(TObjectService* owner, TCtxExecutePtr context)
-        : Context(context)
-        , Owner(owner)
+    TExecuteSession(TBootstrap* bootstrap, TCtxExecutePtr context)
+        : Bootstrap(bootstrap)
+        , Context(context)
         , Awaiter(New<TParallelAwaiter>())
+        , UnavailableLock(0)
     { }
 
     void Run()
@@ -43,12 +50,9 @@ public:
         ResponseMessages.resize(requestCount);
 
         const auto& attachments = request.Attachments();
+        auto rootService = Bootstrap->GetObjectManager()->GetRootService();
+        auto awaiter = Awaiter;
         int requestPartIndex = 0;
-        auto rootService = Owner
-            ->Bootstrap
-            ->GetObjectManager()
-            ->GetRootService();
-
         for (int requestIndex = 0; requestIndex < request.part_counts_size(); ++requestIndex) {
             int partCount = request.part_counts(requestIndex);
             if (partCount == 0) {
@@ -75,24 +79,23 @@ public:
                 ~path,
                 ~verb);
 
-            Awaiter->Await(
+            awaiter->Await(
                 ExecuteVerb(rootService, requestMessage),
                 BIND(&TExecuteSession::OnResponse, MakeStrong(this), requestIndex));
 
             requestPartIndex += partCount;
         }
 
-        Awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
+        awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
     }
 
 private:
+    TBootstrap* Bootstrap;
     TCtxExecutePtr Context;
-    TObjectServicePtr Owner;
+
     TParallelAwaiterPtr Awaiter;
-
     std::vector<IMessagePtr> ResponseMessages;
-
-    TSpinLock UnavilableSpinLock;
+    TAtomic UnavailableLock;
 
     void OnResponse(int requestIndex, IMessagePtr responseMessage)
     {
@@ -106,12 +109,11 @@ private:
             ~error.ToString());
 
         if (error.GetCode() == EErrorCode::Unavailable) {
-            // OnResponse call be called from an arbitrary thread.
+            // OnResponse can be called from an arbitrary thread.
             // Make sure that we only reply once.
-            TGuard<TSpinLock> guard(UnavilableSpinLock);
-            Awaiter->Cancel();
-            Awaiter.Reset();
-            if (!Context->IsReplied()) {
+            if (AtomicTryLock(&UnavailableLock)) {
+                Awaiter->Cancel();
+                Awaiter.Reset();
                 Context->Reply(error);
             }
         } else {
@@ -151,12 +153,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectService::TObjectService(TBootstrap* bootstrap)
-    : TMetaStateServiceBase(
-        bootstrap,
+    : TServiceBase(
+        bootstrap->GetMetaStateFacade()->GetInvoker(),
         TObjectServiceProxy::GetServiceName(),
-        Logger.GetCategory())
+        ObjectServerLogger.GetCategory())
+    , Bootstrap(bootstrap)
 {
-    YASSERT(bootstrap);
+    YCHECK(bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 }
@@ -166,7 +169,10 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    New<TExecuteSession>(this, context)->Run();
+    if (!Bootstrap->GetMetaStateFacade()->ValidateActiveStatus(context->GetUntypedContext()))
+        return;
+
+    New<TExecuteSession>(Bootstrap, context)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

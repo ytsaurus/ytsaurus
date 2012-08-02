@@ -1202,7 +1202,7 @@ private:
                 ~chunkAddInfo.chunk_info().DebugString(),
                 ~node->GetAddress(),
                 node->GetId());
-            LOG_ERROR("%s", ~request);
+            LOG_ERROR("%s", ~message);
             return;
         }
         chunk->ChunkInfo() = chunkAddInfo.chunk_info();
@@ -1603,7 +1603,7 @@ private:
         inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
 
         if (request->fetch_node_addresses()) {
-            Owner->FillHolderAddresses(inputChunk->mutable_node_addresses(), chunk);
+            Owner->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
         }
 
         context->Reply();

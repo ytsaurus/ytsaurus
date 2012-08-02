@@ -83,18 +83,37 @@ public:
         InitInvoker->Start();
     }
 
-    void ValidateActiveLeaderStatus()
+    bool ValidateActiveLeaderStatus(NRpc::IServiceContextPtr context)
     {
         if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
-            ythrow TServiceException(TError(
+            context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "The server is not an active leader"));
+            return false;
         }
+
+        if (!MetaStateManager->HasActiveQuorum()) {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "The server has no active quorum"));
+            return false;
+        }
+
+        return true;
     }
 
-    void ValidateActiveStatus()
+    bool ValidateActiveStatus(NRpc::IServiceContextPtr context)
     {
+        if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading &&
+            MetaStateManager->GetStateStatus() != EPeerStatus::Following)
+        {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "The server is not active"));
+            return false;
+        }
 
+        return true;
     }
     
 private:
@@ -331,14 +350,14 @@ void TMetaStateFacade::Start()
     Impl->Start();
 }
 
-void TMetaStateFacade::ValidateActiveLeaderStatus()
+bool TMetaStateFacade::ValidateActiveLeaderStatus(NRpc::IServiceContextPtr context)
 {
-    Impl->ValidateActiveLeaderStatus();
+    return Impl->ValidateActiveLeaderStatus(context);
 }
 
-void TMetaStateFacade::ValidateActiveStatus()
+bool TMetaStateFacade::ValidateActiveStatus(NRpc::IServiceContextPtr context)
 {
-    Impl->ValidateActiveStatus();
+    return Impl->ValidateActiveStatus(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -148,9 +148,9 @@ private:
     void LoadKeys(TInputStream* input);
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
     
-    virtual void Clear() OVERRIDE;
-    virtual void OnStartRecovery() OVERRIDE;
-    virtual void OnStopRecovery() OVERRIDE;
+    virtual void Clear() override;
+    virtual void OnStartRecovery() override;
+    virtual void OnStopRecovery() override;
 
     void ReplayVerb(const NProto::TMetaReqExecute& message);
 

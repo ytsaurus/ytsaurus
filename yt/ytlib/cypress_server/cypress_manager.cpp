@@ -725,6 +725,7 @@ void TCypressManager::RegisterNode(
     auto nodeId = node->GetId().ObjectId;
     YASSERT(node->GetId().TransactionId == NullTransactionId);
     
+    auto objectManager = Bootstrap->GetObjectManager();
     auto* mutationContext = Bootstrap
         ->GetMetaStateFacade()
         ->GetManager()

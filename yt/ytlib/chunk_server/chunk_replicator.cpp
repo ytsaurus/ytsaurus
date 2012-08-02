@@ -287,6 +287,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     TDataNode* sourceNode,
+    TChunk* chunk,
     std::vector<TJobStartInfo>* jobsToStart)
 {
     auto chunkId = chunk->GetId();
@@ -390,12 +391,12 @@ void TChunkReplicator::ScheduleNewJobs(
     if (maxReplicationJobsToStart > 0 &&
         ChunkPlacement->GetFillCoeff(node) > Config->ChunkReplicator->MinBalancingFillCoeff)
     {
-        auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
+        auto chunksToBalance = ChunkPlacement->GetBalancingChunks(node, maxReplicationJobsToStart);
         FOREACH (auto* chunk, chunksToBalance) {
             if (maxReplicationJobsToStart == 0) {
                 break;
             }
-            auto flags = ScheduleBalancingJob(holder, chunk, jobsToStart);
+            auto flags = ScheduleBalancingJob(node, chunk, jobsToStart);
             if (flags & EScheduleFlags::Scheduled) {
                 --maxReplicationJobsToStart;
             }

@@ -674,51 +674,53 @@ void TObjectManager::ExecuteVerb(
         PROFILE_TIMING (profilingPath) {
             action.Run(context);
         }
-        return;
+    } else {
+        if (!Bootstrap->GetMetaStateFacade()->ValidateActiveLeaderStatus(context))
+            return;
+
+        TMetaReqExecute executeReq;
+        *executeReq.mutable_object_id() = id.ObjectId.ToProto();
+        *executeReq.mutable_transaction_id() = id.TransactionId.ToProto();
+
+        auto requestMessage = context->GetRequestMessage();
+        FOREACH (const auto& part, requestMessage->GetParts()) {
+            executeReq.add_request_parts(part.Begin(), part.Size());
+        }
+
+        // Capture everything needed in lambdas below.
+        auto wrappedContext = New<TServiceContextWrapper>(context);
+        auto mutationId = GetRpcMutationId(context);
+        auto metaStateManager = MetaStateManager;
+
+        New<TMutation>(metaStateManager)
+            ->SetRequestData(executeReq)
+            ->SetId(mutationId)
+            ->SetAction(BIND([=] () {
+                PROFILE_TIMING (profilingPath) {
+                    action.Run(wrappedContext);
+                }
+                if (mutationId != NullMutationId) {
+                    auto responseMessage = wrappedContext->GetResponseMessage();
+                    auto responseData = PackMessage(responseMessage);
+                    metaStateManager->GetMutationContext()->SetResponseData(responseData);
+                }
+            }))
+            ->OnSuccess(BIND([=] (const TMutationResponse& response) {
+                auto responseMessage =
+                    response.Applied
+                    ? wrappedContext->GetResponseMessage()
+                    : UnpackMessage(response.Data);
+                context->Reply(responseMessage);
+            }))
+            ->OnError(CreateRpcErrorHandler(context))
+            ->Commit();
     }
-
-    TMetaReqExecute executeReq;
-    *executeReq.mutable_object_id() = id.ObjectId.ToProto();
-    *executeReq.mutable_transaction_id() = id.TransactionId.ToProto();
-
-    auto requestMessage = context->GetRequestMessage();
-    FOREACH (const auto& part, requestMessage->GetParts()) {
-        executeReq.add_request_parts(part.Begin(), part.Size());
-    }
-
-    // Capture everything needed in lambdas below.
-    auto wrappedContext = New<TServiceContextWrapper>(context);
-    auto mutationId = GetRpcMutationId(context);
-    auto metaStateManager = MetaStateManager;
-
-    New<TMutation>(metaStateManager)
-        ->SetRequestData(executeReq)
-        ->SetId(mutationId)
-        ->SetAction(BIND([=] () {
-            PROFILE_TIMING (profilingPath) {
-                action.Run(wrappedContext);
-            }
-            if (mutationId != NullMutationId) {
-                auto responseMessage = wrappedContext->GetResponseMessage();
-                auto responseData = PackMessage(responseMessage);
-                metaStateManager->GetMutationContext()->SetResponseData(responseData);
-            }
-        }))
-        ->OnSuccess(BIND([=] (const TMutationResponse& response) {
-            auto responseMessage =
-                response.Applied
-                ? wrappedContext->GetResponseMessage()
-                : UnpackMessage(response.Data);
-            context->Reply(responseMessage);
-        }))
-        ->OnError(CreateRpcErrorHandler(context))
-        ->Commit();
 }
 
-void TObjectManager::ReplayVerb(const TMetaReqExecute& message)
+void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
 {
-    auto objectId = TObjectId::FromProto(message.object_id());
-    auto transactionId = TTransactionId::FromProto(message.transaction_id());
+    auto objectId = TObjectId::FromProto(request.object_id());
+    auto transactionId = TTransactionId::FromProto(request.transaction_id());
 
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto* transaction =
@@ -726,11 +728,11 @@ void TObjectManager::ReplayVerb(const TMetaReqExecute& message)
         ?  NULL
         : transactionManager->GetTransaction(transactionId);
 
-    std::vector<TSharedRef> parts(message.request_parts_size());
-    for (int partIndex = 0; partIndex < message.request_parts_size(); ++partIndex) {
+    std::vector<TSharedRef> parts(request.request_parts_size());
+    for (int partIndex = 0; partIndex < request.request_parts_size(); ++partIndex) {
         // Construct a non-owning TSharedRef to avoid copying.
         // This is feasible since the message will outlive the request.
-        const auto& part = message.request_parts(partIndex);
+        const auto& part = request.request_parts(partIndex);
         parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
     }
 

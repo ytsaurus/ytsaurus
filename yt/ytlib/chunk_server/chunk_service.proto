@@ -52,7 +52,7 @@ message TReqRegisterNode
 {
     required bytes address = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
-    required THolderStatistics statistics = 3;
+    required TNodeStatistics statistics = 3;
     required NYT.NProto.TGuid cell_guid = 4;
 }
 

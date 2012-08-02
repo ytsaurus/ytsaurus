@@ -20,7 +20,7 @@ public:
         : Parts(ForwardRV< std::vector<TSharedRef> >(parts))
     { }
 
-    virtual const std::vector<TSharedRef>& GetParts() OVERRIDE
+    virtual const std::vector<TSharedRef>& GetParts() override
     {
         return Parts;
     }
