@@ -34,8 +34,7 @@ TMergingReader::TMergingReader(const std::vector<TTableChunkSequenceReaderPtr>& 
 void TMergingReader::Open()
 {
     // Open all readers in parallel and wait until of them are opened.
-    auto awaiter = New<TParallelAwaiter>();
-    TSpinLock spinLock;
+    auto awaiter = New<TParallelAwaiter>(NChunkClient::ReaderThread->GetInvoker());
     std::vector<TError> errors;
 
     FOREACH (auto reader, Readers) {
@@ -43,7 +42,6 @@ void TMergingReader::Open()
             reader->AsyncOpen(),
             BIND([&] (TError error) {
                 if (!error.IsOK()) {
-                    TGuard<TSpinLock> guard(spinLock);
                     errors.push_back(error);
                 }
             }));
