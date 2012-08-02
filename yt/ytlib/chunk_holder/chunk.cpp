@@ -130,10 +130,14 @@ TFuture<TError> TChunk::ReadMeta()
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                // These are very quick getters.
-                Meta = reader->GetChunkMeta();
-                Info_ = reader->GetChunkInfo();
-                HasMeta = true;
+                // This check is important since this code may get triggered
+                // multiple times and readers do not use any locking.
+                if (!HasMeta) {
+                    // These are very quick getters.
+                    Meta = reader->GetChunkMeta();
+                    Info_ = reader->GetChunkInfo();
+                    HasMeta = true;
+                }
             }
 
             this_->ReleaseReadLock();
