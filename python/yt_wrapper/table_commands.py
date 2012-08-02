@@ -218,7 +218,7 @@ def run_operation(binary, source_table, destination_table,
     operation_descr = \
                 {"command": binary,
                  "format": format.to_json(),
-                 "file_paths": file_paths}
+                 "file_paths": map(escape_path, file_paths)}
     if op_type == "reducer":
         operation_descr.update({"key_columns": columns})
 
