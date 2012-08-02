@@ -532,9 +532,10 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         auto patchMap = patch->AsMap();
         auto baseMap = base->AsMap();
         FOREACH (Stroka key, patchMap->GetKeys()) {
+            std::cerr << key << std::endl;
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                resultMap->AddChild(UpdateNode(patchMap->GetChild(key), baseMap->GetChild(key)), key);
+                resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key);
             }
             else {
                 resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key);

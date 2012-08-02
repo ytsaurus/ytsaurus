@@ -179,8 +179,20 @@ TEST_F(TYsonTest, UpdateNodes)
     auto res = UpdateNode(base, patch);
 
     EXPECT_EQ(
-        "{\"key_a\"=100;\"key_b\"=<\"attr\"=\"some_attr\">0.;\"key_c\"={\"ignat\"=70.;\"max\"=75.};\"key_d\"={\"x\"=\"y\"}}",
-        ConvertToYsonString(res, EYsonFormat::Text).Data());
+        "100",
+        ConvertToYsonString(res->AsMap()->FindChild("key_a"), EYsonFormat::Text).Data());
+    EXPECT_EQ(
+        "<\"attr\"=\"some_attr\">0.",
+        ConvertToYsonString(res->AsMap()->FindChild("key_b"), EYsonFormat::Text).Data());
+    EXPECT_EQ(
+        "70.",
+        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("ignat"), EYsonFormat::Text).Data());
+    EXPECT_EQ(
+        "75.",
+        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("max"), EYsonFormat::Text).Data());
+    EXPECT_EQ(
+        "{\"x\"=\"y\"}",
+        ConvertToYsonString(res->AsMap()->FindChild("key_d"), EYsonFormat::Text).Data());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

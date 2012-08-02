@@ -38,7 +38,9 @@ TEST_F(TCodecTest, VectorCompression)
         auto codec = GetCodec(codecId);
 
         {
-            Stroka data[] = {"", "", "hello", "", " ", "world", "", "", ""};
+            Stroka a = Stroka('a', 10000);
+            Stroka b = Stroka('b', 50000);
+            Stroka data[] = {"", "", "hello", "", " ", "world", "", a, b, "", ""};
             size_t count = sizeof(data) / sizeof(data[0]);
 
             std::vector<TSharedRef> refs(count);
@@ -51,7 +53,7 @@ TEST_F(TCodecTest, VectorCompression)
 
             EXPECT_EQ(
                 Stroka(decompressed.Begin(), decompressed.End()),
-                "hello world");
+                Stroka("hello world") + a + b);
         }
 
         {
