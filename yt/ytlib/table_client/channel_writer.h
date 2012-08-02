@@ -27,7 +27,7 @@ public:
     size_t GetCurrentSize() const;
 
     //! Number of rows in the current unflushed buffer.
-    int GetCurrentRowCount() const;
+    i64 GetCurrentRowCount() const;
 
     std::vector<TSharedRef> FlushBlock();
 

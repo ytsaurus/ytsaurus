@@ -112,7 +112,7 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
     return result;
 }
 
-int TChannelWriter::GetCurrentRowCount() const
+i64 TChannelWriter::GetCurrentRowCount() const
 {
     return CurrentRowCount;
 }
