@@ -135,7 +135,7 @@ const char* TYamrDelimitedParser::FindNextStopSymbol(const char* begin, const ch
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (IsStopSymbol[*current]) {
+        if (IsStopSymbol[static_cast<ui8>(*current)]) {
             return current;
         }
     }

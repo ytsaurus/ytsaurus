@@ -83,7 +83,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
     }
 
     if (ExpectingEscapedChar) {
-        CurrentToken.append(UnEscapingTable[*begin]);
+        CurrentToken.append(UnEscapingTable[static_cast<ui8>(*begin)]);
         ++begin;
         ExpectingEscapedChar = false;
         if (begin == end) {
@@ -179,7 +179,7 @@ const char* TDsvParser::FindEndOfValue(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (IsValueStopSymbol[*current]) {
+        if (IsValueStopSymbol[static_cast<ui8>(*current)]) {
             return current;
         }
     }
@@ -190,7 +190,7 @@ const char* TDsvParser::FindEndOfKey(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (IsKeyStopSymbol[*current]) {
+        if (IsKeyStopSymbol[static_cast<ui8>(*current)]) {
             return current;
         }
     }

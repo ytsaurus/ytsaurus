@@ -203,7 +203,7 @@ void TDsvWriter::EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol)
             Stream->Write(current, next - current);
             if (next != end) {
                 Stream->Write(Config->EscapingSymbol);
-                Stream->Write(EscapingTable[*next]);
+                Stream->Write(EscapingTable[static_cast<ui8>(*next)]);
                 ++next;
             }
             current = next;
@@ -220,7 +220,7 @@ const char* TDsvWriter::FindNextEscapedSymbol(
 {
     auto current = begin;
     for ( ; current != end; ++current) {
-        if (IsStopSymbol[*current]) {
+        if (IsStopSymbol[static_cast<ui8>(*current)]) {
             return current;
         }
     }
