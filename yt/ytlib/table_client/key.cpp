@@ -139,22 +139,20 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk
     i64 endRowIndex = endLimit.has_row_index() ? endLimit.row_index() : miscExt.row_count();
 
     i64 rowCount = endRowIndex - startRowIndex;
-    i64 lastRowIndex = startRowIndex;
 
     for (int i = 0; i < count; ++i) {
-        i64 nextRowIndex = startRowIndex + rowCount * (i + 1) / count;
-        if (lastRowIndex < nextRowIndex) {
+        i64 sliceStartRowIndex = startRowIndex + rowCount * i / count;
+        i64 sliceEndRowIndex = startRowIndex + rowCount * (i + 1) / count;
+        if (sliceStartRowIndex < sliceEndRowIndex) {
             auto slicedChunk = New<TRefCountedInputChunk>(inputChunk);
-            slicedChunk->mutable_slice()->mutable_start_limit()->set_row_index(lastRowIndex);
-            slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(nextRowIndex);
+            slicedChunk->mutable_slice()->mutable_start_limit()->set_row_index(sliceStartRowIndex);
+            slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(sliceEndRowIndex);
 
             // This is merely an approximation.
             slicedChunk->set_uncompressed_data_size(inputChunk.uncompressed_data_size() / count + 1);
-            slicedChunk->set_row_count(nextRowIndex - lastRowIndex);
+            slicedChunk->set_row_count(sliceEndRowIndex - sliceStartRowIndex);
 
             result.push_back(slicedChunk);
-
-            lastRowIndex = nextRowIndex;
         }
     }
 
