@@ -304,19 +304,6 @@ private:
         {
             TTask::OnTaskCompleted();
 
-            // Compute jobs totals.
-            FOREACH (auto partition, Controller->Partitions) {
-                if (partition->Megalomaniac) {
-                    Controller->UnorderedMergeJobCounter.Increment(1);
-                } else {
-                    if (partition->SortTask->DataSizeCounter().GetTotal() > Controller->Spec->MaxDataSizePerSortJob) {
-                        // This is still an estimate: sort job may occasionally get more input than
-                        // dictated by MaxSizePerSortJob bound.
-                        Controller->SortedMergeJobCounter.Increment(1);
-                    }
-                }
-            }
-
             // Dump totals.
             LOG_DEBUG("Total partition attributes are:");
             for (int index = 0; index < static_cast<int>(Controller->Partitions.size()); ++index) {
@@ -896,6 +883,7 @@ private:
 
         if (mergeNeeded) {
             LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
+            SortedMergeJobCounter.Increment(1);
             partition->SortedMergeNeeded = true;
         }
 
@@ -1113,6 +1101,7 @@ private:
                     skippedCount);
 
                 lastPartition->Megalomaniac = true;
+                UnorderedMergeJobCounter.Increment(1);
                 YCHECK(skippedCount >= 1);
                 
                 auto successorKey = GetSuccessorKey(*sampleKey);
