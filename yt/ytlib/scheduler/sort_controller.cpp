@@ -310,7 +310,7 @@ private:
                     Controller->UnorderedMergeJobCounter.Increment(1);
                 } else {
                     if (partition->SortTask->DataSizeCounter().GetTotal() > Controller->Spec->MaxDataSizePerSortJob) {
-                        // This is still an estimate: sort job may occasionally get more input that
+                        // This is still an estimate: sort job may occasionally get more input than
                         // dictated by MaxSizePerSortJob bound.
                         Controller->SortedMergeJobCounter.Increment(1);
                     }
