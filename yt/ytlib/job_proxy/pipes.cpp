@@ -256,6 +256,10 @@ TInputPipe::TInputPipe(
     , IsFinished(false)
     , HasData(true)
 {
+    YCHECK(~TableProducer);
+    YCHECK(~Buffer);
+    YCHECK(~Consumer);
+
     int fd[2];
     SafePipe(fd);
     Pipe = TPipe(fd);
