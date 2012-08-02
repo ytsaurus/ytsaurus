@@ -41,14 +41,10 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     , CurrentSize(0)
     , BasicMetaSize(0)
 {
-    {
-        auto channel = TChannel::CreateUniversal();
-        for (int i = 0; i < KeyColumns.size(); ++i) {
-            KeyColumnIndexes[KeyColumns[i]] = i;
-            channel.AddColumn(KeyColumns[i]);
-        }
-        *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
+    for (int i = 0; i < KeyColumns.size(); ++i) {
+        KeyColumnIndexes[KeyColumns[i]] = i;
     }
+    *ChannelsExt.add_items()->mutable_channel() = TChannel::CreateUniversal().ToProto();
 
     PartitionKeys.reserve(partitionKeys.size());
     FOREACH (const auto& key, partitionKeys) {

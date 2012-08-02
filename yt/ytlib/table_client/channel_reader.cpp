@@ -64,13 +64,13 @@ bool TChannelReader::NextRow()
 
 bool TChannelReader::NextColumn()
 {
-    int ColumnBuffersSize = static_cast<int>(ColumnBuffers.size());
+    int columnBuffersSize = static_cast<int>(ColumnBuffers.size());
     while (true) {
-        YASSERT(CurrentColumnIndex <= ColumnBuffersSize);
+        YASSERT(CurrentColumnIndex <= columnBuffersSize);
 
-        if (CurrentColumnIndex == ColumnBuffersSize) {
+        if (CurrentColumnIndex == columnBuffersSize) {
             return false;
-        } else if (CurrentColumnIndex == ColumnBuffersSize - 1) {
+        } else if (CurrentColumnIndex == columnBuffersSize - 1) {
             YASSERT(ColumnBuffers.back().Avail() > 0);
             // Processing range column.
             auto& rangeBuffer = ColumnBuffers[CurrentColumnIndex];
@@ -97,7 +97,7 @@ bool TChannelReader::NextColumn()
         YASSERT(ColumnBuffers.back().Avail() > 0);
         ++CurrentColumnIndex;
 
-        if (CurrentColumnIndex < ColumnBuffersSize - 1) {
+        if (CurrentColumnIndex < columnBuffersSize - 1) {
             // Processing fixed column.
             auto& rangeBuffer = ColumnBuffers[CurrentColumnIndex];
             auto value = TValue::Load(&rangeBuffer);
