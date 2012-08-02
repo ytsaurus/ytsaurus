@@ -41,6 +41,7 @@ private:
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
     NChunkClient::IAsyncReaderPtr AsyncReader;
 
+    i64 CurrentRowCount;
     int PartitionTag;
     ECodecId CodecId;
 

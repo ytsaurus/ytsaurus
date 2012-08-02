@@ -11,6 +11,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/codecs/codec.h>
 #include <ytlib/misc/ref.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -91,6 +92,7 @@ private:
 
     TAsyncStreamState State;
     TCodecPtr Codec;
+    NLog::TTaggedLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };

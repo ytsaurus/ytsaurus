@@ -28,6 +28,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     , PartitionTag(partitionTag)
     , CodecId(codecId)
     , Logger(TableReaderLogger)
+    , CurrentRowCount(0)
 { }
 
 TAsyncError TPartitionChunkReader::AsyncOpen()
@@ -99,6 +100,8 @@ void TPartitionChunkReader::OnNextBlock(TError error)
         return;
     }
 
+    LOG_DEBUG("Switching to next block, current row count %"PRId64, CurrentRowCount);
+
     Blocks.push_back(SequentialReader->GetBlock());
     YCHECK(Blocks.back().Size() > 0);
 
@@ -114,6 +117,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
     const char* dataEnd = RowPointer_ + dataSize;
     SizeBuffer.Reset(dataEnd, Blocks.back().End() - dataEnd);
 
+    ++CurrentRowCount;
     YCHECK(NextRow());
     State.FinishOperation();
 }
@@ -160,6 +164,7 @@ bool TPartitionChunkReader::FetchNextItem()
         return false;
     }
 
+    ++CurrentRowCount;
     return true;
 }
 

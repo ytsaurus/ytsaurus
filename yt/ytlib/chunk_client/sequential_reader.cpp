@@ -10,10 +10,6 @@ using namespace NChunkHolder::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkReaderLogger;
-
-///////////////////////////////////////////////////////////////////////////////
-
 TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
     std::vector<TBlockInfo>&& blocks,
@@ -26,8 +22,11 @@ TSequentialReader::TSequentialReader(
     , NextSequenceIndex(0)
     , NextUnfetchedIndex(0)
     , Codec(GetCodec(codecId))
+    , Logger(ChunkReaderLogger)
 {
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
+
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkReader->GetChunkId().ToString()));
 
     YASSERT(ChunkReader);
     YASSERT(blocks.size() > 0);

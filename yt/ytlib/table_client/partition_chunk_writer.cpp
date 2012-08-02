@@ -136,6 +136,11 @@ void TPartitionChunkWriter::PrepareBlock(int partitionTag)
     blockInfo->set_partition_tag(partitionTag);
     blockInfo->set_block_index(CurrentBlockIndex);
 
+    LOG_DEBUG("Emitting block for partition %d (BlockIndex %d, RowCount: %"PRId64")", 
+        partitionTag, 
+        CurrentBlockIndex, 
+        channelWriter->GetCurrentRowCount());
+
     ++CurrentBlockIndex;
 
     int size = 0;
