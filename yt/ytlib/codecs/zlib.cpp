@@ -12,9 +12,10 @@ namespace NCodec {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t BufferSize = 1 << 16;
+static const size_t BufferSize = 1 << 20;
 
-void ZlibCompress(StreamSource* source, StreamSink* sink, int level) {
+void ZlibCompress(StreamSource* source, StreamSink* sink, int level)
+{
     char buffer[BufferSize];
 
     z_stream stream;
@@ -66,7 +67,7 @@ void ZlibDecompress(StreamSource* source, std::vector<char>* output)
 {
     size_t size;
     ReadPod(source, size);
-    // We add one additional byte for process correctly lasd inflate
+    // We add one additional byte for process correctly last inflate
     output->resize(size + 1);
 
     z_stream stream;

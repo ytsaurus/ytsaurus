@@ -33,4 +33,5 @@ inline TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& ref
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}} // namespace NYT::Ncodec
+} // namespace NCodec
+} // namespace NYT
