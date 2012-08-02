@@ -48,7 +48,9 @@ void TMergingReader::Open()
     }
 
     TPromise<void> completed(NewPromise<void>());
-    awaiter->Complete(BIND(&TPromise<void>::Set, &completed));
+    awaiter->Complete(BIND([=] () mutable {
+        completed.Set();
+    }));
     completed.Get();
 
     if (!errors.empty()) {
