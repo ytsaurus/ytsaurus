@@ -153,10 +153,8 @@ TAsyncError TEncodingWriter::AsyncFlush()
     return State.GetOperationError();
 }
 
-
 TEncodingWriter::~TEncodingWriter()
 { }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 
