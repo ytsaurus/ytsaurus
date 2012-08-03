@@ -98,8 +98,8 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append"])
-    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "ytspec"])
-    add_multiple_args(parser, ["src", "dst", "dstappend", "file"] + ["opt"])
+    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix"])
+    add_multiple_args(parser, ["src", "dst", "dstappend", "file"] + ["opt", "ytspec"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize"])
     args = parser.parse_args()
 
@@ -121,8 +121,9 @@ if __name__ == "__main__":
         PREFIX = args.prefix
 
     spec = {}
-    if args.ytspec is not None:
-        spec = ast.literal_eval(args.ytspec)
+    if vars(args)["ytspec"] is not None:
+        for spec_arg in args.ytspec:
+            spec.update(ast.literal_eval(spec_arg))
     if args.jobcount is not None:
         spec.update({"job_count": args.jobcount})
 
