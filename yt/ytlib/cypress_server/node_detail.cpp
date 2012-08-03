@@ -37,6 +37,7 @@ namespace NCypressServer {
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : ParentId_(NullObjectId)
     , LockMode_(ELockMode::None)
+    , TrunkNode_(NULL)
     , CreationTime_(0)
     , Id(id)
 { }
@@ -85,6 +86,7 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
+    TrunkNode_ = Id.IsBranched() ? context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId)) : this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -69,13 +69,16 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual TAutoPtr<ICypressNode> CreateDynamic(
+    virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response)
     {
+        YCHECK(request);
+        UNUSED(transaction);
+        UNUSED(response);
+
         auto chunkManager = Bootstrap->GetChunkManager();
-        auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
         if (!request->HasExtension(NProto::TReqCreateFileExt::create_file)) {
@@ -94,8 +97,8 @@ public:
             ythrow yexception() << Sprintf("Chunk %s is not confirmed", ~chunkId.ToString());
         }
 
-        auto nodeId = objectManager->GenerateId(EObjectType::File);
-        TAutoPtr<TFileNode> node(new TFileNode(nodeId));
+        auto node = TBase::DoCreate(transaction, request, response);
+
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
         YCHECK(chunkList->OwningNodes().insert(~node).second);

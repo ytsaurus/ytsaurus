@@ -36,18 +36,17 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     auto objectManager = Bootstrap->GetObjectManager();
-    
-    auto nodeId = Bootstrap->GetObjectManager()->GenerateId(type);
-
+   
     auto handler = cypressManager->GetHandler(type);
-    
-    auto node = handler->Create(nodeId);
+  
+    auto node = handler->Create(Transaction, NULL, NULL);
     auto node_ = ~node;
     cypressManager->RegisterNode(Transaction, node);
     
+    auto nodeId = node_->GetId().ObjectId;
     objectManager->RefObject(node_);
     CreatedNodeIds.push_back(nodeId);
-    
+
     return cypressManager->GetVersionedNodeProxy(nodeId, Transaction);
 }
 

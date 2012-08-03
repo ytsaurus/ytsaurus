@@ -47,6 +47,12 @@ struct ICypressNode
     //! Sets the lock mode.
     virtual void SetLockMode(ELockMode mode) = 0;
 
+    //! Returns the trunk node, i.e. for a node with id |(objectId, transactionid)| returns
+    //! the node with id |(objectId, NullTransactionId)|.
+    virtual ICypressNode* GetTrunkNode() const = 0;
+    //! Used internally to set the trunk node during branching.
+    virtual void SetTrunkNode(ICypressNode* trunkNode) = 0;
+
     //! Gets the parent node id.
     virtual TNodeId GetParentId() const = 0;
     //! Sets the parent node id.

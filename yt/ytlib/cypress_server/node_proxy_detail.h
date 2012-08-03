@@ -163,7 +163,7 @@ public:
         auto type = NObjectServer::TypeFromId(NodeId);
         auto clonedNodeId = Bootstrap->GetObjectManager()->GenerateId(type);
 
-        auto clonedNode = TypeHandler->Create(clonedNodeId);
+        auto clonedNode = TypeHandler->Instantiate(clonedNodeId);
         auto clonedNode_ = clonedNode.Get();
 
         cypressManager->RegisterNode(
@@ -684,7 +684,7 @@ protected:
             ythrow yexception() << "Unknown object type";
         }
 
-        auto* newNode = cypressManager->CreateDynamicNode(
+        auto* newNode = cypressManager->CreateNode(
             handler,
             this->Transaction,
             request,

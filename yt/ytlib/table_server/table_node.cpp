@@ -81,13 +81,16 @@ public:
             mode == ELockMode::Snapshot;
     }
 
-    virtual TAutoPtr<ICypressNode> CreateDynamic(
+    virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) OVERRIDE
     {
+        YCHECK(request);
+        UNUSED(transaction);
+        UNUSED(response);
+
         auto chunkManager = Bootstrap->GetChunkManager();
-        auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
         // Set default channels, if not given explicitly.
@@ -96,8 +99,7 @@ public:
             request->Attributes().SetYson("channels", TYsonString("[]"));
         }
 
-        auto nodeId = objectManager->GenerateId(EObjectType::Table);
-        TAutoPtr<TTableNode> node(new TTableNode(nodeId));
+        auto node = TBase::DoCreate(transaction, request, response);
 
         // Create an empty chunk list and reference it from the node.
         auto* chunkList = chunkManager->CreateChunkList();

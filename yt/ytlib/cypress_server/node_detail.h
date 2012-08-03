@@ -62,25 +62,18 @@ public:
         : Bootstrap(bootstrap)
     { }
 
-    virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)
+    virtual TAutoPtr<ICypressNode> Instantiate(const TVersionedNodeId& id)
     {
         return new TImpl(id);
     }
 
-    virtual TAutoPtr<ICypressNode> CreateDynamic(
+    virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response)
     {
-        UNUSED(transaction);
-        UNUSED(request);
-        UNUSED(response);
-
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto cypressManager = Bootstrap->GetCypressManager();
-
-        auto nodeId = objectManager->GenerateId(GetObjectType());
-        return new TImpl(nodeId);
+        // TODO(babenko): Release is needed due to cast to ICypressNode.
+        return DoCreate(transaction, request, response).Release();
     }
 
     virtual void Destroy(ICypressNode* node)
@@ -114,6 +107,7 @@ public:
         branchedNode->SetParentId(originatingNode->GetParentId());
         branchedNode->SetCreationTime(originatingNode->GetCreationTime());
         branchedNode->SetLockMode(mode);
+        branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
 
         // Branch user attributes.
         Bootstrap->GetObjectManager()->BranchAttributes(originatingId, branchedId);
@@ -150,6 +144,22 @@ public:
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;
+
+    virtual TAutoPtr<TImpl> DoCreate(
+        NTransactionServer::TTransaction* transaction,
+        TReqCreate* request,
+        TRspCreate* response)
+    {
+        UNUSED(transaction);
+        UNUSED(request);
+        UNUSED(response);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto nodeId = objectManager->GenerateId(GetObjectType());
+        TAutoPtr<TImpl> node(new TImpl(nodeId));
+        node->SetTrunkNode(~node);
+        return node;
+    }
 
     virtual void DoDestroy(TImpl* node)
     {
@@ -193,7 +203,7 @@ class TCypressNodeBase
 
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
-
+    DEFINE_BYVAL_RW_PROPERTY(ICypressNode*, TrunkNode);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
 
 public:

@@ -395,7 +395,7 @@ void TObjectManager::RefObject(ICypressNode* node)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    i32 refCounter = node->RefObject();
+    i32 refCounter = node->GetTrunkNode()->RefObject();
     HandleObjectReferenced(node->GetId().ObjectId, refCounter);
 }
 
@@ -438,7 +438,7 @@ void TObjectManager::UnrefObject(ICypressNode* node)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    i32 refCounter = node->UnrefObject();
+    i32 refCounter = node->GetTrunkNode()->UnrefObject();
     HandleObjectUnreferenced(node->GetId().ObjectId, refCounter);
 }
 

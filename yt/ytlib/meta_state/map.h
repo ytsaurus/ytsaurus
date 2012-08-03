@@ -47,7 +47,7 @@ public:
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
 
-    explicit TMetaStateMap(TTraits traits = TTraits());
+    explicit TMetaStateMap(const TTraits& traits = TTraits());
 
     ~TMetaStateMap();
 
@@ -183,7 +183,7 @@ private:
      */
     TMap Map;
 
-    //! Traits for cloning, saving and loading values.
+    //! Traits for creating values.
     TTraits Traits;
 
     //! Current map size.

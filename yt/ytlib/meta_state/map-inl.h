@@ -17,7 +17,7 @@ TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Create(const TKey& key) co
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class TTraits, class THash>
-TMetaStateMap<TKey, TValue, TTraits, THash>::TMetaStateMap(TTraits traits)
+TMetaStateMap<TKey, TValue, TTraits, THash>::TMetaStateMap(const TTraits& traits)
     : Traits(traits)
     , Size(0)
 { }

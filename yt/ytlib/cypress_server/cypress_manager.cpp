@@ -147,14 +147,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManagerPtr cypressManager)
+TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
     : CypressManager(cypressManager)
 { }
 
 TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
 {
     auto type = TypeFromId(id.ObjectId);
-    return CypressManager->GetHandler(type)->Create(id);
+    return CypressManager->GetHandler(type)->Instantiate(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,7 +167,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType)
 {
-    YASSERT(bootstrap);
+    YCHECK(bootstrap);
     VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
 
     auto transactionManager = bootstrap->GetTransactionManager();
@@ -208,12 +208,12 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
 {
     // No thread affinity is given here.
     // This will be called during init-time only.
+    YCHECK(handler);
 
-    YASSERT(handler);
     auto type = handler->GetObjectType();
     int typeValue = type.ToValue();
-    YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
-    YASSERT(!TypeToHandler[typeValue]);
+    YCHECK(typeValue >= 0 && typeValue < MaxObjectType);
+    YCHECK(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
 
     Bootstrap->GetObjectManager()->RegisterHandler(New<TNodeTypeHandler>(this, type));
@@ -236,7 +236,7 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(EObjectType type)
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto handler = FindHandler(type);
-    YASSERT(handler);
+    YCHECK(handler);
     return handler;
 }
 
@@ -245,7 +245,7 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const ICypressNode* node)
     return GetHandler(node->GetObjectType());
 }
 
-ICypressNode* TCypressManager::CreateDynamicNode(
+ICypressNode* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
     NTransactionServer::TTransaction* transaction,
     TReqCreate* request,
@@ -256,7 +256,7 @@ ICypressNode* TCypressManager::CreateDynamicNode(
     YASSERT(request);
     YASSERT(response);
 
-    auto node = handler->CreateDynamic(
+    auto node = handler->Create(
         transaction,
         request,
         response);
@@ -399,7 +399,7 @@ ICypressNode* TCypressManager::GetVersionedNode(
     const TTransaction* transaction)
 {
     auto* node = FindVersionedNode(nodeId, transaction);
-    YASSERT(node);
+    YCHECK(node);
     return node;
 }
 
@@ -440,7 +440,7 @@ ICypressNode* TCypressManager::GetVersionedNodeForUpdate(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto* node = FindVersionedNodeForUpdate(nodeId, transaction, requestedMode);
-    YASSERT(node);
+    YCHECK(node);
     return node;
 }
 
@@ -463,7 +463,7 @@ ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
     TTransaction* transaction)
 {
     auto proxy = FindVersionedNodeProxy(nodeId, transaction);
-    YASSERT(proxy);
+    YCHECK(proxy);
     return proxy;
 }
 
@@ -821,13 +821,13 @@ void TCypressManager::Clear()
 
     // Create the root.
     auto* root = new TMapNode(GetRootNodeId());
+    root->SetTrunkNode(root);
     NodeMap.Insert(root->GetId(), root);
-    Bootstrap->GetObjectManager()->RefObject(root);
-}
+    Bootstrap->GetObjectManager()->RefObject(root);}
 
 void TCypressManager::OnLeaderRecoveryComplete()
 {
-    YASSERT(NodeBehaviors.empty());
+    YCHECK(NodeBehaviors.empty());
     FOREACH (const auto& pair, NodeMap) {
         if (!pair.first.IsBranched()) {
             CreateNodeBehavior(pair.first.ObjectId);

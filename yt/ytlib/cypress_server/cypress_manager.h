@@ -38,8 +38,8 @@ public:
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
 
-    //! Creates a new dynamic node, sets its attributes, and also registers it.
-    ICypressNode* CreateDynamicNode(
+    //! Creates a new node, sets its attributes, and also registers it.
+    ICypressNode* CreateNode(
         INodeTypeHandlerPtr handler,
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
@@ -114,12 +114,12 @@ private:
     class TNodeMapTraits
     {
     public:
-        explicit TNodeMapTraits(TCypressManagerPtr cypressManager);
+        explicit TNodeMapTraits(TCypressManager* cypressManager);
 
         TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) const;
 
     private:
-        TCypressManagerPtr CypressManager;
+        TCypressManager* CypressManager;
     };
     
     NCellMaster::TBootstrap* Bootstrap;

@@ -49,21 +49,16 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
-    //! Create a empty instance of the node.
-    /*!
-     *  This method is called when:
-     *  - a static or dynamic node is being created
-     *  - a node (possibly dynamic) is being loaded from a snapshot
-     */
-    virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) = 0;
+    //! Create an empty instance of the node (used during snapshot deserializion).
+    virtual TAutoPtr<ICypressNode> Instantiate(const TVersionedNodeId& id) = 0;
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
-    //! Creates and registers a dynamic node.
+    //! Creates and registers a node.
     /*!
      *  This is called during |Create|.
      */
-    virtual TAutoPtr<ICypressNode> CreateDynamic(
+    virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) = 0;
