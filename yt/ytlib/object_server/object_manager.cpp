@@ -403,10 +403,10 @@ void TObjectManager::RefObject(TChunkTreeRef ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk:
-            RefObject(ref.AsChunk());
+            RefObject((TObjectWithIdBase*) ref.AsChunk());
             break;
         case EObjectType::ChunkList:
-            RefObject(ref.AsChunkList());
+            RefObject((TObjectWithIdBase*) ref.AsChunkList());
             break;
         default:
             YUNREACHABLE();
