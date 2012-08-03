@@ -10,7 +10,7 @@ echo -e "4\t5\t6\n1\t2\t3\n" > table_file
 ./mapreduce -sort  -src "ignat/other_table" -dst "ignat/other_table"
 ./mapreduce -read "ignat/other_table"
 ./mapreduce -read "ignat/other_table" -lowerkey 3
-./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped"
+./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped" -ytspec "{'job_count': 10}"
 ./mapreduce -read "ignat/mapped"
 for (( i=1 ; i <= 2 ; i++ )); do
     ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
