@@ -94,7 +94,7 @@ public:
 private:
     TImpl* Owner;
 
-    void OnObjectDestroyed(TChunk* chunk) OVERRIDE;
+    virtual void DoDestroy(TChunk* chunk) OVERRIDE;
 
 };
 
@@ -123,7 +123,8 @@ public:
 private:
     TImpl* Owner;
 
-    void OnObjectDestroyed(TChunkList* chunkList) OVERRIDE;
+    virtual void DoDestroy(TChunkList* chunkList) OVERRIDE;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -574,7 +575,7 @@ private:
     }
 
 
-    void OnChunkDestroyed(TChunk* chunk)
+    void DestroyChunk(TChunk* chunk)
     {
         auto chunkId = chunk->GetId();
 
@@ -606,7 +607,7 @@ private:
         Profiler.Increment(RemoveChunkCounter);
     }
 
-    void OnChunkListDestroyed(TChunkList* chunkList)
+    void DestroyChunkList(TChunkList* chunkList)
     {
         auto objectManager = Bootstrap->GetObjectManager();
         // Drop references to children.
@@ -1740,9 +1741,9 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
     return chunk->GetId();
 }
 
-void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk* chunk)
+void TChunkManager::TChunkTypeHandler::DoDestroy(TChunk* chunk)
 {
-    Owner->OnChunkDestroyed(chunk);
+    Owner->DestroyChunk(chunk);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1942,9 +1943,9 @@ TObjectId TChunkManager::TChunkListTypeHandler::Create(
     return chunkList->GetId();
 }
 
-void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList* chunkList)
+void TChunkManager::TChunkListTypeHandler::DoDestroy(TChunkList* chunkList)
 {
-    Owner->OnChunkListDestroyed(chunkList);
+    Owner->DestroyChunkList(chunkList);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,9 +37,9 @@ class TCypressManager::TNodeTypeHandler
 {
 public:
     TNodeTypeHandler(
-        TCypressManager* owner,
+        TCypressManager* cypressManager,
         EObjectType type)
-        : Owner(owner)
+        : CypressManager(cypressManager)
         , Type(type)
     { }
 
@@ -50,29 +50,34 @@ public:
 
     virtual bool Exists(const TObjectId& id)
     {
-        return Owner->FindNode(id) != NULL;
+        return CypressManager->FindNode(id) != NULL;
     }
 
     virtual i32 RefObject(const TObjectId& id)
     {
-        return Owner->RefNode(id);
+        return CypressManager->RefNode(id);
     }
 
     virtual i32 UnrefObject(const TObjectId& id)
     {
-        return Owner->UnrefNode(id);
+        return CypressManager->UnrefNode(id);
     }
 
     virtual i32 GetObjectRefCounter(const TObjectId& id)
     {
-        return Owner->GetNodeRefCounter(id);
+        return CypressManager->GetNodeRefCounter(id);
+    }
+
+    virtual void Destroy(const TObjectId& id)
+    {
+        CypressManager->DestroyNode(id);
     }
 
     virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
         TTransaction* transaction)
     {
-        return Owner->GetVersionedNodeProxy(id, transaction);
+        return CypressManager->GetVersionedNodeProxy(id, transaction);
     }
 
     virtual TObjectId Create(
@@ -94,7 +99,7 @@ public:
     }
 
 private:
-    TCypressManager* Owner;
+    TCypressManager* CypressManager;
     EObjectType Type;
 
 };
@@ -856,16 +861,17 @@ i32 TCypressManager::UnrefNode(const TNodeId& nodeId)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto* node = NodeMap.Get(nodeId);
+    return node->UnrefObject();
+}
 
-    int refCounter = node->UnrefObject();
-    if (refCounter == 0) {
-        DestroyNodeBehavior(nodeId);
+void TCypressManager::DestroyNode(const TNodeId& nodeId)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
 
-        GetHandler(node)->Destroy(node);
-        NodeMap.Remove(nodeId);
-    }
-
-    return refCounter;
+    DestroyNodeBehavior(nodeId);
+    
+    TAutoPtr<ICypressNode> node(NodeMap.Release(nodeId));
+    GetHandler(~node)->Destroy(~node);
 }
 
 i32 TCypressManager::GetNodeRefCounter(const TNodeId& nodeId)

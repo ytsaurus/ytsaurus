@@ -51,6 +51,9 @@ struct IObjectTypeHandler
         TReqCreateObject* request,
         TRspCreateObject* response) = 0;
 
+    //! Performs the necessary cleanup.
+    virtual void Destroy(const TObjectId& objectId) = 0;
+
     //! Indicates if a valid transaction is required to create a instance.
     virtual bool IsTransactionRequired() const = 0;
 };

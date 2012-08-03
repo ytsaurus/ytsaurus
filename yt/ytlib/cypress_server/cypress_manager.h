@@ -133,6 +133,7 @@ private:
     i32 RefNode(const TNodeId& nodeId);
     i32 UnrefNode(const TNodeId& nodeId);
     i32 GetNodeRefCounter(const TNodeId& nodeId);
+    void DestroyNode(const TNodeId& nodeId);
 
     void SaveKeys(TOutputStream* output) const;
     void SaveValues(TOutputStream* output) const;

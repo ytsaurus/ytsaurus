@@ -477,6 +477,7 @@ void TObjectManager::HandleObjectUnreferenced(const TObjectId& id, i32 refCounte
         refCounter);
     if (refCounter == 0) {
         auto handler = GetHandler(id);
+        handler->Destroy(id);
         LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
             ~handler->GetType().ToString(),
             ~id.ToString());
