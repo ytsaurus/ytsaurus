@@ -9,22 +9,15 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Custom semaphore class with async acquire operation.
-/*!
- *  Can be used by a single acquire thread and possibly multiple 
- *  release threads. The acquirer must not call AsyncAquire again, 
- *  until returned future is set.
- */
 class TAsyncSemaphore
 {
 public:
     explicit TAsyncSemaphore(i64 maxFreeSlots);
 
     //! Increases the counter.
-    /*!
-     *  Returns 'true' if the semaphore counter has increased.
-     */
     void Release(i64 slots = 1);
 
+    //! Decreases the counter.
     void Acquire(i64 slots = 1);
 
     /*!  
@@ -39,7 +32,7 @@ private:
     TSpinLock SpinLock;
 
     const i64 MaxFreeSlots;
-    i64 FreeSlotCount;
+    volatile i64 FreeSlotCount;
 
     TPromise<void> ReadyEvent;
     TPromise<void> FreeEvent;
