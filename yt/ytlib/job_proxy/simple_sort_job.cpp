@@ -78,7 +78,7 @@ public:
             KeyColumns);
     }
 
-    virtual NScheduler::NProto::TJobResult Run() OVERRIDE
+    virtual NScheduler::NProto::TJobResult Run() override
     {
         PROFILE_TIMING ("/sort_time") {
 

@@ -19,10 +19,12 @@ using namespace NChunkServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkWriterBase::TChunkWriterBase(
+    TChunkWriterConfigPtr config,
     NChunkClient::IAsyncWriterPtr chunkWriter,
-    TChunkWriterConfigPtr config)
+    const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
     , ChunkWriter(chunkWriter)
+    , KeyColumns(keyColumns)
     , EncodingWriter(New<TEncodingWriter>(Config, chunkWriter))
     , CurrentBlockIndex(0)
     , DataWeight(0)
@@ -31,6 +33,11 @@ TChunkWriterBase::TChunkWriterBase(
     , CurrentSize(0)
 {
     VERIFY_INVOKER_AFFINITY(WriterThread->GetInvoker(), WriterThread);
+}
+
+const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
+{
+    return KeyColumns;
 }
 
 void TChunkWriterBase::FinalizeWriter()

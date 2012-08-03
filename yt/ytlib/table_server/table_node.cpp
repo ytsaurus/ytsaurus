@@ -84,7 +84,7 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
-        TRspCreate* response) OVERRIDE
+        TRspCreate* response) override
     {
         YCHECK(request);
         UNUSED(transaction);
@@ -113,7 +113,7 @@ public:
 
     virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction) OVERRIDE
+        NTransactionServer::TTransaction* transaction) override
     {
         return New<TTableNodeProxy>(
             this,
@@ -123,7 +123,7 @@ public:
     }
 
 protected:
-    virtual void DoDestroy(TTableNode* node) OVERRIDE
+    virtual void DoDestroy(TTableNode* node) override
     {
         auto objectManager = Bootstrap->GetObjectManager();
 
@@ -132,7 +132,7 @@ protected:
         objectManager->UnrefObject(chunkList);
     }
 
-    virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode) OVERRIDE
+    virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode) override
     {
         auto objectManager = Bootstrap->GetObjectManager();
 
@@ -147,7 +147,7 @@ protected:
             ~originatingNode->GetChunkList()->GetId().ToString());
     }
 
-    virtual void DoMerge(TTableNode* originatingNode, TTableNode* branchedNode) OVERRIDE
+    virtual void DoMerge(TTableNode* originatingNode, TTableNode* branchedNode) override
     {
         auto originatingChunkListId = originatingNode->GetChunkList()->GetId();
         auto branchedChunkListId = branchedNode->GetChunkList()->GetId();

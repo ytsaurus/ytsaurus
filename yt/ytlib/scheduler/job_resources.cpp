@@ -125,7 +125,18 @@ i64 GetIOMemorySize(
         ioConfig->TableWriter->WindowSize * outputStreamCount;
 }
 
-TNodeResources GetMapJobResources(
+i64 GetPartitionSortMemorySize(
+    i64 dataSize,
+    i64 rowCount,
+    int keyColumnCount)
+{
+    return
+        dataSize +
+        (i64) 16 * keyColumnCount * rowCount +
+        (i64) 12 * rowCount;
+}
+
+TNodeResources GetMapResources(
     TJobIOConfigPtr ioConfig,
     TMapOperationSpecPtr spec)
 {
@@ -137,6 +148,23 @@ TNodeResources GetMapJobResources(
             ioConfig,
             spec->InputTablePaths.size(),
             spec->OutputTablePaths.size()) +
+        FootprintMemorySize);
+    return result;
+}
+
+TNodeResources GetMapDuringMapReduceResources(
+    TJobIOConfigPtr ioConfig,
+    TMapReduceOperationSpecPtr spec,
+    i64 dataSize,
+    int partitionCount)
+{
+    TNodeResources result;
+    result.set_slots(1);
+    result.set_cores(spec->Mapper->CoresLimit);
+    result.set_memory(
+        GetIOMemorySize(ioConfig, 1, 1) +
+        std::min(ioConfig->TableWriter->BlockSize * partitionCount, dataSize) +
+        spec->Mapper->MemoryLimit +
         FootprintMemorySize);
     return result;
 }
@@ -154,21 +182,40 @@ TNodeResources GetMergeJobResources(
     return result;
 }
 
-TNodeResources GetReduceJobResources(
+TNodeResources GetPartitionReduceDuringMapReduceResources(
     TJobIOConfigPtr ioConfig,
-    TReduceOperationSpecPtr spec)
+    TMapReduceOperationSpecPtr spec,
+    i64 dataSize,
+    i64 rowCount)
 {
     TNodeResources result;
     result.set_slots(1);
     result.set_cores(spec->Reducer->CoresLimit);
     result.set_memory(
-        GetIOMemorySize(ioConfig, spec->InputTablePaths.size(), 1) +
+        GetIOMemorySize(ioConfig, 0, spec->OutputTablePaths.size()) +
+        GetPartitionSortMemorySize(dataSize, rowCount, spec->KeyColumns.size()) +
+        spec->Reducer->MemoryLimit +
+        FootprintMemorySize);
+    result.set_network(spec->ShuffleNetworkLimit);
+    return result;
+}
+
+TNodeResources GetSortedReduceDuringMapReduceResources(
+    TJobIOConfigPtr ioConfig,
+    TMapReduceOperationSpecPtr spec,
+    int stripeCount)
+{
+    TNodeResources result;
+    result.set_slots(1);
+    result.set_cores(spec->Reducer->CoresLimit);
+    result.set_memory(
+        GetIOMemorySize(ioConfig, stripeCount, spec->OutputTablePaths.size()) +
         spec->Reducer->MemoryLimit +
         FootprintMemorySize);
     return result;
 }
 
-TNodeResources GetEraseJobResources(
+TNodeResources GetEraseResources(
     TJobIOConfigPtr ioConfig,
     TEraseOperationSpecPtr spec)
 {
@@ -181,9 +228,23 @@ TNodeResources GetEraseJobResources(
     return result;
 }
 
-TNodeResources GetPartitionJobResources(
+NProto::TNodeResources GetSortedReduceResources(
+    NJobProxy::TJobIOConfigPtr ioConfig,
+    TReduceOperationSpecPtr spec)
+{
+    TNodeResources result;
+    result.set_slots(1);
+    result.set_cores(spec->Reducer->CoresLimit);
+    result.set_memory(
+        GetIOMemorySize(ioConfig, spec->InputTablePaths.size(), spec->OutputTablePaths.size()) +
+        spec->Reducer->MemoryLimit +
+        FootprintMemorySize);
+    return result;
+}
+
+TNodeResources GetPartitionResources(
     TJobIOConfigPtr ioConfig,
-    i64 dataWeight,
+    i64 dataSize,
     int partitionCount)
 {
     TNodeResources result;
@@ -191,15 +252,15 @@ TNodeResources GetPartitionJobResources(
     result.set_cores(1);
     result.set_memory(
         GetIOMemorySize(ioConfig, 1, 1) +
-        std::min(ioConfig->TableWriter->BlockSize * partitionCount, dataWeight) +
+        std::min(ioConfig->TableWriter->BlockSize * partitionCount, dataSize) +
         FootprintMemorySize);
     return result;
 }
 
-TNodeResources GetSimpleSortJobResources(
+TNodeResources GetSimpleSortResources(
     TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
-    i64 dataWeight,
+    i64 dataSize,
     i64 rowCount,
     i64 valueCount)
 {
@@ -211,7 +272,7 @@ TNodeResources GetSimpleSortJobResources(
         // drastically increase the estimated consumption returned by GetIOMemorySize.
         // Setting input count to zero to eliminates this term.
         GetIOMemorySize(ioConfig, 0, 1) +
-        dataWeight +
+        dataSize +
         // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
         // starts reserving arrays of appropriate sizes.
         (i64) 16 * spec->KeyColumns.size() * rowCount * 2 +
@@ -221,10 +282,10 @@ TNodeResources GetSimpleSortJobResources(
     return result;
 }
 
-TNodeResources GetPartitionSortJobResources(
+TNodeResources GetPartitionSortResources(
     TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
-    i64 dataWeight,
+    i64 dataSize,
     i64 rowCount)
 {
     TNodeResources result;
@@ -233,15 +294,13 @@ TNodeResources GetPartitionSortJobResources(
     result.set_memory(
         // NB: See comment above for GetSimpleSortJobResources.
         GetIOMemorySize(ioConfig, 0, 1) +
-        dataWeight +
-        (i64) 16 * spec->KeyColumns.size() * rowCount +
-        (i64) 12 * rowCount +
+        GetPartitionSortMemorySize(dataSize, rowCount, spec->KeyColumns.size()) +
         FootprintMemorySize);
     result.set_network(spec->ShuffleNetworkLimit);
     return result;
 }
 
-TNodeResources GetSortedMergeDuringSortJobResources(
+TNodeResources GetSortedMergeDuringSortResources(
     TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
     int stripeCount)
@@ -256,7 +315,7 @@ TNodeResources GetSortedMergeDuringSortJobResources(
     return result;
 }
 
-TNodeResources GetUnorderedMergeDuringSortJobResources(
+TNodeResources GetUnorderedMergeDuringSortResources(
     TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec)
 {

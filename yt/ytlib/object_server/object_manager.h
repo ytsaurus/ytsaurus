@@ -144,7 +144,7 @@ private:
     void LoadKeys(TInputStream* input);
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
     
-    virtual void Clear() OVERRIDE;
+    virtual void Clear() override;
 
     TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);
 

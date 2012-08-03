@@ -1,10 +1,10 @@
 ﻿#include "stdafx.h"
-
 #include "partition_chunk_writer.h"
 #include "private.h"
 #include "config.h"
 #include "channel_writer.h"
 #include "chunk_meta_extensions.h"
+#include "partitioner.h"
 
 #include <ytlib/ytree/lexer.h>
 #include <ytlib/chunk_client/async_writer.h>
@@ -23,35 +23,22 @@ static NLog::TLogger& Logger = TableWriterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator < (const TOwningKey& partitionKey, const TNonOwningKey& key)
-{
-    return CompareKeys(partitionKey, key) < 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TPartitionChunkWriter::TPartitionChunkWriter(
     TChunkWriterConfigPtr config,
     NChunkClient::IAsyncWriterPtr chunkWriter,
-    const std::vector<TChannel>& channels,
     const TKeyColumns& keyColumns,
-    const std::vector<NProto::TKey>& partitionKeys)
-    : TChunkWriterBase(chunkWriter, config)
-    , KeyColumns(keyColumns)
+    IPartitioner* partitioner)
+    : TChunkWriterBase(config, chunkWriter, keyColumns)
+    , Partitioner(partitioner)
     , CurrentSize(0)
     , BasicMetaSize(0)
 {
-    for (int i = 0; i < KeyColumns.size(); ++i) {
-        KeyColumnIndexes[KeyColumns[i]] = i;
+    for (int i = 0; i < KeyColumns.Get().size(); ++i) {
+        KeyColumnIndexes[KeyColumns.Get()[i]] = i;
     }
     *ChannelsExt.add_items()->mutable_channel() = TChannel::CreateUniversal().ToProto();
 
-    PartitionKeys.reserve(partitionKeys.size());
-    FOREACH (const auto& key, partitionKeys) {
-        PartitionKeys.push_back(TOwningKey::FromProto(key));
-    }
-
-    for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
+    for (int partitionTag = 0; partitionTag < Partitioner->GetPartitionCount(); ++partitionTag) {
         // Write range column sizes to effectively skip during reading.
         ChannelWriters.push_back(New<TChannelWriter>(0, true));
         auto* partitionAttributes = PartitionsExt.add_partitions();
@@ -59,7 +46,9 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         partitionAttributes->set_uncompressed_data_size(0);
     }
 
-    BasicMetaSize = ChannelsExt.ByteSize() + sizeof(i64) * PartitionKeys.size() + 
+    BasicMetaSize =
+        ChannelsExt.ByteSize() +
+        sizeof(i64) * Partitioner->GetPartitionCount() + 
         sizeof(NChunkHolder::NProto::TMiscExt) + 
         sizeof(NChunkHolder::NProto::TChunkMeta);
 }
@@ -69,15 +58,23 @@ TPartitionChunkWriter::~TPartitionChunkWriter()
 
 bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
 {
+    // TODO(babenko): check column names
+    return TryWriteRowUnsafe(row);
+}
+
+bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
+{
     YASSERT(!State.IsClosed());
 
     if (!State.IsActive() || !EncodingWriter->IsReady())
         return false;
 
-    TNonOwningKey key(KeyColumns.size());
-    RowValueIndexes.assign(row.size() + KeyColumns.size(), -1);
+    int keyColumnCount = KeyColumns.Get().size();
+    TNonOwningKey key(keyColumnCount);
+    RowValueIndexes.assign(row.size() + keyColumnCount, -1);
+
     {
-        int nonKeyIndex = KeyColumns.size();
+        int nonKeyIndex = keyColumnCount;
         for (int i = 0; i < row.size(); ++i) {
             const auto& pair = row[i];
             auto it = KeyColumnIndexes.find(pair.first);
@@ -91,8 +88,7 @@ bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
         }
     }
 
-    auto partitionIt = std::upper_bound(PartitionKeys.begin(), PartitionKeys.end(), key);
-    auto partitionTag = std::distance(PartitionKeys.begin(), partitionIt);
+    int partitionTag = Partitioner->GetPartitionTag(key);
     auto& channelWriter = ChannelWriters[partitionTag];
 
     i64 rowDataWeight = 1;
@@ -153,14 +149,14 @@ void TPartitionChunkWriter::PrepareBlock(int partitionTag)
     EncodingWriter->WriteBlock(MoveRV(blockParts));
 }
 
-i64 TPartitionChunkWriter::GetMetaSize() const
-{
-    return BasicMetaSize + CurrentBlockIndex * sizeof(NProto::TBlockInfo);
-}
-
 i64 TPartitionChunkWriter::GetCurrentSize() const
 {
     return CurrentSize;
+}
+
+i64 TPartitionChunkWriter::GetMetaSize() const
+{
+    return BasicMetaSize + CurrentBlockIndex * sizeof(NProto::TBlockInfo);
 }
 
 NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
@@ -188,7 +184,7 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
 
     State.StartOperation();
 
-    for (int partitionTag = 0; partitionTag <= PartitionKeys.size(); ++partitionTag) {
+    for (int partitionTag = 0; partitionTag < Partitioner->GetPartitionCount(); ++partitionTag) {
         auto& channelWriter = ChannelWriters[partitionTag];
         if (channelWriter->GetCurrentRowCount() > 0) {
             PrepareBlock(partitionTag);

@@ -109,13 +109,13 @@ public:
         IsOwning = takeOwnership;
     }
 
-    TTransactionId GetId() const OVERRIDE
+    TTransactionId GetId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Id;
     }
 
-    void Commit() OVERRIDE
+    void Commit() override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -159,7 +159,7 @@ public:
         LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
     }
 
-    void Abort(bool wait) OVERRIDE
+    void Abort(bool wait) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -169,7 +169,7 @@ public:
         HandleAbort();
     }
 
-    void Detach() OVERRIDE
+    void Detach() override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -202,13 +202,13 @@ public:
         LOG_INFO("Transaction detached (TransactionId: %s)", ~Id.ToString());
     }
 
-    void SubscribeAborted(const TCallback<void()>& handler) OVERRIDE
+    void SubscribeAborted(const TCallback<void()>& handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Aborted.Subscribe(handler);
     }
 
-    void UnsubscribeAborted(const TCallback<void()>& handler) OVERRIDE
+    void UnsubscribeAborted(const TCallback<void()>& handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YUNREACHABLE();

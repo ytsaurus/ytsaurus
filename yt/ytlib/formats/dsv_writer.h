@@ -29,20 +29,20 @@ public:
     ~TDsvWriter();
 
     // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value) OVERRIDE;
-    virtual void OnIntegerScalar(i64 value) OVERRIDE;
-    virtual void OnDoubleScalar(double value) OVERRIDE;
-    virtual void OnEntity() OVERRIDE;
-    virtual void OnBeginList() OVERRIDE;
-    virtual void OnListItem() OVERRIDE;
-    virtual void OnEndList() OVERRIDE;
-    virtual void OnBeginMap() OVERRIDE;
-    virtual void OnKeyedItem(const TStringBuf& key) OVERRIDE;
-    virtual void OnEndMap() OVERRIDE;
-    virtual void OnBeginAttributes() OVERRIDE;
-    virtual void OnEndAttributes() OVERRIDE;
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnEntity() override;
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnEndList() override;
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnEndMap() override;
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndAttributes() override;
 
-    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type) OVERRIDE;
+    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type) override;
 
 private:
     NYTree::EYsonType Type;

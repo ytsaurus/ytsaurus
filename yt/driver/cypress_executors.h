@@ -16,8 +16,8 @@ public:
 private:
     TUnlabeledStringArg PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
-    virtual Stroka GetCommandName() const OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,9 +35,9 @@ private:
     bool UseStdIn;
     TStringStream Stream;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
-    virtual Stroka GetCommandName() const OVERRIDE;
-    virtual TInputStream* GetInputStream() OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual TInputStream* GetInputStream() override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -51,8 +51,8 @@ public:
 private:
     TUnlabeledStringArg PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
-    virtual Stroka GetCommandName() const OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,8 +66,8 @@ public:
 private:
     TUnlabeledStringArg PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
-    virtual Stroka GetCommandName() const OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,8 +84,8 @@ private:
 
     TUnlabeledStringArg PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
-    virtual Stroka GetCommandName() const OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,8 +102,8 @@ private:
     typedef TCLAP::ValueArg<NCypressClient::ELockMode> TModeArg;
     TModeArg ModeArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
-    virtual Stroka GetCommandName() const OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,8 +118,8 @@ private:
     TUnlabeledStringArg SourcePathArg;
     TUnlabeledStringArg DestinationPathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
-    virtual Stroka GetCommandName() const OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,8 +134,8 @@ private:
     TUnlabeledStringArg SourcePathArg;
     TUnlabeledStringArg DestinationPathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
-    virtual Stroka GetCommandName() const OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

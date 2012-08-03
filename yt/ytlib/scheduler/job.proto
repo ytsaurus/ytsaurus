@@ -75,6 +75,14 @@ message TJobResult
     extensions 100 to max;
 }
 
+// Used for reordering chunks from jobs that produce sorted output.
+message TOutputBoundaryKeys
+{
+    required int32 table_index = 1;
+    required NYT.NTableClient.NProto.TKey start = 2;
+    required NYT.NTableClient.NProto.TKey end = 3;
+}
+
 message TJobProgress
 {
 }
@@ -117,7 +125,6 @@ message TUserJobResult
  *
  * The input spec should contain TMapJobSpecExt.
  * The result must contain TMapJobResultExt.
- *
  */
 
 message TMapJobSpecExt
@@ -183,8 +190,16 @@ message TPartitionJobSpecExt
         optional TPartitionJobSpecExt partition_job_spec_ext = 103;
     }
 
-    repeated NYT.NTableClient.NProto.TKey partition_keys = 3;
-    repeated string key_columns = 5;
+    // Number of partitions.
+    required int32 partition_count = 1;
+
+    // If empty then THashPartitioner is used.
+    // Otherwise TOrderedPartitioner is used.
+    repeated NYT.NTableClient.NProto.TKey partition_keys = 2;
+
+    repeated string key_columns = 3;
+
+    optional TUserJobSpec mapper_spec = 4;
 }
 
 message TPartitionJobResultExt
@@ -195,6 +210,7 @@ message TPartitionJobResultExt
     }
 
     repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+    optional TUserJobResult mapper_result = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,16 +271,6 @@ message TReduceJobResultExt
     extend TJobResult
     {
         optional TReduceJobResultExt reduce_job_result_ext = 104;
-    }
-
-    // Boundary keys for each sorted output table.
-    // Used by the scheduler to reorder the chunks.
-
-    message TOutputBoundaryKeys
-    {
-        required int32 table_index = 1;
-        required NYT.NTableClient.NProto.TKey start = 2;
-        required NYT.NTableClient.NProto.TKey end = 3;
     }
 
     repeated TOutputBoundaryKeys boundary_keys = 1;

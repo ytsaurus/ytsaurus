@@ -38,7 +38,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         reduce(
             in_ = ['//tmp/in1', '//tmp/in2'],
             out = ['//tmp/out'],
-            reducer = 'cat')
+            command = 'cat')
                
         assert read('//tmp/out') == \
             [
@@ -66,7 +66,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         reduce(
             in_ = '//tmp/in',
             out = '//tmp/out',
-            reducer = 'cat')
+            command = 'cat')
         
         assert read('//tmp/out') == []
     
@@ -79,7 +79,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             reduce(
                 in_ = '//tmp/in',
                 out = '//tmp/out',
-                reducer = 'cat')
+                command = 'cat')
 
     def test_non_prefix(self):
         create('table', '//tmp/in')
@@ -90,6 +90,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             reduce(
                 in_ = '//tmp/in',
                 out = '//tmp/out',
-                reducer = 'cat',
+                command = 'cat',
                 key_columns='subkey')
 

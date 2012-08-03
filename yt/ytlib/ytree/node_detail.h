@@ -33,13 +33,13 @@ public:
     typedef TIntrusivePtr<TNodeBase> TPtr;
 
 #define IMPLEMENT_AS_METHODS(key) \
-    virtual TIntrusivePtr<I##key##Node> As##key() OVERRIDE \
+    virtual TIntrusivePtr<I##key##Node> As##key() override \
     { \
         ThrowInvalidNodeType(this, ENodeType::key, GetType()); \
         YUNREACHABLE(); \
     } \
     \
-    virtual TIntrusivePtr<const I##key##Node> As##key() const OVERRIDE \
+    virtual TIntrusivePtr<const I##key##Node> As##key() const override \
     { \
         ThrowInvalidNodeType(this, ENodeType::key, GetType()); \
         YUNREACHABLE(); \
@@ -54,7 +54,7 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const OVERRIDE;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
 protected:
     template <class TNode>
@@ -65,11 +65,11 @@ protected:
         SetNodeFromProducer(node, ConvertToProducer(value), ~builder);
     }
     
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) OVERRIDE;
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context) OVERRIDE;
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context) OVERRIDE;
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context) override;
+    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context) override;
 
-    virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb) OVERRIDE;
+    virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb) override;
 
 };
 
@@ -85,13 +85,13 @@ protected:
         const TYPath &path,
         TReqRemove *request,
         TRspRemove *response,
-        TCtxRemove *context) OVERRIDE;
+        TCtxRemove *context) override;
 
     virtual void SetRecursive(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
-        TCtxSet* context) OVERRIDE;
+        TCtxSet* context) override;
 
     virtual void SetRecursive(
         const TYPath& path,

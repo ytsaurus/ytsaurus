@@ -15,14 +15,14 @@ class TScopedChannel
 public:
     explicit TScopedChannel(IChannelPtr underlyingChannel);
 
-    TNullable<TDuration> GetDefaultTimeout() const OVERRIDE;
+    TNullable<TDuration> GetDefaultTimeout() const override;
 
     void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) OVERRIDE;
+        TNullable<TDuration> timeout) override;
 
-    void Terminate(const TError& error) OVERRIDE;
+    void Terminate(const TError& error) override;
 
     void OnRequestCompleted();
 
@@ -50,18 +50,18 @@ public:
         , Channel(channel)
     { }
 
-    void OnAcknowledgement() OVERRIDE
+    void OnAcknowledgement() override
     {
         UnderlyingHandler->OnAcknowledgement();
     }
     
-    void OnResponse(NBus::IMessagePtr message) OVERRIDE
+    void OnResponse(NBus::IMessagePtr message) override
     {
         UnderlyingHandler->OnResponse(MoveRV(message));
         Channel->OnRequestCompleted();
     }
 
-    void OnError(const TError& error) OVERRIDE
+    void OnError(const TError& error) override
     {
         UnderlyingHandler->OnError(error);
         Channel->OnRequestCompleted();

@@ -51,7 +51,7 @@ void TSchedulerConnector::SendHeartbeat()
     *req->mutable_resource_limits() = jobManager->GetResourceLimits();
     *req->mutable_resource_utilization() = jobManager->GetResourceUtilization();
 
-    auto jobs = Bootstrap->GetJobManager()->GetAllJobs();
+    auto jobs = Bootstrap->GetJobManager()->GetJobs();
     FOREACH (auto job, jobs) {
         auto state = job->GetState();
         auto* jobStatus = req->add_jobs();

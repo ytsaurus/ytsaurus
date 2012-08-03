@@ -78,7 +78,7 @@ protected:
     TCLAP::ValueArg<Stroka> TxArg;
     TCLAP::SwitchArg PingAncestorTxsArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) OVERRIDE;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

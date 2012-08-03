@@ -35,9 +35,8 @@ TTableChunkWriter::TTableChunkWriter(
     NChunkClient::IAsyncWriterPtr chunkWriter,
     const std::vector<TChannel>& channels,
     const TNullable<TKeyColumns>& keyColumns)
-    : TChunkWriterBase(chunkWriter, config)
+    : TChunkWriterBase(config, chunkWriter, keyColumns)
     , Channels(channels)
-    , KeyColumns(keyColumns)
     , IsOpen(false)
     , SamplesSize(0)
     , IndexSize(0)
@@ -285,9 +284,14 @@ i64 TTableChunkWriter::GetCurrentSize() const
     return CurrentSize;
 }
 
-const TKey<TBlobOutput>& TTableChunkWriter::GetLastKey() const 
+const TOwningKey& TTableChunkWriter::GetLastKey() const 
 {
     return LastKey;
+}
+
+void TTableChunkWriter::SetLastKey(const TOwningKey& key)
+{
+    LastKey = key;
 }
 
 i64 TTableChunkWriter::GetRowCount() const
@@ -428,11 +432,6 @@ NChunkHolder::NProto::TChunkMeta TTableChunkWriter::GetSchedulerMeta() const
 i64 TTableChunkWriter::GetMetaSize() const
 {
     return BasicMetaSize + SamplesSize + IndexSize + (CurrentBlockIndex + 1) * sizeof(NProto::TBlockInfo);
-}
-
-void TTableChunkWriter::SetLastKey(const TOwningKey& key)
-{
-    LastKey = key;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

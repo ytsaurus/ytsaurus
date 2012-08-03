@@ -26,7 +26,7 @@ do
 done
 
 time yt map \
-    --mapper "./map.pl" \
+    --command "./map.pl" \
     --in '//statbox/access-log/"2012-06-15"' \
     --out '//home/proskurnev/tmp/st1' \
     --file '//home/proskurnev/tmp/map.pl' \
@@ -43,7 +43,7 @@ time yt sort \
 
 
 time yt reduce \
-    --reducer "./reduce.pl" \
+    --command "./reduce.pl" \
     --in '//home/proskurnev/tmp/st1_s' \
     --out '//home/proskurnev/tmp/st2' \
     --file '//home/proskurnev/tmp/reduce.pl' \
@@ -61,7 +61,7 @@ time yt sort \
 
 
 time yt reduce \
-    --reducer "./finalize.pl" \
+    --command "./finalize.pl" \
     --in '//home/proskurnev/tmp/st2_s' \
     --out '//home/proskurnev/result' \
     --file '//home/proskurnev/tmp/finalize.pl' \

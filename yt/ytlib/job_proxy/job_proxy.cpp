@@ -1,5 +1,4 @@
 #include "stdafx.h"
-
 #include "config.h"
 #include "job_proxy.h"
 #include "user_job.h"
@@ -9,12 +8,18 @@
 #include "partition_sort_job.h"
 #include "partition_job.h"
 #include "map_job_io.h"
-#include "reduce_job_io.h"
+#include "partition_map_job_io.h"
+#include "sorted_reduce_job_io.h"
+#include "partition_reduce_job_io.h"
 
 #include <ytlib/actions/invoker_util.h>
+
 #include <ytlib/logging/log_manager.h>
+
 #include <ytlib/scheduler/public.h>
+
 #include <ytlib/bus/tcp_client.h>
+
 #include <ytlib/rpc/bus_channel.h>
 
 namespace NYT {
@@ -107,14 +112,25 @@ void TJobProxy::Run()
         switch (jobType) {
             case EJobType::Map: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-                TAutoPtr<TUserJobIO> userJobIO = new TMapJobIO(Config->JobIO, Config->Masters, jobSpec);
+                auto userJobIO = CreateMapJobIO(Config->JobIO, Config->Masters, jobSpec);
                 Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
-            case EJobType::Reduce: {
+            case EJobType::SortedReduce: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                TAutoPtr<TUserJobIO> userJobIO = new TReduceJobIO(Config->JobIO, Config->Masters, jobSpec);
+                auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, Config->Masters, jobSpec);
+                Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
+                break;
+            }
+
+            case EJobType::PartitionReduce: {
+                const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                auto userJobIO = CreatePartitionReduceJobIO(
+                    Config->JobIO,
+                    this,
+                    Config->Masters,
+                    jobSpec);
                 Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
@@ -139,6 +155,14 @@ void TJobProxy::Run()
             case EJobType::Partition:
                 Job = CreatePartitionJob(this);
                 break;
+
+            case EJobType::PartitionMap: {
+                const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+                YCHECK(jobSpecExt.has_mapper_spec());
+                auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, Config->Masters, jobSpec);
+                Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
+                break;
+            }
 
             default:
                 YUNREACHABLE();
@@ -201,6 +225,13 @@ void TJobProxy::SetResourceUtilization(const TNodeResources& utilization)
     *req->mutable_job_id() = JobId.ToProto();
     *req->mutable_utilization() = ResourceUtilization;
     req->Invoke();
+}
+
+void TJobProxy::ReleaseNetwork()
+{
+    auto utilization = GetResourceUtilization();
+    utilization.set_network(0);
+    SetResourceUtilization(utilization);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

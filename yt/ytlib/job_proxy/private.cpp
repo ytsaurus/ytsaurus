@@ -11,6 +11,6 @@ NProfiling::TProfiler JobProxyProfiler("/job_proxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSupervisor
+} // namespace NJobProxy
 } // namespace NYT
 

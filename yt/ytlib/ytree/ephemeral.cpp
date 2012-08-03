@@ -23,13 +23,13 @@ public:
         : Node(node)
     { }
 
-    virtual INodePtr ResolvePath(const TYPath& path) OVERRIDE
+    virtual INodePtr ResolvePath(const TYPath& path) override
     {
         auto root = GetRoot();
         return GetNodeByYPath(root, path);
     }
 
-    virtual TYPath GetPath(INodePtr node) OVERRIDE
+    virtual TYPath GetPath(INodePtr node) override
     {
         return GetNodeYPath(node);
     }

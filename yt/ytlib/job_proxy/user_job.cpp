@@ -85,7 +85,7 @@ public:
         , ProcessId(-1)
     { }
 
-    virtual NScheduler::NProto::TJobResult Run() OVERRIDE
+    virtual NScheduler::NProto::TJobResult Run() override
     {
         // ToDo(psushin): use tagged logger here.
         LOG_DEBUG("Starting job process");
@@ -116,30 +116,17 @@ public:
 
             result.mutable_error()->set_code(TError::Fail);
             result.mutable_error()->set_message(ex.what());
+
+            return result;
         }
 
-        {
-            NScheduler::NProto::TUserJobResult* userJobResult;
-            const auto& jobSpec = Host->GetJobSpec();
-            switch (jobSpec.type()) {
-            case EJobType::Map:
-                userJobResult = result.MutableExtension(NScheduler::NProto::TMapJobResultExt::map_job_result_ext)->mutable_mapper_result();
-                break;
-
-            case EJobType::Reduce:
-                userJobResult = result.MutableExtension(NScheduler::NProto::TReduceJobResultExt::reduce_job_result_ext)->mutable_reducer_result();
-                break;
-
-            default:
-                YUNREACHABLE();
-            }
-
-            auto chunkId = ErrorOutput->GetChunkId();
-            if (chunkId != NChunkServer::NullChunkId) {
-                LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~chunkId.ToString());
-                *userJobResult->mutable_stderr_chunk_id() = chunkId.ToProto();
-            }
+        auto stderrChunkId = ErrorOutput->GetChunkId();
+        if (stderrChunkId != NChunkServer::NullChunkId) {
+            JobIO->SetStderrChunkId(stderrChunkId);
+            LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~stderrChunkId.ToString());
         }
+
+        JobIO->PopulateResult(&result);
 
         return result;
     }

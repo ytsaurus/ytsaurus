@@ -27,22 +27,13 @@ public:
     bool TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
     bool TryWriteRowUnsafe(const TRow& row);
 
-    const TOwningKey& GetLastKey() const;
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
-
-    //! Current row count.
-    i64 GetRowCount() const;
-
 private:
-    void InitCurrentSession(TSession nextSession);
-    void PrepareChunkWriter(TSession& newSession);
+    virtual void InitCurrentSession(TSession nextSession) override;
+    virtual void PrepareChunkWriter(TSession* newSession) override;
 
     const std::vector<TChannel> Channels;
-    const TNullable<TKeyColumns> KeyColumns;
 
-    i64 RowCount;
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -143,6 +143,9 @@ def merge(*args, **kw):
 def reduce(*args, **kw):
     return command('reduce', *args, **kw)
 
+def map_reduce(*args, **kw):
+    return command('map_reduce', *args, **kw)
+
 def track_op(**kw):
     if "op" in kw:
         kw["op"] = kw["op"].strip("\"\'")

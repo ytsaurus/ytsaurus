@@ -56,7 +56,7 @@ public:
     {
         TKeyPart result;
         result.Type_ = EKeyPartType::String;
-        result.StrValue = value;
+        result.StringValue = value;
         return result;
     }
 
@@ -84,7 +84,7 @@ public:
     void SetValue(const TStrType& value)
     {
         Type_ = EKeyPartType::String;
-        StrValue = value;
+        StringValue = value;
     }
 
     void SetValue(i64 value)
@@ -114,19 +114,19 @@ public:
     const char* Begin() const 
     {
         YASSERT(Type_ == EKeyPartType::String);
-        return &*StrValue.begin();
+        return &*StringValue.begin();
     }
 
     size_t GetStringSize() const 
     {
         YASSERT(Type_ == EKeyPartType::String);
-        return StrValue.size();
+        return StringValue.size();
     }
 
     TStringBuf GetString() const
     {
         YASSERT(Type_ == EKeyPartType::String);
-        return TStringBuf(&*StrValue.begin(), StrValue.size());
+        return TStringBuf(&*StringValue.begin(), StringValue.size());
     }
 
     size_t GetSize() const
@@ -134,7 +134,7 @@ public:
         size_t result = sizeof(Type_);
         switch (Type_) {
             case EKeyPartType::String:
-                result += StrValue.size();
+                result += StringValue.size();
                 break;
             case EKeyPartType::Integer:
                 result += sizeof(i64);
@@ -157,7 +157,7 @@ public:
 
         switch (Type_) {
             case EKeyPartType::String:
-                keyPart.set_str_value(&*StrValue.begin(), StrValue.size());
+                keyPart.set_str_value(&*StringValue.begin(), StringValue.size());
                 break;
 
             case EKeyPartType::Integer:
@@ -180,11 +180,30 @@ public:
         return keyPart;
     }
 
+    ui32 GetHash() const
+    {
+        switch (Type_) {
+            case EKeyPartType::String:
+                return static_cast<ui32>(StringValue.hash());
+            case EKeyPartType::Integer:
+            case EKeyPartType::Double:
+                // Integer and Double are aliased (note "union" below).
+                return static_cast<ui32>((IntValue & 0xffff) + 17 * (IntValue >> 32));
+            default:
+                // No idea how to hash other types.
+                return 0;
+        }
+    }
+
 private:
-    // The actual value. 
-    i64 IntValue;
-    double DoubleValue;
-    TStrType StrValue;
+    // The actual value.
+    // XXX(babenko): consider storing StringValue in the union as well.
+    TStrType StringValue;
+    union
+    {
+        i64 IntValue;
+        double DoubleValue;
+    };
 
 };
 
@@ -420,6 +439,16 @@ public:
                 SetSentinel(index, EKeyPartType::Composite);
                 break;
         }
+    }
+
+    ui32 GetHash() const
+    {
+        ui32 result = 0xdeadc0de;
+        int partCount = static_cast<int>(Parts.size());
+        for (int i = 0; i < partCount; ++i) {
+            result = (result * 1000003) ^ Parts[i].GetHash();
+        }
+        return result ^ partCount;
     }
 
 private:

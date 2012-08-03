@@ -117,7 +117,7 @@ public:
         , Transaction(transaction)
     { }
 
-    virtual INodePtr ResolvePath(const TYPath& path) OVERRIDE
+    virtual INodePtr ResolvePath(const TYPath& path) override
     {
         if (path.empty()) {
             ythrow yexception() << "YPath cannot be empty";
@@ -138,7 +138,7 @@ public:
         return GetNodeByYPath(root, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
-    virtual TYPath GetPath(INodePtr node) OVERRIDE
+    virtual TYPath GetPath(INodePtr node) override
     {
         auto path = GetNodeYPath(node);
         return Stroka(TokenTypeToChar(RootToken)) + path;

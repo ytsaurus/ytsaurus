@@ -46,7 +46,7 @@ public:
     static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
 
 protected:
-    virtual bool DequeueAndExecute() OVERRIDE
+    virtual bool DequeueAndExecute() override
     {
         return QueueInvoker->DequeueAndExecute();
     }
@@ -139,7 +139,7 @@ private:
     std::vector<TQueue> Queues;
 
 
-    virtual bool DequeueAndExecute() OVERRIDE
+    virtual bool DequeueAndExecute() override
     {
         // Compute min excess over non-empty queues.
         i64 minExcess = std::numeric_limits<i64>::max();
@@ -228,7 +228,7 @@ public:
         return this;
     }
 
-    virtual void Invoke(const TClosure& action) OVERRIDE
+    virtual void Invoke(const TClosure& action) override
     {
         // Pick a seemingly least-loaded thread in the pool.
         // Do not lock, just scan and choose the minimum.
@@ -327,7 +327,7 @@ private:
     std::vector<TItem> Items;
     i64 CurrentSequenceNumber;
 
-    virtual bool DequeueAndExecute() OVERRIDE
+    virtual bool DequeueAndExecute() override
     {
         TClosure action;
         {
@@ -354,7 +354,7 @@ public:
         , Priority(priority)
     { }
 
-    virtual void Invoke(const TClosure& action) OVERRIDE
+    virtual void Invoke(const TClosure& action) override
     {
         Impl->Enqueue(action, Priority);
     }
@@ -393,7 +393,7 @@ public:
         , Lock(0)
     { }
 
-    virtual void Invoke(const TClosure& action) OVERRIDE
+    virtual void Invoke(const TClosure& action) override
     {
         Queue.Enqueue(action);
         TrySchedule();

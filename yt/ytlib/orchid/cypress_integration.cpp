@@ -45,13 +45,13 @@ public:
         , Id(id)
     { }
 
-    TResolveResult Resolve(const TYPath& path, const Stroka& verb) OVERRIDE
+    TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
     {
         UNUSED(verb);
         return TResolveResult::Here(path);
     }
 
-    void Invoke(IServiceContextPtr context) OVERRIDE
+    void Invoke(IServiceContextPtr context) override
     {
         auto manifest = LoadManifest();
 
@@ -88,12 +88,12 @@ public:
             .Via(OrchidQueue->GetInvoker()));
     }
 
-    Stroka GetLoggingCategory() const OVERRIDE
+    Stroka GetLoggingCategory() const override
     {
         return OrchidLogger.GetCategory();
     }
 
-    bool IsWriteRequest(IServiceContextPtr context) const OVERRIDE
+    bool IsWriteRequest(IServiceContextPtr context) const override
     {
         UNUSED(context);
         return false;

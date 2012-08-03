@@ -1,6 +1,6 @@
-#pragma once
+﻿#pragma once
 
-#include "private.h"
+#include "public.h"
 #include "user_job_io.h"
 
 namespace NYT {
@@ -8,8 +8,9 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-TAutoPtr<TUserJobIO> CreateMapJobIO(
-    TJobIOConfigPtr ioConfig,
+TAutoPtr<TUserJobIO> CreatePartitionReduceJobIO(
+    TJobIOConfigPtr config,
+    IJobHost* host,
     NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec);
 

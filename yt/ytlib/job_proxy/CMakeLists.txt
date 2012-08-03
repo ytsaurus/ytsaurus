@@ -6,10 +6,13 @@ set( SRCS
   ${BASE}/map_job_io.cpp
   ${BASE}/ordered_merge_job.cpp
   ${BASE}/partition_job.cpp
+  ${BASE}/sorting_reader.cpp
   ${BASE}/partition_sort_job.cpp
+  ${BASE}/partition_map_job_io.cpp
   ${BASE}/pipes.cpp
   ${BASE}/private.cpp
-  ${BASE}/reduce_job_io.cpp
+  ${BASE}/sorted_reduce_job_io.cpp
+  ${BASE}/partition_reduce_job_io.cpp
   ${BASE}/simple_sort_job.cpp
   ${BASE}/small_key.cpp
   ${BASE}/sorted_merge_job.cpp
@@ -26,11 +29,14 @@ set( HDRS
   ${BASE}/map_job_io.h
   ${BASE}/ordered_merge_job.h
   ${BASE}/partition_job.h
+  ${BASE}/sorting_reader.h
   ${BASE}/partition_sort_job.h
+  ${BASE}/partition_map_job_io.h
   ${BASE}/pipes.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/reduce_job_io.h
+  ${BASE}/sorted_reduce_job_io.h
+  ${BASE}/partition_reduce_job_io.cpp
   ${BASE}/simple_sort_job.h
   ${BASE}/small_key.h
   ${BASE}/sorted_merge_job.h

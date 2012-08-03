@@ -111,6 +111,18 @@ void TReduceCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMapReduceCommand::TMapReduceCommand(ICommandContext* context)
+    : TSchedulerCommandBase(context)
+    , TUntypedCommandBase(context)
+{ }
+
+void TMapReduceCommand::DoExecute()
+{
+    StartOperation(EOperationType::MapReduce);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAbortOperationCommand::TAbortOperationCommand(ICommandContext* context)
     : TTransactedCommandBase(context)
     , TUntypedCommandBase(context)

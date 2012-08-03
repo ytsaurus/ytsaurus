@@ -32,8 +32,8 @@ public:
 private:
     TCLAP::MultiArg<Stroka> InArg;
     TCLAP::MultiArg<Stroka> OutArg;
-    TCLAP::MultiArg<Stroka> FilesArg;
-    TCLAP::ValueArg<Stroka> MapperArg;
+    TCLAP::ValueArg<Stroka> CommandArg;
+    TCLAP::MultiArg<Stroka> FileArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
@@ -110,8 +110,30 @@ public:
 private:
     TCLAP::MultiArg<Stroka> InArg;
     TCLAP::MultiArg<Stroka> OutArg;
-    TCLAP::MultiArg<Stroka> FilesArg;
-    TCLAP::ValueArg<Stroka> ReducerArg;
+    TCLAP::ValueArg<Stroka> CommandArg;
+    TCLAP::MultiArg<Stroka> FileArg;
+    TCLAP::ValueArg<Stroka> KeyColumnsArg;
+
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+    virtual Stroka GetCommandName() const;
+    virtual NScheduler::EOperationType GetOperationType() const;
+};
+
+//////////////////////////////////////////////////////////////////////////////////
+
+class TMapReduceExecutor
+    : public TStartOpExecutor
+{
+public:
+    TMapReduceExecutor();
+
+private:
+    TCLAP::MultiArg<Stroka> InArg;
+    TCLAP::MultiArg<Stroka> OutArg;
+    TCLAP::ValueArg<Stroka> MapperCommandArg;
+    TCLAP::MultiArg<Stroka> MapperFileArg;
+    TCLAP::ValueArg<Stroka> ReducerCommandArg;
+    TCLAP::MultiArg<Stroka> ReducerFileArg;
     TCLAP::ValueArg<Stroka> KeyColumnsArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);

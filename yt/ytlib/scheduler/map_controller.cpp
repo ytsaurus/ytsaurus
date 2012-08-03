@@ -25,6 +25,7 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NChunkServer;
+using namespace NJobProxy;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -47,12 +48,12 @@ public:
         , Config(config)
         , Spec(spec)
         , TotalJobCount(0)
-        , MapTask(New<TMapTask>(this))
     { }
 
 private:
     TSchedulerConfigPtr Config;
     TMapOperationSpecPtr Spec;
+    TJobIOConfigPtr JobIOConfig;
 
     // Counters.
     int TotalJobCount;
@@ -68,18 +69,14 @@ private:
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool();
-
-            MinRequestedResources = GetMapJobResources(
-                Controller->Config->MapJobIO,
-                Controller->Spec);
         }
 
-        virtual Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const override
         {
             return "Map";
         }
 
-        virtual int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const override
         {
             return
                 IsPending()
@@ -87,28 +84,29 @@ private:
                 : 0;
         }
 
-        virtual TDuration GetLocalityTimeout() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const override
         {
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const override
         {
-            return MinRequestedResources;
+            return NScheduler::GetMapResources(
+                Controller->JobIOConfig,
+                Controller->Spec);
         }
 
     private:
         friend class TMapController;
 
         TMapController* Controller;
-        NProto::TNodeResources MinRequestedResources;
 
-        virtual int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const override
         {
             return static_cast<int>(Controller->OutputTables.size());
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const override
         {
             return GetJobDataSizeThresholdGeneric(
                 GetPendingJobCount(),
@@ -117,7 +115,7 @@ private:
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) OVERRIDE
+            NProto::TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
@@ -126,7 +124,7 @@ private:
             }
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) override
         {
             TTask::OnJobCompleted(jip);
 
@@ -144,22 +142,22 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths() OVERRIDE
+    virtual std::vector<TYPath> GetFilePaths() override
     {
         return Spec->Mapper->FilePaths;
     }
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
     {
         return pipeline->Add(BIND(&TMapController::ProcessInputs, MakeStrong(this)));
     }
@@ -171,6 +169,7 @@ private:
             
             // Compute statistics and populate the pool.
             auto inputChunks = CollectInputTablesChunks();
+            MapTask = New<TMapTask>(this);
             auto stripes = PrepareChunkStripes(
                 inputChunks,
                 Spec->JobCount,
@@ -190,6 +189,7 @@ private:
                 Spec->JobCount,
                 MapTask->ChunkCounter().GetTotal());
             
+            InitJobIOConfig();
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
@@ -213,7 +213,7 @@ private:
 
     // Progress reporting.
 
-    virtual void LogProgress() OVERRIDE
+    virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
             "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}",
@@ -226,6 +226,11 @@ private:
 
 
     // Unsorted helpers.
+
+    void InitJobIOConfig()
+    {
+        JobIOConfig = BuildJobIOConfig(Config->MapJobIO, Spec->JobIO);
+    }
 
     void InitJobSpecTemplate()
     {
@@ -240,8 +245,7 @@ private:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        auto ioConfig = BuildJobIOConfig(Config->MapJobIO, Spec->JobIO);
-        JobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
 };

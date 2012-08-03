@@ -29,9 +29,6 @@ struct ISyncWriter
 
     //! Returns the current row count (starting from 0).
     virtual i64 GetRowCount() const = 0;
-
-    //! Returns the last key written so far.
-    virtual const TOwningKey& GetLastKey() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +38,7 @@ class TSyncWriterAdapter
     : public ISyncWriter
 {
 public:
-    TSyncWriterAdapter(TIntrusivePtr<TAsyncWriter> writer)
+    explicit TSyncWriterAdapter(TIntrusivePtr<TAsyncWriter> writer)
         : Writer(writer)
     { }
 
@@ -87,13 +84,9 @@ public:
         return Writer->GetRowCount();
     }
 
-    const TOwningKey& GetLastKey() const
-    {
-        return Writer->GetLastKey();
-    }
-
 private:
     TIntrusivePtr<TAsyncWriter> Writer;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////s

@@ -123,7 +123,7 @@ public:
         return operations;
     }
 
-    virtual std::vector<TExecNodePtr> GetExecNodes() OVERRIDE
+    virtual std::vector<TExecNodePtr> GetExecNodes() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -607,6 +607,8 @@ private:
                 return CreateSortController(Config, this, operation);
             case EOperationType::Reduce:
                 return CreateReduceController(Config, this, operation);
+            case EOperationType::MapReduce:
+                return CreateMapReduceController(Config, this, operation);
             default:
                 YUNREACHABLE();
         }
@@ -614,22 +616,22 @@ private:
     
 
     // IOperationHost methods
-    virtual NRpc::IChannelPtr GetMasterChannel() OVERRIDE
+    virtual NRpc::IChannelPtr GetMasterChannel() override
     {
         return Bootstrap->GetMasterChannel();
     }
 
-    virtual TTransactionManagerPtr GetTransactionManager() OVERRIDE
+    virtual TTransactionManagerPtr GetTransactionManager() override
     {
         return Bootstrap->GetTransactionManager();
     }
 
-    virtual IInvokerPtr GetControlInvoker() OVERRIDE
+    virtual IInvokerPtr GetControlInvoker() override
     {
         return Bootstrap->GetControlInvoker();
     }
 
-    virtual IInvokerPtr GetBackgroundInvoker() OVERRIDE
+    virtual IInvokerPtr GetBackgroundInvoker() override
     {
         return BackgroundQueue->GetInvoker();
     }
@@ -637,7 +639,7 @@ private:
     virtual TJobPtr CreateJob(
         EJobType type,
         TOperationPtr operation,
-        TExecNodePtr node) OVERRIDE
+        TExecNodePtr node) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -652,7 +654,7 @@ private:
     }
 
 
-    virtual void OnOperationCompleted(TOperationPtr operation) OVERRIDE
+    virtual void OnOperationCompleted(TOperationPtr operation) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -714,7 +716,7 @@ private:
 
     virtual void OnOperationFailed(
         TOperationPtr operation,
-        const TError& error) OVERRIDE
+        const TError& error) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         GetControlInvoker()->Invoke(BIND(

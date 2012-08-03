@@ -19,34 +19,37 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class  TPartitionChunkWriter
+class TPartitionChunkWriter
     : public TChunkWriterBase
 {
 public:
     TPartitionChunkWriter(
         TChunkWriterConfigPtr config,
         NChunkClient::IAsyncWriterPtr chunkWriter,
-        const std::vector<TChannel>& channels,
         const TKeyColumns& keyColumns,
-        const std::vector<NProto::TKey>& partitionKeys);
+        IPartitioner* partitioner);
 
     ~TPartitionChunkWriter();
 
+    // Checks column names for uniqueness.
     bool TryWriteRow(const TRow& row);
+
+    // Used internally. All column names are guaranteed to be unique.
+    bool TryWriteRowUnsafe(const TRow& row);
+
     TAsyncError AsyncClose();
 
     i64 GetCurrentSize() const;
+    i64 GetMetaSize() const;
+
     NChunkHolder::NProto::TChunkMeta GetMasterMeta() const;
     NChunkHolder::NProto::TChunkMeta GetSchedulerMeta() const;
 
-    i64 GetMetaSize() const;
-
 private:
-    NYTree::TLexer Lexer;
+    IPartitioner* Partitioner;
 
-    std::vector<TOwningKey> PartitionKeys;
+    NYTree::TLexer Lexer;
     yhash_map<TStringBuf, int> KeyColumnIndexes;
-    TKeyColumns KeyColumns;
 
     // Permutation of value index in current row.
     // Defines writing order (key columns go first).
@@ -64,8 +67,7 @@ private:
     std::vector<TChannelWriterPtr> ChannelWriters;
 
     i64 BasicMetaSize;
-
-    
+   
     NProto::TPartitionsExt PartitionsExt;
 
     void PrepareBlock(int partitionTag);

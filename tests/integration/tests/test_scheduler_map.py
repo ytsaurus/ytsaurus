@@ -19,7 +19,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_empty_table(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        map(in_='//tmp/t1', out='//tmp/t2', mapper='cat')
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
 
         assert read('//tmp/t2') == []
 
@@ -27,7 +27,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{a=b}')
-        map(in_='//tmp/t1', out='//tmp/t2', mapper='cat')
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
 
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
@@ -35,7 +35,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         write_str('//tmp/t1', '{foo=bar}')
 
-        map(in_='//tmp/t1', out='//tmp/t1', mapper='cat')
+        map(in_='//tmp/t1', out='//tmp/t1', command='cat')
 
         assert read('//tmp/t1') == [{'foo': 'bar'}, {'foo': 'bar'}]
 
@@ -45,9 +45,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
-        mapper = "cat > /dev/null; echo stderr 1>&2"
+        command = "cat > /dev/null; echo stderr 1>&2"
 
-        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
         track_op(op=op_id)
         check_all_stderrs(op_id, 'stderr')
 
@@ -57,9 +57,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
-        mapper = "cat > /dev/null; echo stderr 1>&2; exit 125"
+        command = "cat > /dev/null; echo stderr 1>&2; exit 125"
 
-        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', mapper=mapper)
+        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
 
         # if all jobs failed then operation is also failed
         with pytest.raises(YTError): track_op(op=op_id)
@@ -71,13 +71,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for i in xrange(5):
             write_str('//tmp/t1', '{foo=bar}')
 
-        mapper = "cat > /dev/null; echo {hello=world}"
+        command = "cat > /dev/null; echo {hello=world}"
 
         def check(table_name, job_count, expected_num_records):
             create('table', table_name)
             map(in_='//tmp/t1',
                 out=table_name,
-                mapper=mapper,
+                command=command,
                 opt='/spec/job_count=%d' % job_count)
             assert read(table_name) == [{'hello': 'world'} for i in xrange(expected_num_records)]
 
@@ -97,11 +97,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         # check attributes @file_name
         set(file2 + '/@file_name', 'my_file.txt')
-        mapper = "cat > /dev/null; cat some_file.txt; cat my_file.txt"
+        commmand= "cat > /dev/null; cat some_file.txt; cat my_file.txt"
 
         map(in_='//tmp/t1',
             out='//tmp/t2',
-            mapper=mapper,
+            command=command,
             file=[file1, file2])
 
         assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
@@ -128,7 +128,7 @@ echo {v = 2} >&7
 
         map(in_='//tmp/t_in',
             out=output_tables,
-            mapper='bash mapper.sh',
+            command='bash mapper.sh',
             file='//tmp/mapper.sh')
 
         assert read(output_tables[0]) == [{'v': 0}]
@@ -152,7 +152,7 @@ print '{hello=world}'
         create('table', '//tmp/t_out')
         map(in_='//tmp/t_in',
             out='//tmp/t_out',
-            mapper="python mapper.sh",
+            command="python mapper.sh",
             file='//tmp/mapper.sh',
             opt='/spec/mapper/input_format=<line_prefix=tskv>dsv')
 
@@ -175,7 +175,7 @@ print "tskv" + "\\t" + "hello=world"
         create('table', '//tmp/t_out')
         map(in_='//tmp/t_in',
             out='//tmp/t_out',
-            mapper="python mapper.sh",
+            command="python mapper.sh",
             file='//tmp/mapper.sh',
             opt=[ \
                 '/spec/mapper/input_format=<format=text>yson',
@@ -200,7 +200,7 @@ print "key" + "\\t" + "subkey" + "\\t" + "value" + "\\n"
         create('table', '//tmp/t_out')
         map(in_='//tmp/t_in',
             out='//tmp/t_out',
-            mapper="python mapper.sh",
+            command="python mapper.sh",
             file='//tmp/mapper.sh',
             opt=[ \
                 '/spec/mapper/input_format=<format=text>yson',
@@ -225,7 +225,7 @@ print '{hello=world}'
         create('table', '//tmp/t_out')
         map(in_='//tmp/t_in',
             out='//tmp/t_out',
-            mapper="python mapper.sh",
+            command="python mapper.sh",
             file='//tmp/mapper.sh',
             opt='/spec/mapper/input_format=<has_subkey=true>yamr')
 
@@ -246,7 +246,7 @@ cat > /dev/null; echo {hello=world}
         create('table', '//tmp/t_out')
         map(in_='//tmp/t_in',
             out='//tmp/t_out',
-            mapper="./mapper.sh",
+            command="./mapper.sh",
             file='//tmp/mapper.sh')
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]

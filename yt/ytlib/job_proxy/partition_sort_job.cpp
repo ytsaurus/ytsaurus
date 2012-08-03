@@ -49,9 +49,6 @@ public:
 
         KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
-        TReaderOptions options;
-        options.KeepBlocks = true;
-
         std::vector<NTableClient::NProto::TInputChunk> chunks(
             jobSpec.input_specs(0).chunks().begin(),
             jobSpec.input_specs(0).chunks().end());
@@ -74,7 +71,7 @@ public:
             KeyColumns);
     }
 
-    virtual NScheduler::NProto::TJobResult Run() OVERRIDE
+    virtual NScheduler::NProto::TJobResult Run() override
     {
         PROFILE_TIMING ("/sort_time") {
 
@@ -119,11 +116,6 @@ public:
             {
                 bool isNetworkReleased = false;
                 auto jobSpecExt = Host->GetJobSpec().GetExtension(TSortJobSpecExt::sort_job_spec_ext);
-                auto releaseNetwork = [&] () {
-                    auto utilization = Host->GetResourceUtilization();
-                    utilization.set_network(0);
-                    Host->SetResourceUtilization(utilization);
-                };
 
                 TLexer lexer;
                 while (Reader->IsValid()) {
@@ -146,7 +138,7 @@ public:
                     std::push_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
 
                     if (!isNetworkReleased && Reader->IsFetchingComplete()) {
-                        releaseNetwork();
+                        Host->ReleaseNetwork();
                         isNetworkReleased =  true;
                     }
 
@@ -156,7 +148,7 @@ public:
                 }
 
                 if (!isNetworkReleased) {
-                    releaseNetwork();
+                    Host->ReleaseNetwork();
                 }
             }
             PROFILE_TIMING_CHECKPOINT("read");

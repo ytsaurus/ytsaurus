@@ -70,6 +70,7 @@ public:
         RegisterExecutor(New<TSortExecutor>());
         RegisterExecutor(New<TEraseExecutor>());
         RegisterExecutor(New<TReduceExecutor>());
+        RegisterExecutor(New<TMapReduceExecutor>());
         RegisterExecutor(New<TAbortOpExecutor>());
         RegisterExecutor(New<TTrackOpExecutor>());
     }

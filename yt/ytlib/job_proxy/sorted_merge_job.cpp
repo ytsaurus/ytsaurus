@@ -70,7 +70,7 @@ public:
                 readers.push_back(reader);
             }
 
-            Reader = New<TMergingReader>(readers);
+            Reader = CreateMergingReader(readers);
         }
 
         {
@@ -87,7 +87,7 @@ public:
         }
     }
 
-    virtual NScheduler::NProto::TJobResult Run() OVERRIDE
+    virtual NScheduler::NProto::TJobResult Run() override
     {
         PROFILE_TIMING ("/sorted_merge_time") {
             auto writer = CreateSyncWriter(Writer);
@@ -120,7 +120,7 @@ public:
     }
 
 private:
-    TMergingReaderPtr Reader;
+    ISyncReaderPtr Reader;
     TTableChunkSequenceWriterPtr Writer;
 
 };

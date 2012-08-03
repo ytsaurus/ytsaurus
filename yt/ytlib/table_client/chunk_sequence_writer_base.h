@@ -38,7 +38,8 @@ public:
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkServer::TChunkListId& parentChunkList);
+        const NChunkServer::TChunkListId& parentChunkList,
+        const TNullable<TKeyColumns>& keyColumns);
 
     ~TChunkSequenceWriterBase();
 
@@ -54,6 +55,11 @@ public:
      *  To get consistent data, should be called only when the writer is closed.
      */
     const std::vector<NProto::TInputChunk>& GetWrittenChunks() const;
+
+    //! Current row count.
+    i64 GetRowCount() const;
+
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
 
 protected:
     struct TSession
@@ -82,7 +88,7 @@ protected:
     virtual void InitCurrentSession(TSession nextSession);
 
     void OnChunkCreated(NTransactionServer::TTransactionYPathProxy::TRspCreateObjectPtr rsp);
-    virtual void PrepareChunkWriter(TSession& newSession) = 0;
+    virtual void PrepareChunkWriter(TSession* newSession) = 0;
 
     void FinishCurrentSession();
 
@@ -106,8 +112,11 @@ protected:
 
     void SwitchSession();
 
-    TTableWriterConfigPtr Config;
-    NRpc::IChannelPtr MasterChannel;
+    const TTableWriterConfigPtr Config;
+    const NRpc::IChannelPtr MasterChannel;
+    const NObjectServer::TTransactionId TransactionId;
+    const NChunkServer::TChunkListId ParentChunkList;
+    const TNullable<TKeyColumns> KeyColumns;
 
     i64 RowCount;
 
@@ -115,9 +124,6 @@ protected:
 
     //! Total compressed size of data in the completed chunks.
     i64 CompleteChunkSize;
-
-    const NObjectServer::TTransactionId TransactionId;
-    const NChunkServer::TChunkListId ParentChunkList;
 
     TAsyncStreamState State;
 

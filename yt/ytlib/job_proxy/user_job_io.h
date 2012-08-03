@@ -3,12 +3,16 @@
 #include "public.h"
 
 #include <ytlib/rpc/public.h>
-#include <ytlib/ytree/public.h>
-#include <ytlib/meta_state/public.h>
-#include <ytlib/table_client/public.h>
-#include <ytlib/scheduler/job.pb.h>
 
-class TOutputStream;
+#include <ytlib/ytree/public.h>
+
+#include <ytlib/meta_state/public.h>
+
+#include <ytlib/table_client/public.h>
+
+#include <ytlib/chunk_server/public.h>
+
+#include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -16,15 +20,15 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobIO
+    : private TNonCopyable
 {
 public:
     TUserJobIO(
-        TJobIOConfigPtr config,
+        TJobIOConfigPtr ioConfig,
         NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);
 
-    virtual ~TUserJobIO()
-    { }
+    virtual ~TUserJobIO();
 
     virtual int GetInputCount() const;
     virtual int GetOutputCount() const;
@@ -34,17 +38,25 @@ public:
 
     virtual TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
         int index, 
-        NYTree::IYsonConsumer* consumer) const = 0;
+        NYTree::IYsonConsumer* consumer) const;
 
-    virtual NTableClient::ISyncWriterPtr CreateTableOutput(int index) const;
+    virtual NTableClient::ISyncWriterPtr CreateTableOutput(
+        int index) const;
 
     virtual TAutoPtr<TErrorOutput> CreateErrorOutput() const;
 
-protected:
-    TJobIOConfigPtr Config;
+    void SetStderrChunkId(const NChunkServer::TChunkId& chunkId);
 
-    NScheduler::NProto::TJobSpec JobSpec;
+    virtual void PopulateResult(NScheduler::NProto::TJobResult* result) = 0;
+
+protected:
+    TJobIOConfigPtr IOConfig;
     NRpc::IChannelPtr MasterChannel;
+    NScheduler::NProto::TJobSpec JobSpec;
+
+    NChunkServer::TChunkId StderrChunkId;
+
+    void PopulateUserJobResult(NScheduler::NProto::TUserJobResult* result);
 
 };
 

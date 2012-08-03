@@ -31,14 +31,6 @@ struct IAsyncWriter
     //! Closes the writer.
     virtual TAsyncError AsyncClose() = 0;
 
-    //! Returns the last key added to the writer.
-    /*! 
-     *  Returns non-const reference on the internal key field.
-     *  One can swap it out to avoid excessive copying after (!)
-     *  the writer is closed by calling #AsyncClose.
-     */
-    virtual const TOwningKey& GetLastKey() const = 0;
-
     //! Returns key column names if rows are added in ``sorted'' mode
     //! or |Null| otherwise.
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;

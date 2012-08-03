@@ -28,14 +28,16 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const NObjectServer::TTransactionId& transactionId,
-    const NChunkServer::TChunkListId& parentChunkList)
+    const NChunkServer::TChunkListId& parentChunkList,
+    const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
     , MasterChannel(masterChannel)
+    , TransactionId(transactionId)
+    , ParentChunkList(parentChunkList)
+    , KeyColumns(keyColumns)
     , RowCount(0)
     , Progress(0)
     , CompleteChunkSize(0)
-    , TransactionId(transactionId)
-    , ParentChunkList(parentChunkList)
     , NextSession(Null)
     , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::WriterThread->GetInvoker()))
     , Logger(TableWriterLogger)
@@ -135,7 +137,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
         addresses);
     session.RemoteWriter->Open();
 
-    PrepareChunkWriter(session);
+    PrepareChunkWriter(&session);
 
     NextSession.Set(session);
 }
@@ -182,7 +184,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
     ++RowCount;
 
     if (CurrentSession.ChunkWriter->GetMetaSize() > Config->MaxMetaSize) {
-        LOG_DEBUG("Switching to next chunk: too big chunk meta (TransactionId: %s, ChunkMetaSize: %" PRId64,
+        LOG_DEBUG("Switching to next chunk: meta is too large (TransactionId: %s, ChunkMetaSize: %" PRId64,
             ~TransactionId.ToString(),
             CurrentSession.ChunkWriter->GetMetaSize());
 
@@ -199,7 +201,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
         if (expectedInputSize > Config->DesiredChunkSize || 
             CurrentSession.ChunkWriter->GetCurrentSize() > 2 * Config->DesiredChunkSize) 
         {
-            LOG_DEBUG("Switching to next chunk (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
+            LOG_DEBUG("Switching to next chunk: too much data (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
                 ~TransactionId.ToString(),
                 CurrentSession.ChunkWriter->GetCurrentSize(),
                 expectedInputSize);
@@ -245,7 +247,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
             finishResult));
 
     } else {
-        LOG_DEBUG("Cancelling empty chunk (ChunkId: %s)",
+        LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
             ~CurrentSession.RemoteWriter->GetChunkId().ToString());
     }
 
@@ -402,6 +404,19 @@ template <class TChunkWriter>
 const std::vector<NProto::TInputChunk>& TChunkSequenceWriterBase<TChunkWriter>::GetWrittenChunks() const
 {
     return WrittenChunks;
+}
+
+template <class TChunkWriter>
+i64 TChunkSequenceWriterBase<TChunkWriter>::GetRowCount() const
+{
+    YASSERT(!State.HasRunningOperation());
+    return RowCount;
+}
+
+template <class TChunkWriter> 
+const TNullable<TKeyColumns>& TChunkSequenceWriterBase<TChunkWriter>::GetKeyColumns() const
+{
+    return KeyColumns;
 }
 
 template <class TChunkWriter> 

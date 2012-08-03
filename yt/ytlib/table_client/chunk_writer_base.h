@@ -23,13 +23,18 @@ class TChunkWriterBase
 public:
     TAsyncError GetReadyEvent();
 
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
+
 protected:
     TChunkWriterBase(
+        TChunkWriterConfigPtr config,
         NChunkClient::IAsyncWriterPtr chunkWriter,
-        TChunkWriterConfigPtr config);
+        const TNullable<TKeyColumns>& keyColumns);
 
-    TChunkWriterConfigPtr Config;
-    NChunkClient::IAsyncWriterPtr ChunkWriter;
+    const TChunkWriterConfigPtr Config;
+    const NChunkClient::IAsyncWriterPtr ChunkWriter;
+    const TNullable<TKeyColumns> KeyColumns;
+
     NChunkClient::TEncodingWriterPtr EncodingWriter;
 
     int CurrentBlockIndex;

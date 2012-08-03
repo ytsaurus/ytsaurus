@@ -54,7 +54,7 @@ public:
     TJobPtr GetJob(const TJobId& jobId);
 
     //! Returns a list of all currently known jobs.
-    std::vector<TJobPtr> GetAllJobs();
+    std::vector<TJobPtr> GetJobs();
 
     //! Maximum allowed resource utilization.
     NScheduler::NProto::TNodeResources GetResourceLimits();

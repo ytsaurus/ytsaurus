@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/error.h>
 
@@ -20,6 +22,6 @@ extern NProfiling::TProfiler JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSupervisor
+} // namespace NJobProxy
 } // namespace NYT
 

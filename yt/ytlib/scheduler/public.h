@@ -20,17 +20,24 @@ DECLARE_ENUM(EOperationType,
     ((Erase)(2))
     ((Sort)(3))
     ((Reduce)(4))
+    ((MapReduce)(5))
 );
 
 DECLARE_ENUM(EJobType,
     ((Map)(0))
-    ((SortedMerge)(1))
-    ((OrderedMerge)(2))
-    ((UnorderedMerge)(7))
-    ((Partition)(3))
-    ((PartitionSort)(4))
-    ((SimpleSort)(5))
-    ((Reduce)(6))
+    ((PartitionMap)(1))
+
+    ((SortedMerge)(2))
+    ((OrderedMerge)(3))
+    ((UnorderedMerge)(4))
+
+    ((Partition)(5))
+
+    ((SimpleSort)(6))
+    ((PartitionSort)(7))
+
+    ((SortedReduce)(8))
+    ((PartitionReduce)(9))
 );
 
 DECLARE_ENUM(EOperationState,
@@ -118,11 +125,17 @@ typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
 struct TEraseOperationSpec;
 typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
 
+struct TReduceOperationSpec;
+typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
+
+struct TSortOperationSpecBase;
+typedef TIntrusivePtr<TSortOperationSpecBase> TSortOperationSpecBasePtr;
+
 struct TSortOperationSpec;
 typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
 
-struct TReduceOperationSpec;
-typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
+struct TMapReduceOperationSpec;
+typedef TIntrusivePtr<TMapReduceOperationSpec> TMapReduceOperationSpecPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

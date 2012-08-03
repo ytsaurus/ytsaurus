@@ -23,10 +23,7 @@ namespace NTableClient {
  *  
  *  Then the client it must iteratively fetch rows by calling #NextRow.
  *  When no more rows can be fetched, the latter returns False.
- *  
- *  For each row, the client must fetch its entries in a similar manner by calling #NextColumn.
- *  
- *  When a table entry is fetched, its content becomes accessible via #GetColumn and #GetValue.
+ *
  */
 class TTableReader
     : public NTransactionClient::TTransactionListener
@@ -41,18 +38,14 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const NYTree::TYPath& path);
 
-    //! Opens the reader and positions it on the first row
-    /*!
-     *  Check if row is valid before getting it.
-     */
-    void Open();
+    virtual void Open() override;
 
-    void NextRow();
+    virtual void NextRow() override;
 
-    bool IsValid() const;
+    virtual bool IsValid() const override;
 
-    const TRow& GetRow();
-    //const NYTree::TYsonString& GetRowAttributes() const;
+    virtual const TRow& GetRow() const override;
+    virtual const TNonOwningKey& GetKey() const override;
 
 private:
     TTableReaderConfigPtr Config;

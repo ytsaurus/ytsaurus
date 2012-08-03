@@ -1,17 +1,19 @@
 ﻿#include "stdafx.h"
-
 #include "config.h"
 #include "user_job_io.h"
 #include "map_job_io.h"
-#include "reduce_job_io.h"
 #include "stderr_output.h"
 
 #include <ytlib/meta_state/config.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
+
+#include <ytlib/table_client/table_chunk_sequence_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/sync_reader.h>
+#include <ytlib/table_client/table_producer.h>
 
 #include <ytlib/meta_state/leader_channel.h>
 
@@ -28,19 +30,51 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = JobProxyLogger;
+
+////////////////////////////////////////////////////////////////////
+
 TUserJobIO::TUserJobIO(
-    TJobIOConfigPtr config, 
+    TJobIOConfigPtr ioConfig, 
     NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
-    : Config(config)
+    : IOConfig(ioConfig)
     , MasterChannel(CreateLeaderChannel(mastersConfig))
     , JobSpec(jobSpec)
 { }
 
+TUserJobIO::~TUserJobIO()
+{ }
+
 int TUserJobIO::GetInputCount() const
 {
-    // We don't support piped input right now.
+    // Currently we don't support multiple inputs.
     return 1;
+}
+
+TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer) const
+{
+    YCHECK(index >= 0 && index < GetInputCount());
+
+    auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
+
+    std::vector<NTableClient::NProto::TInputChunk> chunks(
+        JobSpec.input_specs(0).chunks().begin(),
+        JobSpec.input_specs(0).chunks().end());
+
+    LOG_DEBUG("Opening input %d with %d chunks", 
+        index, 
+        static_cast<int>(chunks.size()));
+
+    auto reader = New<TTableChunkSequenceReader>(
+        IOConfig->TableReader,
+        MasterChannel,
+        blockCache,
+        MoveRV(chunks));
+    auto syncReader = CreateSyncReader(reader);
+    syncReader->Open();
+
+    return new TTableProducer(syncReader, consumer);
 }
 
 int TUserJobIO::GetOutputCount() const
@@ -48,18 +82,21 @@ int TUserJobIO::GetOutputCount() const
     return JobSpec.output_specs_size();
 }
 
-NTableClient::ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
+ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
 {
-    YASSERT(index < GetOutputCount());
+    YCHECK(index >= 0 && index < GetOutputCount());
+
+    LOG_DEBUG("Opening output %d", index);
+
     Stroka channelsString = JobSpec.output_specs(index).channels();
-    YASSERT(!channelsString.empty());
-    const TYsonString& channels = TYsonString(channelsString);
+    YCHECK(!channelsString.empty());
+    auto channels = ChannelsFromYson(TYsonString(channelsString));
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
-        Config->TableWriter,
+        IOConfig->TableWriter,
         MasterChannel,
         TTransactionId::FromProto(JobSpec.output_transaction_id()),
         TChunkListId::FromProto(JobSpec.output_specs(index).chunk_list_id()),
-        ChannelsFromYson(channels));
+        channels);
 
     auto syncWriter = CreateSyncWriter(chunkSequenceWriter);
     syncWriter->Open();
@@ -80,9 +117,22 @@ double TUserJobIO::GetProgress() const
 TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput() const
 {
     return new TErrorOutput(
-        Config->ErrorFileWriter, 
+        IOConfig->ErrorFileWriter, 
         MasterChannel, 
         TTransactionId::FromProto(JobSpec.output_transaction_id()));
+}
+
+void TUserJobIO::SetStderrChunkId(const TChunkId& chunkId)
+{
+    YCHECK(chunkId != NullChunkId);
+    StderrChunkId = chunkId;
+}
+
+void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
+{
+    if (StderrChunkId != NullChunkId) {
+        *result->mutable_stderr_chunk_id() = StderrChunkId.ToProto();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -51,8 +51,6 @@ public:
     //! Current row count.
     i64 GetRowCount() const;
 
-    const TOwningKey& GetLastKey() const;
-
 private:
     TTableWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;

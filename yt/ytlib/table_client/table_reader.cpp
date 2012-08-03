@@ -101,12 +101,17 @@ bool TTableReader::IsValid() const
     return Reader->IsValid();
 }
 
-const TRow& TTableReader::GetRow()
+const TRow& TTableReader::GetRow() const
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
     return Reader->GetRow();
+}
+
+const TNonOwningKey& TTableReader::GetKey() const 
+{
+    YUNREACHABLE();
 }
 
 /*

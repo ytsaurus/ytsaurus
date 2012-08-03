@@ -1,9 +1,11 @@
 ﻿#pragma once
 
 #include "public.h"
-#include <ytlib/ytree/public.h>
-#include <ytlib/misc/ref_counted.h>
+#include "key.h"
+
 #include <ytlib/misc/sync.h>
+
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -13,13 +15,24 @@ namespace NTableClient {
 struct ISyncReader 
     : public virtual TRefCounted
 {
+    //! Called to initialize the reader.
     virtual void Open() = 0;
 
-    virtual void NextRow() = 0;
+    //! Returns True if end-of-stream is not reached yet and thus
+    //! calling #GetRow returns a valid current row.
     virtual bool IsValid() const = 0;
 
-    virtual const TRow& GetRow() = 0;
-    //virtual const NYTree::TYsonString& GetRowAttributes() const = 0;
+    //! Returns the current row.
+    virtual const TRow& GetRow() const = 0;
+
+    //! Returns the key of the current row.
+    //! Not all implementations support this call.
+    virtual const TNonOwningKey& GetKey() const = 0;
+
+    //! Must be called after the row returned from #GetRow has been examines
+    //! and another one is needed.
+    virtual void NextRow() = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,26 +46,31 @@ public:
         : AsyncReader(asyncReader)
     { }
 
-    void Open()
+    virtual void Open() override
     {
         Sync(~AsyncReader, &TAsyncReader::AsyncOpen);
     }
 
-    void NextRow()
+    virtual void NextRow() override
     {
         if (!AsyncReader->FetchNextItem()) {
             Sync(~AsyncReader, &TAsyncReader::GetReadyEvent);
         }
     }
 
-    bool IsValid() const
+    virtual bool IsValid() const override
     {
         return AsyncReader->IsValid();
     }
 
-    const TRow& GetRow()
+    virtual const TRow& GetRow() const override
     {
         return AsyncReader->GetRow();
+    }
+
+    virtual const TNonOwningKey& GetKey() const override
+    {
+        return AsyncReader->GetKey();
     }
 
     /*
@@ -63,6 +81,7 @@ public:
 
 private:
     TIntrusivePtr<TAsyncReader> AsyncReader;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

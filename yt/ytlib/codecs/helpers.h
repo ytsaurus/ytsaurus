@@ -36,11 +36,11 @@ class VectorRefsSource
 public:
     explicit VectorRefsSource(const std::vector<TSharedRef>& blocks);
 
-    virtual size_t Available() const OVERRIDE;
+    virtual size_t Available() const override;
 
-    virtual const char* Peek(size_t* len) OVERRIDE;
+    virtual const char* Peek(size_t* len) override;
 
-    virtual void Skip(size_t n) OVERRIDE;
+    virtual void Skip(size_t n) override;
 
 private:
     void SkipCompletedBlocks();
@@ -59,7 +59,7 @@ class DynamicByteArraySink
 public:
     explicit DynamicByteArraySink(std::vector<char>* output);
 
-    virtual void Append(const char* data, size_t n) OVERRIDE;
+    virtual void Append(const char* data, size_t n) override;
 
 private:
     std::vector<char>* Output_;

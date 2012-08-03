@@ -16,8 +16,6 @@
 
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
-#include <ytlib/formats/format.h>
-
 #include <cmath>
 
 namespace NYT {
@@ -28,7 +26,7 @@ using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NTableServer;
-using namespace NFormats;
+using namespace NJobProxy;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NChunkHolder::NProto;
@@ -83,6 +81,8 @@ protected:
      */
     int PartitionCount;
 
+    TJobIOConfigPtr JobIOConfig;
+
     // Merge task.
 
     class TMergeTask
@@ -99,10 +99,9 @@ protected:
             , PartitionIndex(partitionIndex)
         {
             ChunkPool = CreateAtomicChunkPool();
-            MinRequestedResources = Controller->GetMinRequestedResources();
         }
 
-        virtual Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const override
         {
             return
                 PartitionIndex < 0
@@ -110,25 +109,24 @@ protected:
                 : Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
         }
 
-        virtual int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const override
         {
             return ChunkPool->IsPending() ? 1 : 0;
         }
 
-        virtual TDuration GetLocalityTimeout() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const override
         {
             return Controller->Spec->LocalityTimeout;
         }
         
-        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const override
         {
-            return MinRequestedResources;
+            return Controller->GetMinRequestedResources();
         }
 
 
     private:
         TMergeControllerBase* Controller;
-        NProto::TNodeResources MinRequestedResources;
 
         //! The position in |MergeTasks|. 
         int TaskIndex;
@@ -138,26 +136,26 @@ protected:
         int PartitionIndex;
 
 
-        virtual int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const override
         {
             return 1;
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const override
         {
             return Null;
         }
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) OVERRIDE
+            NProto::TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddParallelInputSpec(jobSpec, jip);
             AddTabularOutputSpec(jobSpec, jip, 0);
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) override
         {
             TTask::OnJobStarted(jip);
 
@@ -165,7 +163,7 @@ protected:
             Controller->SizeCounter.Start(jip->PoolResult->TotalDataSize);
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) override
         {
             TTask::OnJobCompleted(jip);
 
@@ -290,7 +288,7 @@ protected:
 
     // Init/finish.
 
-    virtual void DoInitialize() OVERRIDE
+    virtual void DoInitialize() override
     {
         TOperationControllerBase::DoInitialize();
 
@@ -303,7 +301,7 @@ protected:
 
     // Custom bits of preparation pipeline.
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
     {
         return pipeline->Add(BIND(&TMergeControllerBase::ProcessInputs, MakeStrong(this)));
     }
@@ -343,6 +341,7 @@ protected:
             // Init counters.
             TotalJobCount = static_cast<int>(MergeTasks.size());
 
+            InitJobIOConfig();
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
@@ -377,7 +376,7 @@ protected:
 
     // Progress reporting.
 
-    virtual void LogProgress() OVERRIDE
+    virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
             "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}",
@@ -415,7 +414,7 @@ protected:
         auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * miscExt.compressed_data_size() >= Config->MergeJobIO->TableWriter->DesiredChunkSize) {
+        if (0.9 * miscExt.compressed_data_size() >= JobIOConfig->TableWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -428,15 +427,11 @@ protected:
         return combineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
 
-    //! Initializes #JobSpecTemplate.
-    virtual void InitJobSpecTemplate()
-    {
-        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+    //! Initializes #JobIOConfig.
+    virtual void InitJobIOConfig() = 0;
 
-        // ToDo(psushin): set larger PrefetchWindow for unordered merge.
-        auto ioConfig = BuildJobIOConfig(Config->MergeJobIO, Spec->JobIO);
-        JobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
-    }
+    //! Initializes #JobSpecTemplate.
+    virtual void InitJobSpecTemplate() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -458,24 +453,24 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
         return Spec->CombineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
 
-    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
 
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) override
     {
         UNUSED(tableIndex);
 
@@ -493,15 +488,24 @@ private:
         EndTaskIfLarge();
     }
 
-    virtual void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobIOConfig() override
     {
-        JobSpecTemplate.set_type(EJobType::UnorderedMerge);
-        TMergeControllerBase::InitJobSpecTemplate();
+        JobIOConfig = BuildJobIOConfig(Config->UnorderedMergeJobIO, Spec->JobIO);
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+    virtual void InitJobSpecTemplate() override
     {
-        return GetMergeJobResources(Config->MergeJobIO, Spec);
+        JobSpecTemplate.set_type(EJobType::UnorderedMerge);
+
+        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+        // ToDo(psushin): set larger PrefetchWindow for unordered merge.
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+    }
+
+    virtual NProto::TNodeResources GetMinRequestedResources() const override
+    {
+        return GetMergeJobResources(JobIOConfig, Spec);
     }
 };
 
@@ -521,7 +525,7 @@ public:
     { }
 
 private:
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) override
     {
         UNUSED(tableIndex);
 
@@ -558,32 +562,40 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
 
-    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
-    virtual void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobIOConfig() override
     {
-        JobSpecTemplate.set_type(EJobType::OrderedMerge);
-        TMergeControllerBase::InitJobSpecTemplate();
+        JobIOConfig = BuildJobIOConfig(Config->OrderedMergeJobIO, Spec->JobIO);
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+    virtual void InitJobSpecTemplate() override
     {
-        return GetMergeJobResources(Config->MergeJobIO, Spec);
+        JobSpecTemplate.set_type(EJobType::OrderedMerge);
+
+        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+    }
+
+    virtual NProto::TNodeResources GetMinRequestedResources() const override
+    {
+        return GetMergeJobResources(JobIOConfig, Spec);
     }
 };
 
@@ -606,26 +618,26 @@ public:
 private:
     TEraseOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->TablePath);
         return result;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->TablePath);
         return result;
     }
 
-    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
-    virtual void DoInitialize() OVERRIDE
+    virtual void DoInitialize() override
     {
         TOperationControllerBase::DoInitialize();
 
@@ -635,7 +647,7 @@ private:
         ScheduleClearOutputTables();
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
     {
         UNUSED(batchRsp);
 
@@ -646,9 +658,16 @@ private:
         }
     }
 
-    virtual void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobIOConfig() override
+    {
+        JobIOConfig = BuildJobIOConfig(Config->OrderedMergeJobIO, Spec->JobIO);
+    }
+
+    virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
+
+        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TMergeJobSpecExt::merge_job_spec_ext);
 
@@ -659,12 +678,12 @@ private:
             ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns);
         }
 
-        TMergeControllerBase::InitJobSpecTemplate();
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+    virtual NProto::TNodeResources GetMinRequestedResources() const override
     {
-        return GetEraseJobResources(Config->MergeJobIO, Spec);
+        return GetEraseResources(JobIOConfig, Spec);
     }
 };
 
@@ -700,7 +719,7 @@ protected:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) OVERRIDE
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) override
     {
         auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         YCHECK(miscExt.sorted());
@@ -725,7 +744,7 @@ protected:
         }
     }
 
-    virtual void EndInputChunks() OVERRIDE
+    virtual void EndInputChunks() override
     {
         // Sort earlier collected endpoints to figure out overlapping chunks.
         // Sort endpoints by keys, in case of a tie left endpoints go first.
@@ -833,15 +852,17 @@ protected:
         EndTaskIfLarge();
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
     {
         UNUSED(batchRsp);
 
         auto specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %s", specKeyColumns ? ~ConvertToYsonString(specKeyColumns.Get(), EYsonFormat::Text).Data() : "<Null>");
+        LOG_INFO("Spec key columns are %s",
+            specKeyColumns ? ~ConvertToYsonString(specKeyColumns.Get(), EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
-        LOG_INFO("Adjusted key columns are %s", ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
+        LOG_INFO("Adjusted key columns are %s",
+            ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
     }
 };
 
@@ -863,53 +884,60 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    virtual void DoInitialize() OVERRIDE
+    virtual void DoInitialize() override
     {
         ScheduleClearOutputTables();
     }
 
-    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
 
-    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
-    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
+    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
     {
         return Spec->KeyColumns;
     }
 
-    virtual void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobIOConfig() override
+    {
+        JobIOConfig = BuildJobIOConfig(Config->SortedMergeJobIO, Spec->JobIO);
+    }
+
+    virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
+
+        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TMergeJobSpecExt::merge_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
 
-        TMergeControllerBase::InitJobSpecTemplate();
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
     {
         TSortedMergeControllerBase::OnCustomInputsRecieved(batchRsp);
 
         ScheduleSetOutputTablesSorted(KeyColumns);
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+    virtual NProto::TNodeResources GetMinRequestedResources() const override
     {
-        return GetMergeJobResources(Config->MergeJobIO, Spec);
+        return GetMergeJobResources(JobIOConfig, Spec);
     }
 };
 
@@ -931,35 +959,42 @@ public:
 private:
     TReduceOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetInputTablePaths() override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
+    virtual std::vector<TYPath> GetOutputTablePaths() override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths() OVERRIDE
+    virtual std::vector<TYPath> GetFilePaths() override
     {
         return Spec->Reducer->FilePaths;
     }
 
-    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) OVERRIDE
+    virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
         UNUSED(inputChunk);
         return false;
     }
 
-    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() OVERRIDE
+    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
     {
         return Spec->KeyColumns;
     }
 
-    virtual void InitJobSpecTemplate() OVERRIDE
+    virtual void InitJobIOConfig() override
     {
-        JobSpecTemplate.set_type(EJobType::Reduce);
+        JobIOConfig = BuildJobIOConfig(Config->SortedReduceJobIO, Spec->JobIO);
+    }
+
+    virtual void InitJobSpecTemplate() override
+    {
+        JobSpecTemplate.set_type(EJobType::SortedReduce);
+
+        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
@@ -969,14 +1004,15 @@ private:
             Spec->Reducer,
             Files);
 
-        TMergeControllerBase::InitJobSpecTemplate();
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+    virtual NProto::TNodeResources GetMinRequestedResources() const override
     {
-        return GetReduceJobResources(Config->MergeJobIO, Spec);
+        return NScheduler::GetSortedReduceResources(
+            JobIOConfig,
+            Spec);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////

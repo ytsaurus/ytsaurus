@@ -21,7 +21,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class  TTableChunkWriter
+class TTableChunkWriter
     : public TChunkWriterBase
 {
 public:
@@ -35,10 +35,10 @@ public:
 
     TAsyncError AsyncOpen();
 
-    // Used by client facade (e.g. TableConsumer).
+    // Checks column names for uniqueness.
     bool TryWriteRow(const TRow& row);
 
-    // Used internally by jobs that generate sorted output.
+    // Used internally. All column names are guaranteed to be unique.
     bool TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
     bool TryWriteRowUnsafe(const TRow& row);
 
@@ -46,6 +46,7 @@ public:
 
     void SetLastKey(const TOwningKey& key);
     const TOwningKey& GetLastKey() const;
+
     i64 GetRowCount() const;
 
     i64 GetCurrentSize() const;
@@ -55,14 +56,15 @@ public:
     i64 GetMetaSize() const;
 
 private:
-    struct TChannelColumn {
+    struct TChannelColumn
+    {
         int ColumnIndex;
         TChannelWriterPtr Writer;
 
         TChannelColumn(const TChannelWriterPtr& channelWriter, int columnIndex) 
             : ColumnIndex(columnIndex)
             , Writer(channelWriter)
-        {}
+        { } 
     };
 
     struct TColumnInfo {
@@ -77,8 +79,6 @@ private:
     };
 
     std::vector<TChannel> Channels;
-    //! If not null chunk is expected to be sorted.
-    TNullable<TKeyColumns> KeyColumns;
 
     bool IsOpen;
 

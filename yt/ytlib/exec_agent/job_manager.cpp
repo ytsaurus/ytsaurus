@@ -71,7 +71,7 @@ TJobPtr TJobManager::GetJob(const TJobId& jobId)
     return job;
 }
 
-std::vector<TJobPtr> TJobManager::GetAllJobs()
+std::vector<TJobPtr> TJobManager::GetJobs()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

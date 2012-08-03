@@ -3,7 +3,10 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/job_proxy/public.h>
+
+#include <ytlib/job_proxy/config.h>
+
+#include <ytlib/table_client/config.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -43,9 +46,14 @@ struct TSchedulerConfig
     int MaxPartitionCount;
 
     NJobProxy::TJobIOConfigPtr MapJobIO;
-    NJobProxy::TJobIOConfigPtr MergeJobIO;
+    NJobProxy::TJobIOConfigPtr SortedMergeJobIO;
+    NJobProxy::TJobIOConfigPtr OrderedMergeJobIO;
+    NJobProxy::TJobIOConfigPtr UnorderedMergeJobIO;
+    NJobProxy::TJobIOConfigPtr SortedReduceJobIO;
+    NJobProxy::TJobIOConfigPtr PartitionReduceJobIO;
     NJobProxy::TJobIOConfigPtr PartitionJobIO;
-    NJobProxy::TJobIOConfigPtr SortJobIO;
+    NJobProxy::TJobIOConfigPtr SimpleSortJobIO;
+    NJobProxy::TJobIOConfigPtr PartitionSortJobIO;
 
     TSchedulerConfig()
     {
@@ -78,12 +86,25 @@ struct TSchedulerConfig
             .GreaterThan(0);
         Register("map_job_io", MapJobIO)
             .DefaultNew();
-        Register("merge_job_io", MergeJobIO)
+        Register("sorted_merge_job_io", SortedMergeJobIO)
+            .DefaultNew();
+        Register("ordered_merge_job_io", OrderedMergeJobIO)
+            .DefaultNew();
+        Register("unordered_merge_job_io", UnorderedMergeJobIO)
+            .DefaultNew();
+        Register("sorted_reduce_job_io", SortedReduceJobIO)
+            .DefaultNew();
+        Register("partition_reduce_job_io", PartitionReduceJobIO)
             .DefaultNew();
         Register("partition_job_io", PartitionJobIO)
             .DefaultNew();
-        Register("sort_job_io", SortJobIO)
+        Register("simple_sort_job_io", SimpleSortJobIO)
             .DefaultNew();
+        Register("partition_sort_job_io", PartitionSortJobIO)
+            .DefaultNew();
+        UnorderedMergeJobIO->TableReader->PrefetchWindow = 10;
+        PartitionSortJobIO->TableReader->PrefetchWindow = 10;
+        PartitionReduceJobIO->TableReader->PrefetchWindow = 10;
     }
 };
 
@@ -261,22 +282,17 @@ struct TReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSortOperationSpec
+struct TSortOperationSpecBase
     : public TOperationSpecBase
 {
     std::vector<NYTree::TYPath> InputTablePaths;
-    
-    NYTree::TYPath OutputTablePath;
-    
+
     std::vector<Stroka> KeyColumns;
-    
+
     TNullable<int> PartitionCount;
-    
+
     TNullable<int> PartitionJobCount;
     i64 PartitionJobSliceDataSize;
-    
-    //! Only used if no partitioning is done.
-    TNullable<int> SortJobCount;
 
     //! Only used if no partitioning is done.
     i64 SortJobSliceDataSize;
@@ -287,7 +303,7 @@ struct TSortOperationSpec
     //! Maximum amount of (uncompressed) data to be given to a single sort job.
     //! By default, the number of partitions is computed as follows:
     //! \code
-    //! partitionCount = ceil(totalWeight / MaxWeightPerSortJob * PartitionCountBoostFactor)
+    //! partitionCount = ceil(totalDataSize / MaxDataSizePerSortJob * PartitionCountBoostFactor)
     //! \endcode
     //! The user, however, may override this by specifying #PartitionCount explicitly.
     //! Here #PartitionCountBoostFactor accounts for uneven partition sizes and
@@ -297,14 +313,11 @@ struct TSortOperationSpec
     //! See comments for #MaxWeightPerSortJob.
     double PartitionCountBoostFactor;
 
-    // Desired number of samples per partition.
-    int SamplesPerPartition;
-
     //! Maximum amount of (uncompressed) data to be given to a single unordered merge job
     //! that takes care of a megalomaniac partition.
     i64 MaxDataSizePerUnorderedMergeJob;
 
-    double SortStartThreshold;
+    double ShuffleStartThreshold;
     double MergeStartThreshold;
 
     TDuration PartitionLocalityTimeout;
@@ -313,27 +326,68 @@ struct TSortOperationSpec
 
     int ShuffleNetworkLimit;
 
+    TSortOperationSpecBase()
+    {
+        Register("input_table_paths", InputTablePaths);
+        Register("key_columns", KeyColumns)
+            .NonEmpty();
+        Register("partition_count", PartitionCount)
+            .Default()
+            .GreaterThan(0);
+        Register("partition_count_boost_factor", PartitionCountBoostFactor)
+            .Default(1.5)
+            .GreaterThanOrEqual(1.0);
+        Register("shuffle_start_threshold", ShuffleStartThreshold)
+            .Default(0.75)
+            .InRange(0.0, 1.0);
+        Register("merge_start_threshold", MergeStartThreshold)
+            .Default(0.9)
+            .InRange(0.0, 1.0);
+        Register("shuffle_network_limit", ShuffleNetworkLimit)
+            .Default(20);
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSortOperationSpec
+    : public TSortOperationSpecBase
+{
+    NYTree::TYPath OutputTablePath;
+    
+    // Desired number of samples per partition.
+    int SamplesPerPartition;
+
+    //! Only used if no partitioning is done.
+    TNullable<int> SortJobCount;
+
     NYTree::INodePtr PartitionJobIO;
     NYTree::INodePtr SortJobIO;
     NYTree::INodePtr MergeJobIO;
 
     TSortOperationSpec()
     {
-        Register("input_table_paths", InputTablePaths);
         Register("output_table_path", OutputTablePath);
-        Register("key_columns", KeyColumns)
-            .NonEmpty();
-        Register("partition_count", PartitionCount)
+        Register("sort_job_count", SortJobCount)
             .Default()
             .GreaterThan(0);
+        Register("samples_per_partition", SamplesPerPartition)
+            .Default(10)
+            .GreaterThan(1);
+        Register("partition_job_io", PartitionJobIO)
+            .Default(NULL);
+        Register("sort_job_io", SortJobIO)
+            .Default(NULL);
+        Register("merge_job_io", MergeJobIO)
+            .Default(NULL);
+
+        // Provide custom names for shared settings.
         Register("partition_job_count", PartitionJobCount)
             .Default()
             .GreaterThan(0);
         Register("partition_job_slice_data_size", PartitionJobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("sort_job_count", SortJobCount)
-            .Default()
             .GreaterThan(0);
         Register("sort_job_slice_data_size", SortJobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
@@ -344,35 +398,66 @@ struct TSortOperationSpec
         Register("max_data_size_per_sort_job", MaxDataSizePerSortJob)
             .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
-        Register("partition_count_boost_factor", PartitionCountBoostFactor)
-            .Default(1.5)
-            .GreaterThanOrEqual(1.0);
-        Register("samples_per_partition", SamplesPerPartition)
-            .Default(10)
-            .GreaterThan(1);
         Register("max_data_size_per_unordered_merge_job", MaxDataSizePerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
-        Register("sort_start_threshold", SortStartThreshold)
-            .Default(0.75)
-            .InRange(0.0, 1.0);
-        Register("merge_start_threshold", MergeStartThreshold)
-            .Default(0.9)
-            .InRange(0.0, 1.0);
         Register("partition_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
         Register("sort_locality_timeout", SortLocalityTimeout)
             .Default(TDuration::Seconds(10));
         Register("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Seconds(10));
-        Register("shuffle_network_limit", ShuffleNetworkLimit)
-            .Default(20);
-        Register("partition_job_io", PartitionJobIO)
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMapReduceOperationSpec
+    : public TSortOperationSpecBase
+{
+    std::vector<NYTree::TYPath> OutputTablePaths;
+
+    TUserJobSpecPtr Mapper;
+    TUserJobSpecPtr Reducer;
+
+    NYTree::INodePtr MapJobIO;
+    NYTree::INodePtr SortJobIO;
+    NYTree::INodePtr ReduceJobIO;
+
+    TMapReduceOperationSpec()
+    {
+        Register("output_table_paths", OutputTablePaths);
+        Register("mapper", Mapper)
+            .Default();
+        Register("reducer", Reducer);
+        Register("map_job_io", MapJobIO)
             .Default(NULL);
         Register("sort_job_io", SortJobIO)
             .Default(NULL);
-        Register("merge_job_io", MergeJobIO)
+        Register("reduce_job_io", ReduceJobIO)
             .Default(NULL);
+
+        // Provide custom names for shared settings.
+        Register("map_job_count", PartitionJobCount)
+            .Default()
+            .GreaterThan(0);
+        Register("map_job_slice_data_size", PartitionJobSliceDataSize)
+            .Default((i64) 256 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("max_data_size_per_map_job", MaxDataSizePerPartitionJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("max_data_size_per_reduce_job", MaxDataSizePerSortJob)
+            .Default((i64) 4 * 1024 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("map_locality_timeout", PartitionLocalityTimeout)
+            .Default(TDuration::Seconds(5));
+
+        // The following settings are inherited from base but make no sense for map-reduce:
+        //   SortJobSliceDataSize
+        //   MaxDataSizePerUnorderedMergeJob
+        //   SortLocalityTimeout
+        //   MergeLocalityTimeout
     }
 };
 

@@ -83,9 +83,6 @@ typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 class TTableProducer;
 class TTableConsumer;
 
-class TMergingReader;
-typedef TIntrusivePtr<TMergingReader> TMergingReaderPtr;
-
 struct TTableConsumerConfig;
 typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
 
@@ -103,6 +100,8 @@ typedef TKey<TFakeStringBufStore> TNonOwningKey;
 
 struct TRefCountedInputChunk;
 typedef TIntrusivePtr<TRefCountedInputChunk> TRefCountedInputChunkPtr;
+
+struct IPartitioner;
 
 ////////////////////////////////////////////////////////////////////////////////
 

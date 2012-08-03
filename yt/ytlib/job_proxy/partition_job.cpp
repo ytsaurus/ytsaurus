@@ -5,12 +5,18 @@
 #include "partition_job.h"
 
 #include <ytlib/misc/sync.h>
+
 #include <ytlib/object_server/id.h>
+
 #include <ytlib/meta_state/leader_channel.h>
+
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
+
 #include <ytlib/table_client/partition_chunk_sequence_writer.h>
 #include <ytlib/table_client/table_chunk_sequence_reader.h>
+#include <ytlib/table_client/partitioner.h>
+
 #include <ytlib/ytree/lexer.h>
 
 namespace NYT {
@@ -58,21 +64,26 @@ public:
             blockCache, 
             MoveRV(chunks));
 
-        std::vector<NTableClient::NProto::TKey> partitionKeys(
-            jobSpecExt.partition_keys().begin(), 
-            jobSpecExt.partition_keys().end());
+        if (jobSpecExt.partition_keys_size() > 0) {
+            YCHECK(jobSpecExt.partition_keys_size() + 1 == jobSpecExt.partition_count());
+            FOREACH (const auto& key, jobSpecExt.partition_keys()) {
+                PartitionKeys.push_back(TOwningKey::FromProto(key));
+            }
+            Partitioner = CreateOrderedPartitioner(&PartitionKeys);
+        } else {
+            Partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
+        }
 
         Writer = New<TPartitionChunkSequenceWriter>(
             config->JobIO->TableWriter,
             masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-            ChannelsFromYson(TYsonString(jobSpec.output_specs(0).channels())),
             FromProto<Stroka>(jobSpecExt.key_columns()),
-            MoveRV(partitionKeys));
+            ~Partitioner);
     }
 
-    virtual NScheduler::NProto::TJobResult Run() OVERRIDE
+    virtual NScheduler::NProto::TJobResult Run() override
     {
         PROFILE_TIMING ("/partition_time") {
             LOG_INFO("Initializing");
@@ -111,6 +122,8 @@ public:
 private:
     TTableChunkSequenceReaderPtr Reader;
     TPartitionChunkSequenceWriterPtr Writer;
+    std::vector<TOwningKey> PartitionKeys;
+    TAutoPtr<IPartitioner> Partitioner;
 
 };
 

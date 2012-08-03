@@ -109,6 +109,11 @@ Stroka TOperationTracker::FormatProgress(const TYsonString& progress)
             AppendPhaseProgress(&result, "sort", progressAttributes->GetYson("partitions"));
             break;
 
+        case EOperationType::MapReduce:
+            AppendPhaseProgress(&result, "map", progressAttributes->GetYson("map_jobs"));
+            AppendPhaseProgress(&result, "reduce", progressAttributes->GetYson("partitions"));
+            break;
+
         default:
             YUNREACHABLE();
     }

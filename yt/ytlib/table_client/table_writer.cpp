@@ -22,7 +22,6 @@ using namespace NTransactionClient;
 using namespace NTableServer;
 using namespace NChunkServer;
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableWriter::TTableWriter(
@@ -231,11 +230,6 @@ const TNullable<TKeyColumns>& TTableWriter::GetKeyColumns() const
 i64 TTableWriter::GetRowCount() const
 {
     return Writer->GetRowCount();
-}
-
-const TOwningKey& TTableWriter::GetLastKey() const
-{
-    return Writer->GetLastKey();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

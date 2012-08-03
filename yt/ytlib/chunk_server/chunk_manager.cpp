@@ -94,7 +94,7 @@ public:
 private:
     TImpl* Owner;
 
-    virtual void DoDestroy(TChunk* chunk) OVERRIDE;
+    virtual void DoDestroy(TChunk* chunk) override;
 
 };
 
@@ -123,7 +123,7 @@ public:
 private:
     TImpl* Owner;
 
-    virtual void DoDestroy(TChunkList* chunkList) OVERRIDE;
+    virtual void DoDestroy(TChunkList* chunkList) override;
 
 };
 

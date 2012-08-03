@@ -12,6 +12,11 @@ IOperationControllerPtr CreateSortController(
     IOperationHost* host,
     TOperation* operation);
 
+IOperationControllerPtr CreateMapReduceController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

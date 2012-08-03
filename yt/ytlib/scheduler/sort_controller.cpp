@@ -41,18 +41,18 @@ static NProfiling::TProfiler Profiler("/operations/sort");
 
 ////////////////////////////////////////////////////////////////////
 
-class TSortController
+class TSortControllerBase
     : public TOperationControllerBase
 {
 public:
-    TSortController(
+    TSortControllerBase(
         TSchedulerConfigPtr config,
-        TSortOperationSpecPtr spec,
+        TSortOperationSpecBasePtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
-        , Config(config)
         , Spec(spec)
+        , Config(config)
         , TotalDataSize(0)
         , TotalRowCount(0)
         , TotalValueCount(0)
@@ -60,16 +60,13 @@ public:
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
         , PartitionTask(New<TPartitionTask>(this))
-        , SamplesFetcher(New<TSamplesFetcher>(
-            Config,
-            Spec,
-            Host->GetBackgroundInvoker(),
-            Operation->GetOperationId()))
     { }
 
 private:
+    TSortOperationSpecBasePtr Spec;
+
+protected:
     TSchedulerConfigPtr Config;
-    TSortOperationSpecPtr Spec;
 
     // Totals.
     i64 TotalDataSize;
@@ -94,6 +91,7 @@ private:
     // Unordered merge job counters.
     TProgressCounter UnorderedMergeJobCounter;
 
+
     // Forward declarations.
     class TPartitionTask;
     typedef TIntrusivePtr<TPartitionTask> TPartitionTaskPtr;
@@ -112,7 +110,7 @@ private:
     struct TPartition
         : public TIntrinsicRefCounted
     {
-        TPartition(TSortController* controller, int index)
+        TPartition(TSortControllerBase* controller, int index)
             : Index(index)
             , Completed(false)
             , SortedMergeNeeded(false)
@@ -150,13 +148,6 @@ private:
 
     std::vector<TPartitionPtr> Partitions;
 
-    // Samples.
-    TSamplesFetcherPtr SamplesFetcher;
-    std::vector<const NTableClient::NProto::TKey*> SortedSamples;
-
-    //! |PartitionCount - 1| separating keys.
-    std::vector<NTableClient::NProto::TKey> PartitionKeys;
-    
     //! Templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
     TJobSpec IntermediateSortJobSpecTemplate;
@@ -164,31 +155,37 @@ private:
     TJobSpec SortedMergeJobSpecTemplate;
     TJobSpec UnorderedMergeJobSpecTemplate;
 
-    TPartitionTaskPtr PartitionTask;
+    TJobIOConfigPtr PartitionJobIOConfig;
+    TJobIOConfigPtr IntermediateSortJobIOConfig;
+    TJobIOConfigPtr FinalSortJobIOConfig;
+    TJobIOConfigPtr SortedMergeJobIOConfig;
+    TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
+    TPartitionTaskPtr PartitionTask;
     
+    //! Implements partition phase for sort operations and map phase for map-reduce operations.
     class TPartitionTask
         : public TTask
     {
     public:
-        explicit TPartitionTask(TSortController* controller)
+        explicit TPartitionTask(TSortControllerBase* controller)
             : TTask(controller)
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool();
         }
 
-        virtual Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const override
         {
             return "Partition";
         }
 
-        virtual int GetPriority() const OVERRIDE
+        virtual int GetPriority() const override
         {
             return 0;
         }
 
-        virtual int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const override
         {
             return
                 IsCompleted() 
@@ -196,36 +193,31 @@ private:
                 : Controller->PartitionJobCounter.GetPending();
         }
 
-        virtual TDuration GetLocalityTimeout() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const override
         {
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
         virtual NProto::TNodeResources GetMinRequestedResources() const
         {
-            return GetPartitionJobResources(
-                Controller->Config->PartitionJobIO,
-                std::min(Controller->Spec->MaxDataSizePerPartitionJob, Controller->TotalDataSize),
-                Controller->Partitions.size());
+            return Controller->GetPartitionResources(
+                std::min(Controller->Spec->MaxDataSizePerPartitionJob, Controller->TotalDataSize));
         }
 
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const
         {
-            return GetPartitionJobResources(
-                Controller->Config->PartitionJobIO,
-                jip->PoolResult->TotalDataSize,
-                Controller->Partitions.size());
+            return Controller->GetPartitionResources(jip->PoolResult->TotalDataSize);
         }
 
     private:
-        TSortController* Controller;
+        TSortControllerBase* Controller;
 
-        virtual int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const override
         {
             return 1;
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const override
         {
             return GetJobDataSizeThresholdGeneric(
                 GetPendingJobCount(),
@@ -234,21 +226,21 @@ private:
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) OVERRIDE
+            NProto::TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
             AddTabularOutputSpec(jobSpec, jip, 0);
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) override
         {
             Controller->PartitionJobCounter.Start(1);
 
             TTask::OnJobStarted(jip);
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) override
         {
             TTask::OnJobCompleted(jip);
 
@@ -293,14 +285,14 @@ private:
             Controller->CheckSortStartThreshold();
         }
 
-        virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobFailed(TJobInProgressPtr jip) override
         {
             Controller->PartitionJobCounter.Failed(1);
 
             TTask::OnJobFailed(jip);
         }
 
-        virtual void OnTaskCompleted() OVERRIDE
+        virtual void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
 
@@ -331,13 +323,13 @@ private:
         : public TTask
     {
     public:
-        TPartitionBoundTask(TSortController* controller, TPartition* partition)
+        TPartitionBoundTask(TSortControllerBase* controller, TPartition* partition)
             : TTask(controller)
             , Controller(controller)
             , Partition(partition)
         { }
 
-        virtual TDuration GetLocalityTimeout() const OVERRIDE
+        virtual TDuration GetLocalityTimeout() const override
         {
             // Locality timeouts are only used for simple sort.
             return
@@ -346,7 +338,7 @@ private:
                 : TDuration::Zero();
         }
 
-        virtual i64 GetLocality(const Stroka& address) const OVERRIDE
+        virtual i64 GetLocality(const Stroka& address) const override
         {
             if (Controller->Partitions.size() == 1) {
                 // Any positive number will do.
@@ -364,34 +356,36 @@ private:
         }
 
     protected:
-        TSortController* Controller;
+        TSortControllerBase* Controller;
         TPartition* Partition;
 
         virtual TDuration GetSimpleLocalityTimeout() const = 0;
 
     };
 
+    //! Implements sort phase (either simple or partition) for sort operations
+    //! and partition reduce phase for map-reduce operations.
     class TSortTask
         : public TPartitionBoundTask
     {
     public:
-        TSortTask(TSortController* controller, TPartition* partition)
+        TSortTask(TSortControllerBase* controller, TPartition* partition)
             : TPartitionBoundTask(controller, partition)
         {
             ChunkPool = CreateUnorderedChunkPool(false);
         }
 
-        virtual Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const override
         {
             return Sprintf("Sort(%d)", Partition->Index);
         }
 
-        virtual int GetPriority() const OVERRIDE
+        virtual int GetPriority() const override
         {
             return 1;
         }
 
-        virtual int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const override
         {
             // Check if enough partition jobs are completed.
             if (!Controller->SortStartThresholdReached) {
@@ -410,19 +404,19 @@ private:
                 : static_cast<int>(floor(fractionalJobCount));
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const override
         {
             return GetRequestedResourcesForDataSize(std::min(
                 Controller->Spec->MaxDataSizePerSortJob,
                 Controller->TotalDataSize));
         }
 
-        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const OVERRIDE
+        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const override
         {
             return GetRequestedResourcesForDataSize(jip->PoolResult->TotalDataSize);
         }
 
-        virtual void AddStripe(TChunkStripePtr stripe) OVERRIDE
+        virtual void AddStripe(TChunkStripePtr stripe) override
         {
             i64 oldTotal = ChunkPool->DataSizeCounter().GetTotal();
             TPartitionBoundTask::AddStripe(stripe);
@@ -443,39 +437,35 @@ private:
             i64 rowCount = Controller->GetRowCountEstimate(dataSize);
             i64 valueCount = Controller->GetValueCountEstimate(dataSize);
             if (Controller->Partitions.size() == 1) {
-                return GetSimpleSortJobResources(
-                    Controller->Config->SortJobIO,
-                    Controller->Spec,
+                return Controller->GetSimpleSortResources(
                     dataSize,
                     rowCount,
                     valueCount);
             } else {
-                return GetPartitionSortJobResources(
-                    Controller->Config->SortJobIO,
-                    Controller->Spec,
+                return Controller->GetPartitionSortResources(
                     dataSize,
                     rowCount);
             }
         }
 
-        virtual TDuration GetSimpleLocalityTimeout() const OVERRIDE
+        virtual TDuration GetSimpleLocalityTimeout() const override
         {
             return Controller->Spec->SortLocalityTimeout;
         }
 
-        virtual int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const override
         {
             return 1;
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const override
         {
             return Controller->Spec->MaxDataSizePerSortJob;
         }
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) OVERRIDE
+            NProto::TJobSpec* jobSpec) override
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 jobSpec->CopyFrom(Controller->IntermediateSortJobSpecTemplate);
@@ -497,7 +487,7 @@ private:
             }
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) override
         {
             TPartitionBoundTask::OnJobStarted(jip);
 
@@ -512,7 +502,7 @@ private:
             Controller->AddTaskLocalityHint(this, address);
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) override
         {
             TPartitionBoundTask::OnJobCompleted(jip);
 
@@ -537,7 +527,7 @@ private:
             Controller->CheckMergeStartThreshold();
         }
 
-        virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobFailed(TJobInProgressPtr jip) override
         {
             Controller->SortJobCounter.Failed(1);
             Controller->SortDataSizeCounter.Failed(jip->PoolResult->TotalDataSize);
@@ -545,7 +535,7 @@ private:
             TPartitionBoundTask::OnJobFailed(jip);
         }
 
-        virtual void OnTaskCompleted() OVERRIDE
+        virtual void OnTaskCompleted() override
         {
             TPartitionBoundTask::OnTaskCompleted();
 
@@ -555,7 +545,7 @@ private:
             }
         }
 
-        virtual void AddInputLocalityHint(TChunkStripePtr stripe) OVERRIDE
+        virtual void AddInputLocalityHint(TChunkStripePtr stripe) override
         {
             UNUSED(stripe);
             // See #GetLocality.
@@ -567,39 +557,41 @@ private:
         : public TPartitionBoundTask
     {
     public:
-        TMergeTask(TSortController* controller, TPartition* partition)
+        TMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TPartitionBoundTask(controller, partition)
         { }
 
-        virtual int GetPriority() const OVERRIDE
+        virtual int GetPriority() const override
         {
             return 2;
         }
 
     protected:
-        virtual TDuration GetSimpleLocalityTimeout() const OVERRIDE
+        virtual TDuration GetSimpleLocalityTimeout() const override
         {
             return Controller->Spec->MergeLocalityTimeout;
         }
 
     };
 
+    //! Implements sorted merge phase for sort operations and
+    //! sorted reduce phase for map-reduce operations.
     class TSortedMergeTask
         : public TMergeTask
     {
     public:
-        TSortedMergeTask(TSortController* controller, TPartition* partition)
+        TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
         {
             ChunkPool = CreateAtomicChunkPool();
         }
 
-        virtual Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const override
         {
             return Sprintf("SortedMerge(%d)", Partition->Index);
         }
 
-        virtual int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const override
         {
             if (!Controller->MergeStartThresholdReached) {
                 return 0;
@@ -612,35 +604,32 @@ private:
                 ? 1 : 0;
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const override
         {
-            return GetSortedMergeDuringSortJobResources(
-                Controller->Config->MergeJobIO,
-                Controller->Spec,
-                ChunkPool->StripeCounter().GetTotal());
+            return Controller->GetSortedMergeResources(ChunkPool->StripeCounter().GetTotal());
         }
 
     private:
-        virtual int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const override
         {
             return 1;
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const override
         {
             return Null;
         }
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) OVERRIDE
+            NProto::TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
             AddParallelInputSpec(jobSpec, jip);
             AddTabularOutputSpec(jobSpec, jip, 0);
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) override
         {
             YCHECK(!Partition->Megalomaniac);
 
@@ -649,7 +638,7 @@ private:
             TMergeTask::OnJobStarted(jip);
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) override
         {
             TMergeTask::OnJobCompleted(jip);
 
@@ -661,7 +650,7 @@ private:
             Controller->OnPartitionCompeted(Partition);
         }
 
-        virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobFailed(TJobInProgressPtr jip) override
         {
             Controller->SortedMergeJobCounter.Failed(1);
 
@@ -669,25 +658,24 @@ private:
         }
     };
 
+    //! Implements unordered merge of megalomaniac partitions for sort operation.
+    //! Not used in map-reduce operations.
     class TUnorderedMergeTask
         : public TMergeTask
     {
     public:
-        TUnorderedMergeTask(TSortController* controller, TPartition* partition)
+        TUnorderedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
         {
             ChunkPool = CreateUnorderedChunkPool();
-            MinRequestedResources = GetUnorderedMergeDuringSortJobResources(
-                Controller->Config->MergeJobIO,
-                Controller->Spec);
         }
 
-        virtual Stroka GetId() const OVERRIDE
+        virtual Stroka GetId() const override
         {
             return Sprintf("UnorderedMerge(%d)", Partition->Index);
         }
 
-        virtual int GetPendingJobCount() const OVERRIDE
+        virtual int GetPendingJobCount() const override
         {
             if (!Controller->MergeStartThresholdReached) {
                 return 0;
@@ -702,27 +690,25 @@ private:
             return static_cast<int>(ceil((double) dataSize / dataSizePerJob));
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+        virtual NProto::TNodeResources GetMinRequestedResources() const override
         {
-            return MinRequestedResources;
+            return Controller->GetUnorderedMergeResources();
         }
 
     private:
-        NProto::TNodeResources MinRequestedResources;
-
-        virtual int GetChunkListCountPerJob() const OVERRIDE
+        virtual int GetChunkListCountPerJob() const override
         {
             return 1;
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const OVERRIDE
+        virtual TNullable<i64> GetJobDataSizeThreshold() const override
         {
             return Controller->Spec->MaxDataSizePerUnorderedMergeJob;
         }
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) OVERRIDE
+            NProto::TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
@@ -736,7 +722,7 @@ private:
             }
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobStarted(TJobInProgressPtr jip) override
         {
             YCHECK(Partition->Megalomaniac);
 
@@ -745,7 +731,7 @@ private:
             TMergeTask::OnJobStarted(jip);
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobCompleted(TJobInProgressPtr jip) override
         {
             TMergeTask::OnJobCompleted(jip);
 
@@ -758,7 +744,7 @@ private:
             }
         }
 
-        virtual void OnJobFailed(TJobInProgressPtr jip) OVERRIDE
+        virtual void OnJobFailed(TJobInProgressPtr jip) override
         {
             Controller->UnorderedMergeJobCounter.Failed(1);
 
@@ -769,81 +755,17 @@ private:
 
     // Init/finish.
 
-    virtual void DoInitialize() OVERRIDE
+    virtual void DoInitialize() override
     {
         ScheduleClearOutputTables();
     }
 
-    virtual void OnOperationCompleted() OVERRIDE
+    virtual void OnOperationCompleted() override
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
         TOperationControllerBase::OnOperationCompleted();
     }
 
-
-    // Custom bits of preparation pipeline.
-
-    virtual std::vector<TYPath> GetInputTablePaths() OVERRIDE
-    {
-        return Spec->InputTablePaths;
-    }
-
-    virtual std::vector<TYPath> GetOutputTablePaths() OVERRIDE
-    {
-        std::vector<TYPath> result;
-        result.push_back(Spec->OutputTablePath);
-        return result;
-    }
-
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) OVERRIDE
-    {
-        return pipeline
-            ->Add(BIND(&TSortController::RequestSamples, MakeStrong(this)))
-            ->Add(BIND(&TSortController::OnSamplesReceived, MakeStrong(this)));
-    }
-
-    TFuture< TValueOrError<void> > RequestSamples()
-    {
-        PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
-
-            int chunkCount = 0;
-            FOREACH (const auto& table, InputTables) {
-                FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
-                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                    TotalDataSize += miscExt.uncompressed_data_size();
-                    TotalRowCount += miscExt.row_count();
-                    TotalValueCount += miscExt.value_count();
-
-                    SamplesFetcher->AddChunk(chunk);
-                    ++chunkCount;
-                }
-            }
-
-            LOG_INFO("Totals collected (DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
-                TotalDataSize,
-                TotalRowCount,
-                TotalValueCount);
-
-            // Check for empty inputs.
-            if (chunkCount == 0) {
-                LOG_INFO("Empty input");
-                OnOperationCompleted();
-                return NewPromise< TValueOrError<void> >();
-            }
-
-            return SamplesFetcher->Run(GetPartitionCountEstimate() * Spec->SamplesPerPartition);
-        }
-    }
-
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) OVERRIDE
-    {
-        UNUSED(batchRsp);
-
-        // TODO(babenko): unless overwrite mode is ON
-        CheckOutputTablesEmpty();
-        ScheduleSetOutputTablesSorted(Spec->KeyColumns);
-    }
 
     void RegisterOutputChunkTree(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
     {
@@ -888,7 +810,7 @@ private:
         }
 
         return mergeNeeded;
-    }
+    }   
 
     bool IsUnorderedMergeNeeded(TPartitionPtr partition)
     {
@@ -903,7 +825,7 @@ private:
             return;
 
         const auto& partitionDataSizeCounter = PartitionTask->DataSizeCounter();
-        if (partitionDataSizeCounter.GetCompleted() < partitionDataSizeCounter.GetTotal() * Spec->SortStartThreshold)
+        if (partitionDataSizeCounter.GetCompleted() < partitionDataSizeCounter.GetTotal() * Spec->ShuffleStartThreshold)
             return;
 
         LOG_INFO("Sort start threshold reached");
@@ -973,6 +895,163 @@ private:
         }
     }
 
+
+    // Resource management.
+
+    virtual NProto::TNodeResources GetPartitionResources(
+        i64 dataSize) const = 0;
+
+    virtual NProto::TNodeResources GetSimpleSortResources(
+        i64 dataSize,
+        i64 rowCount,
+        i64 valueCount) const = 0;
+    
+    virtual NProto::TNodeResources GetPartitionSortResources(
+        i64 dataSize,
+        i64 rowCount) const = 0;
+
+    virtual NProto::TNodeResources GetSortedMergeResources(
+        int stripeCount) const = 0;
+
+    virtual NProto::TNodeResources GetUnorderedMergeResources() const = 0;
+
+    virtual NProto::TNodeResources GetMinRequestedResources() const override
+    {
+        if (PartitionTask) {
+            return PartitionTask->GetMinRequestedResources();
+        }
+        if (!Partitions.empty()) {
+            return Partitions[0]->SortTask->GetMinRequestedResources();
+        }
+        return InfiniteResources();
+    }
+
+
+    // Unsorted helpers.
+
+    i64 GetRowCountEstimate(i64 dataSize) const
+    {
+        return static_cast<i64>((double) TotalRowCount * dataSize / TotalDataSize);
+    }
+
+    i64 GetValueCountEstimate(i64 dataSize) const
+    {
+        return static_cast<i64>((double) TotalValueCount * dataSize / TotalDataSize);
+    }
+
+    int GetPartitionCountEstimate() const
+    {
+        YCHECK(TotalDataSize > 0);
+
+        int result = Spec->PartitionCount ? 
+            Spec->PartitionCount.Get() : 
+            static_cast<int>(ceil(
+                (double) TotalDataSize /
+                Spec->MaxDataSizePerSortJob *
+                Spec->PartitionCountBoostFactor));
+        return std::max(1, result);
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TSortController
+    : public TSortControllerBase
+{
+public:
+    TSortController(
+        TSchedulerConfigPtr config,
+        TSortOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TSortControllerBase(
+            config,
+            spec,
+            host,
+            operation)
+        , Spec(spec)
+        , SamplesFetcher(New<TSamplesFetcher>(
+            Config,
+            Spec,
+            Host->GetBackgroundInvoker(),
+            Operation->GetOperationId()))
+    { }
+
+private:
+    TSortOperationSpecPtr Spec;
+
+    // Samples.
+    TSamplesFetcherPtr SamplesFetcher;
+    std::vector<const NTableClient::NProto::TKey*> SortedSamples;
+
+    //! |PartitionCount - 1| separating keys.
+    std::vector<NTableClient::NProto::TKey> PartitionKeys;
+
+
+    // Custom bits of preparation pipeline.
+
+    virtual std::vector<TYPath> GetInputTablePaths() override
+    {
+        return Spec->InputTablePaths;
+    }
+
+    virtual std::vector<TYPath> GetOutputTablePaths() override
+    {
+        std::vector<TYPath> result;
+        result.push_back(Spec->OutputTablePath);
+        return result;
+    }
+
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
+    {
+        return pipeline
+            ->Add(BIND(&TSortController::RequestSamples, MakeStrong(this)))
+            ->Add(BIND(&TSortController::OnSamplesReceived, MakeStrong(this)));
+    }
+
+    TFuture< TValueOrError<void> > RequestSamples()
+    {
+        PROFILE_TIMING ("/input_processing_time") {
+            LOG_INFO("Processing inputs");
+
+            int chunkCount = 0;
+            FOREACH (const auto& table, InputTables) {
+                FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
+                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                    TotalDataSize += miscExt.uncompressed_data_size();
+                    TotalRowCount += miscExt.row_count();
+                    TotalValueCount += miscExt.value_count();
+
+                    SamplesFetcher->AddChunk(chunk);
+                    ++chunkCount;
+                }
+            }
+
+            LOG_INFO("Totals collected (DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
+                TotalDataSize,
+                TotalRowCount,
+                TotalValueCount);
+
+            // Check for empty inputs.
+            if (chunkCount == 0) {
+                LOG_INFO("Empty input");
+                OnOperationCompleted();
+                return NewPromise< TValueOrError<void> >();
+            }
+
+            return SamplesFetcher->Run(GetPartitionCountEstimate() * Spec->SamplesPerPartition);
+        }
+    }
+
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
+    {
+        UNUSED(batchRsp);
+
+        // TODO(babenko): unless overwrite mode is ON
+        CheckOutputTablesEmpty();
+        ScheduleSetOutputTablesSorted(Spec->KeyColumns);
+    }
+
     void SortSamples()
     {
         const auto& samples = SamplesFetcher->GetSamples();
@@ -987,7 +1066,7 @@ private:
         std::sort(SortedSamples.begin(), SortedSamples.end(), 
             [] (const NTableClient::NProto::TKey* lhs, const NTableClient::NProto::TKey* rhs) {
                 return CompareKeys(*lhs, *rhs) < 0;
-            }
+        }
         );
     }
 
@@ -1005,6 +1084,8 @@ private:
 
         YCHECK(partitionCount > 0);
 
+        InitJobIOConfigs(partitionCount);
+        
         if (partitionCount == 1) {
             BuildSinglePartition();
         } else {
@@ -1089,7 +1170,7 @@ private:
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
-                       CompareKeys(*GetSampleKey(sampleIndex), PartitionKeys.back()) == 0)
+                    CompareKeys(*GetSampleKey(sampleIndex), PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;
@@ -1103,7 +1184,7 @@ private:
                 lastPartition->Megalomaniac = true;
                 UnorderedMergeJobCounter.Increment(1);
                 YCHECK(skippedCount >= 1);
-                
+
                 auto successorKey = GetSuccessorKey(*sampleKey);
                 AddPartition(successorKey);
             }
@@ -1124,17 +1205,17 @@ private:
         // Init counters.
         PartitionJobCounter.Set(GetJobCount(
             PartitionTask->DataSizeCounter().GetTotal(),
-            Config->PartitionJobIO->TableWriter->DesiredChunkSize,
+            PartitionJobIOConfig->TableWriter->DesiredChunkSize,
             Spec->PartitionJobCount,
             PartitionTask->ChunkCounter().GetTotal()));
 
         // Some upper bound.
         SortJobCounter.Set(
             GetJobCount(
-                PartitionTask->DataSizeCounter().GetTotal(),
-                Spec->MaxDataSizePerSortJob,
-                Null,
-                std::numeric_limits<int>::max()) +
+            PartitionTask->DataSizeCounter().GetTotal(),
+            Spec->MaxDataSizePerSortJob,
+            Null,
+            std::numeric_limits<int>::max()) +
             Partitions.size());
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
@@ -1158,22 +1239,153 @@ private:
         }
     }
 
-
-    virtual NProto::TNodeResources GetMinRequestedResources() const OVERRIDE
+    void InitJobIOConfigs(int partitionCount) 
     {
-        if (PartitionTask) {
-            return PartitionTask->GetMinRequestedResources();
+        {
+            PartitionJobIOConfig = BuildJobIOConfig(Config->PartitionJobIO, Spec->PartitionJobIO);
+            InitIntermediateOutputConfig(PartitionJobIOConfig);
         }
-        if (!Partitions.empty()) {
-            return Partitions[0]->SortTask->GetMinRequestedResources();
+
+        {
+            if (partitionCount > 1) {
+                IntermediateSortJobIOConfig = BuildJobIOConfig(Config->PartitionSortJobIO, Spec->SortJobIO);
+                InitIntermediateInputConfig(IntermediateSortJobIOConfig);
+            } else {
+                IntermediateSortJobIOConfig = BuildJobIOConfig(Config->SimpleSortJobIO, Spec->SortJobIO);
+            }
+            InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
         }
-        return InfiniteResources();
+
+        {
+            if (partitionCount > 1) {
+                FinalSortJobIOConfig = BuildJobIOConfig(Config->PartitionSortJobIO, Spec->SortJobIO);
+                InitIntermediateInputConfig(FinalSortJobIOConfig);
+            } else {
+                FinalSortJobIOConfig = BuildJobIOConfig(Config->SimpleSortJobIO, Spec->SortJobIO);
+            }
+        }
+
+        {
+            SortedMergeJobIOConfig = BuildJobIOConfig(Config->SortedMergeJobIO, Spec->MergeJobIO);
+            InitIntermediateInputConfig(SortedMergeJobIOConfig);
+        }
+
+        {
+            UnorderedMergeJobIOConfig = BuildJobIOConfig(Config->UnorderedMergeJobIO, Spec->MergeJobIO);
+            InitIntermediateInputConfig(UnorderedMergeJobIOConfig);
+        }
+    }
+
+    void InitJobSpecTemplates()
+    {
+        {
+            PartitionJobSpecTemplate.set_type(EJobType::Partition);
+            *PartitionJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+            specExt->set_partition_count(Partitions.size());
+            FOREACH (const auto& key, PartitionKeys) {
+                *specExt->add_partition_keys() = key;
+            }
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+
+            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
+        }
+        
+        {
+            TJobSpec sortJobSpecTemplate;
+            sortJobSpecTemplate.set_type(Partitions.size() == 1 ? EJobType::SimpleSort : EJobType::PartitionSort);
+            *sortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            auto* specExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+
+            IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
+            IntermediateSortJobSpecTemplate.set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
+
+            FinalSortJobSpecTemplate = sortJobSpecTemplate;
+            FinalSortJobSpecTemplate.set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
+        }
+        
+        {
+            SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
+            *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+
+            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
+        }
+
+        {
+            UnorderedMergeJobSpecTemplate.set_type(EJobType::UnorderedMerge);
+            *UnorderedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+
+            UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).Data());
+        }
+    }
+
+
+    // Resource management.
+
+    virtual NProto::TNodeResources GetPartitionResources(
+        i64 dataSize) const override
+    {
+        return NScheduler::GetPartitionResources(
+            PartitionJobIOConfig,
+            dataSize,
+            Partitions.size());
+    }
+
+    virtual NProto::TNodeResources GetSimpleSortResources(
+        i64 dataSize,
+        i64 rowCount,
+        i64 valueCount) const override
+    {
+        return NScheduler::GetSimpleSortResources(
+            // XXX(babenko): is this correct?
+            IntermediateSortJobIOConfig,
+            Spec,
+            dataSize,
+            rowCount,
+            valueCount);
+    }
+
+    virtual NProto::TNodeResources GetPartitionSortResources(
+        i64 dataSize,
+        i64 rowCount) const override
+    {
+        return NScheduler::GetPartitionSortResources(
+            // XXX(babenko): is this correct?
+            IntermediateSortJobIOConfig,
+            Spec,
+            dataSize,
+            rowCount);
+    }
+
+    virtual NProto::TNodeResources GetSortedMergeResources(
+        int stripeCount) const override
+    {
+        return NScheduler::GetSortedMergeDuringSortResources(
+            SortedMergeJobIOConfig,
+            Spec,
+            stripeCount);
+    }
+
+    virtual NProto::TNodeResources GetUnorderedMergeResources() const override
+    {
+        return NScheduler::GetUnorderedMergeDuringSortResources(
+            UnorderedMergeJobIOConfig,
+            Spec);
     }
 
 
     // Progress reporting.
 
-    virtual void LogProgress() OVERRIDE
+    virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
             "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
@@ -1200,7 +1412,7 @@ private:
             ~ToString(UnorderedMergeJobCounter));
     }
 
-    virtual void DoGetProgress(IYsonConsumer* consumer) OVERRIDE
+    virtual void DoGetProgress(IYsonConsumer* consumer) override
     {
         BuildYsonMapFluently(consumer)
             .Item("partitions").BeginMap()
@@ -1213,99 +1425,6 @@ private:
             .Item("unordered_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &UnorderedMergeJobCounter));
     }
 
-    // Unsorted helpers.
-
-    void InitJobSpecTemplates()
-    {
-        {
-            PartitionJobSpecTemplate.set_type(EJobType::Partition);
-            *PartitionJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-
-            auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            FOREACH (const auto& key, PartitionKeys) {
-                *specExt->add_partition_keys() = key;
-            }
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
-
-            auto ioConfig = BuildJobIOConfig(Config->PartitionJobIO, Spec->PartitionJobIO);
-            InitIntermediateOutputConfig(ioConfig);
-            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
-        }
-        {
-            TJobSpec sortJobSpecTemplate;
-            sortJobSpecTemplate.set_type(Partitions.size() == 1 ? EJobType::SimpleSort : EJobType::PartitionSort);
-            *sortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-
-            auto* specExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
-
-            auto ioConfig = BuildJobIOConfig(Config->SortJobIO, Spec->SortJobIO);
-            
-            // Disable master requests for inputs coming from partition jobs.
-            if (Partitions.size() > 1) {
-                InitIntermediateInputConfig(ioConfig);
-            }
-
-            // Use output replication to sort jobs in small partitions since their chunks go directly to the output.
-            // Don't use replication for sort jobs in large partitions since their chunks will be merged.
-
-            auto finalIOConfig = ioConfig;
-            FinalSortJobSpecTemplate = sortJobSpecTemplate;
-            FinalSortJobSpecTemplate.set_io_config(ConvertToYsonString(finalIOConfig).Data());
-
-            auto intermediateIOConfig = CloneConfigurable(ioConfig);
-            InitIntermediateOutputConfig(ioConfig);
-            IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
-            IntermediateSortJobSpecTemplate.set_io_config(ConvertToYsonString(intermediateIOConfig).Data());
-        }
-        {
-            SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
-            *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-
-            auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
-
-            auto ioConfig = BuildJobIOConfig(Config->MergeJobIO, Spec->MergeJobIO);
-            InitIntermediateInputConfig(ioConfig);
-            InitIntermediateOutputConfig(ioConfig);
-            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
-        }
-        {
-            UnorderedMergeJobSpecTemplate.set_type(EJobType::UnorderedMerge);
-            *UnorderedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-
-            auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
-
-            auto ioConfig = BuildJobIOConfig(Config->MergeJobIO, Spec->MergeJobIO);
-            InitIntermediateInputConfig(ioConfig);
-            InitIntermediateOutputConfig(ioConfig);
-            UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(ioConfig).Data());
-        }
-    }
-
-    i64 GetRowCountEstimate(i64 dataSize) const
-    {
-        return static_cast<i64>((double) TotalRowCount * dataSize / TotalDataSize);
-    }
-
-    i64 GetValueCountEstimate(i64 dataSize) const
-    {
-        return static_cast<i64>((double) TotalValueCount * dataSize / TotalDataSize);
-    }
-
-    int GetPartitionCountEstimate() const
-    {
-        YCHECK(TotalDataSize > 0);
-
-        int result = Spec->PartitionCount ? 
-            Spec->PartitionCount.Get() : 
-            static_cast<int>(ceil(
-                (double) TotalDataSize /
-                Spec->MaxDataSizePerSortJob *
-                Spec->PartitionCountBoostFactor));
-        return std::max(1, result);
-    }
 };
 
 IOperationControllerPtr CreateSortController(
@@ -1315,6 +1434,362 @@ IOperationControllerPtr CreateSortController(
 {
     auto spec = ParseOperationSpec<TSortOperationSpec>(operation);
     return New<TSortController>(config, spec, host, operation);
+}
+
+////////////////////////////////////////////////////////////////////
+
+class TMapReduceController
+    : public TSortControllerBase
+{
+public:
+    TMapReduceController(
+        TSchedulerConfigPtr config,
+        TMapReduceOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TSortControllerBase(
+            config,
+            spec,
+            host,
+            operation)
+        , Spec(spec)
+    { }
+
+private:
+    TMapReduceOperationSpecPtr Spec;
+    std::vector<TFile> MapperFiles;
+    std::vector<TFile> ReducerFiles;
+
+
+    // Custom bits of preparation pipeline.
+
+    virtual std::vector<TYPath> GetInputTablePaths() override
+    {
+        return Spec->InputTablePaths;
+    }
+
+    virtual std::vector<TYPath> GetOutputTablePaths() override
+    {
+        return Spec->OutputTablePaths;
+    }
+
+    virtual std::vector<TYPath> GetFilePaths() override
+    {
+        // Combine mapper and reducer files into a single collection.
+        std::vector<TYPath> result;
+        if (Spec->Mapper) {
+            result.insert(
+                result.end(),
+                Spec->Mapper->FilePaths.begin(),
+                Spec->Mapper->FilePaths.end());
+        }
+        result.insert(
+            result.end(),
+            Spec->Reducer->FilePaths.begin(),
+            Spec->Reducer->FilePaths.end());
+        return result;
+    }
+
+    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
+    {
+        // Separate mapper and reducer files.
+        auto it = Files.begin();
+        
+        if (Spec->Mapper) {
+            for (int i = 0; i < static_cast<int>(Spec->Mapper->FilePaths.size()); ++i) {
+                MapperFiles.push_back(*it++);
+            }
+        }
+
+        for (int i = 0; i < static_cast<int>(Spec->Reducer->FilePaths.size()); ++i) {
+            ReducerFiles.push_back(*it++);
+        }
+
+        YCHECK(it == Files.end());
+    }
+
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
+    {
+        return pipeline->Add(BIND(&TMapReduceController::ProcessInputs, MakeStrong(this)));
+    }
+
+    TFuture<void> ProcessInputs()
+    {
+        PROFILE_TIMING ("/input_processing_time") {
+            LOG_INFO("Processing inputs");
+
+            int chunkCount = 0;
+            FOREACH (const auto& table, InputTables) {
+                FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
+                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+                    TotalDataSize += miscExt.uncompressed_data_size();
+                    TotalRowCount += miscExt.row_count();
+                    TotalValueCount += miscExt.value_count();
+                    ++chunkCount;
+                }
+            }
+
+            LOG_INFO("Totals collected (DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
+                TotalDataSize,
+                TotalRowCount,
+                TotalValueCount);
+
+            // Check for empty inputs.
+            if (chunkCount == 0) {
+                LOG_INFO("Empty input");
+                OnOperationCompleted();
+                return NewPromise<void>();
+            }
+
+            BuildPartitions();
+            InitJobSpecTemplates();
+        }
+
+        return MakeFuture();
+    }
+
+    void BuildPartitions()
+    {
+        // Use partition count provided by user, if given.
+        // Otherwise use size estimates.
+        int partitionCount = GetPartitionCountEstimate();
+
+        // Don't create more partitions than allowed by the global config.
+        partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
+
+        // Single partition is a special case for sort and is not supported by map-reduce.
+        partitionCount = std::max(partitionCount, 2);
+
+        YCHECK(partitionCount >= 2);
+
+        InitJobIOConfigs(partitionCount);
+        BuildMultiplePartitions(partitionCount);
+    }
+
+    void BuildMultiplePartitions(int partitionCount)
+    {
+        for (int index = 0; index < partitionCount; ++index) {
+            Partitions.push_back(New<TPartition>(this, index));
+        }
+
+        // Populate the partition pool.
+        auto inputChunks = CollectInputTablesChunks();
+        auto stripes = PrepareChunkStripes(
+            inputChunks,
+            Spec->PartitionJobCount,
+            Spec->PartitionJobSliceDataSize);
+        PartitionTask->AddStripes(stripes);
+
+        // Init counters.
+        PartitionJobCounter.Set(GetJobCount(
+            PartitionTask->DataSizeCounter().GetTotal(),
+            PartitionJobIOConfig->TableWriter->DesiredChunkSize,
+            Spec->PartitionJobCount,
+            PartitionTask->ChunkCounter().GetTotal()));
+
+        // Some upper bound.
+        SortJobCounter.Set(
+            GetJobCount(
+                PartitionTask->DataSizeCounter().GetTotal(),
+                Spec->MaxDataSizePerSortJob,
+                Null,
+                std::numeric_limits<int>::max()) +
+            Partitions.size());
+
+        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
+            PartitionTask->DataSizeCounter().GetTotal(),
+            PartitionTask->ChunkCounter().GetTotal(),
+            static_cast<int>(Partitions.size()),
+            PartitionJobCounter.GetTotal());
+
+        // Kick-start the partition task.
+        AddTaskPendingHint(PartitionTask);
+    }
+
+    void InitJobIOConfigs(int partitionCount)
+    {
+        {
+            PartitionJobIOConfig = BuildJobIOConfig(Config->MapJobIO, Spec->MapJobIO);
+            InitIntermediateOutputConfig(PartitionJobIOConfig);
+        }
+
+        {
+            IntermediateSortJobIOConfig = BuildJobIOConfig(Config->PartitionSortJobIO, Spec->SortJobIO);
+            InitIntermediateInputConfig(IntermediateSortJobIOConfig);
+            InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
+        }
+
+        {
+            FinalSortJobIOConfig = BuildJobIOConfig(Config->PartitionReduceJobIO, Spec->ReduceJobIO);
+            InitIntermediateInputConfig(FinalSortJobIOConfig);
+        }
+
+        {
+            SortedMergeJobIOConfig = BuildJobIOConfig(Config->SortedReduceJobIO, Spec->ReduceJobIO);
+            InitIntermediateInputConfig(SortedMergeJobIOConfig);
+        }
+    }
+
+    void InitJobSpecTemplates()
+    {
+        {
+            *PartitionJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            
+            auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+            specExt->set_partition_count(Partitions.size());
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            
+            if (Spec->Mapper) {
+                PartitionJobSpecTemplate.set_type(EJobType::PartitionMap);
+                InitUserJobSpec(
+                    specExt->mutable_mapper_spec(),
+                    Spec->Mapper,
+                    MapperFiles);
+            } else {
+                PartitionJobSpecTemplate.set_type(EJobType::Partition);
+            }
+
+            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
+        }
+
+        {
+            IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
+            *IntermediateSortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            auto* specExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+
+            IntermediateSortJobSpecTemplate.set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
+        }
+
+        {
+            FinalSortJobSpecTemplate.set_type(EJobType::PartitionReduce);
+            *FinalSortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            auto* specExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+
+            InitUserJobSpec(
+                specExt->mutable_reducer_spec(),
+                Spec->Reducer,
+                ReducerFiles);
+
+            FinalSortJobSpecTemplate.set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
+        }
+
+        {
+            SortedMergeJobSpecTemplate.set_type(EJobType::SortedReduce);
+            *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+            auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+
+            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
+        }
+    }
+
+
+    // Resource management.
+
+    virtual NProto::TNodeResources GetPartitionResources(
+        i64 dataSize) const override
+    {
+        return
+            Spec->Mapper
+            ? NScheduler::GetMapDuringMapReduceResources(
+                PartitionJobIOConfig,
+                Spec,
+                dataSize,
+                Partitions.size())
+            : NScheduler::GetPartitionResources(
+                PartitionJobIOConfig,
+                dataSize,
+                Partitions.size());
+    }
+
+    virtual NProto::TNodeResources GetSimpleSortResources(
+        i64 dataSize,
+        i64 rowCount,
+        i64 valueCount) const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual NProto::TNodeResources GetPartitionSortResources(
+        i64 dataSize,
+        i64 rowCount) const override
+    {
+        return NScheduler::GetPartitionReduceDuringMapReduceResources(
+            // XXX(babenko): is this correct?
+            IntermediateSortJobIOConfig,
+            Spec,
+            dataSize,
+            rowCount);
+    }
+
+    virtual NProto::TNodeResources GetSortedMergeResources(
+        int stripeCount) const override
+    {
+        return NScheduler::GetSortedReduceDuringMapReduceResources(
+            SortedMergeJobIOConfig,
+            Spec,
+            stripeCount);
+    }
+
+    virtual NProto::TNodeResources GetUnorderedMergeResources() const override
+    {
+        YUNREACHABLE();
+    }
+
+
+    // Progress reporting.
+
+    virtual void LogProgress() override
+    {
+        LOG_DEBUG("Progress: "
+            "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
+            "Partitions = {T: %d, C: %d}, "
+            "MapJobs = {%s}, "
+            "SortJobs = {%s}, "
+            "ReduceJobs = {%s}",
+            // Jobs
+            RunningJobCount,
+            CompletedJobCount,
+            GetPendingJobCount(),
+            FailedJobCount,
+            // Partitions
+            static_cast<int>(Partitions.size()),
+            CompletedPartitionCount,
+            // MapJobs
+            ~ToString(PartitionJobCounter),
+            // SortJobs
+            ~ToString(SortJobCounter),
+            // ReduceJobs
+            ~ToString(SortedMergeJobCounter));
+    }
+
+    virtual void DoGetProgress(IYsonConsumer* consumer) override
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("partitions").BeginMap()
+                .Item("total").Scalar(Partitions.size())
+                .Item("completed").Scalar(CompletedPartitionCount)
+            .EndMap()
+            .Item("map_jobs").Do(BIND(&TProgressCounter::ToYson, &PartitionJobCounter))
+            .Item("sort_jobs").Do(BIND(&TProgressCounter::ToYson, &SortJobCounter))
+            .Item("reduce_jobs").Do(BIND(&TProgressCounter::ToYson, &SortedMergeJobCounter));
+    }
+
+
+};
+
+IOperationControllerPtr CreateMapReduceController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation);
+    return New<TMapReduceController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

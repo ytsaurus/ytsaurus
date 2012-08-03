@@ -23,30 +23,24 @@ TPartitionChunkSequenceWriter::TPartitionChunkSequenceWriter(
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkServer::TChunkListId& parentChunkList,
-    std::vector<TChannel>&& channels,
-    TKeyColumns&& keyColumns,
-    std::vector<NProto::TKey>&& partitionKeys)
+    const TKeyColumns& keyColumns,
+    IPartitioner* partitioner)
     : TChunkSequenceWriterBase<TPartitionChunkWriter>(
         config, 
         masterChannel, 
         transactionId, 
-        parentChunkList)
-    , Channels(channels)
-    , KeyColumns(keyColumns)
-    , PartitionKeys(partitionKeys)
+        parentChunkList,
+        keyColumns)
+    , Partitioner(partitioner)
 { }
 
-TPartitionChunkSequenceWriter::~TPartitionChunkSequenceWriter()
-{ }
-
-void TPartitionChunkSequenceWriter::PrepareChunkWriter(TSession& newSession)
+void TPartitionChunkSequenceWriter::PrepareChunkWriter(TSession* newSession)
 {
-    newSession.ChunkWriter = New<TPartitionChunkWriter>(
+    newSession->ChunkWriter = New<TPartitionChunkWriter>(
         Config,
-        newSession.RemoteWriter,
-        Channels,
-        KeyColumns,
-        PartitionKeys);
+        newSession->RemoteWriter,
+        KeyColumns.Get(),
+        Partitioner);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

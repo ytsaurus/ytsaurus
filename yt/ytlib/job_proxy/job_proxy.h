@@ -48,14 +48,16 @@ private:
     NScheduler::NProto::TNodeResources ResourceUtilization;
 
     // IJobHost implementation.
-    virtual TJobProxyConfigPtr GetConfig() OVERRIDE;
-    virtual const NScheduler::NProto::TJobSpec& GetJobSpec() OVERRIDE;
+    virtual TJobProxyConfigPtr GetConfig() override;
+    virtual const NScheduler::NProto::TJobSpec& GetJobSpec() override;
 
-    virtual NScheduler::NProto::TNodeResources GetResourceUtilization() OVERRIDE;
-    virtual void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization) OVERRIDE;
+    virtual NScheduler::NProto::TNodeResources GetResourceUtilization() override;
+    virtual void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization) override;
+
+    virtual void ReleaseNetwork() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSupervisor
+} // namespace NJobProxy
 } // namespace NYT

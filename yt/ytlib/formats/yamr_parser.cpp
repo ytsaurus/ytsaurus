@@ -16,8 +16,8 @@ public:
         NYTree::IYsonConsumer* consumer,
         TYamrFormatConfigPtr config);
 
-    virtual void Read(const TStringBuf& data) OVERRIDE;
-    virtual void Finish() OVERRIDE;
+    virtual void Read(const TStringBuf& data) override;
+    virtual void Finish() override;
 
 private:
     NYTree::IYsonConsumer* Consumer;
@@ -163,8 +163,8 @@ public:
         NYTree::IYsonConsumer* consumer,
         TYamrFormatConfigPtr config);
 
-    virtual void Read(const TStringBuf& data) OVERRIDE;
-    virtual void Finish() OVERRIDE;
+    virtual void Read(const TStringBuf& data) override;
+    virtual void Finish() override;
 
 private:
     NYTree::IYsonConsumer* Consumer;

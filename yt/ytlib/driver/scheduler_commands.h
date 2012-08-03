@@ -97,6 +97,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMapReduceCommand
+    : public TSchedulerCommandBase
+{
+public:
+    explicit TMapReduceCommand(ICommandContext* context);
+
+private:
+    virtual void DoExecute();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAbortOperationRequest
     : public TYsonSerializable
 {

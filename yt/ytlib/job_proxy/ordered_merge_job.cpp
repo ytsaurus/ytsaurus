@@ -81,7 +81,7 @@ public:
         }
     }
 
-    virtual NScheduler::NProto::TJobResult Run() OVERRIDE
+    virtual NScheduler::NProto::TJobResult Run() override
     {
         PROFILE_TIMING ("/ordered_merge_time") {
             LOG_INFO("Initializing");

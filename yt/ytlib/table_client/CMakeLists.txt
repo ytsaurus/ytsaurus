@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/key.cpp
   ${BASE}/merging_reader.cpp
+  ${BASE}/partitioner.cpp
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partition_chunk_sequence_reader.cpp
   ${BASE}/partition_chunk_sequence_writer.cpp
@@ -39,6 +40,7 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/key.h
   ${BASE}/merging_reader.h
+  ${BASE}/partitioner.h
   ${BASE}/partition_chunk_reader.h
   ${BASE}/partition_chunk_sequence_reader.h
   ${BASE}/partition_chunk_sequence_writer.h

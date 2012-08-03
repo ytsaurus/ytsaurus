@@ -64,36 +64,37 @@ public:
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
         RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
 
-        REGISTER(TStartTransactionCommand,  "start_tx",  Null,       Structured, true,  false);
-        REGISTER(TRenewTransactionCommand,  "renew_tx",  Null,       Null,       true,  false);
-        REGISTER(TCommitTransactionCommand, "commit_tx", Null,       Null,       true,  false);
-        REGISTER(TAbortTransactionCommand,  "abort_tx",  Null,       Null,       true,  false);
+        REGISTER(TStartTransactionCommand,  "start_tx",    Null,       Structured, true,  false);
+        REGISTER(TRenewTransactionCommand,  "renew_tx",    Null,       Null,       true,  false);
+        REGISTER(TCommitTransactionCommand, "commit_tx",   Null,       Null,       true,  false);
+        REGISTER(TAbortTransactionCommand,  "abort_tx",    Null,       Null,       true,  false);
 
-        REGISTER(TCreateCommand,            "create",    Null,       Structured, true,  false);
-        REGISTER(TRemoveCommand,            "remove",    Null,       Null,       true,  false);
-        REGISTER(TSetCommand,               "set",       Structured, Null,       true,  false);
-        REGISTER(TGetCommand,               "get",       Null,       Structured, false, false);
-        REGISTER(TListCommand,              "list",      Null,       Structured, false, false);
-        REGISTER(TLockCommand,              "lock",      Null,       Null,       true,  false);
-        REGISTER(TCopyCommand,              "copy",      Null,       Structured, true,  false);
-        REGISTER(TMoveCommand,              "move",      Null,       Null,       true,  false);
+        REGISTER(TCreateCommand,            "create",      Null,       Structured, true,  false);
+        REGISTER(TRemoveCommand,            "remove",      Null,       Null,       true,  false);
+        REGISTER(TSetCommand,               "set",         Structured, Null,       true,  false);
+        REGISTER(TGetCommand,               "get",         Null,       Structured, false, false);
+        REGISTER(TListCommand,              "list",        Null,       Structured, false, false);
+        REGISTER(TLockCommand,              "lock",        Null,       Null,       true,  false);
+        REGISTER(TCopyCommand,              "copy",        Null,       Structured, true,  false);
+        REGISTER(TMoveCommand,              "move",        Null,       Null,       true,  false);
 
-        REGISTER(TUploadCommand,            "upload",    Binary,     Structured, true,  true );
-        REGISTER(TDownloadCommand,          "download",  Null,       Binary,     false, true );
+        REGISTER(TUploadCommand,            "upload",      Binary,     Structured, true,  true );
+        REGISTER(TDownloadCommand,          "download",    Null,       Binary,     false, true );
 
-        REGISTER(TWriteCommand,             "write",     Tabular,    Null,       true,  true );
-        REGISTER(TReadCommand,              "read",      Null,       Tabular,    false, true );
+        REGISTER(TWriteCommand,             "write",       Tabular,    Null,       true,  true );
+        REGISTER(TReadCommand,              "read",        Null,       Tabular,    false, true );
 
-        REGISTER(TMergeCommand,             "merge",     Null,       Structured, true,  false);
-        REGISTER(TEraseCommand,             "erase",     Null,       Structured, true,  false);
-        REGISTER(TMapCommand,               "map",       Null,       Structured, true,  false);
-        REGISTER(TSortCommand,              "sort",      Null,       Structured, true,  false);
-        REGISTER(TReduceCommand,            "reduce",    Null,       Structured, true,  false);
-        REGISTER(TAbortOperationCommand,    "abort_op",  Null,       Null,       true,  false);
+        REGISTER(TMergeCommand,             "merge",       Null,       Structured, true,  false);
+        REGISTER(TEraseCommand,             "erase",       Null,       Structured, true,  false);
+        REGISTER(TMapCommand,               "map",         Null,       Structured, true,  false);
+        REGISTER(TSortCommand,              "sort",        Null,       Structured, true,  false);
+        REGISTER(TReduceCommand,            "reduce",      Null,       Structured, true,  false);
+        REGISTER(TMapReduceCommand,         "map_reduce",  Null,       Structured, true,  false);
+        REGISTER(TAbortOperationCommand,    "abort_op",    Null,       Null,       true,  false);
 #undef REGISTER
     }
 
-    TDriverResponse Execute(const TDriverRequest& request) OVERRIDE
+    TDriverResponse Execute(const TDriverRequest& request) override
     {
         YASSERT(request.InputStream);
         YASSERT(request.OutputStream);
@@ -114,7 +115,7 @@ public:
         return *context.GetResponse();
     }
 
-    TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) OVERRIDE
+    TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
     {
         auto it = Commands.find(commandName);
         if (it == Commands.end()) {
@@ -123,7 +124,7 @@ public:
         return it->second.Descriptor;
     }
 
-    std::vector<TCommandDescriptor> GetCommandDescriptors() OVERRIDE
+    std::vector<TCommandDescriptor> GetCommandDescriptors() override
     {
         std::vector<TCommandDescriptor> result;
         result.reserve(Commands.size());
@@ -133,12 +134,12 @@ public:
         return result;
     }
 
-    IChannelPtr GetMasterChannel() OVERRIDE
+    IChannelPtr GetMasterChannel() override
     {
         return MasterChannel;
     }
 
-    IChannelPtr GetSchedulerChannel() OVERRIDE
+    IChannelPtr GetSchedulerChannel() override
     {
         return SchedulerChannel;
     }
@@ -184,42 +185,42 @@ private:
             SchedulerChannel->Terminate();
         }
 
-        TDriverConfigPtr GetConfig() OVERRIDE
+        TDriverConfigPtr GetConfig() override
         {
             return Driver->Config;
         }
 
-        IChannelPtr GetMasterChannel() OVERRIDE
+        IChannelPtr GetMasterChannel() override
         {
             return MasterChannel;
         }
 
-        IChannelPtr GetSchedulerChannel() OVERRIDE
+        IChannelPtr GetSchedulerChannel() override
         {
             return SchedulerChannel;
         }
 
-        IBlockCachePtr GetBlockCache() OVERRIDE
+        IBlockCachePtr GetBlockCache() override
         {
             return Driver->BlockCache;
         }
 
-        TTransactionManagerPtr GetTransactionManager() OVERRIDE
+        TTransactionManagerPtr GetTransactionManager() override
         {
             return TransactionManager;
         }
 
-        const TDriverRequest* GetRequest() OVERRIDE
+        const TDriverRequest* GetRequest() override
         {
             return Request;
         }
 
-        TDriverResponse* GetResponse() OVERRIDE
+        TDriverResponse* GetResponse() override
         {
             return &Response;
         }
 
-        TYsonProducer CreateInputProducer() OVERRIDE
+        TYsonProducer CreateInputProducer() override
         {
             return CreateProducerForFormat(
                 Request->InputFormat,
@@ -227,7 +228,7 @@ private:
                 Request->InputStream);
         }
 
-        TAutoPtr<IYsonConsumer> CreateOutputConsumer() OVERRIDE
+        TAutoPtr<IYsonConsumer> CreateOutputConsumer() override
         {
             return CreateConsumerForFormat(
                 Request->OutputFormat,

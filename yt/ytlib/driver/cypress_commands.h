@@ -34,7 +34,7 @@ public:
    { }
 
 private:
-    virtual void DoExecute() OVERRIDE;
+    virtual void DoExecute() override;
 
 };
 
@@ -64,7 +64,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute() OVERRIDE;
+    virtual void DoExecute() override;
 
 };
 
@@ -93,7 +93,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute() OVERRIDE;
+    virtual void DoExecute() override;
 
 };
 
@@ -122,7 +122,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute() OVERRIDE;
+    virtual void DoExecute() override;
 
 };
 
@@ -153,7 +153,7 @@ public:
    { }
 
 private:
-    virtual void DoExecute() OVERRIDE;
+    virtual void DoExecute() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +184,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute() OVERRIDE;
+    virtual void DoExecute() override;
 
 };
 
@@ -215,7 +215,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute() OVERRIDE;
+    virtual void DoExecute() override;
 
 };
 
@@ -246,7 +246,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute() OVERRIDE;
+    virtual void DoExecute() override;
 
 };
 

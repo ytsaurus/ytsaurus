@@ -18,18 +18,14 @@ public:
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList,
-        std::vector<TChannel>&& channels,
-        TKeyColumns&& keyColumns,
-        std::vector<NProto::TKey>&& partitionKeys);
-
-    ~TPartitionChunkSequenceWriter();
+        const TKeyColumns& keyColumns,
+        IPartitioner* partitioner);
 
 private:
-    void PrepareChunkWriter(TSession& newSession);
+    virtual void PrepareChunkWriter(TSession* newSession) override;
 
-    const std::vector<TChannel> Channels;
-    const TKeyColumns KeyColumns;
-    const std::vector<NProto::TKey> PartitionKeys;
+    IPartitioner* Partitioner;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

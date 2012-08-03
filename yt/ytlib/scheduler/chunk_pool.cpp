@@ -108,27 +108,27 @@ class TChunkPoolBase
     : public IChunkPool
 {
 public:
-    virtual const TProgressCounter& DataSizeCounter() const OVERRIDE
+    virtual const TProgressCounter& DataSizeCounter() const override
     {
         return DataSizeCounter_;
     }
 
-    virtual const TProgressCounter& ChunkCounter() const OVERRIDE
+    virtual const TProgressCounter& ChunkCounter() const override
     {
         return ChunkCounter_;
     }
 
-    virtual const TProgressCounter& StripeCounter() const OVERRIDE
+    virtual const TProgressCounter& StripeCounter() const override
     {
         return StripeCounter_;
     }
 
-    virtual bool IsCompleted() const OVERRIDE
+    virtual bool IsCompleted() const override
     {
         return DataSizeCounter_.GetCompleted() == DataSizeCounter_.GetTotal();
     }
 
-    virtual bool IsPending() const OVERRIDE
+    virtual bool IsPending() const override
     {
         return DataSizeCounter_.GetPending() > 0;
     }
@@ -151,7 +151,7 @@ public:
         : TrackLocality(trackLocality)
     { }
 
-    virtual void Add(TChunkStripePtr stripe) OVERRIDE
+    virtual void Add(TChunkStripePtr stripe) override
     {
         ChunkCounter_.Increment(stripe->Chunks.size());
         StripeCounter_.Increment(1);
@@ -165,7 +165,7 @@ public:
 
     virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        TNullable<i64> dataSizeThreshold) OVERRIDE
+        TNullable<i64> dataSizeThreshold) override
     {
         auto result = New<TPoolExtractionResult>();
 
@@ -198,7 +198,7 @@ public:
         return result;
     }
 
-    virtual void OnFailed(TPoolExtractionResultPtr result) OVERRIDE
+    virtual void OnFailed(TPoolExtractionResultPtr result) override
     {
         DataSizeCounter_.Failed(result->TotalDataSize);
         ChunkCounter_.Failed(result->TotalChunkCount);
@@ -209,14 +209,14 @@ public:
         }
     }
 
-    virtual void OnCompleted(TPoolExtractionResultPtr result) OVERRIDE
+    virtual void OnCompleted(TPoolExtractionResultPtr result) override
     {
         DataSizeCounter_.Completed(result->TotalDataSize);
         ChunkCounter_.Completed(result->TotalChunkCount);
         StripeCounter_.Completed(result->Stripes.size());
     }
 
-    virtual i64 GetLocality(const Stroka& address) const OVERRIDE
+    virtual i64 GetLocality(const Stroka& address) const override
     {
         YASSERT(TrackLocality);
         auto it = LocalChunks.find(address);
@@ -327,7 +327,7 @@ public:
         , Initialized(false)
     { }
 
-    virtual void Add(TChunkStripePtr stripe) OVERRIDE
+    virtual void Add(TChunkStripePtr stripe) override
     {
         YCHECK(!Initialized);
 
@@ -347,7 +347,7 @@ public:
 
     virtual TPoolExtractionResultPtr Extract(
         const Stroka& address,
-        TNullable<i64> dataSizeThreshold) OVERRIDE
+        TNullable<i64> dataSizeThreshold) override
     {
         UNUSED(dataSizeThreshold);
 
@@ -367,7 +367,7 @@ public:
         return result;
     }
 
-    virtual void OnFailed(TPoolExtractionResultPtr result) OVERRIDE
+    virtual void OnFailed(TPoolExtractionResultPtr result) override
     {
         YCHECK(Initialized);
         YCHECK(Extracted);
@@ -378,7 +378,7 @@ public:
         StripeCounter_.Failed(result->Stripes.size());
     }
 
-    virtual void OnCompleted(TPoolExtractionResultPtr result) OVERRIDE
+    virtual void OnCompleted(TPoolExtractionResultPtr result) override
     {
         YCHECK(Initialized);
         YCHECK(Extracted);
@@ -388,7 +388,7 @@ public:
         StripeCounter_.Completed(result->Stripes.size());
     }
 
-    virtual i64 GetLocality(const Stroka& address) const OVERRIDE
+    virtual i64 GetLocality(const Stroka& address) const override
     {
         if (Extracted) {
             return 0;

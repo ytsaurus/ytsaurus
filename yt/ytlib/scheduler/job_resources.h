@@ -45,46 +45,68 @@ i64 GetIOMemorySize(
     int inputStreamCount,
     int outputStreamCount);
 
-NProto::TNodeResources GetMapJobResources(
+i64 GetPartitionSortMemorySize(
+    i64 dataSize,
+    i64 rowCount,
+    int keyColumnCount);
+
+NProto::TNodeResources GetMapResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TMapOperationSpecPtr spec);
+
+NProto::TNodeResources GetMapDuringMapReduceResources(
+    NJobProxy::TJobIOConfigPtr ioConfig,
+    TMapReduceOperationSpecPtr spec,
+    i64 dataSize,
+    int partitionCount);
 
 NProto::TNodeResources GetMergeJobResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TMergeOperationSpecPtr spec);
 
-NProto::TNodeResources GetReduceJobResources(
+NProto::TNodeResources GetPartitionReduceDuringMapReduceResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
-    TReduceOperationSpecPtr spec);
+    TMapReduceOperationSpecPtr spec,
+    i64 dataSize,
+    i64 rowCount);
 
-NProto::TNodeResources GetEraseJobResources(
+NProto::TNodeResources GetSortedReduceDuringMapReduceResources(
+    NJobProxy::TJobIOConfigPtr ioConfig,
+    TMapReduceOperationSpecPtr spec,
+    int stripeCount);
+
+NProto::TNodeResources GetEraseResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TEraseOperationSpecPtr spec);
 
-NProto::TNodeResources GetPartitionJobResources(
+NProto::TNodeResources GetSortedReduceResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
-    i64 dataWeight,
+    TReduceOperationSpecPtr spec);
+
+NProto::TNodeResources GetPartitionResources(
+    NJobProxy::TJobIOConfigPtr ioConfig,
+    i64 dataSize,
     int partitionCount);
 
-NProto::TNodeResources GetSimpleSortJobResources(
+NProto::TNodeResources GetSimpleSortResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
-    i64 dataWeight,
+    i64 dataSize,
     i64 rowCount,
     i64 valueCount);
 
-NProto::TNodeResources GetPartitionSortJobResources(
+NProto::TNodeResources GetPartitionSortResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
-    i64 dataWeight,
+    i64 dataSize,
     i64 rowCount);
 
-NProto::TNodeResources GetSortedMergeDuringSortJobResources(
+NProto::TNodeResources GetSortedMergeDuringSortResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
     int stripeCount);
 
-NProto::TNodeResources GetUnorderedMergeDuringSortJobResources(
+NProto::TNodeResources GetUnorderedMergeDuringSortResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec);
 

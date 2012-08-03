@@ -8,7 +8,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-TAutoPtr<TUserJobIO> CreateMapJobIO(
+TAutoPtr<TUserJobIO> CreatePartitionMapJobIO(
     TJobIOConfigPtr ioConfig,
     NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec);

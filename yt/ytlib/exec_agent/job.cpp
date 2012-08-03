@@ -149,6 +149,13 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         PrepareUserJob(jobSpecExt.reducer_spec(), awaiter);
     }
 
+    if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
+        const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        if (jobSpecExt.has_mapper_spec()) {
+            PrepareUserJob(jobSpecExt.mapper_spec(), awaiter);
+        }
+    }
+
     awaiter->Complete(BIND(&TJob::RunJobProxy, MakeWeak(this)));
 }
 

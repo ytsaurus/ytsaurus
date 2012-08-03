@@ -60,27 +60,27 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
 TMapExecutor::TMapExecutor()
     : InArg("", "in", "input table path", false, "YPATH")
     , OutArg("", "out", "output table path", false, "YPATH")
-    , FilesArg("", "file", "additional file path", false, "YPATH")
-    , MapperArg("", "mapper", "mapper shell command", true, "", "STRING")
+    , CommandArg("", "command", "mapper shell command", true, "", "STRING")
+    , FileArg("", "file", "additional file path", false, "YPATH")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
-    CmdLine.add(FilesArg);
-    CmdLine.add(MapperArg);
+    CmdLine.add(CommandArg);
+    CmdLine.add(FileArg);
 }
 
 void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto input = PreprocessYPaths(InArg.getValue());
-    auto output = PreprocessYPaths(OutArg.getValue());
-    auto files = PreprocessYPaths(FilesArg.getValue());
+    auto inputs = PreprocessYPaths(InArg.getValue());
+    auto outputs = PreprocessYPaths(OutArg.getValue());
+    auto files = PreprocessYPaths(FileArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(input)
-            .Item("output_table_paths").List(output)
+            .Item("input_table_paths").List(inputs)
+            .Item("output_table_paths").List(outputs)
             .Item("mapper").BeginMap()
-                .Item("command").Scalar(MapperArg.getValue())
+                .Item("command").Scalar(CommandArg.getValue())
                 .Item("file_paths").List(files)
             .EndMap()
         .EndMap();
@@ -118,14 +118,14 @@ TMergeExecutor::TMergeExecutor()
 
 void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto input = PreprocessYPaths(InArg.getValue());
-    auto output = PreprocessYPath(OutArg.getValue());
+    auto inputs = PreprocessYPaths(InArg.getValue());
+    auto outupts = PreprocessYPath(OutArg.getValue());
     auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(input)
-            .Item("output_table_path").Scalar(output)
+            .Item("input_table_paths").List(inputs)
+            .Item("output_table_path").Scalar(outupts)
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
             .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
@@ -160,14 +160,14 @@ TSortExecutor::TSortExecutor()
 
 void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto input = PreprocessYPaths(InArg.getValue());
-    auto output = PreprocessYPath(OutArg.getValue());
+    auto inputs = PreprocessYPaths(InArg.getValue());
+    auto outputs = PreprocessYPath(OutArg.getValue());
     auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(input)
-            .Item("output_table_path").Scalar(output)
+            .Item("input_table_paths").List(inputs)
+            .Item("output_table_path").Scalar(outputs)
             .Item("key_columns").List(keyColumns)
         .EndMap();
 
@@ -222,35 +222,35 @@ EOperationType TEraseExecutor::GetOperationType() const
 TReduceExecutor::TReduceExecutor()
     : InArg("", "in", "input table path", false, "YPATH")
     , OutArg("", "out", "output table path", false, "YPATH")
-    , FilesArg("", "file", "additional file path", false, "YPATH")
-    , ReducerArg("", "reducer", "reducer shell command", true, "", "STRING")
+    , CommandArg("", "command", "reducer shell command", true, "", "STRING")
+    , FileArg("", "file", "additional file path", false, "YPATH")
     , KeyColumnsArg("", "key_columns", "key columns names "
         "(if omitted then all input tables are assumed to have same key columns)",
         false, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
-    CmdLine.add(FilesArg);
-    CmdLine.add(ReducerArg);
+    CmdLine.add(CommandArg);
+    CmdLine.add(FileArg);
     CmdLine.add(KeyColumnsArg);
 }
 
 void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto input = PreprocessYPaths(InArg.getValue());
-    auto output = PreprocessYPaths(OutArg.getValue());
-    auto files = PreprocessYPaths(FilesArg.getValue());
+    auto inputs = PreprocessYPaths(InArg.getValue());
+    auto outputs = PreprocessYPaths(OutArg.getValue());
+    auto files = PreprocessYPaths(FileArg.getValue());
     auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(input)
-            .Item("output_table_paths").List(output)
+            .Item("input_table_paths").List(inputs)
+            .Item("output_table_paths").List(outputs)
             .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
                 fluent.Item("key_columns").List(keyColumns);
             })
             .Item("reducer").BeginMap()
-                .Item("command").Scalar(ReducerArg.getValue())
+                .Item("command").Scalar(CommandArg.getValue())
                 .Item("file_paths").List(files)
             .EndMap()
         .EndMap();
@@ -266,6 +266,65 @@ Stroka TReduceExecutor::GetCommandName() const
 EOperationType TReduceExecutor::GetOperationType() const
 {
     return EOperationType::Reduce;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TMapReduceExecutor::TMapReduceExecutor()
+    : InArg("", "in", "input table path", false, "YPATH")
+    , OutArg("", "out", "output table path", false, "YPATH")
+    , MapperCommandArg("", "mapper_command", "mapper shell command", false, "", "STRING")
+    , MapperFileArg("", "mapper_file", "additional mapper file path", false, "YPATH")
+    , ReducerCommandArg("", "reducer_command", "reducer shell command", true, "", "STRING")
+    , ReducerFileArg("", "reducer_file", "additional reducer file path", false, "YPATH")
+    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "YSON_LIST_FRAGMENT")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(MapperCommandArg);
+    CmdLine.add(MapperFileArg);
+    CmdLine.add(ReducerCommandArg);
+    CmdLine.add(ReducerFileArg);
+    CmdLine.add(KeyColumnsArg);
+}
+
+void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto inputs = PreprocessYPaths(InArg.getValue());
+    auto outputs = PreprocessYPaths(OutArg.getValue());
+    auto mapperFiles = PreprocessYPaths(MapperFileArg.getValue());
+    auto reducerFiles = PreprocessYPaths(ReducerFileArg.getValue());
+    auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
+
+    BuildYsonMapFluently(consumer)
+        .Item("spec").BeginMap()
+            .Item("input_table_paths").List(inputs)
+            .Item("output_table_paths").List(outputs)
+            .Item("key_columns").List(keyColumns)
+            .DoIf(!MapperCommandArg.getValue().empty(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("mapper").BeginMap()
+                        .Item("command").Scalar(MapperCommandArg.getValue())
+                        .Item("file_paths").List(mapperFiles)
+                    .EndMap();
+            })
+            .Item("reducer").BeginMap()
+                .Item("command").Scalar(ReducerCommandArg.getValue())
+                .Item("file_paths").List(reducerFiles)
+            .EndMap()
+       .EndMap();
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TMapReduceExecutor::GetCommandName() const
+{
+    return "map_reduce";
+}
+
+EOperationType TMapReduceExecutor::GetOperationType() const
+{
+    return EOperationType::MapReduce;
 }
 
 //////////////////////////////////////////////////////////////////////////////////

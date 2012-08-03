@@ -28,31 +28,29 @@ TTableChunkSequenceWriter::TTableChunkSequenceWriter(
         config, 
         masterChannel, 
         transactionId, 
-        parentChunkList)
+        parentChunkList,
+        keyColumns)
     , Channels(channels)
-    , KeyColumns(keyColumns)
-    , RowCount(0)
 { }
 
 TTableChunkSequenceWriter::~TTableChunkSequenceWriter()
 { }
 
-void TTableChunkSequenceWriter::PrepareChunkWriter(TSession& newSession)
+void TTableChunkSequenceWriter::PrepareChunkWriter(TSession* newSession)
 {
-    newSession.ChunkWriter = New<TTableChunkWriter>(
+    newSession->ChunkWriter = New<TTableChunkWriter>(
         Config,
-        newSession.RemoteWriter,
+        newSession->RemoteWriter,
         Channels,
         KeyColumns);
 
-    newSession.ChunkWriter->AsyncOpen();
+    newSession->ChunkWriter->AsyncOpen();
 }
 
 void TTableChunkSequenceWriter::InitCurrentSession(TSession nextSession)
 {
     if (!CurrentSession.IsNull()) {
-        nextSession.ChunkWriter->SetLastKey(
-            CurrentSession.ChunkWriter->GetLastKey());
+        nextSession.ChunkWriter->SetLastKey(CurrentSession.ChunkWriter->GetLastKey());
     }
 
     TChunkSequenceWriterBase<TTableChunkWriter>::InitCurrentSession(nextSession);
@@ -90,23 +88,6 @@ bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row)
     OnRowWritten();
 
     return true;
-}
-
-const TOwningKey& TTableChunkSequenceWriter::GetLastKey() const
-{
-    YASSERT(!State.HasRunningOperation());
-    return CurrentSession.ChunkWriter->GetLastKey();
-}
-
-const TNullable<TKeyColumns>& TTableChunkSequenceWriter::GetKeyColumns() const
-{
-    return KeyColumns;
-}
-
-i64 TTableChunkSequenceWriter::GetRowCount() const
-{
-    YASSERT(!State.HasRunningOperation());
-    return RowCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
