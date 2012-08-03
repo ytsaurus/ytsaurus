@@ -318,7 +318,7 @@ public:
             }
             chunkList->Children().push_back(childRef);
             SetChunkTreeParent(chunkList, childRef);
-            objectManager->RefObject(childRef.GetId());
+            objectManager->RefObject(childRef);
 
             TChunkTreeStatistics delta;
             switch (childRef.GetType()) {

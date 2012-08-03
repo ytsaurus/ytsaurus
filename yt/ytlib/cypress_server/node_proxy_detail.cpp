@@ -42,9 +42,10 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
     auto handler = cypressManager->GetHandler(type);
     
     auto node = handler->Create(nodeId);
+    auto node_ = ~node;
     cypressManager->RegisterNode(Transaction, node);
     
-    objectManager->RefObject(nodeId);
+    objectManager->RefObject(node_);
     CreatedNodeIds.push_back(nodeId);
     
     return cypressManager->GetVersionedNodeProxy(nodeId, Transaction);

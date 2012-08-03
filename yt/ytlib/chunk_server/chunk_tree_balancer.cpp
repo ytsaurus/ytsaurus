@@ -88,7 +88,7 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
     // Add temporary references to the old children.
     auto oldChildren = root->Children();
     FOREACH (auto childRef, oldChildren) {
-        objectManager->RefObject(childRef.GetId());
+        objectManager->RefObject(childRef);
     }
 
     // Replace the children list.

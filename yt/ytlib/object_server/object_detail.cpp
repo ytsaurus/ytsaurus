@@ -61,11 +61,6 @@ TObjectWithIdBase::TObjectWithIdBase(const TObjectId& id)
     : Id_(id)
 { }
 
-TObjectWithIdBase::TObjectWithIdBase(const TObjectWithIdBase& other)
-    : TObjectBase(other)
-    , Id_(other.Id_)
-{ }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectProxyBase::TObjectProxyBase(

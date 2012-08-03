@@ -11,6 +11,7 @@
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/object_server/object_manager.pb.h>
 #include <ytlib/cypress_server/public.h>
+#include <ytlib/chunk_server/chunk_tree_ref.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -57,12 +58,14 @@ public:
     void RefObject(const TVersionedObjectId& id);
     void RefObject(TObjectWithIdBase* object);
     void RefObject(NCypressServer::ICypressNode* node);
+    void RefObject(NChunkServer::TChunkTreeRef ref);
 
     //! Removes a reference.
     void UnrefObject(const TObjectId& id);
     void UnrefObject(const TVersionedObjectId& id);
     void UnrefObject(TObjectWithIdBase* object);
     void UnrefObject(NCypressServer::ICypressNode* node);
+    void UnrefObject(NChunkServer::TChunkTreeRef ref);
 
     //! Returns the current reference counter.
     i32 GetObjectRefCounter(const TObjectId& id);
@@ -102,7 +105,7 @@ public:
      */
     NYTree::IYPathServicePtr GetRootService();
     
-    //! Executes a YPath verb, logging the change if neccessary.
+    //! Executes a YPath verb, logging the change if necessary.
     /*!
      *  \param id The id of the object that handles the verb.
      *  If the change is logged, this id is written to the changelog and
@@ -149,6 +152,9 @@ private:
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
     void PromoteCreatedObjects(NTransactionServer::TTransaction* transaction);
     void ReleaseCreatedObjects(NTransactionServer::TTransaction* transaction);
+
+    void HandleObjectReferenced(const TObjectId& id, i32 refCounter);
+    void HandleObjectUnreferenced(const TObjectId& id, i32 refCounter);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };

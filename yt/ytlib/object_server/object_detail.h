@@ -61,8 +61,7 @@ class TObjectWithIdBase
 
 public:
     TObjectWithIdBase();
-    TObjectWithIdBase(const TObjectId& id);
-    TObjectWithIdBase(const TObjectWithIdBase& other);
+    explicit TObjectWithIdBase(const TObjectId& id);
 
 };
 

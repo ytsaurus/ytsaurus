@@ -719,6 +719,7 @@ void TCypressManager::RegisterNode(
     
     auto metaStateManager = Bootstrap->GetMetaStateManager();
     auto* mutationContext = metaStateManager->GetMutationContext();
+    auto objectManager = Bootstrap->GetObjectManager();
 
     node->SetCreationTime(mutationContext->GetTimestamp());
 
@@ -742,7 +743,7 @@ void TCypressManager::RegisterNode(
 
     if (transaction) {
         transaction->CreatedNodes().push_back(node_);
-        Bootstrap->GetObjectManager()->RefObject(nodeId);
+        objectManager->RefObject(node_);
     }
 
     LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
@@ -775,7 +776,7 @@ ICypressNode* TCypressManager::BranchNode(
     transaction->BranchedNodes().push_back(branchedNode_);
 
     // The branched node holds an implicit reference to its originator.
-    Bootstrap->GetObjectManager()->RefObject(id);
+    Bootstrap->GetObjectManager()->RefObject(branchedNode_);
     
     LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, Mode: %s)",
         ~id.ToString(),

@@ -29,6 +29,7 @@ using namespace NBus;
 using namespace NProto;
 using namespace NCypressServer;
 using namespace NTransactionServer;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -374,9 +375,7 @@ void TObjectManager::RefObject(const TObjectId& id)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = GetHandler(id)->RefObject(id);
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
-        ~id.ToString(),
-        refCounter);
+    HandleObjectReferenced(id, refCounter);
 }
 
 void TObjectManager::RefObject(const TVersionedNodeId& id)
@@ -386,28 +385,40 @@ void TObjectManager::RefObject(const TVersionedNodeId& id)
 
 void TObjectManager::RefObject(TObjectWithIdBase* object)
 {
-    RefObject(object->GetId());
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    i32 refCounter = object->RefObject();
+    HandleObjectReferenced(object->GetId(), refCounter);
 }
 
 void TObjectManager::RefObject(ICypressNode* node)
 {
-    RefObject(node->GetId().ObjectId);
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    i32 refCounter = node->RefObject();
+    HandleObjectReferenced(node->GetId().ObjectId, refCounter);
+}
+
+void TObjectManager::RefObject(TChunkTreeRef ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk:
+            RefObject(ref.AsChunk());
+            break;
+        case EObjectType::ChunkList:
+            RefObject(ref.AsChunkList());
+            break;
+        default:
+            YUNREACHABLE();
+    }
 }
 
 void TObjectManager::UnrefObject(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto handler = GetHandler(id);
-    i32 refCounter = handler->UnrefObject(id);
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
-        ~id.ToString(),
-        refCounter);
-    if (refCounter == 0) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
-            ~handler->GetType().ToString(),
-            ~id.ToString());
-    }
+    i32 refCounter = GetHandler(id)->UnrefObject(id);
+    HandleObjectUnreferenced(id, refCounter);
 }
 
 void TObjectManager::UnrefObject(const TVersionedNodeId& id)
@@ -417,12 +428,32 @@ void TObjectManager::UnrefObject(const TVersionedNodeId& id)
 
 void TObjectManager::UnrefObject(TObjectWithIdBase* object)
 {
-    UnrefObject(object->GetId());
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    i32 refCounter = object->UnrefObject();
+    HandleObjectUnreferenced(object->GetId(), refCounter);
 }
 
 void TObjectManager::UnrefObject(ICypressNode* node)
 {
-    UnrefObject(node->GetId().ObjectId);
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    i32 refCounter = node->UnrefObject();
+    HandleObjectUnreferenced(node->GetId().ObjectId, refCounter);
+}
+
+void TObjectManager::UnrefObject(TChunkTreeRef ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk:
+            UnrefObject(ref.AsChunk());
+            break;
+        case EObjectType::ChunkList:
+            UnrefObject(ref.AsChunkList());
+            break;
+        default:
+            YUNREACHABLE();
+    }
 }
 
 i32 TObjectManager::GetObjectRefCounter(const TObjectId& id)
@@ -430,6 +461,26 @@ i32 TObjectManager::GetObjectRefCounter(const TObjectId& id)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     return GetHandler(id)->GetObjectRefCounter(id);
+}
+
+void TObjectManager::HandleObjectReferenced(const TObjectId& id, i32 refCounter)
+{
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
+        ~id.ToString(),
+        refCounter);
+}
+
+void TObjectManager::HandleObjectUnreferenced(const TObjectId& id, i32 refCounter)
+{
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
+        ~id.ToString(),
+        refCounter);
+    if (refCounter == 0) {
+        auto handler = GetHandler(id);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
+            ~handler->GetType().ToString(),
+            ~id.ToString());
+    }
 }
 
 void TObjectManager::SaveKeys(TOutputStream* output)
