@@ -32,11 +32,10 @@ extern TLazyPtr<TActionQueue> ReaderThread;
  *  This thread is used for background operations in 
  *  #TRemoteChunkWriter, #NTableClient::TChunkWriter and 
  *  #NTableClient::TChunkSetReader
- *  
- *  One queue (0) is used for control tasks (e.g. serving RPC requests and responses)
- *  and another one (1) is for compression tasks.
  */
 extern TLazyPtr<TActionQueue> WriterThread;
+
+extern TLazyPtr<TActionQueue> CompressionThread;
 
 ////////////////////////////////////////////////////////////////////////////////
 

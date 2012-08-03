@@ -32,7 +32,7 @@ TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPt
 void TEncodingWriter::WriteBlock(const TSharedRef& block)
 {
     Semaphore.Acquire(block.Size());
-    WriterThread->GetInvoker()->Invoke(BIND(
+    CompressionThread->GetInvoker()->Invoke(BIND(
         &TEncodingWriter::DoCompressBlock, 
         MakeStrong(this),
         block));
@@ -44,7 +44,7 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
         Semaphore.Acquire(part.Size());
     }
 
-    WriterThread->GetInvoker()->Invoke(BIND(
+    CompressionThread->GetInvoker()->Invoke(BIND(
         &TEncodingWriter::DoCompressVector, 
         MakeWeak(this),
         MoveRV(vectorizedBlock)));

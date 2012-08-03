@@ -15,6 +15,8 @@ TLazyPtr<TActionQueue> WriterThread(TActionQueue::CreateFactory("ChunkWriter"));
 
 TLazyPtr<TActionQueue> ReaderThread(TActionQueue::CreateFactory("ChunkReader"));
 
+TLazyPtr<TActionQueue> CompressionThread(TActionQueue::CreateFactory("Compression"));
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
