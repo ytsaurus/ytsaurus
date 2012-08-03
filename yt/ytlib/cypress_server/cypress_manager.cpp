@@ -471,7 +471,10 @@ ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
     const TVersionedNodeId& versionedId)
 {
     auto transactionManager = Bootstrap->GetTransactionManager();
-    auto* transaction = transactionManager->GetTransaction(versionedId.TransactionId);
+    auto* transaction =
+        versionedId.TransactionId == NullTransactionId
+        ?  NULL
+        : transactionManager->GetTransaction(versionedId.TransactionId);
     return GetVersionedNodeProxy(versionedId.ObjectId, transaction);
 }
 
