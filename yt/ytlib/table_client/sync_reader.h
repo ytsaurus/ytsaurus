@@ -29,7 +29,7 @@ class TSyncReaderAdapter
     : public ISyncReader
 {
 public:
-    TSyncReaderAdapter(TIntrusivePtr<TAsyncReader> asyncReader)
+    explicit TSyncReaderAdapter(TIntrusivePtr<TAsyncReader> asyncReader)
         : AsyncReader(asyncReader)
     { }
 
@@ -37,7 +37,6 @@ public:
     {
         Sync(~AsyncReader, &TAsyncReader::AsyncOpen);
     }
-
 
     void NextRow()
     {
