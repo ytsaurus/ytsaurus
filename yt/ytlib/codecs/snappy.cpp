@@ -4,6 +4,7 @@
 #include <contrib/libs/snappy/snappy-stubs-internal.h>
 
 namespace NYT {
+namespace NCodec {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,5 +33,5 @@ void SnappyDecompress(StreamSource* source, std::vector<char>* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+}} // namespace NYT::NCodec
 

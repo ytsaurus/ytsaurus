@@ -79,13 +79,10 @@ class DynamicByteArraySink
     : public StreamSink
 {
 public:
-    DynamicByteArraySink(std::vector<char>* output):
-        Output_(output)
+    explicit DynamicByteArraySink(std::vector<char>* output)
+        : Output_(output)
     { }
 
-    ~DynamicByteArraySink()
-    { }
-    
     virtual void Append(const char* data, size_t n) OVERRIDE
     {
         for (size_t i = 0; i < n; ++i) {

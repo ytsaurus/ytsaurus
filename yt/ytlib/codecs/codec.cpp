@@ -38,17 +38,17 @@ class TSnappyCodec
 public:
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
-        return Apply(BIND(SnappyCompress), block);
+        return NCodec::Apply(BIND(NCodec::SnappyCompress), block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
-        return Apply(BIND(SnappyCompress), blocks);
+        return NCodec::Apply(BIND(NCodec::SnappyCompress), blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
-        return Apply(BIND(SnappyDecompress), block);
+        return NCodec::Apply(BIND(NCodec::SnappyDecompress), block);
     }
 
 };
@@ -60,26 +60,26 @@ class TGzipCodec
 {
 public:
     explicit TGzipCodec(int level)
-        : Compressor_(BIND(ZlibCompress, level))
+        : Compressor_(BIND(NCodec::ZlibCompress, level))
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
-        return Apply(Compressor_, block);
+        return NCodec::Apply(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
-        return Apply(Compressor_, blocks);
+        return NCodec::Apply(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
-        return Apply(BIND(ZlibDecompress), block);
+        return NCodec::Apply(BIND(NCodec::ZlibDecompress), block);
     }
 
 private:
-    TConverter Compressor_;
+    NCodec::TConverter Compressor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,26 +89,26 @@ class TLz4Codec
 {
 public:
     explicit TLz4Codec(bool highCompression)
-        : Compressor_(BIND(Lz4Compress, highCompression))
+        : Compressor_(BIND(NCodec::Lz4Compress, highCompression))
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) OVERRIDE
     {
-        return Apply(Compressor_, block);
+        return NCodec::Apply(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) OVERRIDE
     {
-        return Apply(Compressor_, blocks);
+        return NCodec::Apply(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) OVERRIDE
     {
-        return Apply(BIND(Lz4Decompress), block);
+        return NCodec::Apply(BIND(NCodec::Lz4Decompress), block);
     }
 
 private:
-    TConverter Compressor_;
+    NCodec::TConverter Compressor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

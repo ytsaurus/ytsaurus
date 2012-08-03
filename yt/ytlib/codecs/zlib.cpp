@@ -8,10 +8,11 @@
 #include <iostream>
 
 namespace NYT {
+namespace NCodec {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t BufferSize = 1 << 20;
+const size_t BufferSize = 1 << 16;
 
 void ZlibCompress(StreamSource* source, StreamSink* sink, int level) {
     char buffer[BufferSize];
@@ -31,12 +32,13 @@ void ZlibCompress(StreamSource* source, StreamSink* sink, int level) {
         stream.avail_in = available;
         flush = (stream.avail_in == source->Available()) ? Z_FINISH : Z_NO_FLUSH;
         do {
+            size_t previousAvailable = stream.avail_in;
             stream.next_out = reinterpret_cast<Bytef*>(buffer);
             stream.avail_out = BufferSize;
             returnCode = deflate(&stream, flush);
             YCHECK(returnCode != Z_STREAM_ERROR);
 
-            source->Skip(available - stream.avail_in);
+            source->Skip(previousAvailable - stream.avail_in);
             sink->Append(buffer, BufferSize - stream.avail_out);
         } while(stream.avail_out == 0);
         YCHECK(stream.avail_in == 0);
@@ -102,4 +104,4 @@ void ZlibDecompress(StreamSource* source, std::vector<char>* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+}} // namespace NYT::Ncodec

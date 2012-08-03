@@ -5,6 +5,9 @@
 #include <ytlib/actions/callback.h>
 
 namespace NYT {
+namespace NCodec {
+
+////////////////////////////////////////////////////////////////////////////////
 
 typedef TCallback<void (StreamSource*, std::vector<char>*)> TConverter;
 
@@ -28,4 +31,6 @@ inline TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& ref
     return TSharedRef(MoveRV(output));
 }
 
-} // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+}} // namespace NYT::Ncodec
