@@ -13,5 +13,6 @@ void Lz4Decompress(StreamSource* source, std::vector<char>* output);
 
 ////////////////////////////////////////////////////////////////////////////////
         
-}} // namespace NYT::NCodec
+} // namespace NCodec
+} // namespace NYT
 

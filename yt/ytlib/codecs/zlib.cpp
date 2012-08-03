@@ -105,4 +105,5 @@ void ZlibDecompress(StreamSource* source, std::vector<char>* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}} // namespace NYT::Ncodec
+} // namespace NCodec
+} // namespace NYT

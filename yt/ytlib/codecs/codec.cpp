@@ -1,12 +1,12 @@
 #include "stdafx.h"
 #include "codec.h"
-
-#include "perform_convertion.h"
+#include "helpers.h"
 #include "snappy.h"
 #include "zlib.h"
 #include "lz.h"
 
 namespace NYT {
+namespace NCodec {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,26 +113,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCodec
+} // namespace NYT
+
+
+namespace NYT {
+
 TCodecPtr GetCodec(ECodecId id)
 {
     switch (id) {
         case ECodecId::None:
-            return New<TNoneCodec>();
+            return New<NCodec::TNoneCodec>();
 
         case ECodecId::Snappy:
-            return New<TSnappyCodec>();
+            return New<NCodec::TSnappyCodec>();
 
         case ECodecId::GzipNormal:
-            return New<TGzipCodec>(6);
+            return New<NCodec::TGzipCodec>(6);
 
         case ECodecId::GzipBestCompression:
-            return New<TGzipCodec>(9);
+            return New<NCodec::TGzipCodec>(9);
 
         case ECodecId::Lz4:
-            return New<TLz4Codec>(false);
+            return New<NCodec::TLz4Codec>(false);
 
         case ECodecId::Lz4HighCompression:
-            return New<TLz4Codec>(true);
+            return New<NCodec::TLz4Codec>(true);
 
         default:
             YUNREACHABLE();

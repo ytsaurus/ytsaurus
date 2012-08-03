@@ -36,9 +36,6 @@ struct ICodec
 
 
 //! Returns a codec for the registered id.
-/*!
- *  Codec instances are singletons.
- */
 TCodecPtr GetCodec(ECodecId id);
 
 ////////////////////////////////////////////////////////////////////////////////

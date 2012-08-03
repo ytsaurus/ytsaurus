@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/misc/intrusive_ptr.h>
+#include <ytlib/misc/common.h>
 
 namespace NYT {
 

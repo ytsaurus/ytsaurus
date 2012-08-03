@@ -6,15 +6,14 @@ set( SRCS
   ${BASE}/snappy.cpp
   ${BASE}/zlib.cpp
   ${BASE}/lz.cpp
-  ${BASE}/shared_ref_helpers.cpp
+  ${BASE}/helpers.cpp
 )
 
 set( HDRS
   ${BASE}/codec.h
   ${BASE}/zlib.h
   ${BASE}/lz.h
-  ${BASE}/source.h
-  ${BASE}/shared_ref_helpers.h
+  ${BASE}/helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES

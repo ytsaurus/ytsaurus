@@ -10,7 +10,8 @@ namespace NCodec {
 
 namespace {
 
-struct THeader {
+struct THeader
+{
     i32 OutputSize;
     i32 InputSize;
 };
