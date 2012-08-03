@@ -26,7 +26,7 @@ TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPt
         BIND(
             &TEncodingWriter::WritePendingBlocks, 
             MakeWeak(this))
-        .Via(WriterThread->GetInvoker()))
+        .Via(CompressionThread->GetInvoker()))
 {}
 
 void TEncodingWriter::WriteBlock(const TSharedRef& block)
