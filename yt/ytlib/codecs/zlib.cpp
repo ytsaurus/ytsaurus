@@ -12,7 +12,7 @@ namespace NCodec {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t BufferSize = 1 << 20;
+static const size_t BufferSize = 1 << 16;
 
 void ZlibCompress(StreamSource* source, StreamSink* sink, int level)
 {

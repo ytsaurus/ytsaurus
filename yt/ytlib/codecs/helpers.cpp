@@ -102,9 +102,14 @@ DynamicByteArraySink::DynamicByteArraySink(std::vector<char>* output)
 
 void DynamicByteArraySink::Append(const char* data, size_t n)
 {
-    for (size_t i = 0; i < n; ++i) {
-        Output_->push_back(data[i]);
+    size_t newSize = Output_->size() + n;
+    if (newSize > Output_->capacity()) {
+        Output_->reserve(std::max(Output_->capacity() * 2, newSize));
     }
+
+    auto outputPointer = Output_->data() + Output_->size();
+    Output_->resize(newSize);
+    std::copy(data, data + n, outputPointer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

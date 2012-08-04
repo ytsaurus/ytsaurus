@@ -38,8 +38,8 @@ TEST_F(TCodecTest, VectorCompression)
         auto codec = GetCodec(codecId);
 
         {
-            Stroka a = Stroka('a', 10000);
-            Stroka b = Stroka('b', 50000);
+            Stroka a = Stroka(10000, 'a');
+            Stroka b = Stroka(50000, 'b');
             Stroka data[] = {"", "", "hello", "", " ", "world", "", a, b, "", ""};
             size_t count = sizeof(data) / sizeof(data[0]);
 
