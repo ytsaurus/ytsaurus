@@ -31,8 +31,6 @@ def write_with_flush(data):
     sys.stdout.write(data)
     sys.stdout.flush()
 
-logging.basicConfig(format='%(message)s', level=logging.INFO)
-
 class YTEnv(unittest.TestCase):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
@@ -60,6 +58,8 @@ class YTEnv(unittest.TestCase):
         pass
 
     def set_environment(self, path_to_run, pids_filename, ports=None, supress_yt_output=False):
+        logging.basicConfig(format='%(message)s')
+
         self.supress_yt_output = supress_yt_output
         self.path_to_run = os.path.abspath(path_to_run)
         if os.path.exists(self.path_to_run):

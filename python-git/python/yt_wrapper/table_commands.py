@@ -3,7 +3,7 @@ from common import flatten, require, YtError, parse_bool, add_quotes, unlist, up
 from path_tools import escape_path
 from http import make_request
 from table import get_yson_name, to_table
-from tree_commands import exists, remove, get_attribute, set, copy, mkdir
+from tree_commands import exists, remove, get_attribute, set, copy, mkdir, find_free_subpath
 from file_commands import upload_file
 from operation_commands import \
         get_operation_stderr, get_operation_result, get_jobs_errors
@@ -11,8 +11,6 @@ from operation_commands import \
 
 import os
 import types
-import random
-import string
 import simplejson as json
 from itertools import imap, ifilter
 
@@ -60,20 +58,20 @@ def create_table(path, make_it_empty=True):
         dirname = os.path.dirname(path)
         mkdir(dirname)
         make_request("POST", "create",
-                     dict(path=escape_path(path),
-                          type="table"))
+                     {"path": escape_path(path),
+                      "type": "table"})
 
 def create_temp_table(path=None, prefix=None):
     if path is None: path = config.TEMP_TABLES_STORAGE
     require(exists(path), YtError("You cannot create table in unexisting path"))
-    # TODO(ignat): move it to configs?
-    LENGTH = 10
-    char_set = string.ascii_lowercase + string.ascii_uppercase + string.digits
-    while True:
-        name = "%s/%s%s" % (path, prefix, "".join(random.sample(char_set, LENGTH)))
-        if not exists(name):
-            create_table(name)
-            return name
+    if prefix is not None:
+        path = os.path.join(path, prefix)
+    else:
+        if not path.endswith("/"):
+            path = path + "/"
+    name = find_free_subpath(path)
+    create_table(name)
+    return name
 
 def write_table(table, lines, format=None):
     if format is None: format = config.DEFAULT_FORMAT
@@ -81,7 +79,7 @@ def write_table(table, lines, format=None):
     create_table(table.name, not table.append)
     buffer = Buffer(lines)
     while not buffer.empty():
-        make_request("PUT", "write", dict(path=table.escaped_name()), buffer.get(), format=format)
+        make_request("PUT", "write", {"path": table.escaped_name()}, buffer.get(), format=format)
 
 def read_table(table, format=None):
     def add_eoln(str):
@@ -180,7 +178,7 @@ def merge_tables(source_table, destination_table, mode, strategy=None, spec=None
 
 """ Map and reduce methods """
 def run_operation(binary, source_table, destination_table,
-                  files, format, strategy, spec, op_type,
+                  files, file_paths, format, strategy, spec, op_type,
                   columns=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if format is None: format = config.DEFAULT_FORMAT
@@ -188,10 +186,14 @@ def run_operation(binary, source_table, destination_table,
     if files is None: files = []
     if spec is None: spec = {}
     files = flatten(files)
-
-    file_paths = []
+    
+    to_remove = []
+    if file_paths is None:
+        file_paths = []
     for file in files:
-       file_paths.append(upload_file(file, replace=config.REPLACE_FILES_IN_OPERATION))
+        file_destination = upload_file(file)
+        file_paths.append(file_destination)
+        to_remove.append(file_destination)
 
     source_table = map(to_table, flatten(source_table))
     if config.MERGE_SRC_TABLES_BEFORE_OPERATION and len(source_table) > 1:
@@ -230,17 +232,22 @@ def run_operation(binary, source_table, destination_table,
     operation = make_request("POST", op_type, None, params)
     strategy.process_operation(op_type, operation)
 
+    for path in to_remove:
+        remove(path)
+
 def run_map(binary, source_table, destination_table,
-            files=None, format=None, strategy=None, spec=None):
+            files=None, file_paths=None, format=None, strategy=None, spec=None):
     run_operation(binary, source_table, destination_table,
-                  files=files, format=format,
+                  files=files, file_paths=file_paths,
+                  format=format,
                   strategy=strategy, spec=spec,
                   op_type="map")
 
 def run_reduce(binary, source_table, destination_table,
-               files=None, format=None, strategy=None, columns=None, spec=None):
+               files=None, file_paths=None, format=None, strategy=None, columns=None, spec=None):
     run_operation(binary, source_table, destination_table,
-                  files=files, format=format,
+                  files=files, file_paths=file_paths,
+                  format=format,
                   strategy=strategy, spec=spec,
                   columns=columns,
                   op_type="reduce")
