@@ -32,7 +32,6 @@ class YtTest(YTEnv):
         if os.path.exists("test.log"):
             os.remove("test.log")
         logging.basicConfig(level=logging.WARNING)
-        logging.disable(logging.INFO)
 
         ports = {
             "master": 18001,
@@ -276,6 +275,12 @@ class YtTest(YTEnv):
                               format=yt.DsvFormat()),
             [{"c": "17.5"}, {"c": "0.5"}])
 
+        self.assertEqual(
+            self.read_records(Table(table, columns=["b"], end_index=2),
+                              format=yt.DsvFormat()),
+            [{"b": "ignat"}, {"b": "max"}])
+
+
     def test_merge(self):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
@@ -303,10 +308,25 @@ class YtTest(YTEnv):
                    files=["tests/my_op.py", "tests/helpers.py"])
         self.assertFalse(yt.exists(other_table))
 
+    def test_file_operations(self):
+        #TODO(ignat): eliminate this hack
+        def add_eoln(str):
+            return str + "\n"
+
+        dest1 = yt.upload_file("tests/my_op.py")
+        dest2 = yt.upload_file("tests/my_op.py")
+        self.assertTrue(dest1.endswith("my_op.py"))
+        self.assertTrue(dest2.startswith(dest1))
+        
+        for dest in [dest1, dest2]:
+            self.assertEqual(map(add_eoln, list(yt.download_file(dest))),
+                             open("tests/my_op.py").readlines())
+
+
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_attributes"))
+    #suite.addTest(YtTest("test_file_operations"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 

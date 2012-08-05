@@ -8,7 +8,6 @@ READ_BUFFER_SIZE = 10 ** 8
 FILE_STORAGE = "//tmp/yt_wrapper/file_storage"
 TEMP_TABLES_STORAGE = "//tmp/yt_wrapper/table_storage"
 
-REPLACE_FILES_IN_OPERATION = True
 MERGE_SRC_TABLES_BEFORE_OPERATION = False
 USE_MAPREDUCE_STYLE_DST_TABLES = False
 CHECK_RESULT = True

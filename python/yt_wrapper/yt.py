@@ -8,6 +8,7 @@ from table_commands import create_table, write_table, read_table, remove_table, 
                            create_temp_table, merge_tables, run_map, run_reduce
 
 from operation_commands import get_operation_state, abort_operation, WaitStrategy, AsyncStrategy
+from file_commands import upload_file, download_file
 
 if __name__ == "__main__":
     """ Some tests """

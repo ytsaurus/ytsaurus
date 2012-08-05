@@ -3,21 +3,23 @@ from path_tools import escape_path, split_path, dirs
 from http import make_request
 
 import os
+import string
+import random
 from itertools import imap, izip
 
 def get(path, with_attributes=False, check_errors=True):
     return make_request("GET", "get",
-                        dict(path=escape_path(path),
-                             with_attributes=bool_to_string(with_attributes)),
+                        {"path": escape_path(path),
+                         "with_attributes": bool_to_string(with_attributes)},
                         check_errors=check_errors)
 
 def set(path, value):
-    return make_request("PUT", "set", dict(path=escape_path(path)), value)
+    return make_request("PUT", "set", {"path": escape_path(path)}, value)
 
 def copy(source_path, destination_path):
     return make_request("GET", "copy",
-                        dict(source_path=escape_path(source_path),
-                             destination_path=escape_path(destination_path)))
+                        {"source_path": escape_path(source_path),
+                         "destination_path": escape_path(destination_path)})
 
 def list(path):
     if not exists(path):
@@ -64,3 +66,12 @@ def list_attributes(path, attribute_path=""):
     # TODO(ignat): it doesn't work now. We need support attributes in exists
     return list("%s/@%s" % (path, attribute_path))
 
+def find_free_subpath(path):
+    if not path.endswith("/") and not exists(path):
+        return path
+    LENGTH = 10
+    char_set = string.ascii_lowercase + string.ascii_uppercase + string.digits
+    while True:
+        name = "%s%s" % (path, "".join(random.sample(char_set, LENGTH)))
+        if not exists(name):
+            return name
