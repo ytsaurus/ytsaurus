@@ -57,7 +57,7 @@ def get_jobs_errors(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     jobs = list(operation_path + "/jobs")
     jobs_paths = ("%s/jobs/%s" % (operation_path, job) for job in jobs)
-    return "\n\n".join(get_attribute(job, "error/message")
+    return "\n\n".join(get_attribute(job, "error")
                        for job in jobs_paths
                        if "error" in list(job + "/@"))
 
