@@ -286,7 +286,7 @@ private:
             BucketStart[bucketId + 1]);
 
         auto begin = Buckets.begin() + BucketStart[bucketId];
-        auto end = Buckets.end() + BucketStart[bucketId + 1];
+        auto end = Buckets.begin() + BucketStart[bucketId + 1];
         std::sort(begin, end, SortComparer);
 
         LOG_DEBUG("Finished sorting bucket %d", bucketId);
