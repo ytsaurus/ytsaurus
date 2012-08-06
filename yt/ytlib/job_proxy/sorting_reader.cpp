@@ -28,6 +28,10 @@ using namespace NYTree;
 static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
+static const int SortBucketSize = 10000;
+const int SpinsBetweenYield = 1000;
+static const int RowsBetweenAtomicUpdate = 1000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortingReader
@@ -44,9 +48,10 @@ public:
         : KeyColumns(keyColumns)
         , KeyColumnCount(static_cast<int>(KeyColumns.size()))
         , OnNetworkReleased(onNetworkReleased)
-        , OpenError(NewPromise<TError>())
         , IsValid_(true)
         , CurrentKey(KeyColumnCount)
+        , SortComparer(this)
+        , MergeComparer(this)
     {
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());
@@ -61,23 +66,11 @@ public:
     virtual void Open() override
     {
         SortQueue = New<TActionQueue>("Sort");
-        SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::SortThreadMain, MakeStrong(this)));
 
-        LOG_INFO("Waiting for sort thread to finish reading");
-
-        auto error = OpenError.Get();
-        if (!error.IsOK()) {
-            SetInvalid();
-            ythrow yexception() << error.ToString();
-        }
-
-        LOG_INFO("Sort thread has finished reading");
-
-        if (TotalRowCount == 0) {
-            SetInvalid();
-        } else {
-            DoNextRow();
-        }
+        InitInput();
+        ReadInput();
+        StartMerge();
+        DoNextRow();
     }
 
     virtual bool IsValid() const override
@@ -97,8 +90,8 @@ public:
 
     virtual void NextRow() override
     {
-        YASSERT(IsValid_);
-        DoNextRow();
+        //YASSERT(IsValid_);
+        //DoNextRow();
     }
 
 private:
@@ -109,11 +102,10 @@ private:
     bool IsValid_;
     TPartitionChunkSequenceReaderPtr Reader;
     TActionQueuePtr SortQueue;
-    TAsyncErrorPromise OpenError;
 
-    TAtomic TotalRowCount;
-    TAtomic SortedRowIndex;
-    TAtomic CurrentRowIndex;
+    int TotalRowCount;
+    TAtomic SortedRowCount;
+    int ReadRowCount;
 
     TMemoryInput RowInput;
     TRow CurrentRow;
@@ -121,132 +113,249 @@ private:
 
     std::vector<TSmallKeyPart> KeyBuffer;
     std::vector<const char*> RowPtrBuffer;
-    std::vector<ui32> RowIndexHeap;
+    std::vector<ui32> Buckets;
+    std::vector<ui32> SortedIndexes;
+    std::vector<int> BucketStart;
+    std::vector<int> BucketCurrent;
+    std::vector<int> BucketHeap;
 
-    void SortThreadMain()
+    class TComparerBase
     {
-        PROFILE_TIMING ("/sort_time") {
-            // comparer(x, y) returns True iff row[x] < row[y]
-            auto comparer = [&] (ui32 lhs, ui32 rhs) -> bool {
-                int lhsStartIndex = lhs * KeyColumnCount;
-                int lhsEndIndex   = lhsStartIndex + KeyColumnCount;
-                int rhsStartIndex = rhs * KeyColumnCount;
-                for (int lhsIndex = lhsStartIndex, rhsIndex = rhsStartIndex;
-                    lhsIndex < lhsEndIndex;
-                    ++lhsIndex, ++rhsIndex)
-                {
-                    auto res = CompareSmallKeyParts(KeyBuffer[lhsIndex], KeyBuffer[rhsIndex]);
-                    if (res > 0)
-                        return true;
-                    if (res < 0)
-                        return false;
-                }
-                return false;
+    public:
+        explicit TComparerBase(TSortingReader* reader)
+            : KeyColumnCount(reader->KeyColumnCount)
+            , KeyBuffer(reader->KeyBuffer)
+        { }
+
+    protected:
+        int KeyColumnCount;
+        std::vector<TSmallKeyPart>& KeyBuffer;
+
+        bool CompareRows(ui32 lhs, ui32 rhs) const
+        {
+            int lhsStartIndex = lhs * KeyColumnCount;
+            int lhsEndIndex   = lhsStartIndex + KeyColumnCount;
+            int rhsStartIndex = rhs * KeyColumnCount;
+            for (int lhsIndex = lhsStartIndex, rhsIndex = rhsStartIndex;
+                lhsIndex < lhsEndIndex;
+                ++lhsIndex, ++rhsIndex)
+            {
+                auto res = CompareSmallKeyParts(KeyBuffer[lhsIndex], KeyBuffer[rhsIndex]);
+                if (res > 0)
+                    return true;
+                if (res < 0)
+                    return false;
+            }
+            return false;
+        }
+    };
+
+    class TSortComparer
+        : public TComparerBase
+    {
+    public:
+        explicit TSortComparer(TSortingReader* reader)
+            : TComparerBase(reader)
+        { }
+
+        // Returns True iff row[lhs] < row[rhs]
+        bool operator () (ui32 lhs, ui32 rhs) const
+        {
+            return CompareRows(lhs, rhs);
+        };
+
+    };
+
+    class TMergeComparer
+        : public TComparerBase
+    {
+    public:
+        explicit TMergeComparer(TSortingReader* reader)
+            : TComparerBase(reader)
+            , Buckets(reader->Buckets)
+            , BucketCurrent(reader->BucketCurrent)
+        { }
+
+        // Returns True iff row[Buckets[BucketCurrent[lhs]]] < row[Buckets[BucketCurrent[rhs]]]
+        bool operator () (int lhs, int rhs) const
+        {
+            return CompareRows(Buckets[BucketCurrent[lhs]], Buckets[BucketCurrent[rhs]]);
+        };
+
+    private:
+        std::vector<ui32>& Buckets;
+        std::vector<int>& BucketCurrent;
+
+    };
+
+    TSortComparer SortComparer;
+    TMergeComparer MergeComparer;
+
+
+    void InitInput()
+    {
+        LOG_INFO("Initializing input");
+        PROFILE_TIMING ("/reduce/init_time") {
+            Sync(~Reader, &TPartitionChunkSequenceReader::AsyncOpen);
+
+            i64 estimatedRowCount = Reader->GetRowCount();
+            LOG_INFO("Input size estimated (RowCount: %" PRId64, estimatedRowCount);
+            YCHECK(estimatedRowCount <= std::numeric_limits<i32>::max());
+
+            KeyBuffer.reserve(estimatedRowCount * KeyColumnCount);
+            RowPtrBuffer.reserve(estimatedRowCount);
+            Buckets.reserve(estimatedRowCount);
+            SortedIndexes.reserve(estimatedRowCount);
+        }
+    }
+
+    void ReadInput()
+    {
+        LOG_INFO("Started reading input");
+        PROFILE_TIMING ("/reduce/read_time" ) {
+            bool isNetworkReleased = false;
+
+            TLexer lexer;
+            int bucketId = 0;
+            int bucketSize = 0;
+            int rowIndex = 0;
+
+            auto flushBucket = [&] () {
+                BucketStart.push_back(rowIndex);
+                SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoSortBucket, Unretained(this), bucketId));
+                ++bucketId;
+                bucketSize = 0;
             };
 
-            try {
-                LOG_INFO("Initializing input");
-                {
-                    Sync(~Reader, &TPartitionChunkSequenceReader::AsyncOpen);
+            BucketStart.push_back(0);
 
-                    i64 estimatedRowCount = Reader->GetRowCount();
-                    LOG_INFO("Estimated row count: %" PRId64, estimatedRowCount);
+            while (Reader->IsValid()) {
+                // Construct row entry.
+                RowPtrBuffer.push_back(Reader->CurrentReader()->GetRowPointer());
 
-                    KeyBuffer.reserve(estimatedRowCount * KeyColumnCount);
-                    RowPtrBuffer.reserve(estimatedRowCount);
-                    RowIndexHeap.reserve(estimatedRowCount);
-                }
-                PROFILE_TIMING_CHECKPOINT("init");
-
-                LOG_INFO("Reading sort input");
-                {
-                    bool isNetworkReleased = false;
-
-                    TLexer lexer;
-                    while (Reader->IsValid()) {
-                        // Push row pointer and heap entry.
-                        RowPtrBuffer.push_back(Reader->CurrentReader()->GetRowPointer());
-                        RowIndexHeap.push_back(RowIndexHeap.size());
-                        YASSERT(RowIndexHeap.back() <= std::numeric_limits<ui32>::max());
-
-                        // Push key.
-                        KeyBuffer.resize(KeyBuffer.size() + KeyColumnCount);
-                        for (int i = 0; i < KeyColumnCount; ++i) {
-                            auto value = Reader->CurrentReader()->ReadValue(KeyColumns[i]);
-                            if (!value.IsNull()) {
-                                auto& keyPart = KeyBuffer[RowIndexHeap.back() * KeyColumnCount + i];
-                                SetSmallKeyPart(keyPart, value.ToStringBuf(), lexer);
-                            }
-                        }
-
-                        // Readjust the heap.
-                        std::push_heap(RowIndexHeap.begin(), RowIndexHeap.end(), comparer);
-
-                        if (!isNetworkReleased && Reader->IsFetchingComplete()) {
-                            OnNetworkReleased.Run();
-                            isNetworkReleased =  true;
-                        }
-
-                        if (!Reader->FetchNextItem()) {
-                            Sync(~Reader, &TPartitionChunkSequenceReader::GetReadyEvent);
-                        }
-                    }
-
-                    if (!isNetworkReleased) {
-                        OnNetworkReleased.Run();
-                        isNetworkReleased =  true;
+                // Construct key entry.
+                KeyBuffer.resize(KeyBuffer.size() + KeyColumnCount);
+                for (int i = 0; i < KeyColumnCount; ++i) {
+                    auto value = Reader->CurrentReader()->ReadValue(KeyColumns[i]);
+                    if (!value.IsNull()) {
+                        auto& keyPart = KeyBuffer[rowIndex * KeyColumnCount + i];
+                        SetSmallKeyPart(keyPart, value.ToStringBuf(), lexer);
                     }
                 }
-                PROFILE_TIMING_CHECKPOINT("read");
-            } catch (const std::exception& ex) {
-                OpenError.Set(TError(ex.what()));
+
+                // Push the row to the current bucket and flush the bucket if full.
+                Buckets.push_back(rowIndex);
+                ++rowIndex;
+                ++bucketSize;
+                if (bucketSize == SortBucketSize) {
+                    flushBucket();
+                }
+
+                if (!isNetworkReleased && Reader->IsFetchingComplete()) {
+                    OnNetworkReleased.Run();
+                    isNetworkReleased =  true;
+                }
+
+                if (!Reader->FetchNextItem()) {
+                    Sync(~Reader, &TPartitionChunkSequenceReader::GetReadyEvent);
+                }
             }
 
-            AtomicSet(TotalRowCount, RowIndexHeap.size());
-            AtomicSet(SortedRowIndex, TotalRowCount);
-            AtomicSet(CurrentRowIndex, TotalRowCount);
-            
-            LOG_INFO("Total row count: %" PRISZT, TotalRowCount);
-
-            OpenError.Set(TError());
-
-            LOG_INFO("Sorting input");
-            {
-                auto heapBegin = RowIndexHeap.begin();
-                auto heapEnd = RowIndexHeap.end();
-                
-                // Pop heap until empty. Notify the client periodically.
-                const int RowsBetweenAtomicUpdate = 100;
-                size_t sortedRowIndex = TotalRowCount;
-                while (heapBegin != heapEnd) {
-                    std::pop_heap(heapBegin, heapEnd, comparer);
-                    --heapEnd;
-                    --sortedRowIndex;
-                    if (sortedRowIndex % RowsBetweenAtomicUpdate) {
-                        AtomicSet(SortedRowIndex, sortedRowIndex);
-                    }
-                }
-
-                AtomicSet(SortedRowIndex, 0);
+            if (bucketSize > 0) {
+                flushBucket();
             }
-            PROFILE_TIMING_CHECKPOINT("sort");
 
-            LOG_INFO("Sorting complete");
+            if (!isNetworkReleased) {
+                OnNetworkReleased.Run();
+                isNetworkReleased =  true;
+            }
+
+            TotalRowCount = rowIndex;
+
+            LOG_INFO("Finshied reading input (TotalRowCount: %d, BucketCount: %d)",
+                TotalRowCount,
+                static_cast<int>(BucketStart.size()) - 1);
         }
+    }
+
+    void DoSortBucket(int bucketId)
+    {
+        LOG_DEBUG("Starting sorting bucket %d: rows %d-%d",
+            bucketId,
+            BucketStart[bucketId],
+            BucketStart[bucketId + 1]);
+
+        auto begin = Buckets.begin() + BucketStart[bucketId];
+        auto end = Buckets.end() + BucketStart[bucketId + 1];
+        std::sort(begin, end, SortComparer);
+
+        LOG_DEBUG("Finished sorting bucket %d", bucketId);
+    }
+
+    void StartMerge()
+    {
+        BucketCurrent.reserve(BucketStart.size());
+        for (int index = 0; index < static_cast<int>(BucketStart.size()) - 1; ++index) {
+            BucketHeap.push_back(index);
+            BucketCurrent.push_back(BucketStart[index]);
+        }
+
+        std::make_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
+        std::pop_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
+
+        AtomicSet(SortedRowCount, 0);
+        ReadRowCount = 0;
+
+        LOG_INFO("Waiting for sort thread");
+        PROFILE_TIMING ("/reduce/sort_wait_time") {
+            BIND([] () -> TVoid { return TVoid(); }).AsyncVia(SortQueue->GetInvoker()).Run().Get();
+        }
+        LOG_INFO("Sort thread is idle");
+
+        SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoMerge, Unretained(this)));
+    }
+
+    void DoMerge()
+    {
+        LOG_INFO("Starting merge");
+        PROFILE_TIMING ("/reduce/merge_time") {
+            int sortedRowCount = 0;
+            while (!BucketHeap.empty()) {
+                int bucketId = BucketHeap.back();
+                int current = BucketCurrent[bucketId];
+                int end = BucketStart[bucketId + 1];
+                SortedIndexes.push_back(Buckets[current]);
+                if (current == end) {
+                    BucketHeap.pop_back();
+                } else {
+                    BucketCurrent[bucketId] = current + 1;
+                    std::push_heap(Buckets.begin(), Buckets.end(), MergeComparer);
+                    std::pop_heap(Buckets.begin(), Buckets.end(), MergeComparer);
+                }
+
+                ++sortedRowCount;
+                if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
+                    AtomicSet(SortedRowCount, sortedRowCount);
+                }
+            }
+
+            YCHECK(sortedRowCount == TotalRowCount);
+            AtomicSet(SortedRowCount, sortedRowCount);
+        }
+        LOG_INF("Finished merge");
     }
 
     void DoNextRow()
     {
-        if (CurrentRowIndex == 0) {
+        if (ReadRowCount == TotalRowCount) {
             SetInvalid();
             return;
         }
 
-        auto currentRowIndex = AtomicDecrement(CurrentRowIndex);
-        const int SpinsBetweenYield = 1000;
+        int currentIndex = ReadRowCount;
         for (int spinCounter = 1; ; ++spinCounter) {
-            auto sortedRowIndex = AtomicGet(SortedRowIndex);
-            if (sortedRowIndex <= currentRowIndex) {
+            auto sortedRowCount = spinCounter == 1 ? SortedRowCount : AtomicGet(SortedRowCount);
+            if (sortedRowCount > currentIndex) {
                 break;
             }
             if (spinCounter % SpinsBetweenYield == 0) {
@@ -256,24 +365,23 @@ private:
             }
         }
 
-        auto sortedRowIndex = RowIndexHeap[currentRowIndex];
+        auto sortedIndex = SortedIndexes[currentIndex];
 
         // Prepare key.
         CurrentKey.Clear();
         for (int index = 0; index < KeyColumnCount; ++index) {
-            const auto& keyPart = KeyBuffer[sortedRowIndex * KeyColumnCount + index];
+            const auto& keyPart = KeyBuffer[sortedIndex * KeyColumnCount + index];
             SetKeyPart(&CurrentKey, keyPart, index);
         }
 
         // Prepare row.
         CurrentRow.clear();
-        RowInput.Reset(RowPtrBuffer[sortedRowIndex], std::numeric_limits<size_t>::max());
+        RowInput.Reset(RowPtrBuffer[sortedIndex], std::numeric_limits<size_t>::max());
         while (true) {
             auto value = TValue::Load(&RowInput);
             if (value.IsNull()) {
                 break;
             }
-
             i32 columnNameLength;
             ReadVarInt32(&RowInput, &columnNameLength);
             YASSERT(columnNameLength > 0);
@@ -283,6 +391,7 @@ private:
             RowInput.Skip(columnNameLength);
         }
 
+        ++ReadRowCount;
     }
 
     void SetInvalid()
