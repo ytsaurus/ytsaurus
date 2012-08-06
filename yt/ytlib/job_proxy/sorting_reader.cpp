@@ -325,10 +325,11 @@ private:
                 int current = BucketCurrent[bucketId];
                 int end = BucketStart[bucketId + 1];
                 SortedIndexes.push_back(Buckets[current]);
+                ++current;
                 if (current == end) {
                     BucketHeap.pop_back();
                 } else {
-                    BucketCurrent[bucketId] = current + 1;
+                    BucketCurrent[bucketId] = current;
                     std::push_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
                     std::pop_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
                 }
