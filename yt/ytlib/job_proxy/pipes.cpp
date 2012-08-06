@@ -316,7 +316,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
             YCHECK(!HasData);
             SafeClose(Pipe.WriteFd);
             LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
-            return true;
+            return false;
         }
 
         YASSERT(Position < Buffer->GetSize());
