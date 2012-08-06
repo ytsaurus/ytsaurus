@@ -199,7 +199,7 @@ private:
             Sync(~Reader, &TPartitionChunkSequenceReader::AsyncOpen);
 
             i64 estimatedRowCount = Reader->GetRowCount();
-            LOG_INFO("Input size estimated (RowCount: %" PRId64, estimatedRowCount);
+            LOG_INFO("Input size estimated (RowCount: %" PRId64 ")", estimatedRowCount);
             YCHECK(estimatedRowCount <= std::numeric_limits<i32>::max());
 
             KeyBuffer.reserve(estimatedRowCount * KeyColumnCount);
@@ -329,8 +329,8 @@ private:
                     BucketHeap.pop_back();
                 } else {
                     BucketCurrent[bucketId] = current + 1;
-                    std::push_heap(Buckets.begin(), Buckets.end(), MergeComparer);
-                    std::pop_heap(Buckets.begin(), Buckets.end(), MergeComparer);
+                    std::push_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
+                    std::pop_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
                 }
 
                 ++sortedRowCount;
