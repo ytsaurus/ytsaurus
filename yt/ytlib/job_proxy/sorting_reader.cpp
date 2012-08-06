@@ -90,8 +90,8 @@ public:
 
     virtual void NextRow() override
     {
-        //YASSERT(IsValid_);
-        //DoNextRow();
+        YASSERT(IsValid_);
+        DoNextRow();
     }
 
 private:
