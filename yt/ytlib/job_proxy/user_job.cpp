@@ -69,7 +69,6 @@ TError StatusToError(int status)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TUserJob
     : public TJob
 {
@@ -133,7 +132,6 @@ public:
         return result;
     }
 
-
 private:
     void InitPipes()
     {
@@ -172,7 +170,7 @@ private:
 
 
         ErrorOutput = JobIO->CreateErrorOutput();
-        Pipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
+        OutputPipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
         ++ActivePipeCount;
 
         // Make pipe for each input and each output table.
