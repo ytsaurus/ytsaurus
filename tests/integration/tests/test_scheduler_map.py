@@ -97,7 +97,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         # check attributes @file_name
         set(file2 + '/@file_name', 'my_file.txt')
-        commmand= "cat > /dev/null; cat some_file.txt; cat my_file.txt"
+        command= "cat > /dev/null; cat some_file.txt; cat my_file.txt"
 
         map(in_='//tmp/t1',
             out='//tmp/t2',
