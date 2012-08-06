@@ -327,7 +327,11 @@ private:
     void StartJob()
     {
         try {
-            FOREACH (auto& pipe, Pipes) {
+            FOREACH (auto& pipe, InputPipes) {
+                pipe->PrepareJobDescriptors();
+            }
+
+            FOREACH (auto& pipe, OutputPipes) {
                 pipe->PrepareJobDescriptors();
             }
 
