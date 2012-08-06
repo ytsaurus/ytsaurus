@@ -277,10 +277,6 @@ private:
                 }
             }
 
-            FOREACH (auto& pipe, pipes) {
-                pipe->Finish();
-            }
-
             SafeClose(epollFd);
         } catch (const std::exception& ex) {
             // Try to close all pipes despite any other errors.
@@ -319,6 +315,14 @@ private:
         JobExitStatus = StatusToError(status);
         if (!JobExitStatus.IsOK()) {
             ythrow yexception() << Sprintf("User job failed with status: %s", ~JobExitStatus.GetMessage());
+        }
+
+        FOREACH (auto& pipe, InputPipes) {
+            pipe->Finish();
+        }
+
+        FOREACH (auto& pipe, OutputPipes) {
+            pipe->Finish();
         }
     }
 
