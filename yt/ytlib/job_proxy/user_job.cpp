@@ -83,6 +83,8 @@ public:
         , JobIO(userJobIO)
         , ActivePipeCount(0)
         , ProcessId(-1)
+        , InputThread(InputThreadFunc, (void*) this)
+        , OutputThread(OutputThreadFunc, (void*) this)
     { }
 
     virtual NScheduler::NProto::TJobResult Run() override
@@ -183,7 +185,7 @@ private:
                     EDataType::Tabular, 
                     buffer.Get());
 
-                Pipes.push_back(New<TInputPipe>(
+                InputPipes.push_back(New<TInputPipe>(
                     JobIO->CreateTableInput(i, consumer.Get()),
                     buffer,
                     consumer,
@@ -202,7 +204,7 @@ private:
                 TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(writer));
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
                 TableOutput[i] = new TTableOutput(parser, consumer, writer);
-                Pipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
+                OutputPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
             }
         }
 
@@ -214,11 +216,25 @@ private:
         LOG_DEBUG("Pipes initialized");
     }
 
-    void DoJobIO()
+    static void* InputThreadFunc(void* param) 
+    {
+        NThread::SetCurrentThreadName("JobProxyInput");
+        TUserJob* job = (TUserJob*)param;
+        job->ProcessPipes(InputPipes);
+    }
+
+    static void* OutputThreadFunc(void* param) 
+    {
+        NThread::SetCurrentThreadName("JobProxyOutput");
+        TUserJob* job = (TUserJob*)param;
+        job->ProcessPipes(OutputPipes);
+    }
+
+    void ProcessPipes(std::vector<TDataPipePtr>& pipes)
     {
         // TODO(babenko): rewrite using libuv
         try {
-            FOREACH (auto& pipe, Pipes) {
+            FOREACH (auto& pipe, pipes) {
                 pipe->PrepareProxyDescriptors();
             }
 
@@ -228,7 +244,7 @@ private:
                 ythrow yexception() << Sprintf("Error during job IO: epoll_create failed (errno: %d)", errno);
             }
 
-            FOREACH (auto& pipe, Pipes) {
+            FOREACH (auto& pipe, pipes) {
                 epoll_event evAdd;
                 evAdd.data.u64 = 0ULL;
                 evAdd.events = pipe->GetEpollFlags();
@@ -264,32 +280,48 @@ private:
                 }
             }
 
-            int status = 0;
-            int waitpidResult = waitpid(ProcessId, &status, 0);
-            if (waitpidResult < 0) {
-                ythrow yexception() << Sprintf("Error during job IO: waitpid failed (errno: %d)", errno);
-            }
-
-            JobExitStatus = StatusToError(status);
-            if (!JobExitStatus.IsOK()) {
-                ythrow yexception() << Sprintf("User job failed with status: %s", ~JobExitStatus.GetMessage());
-            }
-
             FOREACH (auto& pipe, Pipes) {
                 pipe->Finish();
             }
 
             SafeClose(epollFd);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             // Try to close all pipes despite any other errors.
             // It is safe to call Finish multiple times.
-            FOREACH (auto& pipe, Pipes) {
+            FOREACH (auto& pipe, pipes) {
                 try {
                     pipe->Finish();
                 } catch (...) 
                 { }
             }
-            throw;
+
+            TGuard<TSpinLock> guard(SpinLock);
+            if (JobExitStatus.IsOK()) {
+                JobExitStatus = TError(ex.what());
+            }
+        }
+    }
+
+    void DoJobIO()
+    {
+        InputThread.Start();
+        OutputThread.Start();
+        OutputThread.Join();
+        InputThread.Join();
+
+        int status = 0;
+        int waitpidResult = waitpid(ProcessId, &status, 0);
+        if (waitpidResult < 0) {
+            ythrow yexception() << Sprintf("Error during job IO: waitpid failed (errno: %d)", errno);
+        }
+
+        if (!JobExitStatus.IsOK()) {
+            ythrow yexception() << Sprintf("User job IO failed: %s", ~JobExitStatus.GetMessage());
+        }
+
+        JobExitStatus = StatusToError(status);
+        if (!JobExitStatus.IsOK()) {
+            ythrow yexception() << Sprintf("User job failed with status: %s", ~JobExitStatus.GetMessage());
         }
     }
 
@@ -334,9 +366,16 @@ private:
     TAutoPtr<TUserJobIO> JobIO;
     NScheduler::NProto::TUserJobSpec UserJobSpec;
 
-    std::vector<TDataPipePtr> Pipes;
-    int ActivePipeCount;
+    std::vector<TDataPipePtr> InputPipes;
+    std::vector<TDataPipePtr> OutputPipes;
 
+    TThread InputThread;
+    TThread OutputThread;
+
+    int ActivePipeCount;
+    TAsyncErrorPromise IOComplete;
+
+    TSpinLock SpinLock;
     TError JobExitStatus;
 
     TAutoPtr<TErrorOutput> ErrorOutput;
