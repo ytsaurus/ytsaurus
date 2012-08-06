@@ -218,14 +218,14 @@ private:
     {
         NThread::SetCurrentThreadName("JobProxyInput");
         TUserJob* job = (TUserJob*)param;
-        job->ProcessPipes(InputPipes);
+        job->ProcessPipes(job->InputPipes);
     }
 
     static void* OutputThreadFunc(void* param) 
     {
         NThread::SetCurrentThreadName("JobProxyOutput");
         TUserJob* job = (TUserJob*)param;
-        job->ProcessPipes(OutputPipes);
+        job->ProcessPipes(job->OutputPipes);
     }
 
     void ProcessPipes(std::vector<TDataPipePtr>& pipes)
@@ -278,7 +278,7 @@ private:
                 }
             }
 
-            FOREACH (auto& pipe, Pipes) {
+            FOREACH (auto& pipe, pipes) {
                 pipe->Finish();
             }
 
@@ -371,7 +371,6 @@ private:
     TThread OutputThread;
 
     int ActivePipeCount;
-    TAsyncErrorPromise IOComplete;
 
     TSpinLock SpinLock;
     TError JobExitStatus;
