@@ -20,7 +20,7 @@ public:
     void AddCompression(ECompression compression);
 
 protected:
-    virtual size_t DoRead(void* data, size_t length) OVERRIDE;
+    virtual size_t DoRead(void* data, size_t length) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

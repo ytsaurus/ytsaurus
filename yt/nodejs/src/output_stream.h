@@ -43,7 +43,7 @@ public:
 
 protected:
     // C++ API.
-    void DoWrite(const void* buffer, size_t length) OVERRIDE;
+    void DoWrite(const void* buffer, size_t length) override;
 
 private:
     void DisposeBuffers();

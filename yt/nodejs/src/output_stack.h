@@ -20,9 +20,9 @@ public:
     void AddCompression(ECompression compression);
 
 protected:
-    virtual void DoWrite(const void* buffer, size_t length) OVERRIDE;
-    virtual void DoFlush() OVERRIDE;
-    virtual void DoFinish() OVERRIDE;
+    virtual void DoWrite(const void* buffer, size_t length) override;
+    virtual void DoFlush() override;
+    virtual void DoFinish() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
