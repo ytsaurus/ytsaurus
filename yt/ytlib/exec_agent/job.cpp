@@ -166,7 +166,7 @@ void TJob::PrepareUserJob(
     FOREACH (const auto& fetchRsp, userJobSpec.files()) {
         auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
         LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)", 
-            ~fetchRsp.file_name().Quote(),
+            ~fetchRsp.file_name(),
             ~chunkId.ToString());
         awaiter->Await(
             ChunkCache->DownloadChunk(chunkId), 
