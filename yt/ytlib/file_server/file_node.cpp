@@ -127,7 +127,7 @@ protected:
     virtual void DoDestroy(TFileNode* node)
     {
         auto* chunkList = node->GetChunkList();
-        YVERIFY(chunkList->OwningNodes().erase(node) == 1);
+        YCHECK(chunkList->OwningNodes().erase(node) == 1);
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
     }
 
@@ -145,7 +145,7 @@ protected:
 
         auto* chunkList = branchedNode->GetChunkList();
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
-        YVERIFY(chunkList->OwningNodes().erase(branchedNode) == 1);
+        YCHECK(chunkList->OwningNodes().erase(branchedNode) == 1);
     }
 
 };

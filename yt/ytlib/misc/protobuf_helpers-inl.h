@@ -56,7 +56,7 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
     auto extension = extensions->add_extensions();
     int size = value.ByteSize();
     Stroka str(size);
-    YVERIFY(value.SerializeToArray(str.begin(), size));
+    YCHECK(value.SerializeToArray(str.begin(), size));
     extension->set_data(str);
     extension->set_tag(tag);
 }
@@ -78,7 +78,7 @@ void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 
     int size = value.ByteSize();
     Stroka str(size);
-    YVERIFY(value.SerializeToArray(str.begin(), size));
+    YCHECK(value.SerializeToArray(str.begin(), size));
     extension->set_data(str);
     extension->set_tag(tag);
 }

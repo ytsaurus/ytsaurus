@@ -20,7 +20,7 @@ IMessagePtr CreateRequestMessage(
     std::vector<TSharedRef> parts;
 
     TBlob headerBlob;
-    YVERIFY(SerializeToProto(&header, &headerBlob));
+    YCHECK(SerializeToProto(&header, &headerBlob));
 
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
     parts.push_back(TSharedRef(MoveRV(body)));
@@ -40,7 +40,7 @@ IMessagePtr CreateResponseMessage(
     std::vector<TSharedRef> parts;
 
     TBlob headerBlob;
-    YVERIFY(SerializeToProto(&header, &headerBlob));
+    YCHECK(SerializeToProto(&header, &headerBlob));
 
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
     parts.push_back(body);
@@ -83,14 +83,14 @@ NProto::TRequestHeader GetRequestHeader(IMessagePtr message)
     NProto::TRequestHeader header;
     const auto& parts = message->GetParts();
     YASSERT(!parts.empty());
-    YVERIFY(DeserializeFromProto(&header, parts[0]));
+    YCHECK(DeserializeFromProto(&header, parts[0]));
     return header;
 }
 
 IMessagePtr SetRequestHeader(IMessagePtr message, const NProto::TRequestHeader& header)
 {
     TBlob headerData;
-    YVERIFY(SerializeToProto(&header, &headerData));
+    YCHECK(SerializeToProto(&header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());
@@ -104,14 +104,14 @@ NProto::TResponseHeader GetResponseHeader(IMessagePtr message)
     NProto::TResponseHeader header;
     const auto& parts = message->GetParts();
     YASSERT(parts.size() >= 1);
-    YVERIFY(DeserializeFromProto(&header, parts[0]));
+    YCHECK(DeserializeFromProto(&header, parts[0]));
     return header;
 }
 
 IMessagePtr SetResponseHeader(IMessagePtr message, const NProto::TResponseHeader& header)
 {
     TBlob headerData;
-    YVERIFY(SerializeToProto(&header, &headerData));
+    YCHECK(SerializeToProto(&header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());

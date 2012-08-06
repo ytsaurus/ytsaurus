@@ -81,16 +81,6 @@ public:
         return Size_;
     }
 
-    //! Copies the data to a fresh blob.
-    /*!
-     *  The reference must not be NULL.
-     */
-    TBlob ToBlob() const
-    {
-        YASSERT(Data);
-        return TBlob(Begin(), End());
-    }
-
     //! Compares the pointer (not the content!) for equality.
     bool operator == (const TRef& other) const
     {
@@ -123,7 +113,6 @@ public:
 private:
     char* Data;
     size_t Size_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,6 +128,11 @@ public:
     //! Creates a NULL reference.
     TSharedRef()
     { }
+    
+    explicit TSharedRef(size_t size)
+        : Blob(new TBlob(size))
+        , Ref(TRef::FromBlob(*Blob))
+    { }
 
     //! Creates a non-owning reference from TPtr. Use it with caution!
     static TSharedRef FromRefNonOwning(const TRef& ref)
@@ -149,10 +143,11 @@ public:
     //! Creates an owning reference by copying data from a given string.
     static TSharedRef FromString(const Stroka& str)
     {
-        TBlob blob(str.length());
-        std::copy(str.begin(), str.end(), blob.begin());
-        return TSharedRef(MoveRV(blob));
+        TSharedRef ref(str.length());
+        std::copy(str.begin(), str.end(), ref.Begin());
+        return ref;
     }
+
 
     //! Creates a reference to the whole blob taking the ownership of its content.
     TSharedRef(TBlob&& blob)
@@ -210,15 +205,6 @@ public:
         return Ref.Empty();
     }
 
-    //! Copies the data to a fresh blob.
-    /*!
-     *  The reference must not be NULL.
-     */
-    TBlob ToBlob() const
-    {
-        return Ref.ToBlob();
-    }
-
     //! Compares the pointer (not the content!) for equality.
     bool operator == (const TSharedRef& other) const
     {
@@ -248,12 +234,13 @@ private:
 
     TBlobPtr Blob;
     TRef Ref;
-
 };
+
+void Save(TOutputStream* output, const NYT::TSharedRef& ref);
+
+void Load(TInputStream* input, NYT::TSharedRef& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-void Save(TOutputStream* output, const NYT::TSharedRef& ref);
-void Load(TInputStream* input, NYT::TSharedRef& ref);

@@ -225,7 +225,7 @@ void TCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock);
     YASSERT(ItemMap.find(key) == ItemMap.end());
-    YVERIFY(ValueMap.erase(key) == 1);
+    YCHECK(ValueMap.erase(key) == 1);
 }
 
 template <class TKey, class TValue, class THash>
@@ -252,7 +252,7 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     TNullable<TValuePtrOrError> maybeValueOrError;
     maybeValueOrError = item->ValueOrError.TryGet();
 
-    YVERIFY(maybeValueOrError);
+    YCHECK(maybeValueOrError);
     YASSERT(maybeValueOrError->IsOK());
     auto value = maybeValueOrError->Value();
 
@@ -316,7 +316,7 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
 
         auto maybeValueOrError = item->ValueOrError.TryGet();
 
-        YVERIFY(maybeValueOrError);
+        YCHECK(maybeValueOrError);
         YASSERT(maybeValueOrError->IsOK());
 
         auto value = maybeValueOrError->Value();

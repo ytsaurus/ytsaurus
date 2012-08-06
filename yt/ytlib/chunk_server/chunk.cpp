@@ -81,7 +81,7 @@ void TChunk::AddLocation(THolderId holderId, bool cached)
         if (!CachedLocations_) {
             CachedLocations_.Reset(new yhash_set<THolderId>());
         }
-        YVERIFY(CachedLocations_->insert(holderId).second);
+        YCHECK(CachedLocations_->insert(holderId).second);
     } else {
         StoredLocations_.push_back(holderId);
     }
@@ -91,7 +91,7 @@ void TChunk::RemoveLocation(THolderId holderId, bool cached)
 {
     if (cached) {
         YASSERT(~CachedLocations_);
-        YVERIFY(CachedLocations_->erase(holderId) == 1);
+        YCHECK(CachedLocations_->erase(holderId) == 1);
         if (CachedLocations_->empty()) {
             CachedLocations_.Destroy();
         }

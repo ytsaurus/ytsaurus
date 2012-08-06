@@ -43,7 +43,7 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder* holder, bool recover
         .Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));
-    YVERIFY(HolderInfoMap.insert(MakePair(holder->GetId(), holderInfo)).second);
+    YCHECK(HolderInfoMap.insert(MakePair(holder->GetId(), holderInfo)).second);
 }
 
 void THolderLeaseTracker::OnHolderOnline(const THolder* holder, bool recovery)
@@ -60,7 +60,7 @@ void THolderLeaseTracker::OnHolderUnregistered(const THolder* holder)
     auto holderId = holder->GetId();
     auto& holderInfo = GetHolderInfo(holderId);
     TLeaseManager::CloseLease(holderInfo.Lease);
-    YVERIFY(HolderInfoMap.erase(holderId) == 1);
+    YCHECK(HolderInfoMap.erase(holderId) == 1);
     if (holder->GetState() == EHolderState::Online) {
         --OnlineHolderCount;
     }

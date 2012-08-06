@@ -219,22 +219,22 @@ private:
             const auto& pattern = config->Pattern;
             switch (config->Type) {
                 case ILogWriter::EType::File:
-                    YVERIFY(
+                    YCHECK(
                         Writers.insert(MakePair(
                             name, New<TFileLogWriter>(config->FileName, pattern))).second);
                     break;
                 case ILogWriter::EType::StdOut:
-                    YVERIFY(
+                    YCHECK(
                         Writers.insert(MakePair(
                             name, New<TStdOutLogWriter>(pattern))).second);
                     break;
                 case ILogWriter::EType::StdErr:
-                    YVERIFY(
+                    YCHECK(
                         Writers.insert(MakePair(
                             name, New<TStdErrLogWriter>(pattern))).second);
                     break;
                 case ILogWriter::EType::Raw:
-                    YVERIFY(
+                    YCHECK(
                         Writers.insert(MakePair(
                             name, New<TRawFileLogWriter>(config->FileName))).second);
                     break;

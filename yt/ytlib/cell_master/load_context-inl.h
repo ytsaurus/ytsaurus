@@ -130,7 +130,7 @@ struct TObjectRefSetSerializer
         for (size_t i = 0; i < size; ++i) {
             V object;
             LoadObjectRef(input, object, context);
-            YVERIFY(objects.insert(object).second);
+            YCHECK(objects.insert(object).second);
         }
     }
 };
@@ -200,7 +200,7 @@ struct TObjectRefHashMapSerializer
             LoadObjectRef(input, key, context);
             V value;
             Load(input, value);
-            YVERIFY(items.insert(std::make_pair(key, value)).second);
+            YCHECK(items.insert(std::make_pair(key, value)).second);
         }
     }
 };

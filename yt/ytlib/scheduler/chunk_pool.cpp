@@ -260,13 +260,13 @@ private:
                 auto inputChunk = chunk.InputChunk;
                 FOREACH (const auto& address, inputChunk->node_addresses()) {
                     auto& entry = LocalChunks[address];
-                    YVERIFY(entry.Stripes.insert(stripe).second);
+                    YCHECK(entry.Stripes.insert(stripe).second);
                     entry.TotalDataSize += chunk.DataSizeOverride;
                 }
             }
         }
 
-        YVERIFY(GlobalChunks.insert(stripe).second);
+        YCHECK(GlobalChunks.insert(stripe).second);
     }
 
     void Unregister(TChunkStripePtr stripe)
@@ -276,13 +276,13 @@ private:
                 auto inputChunk = chunk.InputChunk;
                 FOREACH (const auto& address, inputChunk->node_addresses()) {
                     auto& entry = LocalChunks[address];
-                    YVERIFY(entry.Stripes.erase(stripe) == 1);
+                    YCHECK(entry.Stripes.erase(stripe) == 1);
                     entry.TotalDataSize -= chunk.DataSizeOverride;
                 }
             }
         }
 
-        YVERIFY(GlobalChunks.erase(stripe) == 1);
+        YCHECK(GlobalChunks.erase(stripe) == 1);
     }
 
     template <class TIterator>

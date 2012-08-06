@@ -86,7 +86,7 @@ public:
     void Put(TCachedChunkPtr chunk)
     {
         TInsertCookie cookie(chunk->GetId());
-        YVERIFY(BeginInsert(&cookie));
+        YCHECK(BeginInsert(&cookie));
         cookie.EndInsert(chunk);
         Register(chunk);
     }

@@ -75,8 +75,7 @@ const Stroka TNonExistingServiceProxy::ServiceName = "NonExistingService";
 
 Stroka StringFromSharedRef(const TSharedRef& sharedRef)
 {
-    auto blob = sharedRef.ToBlob();
-    return Stroka(&*blob.begin(), &*blob.begin() + (blob.end() - blob.begin()));
+    return Stroka(sharedRef.Begin(), sharedRef.Begin() + sharedRef.Size());
 }
 
 
@@ -274,11 +273,10 @@ TEST_F(TRpcTest, ManyAsyncSends)
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
-    for (int i = 0; i < request->Attachments().size(); ++i) {
-        auto blob = request->Attachments()[i].ToBlob();
-        blob.push_back('_');
-
-        response->Attachments().push_back(MoveRV(blob));
+    FOREACH(const auto& attachment, request->Attachments()) {
+        std::vector<char> data(attachment.Begin(), attachment.End());
+        data.push_back('_');
+        response->Attachments().push_back(MoveRV(data));
     }
     context->Reply();
 }

@@ -131,7 +131,7 @@ private:
     {
         auto& Logger = RpcClientLogger;
         TBlob blob;
-        YVERIFY(SerializeToProto(this, &blob));
+        YCHECK(SerializeToProto(this, &blob));
         return blob;
     }
 
@@ -257,7 +257,7 @@ private:
     virtual void DeserializeBody(const TRef& data)
     {
         auto& Logger = RpcClientLogger;
-        YVERIFY(DeserializeFromProto(this, data));
+        YCHECK(DeserializeFromProto(this, data));
     }
 };
 

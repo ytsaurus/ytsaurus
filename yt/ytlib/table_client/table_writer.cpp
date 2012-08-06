@@ -55,8 +55,8 @@ TTableWriter::TTableWriter(
 void TTableWriter::Open()
 {
     VERIFY_THREAD_AFFINITY(Client);
-    YVERIFY(!IsOpen);
-    YVERIFY(!IsClosed);
+    YCHECK(!IsOpen);
+    YCHECK(!IsClosed);
 
     LOG_INFO("Opening table writer");
 
@@ -171,7 +171,7 @@ void TTableWriter::Open()
 void TTableWriter::WriteRow(const TRow& row)
 {
     VERIFY_THREAD_AFFINITY(Client);
-    YVERIFY(IsOpen);
+    YCHECK(IsOpen);
 
     CheckAborted();
     while (!Writer->TryWriteRow(row)) {

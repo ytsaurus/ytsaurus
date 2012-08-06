@@ -272,7 +272,7 @@ private:
 
             TotalRowCount = rowIndex;
 
-            LOG_INFO("Finshied reading input (TotalRowCount: %d, BucketCount: %d)",
+            LOG_INFO("Finished reading input (TotalRowCount: %d, BucketCount: %d)",
                 TotalRowCount,
                 static_cast<int>(BucketStart.size()) - 1);
         }
@@ -342,7 +342,7 @@ private:
             YCHECK(sortedRowCount == TotalRowCount);
             AtomicSet(SortedRowCount, sortedRowCount);
         }
-        LOG_INF("Finished merge");
+        LOG_INFO("Finished merge");
     }
 
     void DoNextRow()

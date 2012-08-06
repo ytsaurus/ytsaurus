@@ -334,7 +334,7 @@ template <class T>
 NConfig::TParameter<T>& TYsonSerializable::Register(const Stroka& parameterName, T& value)
 {
     auto parameter = New< NConfig::TParameter<T> >(value);
-    YVERIFY(Parameters.insert(
+    YCHECK(Parameters.insert(
         TPair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
     return *parameter;
 }

@@ -305,7 +305,7 @@ public:
         auto& Logger = RpcServerLogger;
         if (error.IsOK()) {
             TBlob responseBlob;
-            YVERIFY(SerializeToProto(&Response_, &responseBlob));
+            YCHECK(SerializeToProto(&Response_, &responseBlob));
             this->Context->SetResponseBody(MoveRV(responseBlob));
         }
         this->Context->Reply(error);

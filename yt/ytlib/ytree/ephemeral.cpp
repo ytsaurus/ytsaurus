@@ -382,7 +382,7 @@ public:
         YASSERT(child);
 
         int index = GetChildIndex(child);
-        YVERIFY(RemoveChild(index));
+        YCHECK(RemoveChild(index));
     }
 
     virtual int GetChildIndex(IConstNodePtr child)

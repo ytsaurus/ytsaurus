@@ -418,7 +418,7 @@ public:
     void SetKeyPart(int index, const TStringBuf& yson, NYTree::TLexer& lexer)
     {
         lexer.Reset();
-        YVERIFY(lexer.Read(yson) > 0);
+        YCHECK(lexer.Read(yson) > 0);
         YASSERT(lexer.GetState() == NYTree::TLexer::EState::Terminal);
 
         const auto& token = lexer.GetToken();

@@ -537,16 +537,14 @@ TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(i32 firstRecord
         *it :
         TLogIndexRecord(RecordCount, CurrentFilePosition);
 
-    TSharedRef sharedBlob;
     {
-        TBlob blob(result.Length());
+        result.Blob = TSharedRef(result.Length());
         TGuard<TMutex> guard(Mutex);
         size_t bytesRead = File->Pread(
-            &*blob.begin(),
+            result.Blob.Begin(),
             result.Length(),
             result.StartPosition());
         YCHECK(bytesRead == result.Length());
-        result.Blob = TSharedRef(MoveRV(blob));
     }
     return result;
 }

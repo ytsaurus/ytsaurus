@@ -137,7 +137,7 @@ private:
         } else {
             auto collectionNode = NodeStack.top();
             if (Key) {
-                YVERIFY(collectionNode->AsMap()->AddChild(node, *Key));
+                YCHECK(collectionNode->AsMap()->AddChild(node, *Key));
                 Key.Reset();
             } else {
                 collectionNode->AsList()->AddChild(node);

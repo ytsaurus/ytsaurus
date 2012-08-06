@@ -463,7 +463,7 @@ private:
                 auto block = reader->BlockCache->Find(blockId);
                 if (block) {
                     LOG_INFO("Block is fetched from cache (BlockIndex: %d)", blockIndex);
-                    YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
+                    YCHECK(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 }
             }
         }
@@ -587,7 +587,7 @@ private:
                 }
                 reader->BlockCache->Put(blockId, block, source);
                 
-                YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
+                YCHECK(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 ++receivedBlockCount;
             } else if (reader->Config->FetchFromPeers) {
                 FOREACH (const auto& peerAddress, blockInfo.peer_addresses()) {

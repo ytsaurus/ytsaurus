@@ -3,6 +3,8 @@
 
 #include <util/ysaveload.h>
 
+namespace NYT {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Save(TOutputStream* output, const NYT::TSharedRef& ref)
@@ -23,10 +25,11 @@ void Load(TInputStream* input, NYT::TSharedRef& ref)
         ref = NYT::TSharedRef();
     } else {
         YASSERT(size >= 0);
-        NYT::TBlob blob(static_cast<size_t>(size));
-        YVERIFY(input->Load(&*blob.begin(), size) == size);
-        ref = NYT::TSharedRef(NYT::MoveRV(blob));
+        ref = TSharedRef(size);
+        YCHECK(input->Load(ref.Begin(), size) == size);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

@@ -103,7 +103,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
         UNUSED(error);
 
-        YVERIFY(Connections.erase(connection) == 1);
+        YCHECK(Connections.erase(connection) == 1);
     }
 
 
@@ -239,7 +239,7 @@ private:
                 &TTcpBusServer::OnConnectionTerminated,
                 MakeWeak(this),
                 connection));
-            YVERIFY(Connections.insert(connection).second);
+            YCHECK(Connections.insert(connection).second);
             TTcpDispatcher::TImpl::Get()->AsyncRegister(connection);
         }       
     }

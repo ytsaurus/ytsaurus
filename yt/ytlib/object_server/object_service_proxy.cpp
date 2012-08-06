@@ -60,7 +60,7 @@ int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 TBlob TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
     TBlob blob;
-    YVERIFY(SerializeToProto(&Body, &blob));
+    YCHECK(SerializeToProto(&Body, &blob));
     return blob;
 }
 
@@ -88,7 +88,7 @@ void TObjectServiceProxy::TRspExecuteBatch::FireCompleted()
 
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
-    YVERIFY(DeserializeFromProto(&Body, data));
+    YCHECK(DeserializeFromProto(&Body, data));
 
     int currentIndex = 0;
     BeginPartIndexes.reserve(Body.part_counts_size());

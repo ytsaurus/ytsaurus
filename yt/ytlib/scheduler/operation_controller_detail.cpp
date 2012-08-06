@@ -1349,7 +1349,7 @@ TChunkListId TOperationControllerBase::GetFreshChunkList()
 
 void TOperationControllerBase::RegisterJobInProgress(TJobInProgressPtr jip)
 {
-    YVERIFY(JobsInProgress.insert(MakePair(jip->Job, jip)).second);
+    YCHECK(JobsInProgress.insert(MakePair(jip->Job, jip)).second);
 }
 
 TOperationControllerBase::TJobInProgressPtr TOperationControllerBase::GetJobInProgress(TJobPtr job)
@@ -1361,7 +1361,7 @@ TOperationControllerBase::TJobInProgressPtr TOperationControllerBase::GetJobInPr
 
 void TOperationControllerBase::RemoveJobInProgress(TJobPtr job)
 {
-    YVERIFY(JobsInProgress.erase(job) == 1);
+    YCHECK(JobsInProgress.erase(job) == 1);
 }
 
 void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
