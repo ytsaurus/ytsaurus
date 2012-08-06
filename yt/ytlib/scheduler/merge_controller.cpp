@@ -311,6 +311,7 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
+            InitJobIOConfig();
             ClearCurrentTaskStripes();
             BeginInputChunks();
 
@@ -341,7 +342,6 @@ protected:
             // Init counters.
             TotalJobCount = static_cast<int>(MergeTasks.size());
 
-            InitJobIOConfig();
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
