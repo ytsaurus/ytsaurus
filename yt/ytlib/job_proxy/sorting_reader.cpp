@@ -280,7 +280,7 @@ private:
 
     void DoSortBucket(int bucketId)
     {
-        LOG_DEBUG("Starting sorting bucket %d: rows %d-%d",
+        LOG_DEBUG("Started sorting bucket %d: rows %d-%d",
             bucketId,
             BucketStart[bucketId],
             BucketStart[bucketId + 1]);
@@ -317,7 +317,7 @@ private:
 
     void DoMerge()
     {
-        LOG_INFO("Starting merge");
+        LOG_INFO("Started merge");
         PROFILE_TIMING ("/reduce/merge_time") {
             int sortedRowCount = 0;
             while (!BucketHeap.empty()) {
