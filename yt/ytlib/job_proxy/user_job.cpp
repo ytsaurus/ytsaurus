@@ -80,7 +80,6 @@ public:
         : TJob(host)
         , UserJobSpec(userJobSpec)
         , JobIO(userJobIO)
-        , ActivePipeCount(0)
         , ProcessId(-1)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
@@ -171,7 +170,6 @@ private:
 
         ErrorOutput = JobIO->CreateErrorOutput();
         OutputPipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
-        ++ActivePipeCount;
 
         // Make pipe for each input and each output table.
         {
@@ -197,7 +195,6 @@ private:
             TableOutput.resize(outputCount);
 
             for (int i = 0; i < outputCount; ++i) {
-                ++ActivePipeCount;
                 auto writer = JobIO->CreateTableOutput(i);
                 TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(writer));
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
@@ -232,6 +229,8 @@ private:
     {
         // TODO(babenko): rewrite using libuv
         try {
+            int activePipeCount = pipes.size();
+
             FOREACH (auto& pipe, pipes) {
                 pipe->PrepareProxyDescriptors();
             }
@@ -257,8 +256,8 @@ private:
             epoll_event events[maxEvents];
             memset(events, 0, maxEvents * sizeof(epoll_event));
 
-            while (ActivePipeCount > 0) {
-                LOG_TRACE("Waiting on epoll, %d pipes active", ActivePipeCount);
+            while (activePipeCount > 0 && JobExitStatus.IsOK()) {
+                LOG_TRACE("Waiting on epoll, %d pipes active", activePipeCount);
 
                 int epollResult = epoll_wait(epollFd, &events[0], maxEvents, -1);
 
@@ -273,7 +272,7 @@ private:
                 for (int pipeIndex = 0; pipeIndex < epollResult; ++pipeIndex) {
                     auto pipe = reinterpret_cast<IDataPipe*>(events[pipeIndex].data.ptr);
                     if (!pipe->ProcessData(events[pipeIndex].events)) {
-                        --ActivePipeCount;
+                        --activePipeCount;
                     }
                 }
             }
@@ -373,8 +372,6 @@ private:
 
     TThread InputThread;
     TThread OutputThread;
-
-    int ActivePipeCount;
 
     TSpinLock SpinLock;
     TError JobExitStatus;
