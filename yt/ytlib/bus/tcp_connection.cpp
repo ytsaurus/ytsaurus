@@ -23,11 +23,13 @@ static const size_t ReadChunkSize = 16384;
 static const size_t FragmentCountThreshold = 64;
 
 static NProfiling::TAggregateCounter ReceiveTime("/receive_time");
+static NProfiling::TAggregateCounter ReceiveSize("/receive_size");
 static NProfiling::TAggregateCounter InHandlerTime("/in_handler_time");
 static NProfiling::TRateCounter InThroughputCounter("/in_throughput");
 static NProfiling::TRateCounter InCounter("/in_rate");
 
 static NProfiling::TAggregateCounter SendTime("/send_time");
+static NProfiling::TAggregateCounter SendSize("/send_size");
 static NProfiling::TAggregateCounter OutHandlerTime("/out_handler_time");
 static NProfiling::TRateCounter OutThroughputCounter("/out_throughput");
 static NProfiling::TRateCounter OutCounter("/out_rate");
@@ -546,9 +548,11 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
         return false;
     }
 
-    Profiler.Increment(InThroughputCounter, result);
     *bytesRead = result;
-    
+
+    Profiler.Increment(InThroughputCounter, *bytesRead);
+    Profiler.Aggregate(ReceiveSize, *bytesRead);
+
     LOG_TRACE("%" PRISZT " bytes read", *bytesRead);
     
     return true;
@@ -751,6 +755,8 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 #endif
 
     Profiler.Increment(OutThroughputCounter, *bytesWritten);
+    Profiler.Aggregate(SendSize, *bytesWritten);
+
     LOG_TRACE("%" PRISZT " bytes written", *bytesWritten);
 
     return CheckWriteError(result);
