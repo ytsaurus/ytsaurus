@@ -336,14 +336,10 @@ private:
 
     void DoSortBucket(int bucketId)
     {
+        LOG_DEBUG("Started sorting bucket %d", bucketId);
+
         int startIndex = BucketStart[bucketId];
         int endIndex = BucketStart[bucketId + 1] - 1;
-        
-        LOG_DEBUG("Started sorting bucket %d: rows %d-%d",
-            bucketId,
-            startIndex,
-            endIndex - 1);
-
         std::sort(Buckets.begin() + startIndex, Buckets.begin() + endIndex, SortComparer);
 
         LOG_DEBUG("Finished sorting bucket %d", bucketId);
