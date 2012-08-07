@@ -12,6 +12,8 @@ namespace NLog {
 class TLogManager
 {
 public:
+    TLogManager();
+    
     static TLogManager* Get();
 
     void Configure(NYTree::INodePtr node);
@@ -34,8 +36,6 @@ public:
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
-
-    TLogManager();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
