@@ -248,7 +248,7 @@ private:
 
             EstimatedRowCount = Reader->GetRowCount();
             EstimatedBucketCount = (EstimatedRowCount + SortBucketSize - 1) / SortBucketSize;
-            LOG_INFO("Input size estimated (RowCount: %" PRId64 ", BucketCount: %d)",
+            LOG_INFO("Input size estimated (RowCount: %d, BucketCount: %d)",
                 EstimatedRowCount,
                 EstimatedBucketCount);
             YCHECK(EstimatedRowCount <= std::numeric_limits<i32>::max());
