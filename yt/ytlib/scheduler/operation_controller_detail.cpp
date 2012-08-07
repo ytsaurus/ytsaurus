@@ -79,7 +79,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
 
     auto jip = New<TJobInProgress>(this);
     auto dataSizeThreshold = GetJobDataSizeThreshold();
-    jip->PoolResult = ChunkPool->Extract(node->GetAddress(), dataSizeThreshold );
+    jip->PoolResult = ChunkPool->Extract(node->GetAddress(), dataSizeThreshold);
 
     LOG_DEBUG("Chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedDataSize: %" PRId64 ", DataSizeThreshold: %s)",
         jip->PoolResult->TotalChunkCount,

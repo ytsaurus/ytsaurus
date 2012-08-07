@@ -191,9 +191,9 @@ protected:
         virtual int GetPendingJobCount() const override
         {
             return
-                IsCompleted() 
-                ? 0
-                : Controller->PartitionJobCounter.GetPending();
+                IsPending() 
+                ? Controller->PartitionJobCounter.GetPending();
+                : 0
         }
 
         virtual TDuration GetLocalityTimeout() const override
