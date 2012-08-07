@@ -1,5 +1,5 @@
 import config
-from common import flatten, require, YtError, parse_bool, add_quotes, unlist, update
+from common import flatten, require, YtError, parse_bool, unlist, update
 from path_tools import escape_path
 from http import make_request
 from table import get_yson_name, to_table

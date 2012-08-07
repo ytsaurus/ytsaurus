@@ -242,14 +242,16 @@ class YtTest(YTEnv):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
         another_table = TEST_DIR + "/temp_another" 
+        more_another_table = TEST_DIR + "/temp_more_another" 
         yt.copy_table(table, another_table)
         
         yt.run_map("PYTHONPATH=. ./many_output.py",
                    table,
-                   [other_table, Table(another_table, append=True)],
+                   [other_table, Table(another_table, append=True), more_another_table],
                    files="tests/many_output.py")
         self.assertEqual(yt.records_count(other_table), 1)
         self.assertEqual(yt.records_count(another_table), 11)
+        self.assertEqual(yt.records_count(more_another_table), 1)
 
     def test_range_operations(self):
         table = self.create_dsv_table()
@@ -313,12 +315,11 @@ class YtTest(YTEnv):
         def add_eoln(str):
             return str + "\n"
 
-        dest1 = yt.upload_file("tests/my_op.py")
-        dest2 = yt.upload_file("tests/my_op.py")
-        self.assertTrue(dest1.endswith("my_op.py"))
-        self.assertTrue(dest2.startswith(dest1))
+        dest = []
+        for i in xrange(2):
+            self.assertTrue(yt.upload_file("tests/my_op.py").find("/my_op.py") != -1)
         
-        for dest in [dest1, dest2]:
+        for d in dest:
             self.assertEqual(map(add_eoln, list(yt.download_file(dest))),
                              open("tests/my_op.py").readlines())
 
@@ -326,7 +327,7 @@ class YtTest(YTEnv):
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_file_operations"))
+    #suite.addTest(YtTest("test_many_output_tables"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 

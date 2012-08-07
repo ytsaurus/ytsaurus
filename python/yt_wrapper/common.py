@@ -35,9 +35,6 @@ def require(condition, exception):
 def unlist(l):
     return l[0] if len(l) == 1 else l
 
-def add_quotes(name):
-    return '"%s"' % name
-
 def parse_bool(word):
     word = word.lower()
     if word == "true":
