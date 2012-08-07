@@ -29,8 +29,56 @@ static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 static const int SortBucketSize = 100000;
-const int SpinsBetweenYield = 1000;
+static const int SpinsBetweenYield = 1000;
 static const int RowsBetweenAtomicUpdate = 10000;
+static const i32 BucketEndSentinel = -1;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class Iterator, class Comparer>
+void SiftDown(Iterator begin, Iterator end, Iterator current, const Comparer& comparer)
+{
+    auto value = *current;
+    while (true) {
+        size_t dist = std::distance(begin, current);
+        auto left = begin + 2 * dist + 1;
+        auto right = left + 1;
+        if (left >= end) {
+            break;
+        }
+        
+        Iterator min;
+        if (right >= end) {
+            min = left;
+        } else {
+            min = comparer(*left, *right) ? left : right;
+        }
+
+        auto minValue = *min;
+        if (comparer(value, minValue)) {
+            break;
+        }
+
+        *current = minValue;
+        current = min;
+    }
+    *current = value;
+}
+
+template <class Iterator, class Comparer>
+void MakeHeap(Iterator begin, Iterator end, const Comparer& comparer)
+{
+    size_t size = std::distance(begin, end);
+    for (auto current = begin + size / 2; current >= begin; --current) {
+        SiftDown(begin, end, current, comparer);
+    }
+}
+
+template <class Iterator, class Comparer>
+void AdjustHeap(Iterator begin, Iterator end, const Comparer& comparer)
+{
+    SiftDown(begin, end, begin, comparer);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,6 +151,9 @@ private:
     TPartitionChunkSequenceReaderPtr Reader;
     TActionQueuePtr SortQueue;
 
+    int EstimatedRowCount;
+    int EstimatedBucketCount;
+
     int TotalRowCount;
     TAtomic SortedRowCount;
     int ReadRowCount;
@@ -113,10 +164,9 @@ private:
 
     std::vector<TSmallKeyPart> KeyBuffer;
     std::vector<const char*> RowPtrBuffer;
-    std::vector<ui32> Buckets;
-    std::vector<ui32> SortedIndexes;
+    std::vector<i32> Buckets;
+    std::vector<i32> SortedIndexes;
     std::vector<int> BucketStart;
-    std::vector<int> BucketCurrent;
     std::vector<int> BucketHeap;
 
     class TComparerBase
@@ -131,7 +181,7 @@ private:
         int KeyColumnCount;
         std::vector<TSmallKeyPart>& KeyBuffer;
 
-        bool CompareRows(ui32 lhs, ui32 rhs) const
+        bool CompareRows(i32 lhs, i32 rhs) const
         {
             int lhsStartIndex = lhs * KeyColumnCount;
             int lhsEndIndex   = lhsStartIndex + KeyColumnCount;
@@ -159,7 +209,7 @@ private:
         { }
 
         // Returns True iff row[lhs] < row[rhs]
-        bool operator () (ui32 lhs, ui32 rhs) const
+        bool operator () (i32 lhs, i32 rhs) const
         {
             return CompareRows(lhs, rhs);
         };
@@ -173,18 +223,16 @@ private:
         explicit TMergeComparer(TSortingReader* reader)
             : TComparerBase(reader)
             , Buckets(reader->Buckets)
-            , BucketCurrent(reader->BucketCurrent)
         { }
 
-        // Returns True iff row[Buckets[BucketCurrent[lhs]]] < row[Buckets[BucketCurrent[rhs]]]
+        // Returns True iff row[Buckets[lhs]] < row[Buckets[rhs]]
         bool operator () (int lhs, int rhs) const
         {
-            return CompareRows(Buckets[BucketCurrent[lhs]], Buckets[BucketCurrent[rhs]]);
+            return CompareRows(Buckets[lhs], Buckets[rhs]);
         };
 
     private:
-        std::vector<ui32>& Buckets;
-        std::vector<int>& BucketCurrent;
+        std::vector<i32>& Buckets;
 
     };
 
@@ -198,14 +246,17 @@ private:
         PROFILE_TIMING ("/reduce/init_time") {
             Sync(~Reader, &TPartitionChunkSequenceReader::AsyncOpen);
 
-            i64 estimatedRowCount = Reader->GetRowCount();
-            LOG_INFO("Input size estimated (RowCount: %" PRId64 ")", estimatedRowCount);
-            YCHECK(estimatedRowCount <= std::numeric_limits<i32>::max());
+            EstimatedRowCount = Reader->GetRowCount();
+            EstimatedBucketCount = (EstimatedRowCount + SortBucketSize - 1) / SortBucketSize;
+            LOG_INFO("Input size estimated (RowCount: %" PRId64 ", BucketCount: %d)",
+                EstimatedRowCount,
+                EstimatedBucketCount);
+            YCHECK(EstimatedRowCount <= std::numeric_limits<i32>::max());
 
-            KeyBuffer.reserve(estimatedRowCount * KeyColumnCount);
-            RowPtrBuffer.reserve(estimatedRowCount);
-            Buckets.reserve(estimatedRowCount);
-            SortedIndexes.reserve(estimatedRowCount);
+            KeyBuffer.reserve(EstimatedRowCount * KeyColumnCount);
+            RowPtrBuffer.reserve(EstimatedRowCount);
+            Buckets.reserve(EstimatedRowCount + EstimatedBucketCount);
+            SortedIndexes.reserve(EstimatedRowCount);
         }
     }
 
@@ -221,6 +272,7 @@ private:
             int rowIndex = 0;
 
             auto flushBucket = [&] () {
+                Buckets.push_back(BucketEndSentinel);
                 BucketStart.push_back(rowIndex);
                 SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoSortBucket, Unretained(this), bucketId));
                 ++bucketId;
@@ -271,10 +323,14 @@ private:
             }
 
             TotalRowCount = rowIndex;
+            int bucketCount = static_cast<int>(BucketStart.size()) - 1;
 
-            LOG_INFO("Finished reading input (TotalRowCount: %d, BucketCount: %d)",
+            YCHECK(TotalRowCount <= EstimatedRowCount);
+            YCHECK(bucketCount <= EstimatedBucketCount);
+
+            LOG_INFO("Finished reading input (RowCount: %d, BucketCount: %d)",
                 TotalRowCount,
-                static_cast<int>(BucketStart.size()) - 1);
+                bucketCount);
         }
     }
 
@@ -286,7 +342,7 @@ private:
             BucketStart[bucketId + 1]);
 
         auto begin = Buckets.begin() + BucketStart[bucketId];
-        auto end = Buckets.begin() + BucketStart[bucketId + 1];
+        auto end = Buckets.begin() + BucketStart[bucketId + 1] - 1;
         std::sort(begin, end, SortComparer);
 
         LOG_DEBUG("Finished sorting bucket %d", bucketId);
@@ -294,14 +350,11 @@ private:
 
     void StartMerge()
     {
-        BucketCurrent.reserve(BucketStart.size());
         for (int index = 0; index < static_cast<int>(BucketStart.size()) - 1; ++index) {
-            BucketHeap.push_back(index);
-            BucketCurrent.push_back(BucketStart[index]);
+            BucketHeap.push_back(BucketStart[index]);
         }
 
-        std::make_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
-        std::pop_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
+        MakeHeap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
 
         AtomicSet(SortedRowCount, 0);
         ReadRowCount = 0;
@@ -321,18 +374,16 @@ private:
         PROFILE_TIMING ("/reduce/merge_time") {
             int sortedRowCount = 0;
             while (!BucketHeap.empty()) {
-                int bucketId = BucketHeap.back();
-                int current = BucketCurrent[bucketId];
-                int end = BucketStart[bucketId + 1];
-                SortedIndexes.push_back(Buckets[current]);
-                ++current;
-                if (current == end) {
+                int bucketIndex = BucketHeap.front();
+                SortedIndexes.push_back(Buckets[bucketIndex]);
+                ++bucketIndex;
+                if (Buckets[bucketIndex] == BucketEndSentinel) {
+                    BucketHeap.front() = BucketHeap.back();
                     BucketHeap.pop_back();
                 } else {
-                    BucketCurrent[bucketId] = current;
-                    std::push_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
-                    std::pop_heap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
+                    BucketHeap.front() = bucketIndex;
                 }
+                AdjustHeap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
 
                 ++sortedRowCount;
                 if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
