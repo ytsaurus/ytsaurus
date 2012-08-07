@@ -130,7 +130,7 @@ struct TExecAgentConfig
         Register("job_proxy_logging", JobProxyLogging)
             .Default(NULL);
         Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(30));
     }
 };
 
