@@ -57,6 +57,9 @@ public:
         , TotalRowCount(0)
         , TotalValueCount(0)
         , CompletedPartitionCount(0)
+        , IntermediateSortJobCounter(false)
+        , FinalSortJobCounter(false)
+        , SortDataSizeCounter(false)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
         , PartitionTask(New<TPartitionTask>(this))
@@ -78,7 +81,8 @@ protected:
     TProgressCounter PartitionJobCounter;
     
     // Sort job counters.
-    TProgressCounter SortJobCounter;
+    TProgressCounter IntermediateSortJobCounter;
+    TProgressCounter FinalSortJobCounter;
     TProgressCounter SortDataSizeCounter;
 
     // Start thresholds.
@@ -296,6 +300,8 @@ protected:
         {
             TTask::OnTaskCompleted();
 
+            Controller->PartitionJobCounter.Finalize();
+
             // Dump totals.
             LOG_DEBUG("Total partition attributes are:");
             for (int index = 0; index < static_cast<int>(Controller->Partitions.size()); ++index) {
@@ -493,8 +499,13 @@ protected:
 
             YCHECK(!Partition->Megalomaniac);
 
-            Controller->SortJobCounter.Start(1);
             Controller->SortDataSizeCounter.Start(jip->PoolResult->TotalDataSize);
+
+            if (Controller->IsSortedMergeNeeded(Partition)) {
+                Controller->IntermediateSortJobCounter.Start(1);
+            } else {
+                Controller->FinalSortJobCounter.Start(1);
+            }
 
             // Notify the controller that we're willing to use this node
             // for all subsequent jobs.
@@ -506,10 +517,11 @@ protected:
         {
             TPartitionBoundTask::OnJobCompleted(jip);
 
-            Controller->SortJobCounter.Completed(1);
             Controller->SortDataSizeCounter.Completed(jip->PoolResult->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
+                Controller->IntermediateSortJobCounter.Completed(1);
+
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
                 const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
@@ -519,6 +531,8 @@ protected:
                 }
                 Partition->SortedMergeTask->AddStripe(stripe);
             } else {
+                Controller->FinalSortJobCounter.Completed(1);
+
                 // Sort outputs in small partitions go directly to the output.
                 Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
                 Controller->OnPartitionCompeted(Partition);
@@ -529,8 +543,13 @@ protected:
 
         virtual void OnJobFailed(TJobInProgressPtr jip) override
         {
-            Controller->SortJobCounter.Failed(1);
             Controller->SortDataSizeCounter.Failed(jip->PoolResult->TotalDataSize);
+
+            if (Controller->IsSortedMergeNeeded(Partition)) {
+                Controller->IntermediateSortJobCounter.Failed(1);
+            } else {
+                Controller->FinalSortJobCounter.Failed(1);
+            }
 
             TPartitionBoundTask::OnJobFailed(jip);
         }
@@ -1107,13 +1126,6 @@ private:
             Spec->SortJobSliceDataSize);
         partition->SortTask->AddStripes(stripes);
 
-        // A pretty accurate estimate.
-        SortJobCounter.Set(GetJobCount(
-            partition->SortTask->DataSizeCounter().GetTotal(),
-            Spec->MaxDataSizePerSortJob,
-            Spec->SortJobCount,
-            partition->SortTask->ChunkCounter().GetTotal()));
-
         // Can be zero but better be pessimists.
         SortedMergeJobCounter.Set(1);
 
@@ -1208,15 +1220,6 @@ private:
             PartitionJobIOConfig->TableWriter->DesiredChunkSize,
             Spec->PartitionJobCount,
             PartitionTask->ChunkCounter().GetTotal()));
-
-        // Some upper bound.
-        SortJobCounter.Set(
-            GetJobCount(
-            PartitionTask->DataSizeCounter().GetTotal(),
-            Spec->MaxDataSizePerSortJob,
-            Null,
-            std::numeric_limits<int>::max()) +
-            Partitions.size());
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             static_cast<int>(Partitions.size()),
@@ -1391,7 +1394,8 @@ private:
             "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
             "Partitions = {T: %d, C: %d}, "
             "PartitionJobs = {%s}, "
-            "SortJobs = {%s}, "
+            "IntermediateSortJobs = {%s}, "
+            "FinalSortJobs = {%s}, "
             "SortedMergeJobs = {%s}, "
             "UnorderedMergeJobs = {%s}",
             // Jobs
@@ -1404,8 +1408,10 @@ private:
             CompletedPartitionCount,
             // PartitionJobs
             ~ToString(PartitionJobCounter),
-            // SortJobs
-            ~ToString(SortJobCounter),
+            // IntermediateSortJobs
+            ~ToString(IntermediateSortJobCounter),
+            // FinaSortJobs
+            ~ToString(FinalSortJobCounter),
             // SortedMergeJobs
             ~ToString(SortedMergeJobCounter),
             // UnorderedMergeJobs
@@ -1420,7 +1426,8 @@ private:
                 .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap()
             .Item("partition_jobs").Do(BIND(&TProgressCounter::ToYson, &PartitionJobCounter))
-            .Item("sort_jobs").Do(BIND(&TProgressCounter::ToYson, &SortJobCounter))
+            .Item("intermediate_sort_jobs").Do(BIND(&TProgressCounter::ToYson, &IntermediateSortJobCounter))
+            .Item("final_sort_jobs").Do(BIND(&TProgressCounter::ToYson, &FinalSortJobCounter))
             .Item("sorted_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &SortedMergeJobCounter))
             .Item("unordered_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &UnorderedMergeJobCounter));
     }
@@ -1457,8 +1464,8 @@ public:
 
 private:
     TMapReduceOperationSpecPtr Spec;
-    std::vector<TFile> MapperFiles;
-    std::vector<TFile> ReducerFiles;
+    std::vector<TUserFile> MapperFiles;
+    std::vector<TUserFile> ReducerFiles;
 
 
     // Custom bits of preparation pipeline.
@@ -1586,15 +1593,6 @@ private:
             PartitionJobIOConfig->TableWriter->DesiredChunkSize,
             Spec->PartitionJobCount,
             PartitionTask->ChunkCounter().GetTotal()));
-
-        // Some upper bound.
-        SortJobCounter.Set(
-            GetJobCount(
-                PartitionTask->DataSizeCounter().GetTotal(),
-                Spec->MaxDataSizePerSortJob,
-                Null,
-                std::numeric_limits<int>::max()) +
-            Partitions.size());
 
         LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             PartitionTask->DataSizeCounter().GetTotal(),
@@ -1751,7 +1749,8 @@ private:
             "Partitions = {T: %d, C: %d}, "
             "MapJobs = {%s}, "
             "SortJobs = {%s}, "
-            "ReduceJobs = {%s}",
+            "PartitionReduceJobs = {%s}, "
+            "SortedReduceJobs = {%s}",
             // Jobs
             RunningJobCount,
             CompletedJobCount,
@@ -1763,8 +1762,10 @@ private:
             // MapJobs
             ~ToString(PartitionJobCounter),
             // SortJobs
-            ~ToString(SortJobCounter),
-            // ReduceJobs
+            ~ToString(IntermediateSortJobCounter),
+            // PartitionReduceJobs
+            ~ToString(FinalSortJobCounter),
+            // SortedReduceJobs
             ~ToString(SortedMergeJobCounter));
     }
 
@@ -1776,8 +1777,9 @@ private:
                 .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap()
             .Item("map_jobs").Do(BIND(&TProgressCounter::ToYson, &PartitionJobCounter))
-            .Item("sort_jobs").Do(BIND(&TProgressCounter::ToYson, &SortJobCounter))
-            .Item("reduce_jobs").Do(BIND(&TProgressCounter::ToYson, &SortedMergeJobCounter));
+            .Item("sort_jobs").Do(BIND(&TProgressCounter::ToYson, &IntermediateSortJobCounter))
+            .Item("partition_reduce_jobs").Do(BIND(&TProgressCounter::ToYson, &FinalSortJobCounter))
+            .Item("sorted_reduce_jobs").Do(BIND(&TProgressCounter::ToYson, &SortedMergeJobCounter));
     }
 
 

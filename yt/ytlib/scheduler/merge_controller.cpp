@@ -60,7 +60,7 @@ private:
 protected:
     // Counters.
     int TotalJobCount;
-    TProgressCounter SizeCounter;
+    TProgressCounter DataSizeCounter;
     TProgressCounter ChunkCounter;
 
     //! For each input table, the corresponding entry holds the stripe
@@ -160,7 +160,7 @@ protected:
             TTask::OnJobStarted(jip);
 
             Controller->ChunkCounter.Start(jip->PoolResult->TotalChunkCount);
-            Controller->SizeCounter.Start(jip->PoolResult->TotalDataSize);
+            Controller->DataSizeCounter.Start(jip->PoolResult->TotalDataSize);
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) override
@@ -168,19 +168,18 @@ protected:
             TTask::OnJobCompleted(jip);
 
             Controller->ChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
-            Controller->SizeCounter.Completed(jip->PoolResult->TotalDataSize);
+            Controller->DataSizeCounter.Completed(jip->PoolResult->TotalDataSize);
 
             Controller->RegisterOutputChunkTree(jip->ChunkListIds[0], PartitionIndex, 0);
         }
 
-        void OnJobFailed(TJobInProgressPtr jip)
+        virtual void OnJobFailed(TJobInProgressPtr jip) override
         {
             TTask::OnJobFailed(jip);
 
             Controller->ChunkCounter.Failed(jip->PoolResult->TotalChunkCount);
-            Controller->SizeCounter.Failed(jip->PoolResult->TotalDataSize);
+            Controller->DataSizeCounter.Failed(jip->PoolResult->TotalDataSize);
         }
-
     };
 
     typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;
@@ -255,7 +254,7 @@ protected:
             stripe = CurrentTaskStripes[tableIndex] = New<TChunkStripe>();
         }
 
-        SizeCounter.Increment(dataSize);
+        DataSizeCounter.Increment(dataSize);
         ChunkCounter.Increment(1);
         CurrentTaskDataSize += dataSize;
         stripe->AddChunk(inputChunk, dataSize, rowCount);
@@ -345,7 +344,7 @@ protected:
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
-                SizeCounter.GetTotal(),
+                DataSizeCounter.GetTotal(),
                 ChunkCounter.GetTotal(),
                 TotalJobCount);
 

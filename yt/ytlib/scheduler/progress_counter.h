@@ -13,10 +13,13 @@ namespace NScheduler {
 class TProgressCounter
 {
 public:
-    TProgressCounter();
+    explicit TProgressCounter(bool totalEnabled = true);
+
+    bool IsTotalEnabled() const;
 
     void Set(i64 value);
     void Increment(i64 value);
+    void Finalize();
 
     i64 GetTotal() const;
     i64 GetRunning() const;
@@ -31,6 +34,7 @@ public:
     void ToYson(NYTree::IYsonConsumer* consumer) const;
 
 private:
+    bool TotalEnabled;
     i64 Total_;
     i64 Running_;
     i64 Completed_;

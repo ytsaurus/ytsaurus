@@ -138,13 +138,13 @@ protected:
     std::vector<TOutputTable> OutputTables;
 
     // Files.
-    struct TFile
+    struct TUserFile
     {
         NYTree::TYPath Path;
         NFileServer::TFileYPathProxy::TRspFetchPtr FetchResponse;
     };
 
-    std::vector<TFile> Files;
+    std::vector<TUserFile> Files;
 
     // Forward declarations.
 
@@ -422,7 +422,7 @@ protected:
     static void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
-        const std::vector<TFile>& files);
+        const std::vector<TUserFile>& files);
 
     static NJobProxy::TJobIOConfigPtr BuildJobIOConfig(
         NJobProxy::TJobIOConfigPtr schedulerConfig,

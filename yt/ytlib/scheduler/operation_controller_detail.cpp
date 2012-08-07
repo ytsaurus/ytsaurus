@@ -271,7 +271,7 @@ void TOperationControllerBase::Initialize()
     }
 
     FOREACH (const auto& path, GetFilePaths()) {
-        TFile file;
+        TUserFile file;
         file.Path = path;
         Files.push_back(file);
     }
@@ -1411,7 +1411,7 @@ int TOperationControllerBase::GetJobCount(
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* proto,
     TUserJobSpecPtr config,
-    const std::vector<TFile>& files)
+    const std::vector<TUserFile>& files)
 {
     proto->set_shell_command(config->Command);
 

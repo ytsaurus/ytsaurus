@@ -132,6 +132,14 @@ private:
                 Controller->RegisterOutputChunkTree(jip->ChunkListIds[index], 0, index);
             }
         }
+
+        virtual void OnTaskCompleted() override
+        {
+            TTask::OnTaskCompleted();
+
+            // Finalize the counter.
+            Controller->TotalJobCount = Controller->CompletedJobCount;
+        }
     };
     
     typedef TIntrusivePtr<TMapTask> TMapTaskPtr;
