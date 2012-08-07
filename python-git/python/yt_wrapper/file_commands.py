@@ -1,6 +1,6 @@
 import config
-from common import require, YtError, add_quotes
-from path_tools import escape_path
+from common import require, YtError
+from path_tools import escape_path, escape_name
 from http import make_request
 from tree_commands import remove, exists, set_attribute, set, mkdir, find_free_subpath
 
@@ -43,13 +43,11 @@ def upload_file(filename, yt_filename=None, destination=None, placement_strategy
     
     operation = make_request(
             "PUT", "upload", 
-            {
-                "path": escape_path(destination),
-                "file_name": yt_filename
-            },
+            {"path": escape_path(destination)},
             data=open(filename))
+    set_attribute(destination, "file_name", escape_name(yt_filename))
     # Set executable flag if need
     if os.access(filename, os.X_OK):
-        set_attribute(destination, "executable", add_quotes("true"))
+        set_attribute(destination, "executable", escape_name("true"))
     return destination
 
