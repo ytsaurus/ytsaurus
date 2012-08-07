@@ -1681,6 +1681,11 @@ private:
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
 
+            InitUserJobSpec(
+                specExt->mutable_reducer_spec(),
+                Spec->Reducer,
+                ReducerFiles);
+
             SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
         }
     }
