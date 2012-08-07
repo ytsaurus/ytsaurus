@@ -19,8 +19,10 @@ namespace NBus {
 
 static NProfiling::TProfiler& Profiler = BusProfiler;
 
-static const size_t ReadChunkSize = 16384;
-static const size_t FragmentCountThreshold = 64;
+static const size_t ReadChunkSize = 16 * 1024;
+static const size_t WriteChunkSize = 64 * 1024;
+static const size_t WriteBatchSize = 256 * 1024;
+static const size_t FragmentCountThreshold = 16;
 
 static NProfiling::TAggregateCounter ReceiveTime("/receive_time");
 static NProfiling::TAggregateCounter ReceiveSize("/receive_size");
@@ -690,9 +692,9 @@ void TTcpConnection::OnSocketWrite()
     }
 
     LOG_TRACE("Started serving write request");
-    size_t bytesWrittenTotal = 0;
 
-    while (HasUnsentData()) {
+    size_t bytesWrittenTotal = 0;
+    while (HasUnsentData() && bytesWrittenTotal <= WriteBatchSize) {
         size_t bytesWritten;
         bool success = WriteFragments(&bytesWritten);
         bytesWrittenTotal += bytesWritten;
@@ -725,19 +727,23 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     struct iovec* iovecIt = iovec;
 #endif
 
+    size_t bytesToPrepare = WriteChunkSize;
     auto fragmentIt = EncodedFragments.begin();
     auto fragmentEnd = EncodedFragments.end();
-    while (fragmentIt != fragmentEnd) {
+    while (fragmentIt != fragmentEnd && bytesToPrepare != 0) {
+        auto& data = fragmentIt->Data;
+        size_t trimmedDataSize = std::min(data.Size(), bytesToPrepare);
 #ifdef _WIN32
-        wsabufIt->buf = fragmentIt->Data.Begin();
-        wsabufIt->len = static_cast<ULONG>(fragmentIt->Data.Size());
+        wsabufIt->buf = data.Begin();
+        wsabufIt->len = static_cast<ULONG>(trimmedDataSize);
         ++wsabufIt;
 #else
-        iovecIt->iov_base = fragmentIt->Data.Begin();
-        iovecIt->iov_len = fragmentIt->Data.Size();
+        iovecIt->iov_base = data.Begin();
+        iovecIt->iov_len = trimmedDataSize;
         ++iovecIt;
 #endif
         ++fragmentIt;
+        bytesToPrepare -= trimmedDataSize;
     }
 
     ssize_t result;
