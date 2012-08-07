@@ -1,7 +1,7 @@
 import config
 from common import require, YtError
 from http import make_request
-from tree_commands import get_attribute, exists, list
+from tree_commands import get_attribute, exists, list, remove
 from file_commands import download_file
 
 import os
@@ -97,16 +97,21 @@ def wait_operation(operation, timeout=None, print_progress=True):
 
 """ Waiting operation strategies """
 class WaitStrategy(object):
-    def __init__(self, check_result=True, print_progress=True):
+    def __init__(self, files_to_delete=None, check_result=True, print_progress=True):
         self.check_result = check_result
         self.print_progress = print_progress
 
-    def process_operation(self, type, operation):
+    def process_operation(self, type, operation, files_to_remove=None):
+        if files_to_remove is None: files_to_remove=[]
+        def remove_files():
+            for file in files_to_remove:
+                remove(file)
         state = wait_operation(operation, print_progress=self.print_progress)
         if self.check_result and state.is_failed():
             operation_result = get_operation_result(operation)
             jobs_errors = get_jobs_errors(operation)
             stderr = get_operation_stderr(operation)
+            remove_files()
             raise YtError(
                 "Operation {0} failed!\n"
                 "Operation result: {1}\n"
@@ -116,15 +121,17 @@ class WaitStrategy(object):
                     operation_result,
                     jobs_errors,
                     stderr))
+        remove_files()
         if self.print_progress:
             print >>sys.stderr, "Operation %s completed" % operation
         #return operation_result, jobs_errors, stderr
 
 class AsyncStrategy(object):
+    # TODO(improve this strategy)
     def __init__(self):
         self.operations = []
 
-    def process_operation(self, type, operation):
+    def process_operation(self, type, operation, files_to_remove):
         self.operations.append(operation)
 
     def get_last_operation(self):
