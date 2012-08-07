@@ -715,32 +715,25 @@ bool TTcpConnection::HasUnsentData() const
 
 bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 {
-    int fragmentCount = static_cast<int>(EncodedFragments.size());
-    SendVector.resize(fragmentCount);
-    LOG_TRACE("Writing up to %d fragments", fragmentCount);
-
-#ifdef _WIN32
-    WSABUF* wsabuf = &*SendVector.begin();
-    WSABUF* wsabufIt = wsabuf;
-#else
-    struct iovec* iovec = &*SendVector.begin();
-    struct iovec* iovecIt = iovec;
-#endif
+    LOG_TRACE("Writing up to %" PRISZT " fragments", EncodedFragments.size());
 
     size_t bytesToPrepare = WriteChunkSize;
     auto fragmentIt = EncodedFragments.begin();
     auto fragmentEnd = EncodedFragments.end();
+    SendVector.clear();
     while (fragmentIt != fragmentEnd && bytesToPrepare != 0) {
         auto& data = fragmentIt->Data;
         size_t trimmedDataSize = std::min(data.Size(), bytesToPrepare);
 #ifdef _WIN32
-        wsabufIt->buf = data.Begin();
-        wsabufIt->len = static_cast<ULONG>(trimmedDataSize);
-        ++wsabufIt;
+        WSABUF wsabuf;
+        wsabuf.buf = data.Begin();
+        wsabuf.len = static_cast<ULONG>(trimmedDataSize);
+        SendVector.push_back(wsabuf);
 #else
-        iovecIt->iov_base = data.Begin();
-        iovecIt->iov_len = trimmedDataSize;
-        ++iovecIt;
+        struct iovec;
+        iovec.iov_base = data.Begin();
+        iovec.iov_len = trimmedDataSize;
+        SendVector.push_back(iovec);
 #endif
         ++fragmentIt;
         bytesToPrepare -= trimmedDataSize;
@@ -750,12 +743,12 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 #ifdef _WIN32
     DWORD bytesWritten_ = 0;
     PROFILE_AGGREGATED_TIMING (SendTime) {
-        result = WSASend(Socket, wsabuf, fragmentCount, &bytesWritten_, 0, NULL, NULL);
+        result = WSASend(Socket, &*SendVector.begin(), SendVector.size(), &bytesWritten_, 0, NULL, NULL);
     }
     *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
     PROFILE_AGGREGATED_TIMING (SendTime) {
-        result = writev(Socket, iovec, fragmentCount);
+        result = writev(Socket, &*SendVector.begin(), SendVector.size());
     }
     *bytesWritten = result >= 0 ? result : 0;
 #endif
