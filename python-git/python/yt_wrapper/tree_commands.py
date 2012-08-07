@@ -1,4 +1,4 @@
-from common import add_quotes, bool_to_string
+from common import bool_to_string
 from path_tools import escape_path, split_path, dirs
 from http import make_request
 
