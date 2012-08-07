@@ -327,7 +327,7 @@ class YtTest(YTEnv):
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_many_output_tables"))
+    #suite.addTest(YtTest("test_abort_operation"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 
