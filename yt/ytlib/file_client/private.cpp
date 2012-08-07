@@ -6,8 +6,8 @@ namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger FileReaderLogger("FileWriter");
-NLog::TLogger FileWriterLogger("FileReader");
+NLog::TLogger FileReaderLogger("FileReader");
+NLog::TLogger FileWriterLogger("FileWriter");
 
 ////////////////////////////////////////////////////////////////////////////////
 

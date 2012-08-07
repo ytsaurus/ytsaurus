@@ -116,10 +116,10 @@ public:
 
             result.mutable_error()->set_code(TError::Fail);
             result.mutable_error()->set_message(ex.what());
-
-            return result;
         }
 
+        // ToDo(psushin): fix this strange volleyball with StderrChunkId.
+        // Keep reference to ErrorOutput in user_job_io.
         auto stderrChunkId = ErrorOutput->GetChunkId();
         if (stderrChunkId != NChunkServer::NullChunkId) {
             JobIO->SetStderrChunkId(stderrChunkId);

@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "stderr_output.h"
+#include "private.h"
 
 #include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_chunk_output.h>
@@ -14,6 +15,10 @@ using namespace NFileClient;
 using namespace NRpc;
 using namespace NTransactionServer;
 using namespace NChunkServer;
+
+////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -32,6 +37,7 @@ TErrorOutput::~TErrorOutput() throw()
 void TErrorOutput::DoWrite(const void* buf, size_t len)
 {
     if (!FileWriter) {
+        LOG_DEBUG("Open stderr stream.");
         FileWriter = new TFileChunkOutput(Config, MasterChannel, TransactionId);
         FileWriter->Open();
     }
