@@ -725,15 +725,15 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         auto& data = fragmentIt->Data;
         size_t trimmedDataSize = std::min(data.Size(), bytesToPrepare);
 #ifdef _WIN32
-        WSABUF wsabuf;
-        wsabuf.buf = data.Begin();
-        wsabuf.len = static_cast<ULONG>(trimmedDataSize);
-        SendVector.push_back(wsabuf);
+        WSABUF item;
+        item.buf = data.Begin();
+        item.len = static_cast<ULONG>(trimmedDataSize);
+        SendVector.push_back(item);
 #else
-        struct iovec;
-        iovec.iov_base = data.Begin();
-        iovec.iov_len = trimmedDataSize;
-        SendVector.push_back(iovec);
+        struct iovec item;
+        item.iov_base = data.Begin();
+        item.iov_len = trimmedDataSize;
+        SendVector.push_back(item);
 #endif
         ++fragmentIt;
         bytesToPrepare -= trimmedDataSize;
