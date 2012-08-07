@@ -38,7 +38,6 @@ set( SRCS
   ${BASE}/small_vector_ut.cpp
   ${BASE}/snapshot_ut.cpp
   ${BASE}/stdafx.cpp
-  ${BASE}/table_client_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp
