@@ -59,7 +59,6 @@ public:
         , CompletedPartitionCount(0)
         , IntermediateSortJobCounter(false)
         , FinalSortJobCounter(false)
-        , SortDataSizeCounter(false)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
         , PartitionTask(New<TPartitionTask>(this))
