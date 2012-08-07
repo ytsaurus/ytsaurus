@@ -192,7 +192,7 @@ protected:
         {
             return
                 IsPending() 
-                ? Controller->PartitionJobCounter.GetPending();
+                ? Controller->PartitionJobCounter.GetPending()
                 : 0
         }
 
