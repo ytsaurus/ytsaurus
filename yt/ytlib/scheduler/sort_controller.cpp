@@ -193,7 +193,7 @@ protected:
             return
                 IsPending() 
                 ? Controller->PartitionJobCounter.GetPending()
-                : 0
+                : 0;
         }
 
         virtual TDuration GetLocalityTimeout() const override
