@@ -230,10 +230,7 @@ def run_operation(binary, source_table, destination_table,
              "output_table_paths": map(get_yson_name, destination_table),
              op_key[op_type]: operation_descr})})
     operation = make_request("POST", op_type, None, params)
-    strategy.process_operation(op_type, operation)
-
-    for path in to_remove:
-        remove(path)
+    strategy.process_operation(op_type, operation, to_remove)
 
 def run_map(binary, source_table, destination_table,
             files=None, file_paths=None, format=None, strategy=None, spec=None):
