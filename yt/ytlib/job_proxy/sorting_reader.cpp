@@ -69,7 +69,7 @@ template <class Iterator, class Comparer>
 void MakeHeap(Iterator begin, Iterator end, const Comparer& comparer)
 {
     size_t size = std::distance(begin, end);
-    for (auto current = begin + size / 2; current >= begin; --current) {
+    for (auto current = begin + size / 2 - 1; current >= begin; --current) {
         SiftDown(begin, end, current, comparer);
     }
 }
