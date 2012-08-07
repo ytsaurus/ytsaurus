@@ -3,6 +3,7 @@
 #include "writer.h"
 
 #include <ytlib/misc/pattern_formatter.h>
+#include <yt/ytlib/misc/raw_formatter.h>
 
 #include <ytlib/actions/action_queue_detail.h>
 
@@ -12,6 +13,7 @@
 
 #include <ytlib/profiling/profiler.h>
 
+#include <util/system/defaults.h>
 #include <util/system/sigset.h>
 
 namespace NYT {
@@ -27,12 +29,6 @@ static const char* const SystemPattern = "$(datetime) $(level) $(category) $(mes
 static const char* const DefaultStdErrWriterName = "StdErr";
 static const ELogLevel DefaultStdErrMinLevel= ELogLevel::Info;
 static const char* const DefaultStdErrPattern = "$(datetime) $(level) $(category) $(message)";
-
-static const char* const DefaultFileWriterName = "LogFile";
-static const char* const DefaultFileName = "default.log";
-static const ELogLevel DefaultFileMinLevel = ELogLevel::Debug;
-static const char* const DefaultFilePattern =
-    "$(datetime) $(level) $(category) $(message)$(tab)$(file?) $(line?) $(function?) $(thread?)";
 
 static const char* const AllCategoriesName = "*";
 
@@ -103,6 +99,7 @@ public:
      * Use #CreateDefault instead.
      */
     TLogConfig()
+        : Version(0)
     {
         Register("writers", WriterConfigs);
         Register("rules", Rules);
@@ -110,6 +107,8 @@ public:
 
     TLogWriters GetWriters(const TLogEvent& event)
     {
+        // Place a return value on top to promote RVO.
+        TLogWriters writers;
         TPair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
         auto it = CachedWriters.find(cacheKey);
         if (it != CachedWriters.end())
@@ -122,7 +121,6 @@ public:
             }
         }
 
-        TLogWriters writers;
         FOREACH (const Stroka& writerId, writerIds) {
             auto writerIt = Writers.find(writerId);
             YASSERT(writerIt != Writers.end());
@@ -130,7 +128,6 @@ public:
         }
 
         YCHECK(CachedWriters.insert(MakePair(cacheKey, writers)).second);
-
         return writers;
     }
 
@@ -147,6 +144,7 @@ public:
 
     void FlushWriters()
     {
+        AtomicIncrement(Version);
         FOREACH (auto& pair, Writers) {
             pair.second->Flush();
         }
@@ -154,6 +152,7 @@ public:
 
     void ReloadWriters()
     {
+        AtomicIncrement(Version);
         FOREACH (auto& pair, Writers) {
             pair.second->Reload();
         }
@@ -165,27 +164,15 @@ public:
 
         config->Writers.insert(MakePair(
             DefaultStdErrWriterName,
-            New<TStdErrLogWriter>(SystemPattern)));
+            New<TStdErrLogWriter>(DefaultStdErrPattern)));
         
-        config->Writers.insert(MakePair(
-            DefaultFileWriterName,
-            New<TFileLogWriter>(DefaultFileName, DefaultFilePattern)));
+        auto rule = New<TRule>();
 
-        {
-            auto rule = New<TRule>();
-            rule->AllCategories = true;
-            rule->MinLevel = DefaultStdErrMinLevel;
-            rule->Writers.push_back(DefaultStdErrWriterName);
-            config->Rules.push_back(rule);
-        }
+        rule->AllCategories = true;
+        rule->MinLevel = DefaultStdErrMinLevel;
+        rule->Writers.push_back(DefaultStdErrWriterName);
 
-        {
-            auto rule = New<TRule>();
-            rule->AllCategories = true;
-            rule->MinLevel = DefaultFileMinLevel;
-            rule->Writers.push_back(DefaultFileWriterName);
-            config->Rules.push_back(rule);
-        }
+        config->Rules.push_back(rule);
 
         return config;
     }
@@ -196,6 +183,11 @@ public:
         config->Load(node, true, path);
         config->CreateWriters();
         return config;
+    }
+
+    int GetVersion()
+    {
+        return Version;
     }
 
 private:
@@ -241,8 +233,11 @@ private:
                 default:
                     YUNREACHABLE();
             }
+            AtomicIncrement(Version);
         }
     }
+
+    TAtomic Version;
 
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
@@ -252,10 +247,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LogReloadHandler(int signum)
+namespace {
+
+void ReloadSignalHandler(int signal)
 {
-    NLog::TLogManager::Get()->ReopenLogs();
+    NLog::TLogManager::Get()->Reopen();
 }
+
+} // namespace
 
 class TLogManager::TImpl
     : public TActionQueueBase
@@ -263,13 +262,13 @@ class TLogManager::TImpl
 public:
     TImpl()
         : TActionQueueBase("Logging", false)
-        // ConfigVersion forces this very module's Logger object to update to our own
+        // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
-        , ConfigVersion(-1)
+        , Version(-1)
         , Config(TLogConfig::CreateDefault())
         , EnqueueCounter("/enqueue_rate")
         , WriteCounter("/write_rate")
-        , NeedReopen(false)
+        , ReopenEnqueued(false)
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
         Start();
@@ -310,15 +309,18 @@ public:
     {
 #ifdef _unix_
         // Set mask.
-        sigset_t sigset;
-        SigEmptySet(&sigset);
-        SigAddSet(&sigset, SIGHUP);
-        SigProcMask(SIG_UNBLOCK, &sigset, NULL);
+        sigset_t ss;
+        sigemptyset(&ss);
+        sigaddset(&ss, SIGHUP);
+        sigprocmask(SIG_UNBLOCK, &ss, NULL);
 
         // Set handler.
-        struct sigaction newAction;
-        newAction.sa_handler = LogReloadHandler;
-        sigaction(SIGHUP, &newAction, NULL);
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sigemptyset(&sa.sa_mask);
+        sa.sa_handler = &ReloadSignalHandler;
+
+        YCHECK(sigaction(SIGHUP, &sa, NULL) == 0);
 #endif
     }
 
@@ -328,7 +330,12 @@ public:
      */
     int GetConfigVersion()
     {
-        return ConfigVersion;
+        return Version;
+    }
+
+    int GetConfigRevision()
+    {
+        return Config->GetVersion();
     }
 
     void GetLoggerConfig(
@@ -338,7 +345,7 @@ public:
     {
         TGuard<TSpinLock> guard(&SpinLock);
         *minLevel = Config->GetMinLevel(category);
-        *configVersion = ConfigVersion;
+        *configVersion = Version;
     }
 
     void Enqueue(const TLogEvent& event)
@@ -354,6 +361,22 @@ public:
         if (event.Level == ELogLevel::Fatal) {
             // Flush everything and die.
             Shutdown();
+
+#ifdef _unix_
+            // Last-minute information.
+            TRawFormatter<1024> formatter;
+            formatter.AppendString("*** Fatal error encountered in ");
+            formatter.AppendString(event.Function);
+            formatter.AppendString(" (");
+            formatter.AppendString(event.FileName);
+            formatter.AppendString(":");
+            formatter.AppendNumber(event.Line, 10);
+            formatter.AppendString(") ***\n");
+            formatter.AppendString(event.Message.c_str());
+            formatter.AppendString("\n*** Aborting ***\n");
+
+            write(2, formatter.GetData(), formatter.GetBytesWritten());
+#endif
             std::terminate();
         }
     }
@@ -375,8 +398,8 @@ public:
                 DoUpdateConfig(config);
             }
 
-            if (NeedReopen) {
-                NeedReopen = false;
+            if (ReopenEnqueued) {
+                ReopenEnqueued = false;
                 Config->ReloadWriters();
             }
 
@@ -387,11 +410,10 @@ public:
         return result;
     }
 
-    void ReopenLogs()
+    void Reopen()
     {
-        NeedReopen = true;
+        ReopenEnqueued = true;
     }
-
 
 private:
     typedef std::vector<ILogWriter::TPtr> TWriters;
@@ -400,8 +422,9 @@ private:
     {
         if (event.Category == SystemLoggingCategory) {
             return SystemWriters;
+        } else {
+            return Config->GetWriters(event);
         }
-        return Config->GetWriters(event);
     }
 
     void Write(const TLogEvent& event)
@@ -416,13 +439,16 @@ private:
     {
         Config->FlushWriters();
 
-        TGuard<TSpinLock> guard(&SpinLock);
-        Config = config;
-        ConfigVersion++;
+        {
+            TGuard<TSpinLock> guard(&SpinLock);
+            Config = config;
+            AtomicIncrement(Version);
+        }
     }
 
     // Configuration.
-    TAtomic ConfigVersion;
+    TAtomic Version;
+
     TLogConfig::TPtr Config;
     NProfiling::TRateCounter EnqueueCounter;
     NProfiling::TRateCounter WriteCounter;
@@ -433,7 +459,7 @@ private:
 
     TWriters SystemWriters;
 
-    volatile bool NeedReopen;
+    volatile bool ReopenEnqueued;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -467,6 +493,11 @@ int TLogManager::GetConfigVersion()
     return Impl->GetConfigVersion();
 }
 
+int TLogManager::GetConfigRevision()
+{
+    return Impl->GetConfigRevision();
+}
+
 void TLogManager::GetLoggerConfig(
     const Stroka& category,
     ELogLevel* minLevel,
@@ -480,11 +511,10 @@ void TLogManager::Enqueue(const TLogEvent& event)
     Impl->Enqueue(event);
 }
 
-void TLogManager::ReopenLogs()
+void TLogManager::Reopen()
 {
-    Impl->ReopenLogs();
+    Impl->Reopen();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

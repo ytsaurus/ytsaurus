@@ -12,8 +12,6 @@ namespace NLog {
 class TLogManager
 {
 public:
-    TLogManager();
-
     static TLogManager* Get();
 
     void Configure(NYTree::INodePtr node);
@@ -22,6 +20,8 @@ public:
     void Shutdown();
 
     int GetConfigVersion();
+    int GetConfigRevision();
+
     void GetLoggerConfig(
         const Stroka& category,
         ELogLevel* minLevel,
@@ -29,11 +29,13 @@ public:
 
     void Enqueue(const TLogEvent& event);
 
-    void ReopenLogs();
+    void Reopen();
 
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
+
+    TLogManager();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

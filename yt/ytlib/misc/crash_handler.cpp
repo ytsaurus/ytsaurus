@@ -41,8 +41,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _unix_
 namespace {
-#ifndef _win_
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,7 +196,7 @@ void DumpSignalInfo(int signal, siginfo_t* si)
         // Use the signal number if the name is unknown. The signal name
         // should be known, but just in case.
         formatter.AppendString("Signal ");
-        formatter.AppendNumber(signal, 10);
+        formatter.AppendNumber(si->si_signo, 10);
     }
 
     formatter.AppendString(" (@0x");
@@ -247,11 +247,12 @@ void DumpStackFrameInfo(void* pc)
 //! Invoke the default signal handler.
 void InvokeDefaultSignalHandler(int signal)
 {
-    struct sigaction sig_action;
-    memset(&sig_action, 0, sizeof(sig_action));
-    sigemptyset(&sig_action.sa_mask);
-    sig_action.sa_handler = SIG_DFL;
-    sigaction(signal, &sig_action, NULL);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = SIG_DFL;
+    YCHECK(sigaction(signal, &sa, NULL) == 0);
+
     kill(getpid(), signal);
 }
 
@@ -336,13 +337,12 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#endif
-
 } // namespace anonymous
+#endif
 
 void InstallCrashSignalHandler()
 {
-#ifndef _win_
+#ifdef _unix_
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
