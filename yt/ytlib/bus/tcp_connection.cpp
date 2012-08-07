@@ -717,7 +717,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 {
     int fragmentCount = static_cast<int>(EncodedFragments.size());
     SendVector.resize(fragmentCount);
-    LOG_TRACE("Writing %d fragments", fragmentCount);
+    LOG_TRACE("Writing up to %d fragments", fragmentCount);
 
 #ifdef _WIN32
     WSABUF* wsabuf = &*SendVector.begin();
