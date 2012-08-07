@@ -548,6 +548,13 @@ private:
             SetJobStdErr(job, resultExt.reducer_result());
         }
 
+        if (result.HasExtension(TPartitionJobResultExt::partition_job_result_ext)) {
+            const auto& resultExt = result.GetExtension(TPartitionJobResultExt::partition_job_result_ext);
+            if (resultExt.has_mapper_result()) {
+                SetJobStdErr(job, resultExt.mapper_result());
+            }
+        }
+
         MasterConnector->UpdateJobNode(job);
     }
 
