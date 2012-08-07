@@ -28,7 +28,7 @@ using namespace NYTree;
 static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
-static const int SortBucketSize = 100000;
+static const int SortBucketSize = 10000;
 static const int SpinsBetweenYield = 1000;
 static const int RowsBetweenAtomicUpdate = 10000;
 static const i32 BucketEndSentinel = -1;
