@@ -273,7 +273,7 @@ private:
 
             auto flushBucket = [&] () {
                 Buckets.push_back(BucketEndSentinel);
-                BucketStart.push_back(rowIndex);
+                BucketStart.push_back(Buckets.size());
                 SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoSortBucket, Unretained(this), bucketId));
                 ++bucketId;
                 bucketSize = 0;
@@ -336,14 +336,15 @@ private:
 
     void DoSortBucket(int bucketId)
     {
+        int startIndex = BucketStart[bucketId];
+        int endIndex = BucketStart[bucketId + 1] - 1;
+        
         LOG_DEBUG("Started sorting bucket %d: rows %d-%d",
             bucketId,
-            BucketStart[bucketId],
-            BucketStart[bucketId + 1]);
+            startIndex,
+            endIndex - 1);
 
-        auto begin = Buckets.begin() + BucketStart[bucketId];
-        auto end = Buckets.begin() + BucketStart[bucketId + 1] - 1;
-        std::sort(begin, end, SortComparer);
+        std::sort(Buckets.begin() + startIndex, Buckets.begin() + endIndex, SortComparer);
 
         LOG_DEBUG("Finished sorting bucket %d", bucketId);
     }
