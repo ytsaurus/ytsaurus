@@ -4,6 +4,7 @@
 #include "key.h"
 
 #include <ytlib/misc/sync.h>
+#include <ytlib/misc/heap.h>
 
 #include <ytlib/actions/parallel_awaiter.h>
 
@@ -20,7 +21,7 @@ inline bool CompareReaders(
     const TTableChunkSequenceReader* lhs,
     const TTableChunkSequenceReader* rhs)
 {
-    return CompareKeys(lhs->GetKey(), rhs->GetKey()) > 0;
+    return CompareKeys(lhs->GetKey(), rhs->GetKey()) < 0;
 }
 
 } // namespace
@@ -75,8 +76,7 @@ public:
 
         // Prepare the heap.
         if (!ReaderHeap.empty()) {
-            std::make_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
-            std::pop_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+            MakeHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
         }
     }
 
@@ -85,16 +85,16 @@ public:
         if (ReaderHeap.empty())
             return;
 
-        auto* currentReader = ReaderHeap.back();
+        auto* currentReader = ReaderHeap.front();
 
         if (!currentReader->FetchNextItem()) {
             Sync(currentReader, &TTableChunkSequenceReader::GetReadyEvent);
         }
 
         if (currentReader->IsValid()) {
-            std::push_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
-            std::pop_heap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+            AdjustHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
         } else {
+            ExtractHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
             ReaderHeap.pop_back();
         }
     }
@@ -106,12 +106,12 @@ public:
 
     virtual const TRow& GetRow() const override
     {
-        return ReaderHeap.back()->GetRow();
+        return ReaderHeap.front()->GetRow();
     }
 
     virtual const TNonOwningKey& GetKey() const override
     {
-        return ReaderHeap.back()->GetKey();
+        return ReaderHeap.front()->GetKey();
     }
 
 private:

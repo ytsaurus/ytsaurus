@@ -4,6 +4,8 @@
 #include "private.h"
 #include "small_key.h"
 
+#include <ytlib/misc/heap.h>
+
 #include <ytlib/actions/action_queue.h>
 
 #include <ytlib/table_client/sync_reader.h>
@@ -32,53 +34,6 @@ static const int SortBucketSize = 10000;
 static const int SpinsBetweenYield = 1000;
 static const int RowsBetweenAtomicUpdate = 10000;
 static const i32 BucketEndSentinel = -1;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class Iterator, class Comparer>
-void SiftDown(Iterator begin, Iterator end, Iterator current, const Comparer& comparer)
-{
-    auto value = *current;
-    while (true) {
-        size_t dist = std::distance(begin, current);
-        auto left = begin + 2 * dist + 1;
-        auto right = left + 1;
-        if (left >= end) {
-            break;
-        }
-        
-        Iterator min;
-        if (right >= end) {
-            min = left;
-        } else {
-            min = comparer(*left, *right) ? left : right;
-        }
-
-        auto minValue = *min;
-        if (comparer(value, minValue)) {
-            break;
-        }
-
-        *current = minValue;
-        current = min;
-    }
-    *current = value;
-}
-
-template <class Iterator, class Comparer>
-void MakeHeap(Iterator begin, Iterator end, const Comparer& comparer)
-{
-    size_t size = std::distance(begin, end);
-    for (auto current = begin + size / 2 - 1; current >= begin; --current) {
-        SiftDown(begin, end, current, comparer);
-    }
-}
-
-template <class Iterator, class Comparer>
-void AdjustHeap(Iterator begin, Iterator end, const Comparer& comparer)
-{
-    SiftDown(begin, end, begin, comparer);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,12 +330,12 @@ private:
                 SortedIndexes.push_back(Buckets[bucketIndex]);
                 ++bucketIndex;
                 if (Buckets[bucketIndex] == BucketEndSentinel) {
-                    BucketHeap.front() = BucketHeap.back();
+                    ExtractHeap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
                     BucketHeap.pop_back();
                 } else {
                     BucketHeap.front() = bucketIndex;
+                    AdjustHeap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
                 }
-                AdjustHeap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
 
                 ++sortedRowCount;
                 if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
