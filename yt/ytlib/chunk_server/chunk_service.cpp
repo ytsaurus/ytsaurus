@@ -82,6 +82,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     context->SetRequestInfo("Address: %s, IncarnationId: %s, CellGuid: %s, %s",
         ~address,
         ~incarnationId.ToString(),
+        ~requestCellGuid.ToString(),
         ~ToString(statistics));
 
     auto chunkManager = Bootstrap->GetChunkManager();
