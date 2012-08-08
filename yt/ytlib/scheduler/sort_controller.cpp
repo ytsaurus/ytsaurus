@@ -889,27 +889,46 @@ protected:
         }
     }
 
-    void AssignPartition(TPartitionPtr partition, TExecNodePtr node)
-    {
-        LOG_DEBUG("Partition assigned: %d -> %s",
-            partition->Index,
-            ~node->GetAddress());
-        partition->AssignedAddress = node->GetAddress();
-    }
-
     void AssignPartitions()
     {
         auto nodes = Host->GetExecNodes();
         if (nodes.empty()) {
             OnOperationFailed(TError("No online exec nodes to assign partitions"));
+            return;
         }
 
-        std::random_shuffle(nodes.begin(), nodes.end());
+        yhash_map<TExecNodePtr, i64> nodeToLoad;
+        std::vector<TExecNodePtr> nodeHeap;
 
-        int currentNode = 0;
+        auto compareNodes = [&] (TExecNodePtr lhs, TExecNodePtr rhs) {
+            return nodeToLoad[lhs] > nodeToLoad[rhs];
+        };
+
+        FOREACH (auto node, nodes) {
+            YCHECK(nodeToLoad.insert(std::make_pair(node, 0)).second);
+            nodeHeap.push_back(node);
+        }
+
+        // This is actually redundant since all values are 0.
+        std::make_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
+        
+        LOG_DEBUG("Assigning partitions");
         FOREACH (auto partition, Partitions) {
-            AssignPartition(partition, nodes[currentNode]);
-            currentNode = (currentNode + 1) % nodes.size();
+            auto node = nodeHeap.front();
+            LOG_DEBUG("Partition assigned: %d -> %s",
+                partition->Index,
+                ~node->GetAddress());
+            partition->AssignedAddress = node->GetAddress();
+            nodeToLoad[node] += partition->TotalAttributes.uncompressed_data_size();
+            std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
+            std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
+        }
+
+        LOG_DEBUG("Partitions assigned, node loads are:");
+        FOREACH (const auto& pair, nodeToLoad) {
+            LOG_DEBUG("Node %s -> %" PRId64,
+                ~pair.first->GetAddress(),
+                ~pair.second);
         }
     }
 
