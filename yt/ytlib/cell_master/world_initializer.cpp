@@ -81,7 +81,12 @@ private:
         LOG_INFO("World initialization started");
 
         try {
-            auto service = Bootstrap->GetObjectManager()->GetRootService();
+            auto objectManager = Bootstrap->GetObjectManager();
+            auto cypressManager = Bootstrap->GetCypressManager();
+            auto rootService = objectManager->GetRootService();
+
+            auto cellId = objectManager->GetCellId();
+            auto cellGuid = TGuid::Create();
 
             auto transactionId = StartTransaction();
 
@@ -89,53 +94,63 @@ private:
             TYsonString opaqueEmptyMap("<opaque = true>{}");
 
             SyncYPathSet(
-                service,
+                rootService,
                 WithTransaction("//sys", transactionId),
                 emptyMap);
 
             SyncYPathSet(
-                service,
+                rootService,
+                WithTransaction("//sys/@cell_id", transactionId),
+                ConvertToYsonString(cellId));
+
+            SyncYPathSet(
+                rootService,
+                WithTransaction("//sys/@cell_guid", transactionId),
+                ConvertToYsonString(cellGuid));
+
+            SyncYPathSet(
+                rootService,
                 WithTransaction("//sys/scheduler", transactionId),
                 opaqueEmptyMap);
 
             SyncYPathSet(
-                service,
+                rootService,
                 WithTransaction("//sys/scheduler/lock", transactionId),
                 emptyMap);
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/scheduler/orchid", transactionId),
                 EObjectType::Orchid);
 
             SyncYPathSet(
-                service,
+                rootService,
                 WithTransaction("//sys/operations", transactionId),
                 opaqueEmptyMap);
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/holders", transactionId),
                 EObjectType::HolderMap);
             SyncYPathSet(
-                service,
+                rootService,
                 WithTransaction("//sys/holders/@opaque", transactionId),
                 TYsonString("true"));
 
             SyncYPathSet(
-                service,
+                rootService,
                 WithTransaction("//sys/masters", transactionId),
                 opaqueEmptyMap);
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
                 auto addressPath = "/" + EscapeYPathToken(address);
                 SyncYPathSet(
-                    service,
+                    rootService,
                     WithTransaction("//sys/masters" + addressPath, transactionId),
                     emptyMap);
 
                 SyncYPathCreate(
-                    service,
+                    rootService,
                     WithTransaction("//sys/masters" + addressPath + "/orchid", transactionId),
                     EObjectType::Orchid,
                     BuildYsonFluently()
@@ -145,47 +160,47 @@ private:
             }
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/chunks", transactionId),
                 EObjectType::ChunkMap);
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/lost_chunks", transactionId),
                 EObjectType::LostChunkMap);
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/overreplicated_chunks", transactionId),
                 EObjectType::OverreplicatedChunkMap);
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/underreplicated_chunks", transactionId),
                 EObjectType::UnderreplicatedChunkMap);
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/chunk_lists", transactionId),
                 EObjectType::ChunkListMap);
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/nodes", transactionId),
                 EObjectType::NodeMap);
 
             SyncYPathCreate(
-                service,
+                rootService,
                 WithTransaction("//sys/transactions", transactionId),
                 EObjectType::TransactionMap);
 
             SyncYPathSet(
-                service,
+                rootService,
                 WithTransaction("//tmp", transactionId),
                 emptyMap);
 
             SyncYPathSet(
-                service,
+                rootService,
                 WithTransaction("//home", transactionId),
                 emptyMap);
 

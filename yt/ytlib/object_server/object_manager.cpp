@@ -341,6 +341,18 @@ TCellId TObjectManager::GetCellId() const
     return Config->CellId;
 }
 
+TGuid TObjectManager::GetCellGuid() const
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    if (CachedCellGuild.IsEmpty()) {
+        auto rootService = const_cast<TObjectManager*>(this)->GetRootService();
+        CachedCellGuild = ConvertTo<TGuid>(SyncYPathGet(rootService, "//sys/@cell_guid"));
+    }
+
+    return CachedCellGuild;
+}
+
 TObjectId TObjectManager::GenerateId(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
