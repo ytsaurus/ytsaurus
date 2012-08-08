@@ -53,11 +53,13 @@ message TReqRegisterHolder
     required bytes address = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
     required THolderStatistics statistics = 3;
+    required NYT.NProto.TGuid cell_guid = 4;
 }
 
 message TRspRegisterHolder
 {
     required int32 holder_id = 1;
+    required NYT.NProto.TGuid cell_guid = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

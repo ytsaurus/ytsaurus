@@ -52,6 +52,10 @@ public:
     //! Returns the number of registered chunks.
     int GetChunkCount() const;
 
+    const TGuid& GetCellGuid() const;
+
+    void UpdateCellGuid(const TGuid& cellGuid);
+
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
@@ -62,11 +66,15 @@ public:
     DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
 
 private:
+    void DoUpdateCellGuid();
+
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
     TChunkMap ChunkMap;
+
+    TGuid CellGuid;
 
 };
 

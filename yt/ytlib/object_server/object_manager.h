@@ -50,6 +50,9 @@ public:
     //! Returns the cell id.
     TCellId GetCellId() const;
 
+    //! Returns the cell unique id.
+    TGuid GetCellGuid() const;
+
     //! Creates a new unique object id.
     TObjectId GenerateId(EObjectType type);
 
@@ -135,6 +138,7 @@ private:
     NCellMaster::TBootstrap* Bootstrap;
     std::vector<IObjectTypeHandlerPtr> TypeToHandler;
     TIntrusivePtr<TRootService> RootService;
+    mutable TGuid CachedCellGuild;
 
     // Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;

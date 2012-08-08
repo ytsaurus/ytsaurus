@@ -6,11 +6,18 @@
 #include "holder_authority.h"
 
 #include <ytlib/misc/string.h>
+
 #include <ytlib/actions/bind.h>
+
 #include <ytlib/object_server/id.h>
+#include <ytlib/object_server/object_manager.h>
+
 #include <ytlib/cell_master/bootstrap.h>
+
 #include <ytlib/transaction_server/transaction_manager.h>
+
 #include <ytlib/chunk_server/chunk_manager.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -69,16 +76,29 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 
     Stroka address = request->address();
     auto incarnationId = TIncarnationId::FromProto(request->incarnation_id());
+    auto requestCellGuid = TGuid::FromProto(request->cell_guid());
     const auto& statistics = request->statistics();
     
-    context->SetRequestInfo("Address: %s, IncarnationId: %s, %s",
+    context->SetRequestInfo("Address: %s, IncarnationId: %s, CellGuid: %s, %s",
         ~address,
         ~incarnationId.ToString(),
+        ~requestCellGuid.ToString(),
         ~ToString(statistics));
 
-    CheckHolderAuthorization(address);
-
     auto chunkManager = Bootstrap->GetChunkManager();
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto expectedCellGuid = objectManager->GetCellGuid();
+    if (!requestCellGuid.IsEmpty() && requestCellGuid != expectedCellGuid) {
+        ythrow TServiceException(TError(
+            NRpc::EErrorCode::PoisonPill,
+            "Wrong cell guid reported by node %s: expected %s, received %s",
+            ~address,
+            ~expectedCellGuid.ToString(),
+            ~requestCellGuid.ToString()));
+    }
+
+    CheckHolderAuthorization(address);
 
     TMsgRegisterHolder message;
     message.set_address(address);
@@ -86,9 +106,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     *message.mutable_statistics() = statistics;
     chunkManager
         ->InitiateRegisterHolder(message)
-        ->OnSuccess(BIND([=] (THolderId id) {
-            response->set_holder_id(id);
-            context->SetResponseInfo("HolderId: %d", id);
+        ->OnSuccess(BIND([=] (THolderId nodeId) {
+            response->set_holder_id(nodeId);
+            *response->mutable_cell_guid() = expectedCellGuid.ToProto();
+            context->SetResponseInfo("HolderId: %d", nodeId);
             context->Reply();
         }))
         ->OnError(CreateErrorHandler(context))

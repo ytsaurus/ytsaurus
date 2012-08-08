@@ -35,6 +35,9 @@ public:
     //! Returns string id.
     Stroka GetId() const;
 
+    const TGuid& GetCellGuid();
+    void UpdateCellGuid(const TGuid& guid);
+
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     std::vector<TChunkDescriptor> Scan();
 
@@ -98,6 +101,8 @@ private:
     Stroka Id;
     TLocationConfigPtr Config;
     TBootstrap* Bootstrap;
+
+    TGuid CellGuid;
 
     mutable i64 AvailableSpace;
     i64 UsedSpace;

@@ -100,6 +100,7 @@ void TMasterConnector::SendRegister()
     *request->mutable_statistics() = ComputeStatistics();
     request->set_address(Bootstrap->GetPeerAddress());
     *request->mutable_incarnation_id() = Bootstrap->GetIncarnationId().ToProto();
+    *request->mutable_cell_guid() = Bootstrap->GetCellGuid().ToProto();
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
         .Via(ControlInvoker));
@@ -139,6 +140,13 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolderPtr response
 
         LOG_WARNING("Error registering at master\n%s", ~response->GetError().ToString());
         return;
+    }
+
+    auto cellGuid = TGuid::FromProto(response->cell_guid());
+    YCHECK(!cellGuid.IsEmpty());
+
+    if (Bootstrap->GetCellGuid().IsEmpty()) {
+        Bootstrap->UpdateCellGuid(cellGuid);
     }
 
     HolderId = response->holder_id();

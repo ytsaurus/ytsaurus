@@ -35,6 +35,8 @@ public:
     TReaderCachePtr GetReaderCache() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
+    const TGuid& GetCellGuid() const;
+    void UpdateCellGuid(const TGuid& cellGuid);
 
 private:
     TDataNodeConfigPtr Config;
@@ -50,6 +52,8 @@ private:
     TPeerBlockUpdaterPtr PeerBlockUpdater;
     TReaderCachePtr ReaderCache;
     TMasterConnectorPtr MasterConnector;
+
+    TGuid CellGuid;
     
 };
 

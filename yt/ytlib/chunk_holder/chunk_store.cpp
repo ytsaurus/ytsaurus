@@ -52,6 +52,26 @@ void TChunkStore::Start()
                 RegisterChunk(chunk);
             }
         }
+
+        FOREACH(const auto& location, Locations_) {
+            auto cellGuid = location->GetCellGuid();
+            if (cellGuid.IsEmpty())
+                continue;
+
+            if (CellGuid.IsEmpty()) {
+                CellGuid = cellGuid;
+            } else if (CellGuid != cellGuid) {
+                LOG_FATAL(
+                    "Inconsistent cell guid across chunk store locations (%s and %s)", 
+                    ~CellGuid.ToString(),
+                    ~cellGuid.ToString());
+            }
+        }
+
+        if (!CellGuid.IsEmpty()) {
+            DoUpdateCellGuid();
+        }
+
     } catch (const std::exception& ex) {
         LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
     }
@@ -133,6 +153,24 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 int TChunkStore::GetChunkCount() const
 {
     return ChunkMap.ysize();
+}
+
+void TChunkStore::UpdateCellGuid(const TGuid& cellGuid)
+{
+    CellGuid = cellGuid;
+    DoUpdateCellGuid();
+}
+
+void TChunkStore::DoUpdateCellGuid()
+{
+    FOREACH(auto& location, Locations_) {
+        location->UpdateCellGuid(CellGuid);
+    }
+}
+
+const TGuid& TChunkStore::GetCellGuid() const
+{
+    return CellGuid;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
