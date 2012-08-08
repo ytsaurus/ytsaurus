@@ -260,7 +260,7 @@ protected:
                 auto rcPartitionChunk = New<TRefCountedInputChunk>(partitionChunk);
 
                 YCHECK(partitionsExt.partitions_size() == Controller->Partitions.size());
-                LOG_TRACE("Job partition attributes are:");
+                LOG_TRACE("Job partition attributes received");
                 for (int index = 0; index < partitionsExt.partitions_size(); ++index) {
                     const auto& jobPartitionAttributes = partitionsExt.partitions(index);
                     LOG_TRACE("Partition[%d] = {%s}", index, ~jobPartitionAttributes.DebugString());
@@ -302,7 +302,7 @@ protected:
             Controller->PartitionJobCounter.Finalize();
 
             // Dump totals.
-            LOG_DEBUG("Total partition attributes are:");
+            LOG_DEBUG("Partition totals collected");
             for (int index = 0; index < static_cast<int>(Controller->Partitions.size()); ++index) {
                 LOG_DEBUG("Partition[%d] = {%s}",
                     index,
@@ -932,7 +932,7 @@ protected:
             std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
         }
 
-        LOG_DEBUG("Partitions assigned, node loads are:");
+        LOG_DEBUG("Partitions assigned");
         FOREACH (const auto& pair, nodeToLoad) {
             LOG_DEBUG("Node %s -> %" PRId64,
                 ~pair.first->GetAddress(),
