@@ -955,7 +955,7 @@ protected:
         FOREACH (const auto& pair, nodeToLoad) {
             LOG_DEBUG("Node %s -> %" PRId64,
                 ~pair.first->GetAddress(),
-                ~pair.second);
+                pair.second);
         }
     }
 
