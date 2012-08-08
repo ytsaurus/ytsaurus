@@ -9,7 +9,7 @@ namespace NYT {
 // TODO: Add extended diagnostics why the process was terminated.
 #define _ASSERT_X(s) _ASSERT_Y(s)
 #define _ASSERT_Y(s) #s
-#define _ASSERT_AT __FILE__ ":" _ASSERT_X(s)
+#define _ASSERT_AT __FILE__ ":" _ASSERT_X(__LINE__)
 
 #ifdef __GNUC__
 
