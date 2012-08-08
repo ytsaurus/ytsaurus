@@ -975,7 +975,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         auto fetchInRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in");
         auto lockInRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in");
         auto getInSortedRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_sorted");
-        auto getInKeyColumns = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_key_columns");
+        auto getInKeyColumns = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_sorted_by");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
             {
