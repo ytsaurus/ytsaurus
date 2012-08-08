@@ -78,7 +78,7 @@ public:
 
     TYsonSerializable();
 
-    virtual void Load(NYTree::INodePtr node, bool validate = true, const NYTree::TYPath& path = "");
+    void Load(NYTree::INodePtr node, bool validate = true, const NYTree::TYPath& path = "");
     void Validate(const NYTree::TYPath& path = "") const;
 
     void Save(NYTree::IYsonConsumer* consumer) const;
@@ -88,6 +88,7 @@ public:
 
 protected:
     virtual void DoValidate() const;
+    virtual void OnLoaded();
 
     template <class T>
     NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);

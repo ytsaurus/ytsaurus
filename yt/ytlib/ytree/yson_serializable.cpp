@@ -27,7 +27,7 @@ void TYsonSerializable::Load(NYTree::INodePtr node, bool validate, const NYTree:
     YASSERT(node);
 
     if (node->GetType() != ENodeType::Map) {
-        ythrow yexception() << Sprintf("Configuration must be loaded from a map node (Path: %s)",
+        ythrow yexception() << Sprintf("Cannot load a YSON serializable object: path %s must refer to a map",
             ~path);
     }
 
@@ -53,6 +53,8 @@ void TYsonSerializable::Load(NYTree::INodePtr node, bool validate, const NYTree:
     if (validate) {
         Validate(path);
     }
+
+    OnLoaded();
 }
 
 void TYsonSerializable::Validate(const NYTree::TYPath& path) const
@@ -63,13 +65,16 @@ void TYsonSerializable::Validate(const NYTree::TYPath& path) const
     try {
         DoValidate();
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Validation failed (Path: %s)\n%s",
+        ythrow yexception() << Sprintf("Validation failed for %\n%s",
             ~path,
             ex.what());
     }
 }
 
 void TYsonSerializable::DoValidate() const
+{ }
+
+void TYsonSerializable::OnLoaded()
 { }
 
 void TYsonSerializable::Save(IYsonConsumer* consumer) const

@@ -59,10 +59,8 @@ struct TRule
         Register("writers", Writers).NonEmpty();
     }
 
-    virtual void Load(INodePtr node, bool validate, const TYPath& path)
+    virtual void OnLoaded() override
     {
-        TYsonSerializable::Load(node, validate, path);
-
         if (Categories.size() == 1 && *Categories.begin() == AllCategoriesName) {
             AllCategories = true;
         }
