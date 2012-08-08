@@ -176,10 +176,13 @@ void TLocation::UpdateCellGuid(const TGuid& newCellGuid)
 {
     CellGuid = newCellGuid;
 
-    auto cellGuidPath = NFS::CombinePaths(GetPath(), CellGuidFileName);
-    TFileOutput cellGuidFile(cellGuidPath);
-    cellGuidFile.Write(CellGuid.ToString());
-    LOG_INFO("Cell guid updated: %s", ~CellGuid.ToString());
+    {
+        auto cellGuidPath = NFS::CombinePaths(GetPath(), CellGuidFileName);
+        TFileOutput cellGuidFile(cellGuidPath);
+        cellGuidFile.Write(CellGuid.ToString());
+    }
+
+    LOG_INFO("Cell guid updated to %s", ~CellGuid.ToString());
 }
 
 std::vector<TChunkDescriptor> TLocation::Scan()
