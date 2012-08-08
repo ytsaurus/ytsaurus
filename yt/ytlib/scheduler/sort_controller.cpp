@@ -1081,10 +1081,12 @@ private:
             SortedSamples.push_back(&sample);
         }
 
-        std::sort(SortedSamples.begin(), SortedSamples.end(), 
+        std::sort(
+            SortedSamples.begin(),
+            SortedSamples.end(), 
             [] (const NTableClient::NProto::TKey* lhs, const NTableClient::NProto::TKey* rhs) {
                 return CompareKeys(*lhs, *rhs) < 0;
-        }
+            }
         );
     }
 
