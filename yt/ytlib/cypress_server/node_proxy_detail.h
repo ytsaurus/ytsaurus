@@ -166,9 +166,9 @@ public:
         auto clonedNode = TypeHandler->Instantiate(clonedNodeId);
         auto clonedNode_ = clonedNode.Get();
 
-        cypressManager->RegisterNode(
-            Transaction,
-            clonedNode);
+        clonedNode_->SetTrunkNode(clonedNode_);
+
+        cypressManager->RegisterNode(Transaction, clonedNode);
 
         DoCloneTo(dynamic_cast<TImpl*>(clonedNode_));
 
