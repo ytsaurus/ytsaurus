@@ -152,7 +152,11 @@ protected:
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddParallelInputSpec(jobSpec, jip);
-            AddTabularOutputSpec(jobSpec, jip, 0);
+
+            for (int i = 0; i < Controller->OutputTables.size(); ++i) {
+                // Reduce task can have multiple output tables.
+                AddTabularOutputSpec(jobSpec, jip, i);
+            }
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
