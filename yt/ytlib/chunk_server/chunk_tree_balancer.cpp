@@ -85,16 +85,20 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
 
     // Rewrite the root with newChildren.
     
+    // Make a copy of key columns and set it back when the root is updated.
+    auto keyColumns = root->KeyColumns();
+
     // Add temporary references to the old children.
     auto oldChildren = root->Children();
     FOREACH (auto childRef, oldChildren) {
         objectManager->RefObject(childRef);
     }
 
-    // Replace the children list.
+    // Replace the children list and restore the key columns.
     chunkManager->ClearChunkList(root);
     chunkManager->AttachToChunkList(root, newChildren);
-    
+    root->KeyColumns() = keyColumns;
+
     // Release the temporary references added above.
     FOREACH (auto childRef, oldChildren) {
         objectManager->UnrefObject(childRef.GetId());

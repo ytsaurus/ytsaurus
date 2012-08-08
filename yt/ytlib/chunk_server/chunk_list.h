@@ -23,23 +23,14 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypressServer::ICypressNode*>, OwningNodes);
     
-    // This is a pessimistic estimate.
-    // In particular, this flag is True for root chunk lists of sorted tables.
-    // However other chunk lists in such a table may have it false.
-    DEFINE_BYVAL_RO_PROPERTY(bool, Sorted);
-
-    // A tuple of key columns, only non-empty if Sorted is set.
-    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, KeyColumns);
+    // A tuple of key columns. If empty then the chunk list is not sorted.
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, KeyColumns);
 
     // If True then the subtree of this chunk list cannot be rebalanced.
     // Rebalancing changes the set of children (while maintaining the set of leaves).
     // For some chunk lists (e.g. those corresponding to roots of branched tables)
     // such changes are not allowed since they would break the invariants.
     DEFINE_BYVAL_RW_PROPERTY(bool, Rigid);
-
-    void SetSorted(const std::vector<Stroka>& keyColumns);
-    void ResetSorted();
-    void CopySortAttributesTo(TChunkList* other);
 
 public:
     explicit TChunkList(const TChunkListId& id);

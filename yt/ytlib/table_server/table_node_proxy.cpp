@@ -510,7 +510,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("row_count");
     attributes->push_back("sorted");
     attributes->push_back("update_mode");
-    attributes->push_back(TAttributeInfo("key_columns", chunkList->GetSorted()));
+    attributes->push_back(TAttributeInfo("key_columns", !chunkList->KeyColumns().empty()));
     TBase::GetSystemAttributes(attributes);
 }
 
@@ -570,7 +570,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
     if (name == "sorted") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList->GetSorted());
+            .Scalar(!chunkList->KeyColumns().empty());
         return true;
     }
 
@@ -580,7 +580,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         return true;
     }
 
-    if (chunkList->GetSorted()) {
+    if (!chunkList->KeyColumns().empty()) {
         if (name == "key_columns") {
             BuildYsonFluently(consumer)
                 .List(chunkList->KeyColumns());
@@ -641,7 +641,7 @@ TChunkList* TTableNodeProxy::EnsureNodeMutable(TTableNode* node)
             node->SetChunkList(newChunkList);
             objectManager->RefObject(newChunkList);
 
-            snapshotChunkList->CopySortAttributesTo(newChunkList);
+            newChunkList->KeyColumns() = snapshotChunkList->KeyColumns();
             chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
             auto* deltaChunkList = chunkManager->CreateChunkList();
@@ -717,7 +717,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
             ythrow yexception() << Sprintf("Row limits must have the same type");
         }
-        if (!chunkList->GetSorted()) {
+        if (chunkList->KeyColumns().empty()) {
             ythrow yexception() << Sprintf("Table is not sorted");
         }
         const auto& lowerBound = lowerLimit.key();
@@ -792,7 +792,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
         ythrow TServiceException(TError("Table node must be in overwrite mode"));
     }
 
-    node->GetChunkList()->SetSorted(keyColumns);
+    node->GetChunkList()->KeyColumns() = keyColumns;
 
     context->Reply();
 }
