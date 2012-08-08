@@ -9,6 +9,8 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef _win_
+
 TEST(TLoggingTest, ReloadsOnSigHup)
 {
     int version = NLog::TLogManager::Get()->GetConfigVersion();
@@ -22,6 +24,8 @@ TEST(TLoggingTest, ReloadsOnSigHup)
     EXPECT_EQ(version, newVersion);
     EXPECT_NE(revision, newRevision);
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
