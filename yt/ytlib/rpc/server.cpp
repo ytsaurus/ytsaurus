@@ -188,9 +188,9 @@ private:
 
         auto context = New<TServiceContext>(
             header,
-            ~message,
-            ~replyBus,
-            ~service,
+            message,
+            replyBus,
+            service,
             service->GetLoggingCategory());
 
         service->OnBeginRequest(context);

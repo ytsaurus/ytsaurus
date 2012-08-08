@@ -1,5 +1,11 @@
 #include "stdafx.h"
 #include "tcp_dispatcher_impl.h"
+#include "config.h"
+
+#ifndef _win_
+    #include <sys/socket.h>
+    #include <sys/un.h>
+#endif
 
 namespace NYT {
 namespace NBus {
@@ -8,6 +14,26 @@ namespace NBus {
 
 static NLog::TLogger& Logger = BusLogger;
 static NProfiling::TProfiler& Profiler = BusProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka GetLocalBusPath(int port)
+{
+    return Sprintf("/tmp/yt-local-bus-%d", port);
+}
+
+TNetworkAddress GetLocalBusAddress(int port)
+{
+#ifdef _win_
+    ythrow yexception() << "Local bus transport is not supported under this platform";
+#else
+    sockaddr_un sockAddr;
+    memset(&sockAddr, 0, sizeof(sockAddr));
+    sockAddr.sun_family = AF_UNIX;
+    strncpy(sockAddr.sun_path, ~GetLocalBusPath(port), 100);
+    return TNetworkAddress(*reinterpret_cast<sockaddr*>(&sockAddr));
+#endif
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

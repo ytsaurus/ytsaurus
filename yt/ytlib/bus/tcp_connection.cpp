@@ -5,6 +5,7 @@
 #include "config.h"
 
 #include <util/system/error.h>
+#include <util/folder/dirut.h>
 
 #include <errno.h>
 
@@ -63,10 +64,6 @@ TTcpConnection::TTcpConnection(
     YASSERT(handler);
 
     Logger.AddTag(Sprintf("ConnectionId: %s", ~id.ToString()));
-
-    // Typically there are more than FragmentCountThreshold fragments.
-    // This looks like a reasonable estimate.
-    SendVector.reserve(FragmentCountThreshold * 2);
 
     switch (Type) {
         case EConnectionType::Client:
@@ -234,12 +231,36 @@ void TTcpConnection::SyncResolve()
         return;
     }
 
-    AsyncAddress = TAddressResolver::Get()->Resolve(Stroka(hostName));
+    if (IsLocal(hostName, Port)) {
+        LOG_DEBUG("Address resolved as local, connecting");
 
-    auto this_ = MakeStrong(this);
-    AsyncAddress.Subscribe(BIND([=] (TValueOrError<TNetworkAddress>) {
-        this_->ResolveWatcher->send();
-    }));
+        auto netAddress = GetLocalBusAddress(Port);
+        OnResolved(netAddress);
+    } else {
+        AsyncAddress = TAddressResolver::Get()->Resolve(Stroka(hostName));
+
+        auto this_ = MakeStrong(this);
+        AsyncAddress.Subscribe(BIND([=] (TValueOrError<TNetworkAddress>) {
+            this_->ResolveWatcher->send();
+        }));
+    }
+}
+
+bool TTcpConnection::IsLocal(const TStringBuf& hostName, int port)
+{
+#ifdef _win_
+    return false;
+#else
+    if (hostName != GetLocalHostName()) {
+        return false;
+    }
+     
+    if (!isexist(~GetLocalBusPath(port))) {
+        return false;
+    }
+
+    return true;
+#endif
 }
 
 void TTcpConnection::OnResolved(ev::async&, int)
@@ -255,6 +276,11 @@ void TTcpConnection::OnResolved(ev::async&, int)
     LOG_DEBUG("Address resolved, connecting");
 
     TNetworkAddress netAddress(result.Value(), Port);
+    OnResolved(netAddress);
+}
+
+void TTcpConnection::OnResolved(const TNetworkAddress& netAddress)
+{
     try {
         ConnectSocket(netAddress);
     } catch (const std::exception& ex) {
@@ -348,8 +374,9 @@ void TTcpConnection::CloseSocket()
 
 void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
 {
-    bool isIPV6 = netAddress.GetSockAddr()->sa_family == AF_INET6;
-    Socket = socket(isIPV6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int family = netAddress.GetSockAddr()->sa_family;
+    int protocol = family == AF_UNIX ? 0 : IPPROTO_TCP;
+    Socket = socket(family, SOCK_STREAM, protocol);
     if (Socket == INVALID_SOCKET) {
         int error = LastSystemError();
         ythrow yexception() << Sprintf("Failed to create client socket (ErrorCode: %d)\n%s",
@@ -358,7 +385,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 
     // TODO(babenko): check results
-    if (isIPV6) {
+    if (family == AF_INET6) {
         int flag = 0;
         setsockopt(Socket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag));
     }

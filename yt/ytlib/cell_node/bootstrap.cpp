@@ -90,7 +90,6 @@ void TBootstrap::Run()
     ControlQueue = New<TActionQueue>("Control");
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
-
     RpcServer = CreateRpcServer(BusServer);
 
     auto monitoringManager = New<TMonitoringManager>();

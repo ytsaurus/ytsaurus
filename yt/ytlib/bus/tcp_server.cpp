@@ -11,12 +11,14 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <util/random/random.h>
+#include <util/folder/dirut.h>
 
 #include <errno.h>
 
-#ifndef _WIN32
+#ifndef _win_
     #include <netinet/tcp.h>
     #include <sys/socket.h>
+    #include <sys/un.h>
 #endif
 
 namespace NYT {
@@ -29,11 +31,11 @@ static NProfiling::TAggregateCounter AcceptTime("/accept_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTcpBusServer
+class TBusServerBase
     : public IEventLoopObject
 {
 public:
-    TTcpBusServer(
+    TBusServerBase(
         TTcpBusServerConfigPtr config,
         IMessageHandlerPtr handler)
         : Config(config)
@@ -44,10 +46,7 @@ public:
         , ServerFd(INVALID_SOCKET)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(config);
         YCHECK(handler);
-
-        Logger.AddTag(Sprintf("Port: %d", Config->Port));
     }
 
     // IEventLoopObject implementation.
@@ -61,7 +60,7 @@ public:
 
         const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop(this);
         AcceptWatcher.Reset(new ev::io(eventLoop));
-        AcceptWatcher->set<TTcpBusServer, &TTcpBusServer::OnAccept>(this);
+        AcceptWatcher->set<TBusServerBase, &TBusServerBase::OnAccept>(this);
         AcceptWatcher->start(ServerFd, ev::READ);
     }
 
@@ -92,7 +91,7 @@ public:
         return Hash;
     }
 
-private:
+protected:
     TTcpBusServerConfigPtr Config;
     IMessageHandlerPtr Handler;
 
@@ -110,6 +109,17 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
 
+    virtual void CreateServerSocket() = 0;
+
+    virtual void InitClientSocket(SOCKET clientSocket)
+    {
+        {
+            int flag = 1;
+            setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &flag, sizeof(flag));
+        }
+    }
+
+
     void OnConnectionTerminated(TTcpConnectionPtr connection, TError error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -123,46 +133,7 @@ private:
     {
         LOG_DEBUG("Opening server socket");
 
-        ServerSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
-        if (ServerSocket == INVALID_SOCKET) {
-        	int error = LastSystemError();
-            ythrow yexception() << Sprintf("Failed to create server socket (ErrorCode: %d)\n%s",
-                error,
-                LastSystemErrorText(error));
-        }
-
-#ifdef _WIN32
-        ServerFd = _open_osfhandle(ServerSocket, 0);
-#else
-        ServerFd = ServerSocket;
-#endif
-
-        // TODO(babenko): check for errors
-        {
-            int flag = 0;
-            setsockopt(ServerSocket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag));
-        }
-
-        {
-            int flag = 1;
-            setsockopt(ServerSocket, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag));
-        }
-
-        {
-            sockaddr_in6 serverAddress;
-            memset(&serverAddress, 0, sizeof(serverAddress));
-            serverAddress.sin6_family = AF_INET6;
-            serverAddress.sin6_addr = in6addr_any;
-            serverAddress.sin6_port = htons(Config->Port);
-            if (bind(ServerSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
-                int error = LastSystemError();
-                CloseServerSocket();
-                ythrow yexception() << Sprintf("Failed to bind server socket to port %d (ErrorCode: %d)\n%s",
-                    Config->Port,
-                    error,
-                    LastSystemErrorText(error));
-            }
-        }
+        CreateServerSocket();
 
         InitSocket(ServerSocket);
 
@@ -227,17 +198,9 @@ private:
                 break;
             }
 
-            {
-                int flag = 1;
-                setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &flag, sizeof(flag));
-            }
+            LOG_DEBUG("Connection accepted");
 
-#if !defined(_WIN32) && !defined(__APPLE__)
-            {
-                int priority = Config->Priority;
-                setsockopt(clientSocket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
-            }
-#endif
+            InitClientSocket(clientSocket);
             InitSocket(clientSocket);
 
             auto connection = New<TTcpConnection>(
@@ -248,7 +211,7 @@ private:
                 0,
                 Handler);
             connection->SubscribeTerminated(BIND(
-                &TTcpBusServer::OnConnectionTerminated,
+                &TBusServerBase::OnConnectionTerminated,
                 MakeWeak(this),
                 connection));
             YCHECK(Connections.insert(connection).second);
@@ -267,7 +230,145 @@ private:
     }
 };
 
-typedef TIntrusivePtr<TTcpBusServer> TTcpBusServerPtr;
+class TTcpBusServer
+    : public TBusServerBase
+{
+public:
+    TTcpBusServer(
+        TTcpBusServerConfigPtr config,
+        IMessageHandlerPtr handler)
+        : TBusServerBase(config, handler)
+    {
+        Logger.AddTag(Sprintf("Port: %d", Config->Port));
+    }
+
+
+    // IEventLoopObject implementation.
+
+    virtual Stroka GetLoggingId() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Sprintf("Port: %d", Config->Port);
+    }
+
+private:
+    virtual void CreateServerSocket() override
+    {
+        ServerSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+        if (ServerSocket == INVALID_SOCKET) {
+            int error = LastSystemError();
+            ythrow yexception() << Sprintf("Failed to create a server socket (ErrorCode: %d)\n%s",
+                error,
+                LastSystemErrorText(error));
+        }
+
+#ifdef _WIN32
+        ServerFd = _open_osfhandle(ServerSocket, 0);
+#else
+        ServerFd = ServerSocket;
+#endif
+
+        // TODO(babenko): check for errors
+        {
+            int flag = 0;
+            setsockopt(ServerSocket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag));
+        }
+
+        {
+            int flag = 1;
+            setsockopt(ServerSocket, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag));
+        }
+
+        {
+            sockaddr_in6 serverAddress;
+            memset(&serverAddress, 0, sizeof(serverAddress));
+            serverAddress.sin6_family = AF_INET6;
+            serverAddress.sin6_addr = in6addr_any;
+            serverAddress.sin6_port = htons(Config->Port);
+            if (bind(ServerSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
+                int error = LastSystemError();
+                CloseServerSocket();
+                ythrow yexception() << Sprintf("Failed to bind a server socket to port %d (ErrorCode: %d)\n%s",
+                    Config->Port,
+                    error,
+                    LastSystemErrorText(error));
+            }
+        }
+    }
+
+    virtual void InitClientSocket(SOCKET clientSocket) override
+    {
+        TBusServerBase::InitClientSocket(clientSocket);
+
+#ifdef _linux_
+        {
+            int priority = Config->Priority;
+            setsockopt(clientSocket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
+        }
+#endif
+    }
+};
+
+class TLocalBusServer
+    : public TBusServerBase
+{
+public:
+    TLocalBusServer(
+        TTcpBusServerConfigPtr config,
+        IMessageHandlerPtr handler)
+        : TBusServerBase(config, handler)
+    {
+        Logger.AddTag(Sprintf("LocalPort: %d", Config->Port));
+    }
+
+
+    // IEventLoopObject implementation.
+
+    virtual Stroka GetLoggingId() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Sprintf("LocalPort: %d", Config->Port);
+    }
+
+private:
+    Stroka Path;
+
+    virtual void CreateServerSocket() override
+    {
+        auto path = GetLocalBusPath(Config->Port);
+        if (isexist(~path)) {
+            int error = LastSystemError();
+            if (unlink(~path) != 0) {
+                ythrow yexception() << Sprintf("Failed to unlink the local socket file (ErrorCode: %d)\n%s",
+                    error,
+                    LastSystemErrorText(error));
+            }
+        }
+
+    	ServerSocket = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (ServerSocket == INVALID_SOCKET) {
+            int error = LastSystemError();
+            ythrow yexception() << Sprintf("Failed to create a local server socket (ErrorCode: %d)\n%s",
+                error,
+                LastSystemErrorText(error));
+        }
+
+        ServerFd = ServerSocket;
+
+        {
+            auto netAddress = GetLocalBusAddress(Config->Port);
+            if (bind(ServerSocket, netAddress.GetSockAddr(), netAddress.GetLength()) != 0) {
+                int error = LastSystemError();
+                CloseServerSocket();
+                ythrow yexception() << Sprintf("Failed to bind a local server socket (ErrorCode: %d)\n%s",
+                    error,
+                    LastSystemErrorText(error));
+            }
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,6 +377,7 @@ typedef TIntrusivePtr<TTcpBusServer> TTcpBusServerPtr;
  *  When the last strong reference vanishes, it unregisters the underlying
  *  server instance.
  */
+template <class TServer>
 class TTcpBusServerProxy
     : public IBusServer
 {
@@ -284,7 +386,7 @@ public:
         : Config(config)
         , Running(false)
     {
-        YASSERT(config);
+        YCHECK(config);
     }
 
     ~TTcpBusServerProxy()
@@ -298,7 +400,7 @@ public:
         
         YCHECK(!Running);
 
-        auto server = New<TTcpBusServer>(Config, handler);
+        auto server = New<TServer>(Config, handler);
         auto error = TTcpDispatcher::TImpl::Get()->AsyncRegister(server).Get();
         if (!error.IsOK()) {
             ythrow yexception() << error.ToString();
@@ -329,15 +431,47 @@ private:
 
     TSpinLock SpinLock;
     bool Running;
-    TTcpBusServerPtr Server;
+    TIntrusivePtr<TServer> Server;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCompositeBusServer
+    : public IBusServer
+{
+public:
+    explicit TCompositeBusServer(const std::vector<IBusServerPtr>& servers)
+        : Servers(servers)
+    { }
+
+    virtual void Start(IMessageHandlerPtr handler) override
+    {
+        FOREACH (auto server, Servers) {
+            server->Start(handler);
+        }
+    }
+
+    virtual void Stop() override
+    {
+        FOREACH (auto server, Servers) {
+            server->Stop();
+        }
+    }
+
+private:
+    std::vector<IBusServerPtr> Servers;
+
+};
+
 IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
 {
-    return New<TTcpBusServerProxy>(config);
+    std::vector<IBusServerPtr> servers;
+    servers.push_back(New< TTcpBusServerProxy<TTcpBusServer> >(config));
+#ifndef _win_
+    servers.push_back(New< TTcpBusServerProxy<TLocalBusServer> >(config));
+#endif
+    return New<TCompositeBusServer>(servers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

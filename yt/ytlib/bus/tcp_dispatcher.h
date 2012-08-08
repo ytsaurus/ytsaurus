@@ -35,7 +35,8 @@ public:
 private:
     friend class TTcpConnection;
     friend class TTcpClientBusProxy;
-    friend class TTcpBusServer;
+    friend class TBusServerBase;
+    template <class TServer>
     friend class TTcpBusServerProxy;
 
     class TImpl;

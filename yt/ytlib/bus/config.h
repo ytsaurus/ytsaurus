@@ -25,8 +25,6 @@ struct TTcpBusServerConfig
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTcpBusClientConfig
     : public TYsonSerializable
 {

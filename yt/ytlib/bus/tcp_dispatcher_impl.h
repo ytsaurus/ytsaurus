@@ -5,12 +5,18 @@
 
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/address.h>
 
 #include <util/thread/lfqueue.h>
 #include <contrib/libuv/src/unix/ev/ev++.h>
 
 namespace NYT {
 namespace NBus {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka GetLocalBusPath(int port);
+TNetworkAddress GetLocalBusAddress(int port);
 
 ////////////////////////////////////////////////////////////////////////////////
 

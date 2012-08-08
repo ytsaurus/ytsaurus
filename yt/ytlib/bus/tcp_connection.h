@@ -174,6 +174,7 @@ private:
     void Cleanup();
 
     void SyncOpen();
+    static bool IsLocal(const TStringBuf& hostName, int port);
     void SyncResolve();
     void SyncClose(const TError& error);
 
@@ -182,6 +183,7 @@ private:
     void CloseSocket();
 
     void OnResolved(ev::async&, int);
+    void OnResolved(const TNetworkAddress& netAddress);
 
     void OnSocket(ev::io&, int revents);
 

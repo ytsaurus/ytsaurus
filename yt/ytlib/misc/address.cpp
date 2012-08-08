@@ -8,12 +8,14 @@
 #include <util/system/hostname.h>
 #include <util/generic/singleton.h>
 
-#ifdef _WIN32
+#ifdef _win_
     #include <ws2ipdef.h>
 #else
     #include <netdb.h>
     #include <netinet/in.h>
     #include <arpa/inet.h>
+    #include <sys/socket.h>
+    #include <sys/un.h>
 #endif
 
 namespace NYT {
@@ -118,6 +120,10 @@ const sockaddr* TNetworkAddress::GetSockAddr() const
 socklen_t TNetworkAddress::GetLength(const sockaddr& sockAddr)
 {
     switch (sockAddr.sa_family) {
+#ifdef _linux_
+        case AF_UNIX:
+            return sizeof (sockaddr_un);
+#endif
         case AF_INET:
             return sizeof (sockaddr_in);
         case AF_INET6:
@@ -140,6 +146,12 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
     const void* ipAddr;
     int port;
     switch (sockAddr->sa_family) {
+#ifndef _win_
+        case AF_UNIX: {
+            auto* typedAddr = reinterpret_cast<const sockaddr_un*>(sockAddr);
+            return "unix://" + Stroka(typedAddr->sun_path);
+        }
+#endif
         case AF_INET: {
             auto* typedAddr = reinterpret_cast<const sockaddr_in*>(sockAddr);
             ipAddr = &typedAddr->sin_addr;
@@ -153,7 +165,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
             break;
         }
         default:
-            return Sprintf("<Family=%d>", sockAddr->sa_family);
+            return Sprintf("unknown://family(%d)", sockAddr->sa_family);
     }
 
     char buffer[256];
@@ -163,10 +175,12 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
         buffer,
         ARRAY_SIZE(buffer)))
     {
-        return "<InvalidAddress>";
+        return "invalid://";
     }
 
-    Stroka result(buffer);
+    Stroka result("tcp://");
+
+    result.append(buffer);
 
     if (withPort) {
         result.append(':');
