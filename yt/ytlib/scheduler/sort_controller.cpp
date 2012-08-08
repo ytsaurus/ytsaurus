@@ -778,6 +778,14 @@ protected:
 
     // Init/finish.
 
+    
+    virtual void DoInitialize() override
+    {
+        TOperationControllerBase::DoInitialize();
+
+        ScheduleClearOutputTables();
+    }
+
     virtual void OnOperationCompleted() override
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
@@ -1522,8 +1530,6 @@ private:
                 ~ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
                 ~ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
         }
-
-        ScheduleClearOutputTables();
     }
 
     virtual std::vector<TYPath> GetInputTablePaths() override
