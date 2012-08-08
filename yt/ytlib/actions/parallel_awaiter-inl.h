@@ -104,6 +104,13 @@ void TParallelAwaiter::Await(
     Await(MoveRV(result), "", MoveRV(onResult));
 }
 
+inline void TParallelAwaiter::Await(
+    TFuture<void> result,
+    TCallback<void()> onResult)
+{
+    Await(MoveRV(result), "", MoveRV(onResult));
+}
+
 inline void TParallelAwaiter::MaybeInvokeOnComplete(const NYTree::TYPath& timerPathSuffix)
 {
     bool invokeOnComplete = false;

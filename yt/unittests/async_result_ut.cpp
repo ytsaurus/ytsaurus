@@ -4,6 +4,9 @@
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/callback.h>
 
+#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/actions/invoker_util.h>
+
 #include <util/system/thread.h>
 
 #include <contrib/testing/framework.h>
@@ -549,6 +552,24 @@ TEST(TFutureTest, ApplyIntToFutureInt)
 
     EXPECT_EQ(21, source.Get());
     EXPECT_EQ(42, target.Get());
+}
+
+TEST(TFutureTest, Regression_de94ea0)
+{
+    int counter = 0;
+
+    auto awaiter = New<TParallelAwaiter>(TSyncInvoker::Get());
+    auto trigger = NewPromise<void>();
+
+    awaiter->Await(trigger.ToFuture(), BIND([&counter] () { ++counter; }));
+
+    EXPECT_EQ(0, counter);
+    trigger.Set();
+    EXPECT_EQ(1, counter);
+
+    TPromise<void> completed(NewPromise<void>());
+    awaiter->Complete(BIND(&TPromise<void>::Set, &completed));
+    EXPECT_TRUE(completed.IsSet());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

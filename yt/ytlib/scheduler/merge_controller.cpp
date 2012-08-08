@@ -138,7 +138,7 @@ protected:
 
         virtual int GetChunkListCountPerJob() const override
         {
-            return 1;
+            return static_cast<int>(Controller->OutputTables.size());
         }
 
         virtual TNullable<i64> GetJobDataSizeThreshold() const override
@@ -152,7 +152,11 @@ protected:
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddParallelInputSpec(jobSpec, jip);
-            AddTabularOutputSpec(jobSpec, jip, 0);
+
+            for (int i = 0; i < Controller->OutputTables.size(); ++i) {
+                // Reduce task can have multiple output tables.
+                AddTabularOutputSpec(jobSpec, jip, i);
+            }
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
@@ -170,7 +174,10 @@ protected:
             Controller->ChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
             Controller->DataSizeCounter.Completed(jip->PoolResult->TotalDataSize);
 
-            Controller->RegisterOutputChunkTree(jip->ChunkListIds[0], PartitionIndex, 0);
+            int outputCount = static_cast<int>(Controller->OutputTables.size());
+            for (int i = 0; i < outputCount; ++i) {
+                Controller->RegisterOutputChunkTree(jip->ChunkListIds[i], PartitionIndex, i);
+            }
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) override

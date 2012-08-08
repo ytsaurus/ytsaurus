@@ -136,11 +136,15 @@ private:
         TBase::DoInvoke(context);
     }
 
-    void ValidateTransactionIsActive(const TTransaction* transaction)
+    void ValidateTransactionIsValid()
     {
-        if (!transaction) {
+        if (GetId() == NullTransactionId) {
             ythrow yexception() << "A valid transaction is required";
         }
+    }
+
+    void ValidateTransactionIsActive(const TTransaction* transaction)
+    {
         if (!transaction->IsActive()) {
             ythrow yexception() << "Transaction is not active";
         }
@@ -151,6 +155,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
+        ValidateTransactionIsValid();
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
@@ -164,6 +169,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
+        ValidateTransactionIsValid();
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
@@ -176,13 +182,14 @@ private:
     {
         UNUSED(response);
 
+        ValidateTransactionIsValid();
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
         bool renewAncestors = request->renew_ancestors();
         context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
 
-        Owner->RenewLease(transaction, request->renew_ancestors());
+        Owner->RenewLease(transaction, renewAncestors);
         context->Reply();
     }
 
@@ -247,11 +254,10 @@ private:
         UNUSED(response);
 
         auto objectId = TObjectId::FromProto(request->object_id());
-
         context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
 
+        ValidateTransactionIsValid();
         auto* transaction = GetTypedImpl();
-
         ValidateTransactionIsActive(transaction);
 
         if (transaction->CreatedObjectIds().erase(objectId) != 1) {

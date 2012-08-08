@@ -36,24 +36,23 @@ public:
     MOCK_METHOD2(F, bool(bool passThrough, const char* comment));
 };
 
-#ifndef NDEBUG
 TEST(TVerifyDeathTest, NoCrashForTruthExpression)
 {
     TMockCallee callee;
-    EXPECT_CALL(callee, F(true, _))
-        .Times(1);
+    EXPECT_CALL(callee, F(true, _)).Times(1);
 
     YVERIFY(callee.F(true, "This should be okay."));
     SUCCEED();
 }
 
+#ifndef NDEBUG
 TEST(TVerifyDeathTest, CrashForFalseExpression)
 {
     NiceMock<TMockCallee> callee;
 
     ASSERT_DEATH(
         { YVERIFY(callee.F(false, "Cheshire Cat")); },
-        "Assertion.*Cheshire Cat"
+        ".*Cheshire Cat.*"
     );
 }
 #endif
