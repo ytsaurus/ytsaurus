@@ -174,15 +174,15 @@ class TestCypressCommands(YTEnvSetup):
     def test_copy_simple1(self):
         set('//tmp/a', 1)
         copy('//tmp/a', '//tmp/b')
-        assert get('//tmp/b', 1)
+        assert get('//tmp/b') == 1
 
     def test_copy_simple2(self):
         set('//tmp/a', [1, 2, 3])
         copy('//tmp/a', '//tmp/b')
-        assert get('//tmp/b', [1, 2, 3])
+        assert get('//tmp/b') == [1, 2, 3]
 
     def test_copy_simple3(self):
         set_str('//tmp/a', '<x=y> 1')
         copy('//tmp/a', '//tmp/b')
-        assert get('//tmp/b/@x', 'y')
+        assert get('//tmp/b/@x') == 'y'
 
