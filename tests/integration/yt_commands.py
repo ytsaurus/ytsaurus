@@ -103,6 +103,9 @@ def ls_str(path, **kw):
 def create(object_type, path, **kw):
     return command('create', object_type, path, **kw)
 
+def copy(source_path, destination_path, **kw):
+    return command('copy', source_path, destination_path, **kw)
+
 def read_str(path, **kw):
     return command('read', path, **kw)
 
