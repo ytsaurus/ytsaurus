@@ -69,7 +69,6 @@ TError StatusToError(int status)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TUserJob
     : public TJob
 {
@@ -81,8 +80,9 @@ public:
         : TJob(host)
         , UserJobSpec(userJobSpec)
         , JobIO(userJobIO)
-        , ActivePipeCount(0)
         , ProcessId(-1)
+        , InputThread(InputThreadFunc, (void*) this)
+        , OutputThread(OutputThreadFunc, (void*) this)
     { }
 
     virtual NScheduler::NProto::TJobResult Run() override
@@ -131,7 +131,6 @@ public:
         return result;
     }
 
-
 private:
     void InitPipes()
     {
@@ -170,8 +169,7 @@ private:
 
 
         ErrorOutput = JobIO->CreateErrorOutput();
-        Pipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
-        ++ActivePipeCount;
+        OutputPipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
 
         // Make pipe for each input and each output table.
         {
@@ -183,7 +181,7 @@ private:
                     EDataType::Tabular, 
                     buffer.Get());
 
-                Pipes.push_back(New<TInputPipe>(
+                InputPipes.push_back(New<TInputPipe>(
                     JobIO->CreateTableInput(i, consumer.Get()),
                     buffer,
                     consumer,
@@ -197,12 +195,11 @@ private:
             TableOutput.resize(outputCount);
 
             for (int i = 0; i < outputCount; ++i) {
-                ++ActivePipeCount;
                 auto writer = JobIO->CreateTableOutput(i);
                 TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(writer));
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
                 TableOutput[i] = new TTableOutput(parser, consumer, writer);
-                Pipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
+                OutputPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
             }
         }
 
@@ -214,11 +211,27 @@ private:
         LOG_DEBUG("Pipes initialized");
     }
 
-    void DoJobIO()
+    static void* InputThreadFunc(void* param) 
+    {
+        NThread::SetCurrentThreadName("JobProxyInput");
+        TUserJob* job = (TUserJob*)param;
+        job->ProcessPipes(job->InputPipes);
+    }
+
+    static void* OutputThreadFunc(void* param) 
+    {
+        NThread::SetCurrentThreadName("JobProxyOutput");
+        TUserJob* job = (TUserJob*)param;
+        job->ProcessPipes(job->OutputPipes);
+    }
+
+    void ProcessPipes(std::vector<TDataPipePtr>& pipes)
     {
         // TODO(babenko): rewrite using libuv
         try {
-            FOREACH (auto& pipe, Pipes) {
+            int activePipeCount = pipes.size();
+
+            FOREACH (auto& pipe, pipes) {
                 pipe->PrepareProxyDescriptors();
             }
 
@@ -228,7 +241,7 @@ private:
                 ythrow yexception() << Sprintf("Error during job IO: epoll_create failed (errno: %d)", errno);
             }
 
-            FOREACH (auto& pipe, Pipes) {
+            FOREACH (auto& pipe, pipes) {
                 epoll_event evAdd;
                 evAdd.data.u64 = 0ULL;
                 evAdd.events = pipe->GetEpollFlags();
@@ -243,8 +256,8 @@ private:
             epoll_event events[maxEvents];
             memset(events, 0, maxEvents * sizeof(epoll_event));
 
-            while (ActivePipeCount > 0) {
-                LOG_TRACE("Waiting on epoll, %d pipes active", ActivePipeCount);
+            while (activePipeCount > 0 && JobExitStatus.IsOK()) {
+                LOG_TRACE("Waiting on epoll, %d pipes active", activePipeCount);
 
                 int epollResult = epoll_wait(epollFd, &events[0], maxEvents, -1);
 
@@ -259,15 +272,41 @@ private:
                 for (int pipeIndex = 0; pipeIndex < epollResult; ++pipeIndex) {
                     auto pipe = reinterpret_cast<IDataPipe*>(events[pipeIndex].data.ptr);
                     if (!pipe->ProcessData(events[pipeIndex].events)) {
-                        --ActivePipeCount;
+                        --activePipeCount;
                     }
                 }
             }
 
+            SafeClose(epollFd);
+        } catch (const std::exception& ex) {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (JobExitStatus.IsOK()) {
+                JobExitStatus = TError(ex.what());
+            }
+        } catch (...) {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (JobExitStatus.IsOK()) {
+                JobExitStatus = TError("Unknown error during job IO");
+            }
+        }
+    }
+
+    void DoJobIO()
+    {
+        try {
+            InputThread.Start();
+            OutputThread.Start();
+            OutputThread.Join();
+            InputThread.Join();
+
             int status = 0;
             int waitpidResult = waitpid(ProcessId, &status, 0);
             if (waitpidResult < 0) {
-                ythrow yexception() << Sprintf("Error during job IO: waitpid failed (errno: %d)", errno);
+                ythrow yexception() << Sprintf("Waitpid failed (errno: %d)", errno);
+            }
+
+            if (!JobExitStatus.IsOK()) {
+                ythrow yexception() << Sprintf("User job IO failed: %s", ~JobExitStatus.GetMessage());
             }
 
             JobExitStatus = StatusToError(status);
@@ -275,15 +314,16 @@ private:
                 ythrow yexception() << Sprintf("User job failed with status: %s", ~JobExitStatus.GetMessage());
             }
 
-            FOREACH (auto& pipe, Pipes) {
+            FOREACH (auto& pipe, InputPipes) {
                 pipe->Finish();
             }
 
-            SafeClose(epollFd);
+            FOREACH (auto& pipe, OutputPipes) {
+                pipe->Finish();
+            }
         } catch (...) {
-            // Try to close all pipes despite any other errors.
-            // It is safe to call Finish multiple times.
-            FOREACH (auto& pipe, Pipes) {
+            // Try to close output pipes despite any errors.
+            FOREACH (auto& pipe, OutputPipes) {
                 try {
                     pipe->Finish();
                 } catch (...) 
@@ -297,7 +337,11 @@ private:
     void StartJob()
     {
         try {
-            FOREACH (auto& pipe, Pipes) {
+            FOREACH (auto& pipe, InputPipes) {
+                pipe->PrepareJobDescriptors();
+            }
+
+            FOREACH (auto& pipe, OutputPipes) {
                 pipe->PrepareJobDescriptors();
             }
 
@@ -334,9 +378,13 @@ private:
     TAutoPtr<TUserJobIO> JobIO;
     NScheduler::NProto::TUserJobSpec UserJobSpec;
 
-    std::vector<TDataPipePtr> Pipes;
-    int ActivePipeCount;
+    std::vector<TDataPipePtr> InputPipes;
+    std::vector<TDataPipePtr> OutputPipes;
 
+    TThread InputThread;
+    TThread OutputThread;
+
+    TSpinLock SpinLock;
     TError JobExitStatus;
 
     TAutoPtr<TErrorOutput> ErrorOutput;

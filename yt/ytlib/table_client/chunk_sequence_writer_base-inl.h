@@ -42,7 +42,6 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::WriterThread->GetInvoker()))
     , Logger(TableWriterLogger)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(config);
     YASSERT(masterChannel);
 
@@ -56,8 +55,6 @@ TChunkSequenceWriterBase<TChunkWriter>::~TChunkSequenceWriterBase()
 template <class TChunkWriter>
 bool TChunkSequenceWriterBase<TChunkWriter>::TryWriteRow(const TRow& row)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     if (!CurrentSession.ChunkWriter) {
         return false;
     }
