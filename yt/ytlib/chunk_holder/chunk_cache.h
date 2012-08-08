@@ -43,6 +43,9 @@ public:
     //! Returns the number of registered chunks.
     int GetChunkCount();
 
+    const TGuid& GetCellGuid() const;
+    void UpdateCellGuid(const TGuid& cellGuid);
+
     typedef TValueOrError<TCachedChunkPtr> TDownloadResult;
     typedef TFuture<TDownloadResult> TAsyncDownloadResult;
 

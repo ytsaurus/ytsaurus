@@ -12,6 +12,7 @@ namespace NChunkHolder {
 extern NLog::TLogger DataNodeLogger;
 extern NProfiling::TProfiler DataNodeProfiler;
 extern NRpc::TChannelCache ChannelCache;
+extern Stroka CellGuidFileName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

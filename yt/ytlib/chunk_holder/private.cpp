@@ -9,6 +9,7 @@ namespace NChunkHolder {
 NLog::TLogger DataNodeLogger("DataNode");
 NProfiling::TProfiler DataNodeProfiler("/data_node");
 NRpc::TChannelCache ChannelCache;
+Stroka CellGuidFileName("cell_guid");
 
 ////////////////////////////////////////////////////////////////////////////////
 

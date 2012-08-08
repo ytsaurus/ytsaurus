@@ -10,6 +10,7 @@
 #include <ytlib/chunk_client/format.h>
 
 #include <util/folder/filelist.h>
+#include <util/folder/dirut.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -31,6 +32,7 @@ TLocation::TLocation(
     , Id(id)
     , Config(config)
     , Bootstrap(bootstrap)
+    , CellGuid()
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
@@ -165,6 +167,21 @@ void RemoveFile(const Stroka& fileName)
 
 } // namespace
 
+const TGuid& TLocation::GetCellGuid() 
+{
+    return CellGuid;
+}
+
+void TLocation::UpdateCellGuid(const TGuid& newCellGuid)
+{
+    CellGuid = newCellGuid;
+
+    auto cellGuidPath = NFS::CombinePaths(GetPath(), CellGuidFileName);
+    TFileOutput cellGuidFile(cellGuidPath);
+    cellGuidFile.Write(CellGuid.ToString());
+    LOG_INFO("Cell guid updated: %s", ~CellGuid.ToString());
+}
+
 std::vector<TChunkDescriptor> TLocation::Scan()
 {
     auto path = GetPath();
@@ -223,6 +240,19 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     }
 
     LOG_INFO("Done, %" PRISZT " chunks found", result.size());
+
+    auto cellGuidPath = NFS::CombinePaths(path, CellGuidFileName);
+    if (isexist(~cellGuidPath)) {
+        TFileInput cellGuidFile(cellGuidPath);
+        auto cellGuidString = cellGuidFile.ReadAll();
+        if (TGuid::FromString(cellGuidString, &CellGuid)) {
+            LOG_INFO("Cell guid: %s", ~cellGuidString);
+        } else {
+            LOG_FATAL("Failed to parse cell guid: %s", ~cellGuidString);
+        }
+    } else {
+        LOG_INFO("Cell guid not found");
+    }
 
     // Force subdirectories.
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {

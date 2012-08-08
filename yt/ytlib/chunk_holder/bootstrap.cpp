@@ -15,6 +15,7 @@
 #include "job_executor.h"
 #include "peer_block_updater.h"
 #include "ytree_integration.h"
+#include "private.h"
 
 #include <ytlib/cell_node/bootstrap.h>
 
@@ -34,6 +35,10 @@ using namespace NBus;
 using namespace NRpc;
 using namespace NChunkServer;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +73,25 @@ void TBootstrap::Init()
 
     ChunkCache = New<TChunkCache>(Config, this);
     ChunkCache->Start();
+
+    if (!ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
+        LOG_FATAL_IF(
+            ChunkStore->GetCellGuid().IsEmpty() != ChunkCache->GetCellGuid().IsEmpty(),
+            "Inconsistent cell guid (ChunkStore: %s, ChunkCache: %s)",
+            ~ChunkStore->GetCellGuid().ToString(),
+            ~ChunkCache->GetCellGuid().ToString());
+        CellGuid = ChunkCache->GetCellGuid();
+    }
+
+    if (!ChunkStore->GetCellGuid().IsEmpty() && ChunkCache->GetCellGuid().IsEmpty()) {
+        CellGuid = ChunkStore->GetCellGuid();
+        ChunkCache->UpdateCellGuid(CellGuid);
+    } 
+    
+    if (ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
+        CellGuid = ChunkCache->GetCellGuid();
+        ChunkStore->UpdateCellGuid(CellGuid);
+    }
 
     SessionManager = New<TSessionManager>(Config, this);
 
@@ -162,6 +186,19 @@ Stroka TBootstrap::GetPeerAddress() const
 {
     return NodeBootstrap->GetPeerAddress();
 }
+
+const TGuid& TBootstrap::GetCellGuid() const
+{
+    return CellGuid;
+}
+
+void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
+{
+    CellGuid = cellGuid;
+    ChunkStore->UpdateCellGuid(CellGuid);
+    ChunkCache->UpdateCellGuid(CellGuid);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -111,6 +111,16 @@ public:
         return cookie->GetValue();
     }
 
+    const TGuid& GetCellGuid()
+    {
+        return Location->GetCellGuid();
+    }
+
+    void UpdateCellGuid(const TGuid& cellGuid)
+    {
+        Location->UpdateCellGuid(cellGuid);
+    }
+
 private:
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -367,6 +377,16 @@ TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
 
 DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkAdded, *Impl);
 DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkRemoved, *Impl);
+
+const TGuid& TChunkCache::GetCellGuid() const
+{
+    return Impl->GetCellGuid();
+}
+
+void TChunkCache::UpdateCellGuid(const TGuid& cellGuid)
+{
+    return Impl->UpdateCellGuid(cellGuid);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
