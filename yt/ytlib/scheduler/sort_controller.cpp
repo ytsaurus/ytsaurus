@@ -61,6 +61,7 @@ public:
         , FinalSortJobCounter(false)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
+        , PartitionsAssigned(false)
         , PartitionTask(New<TPartitionTask>(this))
     { }
 
@@ -87,6 +88,7 @@ protected:
     // Start thresholds.
     bool SortStartThresholdReached;
     bool MergeStartThresholdReached;
+    bool PartitionsAssigned;
     
     // Sorted merge job counters.
     TProgressCounter SortedMergeJobCounter;
@@ -121,7 +123,10 @@ protected:
             , SortTask(New<TSortTask>(controller, this))
             , SortedMergeTask(New<TSortedMergeTask>(controller, this))
             , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
-        { }
+        {
+            TotalAttributes.set_uncompressed_data_size(0);
+            TotalAttributes.set_row_count(0);
+        }
 
         //! Sequential index (zero based).
         int Index;
@@ -312,7 +317,7 @@ protected:
             // Mark empty partitions are completed.
             FOREACH (auto partition, Controller->Partitions) {
                 if (partition->TotalAttributes.uncompressed_data_size() == 0) {
-                    LOG_DEBUG("Partition is empty (Partition: %d)", partition->Index);
+                    LOG_DEBUG("Partition %d is empty", partition->Index);
                     Controller->OnPartitionCompeted(partition);
                 }
             }
@@ -350,7 +355,7 @@ protected:
                 return 1;
             } 
 
-            if (Partition->AssignedAddress != address) {
+            if (Controller->GetAssignedAddress(Partition) != address) {
                 // Never start sort jobs on a wrong node.
                 return -1;
             }
@@ -828,7 +833,13 @@ protected:
         }
 
         return mergeNeeded;
-    }   
+    }
+
+    Stroka GetAssignedAddress(TPartitionPtr partition)
+    {
+        EnsurePartitionsAssigned();
+        return partition->AssignedAddress;
+    }
 
     bool IsUnorderedMergeNeeded(TPartitionPtr partition)
     {
@@ -886,6 +897,14 @@ protected:
                 ? TTaskPtr(partition->UnorderedMergeTask)
                 : TTaskPtr(partition->SortedMergeTask);
             AddTaskPendingHint(taskToKick);
+        }
+    }
+
+    void EnsurePartitionsAssigned()
+    {
+        if (!PartitionsAssigned) {
+            AssignPartitions();
+            PartitionsAssigned = true;
         }
     }
 
