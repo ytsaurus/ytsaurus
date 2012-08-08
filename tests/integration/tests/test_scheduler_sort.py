@@ -24,11 +24,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             key_columns='key')
+             sort_by='key')
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
         assert get('//tmp/t_out/@sorted') ==  'true'
-        assert get('//tmp/t_out/@key_columns') ==  ['key']
+        assert get('//tmp/t_out/@sorted_by') ==  ['key']
 
     # the same as test_simple but within transaction        
     def test_simple_transacted(self):
@@ -47,13 +47,13 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             key_columns='key', tx=tx_id)
+             sort_by='key', tx=tx_id)
 
         commit_transaction(tx=tx_id)
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
         assert get('//tmp/t_out/@sorted') ==  'true'
-        assert get('//tmp/t_out/@key_columns') ==  ['key']
+        assert get('//tmp/t_out/@sorted_by') ==  ['key']
 
     def test_empty_columns(self):
         create('table', '//tmp/t_in')
@@ -63,8 +63,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         with pytest.raises(YTError):
             sort(in_='//tmp/t_in',
-             out='//tmp/t_out',
-             key_columns='')
+                 out='//tmp/t_out',
+                 sort_by='')
        
     def test_empty_in(self):
         create('table', '//tmp/t_in')
@@ -72,7 +72,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             key_columns='key')
+             sort_by='key')
          
         assert read('//tmp/t_out') == []
 
@@ -86,7 +86,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         with pytest.raises(YTError):
             sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             key_columns='foo')
+             sort_by='foo')
 
     def test_missing_column(self):
         v1 = {'key' : 'aaa'}
@@ -102,7 +102,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             key_columns='missing_key')
+             sort_by='missing_key')
 
         assert len(read('//tmp/t_out')) == 5 # check only the number of raws
 
@@ -120,14 +120,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             key_columns='key; subkey')
+             sort_by='key; subkey')
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
 
         create('table', '//tmp/t_another_out')
         sort(in_='//tmp/t_out',
              out='//tmp/t_another_out',
-             key_columns='subkey; key')
+             sort_by='subkey; key')
 
         assert read('//tmp/t_another_out') == [v3, v1, v2, v5, v4]
 
@@ -148,7 +148,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create('table', '//tmp/t_out')
         sort(in_=['//tmp/in1', '//tmp/in2'],
              out='//tmp/t_out',
-             key_columns='key')
+             sort_by='key')
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5, v6]
 
@@ -158,7 +158,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create('table', input)
         create('table', output)
         write(input, [{'key': num} for num in xrange(5, 0, -1)])
-        sort(in_=[input], out=output, key_columns='key', **kwargs)
+        sort(in_=[input], out=output, sort_by='key', **kwargs)
         assert read(output) == [{'key': num} for num in xrange(1, 6)]
 
     def test_one_partition_no_merge(self):

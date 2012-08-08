@@ -65,7 +65,7 @@ Wish you were here.
 
             sort(in_='//tmp/t_map_out',
                  out='//tmp/t_reduce_in',
-                 key_columns='word',
+                 sort_by='word',
                  tx=tx_id)
 
             reduce(in_='//tmp/t_reduce_in',
@@ -77,7 +77,7 @@ Wish you were here.
         elif method == 'map_reduce':
             map_reduce(in_='//tmp/t_in',
                        out='//tmp/t_out',
-                       key_columns='word',
+                       sort_by='word',
                        mapper_command='python mapper.py',
                        mapper_file=['//tmp/mapper.py', '//tmp/yt_streaming.py'],
                        reducer_command='python reducer.py',

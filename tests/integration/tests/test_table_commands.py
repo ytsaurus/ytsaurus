@@ -44,13 +44,13 @@ class TestTableCommands(YTEnvSetup):
         write_str('//tmp/table', '{key = 0}; {key = 1}; {key = 2}; {key = 3}', sorted_by='key')
 
         assert get('//tmp/table/@sorted') ==  'true'
-        assert get('//tmp/table/@key_columns') ==  ['key']
+        assert get('//tmp/table/@sorted_by') ==  ['key']
         assert get('//tmp/table/@row_count') ==  4
 
         # sorted flag is discarded when writing to sorted table
         write_str('//tmp/table', '{key = 4}')
         assert get('//tmp/table/@sorted') ==  'false'
-        with pytest.raises(YTError): get('//tmp/table/@key_columns')
+        with pytest.raises(YTError): get('//tmp/table/@sorted_by')
 
     def test_invalid_cases(self):
         create('table', '//tmp/table')

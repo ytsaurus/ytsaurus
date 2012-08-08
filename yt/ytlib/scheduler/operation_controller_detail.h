@@ -387,6 +387,9 @@ protected:
 
     std::vector<Stroka> CheckInputTablesSorted(
         const TNullable< std::vector<Stroka> >& keyColumns);
+    static bool CheckKeyColumnsCompatible(
+        const std::vector<Stroka>& fullColumns,
+        const std::vector<Stroka>& prefixColumns);
     void CheckOutputTablesEmpty();
     void ScheduleClearOutputTables();
     void ScheduleSetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
@@ -434,10 +437,6 @@ protected:
 
 private:
     TChunkListPoolPtr ChunkListPool;
-
-    static bool AreKeysCompatible(
-        const std::vector<Stroka>& fullColumns,
-        const std::vector<Stroka>& prefixColumns);
 
     void OnChunkListsReleased(NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 

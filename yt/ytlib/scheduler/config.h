@@ -229,7 +229,7 @@ struct TMergeOperationSpec
     NYTree::TYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
-    TNullable< std::vector<Stroka> > KeyColumns;
+    TNullable< std::vector<Stroka> > SortedBy;
 
     TMergeOperationSpec()
     {
@@ -239,7 +239,7 @@ struct TMergeOperationSpec
             .Default(EMergeMode::Unordered);
         Register("combine_chunks", CombineChunks)
             .Default(false);
-        Register("key_columns", KeyColumns)
+        Register("sorted_by", SortedBy)
             .Default();
     }
 };
@@ -268,14 +268,14 @@ struct TReduceOperationSpec
     TUserJobSpecPtr Reducer;
     std::vector<NYTree::TYPath> InputTablePaths;
     std::vector<NYTree::TYPath> OutputTablePaths;
-    TNullable< std::vector<Stroka> > KeyColumns;
+    TNullable< std::vector<Stroka> > SortedBy;
 
     TReduceOperationSpec()
     {
         Register("reducer", Reducer);
         Register("input_table_paths", InputTablePaths);
         Register("output_table_paths", OutputTablePaths);
-        Register("key_columns", KeyColumns)
+        Register("sorted_by", SortedBy)
             .Default();
     }
 };
@@ -286,8 +286,6 @@ struct TSortOperationSpecBase
     : public TOperationSpecBase
 {
     std::vector<NYTree::TYPath> InputTablePaths;
-
-    std::vector<Stroka> KeyColumns;
 
     TNullable<int> PartitionCount;
 
@@ -329,8 +327,6 @@ struct TSortOperationSpecBase
     TSortOperationSpecBase()
     {
         Register("input_table_paths", InputTablePaths);
-        Register("key_columns", KeyColumns)
-            .NonEmpty();
         Register("partition_count", PartitionCount)
             .Default()
             .GreaterThan(0);
@@ -356,6 +352,8 @@ struct TSortOperationSpec
 {
     NYTree::TYPath OutputTablePath;
     
+    std::vector<Stroka> SortBy;
+
     // Desired number of samples per partition.
     int SamplesPerPartition;
 
@@ -369,6 +367,8 @@ struct TSortOperationSpec
     TSortOperationSpec()
     {
         Register("output_table_path", OutputTablePath);
+        Register("sort_by", SortBy)
+            .NonEmpty();
         Register("sort_job_count", SortJobCount)
             .Default()
             .GreaterThan(0);
@@ -417,6 +417,9 @@ struct TMapReduceOperationSpec
 {
     std::vector<NYTree::TYPath> OutputTablePaths;
 
+    std::vector<Stroka> SortBy;
+    std::vector<Stroka> ReduceBy;
+
     TUserJobSpecPtr Mapper;
     TUserJobSpecPtr Reducer;
 
@@ -427,6 +430,10 @@ struct TMapReduceOperationSpec
     TMapReduceOperationSpec()
     {
         Register("output_table_paths", OutputTablePaths);
+        Register("sort_by", SortBy)
+            .NonEmpty();
+        Register("reduce_by", ReduceBy)
+            .Default(std::vector<Stroka>());
         Register("mapper", Mapper)
             .Default();
         Register("reducer", Reducer);
@@ -458,6 +465,13 @@ struct TMapReduceOperationSpec
         //   MaxDataSizePerUnorderedMergeJob
         //   SortLocalityTimeout
         //   MergeLocalityTimeout
+    }
+
+    virtual void OnLoaded() override
+    {
+        if (ReduceBy.empty()) {
+            ReduceBy = SortBy;
+        }
     }
 };
 

@@ -914,7 +914,7 @@ private:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
     {
-        return Spec->KeyColumns;
+        return Spec->SortedBy;
     }
 
     virtual void InitJobIOConfig() override
@@ -988,7 +988,7 @@ private:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
     {
-        return Spec->KeyColumns;
+        return Spec->SortedBy;
     }
 
     virtual void InitJobIOConfig() override

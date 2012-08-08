@@ -147,7 +147,7 @@ void TSamplesFetcher::SendRequests()
                 req->sample_requests_size(),
                 ~address);
 
-            ToProto(req->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(req->mutable_key_columns(), Spec->SortBy);
             awaiter->Await(
                 req->Invoke(),
                 BIND(

@@ -510,7 +510,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("row_count");
     attributes->push_back("sorted");
     attributes->push_back("update_mode");
-    attributes->push_back(TAttributeInfo("key_columns", !chunkList->KeyColumns().empty()));
+    attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
     TBase::GetSystemAttributes(attributes);
 }
 
@@ -570,22 +570,22 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
     if (name == "sorted") {
         BuildYsonFluently(consumer)
-            .Scalar(!chunkList->KeyColumns().empty());
+            .Scalar(!chunkList->SortedBy().empty());
         return true;
+    }
+
+    if (!chunkList->SortedBy().empty()) {
+        if (name == "sorted_by") {
+            BuildYsonFluently(consumer)
+                .List(chunkList->SortedBy());
+            return true;
+        }
     }
 
     if (name == "update_mode") {
         BuildYsonFluently(consumer)
             .Scalar(FormatEnum(tableNode->GetUpdateMode()));
         return true;
-    }
-
-    if (!chunkList->KeyColumns().empty()) {
-        if (name == "key_columns") {
-            BuildYsonFluently(consumer)
-                .List(chunkList->KeyColumns());
-            return true;
-        }
     }
 
     return TBase::GetSystemAttribute(name, consumer);
@@ -641,7 +641,7 @@ TChunkList* TTableNodeProxy::EnsureNodeMutable(TTableNode* node)
             node->SetChunkList(newChunkList);
             objectManager->RefObject(newChunkList);
 
-            newChunkList->KeyColumns() = snapshotChunkList->KeyColumns();
+            newChunkList->SortedBy() = snapshotChunkList->SortedBy();
             chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
             auto* deltaChunkList = chunkManager->CreateChunkList();
@@ -717,7 +717,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
             ythrow yexception() << Sprintf("Row limits must have the same type");
         }
-        if (chunkList->KeyColumns().empty()) {
+        if (chunkList->SortedBy().empty()) {
             ythrow yexception() << Sprintf("Table is not sorted");
         }
         const auto& lowerBound = lowerLimit.key();
@@ -792,7 +792,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
         ythrow TServiceException(TError("Table node must be in overwrite mode"));
     }
 
-    node->GetChunkList()->KeyColumns() = keyColumns;
+    node->GetChunkList()->SortedBy() = keyColumns;
 
     context->Reply();
 }

@@ -920,8 +920,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "get_in_sorted");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, InputTransaction->GetId()) + "/@key_columns");
-            batchReq->AddRequest(req, "get_in_key_columns");
+            auto req = TYPathProxy::Get(WithTransaction(ypath, InputTransaction->GetId()) + "/@sorted_by");
+            batchReq->AddRequest(req, "get_in_sorted_by");
         }
     }
 
@@ -1019,7 +1019,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = getInKeyColumns[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting \"key_columns\" attribute for input table %s", ~table.Path));
+                    Sprintf("Error getting \"sorted_by\" attribute for input table %s", ~table.Path));
                 table.KeyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s has key columns %s",
                     ~table.Path,
@@ -1247,7 +1247,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
 
     if (keyColumns) {
         FOREACH (const auto& table, InputTables) {
-            if (!AreKeysCompatible(table.KeyColumns, keyColumns.Get())) {
+            if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns.Get())) {
                 ythrow yexception() << Sprintf("Input table %s has key columns %s that are not compatible with the requested key columns %s",
                     ~table.Path,
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
@@ -1270,7 +1270,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
     }
 }
 
-bool TOperationControllerBase::AreKeysCompatible(
+bool TOperationControllerBase::CheckKeyColumnsCompatible(
     const std::vector<Stroka>& fullColumns,
     const std::vector<Stroka>& prefixColumns)
 {

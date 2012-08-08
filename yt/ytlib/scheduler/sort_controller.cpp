@@ -778,11 +778,6 @@ protected:
 
     // Init/finish.
 
-    virtual void DoInitialize() override
-    {
-        ScheduleClearOutputTables();
-    }
-
     virtual void OnOperationCompleted() override
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
@@ -1113,7 +1108,7 @@ private:
 
         // TODO(babenko): unless overwrite mode is ON
         CheckOutputTablesEmpty();
-        ScheduleSetOutputTablesSorted(Spec->KeyColumns);
+        ScheduleSetOutputTablesSorted(Spec->SortBy);
     }
 
     void SortSamples()
@@ -1337,7 +1332,7 @@ private:
             FOREACH (const auto& key, PartitionKeys) {
                 *specExt->add_partition_keys() = key;
             }
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
 
             PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
         }
@@ -1348,7 +1343,7 @@ private:
             *sortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
 
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
             IntermediateSortJobSpecTemplate.set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
@@ -1362,7 +1357,7 @@ private:
             *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
 
             SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
         }
@@ -1372,7 +1367,7 @@ private:
             *UnorderedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
 
             UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).Data());
         }
@@ -1511,11 +1506,25 @@ public:
 
 private:
     TMapReduceOperationSpecPtr Spec;
+
     std::vector<TUserFile> MapperFiles;
     std::vector<TUserFile> ReducerFiles;
 
 
     // Custom bits of preparation pipeline.
+
+    virtual void DoInitialize() override
+    {
+        TSortControllerBase::DoInitialize();
+
+        if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
+            ythrow yexception() << Sprintf("Reduce columns %s are not compatible with sort columns %s",
+                ~ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
+                ~ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
+        }
+
+        ScheduleClearOutputTables();
+    }
 
     virtual std::vector<TYPath> GetInputTablePaths() override
     {
@@ -1682,7 +1691,7 @@ private:
             
             auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             specExt->set_partition_count(Partitions.size());
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
             
             if (Spec->Mapper) {
                 PartitionJobSpecTemplate.set_type(EJobType::PartitionMap);
@@ -1702,7 +1711,7 @@ private:
             *IntermediateSortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
 
             IntermediateSortJobSpecTemplate.set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
         }
@@ -1712,7 +1721,7 @@ private:
             *FinalSortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(specExt->mutable_key_columns(), Spec->ReduceBy);
 
             InitUserJobSpec(
                 specExt->mutable_reducer_spec(),
@@ -1727,7 +1736,7 @@ private:
             *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->KeyColumns);
+            ToProto(specExt->mutable_key_columns(), Spec->ReduceBy);
 
             InitUserJobSpec(
                 specExt->mutable_reducer_spec(),

@@ -105,7 +105,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
         assert get('//tmp/t_out/@chunk_count') == 1
 
-    def test_sorted_key_columns(self):
+    def test_sorted_by(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
@@ -122,17 +122,17 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         create('table', '//tmp/t_out')
 
-        # error when sorted_by of input tables are different and key_columns is not set
+        # error when sorted_by of input tables are different and sorted_by is not set
         with pytest.raises(YTError): 
             merge(mode='sorted',
-              in_=['//tmp/t1', '//tmp/t2'],
-              out='//tmp/t_out')
+                  in_=['//tmp/t1', '//tmp/t2'],
+                  out='//tmp/t_out')
 
-        # now key_columns are set
+        # now sorted_by are set
         merge(mode='sorted',
               in_=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out',
-              key_columns='a')
+              sorted_by='a')
 
         result = read('//tmp/t_out')
         assert result[:2] == [a1, b1]

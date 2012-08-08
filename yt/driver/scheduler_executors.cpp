@@ -105,7 +105,7 @@ TMergeExecutor::TMergeExecutor()
     , OutArg("", "out", "output table path", false, "", "YPATH")
     , ModeArg("", "mode", "merge mode", false, TMode(EMergeMode::Unordered), "unordered, ordered, sorted")
     , CombineArg("", "combine", "combine small output chunks into larger ones")
-    , KeyColumnsArg("", "key_columns", "key columns names (only used for sorted merge; "
+    , SortedByArg("", "sorted_by", "key columns names (only used for sorted merge; "
         "if omitted then all input tables are assumed to have same key columns)",
         false, "", "YSON_LIST_FRAGMENT")
 {
@@ -113,14 +113,14 @@ TMergeExecutor::TMergeExecutor()
     CmdLine.add(OutArg);
     CmdLine.add(ModeArg);
     CmdLine.add(CombineArg);
-    CmdLine.add(KeyColumnsArg);
+    CmdLine.add(SortedByArg);
 }
 
 void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outupts = PreprocessYPath(OutArg.getValue());
-    auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
+    auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -128,8 +128,8 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("output_table_path").Scalar(outupts)
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
-            .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("key_columns").List(keyColumns);
+            .DoIf(!sortedBy.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("sorted_by").List(sortedBy);
             })
         .EndMap();
 
@@ -151,24 +151,24 @@ EOperationType TMergeExecutor::GetOperationType() const
 TSortExecutor::TSortExecutor()
     : InArg("", "in", "input table path", false, "YPATH")
     , OutArg("", "out", "output table path", false, "", "YPATH")
-    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "YSON_LIST_FRAGMENT")
+    , SortByArg("", "sort_by", "columns to sort by", true, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
-    CmdLine.add(KeyColumnsArg);
+    CmdLine.add(SortByArg);
 }
 
 void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPath(OutArg.getValue());
-    auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
+    auto sortBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(inputs)
             .Item("output_table_path").Scalar(outputs)
-            .Item("key_columns").List(keyColumns)
+            .Item("sort_by").List(sortBy)
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -224,7 +224,7 @@ TReduceExecutor::TReduceExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , CommandArg("", "command", "reducer shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
-    , KeyColumnsArg("", "key_columns", "key columns names "
+    , SortedByArg("", "sorted_by", "key columns names "
         "(if omitted then all input tables are assumed to have same key columns)",
         false, "", "YSON_LIST_FRAGMENT")
 {
@@ -232,7 +232,7 @@ TReduceExecutor::TReduceExecutor()
     CmdLine.add(OutArg);
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
-    CmdLine.add(KeyColumnsArg);
+    CmdLine.add(SortedByArg);
 }
 
 void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -240,14 +240,14 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPaths(OutArg.getValue());
     auto files = PreprocessYPaths(FileArg.getValue());
-    auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
+    auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(inputs)
             .Item("output_table_paths").List(outputs)
-            .DoIf(!keyColumns.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("key_columns").List(keyColumns);
+            .DoIf(!sortedBy.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("sorted_by").List(sortedBy);
             })
             .Item("reducer").BeginMap()
                 .Item("command").Scalar(CommandArg.getValue())
@@ -277,7 +277,8 @@ TMapReduceExecutor::TMapReduceExecutor()
     , MapperFileArg("", "mapper_file", "additional mapper file path", false, "YPATH")
     , ReducerCommandArg("", "reducer_command", "reducer shell command", true, "", "STRING")
     , ReducerFileArg("", "reducer_file", "additional reducer file path", false, "YPATH")
-    , KeyColumnsArg("", "key_columns", "key columns names", true, "", "YSON_LIST_FRAGMENT")
+    , SortByArg("", "sort_by", "columns to sort by", true, "", "YSON_LIST_FRAGMENT")
+    , ReduceByArg("", "reduce_by", "columns to reduce by (if not specified then sort_by columns are used)", false, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -285,7 +286,8 @@ TMapReduceExecutor::TMapReduceExecutor()
     CmdLine.add(MapperFileArg);
     CmdLine.add(ReducerCommandArg);
     CmdLine.add(ReducerFileArg);
-    CmdLine.add(KeyColumnsArg);
+    CmdLine.add(SortByArg);
+    CmdLine.add(ReduceByArg);
 }
 
 void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -294,13 +296,18 @@ void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
     auto outputs = PreprocessYPaths(OutArg.getValue());
     auto mapperFiles = PreprocessYPaths(MapperFileArg.getValue());
     auto reducerFiles = PreprocessYPaths(ReducerFileArg.getValue());
-    auto keyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(KeyColumnsArg.getValue(), EYsonType::ListFragment));
+    auto sortBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortByArg.getValue(), EYsonType::ListFragment));
+    auto reduceBy = ConvertTo< std::vector<Stroka> >(TYsonString(ReduceByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(inputs)
             .Item("output_table_paths").List(outputs)
-            .Item("key_columns").List(keyColumns)
+            .Item("sort_by").List(sortBy)
+            .DoIf(!reduceBy.empty(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("reduce_by").List(reduceBy);
+            })
             .DoIf(!MapperCommandArg.getValue().empty(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()

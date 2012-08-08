@@ -211,7 +211,7 @@ protected:
 
             auto* newOriginatingChunkList = chunkManager->CreateChunkList();
             newOriginatingChunkList->SetRigid(true);
-            newOriginatingChunkList->KeyColumns() = branchedChunkList->KeyColumns();
+            newOriginatingChunkList->SortedBy() = branchedChunkList->SortedBy();
 
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(newOriginatingChunkList->OwningNodes().insert(originatingNode).second);
@@ -239,7 +239,7 @@ protected:
 
             auto* newOriginatingChunkList = chunkManager->CreateChunkList();
             newOriginatingChunkList->SetRigid(true);
-            newOriginatingChunkList->KeyColumns() = branchedChunkList->KeyColumns();
+            newOriginatingChunkList->SortedBy() = branchedChunkList->SortedBy();
 
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(newOriginatingChunkList->OwningNodes().insert(originatingNode).second);

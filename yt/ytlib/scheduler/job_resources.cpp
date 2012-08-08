@@ -193,7 +193,7 @@ TNodeResources GetPartitionReduceDuringMapReduceResources(
     result.set_cores(spec->Reducer->CoresLimit);
     result.set_memory(
         GetIOMemorySize(ioConfig, 0, spec->OutputTablePaths.size()) +
-        GetPartitionSortMemorySize(dataSize, rowCount, spec->KeyColumns.size()) +
+        GetPartitionSortMemorySize(dataSize, rowCount, spec->ReduceBy.size()) +
         spec->Reducer->MemoryLimit +
         FootprintMemorySize);
     result.set_network(spec->ShuffleNetworkLimit);
@@ -275,7 +275,7 @@ TNodeResources GetSimpleSortResources(
         dataSize +
         // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
         // starts reserving arrays of appropriate sizes.
-        (i64) 16 * spec->KeyColumns.size() * rowCount * 2 +
+        (i64) 16 * spec->SortBy.size() * rowCount * 2 +
         (i64) 16 * rowCount * 2 +
         (i64) 32 * valueCount * 2 +
         FootprintMemorySize);
@@ -294,7 +294,7 @@ TNodeResources GetPartitionSortResources(
     result.set_memory(
         // NB: See comment above for GetSimpleSortJobResources.
         GetIOMemorySize(ioConfig, 0, 1) +
-        GetPartitionSortMemorySize(dataSize, rowCount, spec->KeyColumns.size()) +
+        GetPartitionSortMemorySize(dataSize, rowCount, spec->SortBy.size()) +
         FootprintMemorySize);
     result.set_network(spec->ShuffleNetworkLimit);
     return result;

@@ -24,7 +24,7 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypressServer::ICypressNode*>, OwningNodes);
     
     // A tuple of key columns. If empty then the chunk list is not sorted.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, KeyColumns);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, SortedBy);
 
     // If True then the subtree of this chunk list cannot be rebalanced.
     // Rebalancing changes the set of children (while maintaining the set of leaves).

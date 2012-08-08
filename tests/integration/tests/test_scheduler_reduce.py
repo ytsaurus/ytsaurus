@@ -91,7 +91,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 in_ = '//tmp/in',
                 out = '//tmp/out',
                 command = 'cat',
-                key_columns='subkey')
+                soted_by='subkey')
 
     def test_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]

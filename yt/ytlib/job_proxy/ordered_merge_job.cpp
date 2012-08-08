@@ -67,7 +67,7 @@ public:
                 const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
                 KeyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
 
-                LOG_INFO("Ordered merge produces sorted output.");
+                LOG_INFO("Ordered merge produces sorted output");
             }
 
             // ToDo(psushin): estimate row count for writer.
