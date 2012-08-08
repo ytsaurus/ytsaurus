@@ -1,3 +1,5 @@
+handle SIGHUP nostop print pass
+
 set print array on
 set print pretty on
 set print demangle on
