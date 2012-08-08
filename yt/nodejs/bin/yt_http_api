@@ -114,13 +114,6 @@ process.title = "YtHttpProxy";
 var agent = null;
 var profiler = null;
 
-var logger = new winston.Logger({
-    transports: [ configuration.logging
-        ? new winston.transports.File(configuration.logging)
-        : new winston.transports.Console({ timestamp: true, raw: true })
-    ]
-});
-
 if (opts.argv.profiler) {
     agent = require("webkit-devtools-agent");
     profiler = require("v8-profiler");
@@ -138,6 +131,13 @@ if (configuration.logging) {
         fs.chownSync(path, user, group);
     }
 }
+
+var logger = new winston.Logger({
+    transports: [ configuration.logging
+        ? new winston.transports.File(configuration.logging)
+        : new winston.transports.Console({ timestamp: true, raw: true })
+    ]
+});
 
 if (configuration.number_of_workers > 0 && cluster.isMaster) {
     function spawnWorker() {
