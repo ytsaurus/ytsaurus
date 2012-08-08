@@ -93,3 +93,31 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command = 'cat',
                 key_columns='subkey')
 
+    def test_many_output_tables(self):
+        output_tables = ['//tmp/t%d' % i for i in range(3)]
+
+        create('table', '//tmp/t_in')
+        for table_path in output_tables:
+            create('table', table_path)
+
+        write_str('//tmp/t_in', '{k=10}', sorted_by='k')
+
+        reducer = \
+"""
+cat  > /dev/null
+echo {v = 0} >&1
+echo {v = 1} >&4
+echo {v = 2} >&7
+
+"""
+        upload('//tmp/reducer.sh', reducer)
+
+        reduce(in_='//tmp/t_in',
+            out=output_tables,
+            command='bash reducer.sh',
+            file='//tmp/reducer.sh')
+
+        assert read(output_tables[0]) == [{'v': 0}]
+        assert read(output_tables[1]) == [{'v': 1}]
+        assert read(output_tables[2]) == [{'v': 2}]
+
