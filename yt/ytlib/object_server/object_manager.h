@@ -157,8 +157,8 @@ private:
     void PromoteCreatedObjects(NTransactionServer::TTransaction* transaction);
     void ReleaseCreatedObjects(NTransactionServer::TTransaction* transaction);
 
-    void HandleObjectReferenced(const TObjectId& id, i32 refCounter);
-    void HandleObjectUnreferenced(const TObjectId& id, i32 refCounter);
+    void OnObjectReferenced(const TObjectId& id, i32 refCounter);
+    void OnObjectUnreferenced(const TObjectId& id, i32 refCounter);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };

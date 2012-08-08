@@ -387,7 +387,7 @@ void TObjectManager::RefObject(const TObjectId& id)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = GetHandler(id)->RefObject(id);
-    HandleObjectReferenced(id, refCounter);
+    OnObjectReferenced(id, refCounter);
 }
 
 void TObjectManager::RefObject(const TVersionedNodeId& id)
@@ -400,7 +400,7 @@ void TObjectManager::RefObject(TObjectWithIdBase* object)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = object->RefObject();
-    HandleObjectReferenced(object->GetId(), refCounter);
+    OnObjectReferenced(object->GetId(), refCounter);
 }
 
 void TObjectManager::RefObject(ICypressNode* node)
@@ -408,7 +408,7 @@ void TObjectManager::RefObject(ICypressNode* node)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = node->GetTrunkNode()->RefObject();
-    HandleObjectReferenced(node->GetId().ObjectId, refCounter);
+    OnObjectReferenced(node->GetId().ObjectId, refCounter);
 }
 
 void TObjectManager::RefObject(TChunkTreeRef ref)
@@ -430,7 +430,7 @@ void TObjectManager::UnrefObject(const TObjectId& id)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = GetHandler(id)->UnrefObject(id);
-    HandleObjectUnreferenced(id, refCounter);
+    OnObjectUnreferenced(id, refCounter);
 }
 
 void TObjectManager::UnrefObject(const TVersionedNodeId& id)
@@ -443,7 +443,7 @@ void TObjectManager::UnrefObject(TObjectWithIdBase* object)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = object->UnrefObject();
-    HandleObjectUnreferenced(object->GetId(), refCounter);
+    OnObjectUnreferenced(object->GetId(), refCounter);
 }
 
 void TObjectManager::UnrefObject(ICypressNode* node)
@@ -451,7 +451,7 @@ void TObjectManager::UnrefObject(ICypressNode* node)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = node->GetTrunkNode()->UnrefObject();
-    HandleObjectUnreferenced(node->GetId().ObjectId, refCounter);
+    OnObjectUnreferenced(node->GetId().ObjectId, refCounter);
 }
 
 void TObjectManager::UnrefObject(TChunkTreeRef ref)
@@ -475,14 +475,14 @@ i32 TObjectManager::GetObjectRefCounter(const TObjectId& id)
     return GetHandler(id)->GetObjectRefCounter(id);
 }
 
-void TObjectManager::HandleObjectReferenced(const TObjectId& id, i32 refCounter)
+void TObjectManager::OnObjectReferenced(const TObjectId& id, i32 refCounter)
 {
     LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
         ~id.ToString(),
         refCounter);
 }
 
-void TObjectManager::HandleObjectUnreferenced(const TObjectId& id, i32 refCounter)
+void TObjectManager::OnObjectUnreferenced(const TObjectId& id, i32 refCounter)
 {
     LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
         ~id.ToString(),
