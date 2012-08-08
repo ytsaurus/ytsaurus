@@ -540,7 +540,7 @@ void TListNodeProxy::DoCloneTo(TListNode* clonedNode)
     for (int index = 0; index < static_cast<int>(children.size()); ++index) {
         auto child = children[index];
         auto childId = child->GetId();
-        clonedNode->IndexToChild()[index] = childId;
+        clonedNode->IndexToChild().push_back(childId);
         YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(childId, index)).second);
         objectManager->RefObject(childId);
     }
