@@ -36,6 +36,10 @@ public:
     //! Specialization of #Await for |T = void|.
     void Await(
         TFuture<void> result,
+        TCallback<void()> onResult = TCallback<void()>());
+    //! Specialization of #Await for |T = void|.
+    void Await(
+        TFuture<void> result,
         const NYTree::TYPath& timerPathSuffix,
         TCallback<void()> onResult = TCallback<void()>());
 
