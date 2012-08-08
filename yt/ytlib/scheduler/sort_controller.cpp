@@ -904,16 +904,24 @@ protected:
             return nodeToLoad[lhs] > nodeToLoad[rhs];
         };
 
+        auto comparePartitions = [&] (TPartitionPtr lhs, TPartitionPtr rhs) {
+            return lhs->TotalAttributes.uncompressed_data_size() >
+                   rhs->TotalAttributes.uncompressed_data_size();
+        };
+
         FOREACH (auto node, nodes) {
             YCHECK(nodeToLoad.insert(std::make_pair(node, 0)).second);
             nodeHeap.push_back(node);
         }
 
+        auto sortedPartitions = Partitions;
+        std::sort(sortedPartitions.begin(), sortedPartitions.end(), comparePartitions);
+
         // This is actually redundant since all values are 0.
         std::make_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
         
         LOG_DEBUG("Assigning partitions");
-        FOREACH (auto partition, Partitions) {
+        FOREACH (auto partition, sortedPartitions) {
             auto node = nodeHeap.front();
             LOG_DEBUG("Partition assigned: %d -> %s",
                 partition->Index,
