@@ -151,11 +151,15 @@ void TTcpConnection::SyncFinalize()
 
 Stroka TTcpConnection::GetLoggingId() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+    
     return Sprintf("ConnectionId: %s", ~Id.ToString());
 }
 
 ui32 TTcpConnection::GetHash() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Id.Parts[0];
 }
 

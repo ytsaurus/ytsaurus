@@ -87,6 +87,8 @@ public:
 
     virtual ui32 GetHash() const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+        
         return Hash;
     }
 
