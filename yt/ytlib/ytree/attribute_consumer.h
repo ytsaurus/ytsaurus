@@ -18,11 +18,11 @@ public:
     IAttributeDictionary* GetAttributes() const;
 
 protected:
-    virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnIntegerScalar(i64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
+    virtual void OnMyStringScalar(const TStringBuf& value) override;
+    virtual void OnMyIntegerScalar(i64 value) override;
+    virtual void OnMyDoubleScalar(double value) override;
+    virtual void OnMyEntity() override;
+    virtual void OnMyBeginList() override;
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override;
     virtual void OnMyBeginMap() override;
