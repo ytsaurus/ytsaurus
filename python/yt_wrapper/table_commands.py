@@ -173,6 +173,16 @@ def merge_tables(source_table, destination_table, mode, strategy=None, spec=None
     strategy.process_operation("merge", operation)
 
 
+
+def prepare_files(files):
+    if files is None:
+        return []
+
+    file_paths = []
+    for file in flatten(files):
+        file_paths.append(upload_file(file))
+    return file_paths
+
 """ Map and reduce methods """
 def run_operation(binary, source_table, destination_table,
                   files, file_paths, format, strategy, spec, op_type,
@@ -180,17 +190,13 @@ def run_operation(binary, source_table, destination_table,
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if format is None: format = config.DEFAULT_FORMAT
     if reduce_by is None: reduce_by = "key"
-    if files is None: files = []
     if spec is None: spec = {}
-    files = flatten(files)
     
     to_remove = []
+    to_remove += prepare_files(files)
     if file_paths is None:
         file_paths = []
-    for file in files:
-        file_destination = upload_file(file)
-        file_paths.append(file_destination)
-        to_remove.append(file_destination)
+    file_paths += to_remove
 
     source_table = map(to_table, flatten(source_table))
     if config.MERGE_SRC_TABLES_BEFORE_OPERATION and len(source_table) > 1:
@@ -245,3 +251,47 @@ def run_reduce(binary, source_table, destination_table,
                   strategy=strategy, spec=spec,
                   reduce_by=reduce_by,
                   op_type="reduce")
+
+def run_map_reduce(mapper, reducer, source_table, destination_table,
+                   format=None, strategy=None, spec=None,
+                   map_files=None, reduce_files=None, sort_by=None, reduce_by=None):
+    if strategy is None: strategy = config.DEFAULT_STRATEGY
+    if format is None: format = config.DEFAULT_FORMAT
+    if reduce_by is None and sort_by is None:
+        sort_by = ["key", "subkey"]
+        reduce_by = ["key"]
+    if spec is None: spec = {}
+    
+    map_files = prepare_files(map_files)
+    reduce_files = prepare_files(reduce_files)
+
+    source_table = map(to_table, flatten(source_table))
+    source_table = filter(lambda table: exists(table.name), source_table)
+    destination_table = map(to_table, flatten(destination_table))
+    for table in destination_table:
+        create_table(table.name, not table.append)
+
+    if config.USE_MAPREDUCE_STYLE_DST_TABLES and len(destination_table) > 1:
+        for fd in xrange(3, 3 + len(destination_table)):
+            yt_fd = 1 + (fd - 3) * 3
+            reducer = reducer + " %d>&%d" % (fd, yt_fd)
+
+    params = json.dumps(
+        {"spec": update(spec,
+            {"mapper":
+                {"format": format.to_json(),
+                 "command": mapper,
+                 "file_paths": map_files},
+             "reducer":
+                {"format": format.to_json(),
+                 "command": reducer,
+                 "file_paths": reduce_files},
+             "sort_by": flatten(sort_by),
+             "reduce_by": flatten(reduce_by),
+             "input_table_paths": map(get_yson_name, source_table),
+             "output_table_paths": map(get_yson_name, destination_table)
+            })
+        })
+    operation = make_request("POST", "map_reduce", None, params, verbose=True)
+    strategy.process_operation("map_reduce", operation, map_files + reduce_files)
+    

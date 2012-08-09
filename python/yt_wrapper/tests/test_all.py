@@ -311,23 +311,35 @@ class YtTest(YTEnv):
         self.assertFalse(yt.exists(other_table))
 
     def test_file_operations(self):
-        #TODO(ignat): eliminate this hack
-        def add_eoln(str):
-            return str + "\n"
-
         dest = []
         for i in xrange(2):
             self.assertTrue(yt.upload_file("tests/my_op.py").find("/my_op.py") != -1)
         
         for d in dest:
-            self.assertEqual(map(add_eoln, list(yt.download_file(dest))),
+            self.assertEqual(list(yt.download_file(dest)),
                              open("tests/my_op.py").readlines())
 
+    def test_map_reduce_operation(self):
+        input = TEST_DIR + "/input"
+        output = TEST_DIR + "/output"
+        yt.write_table(input,
+            [
+                "\1a\t\t\n",
+                "\1b\t\t\n",
+                "\1c\t\t\n",
+                "a b\tc\t\n",
+                "c c\tc\tc c a\n"
+            ])
+        yt.run_map_reduce("./split.py", "./collect.py", input, output,
+                          map_files="tests/split.py", reduce_files="tests/collect.py")
+        self.assertEqual(
+            sorted(list(yt.read_table(output))),
+            sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"]))
 
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_abort_operation"))
+    #suite.addTest(YtTest("test_map_reduce_operation"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 

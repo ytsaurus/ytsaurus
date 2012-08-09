@@ -5,7 +5,7 @@ from table import Table
 from tree_commands import set, get, list, get_attribute, set_attribute, list_attributes, exists, remove
 from table_commands import create_table, write_table, read_table, remove_table, \
                            copy_table, move_table, sort_table, records_count, is_sorted, \
-                           create_temp_table, merge_tables, run_map, run_reduce
+                           create_temp_table, merge_tables, run_map, run_reduce, run_map_reduce
 
 from operation_commands import get_operation_state, abort_operation, WaitStrategy, AsyncStrategy
 from file_commands import upload_file, download_file
