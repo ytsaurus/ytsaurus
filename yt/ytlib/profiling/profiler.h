@@ -59,6 +59,7 @@ struct TCounterBase
         const NYTree::TYPath& path = "",
         TDuration interval = TDuration::MilliSeconds(1000));
 
+    TSpinLock SpinLock;
     NYTree::TYPath Path;
     //! Interval between samples (in ticks).
     TCpuDuration Interval;
@@ -193,6 +194,12 @@ public:
 private:
     NYTree::TYPath PathPrefix;
     bool SelfProfiling;
+
+    void DoAggregate(
+        TAggregateCounter& counter,
+        TGuard<TSpinLock>& guard,
+        TValue value,
+        TCpuInstant now);
 
 };
 

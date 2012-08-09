@@ -161,13 +161,17 @@ void TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
     }
 
     YASSERT(delta >= 0);
-    counter.Value += delta;
+
     auto now = GetCpuInstant();
+
+    TGuard<TSpinLock> guard(counter.SpinLock);
+    counter.Value += delta;
     if (now > counter.Deadline) {
         if (counter.LastTime != 0) {
             auto counterDelta = counter.Value - counter.LastValue;
             auto timeDelta = now - counter.LastTime;
             auto sampleValue = counterDelta * counter.Interval / timeDelta;
+            guard.Release();
             Enqueue(counter.Path, sampleValue);
         }
         counter.LastTime = now;
@@ -182,46 +186,65 @@ void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
         return;
     }
 
+    auto now = GetCpuInstant();
+
+    TGuard<TSpinLock> guard(counter.SpinLock);
+    DoAggregate(counter, guard, value, now);
+}
+
+void TProfiler::Increment(TAggregateCounter& counter, TValue delta)
+{
+    if (counter.Path.empty()) {
+        return;
+    }
+
+    auto now = GetCpuInstant();
+
+    TGuard<TSpinLock> guard(counter.SpinLock);
+    DoAggregate(counter, guard, counter.Current + delta, now);
+}
+
+void TProfiler::DoAggregate(
+    TAggregateCounter& counter,
+    TGuard<TSpinLock>& guard,
+    TValue value,
+    TCpuInstant now)
+{
     ++counter.SampleCount;
     counter.Current = value;
     counter.Min = std::min(counter.Min, value);
     counter.Max = std::max(counter.Max, value);
     counter.Sum += value;
-    auto now = GetCpuInstant();
     if (now > counter.Deadline) {
         TValue min = counter.Min;
         TValue max = counter.Max;
         TValue avg = counter.Sum / counter.SampleCount;
-        switch (counter.Mode) {
-            case EAggregateMode::All:
-                Enqueue(counter.Path + "/min", min);
-                Enqueue(counter.Path + "/max", max);
-                Enqueue(counter.Path + "/avg", avg);
-                break;
-
-            case EAggregateMode::Min:
-                Enqueue(counter.Path, min);
-                break;
-
-            case EAggregateMode::Max:
-                Enqueue(counter.Path, max);
-                break;
-
-            case EAggregateMode::Avg:
-                Enqueue(counter.Path, avg);
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
         counter.ResetAggregation();
         counter.Deadline = now + counter.Interval;
-    }
-}
+        guard.Release();
+        switch (counter.Mode) {
+        case EAggregateMode::All:
+            Enqueue(counter.Path + "/min", min);
+            Enqueue(counter.Path + "/max", max);
+            Enqueue(counter.Path + "/avg", avg);
+            break;
 
-void TProfiler::Increment(TAggregateCounter& counter, TValue delta)
-{
-    Aggregate(counter, counter.Current + delta);
+        case EAggregateMode::Min:
+            Enqueue(counter.Path, min);
+            break;
+
+        case EAggregateMode::Max:
+            Enqueue(counter.Path, max);
+            break;
+
+        case EAggregateMode::Avg:
+            Enqueue(counter.Path, avg);
+            break;
+
+        default:
+            YUNREACHABLE();
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
