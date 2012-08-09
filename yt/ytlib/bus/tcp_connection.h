@@ -51,9 +51,10 @@ public:
     const TConnectionId& GetId() const;
 
     // IEventLoopObject implementation.
-    virtual void SyncInitialize();
-    virtual void SyncFinalize();
-    virtual Stroka GetLoggingId() const;
+    virtual void SyncInitialize() override;
+    virtual void SyncFinalize() override;
+    virtual Stroka GetLoggingId() const override;
+    virtual ui32 GetHash() const override;
 
     // IBus implementation.
     virtual TSendResult Send(IMessagePtr message);

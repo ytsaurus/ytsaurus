@@ -10,6 +10,8 @@
 #include <ytlib/misc/address.h>
 #include <ytlib/logging/tagged_logger.h>
 
+#include <util/random/random.h>
+
 #include <errno.h>
 
 #ifndef _WIN32
@@ -36,6 +38,7 @@ public:
         IMessageHandlerPtr handler)
         : Config(config)
         , Handler(handler)
+        , Hash(RandomNumber<ui32>())
         , Logger(BusLogger)
         , ServerSocket(INVALID_SOCKET)
         , ServerFd(INVALID_SOCKET)
@@ -49,20 +52,20 @@ public:
 
     // IEventLoopObject implementation.
 
-    virtual void SyncInitialize()
+    virtual void SyncInitialize() override
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
         
         // This may throw.
         OpenServerSocket();
 
-        const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
+        const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop(this);
         AcceptWatcher.Reset(new ev::io(eventLoop));
         AcceptWatcher->set<TTcpBusServer, &TTcpBusServer::OnAccept>(this);
         AcceptWatcher->start(ServerFd, ev::READ);
     }
 
-    virtual void SyncFinalize()
+    virtual void SyncFinalize() override
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -75,16 +78,23 @@ public:
         }
     }
 
-    virtual Stroka GetLoggingId() const
+    virtual Stroka GetLoggingId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Sprintf("Port: %d", Config->Port);
     }
 
+    virtual ui32 GetHash() const override
+    {
+        return Hash;
+    }
+
 private:
     TTcpBusServerConfigPtr Config;
     IMessageHandlerPtr Handler;
+
+    ui32 Hash;
 
     NLog::TTaggedLogger Logger;
     
