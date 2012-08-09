@@ -131,6 +131,12 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t/@key1') == "value1"
         assert get('//tmp/t/@key2') == "value2"
 
+        # error cases
+        with pytest.raises(YTError): set('//tmp/t/@', 1)
+        with pytest.raises(YTError): set('//tmp/t/@', 'a')
+        with pytest.raises(YTError): set_str('//tmp/t/@', '<>')
+        with pytest.raises(YTError): set('//tmp/t/@', [1, 2, 3])
+
     def test_attributes_tx_read(self):
         set_str('//tmp/t', '<attr=100> 123')
         assert get('//tmp/t') == 123
