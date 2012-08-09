@@ -241,15 +241,13 @@ protected:
         void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe);
     };
 
-
-    static const int MaxTaskPriorities = 3;
-
     struct TPendingTaskInfo
     {
         yhash_set<TTaskPtr> GlobalTasks;
         yhash_map<Stroka, yhash_set<TTaskPtr>> AddressToLocalTasks;
     };
 
+    static const int MaxTaskPriority = 2;
     std::vector<TPendingTaskInfo> PendingTaskInfos;
 
     int CachedPendingJobCount;
@@ -259,8 +257,8 @@ protected:
     void DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address);
     void AddTaskLocalityHint(TTaskPtr task, const Stroka& address);
     void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
-
     void AddTaskPendingHint(TTaskPtr task);
+    TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
     TJobPtr DoScheduleJob(TExecNodePtr node);
 
