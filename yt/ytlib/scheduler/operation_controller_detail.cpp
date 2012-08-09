@@ -594,8 +594,6 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
             auto jt = it++;
             auto task = *jt;
 
-            YCHECK(task->GetLocality(address) == 0);
-
             if (task->GetPendingJobCount() == 0) {
                 globalTasks.erase(jt);
                 LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
