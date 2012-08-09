@@ -510,11 +510,11 @@ void TOperationControllerBase::UpdatePendingJobCount(TTaskPtr task)
         it->second = newTaskCount;
     }
 
-    int newTotalCount = oldTaskCount - oldTaskCount + newTaskCount;
+    int newTotalCount = oldTotalCount - oldTaskCount + newTaskCount;
     CachedPendingJobCount = newTotalCount;
 
     if (newTaskCount != oldTotalCount) {
-        LOG_DEBUG("Pending job count changed (Task: %s, TaskCount: %d -> %d, TotalCount: %d -> %d)",
+        LOG_DEBUG("Pending job count updated (Task: %s, TaskCount: %d -> %d, TotalCount: %d -> %d)",
             ~task->GetId(),
             oldTaskCount,
             newTaskCount,
