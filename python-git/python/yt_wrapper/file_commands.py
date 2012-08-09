@@ -5,10 +5,13 @@ from http import make_request
 from tree_commands import remove, exists, set_attribute, set, mkdir, find_free_subpath
 
 import os
+from itertools import imap
 
 def download_file(path):
+    def add_eoln(str):
+        return str + "\n"
     content = make_request("GET", "download", {"path": escape_path(path)}, raw_response=True)
-    return content.iter_lines()
+    return imap(add_eoln, content.iter_lines())
 
 def upload_file(filename, yt_filename=None, destination=None, placement_strategy=None):
     """
