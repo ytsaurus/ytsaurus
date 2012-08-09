@@ -61,7 +61,6 @@ public:
         , FinalSortJobCounter(false)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
-        , PartitionsAssigned(false)
         , PartitionTask(New<TPartitionTask>(this))
     { }
 
@@ -88,7 +87,6 @@ protected:
     // Start thresholds.
     bool SortStartThresholdReached;
     bool MergeStartThresholdReached;
-    bool PartitionsAssigned;
     
     // Sorted merge job counters.
     TProgressCounter SortedMergeJobCounter;
@@ -351,18 +349,19 @@ protected:
         virtual i64 GetLocality(const Stroka& address) const override
         {
             if (Controller->Partitions.size() == 1) {
-                // Any positive number will do.
-                return 1;
+                return 0;
             } 
-
-            if (Controller->GetAssignedAddress(Partition) != address) {
-                // Never start sort jobs on a wrong node.
-                return -1;
-            }
 
             // Report locality proportional to the pending data size.
             // This facilitates uniform sort progress across partitions.
-            return DataSizeCounter().GetPending();
+            // Never return 0 since this is a local task.
+            i64 pendingDataSize = DataSizeCounter().GetPending();
+            return pendingDataSize == 0 ? 1 : pendingDataSize;
+        }
+
+        virtual bool IsStrictlyLocal() const override
+        {
+            return true;
         }
 
     protected:
@@ -510,11 +509,6 @@ protected:
             } else {
                 Controller->FinalSortJobCounter.Start(1);
             }
-
-            // Notify the controller that we're willing to use this node
-            // for all subsequent jobs.
-            auto address = jip->Job->GetNode()->GetAddress();
-            Controller->AddTaskLocalityHint(this, address);
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) override
@@ -713,6 +707,17 @@ protected:
             return static_cast<int>(ceil((double) dataSize / dataSizePerJob));
         }
 
+        virtual i64 GetLocality(const Stroka& address) const override
+        {
+            // Unordered merge job does not respect locality.
+            return 0;
+        }
+
+        virtual bool IsStrictlyLocal() const override
+        {
+            return false;
+        }
+
         virtual NProto::TNodeResources GetMinRequestedResources() const override
         {
             return Controller->GetUnorderedMergeResources();
@@ -838,12 +843,6 @@ protected:
         return mergeNeeded;
     }
 
-    Stroka GetAssignedAddress(TPartitionPtr partition)
-    {
-        EnsurePartitionsAssigned();
-        return partition->AssignedAddress;
-    }
-
     bool IsUnorderedMergeNeeded(TPartitionPtr partition)
     {
         return
@@ -903,14 +902,6 @@ protected:
         }
     }
 
-    void EnsurePartitionsAssigned()
-    {
-        if (!PartitionsAssigned) {
-            AssignPartitions();
-            PartitionsAssigned = true;
-        }
-    }
-
     void AssignPartitions()
     {
         auto nodes = Host->GetExecNodes();
@@ -945,13 +936,20 @@ protected:
         LOG_DEBUG("Assigning partitions");
         FOREACH (auto partition, sortedPartitions) {
             auto node = nodeHeap.front();
-            LOG_DEBUG("Partition assigned: %d -> %s",
-                partition->Index,
-                ~node->GetAddress());
-            partition->AssignedAddress = node->GetAddress();
+            auto address = node->GetAddress();
+
+            partition->AssignedAddress = address;
+            AddTaskLocalityHint(partition->SortTask, address);
+            AddTaskLocalityHint(partition->SortedMergeTask, address);
+
             nodeToLoad[node] += partition->TotalAttributes.uncompressed_data_size();
+
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
             std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
+
+            LOG_DEBUG("Partition assigned: %d -> %s",
+                partition->Index,
+                ~address);
         }
 
         LOG_DEBUG("Partitions assigned");

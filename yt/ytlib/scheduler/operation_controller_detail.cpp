@@ -50,6 +50,11 @@ i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
     return ChunkPool->GetLocality(address);
 }
 
+bool TOperationControllerBase::TTask::IsStrictlyLocal() const
+{
+    return false;
+}
+
 int TOperationControllerBase::TTask::GetPriority() const
 {
     return 0;
@@ -246,6 +251,7 @@ TOperationControllerBase::TOperationControllerBase(
     , RunningJobCount(0)
     , CompletedJobCount(0)
     , FailedJobCount(0)
+    , PendingTaskInfos(MaxTaskPriorities)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
@@ -490,8 +496,9 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
-    if (task->GetPendingJobCount() > 0) {
-        if (PendingTasks.insert(task).second) {
+    if (!task->IsStrictlyLocal() && task->GetPendingJobCount() > 0) {
+        auto& info = PendingTaskInfos[task->GetPriority()];
+        if (info.GlobalTasks.insert(task).second) {
             LOG_DEBUG("Task pending hint added (Task: %s)",
                 ~task->GetId());
         }
@@ -500,7 +507,8 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
-    if (AddressToLocalTasks[address].insert(task).second) {
+    auto& info = PendingTaskInfos[task->GetPriority()];
+    if (info.AddressToLocalTasks[address].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %s, Address: %s)",
             ~task->GetId(),
             ~address);
@@ -519,73 +527,111 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 
 TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
 {
-    // Examine all (potentially) pending tasks, pick one with the best priority.
-    // Perform lazy cleanup of pending hints.
-
-    auto address = node->GetAddress();
-
-    TTaskPtr bestTask;
-
-    typedef std::pair<int, i64> TWeightedLocality;
-    TWeightedLocality bestLocality(-1, -1);
-
+    // First try to find a local task for this node.
     auto now = TInstant::Now();
-    auto it = PendingTasks.begin();
-    while (it != PendingTasks.end()) {
-        auto jt = it++;
-        auto candidate = *jt;
-
-        if (candidate->GetPendingJobCount() == 0 ) {
-            LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
-            PendingTasks.erase(jt);
+    auto address = node->GetAddress();
+    for (int priority = MaxTaskPriorities - 1; priority >= 0; --priority) {
+        auto& info = PendingTaskInfos[priority];
+        auto localTasksIt = info.AddressToLocalTasks.find(address);
+        if (localTasksIt == info.AddressToLocalTasks.end()) {
             continue;
         }
 
-        if (!candidate->HasEnoughResources(node)) {
-            continue;
-        }
+        i64 bestLocality = 0;
+        TTaskPtr bestTask = NULL;
 
-        TWeightedLocality locality(candidate->GetPriority(), candidate->GetLocality(address));
-        if (locality.second < 0) {
-            continue;
-        }
+        auto& localTasks = localTasksIt->second;
+        auto it = localTasks.begin();
+        while (it != localTasks.end()) {
+            auto jt = it++;
+            auto task = *jt;
 
-        if (locality.second == 0) {
-            if (!candidate->GetNonLocalRequestTime()) {
-                candidate->SetNonLocalRequestTime(now);
-            }
-            if (candidate->GetNonLocalRequestTime().Get() + candidate->GetLocalityTimeout() > now) {
+            i64 locality = task->GetLocality(address);
+            if (locality <= 0) {
+                localTasks.erase(jt);
+                LOG_DEBUG("Task locality hint removed (Task: %s)", ~task->GetId());
                 continue;
             }
-        }
 
-        if (locality > bestLocality) {
-            bestTask = candidate;
+            if (locality <= bestLocality) {
+                continue;
+            }
+
+            if (!task->HasEnoughResources(node)) {
+                continue;
+            }
+
+            if (task->GetPendingJobCount() > 0) {
+                continue;
+            }
+
             bestLocality = locality;
+            bestTask = task;
+        }
+
+        if (bestTask) {
+            auto job = bestTask->ScheduleJob(node);
+            if (job) {
+                auto delayedTime = bestTask->GetDelayedTime();
+                LOG_DEBUG("Scheduled a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", Delay: %s)",
+                    ~bestTask->GetId(),
+                    ~address,
+                    priority,
+                    bestLocality,
+                    delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
+                bestTask->SetDelayedTime(Null);
+                return job;
+            }
         }
     }
 
-    if (!bestTask) {
-        return NULL;
+    // Next look for other (global) tasks.
+    for (int priority = MaxTaskPriorities - 1; priority >= 0; --priority) {
+        auto& info = PendingTaskInfos[priority];
+        auto& globalTasks = info.GlobalTasks;
+        auto it = globalTasks.begin();
+        while (it != globalTasks.end()) {
+            auto jt = it++;
+            auto task = *jt;
+
+            YCHECK(task->GetLocality(address) == 0);
+
+            if (task->GetPendingJobCount() == 0) {
+                globalTasks.erase(jt);
+                LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
+                continue;
+            }
+
+            if (!task->HasEnoughResources(node)) {
+                continue;
+            }
+
+            // Check for delayed execution.
+            auto delayedTime = task->GetDelayedTime();
+            auto localityTimeout = task->GetLocalityTimeout();
+            if (localityTimeout != TDuration::Zero()) {
+                if (!delayedTime) {
+                    task->SetDelayedTime(now);
+                    continue;
+                }
+                if (delayedTime.Get() + localityTimeout > now) {
+                    continue;
+                }
+            }
+
+            auto job = task->ScheduleJob(node);
+            if (job) {
+                LOG_DEBUG("Scheduled a non-local job (Task: %s, Address: %s, Priority: %d, Delay: %s)",
+                    ~task->GetId(),
+                    ~address,
+                    priority,
+                    delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
+                return job;
+            }
+        }
     }
 
-    LOG_DEBUG("Scheduling a %s job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ")",
-        bestLocality.second == 0 ? "non-local" : "local",
-        ~bestTask->GetId(),
-        ~node->GetAddress(),
-        bestLocality.first,
-        bestLocality.second);
-
-    auto job = bestTask->ScheduleJob(node);
-    if (!job) {
-        return NULL;
-    }
-
-    if (bestLocality.second > 0) {
-        bestTask->SetNonLocalRequestTime(Null);
-    }
-
-    return job;
+    return NULL;
 }
 
 int TOperationControllerBase::GetPendingJobCount()
@@ -593,20 +639,20 @@ int TOperationControllerBase::GetPendingJobCount()
     // Examine all (potentially) pending tasks.
     // Perform lazy cleanup of pending hints.
     int result = 0;
-    auto it = PendingTasks.begin();
-    while (it != PendingTasks.end()) {
-        auto jt = it++;
-        const auto& candidate = *jt;
-        int count = candidate->GetPendingJobCount();
-        if (count == 0) {
-            LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
-            PendingTasks.erase(jt);
+    for (int priority = 0; priority < MaxTaskPriorities; ++priority) {
+        auto& globalTasks = PendingTaskInfos[priority].GlobalTasks;
+        auto it = globalTasks.begin();
+        while (it != globalTasks.end()) {
+            auto jt = it++;
+            const auto& candidate = *jt;
+            int count = candidate->GetPendingJobCount();
+            if (count == 0) {
+                LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
+                globalTasks.erase(jt);
+            }
+            result += count;
         }
-        result += count;
     }
-
-    YCHECK(result == 0 || !PendingTasks.empty());
-
     return result;
 }
 

@@ -187,12 +187,13 @@ protected:
         virtual int GetChunkListCountPerJob() const = 0;
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
+        virtual bool IsStrictlyLocal() const;
 
         virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const;
         bool HasEnoughResources(TExecNodePtr node) const;
 
-        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, NonLocalRequestTime);
+        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
 
         virtual void AddStripe(TChunkStripePtr stripe);
         void AddStripes(const std::vector<TChunkStripePtr>& stripes);
@@ -238,14 +239,24 @@ protected:
         void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe);
     };
 
-    yhash_set<TTaskPtr> PendingTasks;
-    yhash_map<Stroka, yhash_set<TTaskPtr>> AddressToLocalTasks;
+
+    static const int MaxTaskPriorities = 3;
+
+    struct TPendingTaskInfo
+    {
+        yhash_set<TTaskPtr> GlobalTasks;
+        yhash_map<Stroka, yhash_set<TTaskPtr>> AddressToLocalTasks;
+    };
+
+    std::vector<TPendingTaskInfo> PendingTaskInfos;
+
 
     void AddTaskLocalityHint(TTaskPtr task, const Stroka& address);
     void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
     void AddTaskPendingHint(TTaskPtr task);
 
     TJobPtr DoScheduleJob(TExecNodePtr node);
+    TTaskPtr FindBestTask(TExecNodePtr node);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
