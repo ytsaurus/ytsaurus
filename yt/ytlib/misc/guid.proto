@@ -4,8 +4,8 @@ package NYT.NProto;
 
 message TGuid
 {
-    required uint64 first = 1;
-    required uint64 second = 2;
+    required fixed64 first = 1;
+    required fixed64 second = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
