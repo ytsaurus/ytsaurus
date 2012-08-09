@@ -525,14 +525,14 @@ void TOperationControllerBase::UpdatePendingJobCount(TTaskPtr task)
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
-    if (!task->IsStrictlyLocal() && task->GetPendingJobCount() > 0) {
+    if (!task->IsStrictlyLocal()) {
         auto& info = PendingTaskInfos[task->GetPriority()];
         if (info.GlobalTasks.insert(task).second) {
             LOG_DEBUG("Task pending hint added (Task: %s)",
                 ~task->GetId());
         }
-        UpdatePendingJobCount(task);
     }
+    UpdatePendingJobCount(task);
 }
 
 void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
