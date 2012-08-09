@@ -361,7 +361,7 @@ protected:
 
         virtual bool IsStrictlyLocal() const override
         {
-            return true;
+            return Controller->Partitions.size() > 1;
         }
 
     protected:
