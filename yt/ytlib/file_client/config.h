@@ -42,7 +42,7 @@ struct TFileWriterConfig
     virtual void DoValidate()
     {
         if (ReplicationFactor < UploadReplicationFactor) {
-            ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
+            ythrow yexception() << "\"replication_factor\" cannot be less than \"upload_replication_factor\"";
         }
     }
 };

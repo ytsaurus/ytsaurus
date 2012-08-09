@@ -109,9 +109,9 @@ struct TChunkManagerConfig
     TChunkManagerConfig()
     {
         Register("online_node_timeout", OnlineNodeTimeout)
-            .Default(TDuration::Seconds(20));
-        Register("registered_node_timeout", RegisteredNodeTimeout)
             .Default(TDuration::Seconds(60));
+        Register("registered_node_timeout", RegisteredNodeTimeout)
+            .Default(TDuration::Seconds(180));
         Register("unconfirmed_node_timeout", UnconfirmedNodeTimeout)
             .Default(TDuration::Seconds(30));
         Register("node_expiration_backoff_time", NodeExpirationBackoffTime)

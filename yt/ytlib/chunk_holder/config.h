@@ -142,9 +142,9 @@ struct TDataNodeConfig
             .GreaterThan(0)
             .Default(10);
         Register("session_timeout", SessionTimeout)
-            .Default(TDuration::Seconds(30));
-        Register("noder_rpc_timeout", NodeRpcTimeout)
-            .Default(TDuration::Seconds(60));
+            .Default(TDuration::Seconds(120));
+        Register("node_rpc_timeout", NodeRpcTimeout)
+            .Default(TDuration::Seconds(120));
         Register("peer_update_period", PeerUpdatePeriod)
             .Default(TDuration::Seconds(30));
         Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
