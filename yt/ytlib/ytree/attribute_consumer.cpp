@@ -39,30 +39,30 @@ void TAttributeConsumer::OnMyBeginAttributes()
 void TAttributeConsumer::OnMyEndAttributes()
 { }
 
-void TAttributeConsumer::OnStringScalar(const TStringBuf& value)
+void TAttributeConsumer::OnMyStringScalar(const TStringBuf& value)
 {
     UNUSED(value);
     ThrowMapExpected();
 }
 
-void TAttributeConsumer::OnIntegerScalar(i64 value)
+void TAttributeConsumer::OnMyIntegerScalar(i64 value)
 {
     UNUSED(value);
     ThrowMapExpected();
 }
 
-void TAttributeConsumer::OnDoubleScalar(double value)
+void TAttributeConsumer::OnMyDoubleScalar(double value)
 {
     UNUSED(value);
     ThrowMapExpected();
 }
 
-void TAttributeConsumer::OnEntity()
+void TAttributeConsumer::OnMyEntity()
 {
     ThrowMapExpected();
 }
 
-void TAttributeConsumer::OnBeginList()
+void TAttributeConsumer::OnMyBeginList()
 {
     ThrowMapExpected();
 }
