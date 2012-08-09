@@ -2,7 +2,7 @@ from common import flatten, require, YtError
 from path_tools import escape_path
 
 class Table(object):
-    """ Columns should be list of string (column) or string pairs(column range) """
+    """ Columns should be list of string (column) or string pairs (column range) """
     def __init__(self, name, append=False, columns=None,
                  lower_key=None, upper_key=None,
                  start_index=None, end_index=None):

@@ -116,15 +116,15 @@ def is_sorted(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
     return parse_bool(get_attribute(table, "sorted"))
 
-def sort_table(source_table, destination_table=None, columns=None, strategy=None, spec=None):
+def sort_table(source_table, destination_table=None, sort_by=None, strategy=None, spec=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if spec is None: spec = {}
-    if columns is None:
+    if sort_by is None:
         require(hasattr(config.DEFAULT_FORMAT, "has_subkey"),
-                YtError("You must pass columns parameter to sort operation"))
-        columns= ["key"]
+                YtError("You must pass sort_by parameter to sort operation"))
+        sort_by = ["key"]
         if config.DEFAULT_FORMAT.has_subkey:
-            columns.append("subkey")
+            sort_by.append("subkey")
 
     source_table = map(to_table, flatten(source_table))
     source_table = filter(lambda table: exists(table.name), source_table)
@@ -151,7 +151,7 @@ def sort_table(source_table, destination_table=None, columns=None, strategy=None
         {"spec": update(spec,
             {"input_table_paths": map(get_yson_name, flatten(source_table)),
              "output_table_path": escape_path(output_table),
-             "key_columns": columns})})
+             "sort_by": sort_by})})
     operation = make_request("POST", "sort", None, params)
     strategy.process_operation("sort", operation)
     if in_place:
@@ -248,4 +248,3 @@ def run_reduce(binary, source_table, destination_table,
                   strategy=strategy, spec=spec,
                   columns=columns,
                   op_type="reduce")
-
