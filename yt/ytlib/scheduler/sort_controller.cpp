@@ -1695,7 +1695,7 @@ private:
             
             auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             specExt->set_partition_count(Partitions.size());
-            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
+            ToProto(specExt->mutable_key_columns(), Spec->ReduceBy);
             
             if (Spec->Mapper) {
                 PartitionJobSpecTemplate.set_type(EJobType::PartitionMap);
@@ -1725,7 +1725,7 @@ private:
             *FinalSortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->ReduceBy);
+            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
 
             InitUserJobSpec(
                 specExt->mutable_reducer_spec(),
@@ -1740,7 +1740,7 @@ private:
             *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            ToProto(specExt->mutable_key_columns(), Spec->ReduceBy);
+            ToProto(specExt->mutable_key_columns(), Spec->SortBy);
 
             InitUserJobSpec(
                 specExt->mutable_reducer_spec(),
