@@ -297,6 +297,7 @@ private:
             InputThread.Start();
             OutputThread.Start();
             OutputThread.Join();
+            InputThread.Join();
 
             int status = 0;
             int waitpidResult = waitpid(ProcessId, &status, 0);
@@ -311,12 +312,6 @@ private:
             JobExitStatus = StatusToError(status);
             if (!JobExitStatus.IsOK()) {
                 ythrow yexception() << Sprintf("User job failed with status: %s", ~JobExitStatus.GetMessage());
-            }
-
-            if (InputThread.Running()) {
-                // If the user job fails, input thread will still be running because the 
-                // reading end of the pipe is still open to check that user job has process all the data.
-                ythrow yexception() << Sprintf("Some data was not consumed by job");
             }
 
             FOREACH (auto& pipe, InputPipes) {
