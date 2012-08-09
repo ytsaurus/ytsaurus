@@ -525,7 +525,7 @@ void TOperationControllerBase::UpdatePendingJobCount(TTaskPtr task)
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
-    if (!task->IsStrictlyLocal()) {
+    if (!task->IsStrictlyLocal() && task->GetPendingJobCount() > 0) {
         auto& info = PendingTaskInfos[task->GetPriority()];
         if (info.GlobalTasks.insert(task).second) {
             LOG_DEBUG("Task pending hint added (Task: %s)",
