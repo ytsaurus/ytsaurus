@@ -56,7 +56,7 @@ class Table(object):
 
         return name
 
-    def has_limiters(self):
+    def has_delimiters(self):
         return \
             self.columns is not None or \
             self.lower_key is not None or \
