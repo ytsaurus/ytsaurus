@@ -25,7 +25,7 @@ public:
 
     NChunkServer::TChunkListId Extract();
 
-    void Allocate(int count);
+    bool Allocate(int count);
 
 private:
     NRpc::IChannelPtr MasterChannel;

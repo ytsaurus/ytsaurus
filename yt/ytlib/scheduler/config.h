@@ -38,9 +38,11 @@ struct TSchedulerConfig
     //! Better keep the number of spare chunk lists above this threshold.
     int ChunkListWatermarkCount;
 
-    //! Each time we run out of free chunk lists and unable to provide another |count| chunk lists,
-    //! job scheduling gets suspended until |count * ChunkListAllocationMultiplier| chunk lists are allocated.
-    int ChunkListAllocationMultiplier;
+    //! Each time the number of spare chunk lists drops below #ChunkListWatermarkCount or
+    //! the controller requests more chunk lists than we currently have,
+    //! another batch is allocated. Each time we allocate #ChunkListAllocationMultiplier times
+    //! more chunk lists than previously.
+    double ChunkListAllocationMultiplier;
 
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
@@ -79,8 +81,8 @@ struct TSchedulerConfig
             .Default(50)
             .GreaterThanOrEqual(0);
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
-            .Default(20)
-            .GreaterThan(0);
+            .Default(2.0)
+            .GreaterThan(1.0);
         Register("max_partition_count", MaxPartitionCount)
             .Default(2000)
             .GreaterThan(0);

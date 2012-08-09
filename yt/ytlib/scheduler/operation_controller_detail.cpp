@@ -242,7 +242,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Logger(OperationLogger)
     , Active(false)
     , Running(false)
-    , ExecNodeCount(-1)
+    , LastChunkListAllocationCount(-1)
     , RunningJobCount(0)
     , CompletedJobCount(0)
     , FailedJobCount(0)
@@ -255,8 +255,6 @@ void TOperationControllerBase::Initialize()
     VERIFY_THREAD_AFFINITY(ControlThread);
     
     LOG_INFO("Initializing operation");
-
-    ExecNodeCount = static_cast<int>(Host->GetExecNodes().size());
 
     FOREACH (const auto& path, GetInputTablePaths()) {
         TInputTable table;
@@ -1123,7 +1121,9 @@ void TOperationControllerBase::CompletePreparation()
         Host->GetControlInvoker(),
         Operation,
         PrimaryTransaction->GetId());
-    ChunkListPool->Allocate(Config->ChunkListPreallocationCount);
+
+    LastChunkListAllocationCount = Config->ChunkListPreallocationCount;
+    YCHECK(ChunkListPool->Allocate(LastChunkListAllocationCount));
 }
 
 void TOperationControllerBase::OnPreparationCompleted()
@@ -1335,9 +1335,10 @@ bool TOperationControllerBase::CheckAvailableChunkLists(int requestedCount)
     // Additional chunk lists are definitely needed but still could be a success.
     bool success = ChunkListPool->GetSize() >= requestedCount;
 
-    int allocateCount = requestedCount * Config->ChunkListAllocationMultiplier;
-    LOG_DEBUG("Insufficient pooled chunk lists left, requesting another %d", allocateCount);
-    ChunkListPool->Allocate(allocateCount);
+    int allocateCount = static_cast<int>(LastChunkListAllocationCount * Config->ChunkListAllocationMultiplier);
+    if (ChunkListPool->Allocate(allocateCount)) {
+        LastChunkListAllocationCount = allocateCount;
+    }
 
     return success;
 }

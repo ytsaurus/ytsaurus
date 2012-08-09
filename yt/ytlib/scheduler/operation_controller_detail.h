@@ -70,8 +70,8 @@ protected:
     // Remains True as long as the operation can schedule new jobs.
     bool Running;
 
-    // Fixed during init time, used to compute job count.
-    int ExecNodeCount;
+    // The number of chunk lists allocated previous time.
+    int LastChunkListAllocationCount;
 
     // Job counters.
     int RunningJobCount;

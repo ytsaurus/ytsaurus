@@ -50,11 +50,13 @@ NYT::NChunkServer::TChunkListId TChunkListPool::Extract()
     return id;
 }
 
-void TChunkListPool::Allocate(int count)
+bool TChunkListPool::Allocate(int count)
 {
+    YCHECK(count > 0);
+
     if (RequestInProgress) {
         LOG_DEBUG("Cannot allocate more chunk lists, another request is in progress");
-        return;
+        return false;
     }
 
     LOG_INFO("Allocating %d chunk lists for pool", count);
@@ -73,6 +75,7 @@ void TChunkListPool::Allocate(int count)
         .Via(ControlInvoker));
 
     RequestInProgress = true;
+    return true;
 }
 
 void TChunkListPool::OnChunkListsCreated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
