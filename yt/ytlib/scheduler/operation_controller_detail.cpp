@@ -252,6 +252,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CompletedJobCount(0)
     , FailedJobCount(0)
     , PendingTaskInfos(MaxTaskPriorities)
+    , CachedPendingJobCount(0)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
@@ -494,6 +495,34 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
     return job;
 }
 
+void TOperationControllerBase::UpdatePendingJobCount(TTaskPtr task)
+{
+    int oldTotalCount = CachedPendingJobCount;
+
+    int oldTaskCount;
+    int newTaskCount = task->GetPendingJobCount();
+    auto it = CachedPendingJobCounts.find(task);
+    if (it == CachedPendingJobCounts.end()) {
+        oldTaskCount = 0;
+        YCHECK(CachedPendingJobCounts.insert(std::make_pair(task, newTaskCount)).second);
+    } else {
+        oldTaskCount = it->second;
+        it->second = newTaskCount;
+    }
+
+    int newTotalCount = oldTaskCount - oldTaskCount + newTaskCount;
+    CachedPendingJobCount = newTotalCount;
+
+    if (newTaskCount != oldTotalCount) {
+        LOG_DEBUG("Pending job count changed (Task: %s, TaskCount: %d -> %d, TotalCount: %d -> %d)",
+            ~task->GetId(),
+            oldTaskCount,
+            newTaskCount,
+            oldTotalCount,
+            newTotalCount);
+    }
+}
+
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (!task->IsStrictlyLocal() && task->GetPendingJobCount() > 0) {
@@ -502,10 +531,11 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
             LOG_DEBUG("Task pending hint added (Task: %s)",
                 ~task->GetId());
         }
+        UpdatePendingJobCount(task);
     }
 }
 
-void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
+void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
     auto& info = PendingTaskInfos[task->GetPriority()];
     if (info.AddressToLocalTasks[address].insert(task).second) {
@@ -515,14 +545,21 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
     }
 }
 
+void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
+{
+    DoAddTaskLocalityHint(task, address);
+    UpdatePendingJobCount(task);
+}
+
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     FOREACH (const auto& chunk, stripe->Chunks) {
         const auto& inputChunk = chunk.InputChunk;
         FOREACH (const auto& address, inputChunk->node_addresses()) {
-            AddTaskLocalityHint(task, address);
+            DoAddTaskLocalityHint(task, address);
         }
     }
+    UpdatePendingJobCount(task);
 }
 
 TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
@@ -564,6 +601,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
             }
 
             if (task->GetPendingJobCount() == 0) {
+                UpdatePendingJobCount(task);
                 continue;
             }
 
@@ -582,6 +620,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                     bestLocality,
                     delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
                 bestTask->SetDelayedTime(Null);
+                UpdatePendingJobCount(bestTask);
                 return job;
             }
         }
@@ -597,8 +636,9 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
             auto task = *jt;
 
             if (task->GetPendingJobCount() == 0) {
-                globalTasks.erase(jt);
                 LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
+                globalTasks.erase(jt);
+                UpdatePendingJobCount(task);
                 continue;
             }
 
@@ -626,6 +666,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                     ~address,
                     priority,
                     delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
+                UpdatePendingJobCount(task);
                 return job;
             }
         }
@@ -636,24 +677,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
 
 int TOperationControllerBase::GetPendingJobCount()
 {
-    // Examine all (potentially) pending tasks.
-    // Perform lazy cleanup of pending hints.
-    int result = 0;
-    for (int priority = 0; priority < MaxTaskPriorities; ++priority) {
-        auto& globalTasks = PendingTaskInfos[priority].GlobalTasks;
-        auto it = globalTasks.begin();
-        while (it != globalTasks.end()) {
-            auto jt = it++;
-            const auto& candidate = *jt;
-            int count = candidate->GetPendingJobCount();
-            if (count == 0) {
-                LOG_DEBUG("Task pending hint removed (Task: %s)", ~candidate->GetId());
-                globalTasks.erase(jt);
-            }
-            result += count;
-        }
-    }
-    return result;
+    return CachedPendingJobCount;
 }
 
 void TOperationControllerBase::OnOperationCompleted()

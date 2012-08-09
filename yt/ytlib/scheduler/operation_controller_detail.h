@@ -250,9 +250,15 @@ protected:
 
     std::vector<TPendingTaskInfo> PendingTaskInfos;
 
+    yhash_map<TTaskPtr, int> CachedPendingJobCounts;
+    int CachedPendingJobCount;
 
+    void UpdatePendingJobCount(TTaskPtr task);
+
+    void DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address);
     void AddTaskLocalityHint(TTaskPtr task, const Stroka& address);
     void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
+
     void AddTaskPendingHint(TTaskPtr task);
 
     TJobPtr DoScheduleJob(TExecNodePtr node);
