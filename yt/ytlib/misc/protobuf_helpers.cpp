@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "protobuf_helpers.h"
 
+#include <contrib/libs/protobuf/io/zero_copy_stream.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
