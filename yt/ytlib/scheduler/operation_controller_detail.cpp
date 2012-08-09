@@ -549,7 +549,9 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
             i64 locality = task->GetLocality(address);
             if (locality <= 0) {
                 localTasks.erase(jt);
-                LOG_DEBUG("Task locality hint removed (Task: %s)", ~task->GetId());
+                LOG_TRACE("Task locality hint removed (Task: %s, Address: %s)",
+                    ~task->GetId(),
+                    ~address);
                 continue;
             }
 
@@ -561,7 +563,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                 continue;
             }
 
-            if (task->GetPendingJobCount() > 0) {
+            if (task->GetPendingJobCount() == 0) {
                 continue;
             }
 
