@@ -70,6 +70,10 @@ struct TYamrFormatConfig
     char FieldSeparator;
     char RecordSeparator;
 
+    // for Inner usage only
+    // TODO(panin): choose better name
+    bool NeedToOwn;
+
     TYamrFormatConfig()
     {
         Register("has_subkey", HasSubkey)
@@ -86,6 +90,8 @@ struct TYamrFormatConfig
             .Default('\t');
         Register("rs", RecordSeparator)
             .Default('\n');
+        Register("need_to_own", NeedToOwn)
+            .Default(true);
     }
 
 };

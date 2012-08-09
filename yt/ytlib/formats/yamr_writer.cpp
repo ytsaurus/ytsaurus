@@ -26,17 +26,17 @@ TYamrWriter::~TYamrWriter()
 
 void TYamrWriter::OnIntegerScalar(i64 value)
 {
-    RememberItem(ToString(value));
+    RememberItem(ToString(value), true);
 }
 
 void TYamrWriter::OnDoubleScalar(double value)
 {
-    RememberItem(ToString(value));
+    RememberItem(ToString(value), true);
 }
 
 void TYamrWriter::OnStringScalar(const TStringBuf& value)
 {
-    RememberItem(Stroka(value));
+    RememberItem(value, Config->NeedToOwn);
 }
 
 void TYamrWriter::OnEntity()
@@ -63,9 +63,10 @@ void TYamrWriter::OnBeginMap()
         ythrow yexception() << "Embedded maps are not supported by Yamr";
     }
     AllowBeginMap = false;
-    Key.clear();
-    Subkey.clear();
-    Value.clear();
+
+    Key.Clear();
+    Subkey.Clear();
+    Value.Clear();
 }
 
 void TYamrWriter::OnKeyedItem(const TStringBuf& key)
@@ -145,24 +146,38 @@ void TYamrWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 }
 
 
-void TYamrWriter::RememberItem(const Stroka& item)
+void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)
 {
+    TStringBuf* value;
+    TBlobOutput* buffer;
+
     switch (State) {
         case EState::None:
             return;
         case EState::ExpectingKey:
-            Key = item;
+            value = &Key;
+            buffer = &KeyBuffer;
             break;
         case EState::ExpectingSubkey:
-            Subkey = item;
+            value = &Subkey;
+            buffer = &SubkeyBuffer;
             break;
         case EState::ExpectingValue:
-            Value = item;
+            value = &Value;
+            buffer = &ValueBuffer;
             break;
         default:
             YUNREACHABLE();
     }
     State = EState::None;
+
+    if (takeOwnership) {
+        buffer->Clear();
+        buffer->PutData(item);
+        *value = TStringBuf(buffer->Begin(), buffer->GetSize());
+    } else {
+        *value = item;
+    }
 }
 
 void TYamrWriter::WriteRow()
@@ -185,7 +200,7 @@ void TYamrWriter::WriteRow()
     }
 }
 
-void TYamrWriter::WriteInLenvalMode(const Stroka& value)
+void TYamrWriter::WriteInLenvalMode(const TStringBuf& value)
 {
     WritePod(*Stream, static_cast<i32>(value.size()));
     Stream->Write(value);

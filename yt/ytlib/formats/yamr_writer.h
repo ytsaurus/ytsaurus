@@ -3,6 +3,8 @@
 #include "public.h"
 #include "config.h"
 
+#include <ytlib/misc/blob_output.h>
+
 #include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/ytree/lexer.h>
 
@@ -42,15 +44,20 @@ private:
     TOutputStream* Stream;
     TYamrFormatConfigPtr Config;
 
-    Stroka Key;
-    Stroka Subkey;
-    Stroka Value;
+    TStringBuf Key;
+    TStringBuf Subkey;
+    TStringBuf Value;
+
+    TBlobOutput KeyBuffer;
+    TBlobOutput SubkeyBuffer;
+    TBlobOutput ValueBuffer;
 
     bool AllowBeginMap;
 
-    void RememberItem(const Stroka& item);
+    void RememberItem(const TStringBuf& item, bool takeOwnership);
+
     void WriteRow();
-    void WriteInLenvalMode(const Stroka& value);
+    void WriteInLenvalMode(const TStringBuf& value);
 
     DECLARE_ENUM(EState,
         (None)
