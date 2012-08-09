@@ -26,11 +26,6 @@ void TYsonSerializable::Load(NYTree::INodePtr node, bool validate, const NYTree:
 {
     YASSERT(node);
 
-    if (node->GetType() != ENodeType::Map) {
-        ythrow yexception() << Sprintf("Cannot load a YSON serializable object: path %s must refer to a map",
-            ~path);
-    }
-
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, Parameters) {
         auto name = pair.first;
