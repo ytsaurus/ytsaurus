@@ -181,7 +181,7 @@ class YtTest(YTEnv):
                          list(yt.read_table(table)))
         self.assertTrue(yt.is_sorted(table))
 
-        yt.sort_table(table, columns=["subkey"])
+        yt.sort_table(table, sort_by=["subkey"])
         self.assertEqual(self.read_records(table)[0].subkey, "a")
 
         unexisting_table = TEST_DIR + "/unexisting"
@@ -267,7 +267,7 @@ class YtTest(YTEnv):
             sorted([rec["c"] for rec in recs if "c" in rec]),
             []) 
 
-        yt.sort_table(table, columns=["b", "c"])
+        yt.sort_table(table, sort_by=["b", "c"])
         self.assertEqual( 
             self.read_records(Table(table, lower_key="a", upper_key="n", columns=["b"]),
                               format=yt.DsvFormat()),

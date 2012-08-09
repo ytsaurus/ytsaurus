@@ -97,15 +97,12 @@ def remove_table(table):
     if exists(table) and get_attribute(table, "type") == "table":
         remove(table)
 
-#def copy_table(source_table, destination_table):
-#    copy(source_table, destination_table)
-
 def copy_table(source_table, destination_table, strategy=None):
     mode = "sorted" if all(map(is_sorted, flatten(source_table))) else "ordered"
     merge_tables(source_table, destination_table, mode, strategy=strategy)
 
-def move_table(source_table, destination_table, strategy=None):
-    copy_table(source_table, destination_table, strategy=strategy)
+def move_table(source_table, destination_table):
+    copy_table(source_table, destination_table)
     remove_table(source_table)
 
 def records_count(table):
@@ -132,7 +129,7 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
         return
 
     if destination_table is None:
-        require(len(source_table) == 1 and not source_table[0].has_limiters(),
+        require(len(source_table) == 1 and not source_table[0].has_delimiters(),
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
         destination_table = to_table(source_table[0])
@@ -179,10 +176,10 @@ def merge_tables(source_table, destination_table, mode, strategy=None, spec=None
 """ Map and reduce methods """
 def run_operation(binary, source_table, destination_table,
                   files, file_paths, format, strategy, spec, op_type,
-                  columns=None):
+                  reduce_by=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if format is None: format = config.DEFAULT_FORMAT
-    if columns is None: columns = "key"
+    if reduce_by is None: reduce_by = "key"
     if files is None: files = []
     if spec is None: spec = {}
     files = flatten(files)
@@ -221,8 +218,8 @@ def run_operation(binary, source_table, destination_table,
                 {"command": binary,
                  "format": format.to_json(),
                  "file_paths": map(escape_path, file_paths)}
-    if op_type == "reducer":
-        operation_descr.update({"key_columns": columns})
+    if op_type == "reduce":
+        operation_descr.update({"reduce_by": reduce_by})
 
     params = json.dumps(
         {"spec": update(spec,
@@ -241,10 +238,10 @@ def run_map(binary, source_table, destination_table,
                   op_type="map")
 
 def run_reduce(binary, source_table, destination_table,
-               files=None, file_paths=None, format=None, strategy=None, columns=None, spec=None):
+               files=None, file_paths=None, format=None, strategy=None, reduce_by=None, spec=None):
     run_operation(binary, source_table, destination_table,
                   files=files, file_paths=file_paths,
                   format=format,
                   strategy=strategy, spec=spec,
-                  columns=columns,
+                  reduce_by=reduce_by,
                   op_type="reduce")
