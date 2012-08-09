@@ -513,14 +513,12 @@ void TOperationControllerBase::UpdatePendingJobCount(TTaskPtr task)
     int newTotalCount = oldTotalCount - oldTaskCount + newTaskCount;
     CachedPendingJobCount = newTotalCount;
 
-    if (newTaskCount != oldTotalCount) {
-        LOG_DEBUG("Pending job count updated (Task: %s, TaskCount: %d -> %d, TotalCount: %d -> %d)",
-            ~task->GetId(),
-            oldTaskCount,
-            newTaskCount,
-            oldTotalCount,
-            newTotalCount);
-    }
+    LOG_DEBUG_IF(newTaskCount != oldTaskCount, "Pending job count updated (Task: %s, TaskCount: %d -> %d, TotalCount: %d -> %d)",
+        ~task->GetId(),
+        oldTaskCount,
+        newTaskCount,
+        oldTotalCount,
+        newTotalCount);
 }
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
