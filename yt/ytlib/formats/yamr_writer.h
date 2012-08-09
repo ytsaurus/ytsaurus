@@ -2,14 +2,14 @@
 
 #include "public.h"
 #include "config.h"
+
 #include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/ytree/lexer.h>
 
 namespace NYT {
 namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(panin): use more efficent method OnRaw
 
 //! Note: #TYamrWriter supports only tabular data
 class TYamrWriter
@@ -36,6 +36,8 @@ public:
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
 
+    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type) override;
+
 private:
     TOutputStream* Stream;
     TYamrFormatConfigPtr Config;
@@ -58,6 +60,7 @@ private:
     );
     EState State;
 
+    NYTree::TLexer Lexer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
