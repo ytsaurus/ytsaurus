@@ -78,8 +78,7 @@ void TBootstrap::Run()
 
     MasterChannel = CreateLeaderChannel(Config->Masters);
 
-    auto controlQueue = New<TActionQueue>("Control");
-    ControlInvoker = controlQueue->GetInvoker();
+    ControlQueue = New<TFairShareActionQueue>(EControlQueue::GetDomainSize(), "Control");
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
@@ -125,14 +124,14 @@ void TBootstrap::Run()
     SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
 
     auto orchidService = New<TOrchidService>(
-        ~orchidRoot,
-        controlQueue->GetInvoker());
+        orchidRoot,
+        GetControlInvoker());
     rpcServer->RegisterService(orchidService);
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(controlQueue->GetInvoker())));
+        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     rpcServer->RegisterService(Scheduler->GetService());
 
@@ -162,9 +161,9 @@ Stroka TBootstrap::GetPeerAddress() const
     return PeerAddress;
 }
 
-IInvokerPtr TBootstrap::GetControlInvoker() const
+IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 {
-    return ControlInvoker;
+    return ControlQueue->GetInvoker(queue);
 }
 
 TTransactionManagerPtr TBootstrap::GetTransactionManager() const

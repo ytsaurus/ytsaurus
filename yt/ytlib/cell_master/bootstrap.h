@@ -19,6 +19,11 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EStateThreadQueue,
+    (Default)
+    (ChunkRefresh)
+);
+
 class TBootstrap
 {
 public:
@@ -40,7 +45,7 @@ public:
     NChunkServer::IHolderAuthorityPtr GetHolderAuthority() const;
 
     IInvokerPtr GetControlInvoker();
-    IInvokerPtr GetStateInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default);
+    IInvokerPtr GetStateInvoker(EStateThreadQueue queue = EStateThreadQueue::Default);
 
     void Run();
 

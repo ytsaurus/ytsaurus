@@ -46,6 +46,7 @@ using namespace NTransactionClient;
 using namespace NCypressClient;
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NCellScheduler;
 using namespace NScheduler::NProto;
 
 using NChunkServer::TChunkId;
@@ -74,14 +75,16 @@ public:
         , BackgroundQueue(New<TActionQueue>("Background"))
         , MasterConnector(new TMasterConnector(Config, Bootstrap))
     {
-        YASSERT(config);
-        YASSERT(bootstrap);
+        YCHECK(config);
+        YCHECK(bootstrap);
         VERIFY_INVOKER_AFFINITY(GetControlInvoker(), ControlThread);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WaitForOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+        RegisterMethod(
+            RPC_SERVICE_METHOD_DESC(Heartbeat),
+            Bootstrap->GetControlInvoker(EControlQueue::Heartbeat));
 
         JobTypeCounters.resize(EJobType::GetDomainSize());
 
@@ -138,7 +141,7 @@ private:
     typedef TImpl TThis;
 
     TSchedulerConfigPtr Config;
-    NCellScheduler::TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap;
     TActionQueuePtr BackgroundQueue;
     THolder<TMasterConnector> MasterConnector;
 
@@ -239,7 +242,7 @@ private:
                 ex.what())));
         }
 
-        YASSERT(operation->GetState() == EOperationState::Initializing);
+        YCHECK(operation->GetState() == EOperationState::Initializing);
         operation->SetState(EOperationState::Preparing);
 
         // Create a node in Cypress that will represent the operation.
@@ -1057,7 +1060,7 @@ private:
 
 TScheduler::TScheduler(
     TSchedulerConfigPtr config,
-    NCellScheduler::TBootstrap* bootstrap)
+    TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
 

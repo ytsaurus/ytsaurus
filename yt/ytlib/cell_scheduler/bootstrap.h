@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/invoker.h>
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/bus/public.h>
 #include <ytlib/rpc/public.h>
 #include <ytlib/scheduler/public.h>
@@ -12,6 +12,11 @@ namespace NYT {
 namespace NCellScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EControlQueue,
+    (Default)
+    (Heartbeat)
+);
 
 class TBootstrap
 {
@@ -24,7 +29,7 @@ public:
     TCellSchedulerConfigPtr GetConfig() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
-    IInvokerPtr GetControlInvoker() const;
+    IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
 
@@ -34,7 +39,7 @@ private:
     Stroka ConfigFileName;
     TCellSchedulerConfigPtr Config;
 
-    IInvokerPtr ControlInvoker;
+    TFairShareActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     Stroka PeerAddress;

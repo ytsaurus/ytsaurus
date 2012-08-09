@@ -94,6 +94,9 @@ struct TJobManagerConfig
 struct TSchedulerConnectorConfig
     : public TYsonSerializable
 {
+    //! Timeout for RPC requests to scheduler.
+    TDuration RpcTimeout;
+
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
@@ -102,6 +105,8 @@ struct TSchedulerConnectorConfig
 
     TSchedulerConnectorConfig()
     {
+        Register("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(60));
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         Register("heartbeat_splay", HeartbeatSplay)
@@ -130,7 +135,7 @@ struct TExecAgentConfig
         Register("job_proxy_logging", JobProxyLogging)
             .Default(NULL);
         Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
-            .Default(TDuration::Seconds(30));
+            .Default(TDuration::Seconds(60));
     }
 };
 

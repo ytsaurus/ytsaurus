@@ -262,7 +262,6 @@ protected:
     void AddTaskPendingHint(TTaskPtr task);
 
     TJobPtr DoScheduleJob(TExecNodePtr node);
-    TTaskPtr FindBestTask(TExecNodePtr node);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);

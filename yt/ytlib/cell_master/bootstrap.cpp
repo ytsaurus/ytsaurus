@@ -134,9 +134,9 @@ IInvokerPtr TBootstrap::GetControlInvoker()
     return ControlQueue->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetStateInvoker(EStateThreadQueue queueIndex)
+IInvokerPtr TBootstrap::GetStateInvoker(EStateThreadQueue queue)
 {
-    return StateQueue->GetInvoker(queueIndex.ToValue());
+    return StateQueue->GetInvoker(queue.ToValue());
 }
 
 void TBootstrap::Run()
