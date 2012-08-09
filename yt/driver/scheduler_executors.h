@@ -57,7 +57,7 @@ private:
     TModeArg ModeArg;
 
     TCLAP::SwitchArg CombineArg;
-    TCLAP::ValueArg<Stroka> SortedByArg;
+    TCLAP::ValueArg<Stroka> MergeByArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
@@ -112,7 +112,7 @@ private:
     TCLAP::MultiArg<Stroka> OutArg;
     TCLAP::ValueArg<Stroka> CommandArg;
     TCLAP::MultiArg<Stroka> FileArg;
-    TCLAP::ValueArg<Stroka> SortedByArg;
+    TCLAP::ValueArg<Stroka> ReduceByArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;

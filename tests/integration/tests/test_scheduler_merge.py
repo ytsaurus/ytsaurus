@@ -122,17 +122,17 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         create('table', '//tmp/t_out')
 
-        # error when sorted_by of input tables are different and sorted_by is not set
+        # error when sorted_by of input tables are different and merge_by is not set
         with pytest.raises(YTError): 
             merge(mode='sorted',
                   in_=['//tmp/t1', '//tmp/t2'],
                   out='//tmp/t_out')
 
-        # now sorted_by are set
+        # now merge_by is set
         merge(mode='sorted',
               in_=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out',
-              sorted_by='a')
+              merge_by='a')
 
         result = read('//tmp/t_out')
         assert result[:2] == [a1, b1]

@@ -229,7 +229,7 @@ struct TMergeOperationSpec
     NYTree::TYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
-    TNullable< std::vector<Stroka> > SortedBy;
+    TNullable< std::vector<Stroka> > MergeBy;
 
     TMergeOperationSpec()
     {
@@ -239,7 +239,7 @@ struct TMergeOperationSpec
             .Default(EMergeMode::Unordered);
         Register("combine_chunks", CombineChunks)
             .Default(false);
-        Register("sorted_by", SortedBy)
+        Register("merge_by", MergeBy)
             .Default();
     }
 };
@@ -268,14 +268,14 @@ struct TReduceOperationSpec
     TUserJobSpecPtr Reducer;
     std::vector<NYTree::TYPath> InputTablePaths;
     std::vector<NYTree::TYPath> OutputTablePaths;
-    TNullable< std::vector<Stroka> > SortedBy;
+    TNullable< std::vector<Stroka> > ReduceBy;
 
     TReduceOperationSpec()
     {
         Register("reducer", Reducer);
         Register("input_table_paths", InputTablePaths);
         Register("output_table_paths", OutputTablePaths);
-        Register("sorted_by", SortedBy)
+        Register("reduce_by", ReduceBy)
             .Default();
     }
 };

@@ -105,7 +105,7 @@ TMergeExecutor::TMergeExecutor()
     , OutArg("", "out", "output table path", false, "", "YPATH")
     , ModeArg("", "mode", "merge mode", false, TMode(EMergeMode::Unordered), "unordered, ordered, sorted")
     , CombineArg("", "combine", "combine small output chunks into larger ones")
-    , SortedByArg("", "sorted_by", "key columns names (only used for sorted merge; "
+    , MergeByArg("", "merge_by", "columns to merge by (only used for sorted merge; "
         "if omitted then all input tables are assumed to have same key columns)",
         false, "", "YSON_LIST_FRAGMENT")
 {
@@ -113,14 +113,14 @@ TMergeExecutor::TMergeExecutor()
     CmdLine.add(OutArg);
     CmdLine.add(ModeArg);
     CmdLine.add(CombineArg);
-    CmdLine.add(SortedByArg);
+    CmdLine.add(MergeByArg);
 }
 
 void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outupts = PreprocessYPath(OutArg.getValue());
-    auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
+    auto mergeBy = ConvertTo< std::vector<Stroka> >(TYsonString(MergeByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -128,8 +128,8 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("output_table_path").Scalar(outupts)
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
-            .DoIf(!sortedBy.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("sorted_by").List(sortedBy);
+            .DoIf(!mergeBy.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("merge_by").List(mergeBy);
             })
         .EndMap();
 
@@ -224,7 +224,7 @@ TReduceExecutor::TReduceExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , CommandArg("", "command", "reducer shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
-    , SortedByArg("", "sorted_by", "key columns names "
+    , ReduceByArg("", "reduce_by", "columns to reduce by"
         "(if omitted then all input tables are assumed to have same key columns)",
         false, "", "YSON_LIST_FRAGMENT")
 {
@@ -232,7 +232,7 @@ TReduceExecutor::TReduceExecutor()
     CmdLine.add(OutArg);
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
-    CmdLine.add(SortedByArg);
+    CmdLine.add(ReduceByArg);
 }
 
 void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -240,14 +240,14 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPaths(OutArg.getValue());
     auto files = PreprocessYPaths(FileArg.getValue());
-    auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
+    auto reduceBy = ConvertTo< std::vector<Stroka> >(TYsonString(ReduceByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(inputs)
             .Item("output_table_paths").List(outputs)
-            .DoIf(!sortedBy.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("sorted_by").List(sortedBy);
+            .DoIf(!reduceBy.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("reduce_by").List(reduceBy);
             })
             .Item("reducer").BeginMap()
                 .Item("command").Scalar(CommandArg.getValue())
@@ -278,7 +278,7 @@ TMapReduceExecutor::TMapReduceExecutor()
     , ReducerCommandArg("", "reducer_command", "reducer shell command", true, "", "STRING")
     , ReducerFileArg("", "reducer_file", "additional reducer file path", false, "YPATH")
     , SortByArg("", "sort_by", "columns to sort by", true, "", "YSON_LIST_FRAGMENT")
-    , ReduceByArg("", "reduce_by", "columns to reduce by (if not specified then sort_by columns are used)", false, "", "YSON_LIST_FRAGMENT")
+    , ReduceByArg("", "reduce_by", "columns to reduce by (if not specified then assumed to be equal to \"sort_by\")", false, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
