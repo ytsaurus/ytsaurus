@@ -42,8 +42,17 @@ using namespace NJobProxy;
 
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
+    , CachedPendingJobCount(0)
     , Logger(Controller->Logger)
 { }
+
+int TOperationControllerBase::TTask::GetPendingJobCountDelta()
+{
+    int oldValue = CachedPendingJobCount;
+    int newValue = GetPendingJobCount();
+    CachedPendingJobCount = newValue;
+    return newValue - oldValue;
+}
 
 i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
 {
@@ -497,28 +506,14 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
 
 void TOperationControllerBase::UpdatePendingJobCount(TTaskPtr task)
 {
-    int oldTotalCount = CachedPendingJobCount;
+    int oldValue = CachedPendingJobCount;
+    int newValue = CachedPendingJobCount + task->GetPendingJobCountDelta();
+    CachedPendingJobCount = newValue;
 
-    int oldTaskCount;
-    int newTaskCount = task->GetPendingJobCount();
-    auto it = CachedPendingJobCounts.find(task);
-    if (it == CachedPendingJobCounts.end()) {
-        oldTaskCount = 0;
-        YCHECK(CachedPendingJobCounts.insert(std::make_pair(task, newTaskCount)).second);
-    } else {
-        oldTaskCount = it->second;
-        it->second = newTaskCount;
-    }
-
-    int newTotalCount = oldTotalCount - oldTaskCount + newTaskCount;
-    CachedPendingJobCount = newTotalCount;
-
-    LOG_DEBUG_IF(newTaskCount != oldTaskCount, "Pending job count updated (Task: %s, TaskCount: %d -> %d, TotalCount: %d -> %d)",
+    LOG_DEBUG_IF(newValue != oldValue, "Pending job count updated (Task: %s, Count: %d -> %d)",
         ~task->GetId(),
-        oldTaskCount,
-        newTaskCount,
-        oldTotalCount,
-        newTotalCount);
+        oldValue,
+        newValue);
 }
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)

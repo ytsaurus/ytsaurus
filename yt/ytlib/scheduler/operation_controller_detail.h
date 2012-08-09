@@ -184,6 +184,7 @@ protected:
         virtual Stroka GetId() const = 0;
         virtual int GetPriority() const;
         virtual int GetPendingJobCount() const = 0;
+        int GetPendingJobCountDelta();
         virtual int GetChunkListCountPerJob() const = 0;
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
@@ -213,6 +214,7 @@ protected:
 
     private:
         TOperationControllerBase* Controller;
+        int CachedPendingJobCount;
 
     protected:
         NLog::TTaggedLogger& Logger;
@@ -250,7 +252,6 @@ protected:
 
     std::vector<TPendingTaskInfo> PendingTaskInfos;
 
-    yhash_map<TTaskPtr, int> CachedPendingJobCounts;
     int CachedPendingJobCount;
 
     void UpdatePendingJobCount(TTaskPtr task);
