@@ -146,9 +146,9 @@ private:
                 ++lhsIndex, ++rhsIndex)
             {
                 auto res = CompareSmallKeyParts(KeyBuffer[lhsIndex], KeyBuffer[rhsIndex]);
-                if (res > 0)
-                    return true;
                 if (res < 0)
+                    return true;
+                if (res > 0)
                     return false;
             }
             return false;
