@@ -832,6 +832,7 @@ void TTableChunkReader::MakeCurrentRow()
 
 const TRow& TTableChunkReader::GetRow() const
 {
+    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!ReaderState.HasRunningOperation());
     YASSERT(!Initializer);
 
@@ -840,6 +841,7 @@ const TRow& TTableChunkReader::GetRow() const
 
 const TNonOwningKey& TTableChunkReader::GetKey() const
 {
+    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!ReaderState.HasRunningOperation());
     YASSERT(!Initializer);
 
