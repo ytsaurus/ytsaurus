@@ -14,6 +14,12 @@ import types
 import simplejson as json
 from itertools import imap, ifilter
 
+""" Auxiliary methods """
+def prepare_source_tables(tables):
+    tables = map(to_table, flatten(tables))
+    tables = filter(lambda table: exists(table.name), tables)
+    return tables
+
 class Buffer(object):
     """ Reads line iterator by chunks """
     def __init__(self, lines_iterator, has_eoln=True):
@@ -98,8 +104,21 @@ def remove_table(table):
         remove(table)
 
 def copy_table(source_table, destination_table, strategy=None):
-    mode = "sorted" if all(map(is_sorted, flatten(source_table))) else "ordered"
-    merge_tables(source_table, destination_table, mode, strategy=strategy)
+    source_tables = prepare_source_tables(source_table)
+    destination_table = to_table(destination_table)
+    require(len(source_tables) > 0,
+            YtError("You try to copy unexisting tables"))
+    #require(not destination_table.has_delimiters(),
+    #        YtError("You cannot make copy to table with delimiters"))
+    destination_table = to_table(destination_table)
+    if len(source_tables) == 1 and not destination_table.append:
+        if exists(destination_table.name):
+            remove(destination_table.name)
+        copy(source_tables[0].name, destination_table.name)
+    else:
+        source_names = [table.name for table in source_tables]
+        mode = "sorted" if all(map(is_sorted, source_names)) else "ordered"
+        merge_tables(source_tables, destination_table, mode, strategy=strategy)
 
 def move_table(source_table, destination_table):
     copy_table(source_table, destination_table)
@@ -265,8 +284,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     map_files = prepare_files(map_files)
     reduce_files = prepare_files(reduce_files)
 
-    source_table = map(to_table, flatten(source_table))
-    source_table = filter(lambda table: exists(table.name), source_table)
+    source_table = prepare_source_tables(source_table)
     destination_table = map(to_table, flatten(destination_table))
     for table in destination_table:
         create_table(table.name, not table.append)
@@ -292,6 +310,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
              "output_table_paths": map(get_yson_name, destination_table)
             })
         })
-    operation = make_request("POST", "map_reduce", None, params, verbose=True)
+    operation = make_request("POST", "map_reduce", None, params)
     strategy.process_operation("map_reduce", operation, map_files + reduce_files)
     
