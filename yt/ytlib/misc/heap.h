@@ -8,7 +8,6 @@ namespace NYT {
 template <class Iterator, class Comparer>
 void MakeHeap(Iterator begin, Iterator end, const Comparer& comparer);
 
-    
 //! Readjusts the min-heap on |[begin, end)| by pushing its front item down if needed.
 template <class Iterator, class Comparer>
 void AdjustHeap(Iterator begin, Iterator end, const Comparer& comparer);

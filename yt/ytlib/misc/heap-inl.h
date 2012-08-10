@@ -3,6 +3,8 @@
 #endif
 #undef HEAP_INL_H_
 
+#include <iterator>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +58,7 @@ template <class Iterator, class Comparer>
 void ExtractHeap(Iterator begin, Iterator end, const Comparer& comparer)
 {
     auto newEnd = end - 1;
-    *begin = *newEnd;
+    std::swap(*begin, *newEnd);
     SiftDown(begin, newEnd, begin, comparer);
 }
 
