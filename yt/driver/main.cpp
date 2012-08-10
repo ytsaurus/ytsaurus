@@ -16,6 +16,8 @@
 
 #include <ytlib/bus/tcp_dispatcher.h>
 
+#include <ytlib/rpc/rpc_dispatcher.h>
+
 #include <ytlib/ytree/yson_parser.h>
 
 #include <ytlib/exec_agent/config.h>
@@ -124,6 +126,7 @@ public:
         // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
         NLog::TLogManager::Get()->Shutdown();
         NBus::TTcpDispatcher::Get()->Shutdown();
+        NRpc::TRpcDispatcher::Get()->Shutdown();
         NProfiling::TProfilingManager::Get()->Shutdown();
         TDelayedInvoker::Shutdown();
 
@@ -161,6 +164,7 @@ private:
             // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
             NLog::TLogManager::Get()->Shutdown();
             NBus::TTcpDispatcher::Get()->Shutdown();
+            NRpc::TRpcDispatcher::Get()->Shutdown();
             NProfiling::TProfilingManager::Get()->Shutdown();
             TDelayedInvoker::Shutdown();
             exit(0);

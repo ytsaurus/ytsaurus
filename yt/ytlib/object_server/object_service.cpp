@@ -86,7 +86,7 @@ public:
     }
 
 private:
-    TCtxExecute::TPtr Context;
+    TCtxExecutePtr Context;
     TObjectService::TPtr Owner;
     std::vector<IMessagePtr> ResponseMessages;
 

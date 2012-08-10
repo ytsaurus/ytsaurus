@@ -2,12 +2,13 @@
 
 #include "public.h"
 #include "client.h"
+#include "rpc_dispatcher.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/hash.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/error.h>
-#include <ytlib/logging/log.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -184,6 +185,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes request handling options.
+struct THandlerInvocationOptions
+{
+    THandlerInvocationOptions()
+        : HeavyRequest(false)
+        , HeavyResponse(false)
+    { }
+
+    //! Should we be deserializing the request in a separate thread?
+    bool HeavyRequest;
+
+    //! Should we be serializing the response in a separate thread?
+    bool HeavyResponse;
+
+    //! The invoker
+    IInvokerPtr Invoker;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // We need this logger here but including the whole private.h looks weird.
 extern NLog::TLogger RpcServerLogger;
 
@@ -198,10 +219,13 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTypedRequest, Request);
 
 public:
-    TTypedServiceContextBase(IServiceContextPtr context)
+    explicit TTypedServiceContextBase(
+        IServiceContextPtr context,
+        const THandlerInvocationOptions& options)
         : Request_(context)
         , Logger(RpcServerLogger)
         , Context(context)
+        , Options(options)
     {
         YASSERT(context);
     }
@@ -258,6 +282,7 @@ public:
 protected:
     NLog::TLogger& Logger;
     IServiceContextPtr Context;
+    THandlerInvocationOptions Options;
 
 };
 
@@ -274,14 +299,15 @@ class TTypedServiceContext
 public:
     typedef TTypedServiceContext<TRequestMessage, TResponseMessage> TThis;
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
-    typedef TIntrusivePtr<TThis> TPtr;
     typedef TTypedServiceResponse<TResponseMessage> TTypedResponse;
 
     DEFINE_BYREF_RW_PROPERTY(TTypedResponse, Response);
 
 public:
-    TTypedServiceContext(IServiceContextPtr context)
-        : TBase(context)
+    explicit TTypedServiceContext(
+        IServiceContextPtr context,
+        const THandlerInvocationOptions& options)
+        : TBase(context, options)
         , Response_(context)
     { }
 
@@ -302,13 +328,18 @@ public:
 
     void Reply(const TError& error)
     {
-        auto& Logger = RpcServerLogger;
-        if (error.IsOK()) {
-            TBlob responseBlob;
-            YCHECK(SerializeToProto(&Response_, &responseBlob));
-            this->Context->SetResponseBody(MoveRV(responseBlob));
+        if (!error.IsOK()) {
+            this->Context->Reply(error);
+            return;
         }
-        this->Context->Reply(error);
+
+        if (this->Options.HeavyResponse) {
+            TRpcDispatcher::Get()->GetPoolInvoker()->Invoke(BIND(
+                &TThis::SerializeResponseAndReply,
+                MakeStrong(this)));
+        } else {
+            this->SerializeResponseAndReply();
+        }
     }
 
     bool IsReplied() const
@@ -339,10 +370,19 @@ public:
     using TBase::Wrap;
 
     // TODO(sandello): get rid of double binding here by delaying bind moment to the very last possible moment.
-    TClosure Wrap(TCallback<void(TPtr)> paramAction)
+    TClosure Wrap(TCallback<void(TIntrusivePtr<TThis>)> paramAction)
     {
         YASSERT(!paramAction.IsNull());
         return this->Context->Wrap(BIND(paramAction, MakeStrong(this)));
+    }
+
+private:
+    void SerializeResponseAndReply()
+    {
+        TBlob responseBlob;
+        YCHECK(SerializeToProto(&Response_, &responseBlob));
+        this->Context->SetResponseBody(MoveRV(responseBlob));
+        this->Context->Reply(TError());
     }
 
 };
@@ -357,16 +397,17 @@ class TOneWayTypedServiceContext
 public:
     typedef TOneWayTypedServiceContext<TRequestMessage> TThis;
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
-    typedef TIntrusivePtr<TThis> TPtr;
 
 public:
-    TOneWayTypedServiceContext(IServiceContextPtr context)
-        : TBase(context)
+    explicit TOneWayTypedServiceContext(
+        IServiceContextPtr context,
+        const THandlerInvocationOptions& options)
+        : TBase(context, options)
     { }
 
     using TBase::Wrap;
 
-    TClosure Wrap(TCallback<void(TPtr)> paramAction)
+    TClosure Wrap(TCallback<void(TIntrusivePtr<TThis>)> paramAction)
     {
         YASSERT(paramAction);
         return this->Context->Wrap(~paramAction->BIND(MakeStrong(this)));
@@ -381,19 +422,16 @@ class TServiceBase
 {
 protected:
     //! Describes a handler for a service method.
-    typedef TCallback<void(IServiceContextPtr)> THandler;
+    typedef TCallback<TClosure(IServiceContextPtr, const THandlerInvocationOptions&)> THandler;
 
     //! Information needed to a register a service method.
     struct TMethodDescriptor
     {
         //! Initializes the instance.
-        TMethodDescriptor(
-            const Stroka& verb,
-            THandler handler,
-            bool oneWay = false)
+        TMethodDescriptor(const Stroka& verb, THandler handler)
             : Verb(verb)
-            , Handler(handler)
-            , OneWay(oneWay)
+            , Handler(MoveRV(handler))
+            , OneWay(false)
         { }
 
         //! Service method name.
@@ -404,6 +442,30 @@ protected:
 
         //! Is the method one-way?
         bool OneWay;
+
+        //! Options to pass to the handler.
+        THandlerInvocationOptions Options;
+
+        TMethodDescriptor SetOneWay(bool value)
+        {
+            TMethodDescriptor result(*this);
+            result.OneWay = value;
+            return result;
+        }
+
+        TMethodDescriptor SetHeavyRequest(bool value)
+        {
+            TMethodDescriptor result(*this);
+            result.Options.HeavyRequest = value;
+            return result;
+        }
+
+        TMethodDescriptor SetHeavyResponse(bool value)
+        {
+            TMethodDescriptor result(*this);
+            result.Options.HeavyResponse = value;
+            return result;
+        }
     };
 
     //! Describes a service method and its runtime statistics.
@@ -431,13 +493,18 @@ protected:
         : public TIntrinsicRefCounted
     {
         TActiveRequest(
+            IServiceContextPtr context,
             TRuntimeMethodInfoPtr runtimeInfo,
             const NProfiling::TTimer& timer)
-            : RuntimeInfo(runtimeInfo)
+            : Context(context)
+            , RuntimeInfo(runtimeInfo)
             , Timer(timer)
             , RunningSync(false)
             , Completed(false)
         { }
+
+        //! Service context.
+        IServiceContextPtr Context;
 
         //! Method that is being served.
         TRuntimeMethodInfoPtr RuntimeInfo;
@@ -500,10 +567,8 @@ private:
     virtual void OnBeginRequest(IServiceContextPtr context);
     virtual void OnEndRequest(IServiceContextPtr context);
 
-    virtual void InvokeHandler(
-        TRuntimeMethodInfo* runtimeInfo,
-        const TClosure& handler,
-        IServiceContextPtr context);
+    void OnInvocationPrepared(TActiveRequestPtr activeRequest, TClosure handler);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -514,14 +579,18 @@ private:
     typedef TCtx##method::TTypedRequest  TReq##method; \
     typedef TCtx##method::TTypedResponse TRsp##method; \
     \
-    void method##Thunk(::NYT::NRpc::IServiceContextPtr context) \
+    TClosure method##Thunk( \
+        ::NYT::NRpc::IServiceContextPtr context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = New<TCtx##method>(context); \
+        auto typedContext = New<TCtx##method>(context, options); \
         typedContext->Deserialize(); \
-        method( \
-            &typedContext->Request(), \
-            &typedContext->Response(), \
-            typedContext); \
+        return BIND([=] () { \
+            method( \
+                &typedContext->Request(), \
+                &typedContext->Response(), \
+                typedContext); \
+        }); \
     } \
     \
     void method( \
@@ -538,8 +607,7 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        BIND(&TThis::method##Thunk, Unretained(this)), \
-        false)
+        BIND(&TThis::method##Thunk, Unretained(this)))
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -548,13 +616,17 @@ private:
     typedef TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest  TReq##method; \
     \
-    void method##Thunk(::NYT::NRpc::IServiceContextPtr context) \
+    TClosure method##Thunk( \
+        ::NYT::NRpc::IServiceContextPtr context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = New<TCtx##method>(context); \
+        auto typedContext = New<TCtx##method>(context, options); \
         typedContext->Deserialize(); \
-        method( \
-            &typedContext->Request(), \
-            typedContext); \
+        return BIND([=] () { \
+            method( \
+                &typedContext->Request(), \
+                typedContext); \
+        }); \
     } \
     \
     void method( \
@@ -565,12 +637,6 @@ private:
     void type::method( \
         TReq##method* request, \
         TCtx##method##Ptr context)
-
-#define ONE_WAY_RPC_SERVICE_METHOD_DESC(method) \
-    TMethodDescriptor( \
-        #method, \
-        BIND(&TThis::method##Thunk, Unretained(this)), \
-        true)
 
 ////////////////////////////////////////////////////////////////////////////////
 

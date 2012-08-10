@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "service.h"
 #include "private.h"
+#include "rpc_dispatcher.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/rpc/rpc.pb.h>
@@ -93,9 +94,9 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     if (methodIt == RuntimeMethodInfos.end()) {
         guard.Release();
 
-        Stroka message = Sprintf("Verb %s is not registered (ServiceName: %s)",
-            ~verb.Quote(),
-            ~ServiceName);
+        Stroka message = Sprintf("Unknown verb %s:%s",
+            ~ServiceName,
+            ~verb);
         LOG_WARNING("%s", ~message);
         if (!context->IsOneWay()) {
             context->Reply(TError(EErrorCode::NoSuchVerb, message));
@@ -108,11 +109,11 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
         guard.Release();
 
-        Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
-            ~FormatBool(runtimeInfo->Descriptor.OneWay),
-            ~FormatBool(context->IsOneWay()),
+        Stroka message = Sprintf("One-way flag mismatch for verb %s:%s: expected %s, actual %s",
             ~ServiceName,
-            ~verb);
+            ~verb,
+            ~FormatBool(runtimeInfo->Descriptor.OneWay).Quote(),
+            ~FormatBool(context->IsOneWay()).Quote());
         LOG_WARNING("%s", ~message);
         if (!context->IsOneWay()) {
             context->Reply(TError(EErrorCode::NoSuchVerb, message));
@@ -124,7 +125,7 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     Profiler.Increment(runtimeInfo->RequestCounter);
     auto timer = Profiler.TimingStart(runtimeInfo->ProfilingPath + "/time");
 
-    auto activeRequest = New<TActiveRequest>(runtimeInfo, timer);
+    auto activeRequest = New<TActiveRequest>(context, runtimeInfo, timer);
 
     if (!context->IsOneWay()) {
         YCHECK(ActiveRequests.insert(MakePair(context, activeRequest)).second);
@@ -133,9 +134,28 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     guard.Release();
 
     auto handler = runtimeInfo->Descriptor.Handler;
-    auto guardedHandler = context->Wrap(BIND(handler, context));
+    const auto& options = runtimeInfo->Descriptor.Options;
+    if (options.HeavyRequest) {
+        auto invoker = TRpcDispatcher::Get()->GetPoolInvoker();
+        handler
+            .AsyncVia(invoker)
+            .Run(context, options)
+            .Subscribe(BIND(&TServiceBase::OnInvocationPrepared, MakeStrong(this), activeRequest));
+    } else {
+        auto preparedHandler = handler.Run(context, options);
+        OnInvocationPrepared(activeRequest, preparedHandler);
+    }
+}
+
+void TServiceBase::OnInvocationPrepared(
+    TActiveRequestPtr activeRequest,
+    TClosure handler)
+{
+    auto guardedHandler = activeRequest->Context->Wrap(handler);
+
     auto wrappedHandler = BIND([=] () {
         auto& timer = activeRequest->Timer;
+        auto& runtimeInfo = activeRequest->RuntimeInfo;
 
         {
             // No need for a lock here.
@@ -161,7 +181,7 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
         }
     });
 
-    InvokeHandler(~runtimeInfo, wrappedHandler, context);
+    activeRequest->RuntimeInfo->Invoker->Invoke(wrappedHandler);
 }
 
 void TServiceBase::OnEndRequest(IServiceContextPtr context)
@@ -212,16 +232,6 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvokerP
         path);
     // Failure here means that such verb is already registered.
     YCHECK(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
-}
-
-void TServiceBase::InvokeHandler(
-    TRuntimeMethodInfo* runtimeInfo,
-    const TClosure& handler,
-    IServiceContextPtr context)
-{
-    UNUSED(context);
-
-    runtimeInfo->Invoker->Invoke(handler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

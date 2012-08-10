@@ -205,7 +205,7 @@ public:
     }
 
     TMutation<TVoid>::TPtr InitiateFullHeartbeat(
-        TCtxFullHeartbeat::TPtr context)
+        TCtxFullHeartbeatPtr context)
     {
         return CreateMutation(
             MetaStateManager,
@@ -671,7 +671,7 @@ private:
         return TVoid();
     }
 
-    TVoid FullHeartbeatWithContext(TCtxFullHeartbeat::TPtr context)
+    TVoid FullHeartbeatWithContext(TCtxFullHeartbeatPtr context)
     {
         return FullHeartbeat(context->Request());
     }
@@ -1994,7 +1994,7 @@ TMutation<TVoid>::TPtr TChunkManager::InitiateUnregisterHolder(
 }
 
 TMutation<TVoid>::TPtr TChunkManager::InitiateFullHeartbeat(
-    TCtxFullHeartbeat::TPtr context)
+    TCtxFullHeartbeatPtr context)
 {
     return Impl->InitiateFullHeartbeat(context);
 }

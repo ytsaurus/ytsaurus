@@ -1,10 +1,18 @@
 #include "stdafx.h"
 
 #include <ytlib/misc/crash_handler.h>
+#include <ytlib/misc/tclap_helpers.h>
+
 #include <ytlib/bus/tcp_dispatcher.h>
+
+#include <ytlib/rpc/rpc_dispatcher.h>
+
 #include <ytlib/logging/log_manager.h>
+
 #include <ytlib/profiling/profiling_manager.h>
+
 #include <ytlib/chunk_holder/config.h>
+
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
 #include <ytlib/cell_node/bootstrap.h>
@@ -12,12 +20,14 @@
 #include <ytlib/cell_node/bootstrap.h>
 #include <ytlib/cell_scheduler/config.h>
 #include <ytlib/cell_scheduler/bootstrap.h>
+
 #include <ytlib/scheduler/config.h>
+
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/job_proxy/job_proxy.h>
+
 #include <ytlib/meta_state/async_change_log.h>
 
-#include <ytlib/misc/tclap_helpers.h>
 #include <tclap/CmdLine.h>
 
 #include <yt/build.h>
@@ -280,6 +290,7 @@ int Main(int argc, const char* argv[])
     NMetaState::TAsyncChangeLog::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
+    NRpc::TRpcDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 

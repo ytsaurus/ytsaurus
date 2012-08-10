@@ -39,8 +39,9 @@ public:
 
     // Pass RPC service context to full heartbeat handler to avoid copying request message.
     typedef NRpc::TTypedServiceContext<NProto::TReqFullHeartbeat, NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
+    typedef TIntrusivePtr<TCtxFullHeartbeat> TCtxFullHeartbeatPtr;
     NMetaState::TMutation<TVoid>::TPtr InitiateFullHeartbeat(
-        TCtxFullHeartbeat::TPtr context);
+        TCtxFullHeartbeatPtr context);
 
     NMetaState::TMutation<TVoid>::TPtr InitiateIncrementalHeartbeat(
         const NProto::TMsgIncrementalHeartbeat& message);

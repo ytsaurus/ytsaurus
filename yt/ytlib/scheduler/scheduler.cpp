@@ -860,7 +860,7 @@ private:
     }
 
     void OnOperationWaitResult(
-        TCtxWaitForOperation::TPtr context,
+        TCtxWaitForOperationPtr context,
         TOperationPtr operation,
         bool finished)
     {

@@ -563,7 +563,7 @@ public:
         }
     }
 
-    void OnFollowerCommitted(TCtxApplyMutations::TPtr context, TLeaderCommitter::EResult result)
+    void OnFollowerCommitted(TCtxApplyMutationsPtr context, TLeaderCommitter::EResult result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -730,7 +730,7 @@ public:
         }
     }
 
-    void DoStateAdvanceSegment(TMetaVersion version, TCtxAdvanceSegment::TPtr context)
+    void DoStateAdvanceSegment(TMetaVersion version, TCtxAdvanceSegmentPtr context)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -748,7 +748,7 @@ public:
     }
 
     void OnCreateLocalSnapshot(
-        TCtxAdvanceSegment::TPtr context,
+        TCtxAdvanceSegmentPtr context,
         TSnapshotBuilder::TLocalResult result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
