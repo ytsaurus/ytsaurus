@@ -135,8 +135,6 @@ protected:
     TSpinLock WrittenChunksGuard;
     std::vector<NProto::TInputChunk> WrittenChunks;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
-
 private:
     NLog::TLogger& Logger;
 };

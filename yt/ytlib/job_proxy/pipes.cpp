@@ -301,7 +301,8 @@ int TInputPipe::GetEpollFlags() const
 
 bool TInputPipe::ProcessData(ui32 epollEvents)
 {
-    YASSERT(!IsFinished);
+    if (IsFinished)
+        return false;
 
     while (true) {
         if (Position == Buffer->GetSize()) {
@@ -316,7 +317,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
             YCHECK(!HasData);
             SafeClose(Pipe.WriteFd);
             LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
-            return true;
+            return false;
         }
 
         YASSERT(Position < Buffer->GetSize());
@@ -346,9 +347,12 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
 void TInputPipe::Finish()
 {
     // TODO(babenko): eliminate copy-paste
+    if (IsFinished)
+        return;
 
+    IsFinished = true;
     if (HasData) {
-        ythrow yexception() << Sprintf("Not all data was consumed by job (fd: %d, job fd: %d)",
+        ythrow yexception() << Sprintf("Some data was not consumed by job (fd: %d, job fd: %d)",
             Pipe.WriteFd,
             JobDescriptor);
     }
@@ -357,13 +361,12 @@ void TInputPipe::Finish()
     char buffer;
     ssize_t res = read(Pipe.ReadFd, &buffer, 1);
     if (res > 0) {
-        ythrow yexception() << Sprintf("Not all data was consumed by job (fd: %d, job fd: %d)",
+        ythrow yexception() << Sprintf("Some data was not consumed by job (fd: %d, job fd: %d)",
             Pipe.WriteFd,
             JobDescriptor);
     }
 
     SafeClose(Pipe.ReadFd);
-    IsFinished = true;
 }
 
 ////////////////////////////////////////////////////////////////////

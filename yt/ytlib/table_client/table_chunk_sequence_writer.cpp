@@ -58,8 +58,6 @@ void TTableChunkSequenceWriter::InitCurrentSession(TSession nextSession)
 
 bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     if (!CurrentSession.ChunkWriter) {
         return false;
     }
@@ -75,8 +73,6 @@ bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row, const TNonOwn
 
 bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     if (!CurrentSession.ChunkWriter) {
         return false;
     }

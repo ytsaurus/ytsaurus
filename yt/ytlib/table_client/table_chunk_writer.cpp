@@ -301,7 +301,6 @@ i64 TTableChunkWriter::GetRowCount() const
 
 TAsyncError TTableChunkWriter::AsyncClose()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
     YASSERT(!State.IsClosed());
 

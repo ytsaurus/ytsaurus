@@ -70,7 +70,6 @@ private:
 
     void OnFinalBlocksWritten(TError error);
 
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
