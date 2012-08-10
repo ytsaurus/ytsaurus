@@ -59,6 +59,7 @@ private:
     {
         attributes->push_back("state");
         attributes->push_back("parent_id");
+        attributes->push_back("start_time");
         attributes->push_back("nested_transaction_ids");
         attributes->push_back("created_object_ids");
         attributes->push_back("created_node_ids");
@@ -80,6 +81,12 @@ private:
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
                 .Scalar(GetObjectId(transaction->GetParent()).ToString());
+            return true;
+        }
+
+        if (name == "start_time") {
+            BuildYsonFluently(consumer)
+                .Scalar(ToString(transaction->GetStartTime()));
             return true;
         }
 
@@ -384,9 +391,12 @@ TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
 
     transaction->SetState(ETransactionState::Active);
 
+    auto* mutationContext = Bootstrap->GetMetaStateManager()->GetMutationContext();
+    transaction->SetStartTime(mutationContext->GetTimestamp());
+
     TransactionStarted_.Fire(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Started transaction %s (ParentId: %s, Timeout: %" PRIu64 ")",
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction started (TransactionId: %s, ParentId: %s, Timeout: %" PRIu64 ")",
         ~id.ToString(),
         ~GetObjectId(parent).ToString(),
         actualTimeout.MilliSeconds());
@@ -416,7 +426,7 @@ void TTransactionManager::Commit(TTransaction* transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Committed transaction %s", ~id.ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)", ~id.ToString());
 }
 
 void TTransactionManager::Abort(TTransaction* transaction)
@@ -444,7 +454,7 @@ void TTransactionManager::Abort(TTransaction* transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Aborted transaction %s", ~id.ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)", ~id.ToString());
 }
 
 void TTransactionManager::FinishTransaction(TTransaction* transaction)
@@ -575,7 +585,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (!proxy)
         return;
 
-    LOG_INFO("Transaction %s has expired", ~id.ToString());
+    LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::Abort();
     ExecuteVerb(proxy, req);

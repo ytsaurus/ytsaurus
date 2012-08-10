@@ -26,6 +26,7 @@ class TTransaction
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
 
     // Object Manager stuff
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectId>, CreatedObjectIds);
