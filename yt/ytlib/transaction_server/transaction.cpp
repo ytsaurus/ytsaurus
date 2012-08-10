@@ -16,6 +16,7 @@ using namespace NCellMaster;
 TTransaction::TTransaction(const TTransactionId& id)
     : TObjectWithIdBase(id)
     , Parent_(NULL)
+    , StartTime_(TInstant::Max())
 { }
 
 void TTransaction::Save(TOutputStream* output) const
