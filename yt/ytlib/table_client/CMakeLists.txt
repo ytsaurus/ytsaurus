@@ -59,7 +59,6 @@ set( HDRS
   ${BASE}/table_producer.h
   ${BASE}/table_reader.h
   ${BASE}/table_writer.h
-  ${BASE}/validating_writer.h
   ${BASE}/value.h
 )
 
