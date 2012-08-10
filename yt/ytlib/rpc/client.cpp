@@ -163,10 +163,11 @@ void TClientResponse::Deserialize(IMessagePtr responseMessage)
         parts.end(),
         std::back_inserter(Attachments_));
 
-    auto header = GetResponseHeader(responseMessage);
+    NProto::TResponseHeader responseHeader;
+    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-    if (header.has_attributes()) {
-        Attributes_ = FromProto(header.attributes());
+    if (responseHeader.has_attributes()) {
+        Attributes_ = FromProto(responseHeader.attributes());
     }
 }
 

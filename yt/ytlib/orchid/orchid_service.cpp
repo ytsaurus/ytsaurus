@@ -41,7 +41,11 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
     UNUSED(response);
 
     auto requestMessage = CreateMessageFromParts(request->Attachments());
-    auto requestHeader = GetRequestHeader(requestMessage);
+
+    NRpc::NProto::TRequestHeader requestHeader;
+    if (!ParseRequestHeader(requestMessage, &requestHeader)) {
+        ythrow yexception() << "Error parsing request header";
+    }
 
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
@@ -52,7 +56,9 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
 
     ExecuteVerb(RootService, requestMessage)
         .Subscribe(BIND([=] (IMessagePtr responseMessage) {
-            auto responseHeader = GetResponseHeader(responseMessage);
+            NRpc::NProto::TResponseHeader responseHeader;
+            YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+
             auto error = TError::FromProto(responseHeader.error());
 
             context->SetRequestInfo("Error: %s", ~error.ToString());

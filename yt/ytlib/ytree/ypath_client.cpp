@@ -45,7 +45,12 @@ void TYPathResponse::Deserialize(NBus::IMessagePtr message)
 {
     YASSERT(message);
 
-    auto header = GetResponseHeader(message);
+    NRpc::NProto::TResponseHeader header;
+    if (!ParseResponseHeader(message, &header)) {
+        Error_ = TError("Error parsing response header");
+        return;
+    }
+
     Error_ = TError::FromProto(header.error());
     if (header.has_attributes()) {
         SetAttributes(FromProto(header.attributes()));
@@ -180,8 +185,10 @@ void OnYPathResponse(
     const TYPath& resolvedPath,
     IMessagePtr responseMessage)
 {
-    auto header = GetResponseHeader(responseMessage);
-    auto error = TError::FromProto(header.error());
+    NRpc::NProto::TResponseHeader responseHeader;
+    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+
+    auto error = TError::FromProto(responseHeader.error());
 
     if (error.IsOK()) {
         asyncResponseMessage.Set(responseMessage);
@@ -191,9 +198,9 @@ void OnYPathResponse(
             ~verb,
             ~resolvedPath,
             ~error.GetMessage());
-        *header.mutable_error() = TError(error.GetCode(), message).ToProto();
+        *responseHeader.mutable_error() = TError(error.GetCode(), message).ToProto();
 
-        auto updatedResponseMessage = SetResponseHeader(responseMessage, header);
+        auto updatedResponseMessage = SetResponseHeader(responseMessage, responseHeader);
         asyncResponseMessage.Set(updatedResponseMessage);
     }
 }
@@ -205,7 +212,9 @@ ExecuteVerb(
 {
     NLog::TLogger Logger(service->GetLoggingCategory());
 
-    auto requestHeader = GetRequestHeader(requestMessage);
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
 

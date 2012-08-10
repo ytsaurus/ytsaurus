@@ -817,9 +817,10 @@ IServiceContextPtr CreateYPathContext(
 {
     YASSERT(requestMessage);
 
-    auto header = GetRequestHeader(requestMessage);
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
     return New<TServiceContext>(
-        header,
+        requestHeader,
         requestMessage,
         responseHandler,
         loggingCategory);

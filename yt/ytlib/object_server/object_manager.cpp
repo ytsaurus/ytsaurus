@@ -696,7 +696,9 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
     }
 
     auto requestMessage = CreateMessageFromParts(MoveRV(parts));
-    auto requestHeader = GetRequestHeader(requestMessage);
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
 

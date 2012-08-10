@@ -78,13 +78,15 @@ IMessagePtr CreateErrorResponseMessage(
     return CreateErrorResponseMessage(header);
 }
 
-NProto::TRequestHeader GetRequestHeader(IMessagePtr message)
+bool ParseRequestHeader(
+    IMessagePtr message,
+    NProto::TRequestHeader* header)
 {
-    NProto::TRequestHeader header;
     const auto& parts = message->GetParts();
-    YASSERT(!parts.empty());
-    YCHECK(DeserializeFromProto(&header, parts[0]));
-    return header;
+    if (parts.empty()) {
+        return false;
+    }
+    return DeserializeFromProto(header, parts[0]);
 }
 
 IMessagePtr SetRequestHeader(IMessagePtr message, const NProto::TRequestHeader& header)
@@ -99,13 +101,15 @@ IMessagePtr SetRequestHeader(IMessagePtr message, const NProto::TRequestHeader& 
     return CreateMessageFromParts(parts);
 }
 
-NProto::TResponseHeader GetResponseHeader(IMessagePtr message)
+bool ParseResponseHeader(
+    IMessagePtr message,
+    NProto::TResponseHeader* header)
 {
-    NProto::TResponseHeader header;
     const auto& parts = message->GetParts();
-    YASSERT(parts.size() >= 1);
-    YCHECK(DeserializeFromProto(&header, parts[0]));
-    return header;
+    if (parts.empty()) {
+        return false;
+    }
+    return DeserializeFromProto(header, parts[0]);
 }
 
 IMessagePtr SetResponseHeader(IMessagePtr message, const NProto::TResponseHeader& header)

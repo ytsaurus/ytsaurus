@@ -218,7 +218,12 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
             UNUSED(replyBus);
 
-            auto header = GetResponseHeader(message);
+            NProto::TResponseHeader header;
+            if (!ParseResponseHeader(message, &header)) {
+                LOG_ERROR("Error parsing response header");
+                return;
+            }
+
             auto requestId = TRequestId::FromProto(header.request_id());
 
             IClientResponseHandlerPtr responseHandler;
