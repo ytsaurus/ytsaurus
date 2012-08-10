@@ -338,9 +338,8 @@ TNullable<TRecordInfo> ReadRecord(TCheckableFileReader<Stream>& input)
         return Null;
     }
 
-    TBlob blob(header.DataLength);
-    auto data = TRef::FromBlob(blob);
-    readSize += ReadPadded(input, data);
+    TSharedRef data(header.DataLength);
+    readSize += ReadPadded(input, data.GetRef());
     if (!input.Success()) {
         return Null;
     }

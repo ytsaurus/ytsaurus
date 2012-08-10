@@ -21,23 +21,23 @@ TSharedRef SerializeMutationRecord(
         recordHeader.HeaderSize +
         recordHeader.DataSize;
 
-    TBlob recordData(recordSize);
+    TSharedRef recordData(recordSize);
 
-    YASSERT(recordData.max_size() >= recordSize);
+    YASSERT(recordData.Size() >= recordSize);
 
     std::copy(
         reinterpret_cast<ui8*>(&recordHeader),
         reinterpret_cast<ui8*>(&recordHeader + 1),
-        recordData.begin());
+        recordData.Begin());
     YCHECK(mutationHeader.SerializeToArray(
-        &*recordData.begin() + sizeof (TMutationRecordHeader),
+        recordData.Begin() + sizeof (TMutationRecordHeader),
         recordHeader.HeaderSize));
     std::copy(
         data.Begin(),
         data.End(),
-        &*recordData.begin() + sizeof (TMutationRecordHeader) + recordHeader.HeaderSize);
+        recordData.Begin() + sizeof (TMutationRecordHeader) + recordHeader.HeaderSize);
 
-    return TSharedRef(MoveRV(recordData));
+    return recordData;
 }
 
 void DeserializeMutationRecord(

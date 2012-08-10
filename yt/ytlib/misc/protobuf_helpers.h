@@ -99,7 +99,7 @@ inline std::vector<TArrayItem> FromProto(
 
 //! Serializes a given protobuf message into a given blob.
 //! Return true iff everything was OK.
-bool SerializeToProto(const google::protobuf::Message* message, TBlob* data);
+bool SerializeToProto(const google::protobuf::Message* message, TSharedRef* data);
 
 //! Deserializes a given chunk of memory into a given protobuf message.
 //! Return true iff everything was OK.

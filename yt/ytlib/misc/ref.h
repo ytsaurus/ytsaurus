@@ -165,6 +165,11 @@ public:
         YASSERT(Ref.Begin() >= &*Blob->begin() && Ref.End() <= &*Blob->end());
     }
 
+    TRef& GetRef()
+    {
+        return Ref;
+    }
+
     operator TRef() const
     {
         return Ref;

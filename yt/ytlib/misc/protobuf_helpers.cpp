@@ -7,34 +7,34 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeToProto(const google::protobuf::Message* message, TBlob* data)
+bool SerializeToProto(const google::protobuf::Message* message, TSharedRef* data)
 {
     int size = message->ByteSize();
-    data->resize(size);
-    return message->SerializeToArray(&*data->begin(), size);
+    *data = TSharedRef(size);
+    return message->SerializeToArray(data->Begin(), size);
 }
 
 bool DeserializeFromProto(google::protobuf::Message* message, TRef data)
 {
-    return message->ParseFromArray(&*data.Begin(), data.Size());
+    return message->ParseFromArray(data.Begin(), data.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message)
 {
-    TBlob blob;
-    YCHECK(SerializeToProto(&message, &blob));
-    ::SaveSize(output, blob.size());
-    output->Write(&*blob.begin(), blob.size());
+    TSharedRef ref;
+    YCHECK(SerializeToProto(&message, &ref));
+    ::SaveSize(output, ref.Size());
+    output->Write(ref.Begin(), ref.Size());
 }
 
 void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
 {
     size_t size = ::LoadSize(input);
-    TBlob blob(size);
-    YCHECK(input->Load(&*blob.begin(), size) == size);
-    YCHECK(DeserializeFromProto(&message, TRef::FromBlob(blob)));
+    TSharedRef ref(size);
+    YCHECK(input->Load(ref.Begin(), size) == size);
+    YCHECK(DeserializeFromProto(&message, ref));
 }
 
 void FilterProtoExtensions(

@@ -14,7 +14,7 @@ namespace NRpc {
 
 NBus::IMessagePtr CreateRequestMessage(
     const NProto::TRequestHeader& header,
-    TBlob&& body,
+    const TSharedRef& body,
     const std::vector<TSharedRef>& attachments);
 
 NBus::IMessagePtr CreateResponseMessage(

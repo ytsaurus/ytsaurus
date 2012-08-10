@@ -87,7 +87,7 @@ protected:
         const Stroka& verb,
         bool oneWay);
 
-    virtual TBlob SerializeBody() const = 0;
+    virtual TSharedRef SerializeBody() const = 0;
 
     void DoInvoke(IClientResponseHandlerPtr responseHandler);
 };
@@ -127,12 +127,12 @@ public:
     }
 
 private:
-    virtual TBlob SerializeBody() const
+    virtual TSharedRef SerializeBody() const
     {
         auto& Logger = RpcClientLogger;
-        TBlob blob;
-        YCHECK(SerializeToProto(this, &blob));
-        return blob;
+        TSharedRef ref;
+        YCHECK(SerializeToProto(this, &ref));
+        return ref;
     }
 
 };

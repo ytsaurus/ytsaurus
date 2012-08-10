@@ -55,7 +55,7 @@ IMessagePtr TClientRequest::Serialize() const
 
     return CreateRequestMessage(
         header,
-        MoveRV(bodyData),
+        bodyData,
         Attachments_);
 }
 

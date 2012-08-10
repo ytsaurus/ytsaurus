@@ -14,16 +14,16 @@ using namespace NBus;
 
 IMessagePtr CreateRequestMessage(
     const NProto::TRequestHeader& header,
-    TBlob&& body,
+    const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
     std::vector<TSharedRef> parts;
 
-    TBlob headerBlob;
-    YCHECK(SerializeToProto(&header, &headerBlob));
+    TSharedRef headerRef;
+    YCHECK(SerializeToProto(&header, &headerRef));
 
-    parts.push_back(TSharedRef(MoveRV(headerBlob)));
-    parts.push_back(TSharedRef(MoveRV(body)));
+    parts.push_back(headerRef);
+    parts.push_back(body);
 
     FOREACH (const auto& attachment, attachments) {
         parts.push_back(attachment);
@@ -39,10 +39,10 @@ IMessagePtr CreateResponseMessage(
 {
     std::vector<TSharedRef> parts;
 
-    TBlob headerBlob;
+    TSharedRef headerBlob;
     YCHECK(SerializeToProto(&header, &headerBlob));
 
-    parts.push_back(TSharedRef(MoveRV(headerBlob)));
+    parts.push_back(headerBlob);
     parts.push_back(body);
 
     FOREACH (const auto& attachment, attachments) {
@@ -55,7 +55,7 @@ IMessagePtr CreateResponseMessage(
 IMessagePtr CreateErrorResponseMessage(
     const NProto::TResponseHeader& header)
 {
-    TBlob headerBlob;
+    TSharedRef headerBlob;
     YCHECK(SerializeToProto(&header, &headerBlob));
     return CreateMessageFromPart(MoveRV(headerBlob));
 }
@@ -91,12 +91,12 @@ bool ParseRequestHeader(
 
 IMessagePtr SetRequestHeader(IMessagePtr message, const NProto::TRequestHeader& header)
 {
-    TBlob headerData;
+    TSharedRef headerData;
     YCHECK(SerializeToProto(&header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());
-    parts[0] = TSharedRef(MoveRV(headerData));
+    parts[0] = headerData;
 
     return CreateMessageFromParts(parts);
 }
@@ -114,12 +114,12 @@ bool ParseResponseHeader(
 
 IMessagePtr SetResponseHeader(IMessagePtr message, const NProto::TResponseHeader& header)
 {
-    TBlob headerData;
+    TSharedRef headerData;
     YCHECK(SerializeToProto(&header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());
-    parts[0] = TSharedRef(MoveRV(headerData));
+    parts[0] = headerData;
 
     return CreateMessageFromParts(parts);
 }

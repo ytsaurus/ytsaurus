@@ -132,14 +132,14 @@ typename TMutation<TResult>::TPtr CreateMutation(
     YASSERT(metaStateManager);
     YASSERT(!mutationAction.IsNull());
 
-    TBlob serializedMessage;
+    TSharedRef serializedMessage;
     YCHECK(SerializeToProto(&message, &serializedMessage));
 
     return New< TMutation<TResult> >(
         metaStateManager,
         mutationAction,
         message.GetTypeName(),
-        TSharedRef(MoveRV(serializedMessage)));
+        serializedMessage);
 }
 
 template <class TMessage, class TResult>

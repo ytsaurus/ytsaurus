@@ -57,11 +57,11 @@ int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
     return Body.part_counts_size();
 }
 
-TBlob TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
+TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
-    TBlob blob;
-    YCHECK(SerializeToProto(&Body, &blob));
-    return blob;
+    TSharedRef ref;
+    YCHECK(SerializeToProto(&Body, &ref));
+    return ref;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

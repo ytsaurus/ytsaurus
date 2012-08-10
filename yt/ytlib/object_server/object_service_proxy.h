@@ -84,7 +84,7 @@ public:
         NProto::TRspExecute Body;
         TKeyToIndexes KeyToIndexes;
 
-        virtual TBlob SerializeBody() const;
+        virtual TSharedRef SerializeBody() const;
 
     };
 

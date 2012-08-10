@@ -379,7 +379,7 @@ public:
 private:
     void SerializeResponseAndReply()
     {
-        TBlob responseBlob;
+        TSharedRef responseBlob;
         YCHECK(SerializeToProto(&Response_, &responseBlob));
         this->Context->SetResponseBody(MoveRV(responseBlob));
         this->Context->Reply(TError());

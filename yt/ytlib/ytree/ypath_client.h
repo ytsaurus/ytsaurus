@@ -30,7 +30,7 @@ public:
     NBus::IMessagePtr Serialize();
 
 protected:
-    virtual TBlob SerializeBody() const = 0;
+    virtual TSharedRef SerializeBody() const = 0;
 
 };
 
@@ -50,11 +50,11 @@ public:
     { }
 
 protected:
-    virtual TBlob SerializeBody() const
+    virtual TSharedRef SerializeBody() const
     {
-        TBlob blob;
-        YCHECK(SerializeToProto(this, &blob));
-        return blob;
+        TSharedRef ref;
+        YCHECK(SerializeToProto(this, &ref));
+        return ref;
     }
 };
 

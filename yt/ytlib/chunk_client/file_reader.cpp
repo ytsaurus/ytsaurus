@@ -106,13 +106,11 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     }
 
     const auto& blockInfo = blocksExt.blocks(blockIndex);
-    TBlob data(blockInfo.size());
+    TSharedRef data(blockInfo.size());
     i64 offset = blockInfo.offset();
-    DataFile->Pread(&*data.begin(), data.size(), offset);
+    DataFile->Pread(data.Begin(), data.Size(), offset);
 
-    TSharedRef result(MoveRV(data));
-
-    auto checksum = GetChecksum(result);
+    auto checksum = GetChecksum(data);
     if (checksum != blockInfo.checksum()) {
         ythrow yexception()
             << Sprintf("Incorrect checksum in chunk block (FileName: %s, BlockIndex: %d, Expected: %" PRIx64 ", Found: %" PRIx64 ")",
@@ -122,7 +120,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
                 checksum);
     }
 
-    return result;
+    return data;
 }
 
 i64 TFileReader::GetMetaSize() const

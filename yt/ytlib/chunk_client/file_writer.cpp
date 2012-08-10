@@ -99,12 +99,12 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
     ChunkMeta.CopyFrom(chunkMeta);
     UpdateProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
     
-    TBlob metaBlob;
-    YCHECK(SerializeToProto(&ChunkMeta, &metaBlob));
+    TSharedRef metaData;
+    YCHECK(SerializeToProto(&ChunkMeta, &metaData));
 
     TChunkMetaHeader header;
     header.Signature = header.ExpectedSignature;
-    header.Checksum = GetChecksum(TRef::FromBlob(metaBlob));
+    header.Checksum = GetChecksum(metaData);
 
     Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
 
@@ -113,7 +113,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
             chunkMetaFileName + NFS::TempFileSuffix,
             CreateAlways | WrOnly | Seq);
         WritePod(chunkMetaFile, header);
-        chunkMetaFile.Write(&*metaBlob.begin(), metaBlob.size());
+        chunkMetaFile.Write(metaData.Begin(), metaData.Size());
 
 #ifdef _linux_
         if (fsync(chunkMetaFile.GetHandle()) != 0) {
@@ -143,7 +143,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
     }
 
     ChunkInfo.set_meta_checksum(header.Checksum);
-    ChunkInfo.set_size(DataSize + metaBlob.size() + sizeof (TChunkMetaHeader));
+    ChunkInfo.set_size(DataSize + metaData.Size() + sizeof (TChunkMetaHeader));
 
     return MakeFuture(TError());
 }
