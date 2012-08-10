@@ -26,9 +26,11 @@ TChunk::TChunk(const TChunkId& id)
     , ReplicationFactor_(1)
     , Movable_(true)
 {
-    // Set required proto fields, otherwise #Save would fail.
+    // Initialize required proto fields, otherwise #Save would fail.
     ChunkInfo_.set_size(UnknownSize);
+    
     ChunkMeta_.set_type(EChunkType::Unknown);
+    ChunkMeta_.mutable_extensions();
 }
 
 TChunk::~TChunk()
