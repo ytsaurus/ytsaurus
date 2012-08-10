@@ -51,13 +51,17 @@ public:
                 continue;
             }
 
-            YCHECK(partCount >= 2);
             std::vector<TSharedRef> requestParts(
                 attachments.begin() + requestPartIndex,
                 attachments.begin() + requestPartIndex + partCount);
             auto requestMessage = CreateMessageFromParts(MoveRV(requestParts));
 
-            auto requestHeader = GetRequestHeader(requestMessage);
+            NRpc::NProto::TRequestHeader requestHeader;
+            if (!ParseRequestHeader(requestMessage, &requestHeader)) {
+                Context->Reply(TError("Error parsing request header"));
+                return;
+            }
+
             TYPath path = requestHeader.path();
             Stroka verb = requestHeader.verb();
 
@@ -88,7 +92,9 @@ private:
 
     void OnResponse(int requestIndex, IMessagePtr responseMessage)
     {
-        auto responseHeader = GetResponseHeader(responseMessage);
+        NRpc::NProto::TResponseHeader responseHeader;
+        YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+
         auto error = TError::FromProto(responseHeader.error());
 
         LOG_DEBUG("Execute[%d] -> Error: %s",

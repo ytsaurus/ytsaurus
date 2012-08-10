@@ -64,7 +64,12 @@ public:
         auto verb = context->GetVerb();
 
         auto requestMessage = context->GetRequestMessage();
-        auto requestHeader = GetRequestHeader(requestMessage);
+        NRpc::NProto::TRequestHeader requestHeader;
+        if (!ParseRequestHeader(requestMessage, &requestHeader)) {
+            context->Reply(TError("Error parsing request header"));
+            return;
+        }
+
         requestHeader.set_path(path);
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 

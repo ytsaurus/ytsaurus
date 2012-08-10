@@ -32,12 +32,18 @@ NBus::IMessagePtr CreateErrorResponseMessage(
 NBus::IMessagePtr CreateErrorResponseMessage(
     const TError& error);
 
-NProto::TRequestHeader GetRequestHeader(NBus::IMessagePtr message);
+bool ParseRequestHeader(
+    NBus::IMessagePtr message,
+    NProto::TRequestHeader* header);
+
 NBus::IMessagePtr SetRequestHeader(
     NBus::IMessagePtr message,
     const NProto::TRequestHeader& header);
 
-NProto::TResponseHeader GetResponseHeader(NBus::IMessagePtr message);
+bool ParseResponseHeader(
+    NBus::IMessagePtr message,
+    NProto::TResponseHeader* header);
+
 NBus::IMessagePtr SetResponseHeader(
     NBus::IMessagePtr message,
     const NProto::TResponseHeader& header);

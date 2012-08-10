@@ -141,7 +141,14 @@ private:
             return;
         }
 
-        auto header = GetRequestHeader(message);
+        NProto::TRequestHeader header;
+        if (!ParseRequestHeader(message, &header)) {
+            // Unable to reply, no requestId is known.
+            // Let's just drop the message.
+            LOG_ERROR("Error parsing request header");
+            return;
+        }
+
         auto requestId = TRequestId::FromProto(header.request_id());
         Stroka path = header.path();
         Stroka verb = header.verb();
@@ -162,7 +169,6 @@ private:
                 requestId,
                 TError(EErrorCode::Unavailable, message));
             replyBus->Send(response);
-
             return;
         }
 
