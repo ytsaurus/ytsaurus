@@ -130,6 +130,7 @@ bool TPartitionChunkReader::NextRow()
 
         DataBuffer.Reset(RowPointer_, SizeToNextRow);
         
+        CurrentRow.clear();
         while (true) {
             auto value = TValue::Load(&DataBuffer);
             if (value.IsNull()) {
