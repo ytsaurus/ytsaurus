@@ -585,8 +585,9 @@ private:
     { \
         auto typedContext = New<TCtx##method>(context, options); \
         typedContext->Deserialize(); \
+        auto this_ = MakeStrong(this); \
         return BIND([=] () { \
-            method( \
+            this_->method( \
                 &typedContext->Request(), \
                 &typedContext->Response(), \
                 typedContext); \
@@ -622,8 +623,9 @@ private:
     { \
         auto typedContext = New<TCtx##method>(context, options); \
         typedContext->Deserialize(); \
+        auto this_ = MakeStrong(this); \
         return BIND([=] () { \
-            method( \
+            this_->method( \
                 &typedContext->Request(), \
                 typedContext); \
         }); \
