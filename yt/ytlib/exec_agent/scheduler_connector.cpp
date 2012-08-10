@@ -27,8 +27,8 @@ TSchedulerConnector::TSchedulerConnector(
     , ControlInvoker(bootstrap->GetControlInvoker())
     , Proxy(bootstrap->GetSchedulerChannel())
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
+    YCHECK(config);
+    YCHECK(bootstrap);
 }
 
 void TSchedulerConnector::Start()
