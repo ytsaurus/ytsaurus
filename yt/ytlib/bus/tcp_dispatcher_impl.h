@@ -25,10 +25,7 @@ struct IEventLoopObject
 {
     virtual void SyncInitialize() = 0;
     virtual void SyncFinalize() = 0;
-
     virtual Stroka GetLoggingId() const = 0;
-    
-    virtual ui32 GetHash() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +40,7 @@ public:
 
     void Shutdown();
 
-    const ev::loop_ref& GetEventLoop(IEventLoopObjectPtr object) const;
+    const ev::loop_ref& GetEventLoop() const;
 
     TAsyncError AsyncRegister(IEventLoopObjectPtr object);
     TAsyncError AsyncUnregister(IEventLoopObjectPtr object);
@@ -51,7 +48,11 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTcpDispatcherStatistics, Statistics);
 
 private:
-    volatile bool Stopped;
+    TThread Thread;
+    ev::dynamic_loop EventLoop;
+
+    bool Stopped;
+    ev::async StopWatcher;
 
     struct TQueueEntry
     {
@@ -68,48 +69,26 @@ private:
         TPromise<TError> Promise;
     };
 
-    static const int ThreadCount = 8;
+    TLockFreeQueue<TQueueEntry> RegisterQueue;
+    ev::async RegisterWatcher;
 
-    struct TThreadContext
-        : public TIntrinsicRefCounted
-    {
-        explicit TThreadContext(int id);
+    TLockFreeQueue<TQueueEntry> UnregisterQueue;
+    ev::async UnregisterWatcher;
 
-        int Id;
+    yhash_set<IEventLoopObjectPtr> Objects;
 
-        TThread Thread;
-        
-        ev::dynamic_loop EventLoop;
+    static void* ThreadFunc(void* param);
+    void ThreadMain();
 
-        yhash_set<IEventLoopObjectPtr> Objects;
+    void OnStop(ev::async&, int);
 
-        ev::async StopWatcher;
+    void Register(IEventLoopObjectPtr object);
+    void Unregister(IEventLoopObjectPtr object);
 
-        TLockFreeQueue<TQueueEntry> RegisterQueue;
-        ev::async RegisterWatcher;
+    void OnRegister(ev::async&, int);
+    void OnUnregister(ev::async&, int);
 
-        TLockFreeQueue<TQueueEntry> UnregisterQueue;
-        ev::async UnregisterWatcher;
-
-        static void* ThreadFunc(void* param);
-        void ThreadMain();
-
-        void OnStop(ev::async&, int);
-
-        void OnRegister(ev::async&, int);
-        void OnUnregister(ev::async&, int);
-
-        void SyncRegister(IEventLoopObjectPtr object);
-        void SyncUnregister(IEventLoopObjectPtr object);
-
-        DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
-    };
-
-    typedef TIntrusivePtr<TThreadContext> TThreadContextPtr;
-
-    std::vector<TThreadContextPtr> ThreadContexts;
-
-    int GetThreadId(IEventLoopObjectPtr object) const;
+    DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
 };
 
