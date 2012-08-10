@@ -302,6 +302,12 @@ private:
 
     void StartMerge()
     {
+        LOG_INFO("Waiting for sort thread");
+        PROFILE_TIMING ("/reduce/sort_wait_time") {
+            BIND([] () -> TVoid { return TVoid(); }).AsyncVia(SortQueue->GetInvoker()).Run().Get();
+        }
+        LOG_INFO("Sort thread is idle");
+
         for (int index = 0; index < static_cast<int>(BucketStart.size()) - 1; ++index) {
             BucketHeap.push_back(BucketStart[index]);
         }
@@ -310,12 +316,6 @@ private:
 
         AtomicSet(SortedRowCount, 0);
         ReadRowCount = 0;
-
-        LOG_INFO("Waiting for sort thread");
-        PROFILE_TIMING ("/reduce/sort_wait_time") {
-            BIND([] () -> TVoid { return TVoid(); }).AsyncVia(SortQueue->GetInvoker()).Run().Get();
-        }
-        LOG_INFO("Sort thread is idle");
 
         SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoMerge, Unretained(this)));
     }
