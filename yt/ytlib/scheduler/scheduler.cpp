@@ -83,7 +83,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WaitForOperation));
         RegisterMethod(
-            RPC_SERVICE_METHOD_DESC(Heartbeat),
+            RPC_SERVICE_METHOD_DESC(Heartbeat)
+                .SetHeavyResponse(true),
             Bootstrap->GetControlInvoker(EControlQueue::Heartbeat));
 
         JobTypeCounters.resize(EJobType::GetDomainSize());

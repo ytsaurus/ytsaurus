@@ -28,11 +28,9 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
-    RegisterMethod(
-        RPC_SERVICE_METHOD_DESC(OnJobProgress)
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress)
         .SetOneWay(true));
-    RegisterMethod(
-        RPC_SERVICE_METHOD_DESC(OnResourceUtilizationSet)
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnResourceUtilizationSet)
         .SetOneWay(true));
 }
 

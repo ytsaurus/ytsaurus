@@ -47,9 +47,12 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(
-        RPC_SERVICE_METHOD_DESC(FullHeartbeat),
+        RPC_SERVICE_METHOD_DESC(FullHeartbeat)
+            .SetHeavyRequest(true),
         bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat));
+    RegisterMethod(
+        RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
+            .SetHeavyRequest(true));
 }
 
  void TChunkService::ValidateHolderId(THolderId holderId)

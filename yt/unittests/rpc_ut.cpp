@@ -110,11 +110,9 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(EmptyCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
 
-        RegisterMethod(
-            RPC_SERVICE_METHOD_DESC(OneWay)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(OneWay)
             .SetOneWay(true));
-        RegisterMethod(
-            RPC_SERVICE_METHOD_DESC(CheckAll)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckAll)
             .SetOneWay(true));
 
         // Note: NotRegistredCall and NotRegistredOneWay are not registered

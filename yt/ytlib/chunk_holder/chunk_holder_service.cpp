@@ -63,8 +63,7 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
-    RegisterMethod(
-        RPC_SERVICE_METHOD_DESC(UpdatePeer)
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
         .SetOneWay(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples));
 }
