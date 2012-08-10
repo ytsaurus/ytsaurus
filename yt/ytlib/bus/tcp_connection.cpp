@@ -113,7 +113,7 @@ void TTcpConnection::SyncInitialize()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop(this);
+    const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
     
     TerminationWatcher.Reset(new ev::async(eventLoop));
     TerminationWatcher->set<TTcpConnection, &TTcpConnection::OnTerminated>(this);
@@ -151,13 +151,6 @@ Stroka TTcpConnection::GetLoggingId() const
     VERIFY_THREAD_AFFINITY_ANY();
     
     return Sprintf("ConnectionId: %s", ~Id.ToString());
-}
-
-ui32 TTcpConnection::GetHash() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Id.Parts[0];
 }
 
 TTcpDispatcherStatistics& TTcpConnection::Statistics()
@@ -356,7 +349,7 @@ void TTcpConnection::InitFd()
     Fd = Socket;
 #endif
 
-    const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop(this);
+    const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
 
     SocketWatcher.Reset(new ev::io(eventLoop));
     SocketWatcher->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
