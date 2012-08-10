@@ -627,7 +627,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
     }
 
     // Next look for other (global) tasks.
-    for (int priority = static_cast<int>(PendingTaskInfos.size()); priority >= 0; --priority) {
+    for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
         auto& info = PendingTaskInfos[priority];
         auto& globalTasks = info.GlobalTasks;
         auto it = globalTasks.begin();
