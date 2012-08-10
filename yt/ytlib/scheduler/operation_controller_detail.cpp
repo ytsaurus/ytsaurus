@@ -260,7 +260,7 @@ TOperationControllerBase::TOperationControllerBase(
     , RunningJobCount(0)
     , CompletedJobCount(0)
     , FailedJobCount(0)
-    , PendingTaskInfos(MaxTaskPriorities)
+    , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
@@ -519,8 +519,8 @@ void TOperationControllerBase::UpdatePendingJobCount(TTaskPtr task)
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (!task->IsStrictlyLocal() && task->GetPendingJobCount() > 0) {
-        auto& info = PendingTaskInfos[task->GetPriority()];
-        if (info.GlobalTasks.insert(task).second) {
+        auto* info = GetPendingTaskInfo(task);
+        if (info->GlobalTasks.insert(task).second) {
             LOG_DEBUG("Task pending hint added (Task: %s)",
                 ~task->GetId());
         }
@@ -530,12 +530,19 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 
 void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
-    auto& info = PendingTaskInfos[task->GetPriority()];
-    if (info.AddressToLocalTasks[address].insert(task).second) {
+    auto* info = GetPendingTaskInfo(task);
+    if (info->AddressToLocalTasks[address].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %s, Address: %s)",
             ~task->GetId(),
             ~address);
     }
+}
+
+TOperationControllerBase::TPendingTaskInfo* TOperationControllerBase::GetPendingTaskInfo(TTaskPtr task)
+{
+    int priority = task->GetPriority();
+    YASSERT(priority >= 0 && priority <= MaxTaskPriority);
+    return &PendingTaskInfos[priority];
 }
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
@@ -560,7 +567,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
     // First try to find a local task for this node.
     auto now = TInstant::Now();
     auto address = node->GetAddress();
-    for (int priority = MaxTaskPriorities - 1; priority >= 0; --priority) {
+    for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
         auto& info = PendingTaskInfos[priority];
         auto localTasksIt = info.AddressToLocalTasks.find(address);
         if (localTasksIt == info.AddressToLocalTasks.end()) {
@@ -620,7 +627,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
     }
 
     // Next look for other (global) tasks.
-    for (int priority = MaxTaskPriorities - 1; priority >= 0; --priority) {
+    for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
         auto& info = PendingTaskInfos[priority];
         auto& globalTasks = info.GlobalTasks;
         auto it = globalTasks.begin();

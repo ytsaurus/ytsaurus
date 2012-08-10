@@ -16,6 +16,7 @@ using namespace NCellMaster;
 TTransaction::TTransaction(const TTransactionId& id)
     : TObjectWithIdBase(id)
     , Parent_(NULL)
+    , StartTime_(TInstant::Max())
 { }
 
 void TTransaction::Save(TOutputStream* output) const
@@ -24,6 +25,7 @@ void TTransaction::Save(TOutputStream* output) const
     ::Save(output, State_);
     SaveObjectRefs(output, NestedTransactions_);
     SaveObjectRef(output, Parent_);
+    ::Save(output, StartTime_);
     SaveSet(output, CreatedObjectIds_);
     SaveObjectRefs(output, LockedNodes_);
     SaveObjectRefs(output, BranchedNodes_);
@@ -36,6 +38,7 @@ void TTransaction::Load(const TLoadContext& context, TInputStream* input)
     ::Load(input, State_);
     LoadObjectRefs(input, NestedTransactions_, context);
     LoadObjectRef(input, Parent_, context);
+    ::Load(input, StartTime_);
     LoadSet(input, CreatedObjectIds_);
     LoadObjectRefs(input, LockedNodes_, context);
     LoadObjectRefs(input, BranchedNodes_, context);
