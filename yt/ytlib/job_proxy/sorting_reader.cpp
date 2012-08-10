@@ -327,6 +327,9 @@ private:
             int sortedRowCount = 0;
             while (!BucketHeap.empty()) {
                 int bucketIndex = BucketHeap.front();
+                if (SortedIndexes.size() > 0) {
+                    YASSERT(!SortComparer(Buckets[bucketIndex], SortedIndexes.back()));
+                }
                 SortedIndexes.push_back(Buckets[bucketIndex]);
                 ++bucketIndex;
                 if (Buckets[bucketIndex] == BucketEndSentinel) {
