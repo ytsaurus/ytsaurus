@@ -51,10 +51,6 @@ private:
     NYTree::TLexer Lexer;
     yhash_map<TStringBuf, int> KeyColumnIndexes;
 
-    // Permutation of value index in current row.
-    // Defines writing order (key columns go first).
-    std::vector<int> RowValueIndexes;
-
     //! Current size of written data.
     /*!
      *  - This counter is updated every #AsyncEndRow call.

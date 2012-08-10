@@ -129,23 +129,24 @@ bool TPartitionChunkReader::NextRow()
         ReadVarUInt64(&SizeBuffer, &SizeToNextRow);
 
         DataBuffer.Reset(RowPointer_, SizeToNextRow);
-        NextColumn();
+        
+        while (true) {
+            auto value = TValue::Load(&DataBuffer);
+            if (value.IsNull()) {
+                break;
+            }
+
+            i32 columnNameLength;
+            ReadVarInt32(&DataBuffer, &columnNameLength);
+            YASSERT(columnNameLength > 0);
+            CurrentRow.insert(std::make_pair(TStringBuf(DataBuffer.Buf(), columnNameLength), value));
+            DataBuffer.Skip(columnNameLength);
+        }
 
         return true;
     } else {
         RowPointer_ = NULL;
         return false;
-    }
-}
-
-void TPartitionChunkReader::NextColumn()
-{
-    Value = TValue::Load(&DataBuffer);
-    if (!Value.IsNull()) {
-        i32 columnNameLength;
-        ReadVarInt32(&DataBuffer, &columnNameLength);
-        ColumnName = TStringBuf(DataBuffer.Buf(), columnNameLength);
-        DataBuffer.Skip(columnNameLength);
     }
 }
 
@@ -177,17 +178,13 @@ TValue TPartitionChunkReader::ReadValue(const TStringBuf& name)
 {
     YASSERT(IsValid());
 
-    if (Value.IsNull())
-        return Value;
-
-    if (ColumnName == name) {
-        auto result = Value;
-        NextColumn();
-        return result;
+    auto it = CurrentRow.find(name);
+    if (it == CurrentRow.end()) {
+        // Null value.
+        return TValue();
+    } else {
+        return it->second;
     }
-
-    // Null value.
-    return TValue();
 }
 
 bool TPartitionChunkReader::IsFetchingComplete() const

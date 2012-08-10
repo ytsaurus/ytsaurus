@@ -71,20 +71,11 @@ bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
 
     int keyColumnCount = KeyColumns.Get().size();
     TNonOwningKey key(keyColumnCount);
-    RowValueIndexes.assign(row.size() + keyColumnCount, -1);
 
-    {
-        int nonKeyIndex = keyColumnCount;
-        for (int i = 0; i < row.size(); ++i) {
-            const auto& pair = row[i];
-            auto it = KeyColumnIndexes.find(pair.first);
-            if (it != KeyColumnIndexes.end()) {
-                key.SetKeyPart(it->second, pair.second, Lexer);
-                RowValueIndexes[it->second] = i;
-            } else {
-                RowValueIndexes[nonKeyIndex] = i;
-                ++nonKeyIndex;
-            }
+    FOREACH (const auto& pair, row) {
+        auto it = KeyColumnIndexes.find(pair.first);
+        if (it != KeyColumnIndexes.end()) {
+            key.SetKeyPart(it->second, pair.second, Lexer);
         }
     }
 
@@ -92,15 +83,12 @@ bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
     auto& channelWriter = ChannelWriters[partitionTag];
 
     i64 rowDataWeight = 1;
-    FOREACH (int valueIndex, RowValueIndexes) {
-        if (valueIndex >= 0) {
-            const auto& pair = row[valueIndex];
-            channelWriter->WriteRange(pair.first, pair.second);
+    FOREACH (const auto& pair, row) {
+        channelWriter->WriteRange(pair.first, pair.second);
 
-            rowDataWeight += pair.first.size();
-            rowDataWeight += pair.second.size();
-            ValueCount += 1;
-        }
+        rowDataWeight += pair.first.size();
+        rowDataWeight += pair.second.size();
+        ValueCount += 1;
     }
     channelWriter->EndRow();
 

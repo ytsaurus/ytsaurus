@@ -49,11 +49,9 @@ private:
     NChunkClient::TSequentialReaderPtr SequentialReader;
 
     std::vector<TSharedRef> Blocks;
+    yhash_map<TStringBuf, TValue> CurrentRow;
 
     ui64 SizeToNextRow;
-
-    TStringBuf ColumnName;
-    TValue Value;
 
     TMemoryInput DataBuffer;
     TMemoryInput SizeBuffer;
@@ -64,7 +62,6 @@ private:
     void OnNextBlock(TError error);
 
     bool NextRow();
-    void NextColumn();
 
 };
 
