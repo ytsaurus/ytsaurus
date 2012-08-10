@@ -16,7 +16,7 @@ namespace NObjectServer {
 
 class TAttributeSet
 {
-    typedef yhash_map<Stroka, TNullable<NYTree::TYsonString> > TAttributeMap;
+    typedef std::unordered_map<Stroka, TNullable<NYTree::TYsonString> > TAttributeMap;
     DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);
     
 public:

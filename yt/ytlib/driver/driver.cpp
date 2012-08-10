@@ -159,7 +159,7 @@ private:
         TCommandFactory Factory;
     };
 
-    yhash_map<Stroka, TCommandEntry> Commands;
+    std::unordered_map<Stroka, TCommandEntry> Commands;
 
     class TCommandContext
         : public ICommandContext

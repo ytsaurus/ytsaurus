@@ -15,7 +15,7 @@ struct IAttributeDictionary
     virtual ~IAttributeDictionary();
     
     // Returns the list of all attribute names.
-    virtual yhash_set<Stroka> List() const = 0;
+    virtual std::unordered_set<Stroka> List() const = 0;
 
     //! Returns the value of the attribute (NULL indicates that the attribute is not found).
     virtual TNullable<TYsonString> FindYson(const Stroka& key) const = 0;

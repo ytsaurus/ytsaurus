@@ -32,7 +32,7 @@ class TChunk
 
     // This list is usually empty.
     // Keeping a holder is very space efficient (takes just 8 bytes).
-    DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<THolderId> >, CachedLocations);
+    DEFINE_BYREF_RO_PROPERTY(::THolder< std::unordered_set<THolderId> >, CachedLocations);
 
 public:
     static const i64 UnknownSize;

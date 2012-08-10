@@ -46,7 +46,7 @@ struct TTestConfig
     Stroka MyString;
     TTestSubconfig::TPtr Subconfig;
     std::vector<TTestSubconfig::TPtr> SubconfigList;
-    yhash_map<Stroka, TTestSubconfig::TPtr> SubconfigMap;
+    std::unordered_map<Stroka, TTestSubconfig::TPtr> SubconfigMap;
 
     TTestConfig()
     {
@@ -193,7 +193,7 @@ TEST(TConfigTest, MissingSubconfig)
     EXPECT_EQ(0, config->Subconfig->MyStringList.size());
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
     EXPECT_EQ(0, config->SubconfigList.size());
-    EXPECT_EQ(0, config->SubconfigMap.ysize());
+    EXPECT_EQ(0, config->SubconfigMap.size());
 }
 
 TEST(TConfigTest, Options)

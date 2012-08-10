@@ -319,10 +319,10 @@ public:
         , SystemAttributeProvider(systemAttributeProvider)
     { }
 
-    virtual yhash_set<Stroka> List() const
+    virtual std::unordered_set<Stroka> List() const
     {
         auto keys = DoListAttributes(UserAttributes, SystemAttributeProvider);
-        return yhash_set<Stroka>(keys.begin(), keys.end());
+        return std::unordered_set<Stroka>(keys.begin(), keys.end());
     }
 
     virtual TNullable<TYsonString> FindYson(const Stroka& key) const
@@ -472,7 +472,7 @@ void TSupportsAttributes::SetAttribute(
     if (!tokenizer.ParseNext()) {
         auto newAttributes = ConvertToAttributes(TYsonString(request->value()));
         auto newKeys = newAttributes->List();
-        yhash_set<Stroka> userKeys;
+        std::unordered_set<Stroka> userKeys;
         if (userAttributes) {
             auto temp = userAttributes->List();
             userKeys.swap(temp);

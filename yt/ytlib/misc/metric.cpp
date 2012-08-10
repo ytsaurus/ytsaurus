@@ -64,7 +64,7 @@ Stroka TMetric::GetDebugInfo() const
 //    info += Sprintf("%d values in (-inf, %lf)\n", MinBucket, MinValue);
 //    double left = MinValue;
 //    double right = left + Delta;
-//    for (int i = 0; i < Buckets.ysize(); ++i) {
+//    for (int i = 0; i < Buckets.size(); ++i) {
 //        if (Buckets[i] == 0) continue;
 //        info += Sprintf("%d values in (%lf, %lf)\n", Buckets[i], left, right);
 //        left += Delta;

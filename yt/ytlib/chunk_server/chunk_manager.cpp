@@ -438,9 +438,9 @@ public:
             jobsToStop);
     }
 
-    const yhash_set<TChunkId>& LostChunkIds() const;
-    const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
-    const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
+    const std::unordered_set<TChunkId>& LostChunkIds() const;
+    const std::unordered_set<TChunkId>& OverreplicatedChunkIds() const;
+    const std::unordered_set<TChunkId>& UnderreplicatedChunkIds() const;
 
     void FillHolderAddresses(
         ::google::protobuf::RepeatedPtrField<TProtoStringType>* addresses,
@@ -543,13 +543,13 @@ private:
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
 
     TMetaStateMap<THolderId, THolder> HolderMap;
-    yhash_map<Stroka, THolder*> HolderAddressMap;
-    yhash_multimap<Stroka, THolder*> HolderHostNameMap;
+    std::unordered_map<Stroka, THolder*> HolderAddressMap;
+    std::unordered_multimap<Stroka, THolder*> HolderHostNameMap;
 
     TMetaStateMap<TChunkId, TJobList> JobListMap;
     TMetaStateMap<TJobId, TJob> JobMap;
 
-    yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
+    std::unordered_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
 
     void UpdateStatistics(TChunkList* chunkList, const TChunkTreeStatistics& statisticsDelta)
@@ -1339,8 +1339,8 @@ private:
 
     static void GetOwningNodes(
         TChunkTreeRef chunkRef,
-        yhash_set<TChunkTreeRef>& visitedRefs,
-        yhash_set<ICypressNode*>* owningNodes)
+        std::unordered_set<TChunkTreeRef>& visitedRefs,
+        std::unordered_set<ICypressNode*>* owningNodes)
     {
         if (!visitedRefs.insert(chunkRef).second) {
             return;
@@ -1369,8 +1369,8 @@ private:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
 
-        yhash_set<ICypressNode*> owningNodes;
-        yhash_set<TChunkTreeRef> visitedRefs;
+        std::unordered_set<ICypressNode*> owningNodes;
+        std::unordered_set<TChunkTreeRef> visitedRefs;
         GetOwningNodes(chunkRef, visitedRefs, &owningNodes);
 
         std::vector<TYPath> paths;
@@ -1397,9 +1397,9 @@ DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Holder, THolder, THolderId, Holde
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, std::unordered_set<TChunkId>, LostChunkIds, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, std::unordered_set<TChunkId>, OverreplicatedChunkIds, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, std::unordered_set<TChunkId>, UnderreplicatedChunkIds, *ChunkReplicator);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -2107,9 +2107,9 @@ DELEGATE_METAMAP_ACCESSORS(TChunkManager, Job, TJob, TJobId, *Impl)
 DELEGATE_SIGNAL(TChunkManager, void(const THolder*), HolderRegistered, *Impl);
 DELEGATE_SIGNAL(TChunkManager, void(const THolder*), HolderUnregistered, *Impl);
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostChunkIds, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, OverreplicatedChunkIds, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, UnderreplicatedChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, std::unordered_set<TChunkId>, LostChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, std::unordered_set<TChunkId>, OverreplicatedChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, std::unordered_set<TChunkId>, UnderreplicatedChunkIds, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

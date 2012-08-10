@@ -80,7 +80,7 @@ TEST_F(TMetaStateMapTest, BasicsInNormalMode)
 TEST_F(TMetaStateMapTest, SaveAndLoad)
 {
     srand(42); // set seed
-    yhash_map<TKey, int> checkMap;
+    std::unordered_map<TKey, int> checkMap;
     Stroka snapshotData;
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
@@ -126,7 +126,7 @@ TEST_F(TMetaStateMapTest, StressSave)
     Stroka snapshotData;
     TStringOutput output(snapshotData);
 
-    yhash_map<TKey, int> checkMap;
+    std::unordered_map<TKey, int> checkMap;
     NMetaState::TMetaStateMap<TKey, TValue> map;
 
     const int valueCount = 100000;

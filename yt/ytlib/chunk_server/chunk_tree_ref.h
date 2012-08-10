@@ -39,7 +39,6 @@ private:
 } // namespace NYT
 
 // Hashing helper.
-
 template <>
 struct hash<NYT::NChunkServer::TChunkTreeRef>
 {
@@ -48,6 +47,20 @@ struct hash<NYT::NChunkServer::TChunkTreeRef>
         return hash<uintptr_t>()(chunkRef.Cookie);
     }
 };
+
+namespace std {
+
+template <>
+struct hash<NYT::NChunkServer::TChunkTreeRef>
+{
+    inline size_t operator()(const NYT::NChunkServer::TChunkTreeRef& chunkRef) const
+    {
+        return ::hash<NYT::NChunkServer::TChunkTreeRef>()(chunkRef);
+    }
+};
+
+} // namespace std
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -93,7 +93,7 @@ protected:
     int ServerSocket;
     int ServerFd;
 
-    yhash_set<TTcpConnectionPtr> Connections;
+    std::unordered_set<TTcpConnectionPtr> Connections;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 

@@ -49,7 +49,7 @@ private:
     NChunkClient::TSequentialReaderPtr SequentialReader;
 
     std::vector<TSharedRef> Blocks;
-    yhash_map<TStringBuf, TValue> CurrentRow;
+    std::unordered_map<TStringBuf, TValue> CurrentRow;
 
     ui64 SizeToNextRow;
 

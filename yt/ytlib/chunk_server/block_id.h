@@ -61,5 +61,18 @@ struct hash<NYT::NChunkServer::TBlockId>
     }
 };
 
+namespace std {
+
+template <>
+struct hash<NYT::NChunkServer::TBlockId>
+{
+    i32 operator()(const NYT::NChunkServer::TBlockId& blockId) const
+    {
+        return ::hash<NYT::NChunkServer::TBlockId>()(blockId);
+    }
+};
+
+} // namespace std
+
 ////////////////////////////////////////////////////////////////////////////////
 

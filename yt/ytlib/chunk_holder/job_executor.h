@@ -119,7 +119,7 @@ public:
 
 private:
     friend class TJob;
-    typedef yhash_map<TJobId, TJobPtr> TJobMap;
+    typedef std::unordered_map<TJobId, TJobPtr> TJobMap;
 
     TBootstrap* Bootstrap;
 

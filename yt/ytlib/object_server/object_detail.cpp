@@ -202,9 +202,9 @@ TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
     , ObjectId(objectId)
 { }
 
-yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List() const
+std::unordered_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List() const
 {
-    yhash_set<Stroka> attributes;
+    std::unordered_set<Stroka> attributes;
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (attributeSet) {
         FOREACH (const auto& pair, attributeSet->Attributes()) {

@@ -88,7 +88,7 @@ private:
     TCancelableContextPtr ControlEpochContext;
     IInvokerPtr ControlEpochInvoker;
     
-    typedef yhash_set<TPeerId> TPeerSet;
+    typedef std::unordered_set<TPeerId> TPeerSet;
     TPeerSet AliveFollowers;
     TPeerSet PotentialFollowers;
 

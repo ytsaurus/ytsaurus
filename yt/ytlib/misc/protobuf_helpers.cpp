@@ -40,7 +40,7 @@ void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
 void FilterProtoExtensions(
     NProto::TExtensionSet* target,
     const NProto::TExtensionSet& source,
-    const yhash_set<int>& tags)
+    const std::unordered_set<int>& tags)
 {
     target->Clear();
     FOREACH (const auto& extension, source.extensions()) {

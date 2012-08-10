@@ -84,7 +84,7 @@ public:
 
             auto keyColumnCount = KeyColumns.size();
 
-            yhash_map<TStringBuf, int> keyColumnToIndex;
+            std::unordered_map<TStringBuf, int> keyColumnToIndex;
 
             std::vector< std::pair<TStringBuf, TStringBuf> > valueBuffer;
             std::vector<TSmallKeyPart> keyBuffer;

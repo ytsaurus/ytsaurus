@@ -49,7 +49,7 @@ private:
     TBootstrap* Bootstrap;
     EChunkFilter Filter;
 
-    const yhash_set<TChunkId>& GetFilteredChunkIds() const
+    const std::unordered_set<TChunkId>& GetFilteredChunkIds() const
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         switch (Filter) {

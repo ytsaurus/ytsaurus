@@ -6,6 +6,8 @@
 #include <set>
 #include <vector>
 #include <list>
+#include <unordered_set>
+#include <unordered_map>
 
 #include <util/system/atomic.h>
 #include <util/system/defaults.h>
@@ -22,7 +24,6 @@
 #include <util/generic/ptr.h>
 #include <util/generic/vector.h>
 #include <util/generic/hash.h>
-#include <util/generic/hash_set.h>
 #include <util/generic/map.h>
 #include <util/generic/set.h>
 #include <util/generic/singleton.h>
@@ -83,6 +84,5 @@
 #include "ref_counted.h"
 #include "new.h"
 #include "arcadia_helper.h"
-#include "hash.h"
 #include "enum.h"
 #include "override.h"

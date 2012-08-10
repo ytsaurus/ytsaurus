@@ -18,7 +18,7 @@ class TExecNode
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
     
     //! Jobs that are currently running on this node.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(std::unordered_set<TJobPtr>, Jobs);
 
     //! Resource limits, as reported by the node.
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceLimits);

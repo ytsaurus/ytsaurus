@@ -99,9 +99,9 @@ void Serialize(const std::vector<T>& value, IYsonConsumer* consumer)
     consumer->OnEndList();
 }
 
-// yhash_set
+// std::unordered_set
 template <class T>
-void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer)
+void Serialize(const std::unordered_set<T>& value, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     auto sortedItems = GetSortedIterators(value);
@@ -112,9 +112,9 @@ void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer)
     consumer->OnEndList();
 }
 
-// yhash_map
+// std::unordered_map
 template <class T>
-void Serialize(const yhash_map<Stroka, T>& value, IYsonConsumer* consumer)
+void Serialize(const std::unordered_map<Stroka, T>& value, IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(value);
@@ -188,9 +188,9 @@ void Deserialize(std::vector<T>& value, INodePtr node)
     }
 }
 
-// yhash_set
+// std::unordered_set
 template <class T>
-void Deserialize(yhash_set<T>& value, INodePtr node)
+void Deserialize(std::unordered_set<T>& value, INodePtr node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -201,9 +201,9 @@ void Deserialize(yhash_set<T>& value, INodePtr node)
     }
 }
 
-// yhash_map
+// std::unordered_map
 template <class T>
-void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
+void Deserialize(std::unordered_map<Stroka, T>& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {

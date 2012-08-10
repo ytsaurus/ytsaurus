@@ -24,7 +24,7 @@ public:
 
 private:
     TEnvironmentManagerConfigPtr Config;
-    yhash_map<Stroka, IEnvironmentBuilderPtr> Builders;
+    std::unordered_map<Stroka, IEnvironmentBuilderPtr> Builders;
 
 };
 

@@ -187,6 +187,19 @@ struct hash<NYT::NObjectServer::TVersionedObjectId>
     }
 };
 
+namespace std {
+
+template <>
+struct hash<NYT::NObjectServer::TVersionedObjectId>
+{
+    i32 operator() (const NYT::NObjectServer::TVersionedObjectId& id) const
+    {
+        return ::hash<NYT::NObjectServer::TVersionedObjectId>()(id);
+    }
+};
+
+} // namespace std
+
 ////////////////////////////////////////////////////////////////////////////////
 
 

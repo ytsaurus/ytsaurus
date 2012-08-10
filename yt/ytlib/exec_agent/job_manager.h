@@ -67,7 +67,7 @@ private:
     TBootstrap* Bootstrap;
 
     std::vector<TSlotPtr> Slots;
-    yhash_map<TJobId, TJobPtr> Jobs;
+    std::unordered_map<TJobId, TJobPtr> Jobs;
 
     TSlotPtr GetFreeSlot();
 

@@ -191,7 +191,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
         *updateJobsMsg.add_started_jobs() = jobInfo;
     }
 
-    yhash_set<TJobId> runningJobIds;
+    std::unordered_set<TJobId> runningJobIds;
     FOREACH (const auto& jobInfo, runningJobs) {
         runningJobIds.insert(TJobId::FromProto(jobInfo.job_id()));
     }

@@ -506,8 +506,8 @@ int TSessionManager::GetSessionCount() const
 TSessionManager::TSessions TSessionManager::GetSessions() const
 {
     TSessions result;
-    YCHECK(SessionMap.ysize() == SessionCount);
-    result.reserve(SessionMap.ysize());
+    YCHECK(SessionMap.size() == SessionCount);
+    result.reserve(SessionMap.size());
     FOREACH (const auto& pair, SessionMap) {
         result.push_back(pair.second);
     }

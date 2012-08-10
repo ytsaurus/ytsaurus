@@ -50,7 +50,7 @@ void TPeerBlockUpdater::Update()
 
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();
 
-    yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
+    std::unordered_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 
     auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
     auto peerAddress = Bootstrap->GetPeerAddress();

@@ -135,7 +135,7 @@ public:
 
 private:
     int ExitCode;
-    yhash_map<Stroka, TExecutorPtr> Executors;
+    std::unordered_map<Stroka, TExecutorPtr> Executors;
 
     void SetupSignalHandler()
     {

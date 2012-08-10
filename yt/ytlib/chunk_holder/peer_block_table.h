@@ -52,7 +52,7 @@ public:
     void UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer);
 
 private:
-    typedef yhash_map<TBlockId, std::vector<TPeerInfo> > TTable;
+    typedef std::unordered_map<TBlockId, std::vector<TPeerInfo> > TTable;
 
     static void SweepExpiredPeers(std::vector<TPeerInfo>& peers);
 

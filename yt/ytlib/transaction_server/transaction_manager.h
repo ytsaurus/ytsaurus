@@ -65,7 +65,7 @@ private:
     NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
-    yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
+    std::unordered_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
 
     virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();

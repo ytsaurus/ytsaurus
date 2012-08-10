@@ -65,7 +65,7 @@ public:
         VectorStrok result;
         SplitStroku(&result, expected, ";");
 
-        for (int index = 0; index < result.ysize(); ++index) {
+        for (int index = 0; index < result.size(); ++index) {
             Check(path + "/" + ToString(index), result[index]);
         }
     }

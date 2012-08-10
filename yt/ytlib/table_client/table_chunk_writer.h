@@ -83,7 +83,7 @@ private:
     bool IsOpen;
 
     //! Stores mapping from all key columns and channel non-range columns to indexes.
-    yhash_map<TStringBuf, TColumnInfo> ColumnMap;
+    std::unordered_map<TStringBuf, TColumnInfo> ColumnMap;
     std::vector<Stroka> ColumnNames;
 
     // Used for key creation.

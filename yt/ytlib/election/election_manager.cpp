@@ -238,7 +238,7 @@ private:
         { }
     };
 
-    typedef yhash_map<TPeerId, TStatus> TStatusTable;
+    typedef std::unordered_map<TPeerId, TStatus> TStatusTable;
 
     TElectionManager::TPtr ElectionManager;
     IInvokerPtr EpochInvoker;

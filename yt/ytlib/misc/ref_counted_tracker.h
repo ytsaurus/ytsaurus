@@ -64,7 +64,7 @@ private:
     std::vector<TItem> GetItems();
     void SortItems(std::vector<TItem>& items, int sortByColumn);
 
-    typedef yhash_map<TKey, TItem> TStatistics; 
+    typedef std::unordered_map<TKey, TItem> TStatistics; 
     TSpinLock SpinLock;
     TStatistics Statistics;
 

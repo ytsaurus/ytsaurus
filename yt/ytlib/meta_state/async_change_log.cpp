@@ -455,7 +455,7 @@ private:
     }
 
     TSpinLock SpinLock;
-    yhash_map<TChangeLogPtr, TChangeLogQueuePtr> ChangeLogQueues;
+    std::unordered_map<TChangeLogPtr, TChangeLogQueuePtr> ChangeLogQueues;
 
     TThread Thread;
     Event WakeupEvent;

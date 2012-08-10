@@ -5,7 +5,6 @@
 #include "rpc_dispatcher.h"
 
 #include <ytlib/misc/property.h>
-#include <ytlib/misc/hash.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/error.h>
 
@@ -558,8 +557,8 @@ private:
 
     //! Protects #RuntimeMethodInfos and #ActiveRequests.
     TSpinLock SpinLock;
-    yhash_map<Stroka, TRuntimeMethodInfoPtr> RuntimeMethodInfos;
-    yhash_map<IServiceContextPtr, TActiveRequestPtr> ActiveRequests;
+    std::unordered_map<Stroka, TRuntimeMethodInfoPtr> RuntimeMethodInfos;
+    std::unordered_map<IServiceContextPtr, TActiveRequestPtr> ActiveRequests;
 
     virtual Stroka GetServiceName() const;
     virtual Stroka GetLoggingCategory() const;

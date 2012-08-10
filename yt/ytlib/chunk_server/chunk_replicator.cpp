@@ -118,7 +118,7 @@ void TChunkReplicator::ProcessExistingJobs(
     *replicationJobCount = 0;
     *removalJobCount = 0;
 
-    yhash_set<TJobId> runningJobIds;
+    std::unordered_set<TJobId> runningJobIds;
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& jobInfo, runningJobs) {
@@ -443,7 +443,7 @@ void TChunkReplicator::GetReplicaStatistics(
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto* jobList = chunkManager->FindJobList(chunk->GetId());
     if (jobList) {
-        yhash_set<Stroka> storedAddresses(*storedCount);
+        std::unordered_set<Stroka> storedAddresses(*storedCount);
         FOREACH (auto holderId, chunk->StoredLocations()) {
             const auto& holder = chunkManager->GetHolder(holderId);
             storedAddresses.insert(holder->GetAddress());

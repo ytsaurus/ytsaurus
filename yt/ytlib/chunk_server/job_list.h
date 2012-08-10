@@ -13,7 +13,7 @@ namespace NChunkServer {
 class TJobList
 {
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJob*>, Jobs);
+    DEFINE_BYREF_RO_PROPERTY(std::unordered_set<TJob*>, Jobs);
 
 public:
     TJobList(const TChunkId& chunkId);

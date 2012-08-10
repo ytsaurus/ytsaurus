@@ -26,9 +26,9 @@ public:
         TChunkPlacementPtr chunkPlacement,
         THolderLeaseTrackerPtr holderLeaseTracker);
 
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, OverreplicatedChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(std::unordered_set<TChunkId>, LostChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(std::unordered_set<TChunkId>, UnderreplicatedChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(std::unordered_set<TChunkId>, OverreplicatedChunkIds);
 
     void OnHolderRegistered(const THolder* holder);
     void OnHolderUnregistered(const THolder* holder);
@@ -66,17 +66,17 @@ private:
         NProfiling::TCpuInstant When;
     };
 
-    yhash_set<TChunkId> RefreshSet;
+    std::unordered_set<TChunkId> RefreshSet;
     std::deque<TRefreshEntry> RefreshList;
 
     struct THolderInfo
     {
-        typedef yhash_set<TChunkId> TChunkIds;
+        typedef std::unordered_set<TChunkId> TChunkIds;
         TChunkIds ChunksToReplicate;
         TChunkIds ChunksToRemove;
     };
 
-    typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
+    typedef std::unordered_map<THolderId, THolderInfo> THolderInfoMap;
     THolderInfoMap HolderInfoMap;
 
     THolderInfo* FindHolderInfo(THolderId holderId);

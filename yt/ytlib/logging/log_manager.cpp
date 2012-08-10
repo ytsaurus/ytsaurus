@@ -43,7 +43,7 @@ struct TRule
     typedef TIntrusivePtr<TRule> TPtr;
 
     bool AllCategories;
-    yhash_set<Stroka> Categories;
+    std::unordered_set<Stroka> Categories;
 
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
@@ -112,7 +112,7 @@ public:
         if (it != CachedWriters.end())
             return it->second;
     
-        yhash_set<Stroka> writerIds;
+        std::unordered_set<Stroka> writerIds;
         FOREACH (auto& rule, Rules) {
             if (rule->IsApplicable(event.Category, event.Level)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
@@ -238,8 +238,8 @@ private:
     TAtomic Version;
 
     std::vector<TRule::TPtr> Rules;
-    yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
-    yhash_map<Stroka, ILogWriter::TPtr> Writers;
+    std::unordered_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
+    std::unordered_map<Stroka, ILogWriter::TPtr> Writers;
     ymap<TPair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 };
 

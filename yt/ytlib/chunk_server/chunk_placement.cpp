@@ -64,7 +64,7 @@ void TChunkPlacement::OnSessionHinted(THolder* holder)
 
 std::vector<THolder*> TChunkPlacement::GetUploadTargets(
     int count,
-    const yhash_set<Stroka>* forbiddenAddresses,
+    const std::unordered_set<Stroka>* forbiddenAddresses,
     Stroka* preferredHostName)
 {
     // TODO: check replication fan-in in case this is a replication job
@@ -132,7 +132,7 @@ std::vector<THolder*> TChunkPlacement::GetUploadTargets(
 
 std::vector<THolder*> TChunkPlacement::GetReplicationTargets(const TChunk* chunk, int count)
 {
-    yhash_set<Stroka> forbiddenAddresses;
+    std::unordered_set<Stroka> forbiddenAddresses;
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto holderId, chunk->StoredLocations()) {
@@ -267,7 +267,7 @@ bool TChunkPlacement::IsValidBalancingTarget(THolder* targetHolder, TChunk* chun
 std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(THolder* holder, int count)
 {
     // Do not balance chunks that already have a job.
-    yhash_set<TChunkId> forbiddenChunkIds;
+    std::unordered_set<TChunkId> forbiddenChunkIds;
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto* job, holder->Jobs()) {
         forbiddenChunkIds.insert(job->GetChunkId());

@@ -128,7 +128,7 @@ private:
 
     std::vector<INodeTypeHandlerPtr> TypeToHandler;
 
-    yhash_map<TNodeId, INodeBehaviorPtr> NodeBehaviors;
+    std::unordered_map<TNodeId, INodeBehaviorPtr> NodeBehaviors;
 
     i32 RefNode(const TNodeId& nodeId);
     i32 UnrefNode(const TNodeId& nodeId);
