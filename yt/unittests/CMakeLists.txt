@@ -18,6 +18,7 @@ set( SRCS
   ${BASE}/enum_ut.cpp
   ${BASE}/foreach_ut.cpp
   ${BASE}/guid_ut.cpp
+  ${BASE}/heap_ut.cpp
   ${BASE}/intrusive_ptr_ut.cpp
   ${BASE}/json_parser_ut.cpp
   ${BASE}/json_writer_ut.cpp
