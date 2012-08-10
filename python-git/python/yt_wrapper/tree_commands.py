@@ -19,7 +19,7 @@ def set(path, value):
 def copy(source_path, destination_path):
     return make_request("POST", "copy",
                         {"source_path": escape_path(source_path),
-                         "destination_path": escape_path(destination_path)}, verbose=True)
+                         "destination_path": escape_path(destination_path)})
 
 def list(path):
     if not exists(path):
