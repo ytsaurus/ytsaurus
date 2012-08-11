@@ -37,7 +37,7 @@ static inline bool SendAndClose(SOCKET s, const Stroka& data)
 
 static inline bool SendAndClose(SOCKET s, const std::vector<char>& data)
 {
-    bool result = SendRetry(s, &data[0], data.size());
+    bool result = SendRetry(s, &data[0], data.ysize());
     if (result) {
         // close connection here, because SendRetry closes socket only if failed
         CloseConnection(s);
@@ -56,8 +56,8 @@ static inline double SecondsSince(i64 start) {
 class TServer::TImpl
 {
 private:
-    typedef std::unordered_map<Stroka, TSyncHandler::TPtr> TSyncHandlerMap;
-    typedef std::unordered_map<Stroka, TAsyncHandler::TPtr> TAsyncHandlerMap;
+    typedef yhash_map<Stroka, TSyncHandler::TPtr> TSyncHandlerMap;
+    typedef yhash_map<Stroka, TAsyncHandler::TPtr> TAsyncHandlerMap;
 
     struct TPendingRequest
     {
@@ -348,8 +348,8 @@ private:
     };
 
 private:
-    typedef std::unordered_map<Stroka, TSyncHandler> TSyncHandlerMap;
-    typedef std::unordered_map<Stroka, TAsyncHandler> TAsyncHandlerMap;
+    typedef yhash_map<Stroka, TSyncHandler> TSyncHandlerMap;
+    typedef yhash_map<Stroka, TAsyncHandler> TAsyncHandlerMap;
 
 private:
     THolder<TCallback> Callback;

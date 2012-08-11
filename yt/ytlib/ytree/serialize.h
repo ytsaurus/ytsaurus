@@ -113,13 +113,13 @@ void Serialize(const std::vector<T>& value, IYsonConsumer* consumer);
 template <class T>
 void Serialize(const std::vector<T>& value, IYsonConsumer* consumer);
 
-// std::unordered_set
+// yhash_set
 template <class T>
-void Serialize(const std::unordered_set<T>& value, IYsonConsumer* consumer);
+void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer);
 
-// std::unordered_map
+// yhash_map
 template <class T>
-void Serialize(const std::unordered_map<Stroka, T>& value, IYsonConsumer* consumer);
+void Serialize(const yhash_map<Stroka, T>& value, IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,13 +192,13 @@ void Deserialize(std::vector<T>& value, INodePtr node);
 template <class T>
 void Deserialize(std::vector<T>& value, INodePtr node);
 
-// std::unordered_set
+// yhash_set
 template <class T>
-void Deserialize(std::unordered_set<T>& value, INodePtr node);
+void Deserialize(yhash_set<T>& value, INodePtr node);
 
-// std::unordered_map
+// yhash_map
 template <class T>
-void Deserialize(std::unordered_map<Stroka, T>& value, INodePtr node);
+void Deserialize(yhash_map<Stroka, T>& value, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

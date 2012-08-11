@@ -46,16 +46,16 @@ private:
     std::vector<NTableClient::NProto::TInputChunk> Chunks;
     
     //! Indexes of chunks for which no samples are fetched yet.
-    std::unordered_set<int> UnfetchedChunkIndexes;
+    yhash_set<int> UnfetchedChunkIndexes;
 
     //! All samples fetched so far.
     std::vector<NTableClient::NProto::TKey> Samples;
 
     //! Addresses of nodes that failed to reply.
-    std::unordered_set<Stroka> DeadNodes;
+    yhash_set<Stroka> DeadNodes;
 
     //! |(address, chunkId)| pairs for which an error was returned from the node.
-    // XXX(babenko): need to specialize hash to use std::unordered_set
+    // XXX(babenko): need to specialize hash to use yhash_set
     std::set< TPair<Stroka, NChunkHolder::TChunkId> > DeadChunks;
 
     void SendRequests();

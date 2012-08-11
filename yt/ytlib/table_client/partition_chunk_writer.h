@@ -49,7 +49,7 @@ private:
     IPartitioner* Partitioner;
 
     NYTree::TLexer Lexer;
-    std::unordered_map<TStringBuf, int> KeyColumnIndexes;
+    yhash_map<TStringBuf, int> KeyColumnIndexes;
 
     //! Current size of written data.
     /*!

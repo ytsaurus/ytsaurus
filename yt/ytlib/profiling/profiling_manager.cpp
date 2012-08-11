@@ -197,7 +197,7 @@ private:
     TRateCounter DequeueCounter;
 
     TLockFreeQueue<TQueuedSample> SampleQueue;
-    std::unordered_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
+    yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
     TIdGenerator<i64> IdGenerator;
 
     TIntrusivePtr<TResourceTracker> ResourceTracker;

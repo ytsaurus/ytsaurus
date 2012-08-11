@@ -75,7 +75,7 @@ private:
     TLockFreeQueue<TQueueEntry> UnregisterQueue;
     ev::async UnregisterWatcher;
 
-    std::unordered_set<IEventLoopObjectPtr> Objects;
+    yhash_set<IEventLoopObjectPtr> Objects;
 
     static void* ThreadFunc(void* param);
     void ThreadMain();

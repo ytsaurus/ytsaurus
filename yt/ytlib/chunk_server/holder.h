@@ -27,9 +27,9 @@ class THolder
     DEFINE_BYVAL_RO_PROPERTY(TIncarnationId, IncarnationId);
     DEFINE_BYVAL_RW_PROPERTY(EHolderState, State);
     DEFINE_BYREF_RW_PROPERTY(NProto::THolderStatistics, Statistics);
-    DEFINE_BYREF_RW_PROPERTY(std::unordered_set<TChunk*>, StoredChunks);
-    DEFINE_BYREF_RW_PROPERTY(std::unordered_set<TChunk*>, CachedChunks);
-    DEFINE_BYREF_RW_PROPERTY(std::unordered_set<TChunk*>, UnapprovedChunks);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, StoredChunks);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, CachedChunks);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, UnapprovedChunks);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJob*>, Jobs);
 
 public:
@@ -60,7 +60,7 @@ public:
 class TReplicationSink
 {
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
-    DEFINE_BYREF_RW_PROPERTY(std::unordered_set<TJob*>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJob*>, Jobs);
 
 public:
     explicit TReplicationSink(const Stroka &address)

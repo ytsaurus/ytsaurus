@@ -43,7 +43,7 @@ class TMetaStateMap
 {
 public:
     typedef TMetaStateMap<TKey, TValue, TTraits, THash> TThis;
-    typedef std::unordered_map<TKey, TValue*, THash> TMap;
+    typedef yhash_map<TKey, TValue*, THash> TMap;
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
 

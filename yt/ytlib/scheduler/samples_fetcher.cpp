@@ -65,7 +65,7 @@ TFuture< TValueOrError<void> > TSamplesFetcher::Run(int desiredSampleCount)
 void TSamplesFetcher::SendRequests()
 {
     // Construct address -> chunk* map.
-    typedef std::unordered_map<Stroka, std::vector<int> > TAddressToChunkIndexes;
+    typedef yhash_map<Stroka, std::vector<int> > TAddressToChunkIndexes;
     TAddressToChunkIndexes addressToChunkIndexes;
 
     FOREACH (auto chunkIndex, UnfetchedChunkIndexes) {
@@ -109,7 +109,7 @@ void TSamplesFetcher::SendRequests()
 
     // Pick nodes greedily.
     auto awaiter = New<TParallelAwaiter>(Invoker);
-    std::unordered_set<int> requestedChunkIndexes;
+    yhash_set<int> requestedChunkIndexes;
     FOREACH (const auto& it, addressIts) {
         auto address = it->first;
         auto channel = ChannelCache.GetChannel(address);

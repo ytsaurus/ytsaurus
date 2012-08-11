@@ -339,8 +339,8 @@ typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
 class TMapNode
     : public TCypressNodeBase
 {
-    typedef std::unordered_map<Stroka, TNodeId> TKeyToChild;
-    typedef std::unordered_map<TNodeId, Stroka> TChildToKey;
+    typedef yhash_map<Stroka, TNodeId> TKeyToChild;
+    typedef yhash_map<TNodeId, Stroka> TChildToKey;
 
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
@@ -388,7 +388,7 @@ class TListNode
     : public TCypressNodeBase
 {
     typedef std::vector<TNodeId> TIndexToChild;
-    typedef std::unordered_map<TNodeId, int> TChildToIndex;
+    typedef yhash_map<TNodeId, int> TChildToIndex;
 
     DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);

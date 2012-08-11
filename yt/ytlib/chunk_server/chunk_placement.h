@@ -29,7 +29,7 @@ public:
     // TODO(babenko): consider using small vectors here
     std::vector<THolder*> GetUploadTargets(
         int count,
-        const std::unordered_set<Stroka>* forbiddenAddresses,
+        const yhash_set<Stroka>* forbiddenAddresses,
         Stroka* preferredHostName);
     std::vector<THolder*> GetReplicationTargets(const TChunk* chunk, int count);
     std::vector<THolder*> GetRemovalTargets(const TChunk* chunk, int count);
@@ -39,14 +39,14 @@ public:
    
 private:
     typedef ymultimap<double, THolder*> TLoadFactorMap;
-    typedef std::unordered_map<THolder*, TLoadFactorMap::iterator> TIteratorMap;
+    typedef yhash_map<THolder*, TLoadFactorMap::iterator> TIteratorMap;
 
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     TLoadFactorMap LoadFactorMap;
     TIteratorMap IteratorMap;
-    std::unordered_map<THolder*, int> HintedSessionsMap;
+    yhash_map<THolder*, int> HintedSessionsMap;
 
     bool IsFull(THolder* holder) const;
     int GetSessionCount(THolder* holder) const;

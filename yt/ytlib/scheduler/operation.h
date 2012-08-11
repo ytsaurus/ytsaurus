@@ -30,7 +30,7 @@ class TOperation
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, EndTime);
 
     //! Currently existing jobs in the operation.
-    DEFINE_BYREF_RW_PROPERTY(std::unordered_set<TJobPtr>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 

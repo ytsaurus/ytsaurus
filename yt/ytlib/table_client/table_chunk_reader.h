@@ -97,7 +97,7 @@ private:
 
     NYTree::TLexer Lexer;
 
-    std::unordered_map<TStringBuf, TColumnInfo> ColumnsMap;
+    yhash_map<TStringBuf, TColumnInfo> ColumnsMap;
     std::vector<Stroka> ColumnNames;
 
     i64 CurrentRowIndex;

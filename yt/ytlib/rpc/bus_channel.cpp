@@ -274,7 +274,7 @@ private:
             NProfiling::TTimer Timer;
         };
 
-        typedef std::unordered_map<TRequestId, TActiveRequest> TRequestMap;
+        typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
 
         TSpinLock SpinLock;
         TRequestMap ActiveRequests;

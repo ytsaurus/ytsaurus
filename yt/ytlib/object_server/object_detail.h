@@ -115,7 +115,7 @@ protected:
         TUserAttributeDictionary(TObjectManagerPtr objectManager, const TObjectId& objectId);
 
         // NYTree::IAttributeDictionary members
-        virtual std::unordered_set<Stroka> List() const;
+        virtual yhash_set<Stroka> List() const;
         virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& key) const;
         virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value);
         virtual bool Remove(const Stroka& key);

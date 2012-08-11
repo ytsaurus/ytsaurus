@@ -226,7 +226,7 @@ public:
 private:
     bool TrackLocality;
 
-    std::unordered_set<TChunkStripePtr> GlobalChunks;
+    yhash_set<TChunkStripePtr> GlobalChunks;
 
     struct TChunkStripeHasher
     {
@@ -248,10 +248,10 @@ private:
         { }
 
         i64 TotalDataSize;
-        std::unordered_set<TChunkStripePtr, TChunkStripeHasher> Stripes;
+        yhash_set<TChunkStripePtr, TChunkStripeHasher> Stripes;
     };
     
-    std::unordered_map<Stroka,  TLocalityEntry> LocalChunks;
+    yhash_map<Stroka,  TLocalityEntry> LocalChunks;
 
     void Register(TChunkStripePtr stripe)
     {
@@ -401,7 +401,7 @@ private:
     std::vector<TChunkStripePtr> Stripes;
 
     //! Addresses of added chunks.
-    std::unordered_map<Stroka, i64> AddressToLocality;
+    yhash_map<Stroka, i64> AddressToLocality;
 
     //! Have the stripes been #Extract'ed?
     bool Extracted;

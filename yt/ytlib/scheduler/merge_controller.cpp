@@ -818,7 +818,7 @@ protected:
         }
 
         TNullable<NTableClient::NProto::TKey> lastBreakpoint;
-        std::unordered_map<TRefCountedInputChunkPtr, TKeyEndpoint*> openedChunks;
+        yhash_map<TRefCountedInputChunkPtr, TKeyEndpoint*> openedChunks;
 
         for (int index = startIndex; index < endIndex; ++index) {
             auto& endpoint = Endpoints[index];

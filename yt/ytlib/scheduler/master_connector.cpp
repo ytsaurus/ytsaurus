@@ -270,14 +270,14 @@ private:
         { }
 
         TOperationPtr Operation;
-        std::unordered_set<TJobPtr> PendingJobCreations;
-        std::unordered_set<TJobPtr> PendingJobUpdates;
-        std::unordered_map<TJobPtr, TChunkId> PendingStdErrChunkIds;
+        yhash_set<TJobPtr> PendingJobCreations;
+        yhash_set<TJobPtr> PendingJobUpdates;
+        yhash_map<TJobPtr, TChunkId> PendingStdErrChunkIds;
         bool FinalizationPending;
         TPromise<TError> Finalized;
     };
 
-    std::unordered_map<TOperationId, TOperationUpdateList> OperationUpdateLists;
+    yhash_map<TOperationId, TOperationUpdateList> OperationUpdateLists;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -419,7 +419,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Collect all transactions that are used by currently running operations.
-        std::unordered_set<TTransactionId> transactionIds;
+        yhash_set<TTransactionId> transactionIds;
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
             auto transactionId = operation->GetTransactionId();
@@ -461,7 +461,7 @@ private:
         LOG_INFO("Transactions refreshed successfully");
 
         // Collect the list of dead transactions.
-        std::unordered_set<TTransactionId> deadTransactionIds;
+        yhash_set<TTransactionId> deadTransactionIds;
         for (int index = 0; index < rsp->GetSize(); ++index) {
             if (!rsp->GetResponse(index)->IsOK()) {
                 YCHECK(deadTransactionIds.insert(transactionIds[index]).second);
@@ -507,7 +507,7 @@ private:
 
         // Examine the list of nodes returned by master and figure out the difference.
 
-        std::unordered_set<Stroka> nodeAddresses;
+        yhash_set<Stroka> nodeAddresses;
         auto nodes = Bootstrap->GetScheduler()->GetExecNodes();
         FOREACH (auto node, nodes) {
             YCHECK(nodeAddresses.insert(node->GetAddress()).second);

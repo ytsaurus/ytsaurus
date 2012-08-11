@@ -86,7 +86,7 @@ public:
         PROFILE_TIMING ("/ordered_merge_time") {
             LOG_INFO("Initializing");
 
-            std::unordered_map<TStringBuf, int> keyColumnToIndex;
+            yhash_map<TStringBuf, int> keyColumnToIndex;
 
             auto writer = CreateSyncWriter(Writer);
             {

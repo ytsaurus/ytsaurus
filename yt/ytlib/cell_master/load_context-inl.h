@@ -222,19 +222,19 @@ struct TObjectRefSerializerTraits< TSmallVector<V, N> >
 };
 
 template <class K, class H, class E, class A>
-struct TObjectRefSerializerTraits< std::unordered_set<K, H, E, A> >
+struct TObjectRefSerializerTraits< yhash_set<K, H, E, A> >
 {
     typedef TObjectRefSetSerializer TSerializer;
 };
 
 template <class K, class H, class E, class A>
-struct TObjectRefSerializerTraits< std::unordered_multiset<K, H, E, A> >
+struct TObjectRefSerializerTraits< yhash_multiset<K, H, E, A> >
 {
     typedef TObjectRefMultisetSerializer TSerializer;
 };
 
 template <class K, class V, class H, class E, class A>
-struct TObjectRefSerializerTraits< std::unordered_map<K, V, H, E, A> >
+struct TObjectRefSerializerTraits< yhash_map<K, V, H, E, A> >
 {
     typedef TObjectRefHashMapSerializer TSerializer;
 };

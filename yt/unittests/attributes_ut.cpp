@@ -51,7 +51,7 @@ TEST_F(TAttributesTest, CheckAccessors)
     attributes->Set<double>("weight", 70.5);
 
     Stroka keys[] = {"name", "age", "weight"};
-    EXPECT_EQ(std::unordered_set<Stroka>(keys, keys + 3), attributes->List());
+    EXPECT_EQ(yhash_set<Stroka>(keys, keys + 3), attributes->List());
 
     EXPECT_EQ("Petr", attributes->Get<Stroka>("name"));
     EXPECT_THROW(attributes->Get<int>("name"), yexception);

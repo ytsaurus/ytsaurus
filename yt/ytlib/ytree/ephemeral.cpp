@@ -5,6 +5,7 @@
 #include "attribute_provider_detail.h"
 #include "ypath_client.h"
 
+#include <ytlib/misc/hash.h>
 #include <ytlib/misc/singleton.h>
 
 #include <algorithm>
@@ -172,7 +173,7 @@ public:
 
     virtual int GetChildCount() const
     {
-        return KeyToChild.size();
+        return KeyToChild.ysize();
     }
 
     virtual std::vector< TPair<Stroka, INodePtr> > GetChildren() const
@@ -271,8 +272,8 @@ public:
     }
 
 private:
-    std::unordered_map<Stroka, INodePtr> KeyToChild;
-    std::unordered_map<INodePtr, Stroka> ChildToKey;
+    yhash_map<Stroka, INodePtr> KeyToChild;
+    yhash_map<INodePtr, Stroka> ChildToKey;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context)
     {
@@ -395,7 +396,7 @@ public:
 
 private:
     std::vector<INodePtr> IndexToChild;
-    std::unordered_map<INodePtr, int> ChildToIndex;
+    yhash_map<INodePtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb)
     {

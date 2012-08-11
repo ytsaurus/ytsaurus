@@ -149,13 +149,13 @@ private:
 
     TAutoPtr<ISchedulerStrategy> Strategy;
 
-    typedef std::unordered_map<Stroka, TExecNodePtr> TExecNodeMap;
+    typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
     TExecNodeMap ExecNodes;
 
-    typedef std::unordered_map<TOperationId, TOperationPtr> TOperationMap;
+    typedef yhash_map<TOperationId, TOperationPtr> TOperationMap;
     TOperationMap Operations;
 
-    typedef std::unordered_map<TJobId, TJobPtr> TJobMap;
+    typedef yhash_map<TJobId, TJobPtr> TJobMap;
     TJobMap Jobs;
     std::vector<int> JobTypeCounters;
 

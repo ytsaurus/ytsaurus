@@ -194,8 +194,8 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     NFS::ForcePath(path);
     NFS::CleanTempFiles(path);
 
-    std::unordered_set<Stroka> fileNames;
-    std::unordered_set<TChunkId> chunkIds;
+    yhash_set<Stroka> fileNames;
+    yhash_set<TChunkId> chunkIds;
 
     TFileList fileList;
     fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());

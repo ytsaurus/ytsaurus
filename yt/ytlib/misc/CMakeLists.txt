@@ -53,6 +53,7 @@ set( HDRS
   ${BASE}/foreach.h
   ${BASE}/fs.h
   ${BASE}/guid.h
+  ${BASE}/hash.h
   ${BASE}/high_resolution_clock.h
   ${BASE}/home.h
   ${BASE}/id_generator.h

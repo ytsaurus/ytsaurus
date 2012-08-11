@@ -60,7 +60,7 @@ private:
     typedef std::list<TOperationPtr> TQueue;
     std::list<TOperationPtr> Queue;
 
-    std::unordered_map<TOperationPtr, TQueue::iterator> OpToIterator;
+    yhash_map<TOperationPtr, TQueue::iterator> OpToIterator;
 
 };
 

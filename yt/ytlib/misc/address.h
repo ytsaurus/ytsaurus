@@ -80,7 +80,7 @@ public:
 
 private:
     TSpinLock SpinLock;
-    std::unordered_map<Stroka, TNetworkAddress> Cache;
+    yhash_map<Stroka, TNetworkAddress> Cache;
 
     TValueOrError<TNetworkAddress> DoResolve(const Stroka& hostName);
 

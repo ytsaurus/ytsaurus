@@ -136,10 +136,10 @@ size_t WritePodPadded(OutputStream& output, const T& obj)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey>
-std::vector <typename std::unordered_set<TKey>::const_iterator> GetSortedIterators(
-    const std::unordered_set<TKey>& set)
+std::vector <typename yhash_set<TKey>::const_iterator> GetSortedIterators(
+    const yhash_set<TKey>& set)
 {
-    typedef typename std::unordered_set<TKey>::const_iterator TIterator;
+    typedef typename yhash_set<TKey>::const_iterator TIterator;
     std::vector<TIterator> iterators;
     iterators.reserve(set.size());
     for (auto it = set.begin(); it != set.end(); ++it) {
@@ -212,10 +212,10 @@ void LoadNullableSet(TInputStream* input, THolder<TSet>& set)
 }
 
 template <class TKey, class TValue>
-std::vector <typename std::unordered_map<TKey, TValue>::const_iterator> GetSortedIterators(
-    const std::unordered_map<TKey, TValue>& map)
+std::vector <typename yhash_map<TKey, TValue>::const_iterator> GetSortedIterators(
+    const yhash_map<TKey, TValue>& map)
 {
-    typedef typename std::unordered_map<TKey, TValue>::const_iterator TIterator;
+    typedef typename yhash_map<TKey, TValue>::const_iterator TIterator;
     std::vector<TIterator> iterators;
     iterators.reserve(map.size());
     for (auto it = map.begin(); it != map.end(); ++it) {

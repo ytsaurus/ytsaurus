@@ -910,7 +910,7 @@ protected:
             return;
         }
 
-        std::unordered_map<TExecNodePtr, i64> nodeToLoad;
+        yhash_map<TExecNodePtr, i64> nodeToLoad;
         std::vector<TExecNodePtr> nodeHeap;
 
         auto compareNodes = [&] (TExecNodePtr lhs, TExecNodePtr rhs) {

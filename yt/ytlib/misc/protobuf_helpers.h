@@ -168,7 +168,7 @@ bool RemoveProtoExtension(NProto::TExtensionSet* extensions);
 void FilterProtoExtensions(
     NProto::TExtensionSet* target,
     const NProto::TExtensionSet& source,
-    const std::unordered_set<int>& tags);
+    const yhash_set<int>& tags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

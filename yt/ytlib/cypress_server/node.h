@@ -58,7 +58,7 @@ struct ICypressNode
     //! Sets the parent node id.
     virtual void SetParentId(TNodeId value) = 0;
 
-    typedef std::unordered_map<NTransactionServer::TTransaction*, TLock> TLockMap;
+    typedef yhash_map<NTransactionServer::TTransaction*, TLock> TLockMap;
 
     //! Gets an immutable reference to the node's locks.
     virtual const TLockMap& Locks() const = 0;

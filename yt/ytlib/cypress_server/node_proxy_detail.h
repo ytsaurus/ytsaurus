@@ -383,7 +383,7 @@ protected:
         { }
            
         
-        virtual std::unordered_set<Stroka> List() const
+        virtual yhash_set<Stroka> List() const
         {
             if (!Transaction) {
                 return TUserAttributeDictionary::List();
@@ -395,7 +395,7 @@ protected:
             auto transactions = transactionManager->GetTransactionPath(Transaction);
             std::reverse(transactions.begin(), transactions.end());
 
-            std::unordered_set<Stroka> attributes;
+            yhash_set<Stroka> attributes;
             FOREACH (const auto* transaction, transactions) {
                 NObjectServer::TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
@@ -755,7 +755,7 @@ private:
     virtual void SetRecursive(const NYTree::TYPath& path, NYTree::INodePtr value);
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
 
-    std::unordered_map<Stroka, ICypressNodeProxyPtr> DoGetChildren() const;
+    yhash_map<Stroka, ICypressNodeProxyPtr> DoGetChildren() const;
     NYTree::INodePtr DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const;
 
     virtual void DoCloneTo(TMapNode* clonedNode);

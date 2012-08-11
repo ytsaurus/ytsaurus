@@ -168,10 +168,10 @@ protected:
         std::vector<NChunkServer::TChunkListId> ChunkListIds;
     };
 
-    std::unordered_map<TJobPtr, TJobInProgressPtr> JobsInProgress;
+    yhash_map<TJobPtr, TJobInProgressPtr> JobsInProgress;
 
     // The set of all input chunks. Used in #OnChunkFailed.
-    std::unordered_set<NChunkServer::TChunkId> InputChunkIds;
+    yhash_set<NChunkServer::TChunkId> InputChunkIds;
 
     // Tasks management.
 
@@ -243,8 +243,8 @@ protected:
 
     struct TPendingTaskInfo
     {
-        std::unordered_set<TTaskPtr> GlobalTasks;
-        std::unordered_map<Stroka, std::unordered_set<TTaskPtr>> AddressToLocalTasks;
+        yhash_set<TTaskPtr> GlobalTasks;
+        yhash_map<Stroka, yhash_set<TTaskPtr>> AddressToLocalTasks;
     };
 
     static const int MaxTaskPriority = 2;

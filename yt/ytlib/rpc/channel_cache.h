@@ -31,7 +31,7 @@ public:
     void Shutdown();
 
 private:
-    typedef std::unordered_map<Stroka, IChannelPtr> TChannelMap;
+    typedef yhash_map<Stroka, IChannelPtr> TChannelMap;
 
     bool IsTerminated;
     TChannelMap ChannelMap;

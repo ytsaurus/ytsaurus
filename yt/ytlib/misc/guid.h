@@ -60,12 +60,6 @@ bool operator <  (const TGuid &a, const TGuid &b);
 
 DECLARE_PODTYPE(NYT::TGuid)
 
-// TODO: consider removing TGuid::ToString
-inline Stroka ToString(const NYT::TGuid& guid)
-{
-    return guid.ToString();
-}
-
 //! A hasher for TGuid.
 template <>
 struct hash<NYT::TGuid>
@@ -80,18 +74,11 @@ struct hash<NYT::TGuid>
     }
 };
 
-namespace std {
-
-template <>
-struct hash<NYT::TGuid>
+// TODO: consider removing TGuid::ToString
+inline Stroka ToString(const NYT::TGuid& guid)
 {
-    inline size_t operator()(const NYT::TGuid& guid) const
-    {
-        return ::hash<NYT::TGuid>()(guid);
-    }
-};
-
-} // namespace std
+    return guid.ToString();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

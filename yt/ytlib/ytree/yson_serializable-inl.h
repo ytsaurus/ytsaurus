@@ -85,11 +85,11 @@ struct TLoadHelper<std::vector<T>, void>
     }
 };
 
-// std::unordered_set
+// yhash_set
 template <class T>
-struct TLoadHelper<std::unordered_set<T>, void>
+struct TLoadHelper<yhash_set<T>, void>
 {
-    static void Load(std::unordered_set<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(yhash_set<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -104,11 +104,11 @@ struct TLoadHelper<std::unordered_set<T>, void>
     }
 };
 
-// std::unordered_map
+// yhash_map
 template <class T>
-struct TLoadHelper<std::unordered_map<Stroka, T>, void>
+struct TLoadHelper<yhash_map<Stroka, T>, void>
 {
-    static void Load(std::unordered_map<Stroka, T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(yhash_map<Stroka, T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         auto mapNode = node->AsMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -156,10 +156,10 @@ inline void ValidateSubconfigs(
     }
 }
 
-// std::unordered_map
+// yhash_map
 template <class T>
 inline void ValidateSubconfigs(
-    const std::unordered_map<Stroka, T>* parameter,
+    const yhash_map<Stroka, T>* parameter,
     const NYTree::TYPath& path)
 {
     FOREACH (const auto& pair, *parameter) {

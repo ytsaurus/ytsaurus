@@ -24,12 +24,12 @@ class TTransaction
     : public NObjectServer::TObjectWithIdBase
 {
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
-    DEFINE_BYREF_RW_PROPERTY(std::unordered_set<TTransaction*>, NestedTransactions);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
 
     // Object Manager stuff
-    DEFINE_BYREF_RW_PROPERTY(std::unordered_set<NObjectServer::TObjectId>, CreatedObjectIds);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectId>, CreatedObjectIds);
 
     // Cypress stuff
     DEFINE_BYREF_RW_PROPERTY(std::vector<NCypressServer::ICypressNode*>, LockedNodes);

@@ -280,7 +280,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     YUNREACHABLE();
 }
 
-std::unordered_map<Stroka, ICypressNodeProxyPtr> TMapNodeProxy::DoGetChildren() const
+yhash_map<Stroka, ICypressNodeProxyPtr> TMapNodeProxy::DoGetChildren() const
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     auto transactionManager = Bootstrap->GetTransactionManager();
@@ -288,7 +288,7 @@ std::unordered_map<Stroka, ICypressNodeProxyPtr> TMapNodeProxy::DoGetChildren() 
     auto transactions = transactionManager->GetTransactionPath(Transaction);
     std::reverse(transactions.begin(), transactions.end());
 
-    std::unordered_map<Stroka, ICypressNodeProxyPtr> result;
+    yhash_map<Stroka, ICypressNodeProxyPtr> result;
     FOREACH (const auto* transaction, transactions) {
         const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
         const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();

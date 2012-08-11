@@ -183,7 +183,7 @@ private:
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
-    typedef std::unordered_map<TChunkId, TSessionPtr> TSessionMap;
+    typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;
     TAtomic SessionCount;
 

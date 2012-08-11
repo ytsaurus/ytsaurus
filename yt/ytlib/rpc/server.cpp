@@ -123,7 +123,7 @@ private:
     IBusServerPtr BusServer;
     volatile bool Started;
 
-    std::unordered_map<Stroka, IServicePtr> Services;
+    yhash_map<Stroka, IServicePtr> Services;
 
     IServicePtr GetService(const Stroka& serviceName)
     {

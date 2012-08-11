@@ -765,7 +765,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         if (request->fetch_all_meta_extensions()) {
             *inputChunk.mutable_extensions() = chunk->ChunkMeta().extensions();
         } else {
-            std::unordered_set<int> tags(
+            yhash_set<int> tags(
                 request->extension_tags().begin(),
                 request->extension_tags().end());
             FilterProtoExtensions(

@@ -85,7 +85,7 @@ private:
 
     TSpinLock SpinLock;
 
-    typedef std::unordered_map<TTransactionId, TWeakPtr<TTransaction> > TTransactionMap;
+    typedef yhash_map<TTransactionId, TWeakPtr<TTransaction> > TTransactionMap;
     TTransactionMap TransactionMap;
 
 };

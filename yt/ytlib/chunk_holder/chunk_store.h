@@ -71,7 +71,7 @@ private:
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
-    typedef std::unordered_map<TChunkId, TStoredChunkPtr> TChunkMap;
+    typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
     TChunkMap ChunkMap;
 
     TGuid CellGuid;

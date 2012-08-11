@@ -76,7 +76,7 @@ void TChunkStore::Start()
         LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
     }
 
-    LOG_INFO("Chunk store scan completed, %" PRISZT " chunks found", ChunkMap.size());
+    LOG_INFO("Chunk store scan completed, %d chunks found", ChunkMap.ysize());
 }
 
 void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
@@ -143,7 +143,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 TChunkStore::TChunks TChunkStore::GetChunks() const
 {
     TChunks result;
-    result.reserve(ChunkMap.size());
+    result.reserve(ChunkMap.ysize());
     FOREACH (const auto& pair, ChunkMap) {
         result.push_back(pair.second);
     }
@@ -152,7 +152,7 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 
 int TChunkStore::GetChunkCount() const
 {
-    return ChunkMap.size();
+    return ChunkMap.ysize();
 }
 
 void TChunkStore::UpdateCellGuid(const TGuid& cellGuid)

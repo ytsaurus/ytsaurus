@@ -84,13 +84,13 @@ private:
         TSaverInfo(const Stroka& name, TSaver saver, ESavePhase phase);
     };
 
-    typedef std::unordered_map< Stroka, TCallback<void(const TMutationContext& context)> > TMethodMap;
+    typedef yhash_map< Stroka, TCallback<void(const TMutationContext& context)> > TMethodMap;
     TMethodMap Methods;
 
     std::vector<TMetaStatePartPtr> Parts;
 
-    typedef std::unordered_map< Stroka, TLoader > TLoaderMap;
-    typedef std::unordered_map< Stroka, TSaverInfo> TSaverMap;
+    typedef yhash_map< Stroka, TLoader > TLoaderMap;
+    typedef yhash_map< Stroka, TSaverInfo> TSaverMap;
 
     TLoaderMap Loaders;
     TSaverMap Savers;

@@ -60,12 +60,12 @@ void IAttributeDictionary::Clear()
 class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
-    typedef std::unordered_map<Stroka, TYPath> TAttributeMap;
+    typedef yhash_map<Stroka, TYPath> TAttributeMap;
     TAttributeMap Map;
 
-    virtual std::unordered_set<Stroka> List() const
+    virtual yhash_set<Stroka> List() const
     {
-        std::unordered_set<Stroka> keys;
+        yhash_set<Stroka> keys;
         FOREACH (const auto& pair, Map) {
             keys.insert(pair.first);
         }
@@ -101,9 +101,9 @@ class TEmptyAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    virtual std::unordered_set<Stroka> List() const
+    virtual yhash_set<Stroka> List() const
     {
-        return std::unordered_set<Stroka>();
+        return yhash_set<Stroka>();
     }
 
     virtual TNullable<TYsonString> FindYson(const Stroka& key) const

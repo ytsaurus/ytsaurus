@@ -73,7 +73,7 @@ private:
         bool Confirmed;
     };
 
-    typedef std::unordered_map<THolderId, THolderInfo> THolderInfoMap;
+    typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
      
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;

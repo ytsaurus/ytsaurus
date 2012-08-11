@@ -19,8 +19,8 @@ public:
 
 private:
     i64 PreviousProcTicks;
-    std::unordered_map<Stroka, i64> PreviousUserTicks;
-    std::unordered_map<Stroka, i64> PreviousKernelTicks;
+    yhash_map<Stroka, i64> PreviousUserTicks;
+    yhash_map<Stroka, i64> PreviousKernelTicks;
 
     TPeriodicInvokerPtr PeriodicInvoker;
     static const TDuration UpdateInterval;

@@ -81,7 +81,7 @@ void TChunk::AddLocation(THolderId holderId, bool cached)
 {
     if (cached) {
         if (!CachedLocations_) {
-            CachedLocations_.Reset(new std::unordered_set<THolderId>());
+            CachedLocations_.Reset(new yhash_set<THolderId>());
         }
         YCHECK(CachedLocations_->insert(holderId).second);
     } else {

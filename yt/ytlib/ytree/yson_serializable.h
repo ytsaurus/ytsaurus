@@ -97,7 +97,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    typedef std::unordered_map<Stroka, NConfig::IParameterPtr> TParameterMap;
+    typedef yhash_map<Stroka, NConfig::IParameterPtr> TParameterMap;
     
     TParameterMap Parameters;
     NYTree::IMapNodePtr Options;

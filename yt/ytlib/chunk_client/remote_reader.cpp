@@ -364,15 +364,15 @@ private:
     std::vector<int> BlockIndexes;
 
     //! Blocks that are fetched so far.
-    std::unordered_map<int, TSharedRef> FetchedBlocks;
+    yhash_map<int, TSharedRef> FetchedBlocks;
 
     struct TPeerBlocksInfo
     {
-        std::unordered_set<int> BlockIndexes;
+        yhash_set<int> BlockIndexes;
     };
 
     //! Known peers and their blocks (peer address -> TPeerBlocksInfo).
-    std::unordered_map<Stroka, TPeerBlocksInfo> PeerBlocksMap;
+    yhash_map<Stroka, TPeerBlocksInfo> PeerBlocksMap;
 
     //! List of candidates to try.
     std::vector<Stroka> PeerAddressList;

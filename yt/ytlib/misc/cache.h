@@ -113,8 +113,8 @@ private:
 
     TSpinLock SpinLock;
 
-    typedef std::unordered_map<TKey, TValue*, THash> TValueMap;
-    typedef std::unordered_map<TKey, TItem*, THash> TItemMap;
+    typedef yhash_map<TKey, TValue*, THash> TValueMap;
+    typedef yhash_map<TKey, TItem*, THash> TItemMap;
     typedef TIntrusiveListWithAutoDelete<TItem, TDelete> TItemList;
 
     TValueMap ValueMap;

@@ -116,9 +116,9 @@ public:
         ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
         const TChunk* chunk);
 
-    const std::unordered_set<TChunkId>& LostChunkIds() const;
-    const std::unordered_set<TChunkId>& OverreplicatedChunkIds() const;
-    const std::unordered_set<TChunkId>& UnderreplicatedChunkIds() const;
+    const yhash_set<TChunkId>& LostChunkIds() const;
+    const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
+    const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
     TTotalHolderStatistics GetTotalHolderStatistics();
 

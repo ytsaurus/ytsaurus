@@ -47,7 +47,7 @@ public:
         return it->second;
     }
 
-    std::unordered_map<Stroka, TEnvironmentConfigPtr> Environments;
+    yhash_map<Stroka, TEnvironmentConfigPtr> Environments;
 
 };
 
