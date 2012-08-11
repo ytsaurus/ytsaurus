@@ -1,6 +1,7 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
+#include "public.h"
+
 #include <ytlib/logging/log.h>
 #include <ytlib/profiling/profiler.h>
 
