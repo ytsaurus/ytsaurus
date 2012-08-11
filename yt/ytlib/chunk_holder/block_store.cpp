@@ -119,8 +119,8 @@ public:
                 ~blockId.ToString())));
         }
 
-        TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
-        if (!BeginInsert(~cookie)) {
+        TSharedPtr<TInsertCookie, TAtomicCounter> cookie(new TInsertCookie(blockId));
+        if (!BeginInsert(cookie.Get())) {
             auto cachedBlock = cookie->GetValue().Get().Value();
             Profiler.Increment(CacheReadThroughputCounter, cachedBlock->GetData().Size());
             LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
@@ -172,7 +172,7 @@ private:
     void DoReadBlock(
         TChunkPtr chunk,
         const TBlockId& blockId,
-        TSharedPtr<TInsertCookie> cookie,
+        TSharedPtr<TInsertCookie, TAtomicCounter> cookie,
         bool enableCaching)
     {
         auto readerResult = Bootstrap->GetReaderCache()->GetReader(chunk);

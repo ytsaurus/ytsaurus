@@ -99,8 +99,8 @@ public:
             ~chunkId.ToString(),
             ~JoinToString(seedAddresses));
 
-        TSharedPtr<TInsertCookie> cookie(new TInsertCookie(chunkId));
-        if (BeginInsert(~cookie)) {
+        TSharedPtr<TInsertCookie, TAtomicCounter> cookie(new TInsertCookie(chunkId));
+        if (BeginInsert(cookie.Get())) {
             LOG_INFO("Loading chunk into cache (ChunkId: %s)", ~chunkId.ToString());
             auto session = New<TDownloadSession>(this, chunkId, seedAddresses, cookie);
             session->Start();
@@ -156,7 +156,7 @@ private:
             TImpl* owner,
             const TChunkId& chunkId,
             const std::vector<Stroka>& seedAddresses,
-            TSharedPtr<TInsertCookie> cookie)
+            TSharedPtr<TInsertCookie, TAtomicCounter> cookie)
             : Owner(owner)
             , ChunkId(chunkId)
             , SeedAddresses(seedAddresses)
@@ -183,7 +183,7 @@ private:
         TIntrusivePtr<TImpl> Owner;
         TChunkId ChunkId;
         std::vector<Stroka> SeedAddresses;
-        TSharedPtr<TInsertCookie> Cookie;
+        TSharedPtr<TInsertCookie, TAtomicCounter> Cookie;
         IInvokerPtr WriteInvoker;
 
         TFileWriterPtr FileWriter;

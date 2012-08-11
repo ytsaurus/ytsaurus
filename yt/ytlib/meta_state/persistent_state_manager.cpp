@@ -386,7 +386,7 @@ public:
             return;
         }
 
-        TSharedPtr<TFile> snapshotFile;
+        TSharedPtr<TFile, TAtomicCounter> snapshotFile;
         try {
             snapshotFile = new TFile(fileName, OpenExisting | RdOnly);
         }
