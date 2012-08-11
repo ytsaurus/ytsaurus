@@ -106,9 +106,6 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
 
     *jobSpec.mutable_resource_utilization() = GetRequestedResourcesForJip(jip);
 
-    LOG_DEBUG("Job prepared (Utilization: {%s})",
-        ~FormatResources(jobSpec.resource_utilization()));
-
     jip->Job = Controller->Host->CreateJob(
         EJobType(jobSpec.type()),
         Controller->Operation,

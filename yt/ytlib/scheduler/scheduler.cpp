@@ -922,10 +922,11 @@ private:
         }
 
         FOREACH (auto job, jobsToStart) {
-            LOG_INFO("Starting job on %s (JobType: %s, JobId: %s, OperationId: %s)",
+            LOG_INFO("Starting job on %s (JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
                 ~address,
                 ~job->GetType().ToString(),
                 ~job->GetId().ToString(),
+                ~FormatResources(job->Spec().resource_utilization()),
                 ~job->GetOperation()->GetOperationId().ToString());
             
             auto* jobInfo = response->add_jobs_to_start();
