@@ -45,11 +45,6 @@ i64 GetIOMemorySize(
     int inputStreamCount,
     int outputStreamCount);
 
-i64 GetPartitionSortMemorySize(
-    i64 dataSize,
-    i64 rowCount,
-    int keyColumnCount);
-
 NProto::TNodeResources GetMapResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TMapOperationSpecPtr spec);

@@ -125,17 +125,6 @@ i64 GetIOMemorySize(
         ioConfig->TableWriter->WindowSize * outputStreamCount;
 }
 
-i64 GetPartitionSortMemorySize(
-    i64 dataSize,
-    i64 rowCount,
-    int keyColumnCount)
-{
-    return
-        dataSize +
-        (i64) 16 * keyColumnCount * rowCount +
-        (i64) 12 * rowCount;
-}
-
 TNodeResources GetMapResources(
     TJobIOConfigPtr ioConfig,
     TMapOperationSpecPtr spec)
@@ -192,7 +181,9 @@ TNodeResources GetPartitionReduceDuringMapReduceResources(
     result.set_cores(spec->Reducer->CoresLimit);
     result.set_memory(
         GetIOMemorySize(ioConfig, 0, spec->OutputTablePaths.size()) +
-        GetPartitionSortMemorySize(dataSize, rowCount, spec->ReduceBy.size()) +
+        dataSize +
+        (i64) 16 * spec->SortBy.size() * rowCount +
+        (i64) 16 * rowCount +
         spec->Reducer->MemoryLimit +
         FootprintMemorySize);
     result.set_network(spec->ShuffleNetworkLimit);
@@ -293,7 +284,9 @@ TNodeResources GetPartitionSortResources(
     result.set_memory(
         // NB: See comment above for GetSimpleSortJobResources.
         GetIOMemorySize(ioConfig, 0, 1) +
-        GetPartitionSortMemorySize(dataSize, rowCount, spec->SortBy.size()) +
+        dataSize +
+        (i64) 16 * spec->SortBy.size() * rowCount +
+        (i64) 12 * rowCount +
         FootprintMemorySize);
     result.set_network(spec->ShuffleNetworkLimit);
     return result;
