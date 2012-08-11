@@ -57,7 +57,6 @@ NProto::TNodeResources GetMapResources(
 NProto::TNodeResources GetMapDuringMapReduceResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TMapReduceOperationSpecPtr spec,
-    i64 dataSize,
     int partitionCount);
 
 NProto::TNodeResources GetMergeJobResources(

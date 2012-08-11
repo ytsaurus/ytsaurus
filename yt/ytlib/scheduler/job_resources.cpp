@@ -155,7 +155,6 @@ TNodeResources GetMapResources(
 TNodeResources GetMapDuringMapReduceResources(
     TJobIOConfigPtr ioConfig,
     TMapReduceOperationSpecPtr spec,
-    i64 dataSize,
     int partitionCount)
 {
     TNodeResources result;
@@ -163,7 +162,7 @@ TNodeResources GetMapDuringMapReduceResources(
     result.set_cores(spec->Mapper->CoresLimit);
     result.set_memory(
         GetIOMemorySize(ioConfig, 1, 1) +
-        std::min(ioConfig->TableWriter->BlockSize * partitionCount, dataSize) +
+        ioConfig->TableWriter->BlockSize * partitionCount +
         spec->Mapper->MemoryLimit +
         FootprintMemorySize);
     return result;

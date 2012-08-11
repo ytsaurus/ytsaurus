@@ -1762,7 +1762,6 @@ private:
             ? NScheduler::GetMapDuringMapReduceResources(
                 PartitionJobIOConfig,
                 Spec,
-                dataSize,
                 Partitions.size())
             : NScheduler::GetPartitionResources(
                 PartitionJobIOConfig,
