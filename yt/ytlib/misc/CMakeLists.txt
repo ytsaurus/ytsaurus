@@ -98,6 +98,8 @@ set( HDRS
   ${BASE}/zigzag.h
   ${BASE}/heap.h
   ${BASE}/heap-inl.h
+  ${BASE}/object_pool.h
+  ${BASE}/object_pool-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -2,6 +2,7 @@
 
 #include "guid.h"
 #include "ref.h"
+#include "object_pool.h"
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/extensions.pb.h>
@@ -160,7 +161,7 @@ template <class T>
 void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 
 //! Tries to remove the extension.
-//! Returnes True iff the proper extension is found.
+//! Returns True iff the proper extension is found.
 template <class T>
 bool RemoveProtoExtension(NProto::TExtensionSet* extensions);
 
@@ -168,6 +169,14 @@ void FilterProtoExtensions(
     NProto::TExtensionSet* target,
     const NProto::TExtensionSet& source,
     const std::unordered_set<int>& tags);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct TObjectPoolCleaner<google::protobuf::MessageLite>
+{
+    void Clean(google::protobuf::MessageLite* obj);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
