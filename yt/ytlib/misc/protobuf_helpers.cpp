@@ -52,7 +52,7 @@ void FilterProtoExtensions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TObjectPoolCleaner<google::protobuf::MessageLite>::Clean(google::protobuf::MessageLite* obj)
+void CleanPooledObject(google::protobuf::MessageLite* obj)
 {
     obj->Clear();
 }

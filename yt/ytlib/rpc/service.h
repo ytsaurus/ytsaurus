@@ -8,6 +8,7 @@
 #include <ytlib/misc/hash.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/object_pool.h>
 
 #include <ytlib/profiling/profiler.h>
 
@@ -138,8 +139,8 @@ class TTypedServiceRequest
     : public TRequestMessage
 {
 public:
-    TTypedServiceRequest(IServiceContextPtr context)
-        : Context(context)
+    TTypedServiceRequest()
+        : Context(NULL)
     { }
 
     std::vector<TSharedRef>& Attachments()
@@ -153,7 +154,10 @@ public:
     }
 
 private:
-    IServiceContextPtr Context;
+    template <class TRequestMessage>
+    friend class TTypedServiceContextBase;
+
+    IServiceContext* Context;
 
 };
 
@@ -164,8 +168,8 @@ class TTypedServiceResponse
     : public TResponseMessage
 {
 public:
-    TTypedServiceResponse(IServiceContextPtr context)
-        : Context(context)
+    TTypedServiceResponse()
+        : Context(NULL)
     { }
 
     std::vector<TSharedRef>& Attachments()
@@ -179,7 +183,10 @@ public:
     }
 
 private:
-    IServiceContextPtr Context;
+    template <class TRequestMessage, class TResponseMessage>
+    friend class TTypedServiceContext;
+
+    IServiceContext* Context;
 
 };
 
@@ -216,26 +223,35 @@ class TTypedServiceContextBase
 public:
     typedef TTypedServiceRequest<TRequestMessage> TTypedRequest;
 
-    DEFINE_BYREF_RW_PROPERTY(TTypedRequest, Request);
-
-public:
     explicit TTypedServiceContextBase(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
-        : Request_(context)
-        , Logger(RpcServerLogger)
+        : Logger(RpcServerLogger)
         , Context(context)
         , Options(options)
     {
-        YASSERT(context);
+        YCHECK(context);
     }
 
-    void Deserialize()
+    void DeserializeRequest()
     {
-        if (!DeserializeFromProto(&Request_, Context->GetRequestBody())) {
+        Request_ = TObjectPool<TTypedRequest>::Allocate();
+        Request_->Context = Context.Get();
+
+        if (!DeserializeFromProto(Request_.Get(), Context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
+    }
+
+    const TTypedRequest& Request() const
+    {
+        return *Request_;
+    }
+
+    TTypedRequest& Request()
+    {
+        return *Request_;
     }
 
     const Stroka& GetPath() const
@@ -284,6 +300,8 @@ protected:
     IServiceContextPtr Context;
     THandlerInvocationOptions Options;
 
+    typename TObjectPool<TTypedRequest>::TPtr Request_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,15 +319,25 @@ public:
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
     typedef TTypedServiceResponse<TResponseMessage> TTypedResponse;
 
-    DEFINE_BYREF_RW_PROPERTY(TTypedResponse, Response);
-
 public:
     explicit TTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : TBase(context, options)
-        , Response_(context)
-    { }
+    {
+        Response_ = TObjectPool<TTypedResponse>::Allocate();
+        Response_->Context = Context.Get();
+    }
+
+    const TTypedResponse& Response() const
+    {
+        return *Response_;
+    }
+
+    TTypedResponse& Response()
+    {
+        return *Response_;
+    }
 
     // XXX(sandello): If you ever change signature of any of Reply() functions,
     // please, search sources for "(*Context::*)(int, const Stroka&)" casts.
@@ -380,10 +408,12 @@ private:
     void SerializeResponseAndReply()
     {
         TSharedRef responseBlob;
-        YCHECK(SerializeToProto(&Response_, &responseBlob));
+        YCHECK(SerializeToProto(Response_.Get(), &responseBlob));
         this->Context->SetResponseBody(MoveRV(responseBlob));
         this->Context->Reply(TError());
     }
+
+    typename TObjectPool<TTypedResponse>::TPtr Response_;
 
 };
 
@@ -584,7 +614,7 @@ private:
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = New<TCtx##method>(context, options); \
-        typedContext->Deserialize(); \
+        typedContext->DeserializeRequest(); \
         return BIND([=] () { \
             this->method( \
                 &typedContext->Request(), \
@@ -621,7 +651,7 @@ private:
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = New<TCtx##method>(context, options); \
-        typedContext->Deserialize(); \
+        typedContext->DeserializeRequest(); \
         return BIND([=] () { \
             this->method( \
                 &typedContext->Request(), \
