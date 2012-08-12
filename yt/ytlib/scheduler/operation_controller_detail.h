@@ -62,7 +62,7 @@ protected:
     TOperation* Operation;
 
     NObjectServer::TObjectServiceProxy ObjectProxy;
-    NLog::TTaggedLogger Logger;
+    mutable NLog::TTaggedLogger Logger;
 
     // Remains True as long as the operation is not failed, completed, or aborted.
     bool Active;
