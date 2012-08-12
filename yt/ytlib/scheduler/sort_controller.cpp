@@ -1815,10 +1815,11 @@ private:
     {
         return
             isFinal
-            ? NScheduler::GetSortedReduceDuringMapReduceResources(
+            ? NScheduler::GetPartitionReduceDuringMapReduceResources(
                 FinalSortJobIOConfig,
                 Spec,
-                Partitions.size())
+                dataSize,
+                rowCount)
             : NScheduler::GetPartitionSortDuringMapReduceResources(
                 IntermediateSortJobIOConfig,
                 Spec,
