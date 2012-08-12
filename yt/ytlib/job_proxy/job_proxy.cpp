@@ -193,7 +193,7 @@ void TJobProxy::ReportResult(const TJobResult& result)
 
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
-        LOG_ERROR("Failed to report job result");
+        LOG_ERROR("Failed to report job result\n%s", ~rsp->GetError().ToString());
 
         NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant
