@@ -8,7 +8,6 @@
 #include <ytlib/misc/hash.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/error.h>
-#include <ytlib/misc/object_pool.h>
 
 #include <ytlib/profiling/profiler.h>
 
@@ -135,21 +134,12 @@ struct IService
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequestMessage>
-class TTypedServiceContextBase;
-
-template <class TRequestMessage, class TResponseMessage>
-class TTypedServiceContext;
-
-template <class TRequestMessage>
-class TOneWayTypedServiceContext;
-
-template <class TRequestMessage>
 class TTypedServiceRequest
     : public TRequestMessage
 {
 public:
-    TTypedServiceRequest()
-        : Context(NULL)
+    TTypedServiceRequest(IServiceContextPtr context)
+        : Context(context)
     { }
 
     std::vector<TSharedRef>& Attachments()
@@ -163,10 +153,7 @@ public:
     }
 
 private:
-    template <class TRequestMessage_>
-    friend class TTypedServiceContextBase;
-
-    IServiceContext* Context;
+    IServiceContextPtr Context;
 
 };
 
@@ -177,8 +164,8 @@ class TTypedServiceResponse
     : public TResponseMessage
 {
 public:
-    TTypedServiceResponse()
-        : Context(NULL)
+    TTypedServiceResponse(IServiceContextPtr context)
+        : Context(context)
     { }
 
     std::vector<TSharedRef>& Attachments()
@@ -192,10 +179,7 @@ public:
     }
 
 private:
-    template <class TRequestMessage_, class TResponseMessage_>
-    friend class TTypedServiceContext;
-
-    IServiceContext* Context;
+    IServiceContextPtr Context;
 
 };
 
@@ -232,35 +216,26 @@ class TTypedServiceContextBase
 public:
     typedef TTypedServiceRequest<TRequestMessage> TTypedRequest;
 
+    DEFINE_BYREF_RW_PROPERTY(TTypedRequest, Request);
+
+public:
     explicit TTypedServiceContextBase(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
-        : Logger(RpcServerLogger)
+        : Request_(context)
+        , Logger(RpcServerLogger)
         , Context(context)
         , Options(options)
     {
-        YCHECK(context);
+        YASSERT(context);
     }
 
-    void DeserializeRequest()
+    void Deserialize()
     {
-        Request_ = TObjectPool<TTypedRequest>::Allocate();
-        Request_->Context = Context.Get();
-
-        if (!DeserializeFromProto(Request_.Get(), Context->GetRequestBody())) {
+        if (!DeserializeFromProto(&Request_, Context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
-    }
-
-    const TTypedRequest& Request() const
-    {
-        return *Request_;
-    }
-
-    TTypedRequest& Request()
-    {
-        return *Request_;
     }
 
     const Stroka& GetPath() const
@@ -309,8 +284,6 @@ protected:
     IServiceContextPtr Context;
     THandlerInvocationOptions Options;
 
-    typename TObjectPool<TTypedRequest>::TPtr Request_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,25 +301,15 @@ public:
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
     typedef TTypedServiceResponse<TResponseMessage> TTypedResponse;
 
+    DEFINE_BYREF_RW_PROPERTY(TTypedResponse, Response);
+
 public:
     explicit TTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : TBase(context, options)
-    {
-        Response_ = TObjectPool<TTypedResponse>::Allocate();
-        Response_->Context = this->Context.Get();
-    }
-
-    const TTypedResponse& Response() const
-    {
-        return *Response_;
-    }
-
-    TTypedResponse& Response()
-    {
-        return *Response_;
-    }
+        , Response_(context)
+    { }
 
     // XXX(sandello): If you ever change signature of any of Reply() functions,
     // please, search sources for "(*Context::*)(int, const Stroka&)" casts.
@@ -417,12 +380,10 @@ private:
     void SerializeResponseAndReply()
     {
         TSharedRef responseBlob;
-        YCHECK(SerializeToProto(Response_.Get(), &responseBlob));
+        YCHECK(SerializeToProto(&Response_, &responseBlob));
         this->Context->SetResponseBody(MoveRV(responseBlob));
         this->Context->Reply(TError());
     }
-
-    typename TObjectPool<TTypedResponse>::TPtr Response_;
 
 };
 
@@ -623,7 +584,7 @@ private:
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = New<TCtx##method>(context, options); \
-        typedContext->DeserializeRequest(); \
+        typedContext->Deserialize(); \
         return BIND([=] () { \
             this->method( \
                 &typedContext->Request(), \
@@ -660,7 +621,7 @@ private:
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = New<TCtx##method>(context, options); \
-        typedContext->DeserializeRequest(); \
+        typedContext->Deserialize(); \
         return BIND([=] () { \
             this->method( \
                 &typedContext->Request(), \

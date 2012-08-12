@@ -172,7 +172,11 @@ void FilterProtoExtensions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CleanPooledObject(google::protobuf::MessageLite* obj);
+template <>
+struct TObjectPoolCleaner<google::protobuf::MessageLite>
+{
+    void Clean(google::protobuf::MessageLite* obj);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
