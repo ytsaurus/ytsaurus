@@ -14,7 +14,7 @@ import logging
 import random
 import string
 import shutil
-from itertools import imap, izip, starmap
+from itertools import imap, izip, starmap, chain
 from functools import partial
 
 import unittest
@@ -335,6 +335,18 @@ class YtTest(YTEnv):
         self.assertEqual(
             sorted(list(yt.read_table(output))),
             sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"]))
+
+    def test_python_operations(self):
+        def func(rec):
+            yield rec.strip() + "aaaaaaaaaa\n"
+
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+        yt.run_map(func, table, other_table)
+
+        self.assertEqual(
+            sorted(list(yt.read_table(other_table))),
+            sorted(list(chain(*imap(func, self.temp_records())))))
 
 
 if __name__ == "__main__":
