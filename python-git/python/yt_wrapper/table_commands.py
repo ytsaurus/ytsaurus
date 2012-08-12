@@ -1,4 +1,5 @@
 import config
+import py_wrapper
 from common import flatten, require, YtError, parse_bool, unlist, update
 from path_tools import escape_path
 from http import make_request
@@ -210,12 +211,14 @@ def run_operation(binary, source_table, destination_table,
     if format is None: format = config.DEFAULT_FORMAT
     if reduce_by is None: reduce_by = "key"
     if spec is None: spec = {}
-    
-    to_remove = []
-    to_remove += prepare_files(files)
+
+    files = prepare_files(files)
+    if isinstance(binary, types.FunctionType):
+        binary, additional_files = py_wrapper.wrap(binary)
+        files += prepare_files(additional_files)
     if file_paths is None:
         file_paths = []
-    file_paths += to_remove
+    file_paths += files
 
     source_table = map(to_table, flatten(source_table))
     if config.MERGE_SRC_TABLES_BEFORE_OPERATION and len(source_table) > 1:
@@ -252,7 +255,7 @@ def run_operation(binary, source_table, destination_table,
              "output_table_paths": map(get_yson_name, destination_table),
              op_key[op_type]: operation_descr})})
     operation = make_request("POST", op_type, None, params)
-    strategy.process_operation(op_type, operation, to_remove)
+    strategy.process_operation(op_type, operation, files)
 
 def run_map(binary, source_table, destination_table,
             files=None, file_paths=None, format=None, strategy=None, spec=None):
@@ -279,10 +282,29 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     if reduce_by is None and sort_by is None:
         sort_by = ["key", "subkey"]
         reduce_by = ["key"]
-    if spec is None: spec = {}
     
-    map_files = prepare_files(map_files)
-    reduce_files = prepare_files(reduce_files)
+    run_map_reduce.spec = {} if spec is None else spec
+    run_map_reduce.files_to_remove = []
+    def prepare_operation(binary, files, spec_keyword):
+        """ Returns new spec """
+        new_spec = spec
+        files = prepare_files(files)
+        if binary is not None:
+            if isinstance(binary, types.FunctionType):
+                binary, additional_files = py_wrapper.wrap(op)
+                files += prepare_files(additional_files)
+            run_map_reduce.spec = update(run_map_reduce.spec, 
+                {
+                    spec_keyword: {
+                        "format": format.to_json(),
+                        "command": binary,
+                        "file_paths": files
+                    }
+                })
+        run_map_reduce.files_to_remove += files
+    
+    prepare_operation(mapper, map_files, "mapper")
+    prepare_operation(reducer, reduce_files, "reducer")
 
     source_table = prepare_source_tables(source_table)
     destination_table = map(to_table, flatten(destination_table))
@@ -295,21 +317,13 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
             reducer = reducer + " %d>&%d" % (fd, yt_fd)
 
     params = json.dumps(
-        {"spec": update(spec,
-            {"mapper":
-                {"format": format.to_json(),
-                 "command": mapper,
-                 "file_paths": map_files},
-             "reducer":
-                {"format": format.to_json(),
-                 "command": reducer,
-                 "file_paths": reduce_files},
-             "sort_by": flatten(sort_by),
+        {"spec": update(run_map_reduce.spec,
+            {"sort_by": flatten(sort_by),
              "reduce_by": flatten(reduce_by),
              "input_table_paths": map(get_yson_name, source_table),
              "output_table_paths": map(get_yson_name, destination_table)
             })
         })
     operation = make_request("POST", "map_reduce", None, params)
-    strategy.process_operation("map_reduce", operation, map_files + reduce_files)
+    strategy.process_operation("map_reduce", operation, run_map_reduce.files_to_remove)
     
