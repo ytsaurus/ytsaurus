@@ -1019,10 +1019,12 @@ protected:
 
     i64 GetRowCountEstimate(TPartitionPtr partition, i64 dataSize) const
     {
-        return
-            partition->TotalAttributes.row_count() *
-            dataSize /
-            partition->TotalAttributes.uncompressed_data_size();
+        i64 totalDataSize = partition->TotalAttributes.uncompressed_data_size();
+        if (totalDataSize == 0) {
+            return 0;
+        }
+        i64 totalRowCount = partition->TotalAttributes.row_count();
+        return static_cast<i64>((double) totalRowCount * dataSize / totalDataSize);
     }
 
     // TODO(babenko): this is the input estimate, not the partitioned one!
