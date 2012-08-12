@@ -1445,9 +1445,6 @@ private:
         i64 dataSize,
         i64 rowCount) const override
     {
-        LOG_INFO("GetPartitionSortResources %" PRId64 " %" PRId64,
-            dataSize,
-            rowCount);
         return NScheduler::GetPartitionSortDuringSortResources(
             IsSortedMergeNeeded(partition) ? IntermediateSortJobIOConfig : FinalSortJobIOConfig,
             Spec,
@@ -1825,9 +1822,6 @@ private:
         i64 dataSize,
         i64 rowCount) const override
     {
-        LOG_INFO("GetPartitionSortResources %" PRId64 " %" PRId64,
-            dataSize,
-            rowCount);
         return
             IsSortedMergeNeeded(partition)
             ? NScheduler::GetPartitionSortDuringMapReduceResources(
