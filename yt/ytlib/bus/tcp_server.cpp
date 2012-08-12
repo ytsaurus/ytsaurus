@@ -359,7 +359,7 @@ private:
             }
         }
 
-        if (chmod(~path, 0x777) != 0) {
+        if (chmod(~path, 0777) != 0) {
             int error = LastSystemError();
             ythrow yexception() << Sprintf("Failed to update permissions of the local socket file (ErrorCode: %d)\n%s",
                 error,
