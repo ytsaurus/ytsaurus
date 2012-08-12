@@ -332,6 +332,9 @@ struct TSortOperationSpecBase
         Register("partition_count", PartitionCount)
             .Default()
             .GreaterThan(0);
+        Register("max_data_size_per_sort_job", MaxDataSizePerSortJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
         Register("partition_count_boost_factor", PartitionCountBoostFactor)
             .Default(1.5)
             .GreaterThanOrEqual(1.0);
@@ -397,9 +400,6 @@ struct TSortOperationSpec
         Register("max_data_size_per_partition_job", MaxDataSizePerPartitionJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
-        Register("max_data_size_per_sort_job", MaxDataSizePerSortJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
         Register("max_data_size_per_unordered_merge_job", MaxDataSizePerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
@@ -455,9 +455,6 @@ struct TMapReduceOperationSpec
             .GreaterThan(0);
         Register("max_data_size_per_map_job", MaxDataSizePerPartitionJob)
             .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("max_data_size_per_reduce_job", MaxDataSizePerSortJob)
-            .Default((i64) 4 * 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("map_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
