@@ -346,13 +346,6 @@ private:
                 LastSystemErrorText(error));
         }
 
-        if (chmod(~path, 0x777) != 0) {
-            int error = LastSystemError();
-            ythrow yexception() << Sprintf("Failed to update permissions of the local socket file (ErrorCode: %d)\n%s",
-                error,
-                LastSystemErrorText(error));
-        }
-
         ServerFd = ServerSocket;
 
         {
@@ -364,6 +357,13 @@ private:
                     error,
                     LastSystemErrorText(error));
             }
+        }
+
+        if (chmod(~path, 0x777) != 0) {
+            int error = LastSystemError();
+            ythrow yexception() << Sprintf("Failed to update permissions of the local socket file (ErrorCode: %d)\n%s",
+                error,
+                LastSystemErrorText(error));
         }
     }
 };
