@@ -1448,6 +1448,10 @@ private:
         i64 dataSize,
         i64 rowCount) const override
     {
+        LOG_INFO("GetPartitionSortResources %d %" PRId64 " %" PRId64,
+            (int) isFinal,
+            dataSize,
+            rowCount);
         return NScheduler::GetPartitionSortDuringSortResources(
             isFinal ? FinalSortJobIOConfig : IntermediateSortJobIOConfig,
             Spec,
