@@ -124,10 +124,11 @@ void TPartitionChunkWriter::PrepareBlock(int partitionTag)
     ++CurrentBlockIndex;
 
     int size = 0;
-    auto blockParts(channelWriter->FlushBlock());
-    FOREACH (auto& part, blockParts) {
+    auto blockParts = channelWriter->FlushBlock();
+    FOREACH (const auto& part, blockParts) {
         size += part.Size();
     }
+
     blockInfo->set_block_size(size);
 
     auto* partitionAttributes = PartitionsExt.mutable_partitions(partitionTag);
