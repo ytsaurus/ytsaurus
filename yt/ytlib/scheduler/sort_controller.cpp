@@ -53,9 +53,11 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Spec(spec)
         , Config(config)
-        , TotalDataSize(0)
-        , TotalRowCount(0)
-        , TotalValueCount(0)
+        , TotalInputDataSize(0)
+        , TotalInputRowCount(0)
+        , TotalInputValueCount(0)
+        , TotalPartitionedDataSize(0)
+        , TotalPartitionedRowCount(0)
         , CompletedPartitionCount(0)
         , IntermediateSortJobCounter(false)
         , FinalSortJobCounter(false)
@@ -71,9 +73,11 @@ protected:
     TSchedulerConfigPtr Config;
 
     // Totals.
-    i64 TotalDataSize;
-    i64 TotalRowCount;
-    i64 TotalValueCount;
+    i64 TotalInputDataSize;
+    i64 TotalInputRowCount;
+    i64 TotalInputValueCount;
+    i64 TotalPartitionedDataSize;
+    i64 TotalPartitionedRowCount;
 
     // Counters.
     int CompletedPartitionCount;
@@ -271,8 +275,13 @@ protected:
                     auto partition = Controller->Partitions[index];
                     auto& totalAttributes = partition->TotalAttributes;
                     totalAttributes.set_uncompressed_data_size(
-                        totalAttributes.uncompressed_data_size() + jobPartitionAttributes.uncompressed_data_size());
-                    totalAttributes.set_row_count(totalAttributes.row_count() + jobPartitionAttributes.row_count());
+                        totalAttributes.uncompressed_data_size() +
+                        jobPartitionAttributes.uncompressed_data_size());
+                    Controller->TotalPartitionedDataSize += jobPartitionAttributes.uncompressed_data_size();
+                    totalAttributes.set_row_count(
+                        totalAttributes.row_count() +
+                        jobPartitionAttributes.row_count());
+                    Controller->TotalPartitionedRowCount += jobPartitionAttributes.row_count();
 
                     if (jobPartitionAttributes.uncompressed_data_size() > 0) {
                         auto stripe = New<TChunkStripe>(
@@ -441,7 +450,7 @@ protected:
     private:
         NProto::TNodeResources GetRequestedResourcesForDataSize(i64 dataSize) const
         {
-            i64 rowCount = Controller->GetRowCountEstimate(dataSize);
+            i64 rowCount = Controller->GetPartitionedRowCountEstimate(dataSize);
             i64 valueCount = Controller->GetValueCountEstimate(dataSize);
             bool mergeNeeded = Controller->IsSortedMergeNeeded(Partition);
             return
@@ -963,7 +972,7 @@ protected:
 
     // Resource management.
 
-    virtual bool IsNonexpandingPartition() const = 0;
+    virtual bool IsPartitionNonexpanding() const = 0;
 
     virtual NProto::TNodeResources GetPartitionResources(
         i64 dataSize) const = 0;
@@ -973,7 +982,7 @@ protected:
         // Holds both for sort and map-reduce.
         return GetPartitionResources(std::min(
             Spec->MaxDataSizePerPartitionJob,
-            TotalDataSize));
+            TotalInputDataSize));
     }
 
     virtual NProto::TNodeResources GetSimpleSortResources(
@@ -990,10 +999,10 @@ protected:
         bool isFinal) const
     {
         i64 dataSize = Spec->MaxDataSizePerSortJob;
-        if (IsNonexpandingPartition()) {
-            dataSize = std::min(dataSize, TotalDataSize);
+        if (IsPartitionNonexpanding()) {
+            dataSize = std::min(dataSize, TotalInputDataSize);
         }
-        i64 rowCount = GetRowCountEstimate(dataSize);
+        i64 rowCount = GetPartitionedRowCountEstimate(dataSize);
         return GetPartitionSortResources(isFinal, dataSize, rowCount);
     }
 
@@ -1016,27 +1025,30 @@ protected:
 
     // Unsorted helpers.
 
-    i64 GetRowCountEstimate(i64 dataSize) const
+    i64 GetPartitionedRowCountEstimate(i64 dataSize) const
     {
-        return static_cast<i64>((double) TotalRowCount * dataSize / TotalDataSize);
+        return TotalPartitionedRowCount * dataSize / TotalPartitionedDataSize;
     }
 
+    // TODO(babenko): this is the input estimate, not the partitioned one!
+    // Should get rid of this "value count" stuff completely.
     i64 GetValueCountEstimate(i64 dataSize) const
     {
-        return static_cast<i64>((double) TotalValueCount * dataSize / TotalDataSize);
+        return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
     }
 
     int GetPartitionCountEstimate() const
     {
-        YCHECK(TotalDataSize > 0);
+        YCHECK(TotalInputDataSize > 0);
 
-        int result = Spec->PartitionCount ? 
-            Spec->PartitionCount.Get() : 
-            static_cast<int>(ceil(
-                (double) TotalDataSize /
-                Spec->MaxDataSizePerSortJob *
-                Spec->PartitionCountBoostFactor));
-        return std::max(1, result);
+        int result = Spec->PartitionCount.Get(static_cast<int>(ceil(
+            (double) TotalInputDataSize /
+            Spec->MaxDataSizePerSortJob *
+            Spec->PartitionCountBoostFactor)));
+        if (result < 1) {
+            result = 1;
+        }
+        return result;
     }
 };
 
@@ -1105,9 +1117,9 @@ private:
             FOREACH (const auto& table, InputTables) {
                 FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                     auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                    TotalDataSize += miscExt.uncompressed_data_size();
-                    TotalRowCount += miscExt.row_count();
-                    TotalValueCount += miscExt.value_count();
+                    TotalInputDataSize += miscExt.uncompressed_data_size();
+                    TotalInputRowCount += miscExt.row_count();
+                    TotalInputValueCount += miscExt.value_count();
 
                     SamplesFetcher->AddChunk(chunk);
                     ++chunkCount;
@@ -1115,9 +1127,9 @@ private:
             }
 
             LOG_INFO("Totals collected (DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
-                TotalDataSize,
-                TotalRowCount,
-                TotalValueCount);
+                TotalInputDataSize,
+                TotalInputRowCount,
+                TotalInputValueCount);
 
             // Check for empty inputs.
             if (chunkCount == 0) {
@@ -1404,7 +1416,7 @@ private:
 
     // Resource management.
 
-    virtual bool IsNonexpandingPartition() const
+    virtual bool IsPartitionNonexpanding() const
     {
         return true;
     }
@@ -1615,17 +1627,17 @@ private:
             FOREACH (const auto& table, InputTables) {
                 FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
                     auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                    TotalDataSize += miscExt.uncompressed_data_size();
-                    TotalRowCount += miscExt.row_count();
-                    TotalValueCount += miscExt.value_count();
+                    TotalInputDataSize += miscExt.uncompressed_data_size();
+                    TotalInputRowCount += miscExt.row_count();
+                    TotalInputValueCount += miscExt.value_count();
                     ++chunkCount;
                 }
             }
 
             LOG_INFO("Totals collected (DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
-                TotalDataSize,
-                TotalRowCount,
-                TotalValueCount);
+                TotalInputDataSize,
+                TotalInputRowCount,
+                TotalInputValueCount);
 
             // Check for empty inputs.
             if (chunkCount == 0) {
@@ -1780,7 +1792,7 @@ private:
 
     // Resource management.
 
-    virtual bool IsNonexpandingPartition() const
+    virtual bool IsPartitionNonexpanding() const
     {
         return false;
     }
