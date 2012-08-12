@@ -25,7 +25,7 @@ class TObjectPool
 private:
     struct TDeleter
     {
-        void Destroy(T* obj);
+        static void Destroy(T* obj);
     };
 
 public:
@@ -34,8 +34,7 @@ public:
     //! Either creates a fresh instance or returns a pooled one.
     static TPtr Allocate();
 
-    //! Calls #TObjectPoolCleaner<T>::Clean| and
-    //! returns the instance back to the pool.
+    //! Calls #TObjectPoolCleaner<T>::Clean and returns the instance back into the pool.
     static void Reclaim(T* obj);
 
 private:
