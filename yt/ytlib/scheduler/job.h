@@ -16,7 +16,7 @@ class TJob
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
-    DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
+    DEFINE_BYVAL_RW_PROPERTY(EJobType, Type);
 
     //! The operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperation*, Operation);
@@ -29,21 +29,15 @@ class TJob
 
     DEFINE_BYREF_RW_PROPERTY(NProto::TJobResult, Result);
 
-    //! A spec to be passed to the exec node.
-    /*!
-     *  Since the spec might be relatively heavy,
-     *  it is swapped directly into the scheduler's response.
-     *  Hence once the job is started, the spec is gone.
-     */
-    DEFINE_BYREF_RW_PROPERTY(NProto::TJobSpec, Spec);
-
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
+
+    //! Only valid during the heartbeat during which the job was started.
+    DEFINE_BYVAL_RW_PROPERTY(NProto::TJobSpec*, Spec);
 
 public:
     TJob(
         const TJobId& id,
-        EJobType type,
         TOperation* operation,
         TExecNodePtr node,
         TInstant startTime);

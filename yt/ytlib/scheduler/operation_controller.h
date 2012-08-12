@@ -50,19 +50,6 @@ struct IOperationHost
      */
     virtual std::vector<TExecNodePtr> GetExecNodes() = 0;
 
-    //! A factory method for creating new jobs.
-    /*!
-     *  The controller must not instantiate jobs by itself since
-     *  this needs some internal bookkeeping from the scheduler
-     *  (e.g. id and start time assignment).
-     *  
-     *  \note Thread affinity: any
-     */
-    virtual TJobPtr CreateJob(
-        EJobType type,
-        TOperationPtr operation,
-        TExecNodePtr node) = 0;
-
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
     /*!
@@ -82,6 +69,17 @@ struct IOperationHost
     virtual void OnOperationFailed(
         TOperationPtr operation,
         const TError& error) = 0;
+};
+
+struct ISchedulingContext
+{
+    virtual ~ISchedulingContext()
+    { }
+
+
+    virtual TExecNodePtr GetNode() = 0;
+
+    virtual TJobPtr StartJob(TOperation* operation) = 0;
 };
 
 /*!
@@ -139,8 +137,7 @@ struct IOperationController
     virtual void OnJobFailed(TJobPtr job) = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    //! Returns a new job of NULL is no job must be started.
-    virtual TJobPtr ScheduleJob(TExecNodePtr node) = 0;
+    virtual TJobPtr ScheduleJob(ISchedulingContext* context) = 0;
 
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer) = 0;

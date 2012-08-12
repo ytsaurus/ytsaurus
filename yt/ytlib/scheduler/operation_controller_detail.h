@@ -35,23 +35,23 @@ public:
         IOperationHost* host,
         TOperation* operation);
 
-    virtual void Initialize();
-    virtual TFuture<void> Prepare();
-    virtual TFuture<void> Revive();
-    virtual TFuture<void> Commit();
+    virtual void Initialize() override;
+    virtual TFuture<void> Prepare() override;
+    virtual TFuture<void> Revive() override;
+    virtual TFuture<void> Commit() override;
 
-    virtual void OnJobRunning(TJobPtr job);
-    virtual void OnJobCompleted(TJobPtr job);
-    virtual void OnJobFailed(TJobPtr job);
+    virtual void OnJobRunning(TJobPtr job) override;
+    virtual void OnJobCompleted(TJobPtr job) override;
+    virtual void OnJobFailed(TJobPtr job) override;
 
-    virtual void Abort();
+    virtual void Abort() override;
 
-    virtual TJobPtr ScheduleJob(TExecNodePtr node);
+    virtual TJobPtr ScheduleJob(ISchedulingContext* context) override;
 
-    virtual int GetPendingJobCount();
+    virtual int GetPendingJobCount() override;
 
-    virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer);
-    virtual void BuildResultYson(NYTree::IYsonConsumer* consumer);
+    virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildResultYson(NYTree::IYsonConsumer* consumer) override;
 
 private:
     typedef TOperationControllerBase TThis;
@@ -199,7 +199,7 @@ protected:
         virtual void AddStripe(TChunkStripePtr stripe);
         void AddStripes(const std::vector<TChunkStripePtr>& stripes);
 
-        TJobPtr ScheduleJob(TExecNodePtr node);
+        TJobPtr ScheduleJob(ISchedulingContext* context);
 
         virtual void OnJobCompleted(TJobInProgressPtr jip);
         virtual void OnJobFailed(TJobInProgressPtr jip);
@@ -260,7 +260,7 @@ protected:
     void AddTaskPendingHint(TTaskPtr task);
     TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
-    TJobPtr DoScheduleJob(TExecNodePtr node);
+    TJobPtr DoScheduleJob(ISchedulingContext* context);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);

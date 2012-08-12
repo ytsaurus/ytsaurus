@@ -58,6 +58,51 @@ static NProfiling::TProfiler& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////
 
+class TScheduler::TSchedulingContext
+    : public ISchedulingContext
+{
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
+
+public:
+    TSchedulingContext(
+        TExecNodePtr node,
+        NProto::TRspHeartbeat* response)
+        : Node(node)
+        , Response(response)
+    { }
+
+    virtual TExecNodePtr GetNode() override
+    {
+        return Node;
+    }
+
+    virtual TJobPtr StartJob(TOperation* operation) override
+    {
+        auto id = TJobId::Create();
+        auto job = New<TJob>(
+            id,
+            operation,
+            Node,
+            TInstant::Now());
+
+        auto* jobInfo = Response->add_jobs_to_start();
+        *jobInfo->mutable_job_id() = id.ToProto();
+
+        job->SetSpec(jobInfo->mutable_spec());
+
+        StartedJobs_.push_back(job);
+
+        return job;
+    }
+
+private:
+    TExecNodePtr Node;
+    NProto::TRspHeartbeat* Response;
+
+};
+
+////////////////////////////////////////////////////////////////////
+
 class TScheduler::TImpl
     : public NRpc::TServiceBase
     , public IOperationHost
@@ -141,6 +186,7 @@ public:
 
 private:
     typedef TImpl TThis;
+    friend class TSchedulingContext;
 
     TSchedulerConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -648,23 +694,6 @@ private:
         return BackgroundQueue->GetInvoker();
     }
 
-    virtual TJobPtr CreateJob(
-        EJobType type,
-        TOperationPtr operation,
-        TExecNodePtr node) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        // The job does not get registered immediately.
-        // Instead we wait until this job is returned back to us by the strategy.
-        return New<TJob>(
-            TJobId::Create(),
-            type,
-            operation.Get(),
-            node,
-            TInstant::Now());
-    }
-
 
     virtual void OnOperationCompleted(TOperationPtr operation) override
     {
@@ -915,36 +944,24 @@ private:
             }
         }
 
-        std::vector<TJobPtr> jobsToStart;
-        std::vector<TJobPtr> jobsToAbort;
+        TSchedulingContext schedulingContext(node, response);
         PROFILE_TIMING ("/schedule_time") {
-            Strategy->ScheduleJobs(node, &jobsToStart, &jobsToAbort);
+            Strategy->ScheduleJobs(&schedulingContext);
         }
 
-        FOREACH (auto job, jobsToStart) {
+        FOREACH (auto job, schedulingContext.StartedJobs()) {
+            job->SetType(EJobType(job->GetSpec()->type()));
+
             LOG_INFO("Starting job on %s (JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
-                ~address,
+                ~job->GetNode()->GetAddress(),
                 ~job->GetType().ToString(),
                 ~job->GetId().ToString(),
-                ~FormatResources(job->Spec().resource_utilization()),
+                ~FormatResources(job->GetSpec()->resource_utilization()),
                 ~job->GetOperation()->GetOperationId().ToString());
-            
-            auto* jobInfo = response->add_jobs_to_start();
-            *jobInfo->mutable_job_id() = job->GetId().ToProto();
-            jobInfo->mutable_spec()->Swap(&job->Spec());
 
             RegisterJob(job);
             MasterConnector->CreateJobNode(job);
-        }
-
-        FOREACH (auto job, jobsToAbort) {
-            LOG_INFO("Aborting job on %s (JobId: %s, OperationId: %s)",
-                ~address,
-                ~job->GetId().ToString(),
-                ~job->GetOperation()->GetOperationId().ToString());
-            *response->add_jobs_to_remove() = job->GetId().ToProto();
-            
-            AbortJob(job);
+            job->SetSpec(NULL);
         }
 
         context->Reply();

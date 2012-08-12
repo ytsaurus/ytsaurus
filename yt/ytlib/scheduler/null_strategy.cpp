@@ -15,25 +15,20 @@ class TNullStrategy
     : public ISchedulerStrategy
 {
 public:
-    virtual void OnOperationStarted(TOperationPtr operation)
+    virtual void OnOperationStarted(TOperationPtr operation) override
     {
         UNUSED(operation);
     }
 
-    virtual void OnOperationFinished(TOperationPtr operation)
+    virtual void OnOperationFinished(TOperationPtr operation) override
     {
         UNUSED(operation);
     }
 
-    virtual void ScheduleJobs(
-        TExecNodePtr node,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort)
+    virtual void ScheduleJobs(ISchedulingContext* context) override
     {
         // Refuse to do anything.
-        UNUSED(node);
-        UNUSED(jobsToStart);
-        UNUSED(jobsToAbort);
+        UNUSED(context);
     }
 };
 

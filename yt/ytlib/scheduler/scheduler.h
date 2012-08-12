@@ -33,6 +33,8 @@ private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
 
+    class TSchedulingContext;
+
 };
 
 ////////////////////////////////////////////////////////////////////

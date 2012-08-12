@@ -29,29 +29,25 @@ public:
         Queue.erase(mapIt->second);
     }
 
-    virtual void ScheduleJobs(
-        TExecNodePtr node,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort)
+    virtual void ScheduleJobs(ISchedulingContext* context)
     {
         // Process operations in FIFO order asking them to perform job scheduling.
         // Stop when no spare resources are left (coarse check).
+        auto node = context->GetNode();
         FOREACH (auto operation, Queue) {
             while (HasSpareResources(node->ResourceUtilization(), node->ResourceLimits())) {
                 if (operation->GetState() != EOperationState::Running) {
                     break;
                 }
             
-                auto job = operation->GetController()->ScheduleJob(node);
+                auto job = operation->GetController()->ScheduleJob(context);
                 if (!job) {
                     break;
                 }
 
-                jobsToStart->push_back(job);
-
                 IncreaseResourceUtilization(
                     &node->ResourceUtilization(),
-                    job->Spec().resource_utilization());
+                    job->GetSpec()->resource_utilization());
             }
         }
     }

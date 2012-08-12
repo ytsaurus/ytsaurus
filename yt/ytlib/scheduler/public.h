@@ -103,6 +103,7 @@ typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
 struct ISchedulerStrategy;
 
 struct IOperationHost;
+struct ISchedulingContext;
 
 struct IOperationController;
 typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;

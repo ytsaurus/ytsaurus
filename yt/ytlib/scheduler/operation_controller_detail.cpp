@@ -83,7 +83,7 @@ void TOperationControllerBase::TTask::AddStripes(const std::vector<TChunkStripeP
     }
 }
 
-TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
+TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context)
 {
     using ::ToString;
 
@@ -92,25 +92,22 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(TExecNodePtr node)
     }
 
     auto jip = New<TJobInProgress>(this);
-    auto dataSizeThreshold = GetJobDataSizeThreshold();
-    jip->PoolResult = ChunkPool->Extract(node->GetAddress(), dataSizeThreshold);
 
-    LOG_DEBUG("Chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedDataSize: %" PRId64 ", DataSizeThreshold: %s)",
+    auto address = context->GetNode()->GetAddress();
+    auto dataSizeThreshold = GetJobDataSizeThreshold();
+    jip->PoolResult = ChunkPool->Extract(address, dataSizeThreshold);
+
+    LOG_DEBUG("Job chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedDataSize: %" PRId64 ", DataSizeThreshold: %s)",
         jip->PoolResult->TotalChunkCount,
         jip->PoolResult->LocalChunkCount,
         jip->PoolResult->TotalDataSize,
         ~ToString(dataSizeThreshold));
 
-    NProto::TJobSpec jobSpec;
-    BuildJobSpec(jip, &jobSpec);
+    jip->Job = context->StartJob(Controller->Operation);
+    auto* jobSpec = jip->Job->GetSpec();
 
-    *jobSpec.mutable_resource_utilization() = GetRequestedResourcesForJip(jip);
-
-    jip->Job = Controller->Host->CreateJob(
-        EJobType(jobSpec.type()),
-        Controller->Operation,
-        node);
-    jip->Job->Spec().Swap(&jobSpec);
+    BuildJobSpec(jip, jobSpec);
+    *jobSpec->mutable_resource_utilization() = GetRequestedResourcesForJip(jip);
 
     Controller->RegisterJobInProgress(jip);
 
@@ -469,7 +466,7 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Operation aborted");
 }
 
-TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
+TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
  
@@ -484,6 +481,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
     }
 
     // Make a course check to see if the node has enough resources.
+    auto node = context->GetNode();
     if (!HasEnoughResources(
             node->ResourceUtilization(),
             GetMinRequestedResources(),
@@ -492,12 +490,13 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
         return NULL;
     }
 
-    auto job = DoScheduleJob(node);
-    if (job) {
-        ++RunningJobCount;
-        LogProgress();
+    auto job = DoScheduleJob(context);
+    if (!job) {
+        return NULL;
     }
 
+    ++RunningJobCount;
+    LogProgress();
     return job;
 }
 
@@ -559,10 +558,11 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
     UpdatePendingJobCount(task);
 }
 
-TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
+TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
 {
     // First try to find a local task for this node.
     auto now = TInstant::Now();
+    auto node = context->GetNode();
     auto address = node->GetAddress();
     for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
         auto& info = PendingTaskInfos[priority];
@@ -607,7 +607,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
         }
 
         if (bestTask) {
-            auto job = bestTask->ScheduleJob(node);
+            auto job = bestTask->ScheduleJob(context);
             if (job) {
                 auto delayedTime = bestTask->GetDelayedTime();
                 LOG_DEBUG("Scheduled a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", Delay: %s)",
@@ -656,7 +656,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(TExecNodePtr node)
                 }
             }
 
-            auto job = task->ScheduleJob(node);
+            auto job = task->ScheduleJob(context);
             if (job) {
                 LOG_DEBUG("Scheduled a non-local job (Task: %s, Address: %s, Priority: %d, Delay: %s)",
                     ~task->GetId(),
