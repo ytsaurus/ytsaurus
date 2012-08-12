@@ -151,7 +151,7 @@ struct TUserJobSpec
         Register("cores_limit", CoresLimit)
             .Default(1);
         Register("memory_limit", MemoryLimit)
-            .Default((i64) 1024 * 1024 * 1024);
+            .Default((i64) 16 * 1024 * 1024 * 1024);
     }
 };
 
