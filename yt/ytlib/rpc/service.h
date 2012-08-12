@@ -335,7 +335,7 @@ public:
         : TBase(context, options)
     {
         Response_ = TObjectPool<TTypedResponse>::Allocate();
-        Response_->Context = Context.Get();
+        Response_->Context = this->Context.Get();
     }
 
     const TTypedResponse& Response() const
