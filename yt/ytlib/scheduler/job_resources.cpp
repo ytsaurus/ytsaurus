@@ -272,9 +272,29 @@ TNodeResources GetSimpleSortResources(
     return result;
 }
 
-TNodeResources GetPartitionSortResources(
+TNodeResources GetPartitionSortDuringSortResources(
     TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
+    i64 dataSize,
+    i64 rowCount)
+{
+    TNodeResources result;
+    result.set_slots(1);
+    result.set_cores(1);
+    result.set_memory(
+        // NB: See comment above for GetSimpleSortJobResources.
+        GetIOMemorySize(ioConfig, 0, 1) +
+        dataSize +
+        (i64) 16 * spec->SortBy.size() * rowCount +
+        (i64) 12 * rowCount +
+        FootprintMemorySize);
+    result.set_network(spec->ShuffleNetworkLimit);
+    return result;
+}
+
+TNodeResources GetPartitionSortDuringMapReduceResources(
+    TJobIOConfigPtr ioConfig,
+    TMapReduceOperationSpecPtr spec,
     i64 dataSize,
     i64 rowCount)
 {

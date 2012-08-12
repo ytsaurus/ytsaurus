@@ -206,8 +206,7 @@ protected:
 
         virtual NProto::TNodeResources GetMinRequestedResources() const
         {
-            return Controller->GetPartitionResources(
-                std::min(Controller->Spec->MaxDataSizePerPartitionJob, Controller->TotalDataSize));
+            return Controller->GetMinRequestedPartitionResources();
         }
 
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const
@@ -415,9 +414,8 @@ protected:
 
         virtual NProto::TNodeResources GetMinRequestedResources() const override
         {
-            return GetRequestedResourcesForDataSize(std::min(
-                Controller->Spec->MaxDataSizePerSortJob,
-                Controller->TotalDataSize));
+            bool mergeNeeded = Controller->IsSortedMergeNeeded(Partition);
+            return Controller->GetMinRequestedPartitionSortResources(!mergeNeeded);
         }
 
         virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const override
@@ -445,16 +443,11 @@ protected:
         {
             i64 rowCount = Controller->GetRowCountEstimate(dataSize);
             i64 valueCount = Controller->GetValueCountEstimate(dataSize);
-            if (Controller->Partitions.size() == 1) {
-                return Controller->GetSimpleSortResources(
-                    dataSize,
-                    rowCount,
-                    valueCount);
-            } else {
-                return Controller->GetPartitionSortResources(
-                    dataSize,
-                    rowCount);
-            }
+            bool mergeNeeded = Controller->IsSortedMergeNeeded(Partition);
+            return
+                Controller->Partitions.size() == 1
+                ? Controller->GetSimpleSortResources(dataSize, rowCount, valueCount)
+                : Controller->GetPartitionSortResources(!mergeNeeded, dataSize, rowCount);
         }
 
         virtual TDuration GetSimpleLocalityTimeout() const override
@@ -820,19 +813,7 @@ protected:
             return true;
         }
 
-        // Some easy cases.
-        if (partition->Megalomaniac) {
-            return false;
-        }
-
-        // Check if the sort task only handles a fraction of the partition.
-        // Two cases are possible:
-        // 1) Partition task is still running and thus may enqueue
-        // additional data to be sorted.
-        // 2) The sort pool hasn't been exhausted by the current job.
-        bool mergeNeeded =
-            !PartitionTask->IsCompleted() ||
-            partition->SortTask->IsPending();
+        bool mergeNeeded = IsSortedMergeNeededImpl(partition);
 
         if (mergeNeeded) {
             LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
@@ -841,6 +822,25 @@ protected:
         }
 
         return mergeNeeded;
+    }
+
+    bool IsSortedMergeNeededImpl(TPartitionPtr partition)
+    {
+        if (partition->Megalomaniac) {
+            return false;
+        }
+
+        const auto& dataSizeCounter = partition->SortTask->DataSizeCounter();
+
+        if (dataSizeCounter.GetPending() >= Spec->MaxDataSizePerSortJob && !PartitionTask->IsCompleted()) {
+            return true;
+        }
+
+        if (dataSizeCounter.GetCompleted() + dataSizeCounter.GetRunning() > 0 && dataSizeCounter.GetPending() > 0) {
+            return true;
+        }
+
+        return false;
     }
 
     bool IsUnorderedMergeNeeded(TPartitionPtr partition)
@@ -963,8 +963,18 @@ protected:
 
     // Resource management.
 
+    virtual bool IsNonexpandingPartition() const = 0;
+
     virtual NProto::TNodeResources GetPartitionResources(
         i64 dataSize) const = 0;
+
+    NProto::TNodeResources GetMinRequestedPartitionResources() const
+    {
+        // Holds both for sort and map-reduce.
+        return GetPartitionResources(std::min(
+            Spec->MaxDataSizePerPartitionJob,
+            TotalDataSize));
+    }
 
     virtual NProto::TNodeResources GetSimpleSortResources(
         i64 dataSize,
@@ -972,8 +982,20 @@ protected:
         i64 valueCount) const = 0;
     
     virtual NProto::TNodeResources GetPartitionSortResources(
+        bool isFinal,
         i64 dataSize,
         i64 rowCount) const = 0;
+
+    NProto::TNodeResources GetMinRequestedPartitionSortResources(
+        bool isFinal) const
+    {
+        i64 dataSize = Spec->MaxDataSizePerSortJob;
+        if (IsNonexpandingPartition()) {
+            dataSize = std::min(dataSize, TotalDataSize);
+        }
+        i64 rowCount = GetRowCountEstimate(dataSize);
+        return GetPartitionSortResources(isFinal, dataSize, rowCount);
+    }
 
     virtual NProto::TNodeResources GetSortedMergeResources(
         int stripeCount) const = 0;
@@ -1382,6 +1404,11 @@ private:
 
     // Resource management.
 
+    virtual bool IsNonexpandingPartition() const
+    {
+        return true;
+    }
+
     virtual NProto::TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
@@ -1397,8 +1424,7 @@ private:
         i64 valueCount) const override
     {
         return NScheduler::GetSimpleSortResources(
-            // XXX(babenko): is this correct?
-            IntermediateSortJobIOConfig,
+            FinalSortJobIOConfig,
             Spec,
             dataSize,
             rowCount,
@@ -1406,12 +1432,12 @@ private:
     }
 
     virtual NProto::TNodeResources GetPartitionSortResources(
+        bool isFinal,
         i64 dataSize,
         i64 rowCount) const override
     {
-        return NScheduler::GetPartitionSortResources(
-            // XXX(babenko): is this correct?
-            IntermediateSortJobIOConfig,
+        return NScheduler::GetPartitionSortDuringSortResources(
+            isFinal ? FinalSortJobIOConfig : IntermediateSortJobIOConfig,
             Spec,
             dataSize,
             rowCount);
@@ -1754,6 +1780,11 @@ private:
 
     // Resource management.
 
+    virtual bool IsNonexpandingPartition() const
+    {
+        return false;
+    }
+
     virtual NProto::TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
@@ -1778,15 +1809,21 @@ private:
     }
 
     virtual NProto::TNodeResources GetPartitionSortResources(
+        bool isFinal,
         i64 dataSize,
         i64 rowCount) const override
     {
-        return NScheduler::GetPartitionReduceDuringMapReduceResources(
-            // XXX(babenko): is this correct?
-            IntermediateSortJobIOConfig,
-            Spec,
-            dataSize,
-            rowCount);
+        return
+            isFinal
+            ? NScheduler::GetSortedReduceDuringMapReduceResources(
+                FinalSortJobIOConfig,
+                Spec,
+                Partitions.size())
+            : NScheduler::GetPartitionSortDuringMapReduceResources(
+                IntermediateSortJobIOConfig,
+                Spec,
+                dataSize,
+                rowCount);
     }
 
     virtual NProto::TNodeResources GetSortedMergeResources(

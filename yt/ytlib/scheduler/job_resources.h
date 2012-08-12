@@ -89,9 +89,15 @@ NProto::TNodeResources GetSimpleSortResources(
     i64 rowCount,
     i64 valueCount);
 
-NProto::TNodeResources GetPartitionSortResources(
+NProto::TNodeResources GetPartitionSortDuringSortResources(
     NJobProxy::TJobIOConfigPtr ioConfig,
     TSortOperationSpecPtr spec,
+    i64 dataSize,
+    i64 rowCount);
+
+NProto::TNodeResources GetPartitionSortDuringMapReduceResources(
+    NJobProxy::TJobIOConfigPtr ioConfig,
+    TMapReduceOperationSpecPtr spec,
     i64 dataSize,
     i64 rowCount);
 
