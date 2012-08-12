@@ -175,8 +175,6 @@ def get_node_config():
 """
 {
     "data_node" = {
-        "read_pool_thread_count" = 2;
-        "write_pool_thread_count" = 2;
         "cache_location" = {
             "path" = ""
         };
