@@ -18,6 +18,8 @@
     #include <netinet/tcp.h>
     #include <sys/socket.h>
     #include <sys/un.h>
+    #include <sys/types.h>
+    #include <sys/stat.h>
 #endif
 
 namespace NYT {
@@ -340,6 +342,13 @@ private:
         if (ServerSocket == INVALID_SOCKET) {
             int error = LastSystemError();
             ythrow yexception() << Sprintf("Failed to create a local server socket (ErrorCode: %d)\n%s",
+                error,
+                LastSystemErrorText(error));
+        }
+
+        if (chmod(~path, 0x777) != 0) {
+            int error = LastSystemError();
+            ythrow yexception() << Sprintf("Failed to update permissions of the local socket file (ErrorCode: %d)\n%s",
                 error,
                 LastSystemErrorText(error));
         }
