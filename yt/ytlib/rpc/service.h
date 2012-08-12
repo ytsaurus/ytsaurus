@@ -135,6 +135,15 @@ struct IService
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequestMessage>
+class TTypedServiceContextBase;
+
+template <class TRequestMessage, class TResponseMessage>
+class TTypedServiceContext;
+
+template <class TRequestMessage>
+class TOneWayTypedServiceContext;
+
+template <class TRequestMessage>
 class TTypedServiceRequest
     : public TRequestMessage
 {
@@ -154,7 +163,7 @@ public:
     }
 
 private:
-    template <class TRequestMessage>
+    template <class TRequestMessage_>
     friend class TTypedServiceContextBase;
 
     IServiceContext* Context;
@@ -183,7 +192,7 @@ public:
     }
 
 private:
-    template <class TRequestMessage, class TResponseMessage>
+    template <class TRequestMessage_, class TResponseMessage_>
     friend class TTypedServiceContext;
 
     IServiceContext* Context;
