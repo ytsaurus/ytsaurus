@@ -50,9 +50,8 @@ protected:
 
 private:
     virtual void InvokeHandler(
-        TRuntimeMethodInfo* runtimeInfo,
-        const TClosure& handler,
-        NRpc::IServiceContextPtr context);
+        TActiveRequestPtr activeRequest,
+        const TClosure& handler) override;
 
 };
 

@@ -600,13 +600,19 @@ private:
     yhash_map<Stroka, TRuntimeMethodInfoPtr> RuntimeMethodInfos;
     yhash_map<IServiceContextPtr, TActiveRequestPtr> ActiveRequests;
 
-    virtual Stroka GetServiceName() const;
-    virtual Stroka GetLoggingCategory() const;
+    virtual Stroka GetServiceName() const override;
+    virtual Stroka GetLoggingCategory() const override;
 
-    virtual void OnBeginRequest(IServiceContextPtr context);
-    virtual void OnEndRequest(IServiceContextPtr context);
+    virtual void OnBeginRequest(IServiceContextPtr context) override;
+    virtual void OnEndRequest(IServiceContextPtr context) override;
 
-    void OnInvocationPrepared(TActiveRequestPtr activeRequest, TClosure handler);
+    virtual void InvokeHandler(
+        TActiveRequestPtr activeRequest,
+        const TClosure& handler);
+
+    void OnInvocationPrepared(
+        TActiveRequestPtr activeRequest,
+        TClosure handler);
 
 };
 

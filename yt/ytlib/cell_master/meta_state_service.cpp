@@ -24,32 +24,35 @@ TMetaStateServiceBase::TMetaStateServiceBase(
 }
 
 void TMetaStateServiceBase::InvokeHandler(
-    TRuntimeMethodInfo* runtimeInfo,
-    const TClosure& handler,
-    NRpc::IServiceContextPtr context)
+    TActiveRequestPtr activeRequest,
+    const TClosure& handler)
 {
     if (Bootstrap->GetMetaStateManager()->GetStateStatusAsync() != EPeerStatus::Leading) {
-        context->Reply(TError(NRpc::EErrorCode::Unavailable, "Not an active leader"));
+        activeRequest->Context->Reply(TError(
+            NRpc::EErrorCode::Unavailable,
+            "Not an active leader"));
         return;
     }
 
-    NRpc::IServiceContextPtr context_ = context;
-    runtimeInfo->Invoker->Invoke(BIND([=] ()
+    activeRequest->RuntimeInfo->Invoker->Invoke(BIND([=] () {
+        if (Bootstrap->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading ||
+            !Bootstrap->GetMetaStateManager()->HasActiveQuorum())
         {
-            if (Bootstrap->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading ||
-                !Bootstrap->GetMetaStateManager()->HasActiveQuorum())
-            {
-                context_->Reply(TError(NRpc::EErrorCode::Unavailable, "Not an active leader"));
-                return;
-            }
+            activeRequest->Context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Not an active leader"));
+            return;
+        }
 
-            if (!Bootstrap->GetWorldInitializer()->IsInitialized()) {
-                context_->Reply(TError(NRpc::EErrorCode::Unavailable, "Cell is not initialized yet, please try again later"));
-                return;
-            }
+        if (!Bootstrap->GetWorldInitializer()->IsInitialized()) {
+            activeRequest->Context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Cell is not initialized yet, please try again later"));
+            return;
+        }
 
-            handler.Run();
-        }));
+        handler.Run();
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

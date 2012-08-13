@@ -181,7 +181,7 @@ void TServiceBase::OnInvocationPrepared(
         }
     });
 
-    activeRequest->RuntimeInfo->Invoker->Invoke(wrappedHandler);
+    InvokeHandler(activeRequest, wrappedHandler);
 }
 
 void TServiceBase::OnEndRequest(IServiceContextPtr context)
