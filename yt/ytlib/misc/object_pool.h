@@ -34,7 +34,7 @@ public:
     //! Either creates a fresh instance or returns a pooled one.
     static TPtr Allocate();
 
-    //! Calls #TObjectPoolCleaner<T>::Clean and returns the instance back into the pool.
+    //! Calls #CleanPooledObject and returns the instance back into the pool.
     static void Reclaim(T* obj);
 
 private:
@@ -43,7 +43,7 @@ private:
 };
 
 template <class T>
-struct TObjectPoolCleaner;
+void CleanPooledObject(T* obj);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -27,7 +27,7 @@ typename TObjectPool<T>::TPtr TObjectPool<T>::Allocate()
 template <class T>
 void TObjectPool<T>::Reclaim(T* obj)
 {
-    TObjectPoolCleaner<T>::Clean(obj);
+    CleanPooledObject(obj);
     PooledObjects.Enqueue(obj);
 }
 
