@@ -210,11 +210,11 @@ const char* TYamrDelimitedParser::TryConsumeRecord(const char* begin, const char
         Consumer->OnKeyedItem(Config->Subkey);
         Consumer->OnStringScalar(TStringBuf(endOfKey + 1, endOfSubkey));
     }
-    Consumer->OnKeyedItem(Config->Value);
-
     const char* beginOfValue = Config->HasSubkey ?
                             endOfSubkey + 1 :
                             endOfKey + 1;
+
+    Consumer->OnKeyedItem(Config->Value);
     Consumer->OnStringScalar(TStringBuf(beginOfValue, endOfValue));
     Consumer->OnEndMap();
 
