@@ -32,31 +32,35 @@ bool TChunkTreeBalancer::CheckRebalanceNeeded(
     TChunkList* chunkList,
     NProto::TMsgRebalanceChunkTree* message)
 {
-    bool rebalance = false;
+    bool rebalanceNeeded = false;
     auto* currentChunkList = chunkList;
     while (true) {
-        if (currentChunkList->GetRigid()) {
-            return false;
-        }
-
         if (currentChunkList->Children().size() > Config->MaxChunkListSize ||
             currentChunkList->Statistics().Rank > Config->MaxChunkTreeRank) {
-            rebalance = true;
+            rebalanceNeeded = true;
         }
 
         if (currentChunkList->Parents().empty()) {
             break;
         }
 
-        YCHECK(currentChunkList->Parents().size() == 1);
+        if (currentChunkList->Parents().size() > 1) {
+            return false;
+        }
+
         currentChunkList = *currentChunkList->Parents().begin();
     }
     
-    if (rebalance) {
-        InitRebalanceMessage(currentChunkList, message);
+    if (currentChunkList->GetRigid()) {
+        return false;
     }
-   
-    return rebalance;
+
+    if (!rebalanceNeeded) {
+        return false;
+    }
+
+    InitRebalanceMessage(currentChunkList, message);
+    return true;
 }
 
 bool TChunkTreeBalancer::RebalanceChunkTree(

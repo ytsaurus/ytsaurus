@@ -191,13 +191,16 @@ protected:
         }
 
         if (branchedMode == ETableUpdateMode::Overwrite) {
+            bool setOriginatingOverwriteMode = 
+                originatingNode->GetId().IsBranched();
+
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(branchedChunkList);
 
             objectManager->UnrefObject(originatingChunkList);
 
-            if (originatingNode->GetId().IsBranched()) {
+            if (setOriginatingOverwriteMode) {
                 originatingNode->SetUpdateMode(ETableUpdateMode::Overwrite);
             }
 
@@ -209,8 +212,12 @@ protected:
         {
             YCHECK(branchedChunkList->Children().size() == 2);
 
+            bool setOriginatingAppendMode =
+                originatingMode == ETableUpdateMode::None &&
+                originatingNode->GetId().IsBranched();
+
             auto* newOriginatingChunkList = chunkManager->CreateChunkList();
-            newOriginatingChunkList->SetRigid(true);
+            newOriginatingChunkList->SetRigid(setOriginatingAppendMode);
             newOriginatingChunkList->SortedBy() = branchedChunkList->SortedBy();
 
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
@@ -225,9 +232,10 @@ protected:
             objectManager->UnrefObject(branchedChunkList);
 
 
-            if (originatingMode == ETableUpdateMode::None && originatingNode->GetId().IsBranched()) {
+            if (setOriginatingAppendMode) {
                 originatingNode->SetUpdateMode(ETableUpdateMode::Append);
             }
+
             return;
         }
 

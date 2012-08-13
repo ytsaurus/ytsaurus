@@ -71,7 +71,7 @@ struct TChunkTreeBalancerConfig
     {
         Register("max_chunk_tree_rank", MaxChunkTreeRank)
             .GreaterThanOrEqual(2)
-            .Default(10);
+            .Default(32);
         Register("min_chunk_list_size", MinChunkListSize)
             .GreaterThan(0)
             .Default(1024);
