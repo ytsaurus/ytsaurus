@@ -1426,7 +1426,7 @@ private:
         result.set_cores(1);
         result.set_memory(
             GetIOMemorySize(PartitionJobIOConfig, 1, 1) +
-            std::min(PartitionJobIOConfig->TableWriter->BlockSize * Partitions.size(), dataSize) +
+            std::min(PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), dataSize) +
             GetFootprintMemorySize());
         return result;
     }
@@ -1839,7 +1839,7 @@ private:
             result.set_cores(1);
             result.set_memory(
                 GetIOMemorySize(PartitionJobIOConfig, 1, 1) +
-                std::min(PartitionJobIOConfig->TableWriter->BlockSize * Partitions.size(), dataSize) +
+                std::min(PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), dataSize) +
                 GetFootprintMemorySize());
         }
         return result;
