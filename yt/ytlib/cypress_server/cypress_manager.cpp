@@ -408,47 +408,6 @@ ICypressNode* TCypressManager::GetVersionedNode(
     return node;
 }
 
-ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
-    const TNodeId& nodeId,
-    TTransaction* transaction,
-    ELockMode requestedMode)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(requestedMode == ELockMode::Shared || requestedMode == ELockMode::Exclusive);
-
-    // Check if the node exists.
-    if (!FindNode(nodeId)) {
-        return NULL;
-    }
-
-    // Validate a potential lock to see if we need to take it.
-    // This throws an exception in case the validation fails.
-    bool isMandatory;
-    ValidateLock(nodeId, transaction, requestedMode, &isMandatory);
-
-    if (isMandatory) {
-        if (!transaction) {
-            ythrow yexception() << Sprintf("The requested operation requires %s lock but no current transaction is given",
-                ~FormatEnum(requestedMode).Quote());
-        }
-        AcquireLock(nodeId, transaction, requestedMode);
-    }
-
-    return FindVersionedNode(nodeId, transaction);
-}
-
-ICypressNode* TCypressManager::GetVersionedNodeForUpdate(
-    const TNodeId& nodeId,
-    TTransaction* transaction,
-    ELockMode requestedMode)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto* node = FindVersionedNodeForUpdate(nodeId, transaction, requestedMode);
-    YCHECK(node);
-    return node;
-}
-
 ICypressNodeProxyPtr TCypressManager::FindVersionedNodeProxy(
     const TNodeId& id,
     TTransaction* transaction)
@@ -484,7 +443,7 @@ ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
 }
 
 void TCypressManager::ValidateLock(
-    const TNodeId& nodeId,
+    ICypressNode* trunkNode,
     TTransaction* transaction,
     ELockMode requestedMode,
     bool* isMandatory)
@@ -493,7 +452,8 @@ void TCypressManager::ValidateLock(
     YASSERT(isMandatory);
 
     // Check if the node supports this particular mode at all.
-    auto handler = GetHandler(TypeFromId(nodeId));
+    auto nodeId = trunkNode->GetId().ObjectId;
+    auto handler = GetHandler(trunkNode);
     if (!handler->IsLockModeSupported(requestedMode)) {
         ythrow yexception() << Sprintf("Node %s does not support %s locks",
             ~GetNodePath(nodeId, transaction).Quote(),
@@ -507,8 +467,6 @@ void TCypressManager::ValidateLock(
     }
 
     // Examine existing locks.
-    const auto* trunkNode = NodeMap.Get(nodeId);
-
     // A quick check: same transaction, same or weaker lock mode (beware of Snapshot!).
     {
         auto it = trunkNode->Locks().find(transaction);
@@ -563,16 +521,16 @@ void TCypressManager::ValidateLock(
     }
 
     // If we're outside of a transaction then the lock is not needed.
-    *isMandatory = transaction;
+    *isMandatory = (transaction != NULL);
 }
 
 void TCypressManager::ValidateLock(
-    const TNodeId& nodeId,
+    ICypressNode* trunkNode,
     TTransaction* transaction,
     ELockMode requestedMode)
 {
     bool dummy;
-    ValidateLock(nodeId, transaction, requestedMode, &dummy);
+    ValidateLock(trunkNode, transaction, requestedMode, &dummy);
 }
 
 bool TCypressManager::IsParentTransaction(TTransaction* transaction, TTransaction* parent)
@@ -594,68 +552,69 @@ bool TCypressManager::IsConcurrentTransaction(TTransaction* transaction1, TTrans
         !IsParentTransaction(transaction2, transaction1);
 }
 
-void TCypressManager::AcquireLock(
-    const TNodeId& nodeId,
+ICypressNode* TCypressManager::AcquireLock(
+    ICypressNode* trunkNode,
     TTransaction* transaction,
     ELockMode mode)
 {
-    YASSERT(transaction);
+    YCHECK(transaction);
 
-    auto* trunkNode = NodeMap.Get(nodeId);
-
-    auto* lock = DoAcquireLock(trunkNode, transaction, mode);
+    auto* lock = CreateLock(trunkNode, transaction, mode);
 
     // Upgrade locks held by parent transactions, if needed.
     if (mode != ELockMode::Snapshot) {
         auto* currentTransaction = transaction->GetParent();
         while (currentTransaction) {
-            DoAcquireLock(trunkNode, currentTransaction, mode);
+            CreateLock(trunkNode, currentTransaction, mode);
             currentTransaction = currentTransaction->GetParent();
         }
     }
 
-    // Branch nodes, if needed.
+    // Branch node, if needed.
+    auto nodeId = trunkNode->GetId().ObjectId;
     auto* branchedNode = FindNode(TVersionedNodeId(nodeId, transaction->GetId()));
-    if (!branchedNode) {
-        ICypressNode* originatingNode;
-        std::vector<TTransaction*> intermediateTransactions;
-        // Walk up to the root, find originatingNode, construct the list of
-        // intermediate transactions.
-        auto* currentTransaction = transaction;
-        while (true) {
-            originatingNode = FindNode(TVersionedNodeId(nodeId, GetObjectId(currentTransaction)));
-            if (originatingNode) {
-                break;
-            }
-            if (!currentTransaction) {
-                break;
-            }
-            intermediateTransactions.push_back(currentTransaction);
-            currentTransaction = currentTransaction->GetParent();
-        }
-
-        YCHECK(originatingNode);
-        YCHECK(!intermediateTransactions.empty());
-
-        if (mode == ELockMode::Snapshot) {
-            // Branch at requested transaction only.
-            BranchNode(originatingNode, transaction, mode);
-        } else {
-            // Branch at all intermediate transactions.
-            std::reverse(intermediateTransactions.begin(), intermediateTransactions.end());
-            auto* currentNode = originatingNode;
-            FOREACH (auto* transactionToBranch, intermediateTransactions) {
-                currentNode = BranchNode(currentNode, transactionToBranch, mode);
-            }
-        }
-    } else {
+    if (branchedNode) {
         if (branchedNode->GetLockMode() < mode) {
             branchedNode->SetLockMode(mode);
         }
+        return branchedNode;
+    }
+
+    ICypressNode* originatingNode;
+    std::vector<TTransaction*> intermediateTransactions;
+    // Walk up to the root, find originatingNode, construct the list of
+    // intermediate transactions.
+    auto* currentTransaction = transaction;
+    while (true) {
+        originatingNode = FindNode(TVersionedNodeId(nodeId, GetObjectId(currentTransaction)));
+        if (originatingNode) {
+            break;
+        }
+        if (!currentTransaction) {
+            break;
+        }
+        intermediateTransactions.push_back(currentTransaction);
+        currentTransaction = currentTransaction->GetParent();
+    }
+
+    YCHECK(originatingNode);
+    YCHECK(!intermediateTransactions.empty());
+
+    if (mode == ELockMode::Snapshot) {
+        // Branch at requested transaction only.
+        return BranchNode(originatingNode, transaction, mode);
+    } else {
+        // Branch at all intermediate transactions.
+        std::reverse(intermediateTransactions.begin(), intermediateTransactions.end());
+        auto* currentNode = originatingNode;
+        FOREACH (auto* transactionToBranch, intermediateTransactions) {
+            currentNode = BranchNode(currentNode, transactionToBranch, mode);
+        }
+        return currentNode;
     }
 }
 
-TLock* TCypressManager::DoAcquireLock(
+TLock* TCypressManager::CreateLock(
     ICypressNode* trunkNode,
     TTransaction* transaction,
     ELockMode mode)
@@ -698,20 +657,40 @@ void TCypressManager::ReleaseLock(ICypressNode* trunkNode, TTransaction* transac
         ~transaction->GetId().ToString());
 }
 
-void TCypressManager::LockVersionedNode(
+
+ICypressNode* TCypressManager::LockVersionedNode(
     const TNodeId& nodeId,
+    TTransaction* transaction,
+    ELockMode requestedMode /*= ELockMode::Exclusive*/ )
+{
+    auto* trunkNode = GetNode(nodeId);
+    return LockVersionedNode(trunkNode, transaction, requestedMode);
+}
+
+ICypressNode* TCypressManager::LockVersionedNode(
+    ICypressNode* node,
     TTransaction* transaction,
     ELockMode requestedMode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(requestedMode != ELockMode::None);
+    YCHECK(requestedMode != ELockMode::None);
 
-    if (transaction == NULL) {
-        ythrow yexception() << "Cannot take a lock outside of a transaction";
+    auto* trunkNode = node->GetTrunkNode();
+
+    // Validate a potential lock to see if we need to take it.
+    // This throws an exception in case the validation fails.
+    bool isMandatory;
+    ValidateLock(trunkNode, transaction, requestedMode, &isMandatory);
+
+    if (isMandatory) {
+        if (!transaction) {
+            ythrow yexception() << Sprintf("The requested operation requires %s lock but no current transaction is given",
+                ~FormatEnum(requestedMode).Quote());
+        }
+        return AcquireLock(trunkNode, transaction, requestedMode);
+    } else {
+        return GetVersionedNode(trunkNode->GetId().ObjectId, transaction);
     }
-
-    ValidateLock(nodeId, transaction, requestedMode);
-    AcquireLock(nodeId, transaction, requestedMode);
 }
 
 void TCypressManager::RegisterNode(

@@ -72,16 +72,6 @@ public:
         const TNodeId& nodeId,
         const NTransactionServer::TTransaction* transaction);
 
-    ICypressNode* FindVersionedNodeForUpdate(
-        const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction,
-        ELockMode requestedMode = ELockMode::Exclusive);
-
-    ICypressNode* GetVersionedNodeForUpdate(
-        const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction,
-        ELockMode requestedMode = ELockMode::Exclusive);
-
     ICypressNodeProxyPtr FindVersionedNodeProxy(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction = NULL);
@@ -93,8 +83,13 @@ public:
     ICypressNodeProxyPtr GetVersionedNodeProxy(
         const TVersionedNodeId& versionedId);
 
-    void LockVersionedNode(
+    ICypressNode* LockVersionedNode(
         const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction,
+        ELockMode requestedMode = ELockMode::Exclusive);
+
+    ICypressNode* LockVersionedNode(
+        ICypressNode* node,
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode = ELockMode::Exclusive);
 
@@ -163,12 +158,12 @@ private:
     void DestroyNodeBehavior(const TNodeId& id);
 
     void ValidateLock(
-        const TNodeId& nodeId,
+        ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode,
         bool* isMandatory);
     void ValidateLock(
-        const TNodeId& nodeId,
+        ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode);
 
@@ -179,11 +174,11 @@ private:
         NTransactionServer::TTransaction* transaction1,
         NTransactionServer::TTransaction* transaction2);
 
-    void AcquireLock(
-        const TNodeId& nodeId,
+    ICypressNode* AcquireLock(
+        ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
-    TLock* DoAcquireLock(
+    TLock* CreateLock(
         ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);

@@ -692,8 +692,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
     UNUSED(request);
     context->SetRequestInfo("");
 
-    // This takes a shared lock.
-    auto* node = GetTypedImplForUpdate(ELockMode::Shared);
+    auto* node = LockTypedImpl(ELockMode::Shared);
     const auto* chunkList = EnsureNodeMutable(node);
 
     *response->mutable_chunk_list_id() = chunkList->GetId().ToProto();
@@ -785,8 +784,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
-    // This takes an exclusive lock.
-    auto* node = GetTypedImplForUpdate();
+    auto* node = LockTypedImpl();
 
     if (node->GetUpdateMode() != ETableUpdateMode::Overwrite) {
         ythrow TServiceException(TError("Table node must be in overwrite mode"));
@@ -801,8 +799,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
 {
     context->SetRequestInfo("");
 
-    // This takes an exclusive lock.
-    auto* node = GetTypedImplForUpdate();
+    auto* node = LockTypedImpl();
 
     ClearNode(node);
 

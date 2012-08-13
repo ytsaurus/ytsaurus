@@ -116,9 +116,9 @@ public:
         return this->GetTypedImpl();
     }
 
-    virtual ICypressNode* GetImplForUpdate()
+    virtual ICypressNode* LockImpl()
     {
-        return this->GetTypedImplForUpdate();
+        return this->LockTypedImpl();
     }
 
 
@@ -130,7 +130,7 @@ public:
 
     virtual void SetParent(NYTree::ICompositeNodePtr parent)
     {
-        GetImplForUpdate()->SetParentId(
+        LockImpl()->SetParentId(
             parent
             ? ToProxy(NYTree::INodePtr(parent))->GetId()
             : NullObjectId);
@@ -269,7 +269,12 @@ protected:
                 ~CamelCaseToUnderscoreCase(mode.ToString()).Quote());
         }
 
-        Bootstrap->GetCypressManager()->LockVersionedNode(NodeId, Transaction, mode);
+        if (!Transaction) {
+            ythrow yexception() << "Cannot take a lock outside of a transaction";
+        }
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        cypressManager->LockVersionedNode(NodeId, Transaction, mode);
 
         context->Reply();
     }
@@ -291,12 +296,14 @@ protected:
 
     const ICypressNode* GetImpl(const TNodeId& nodeId) const
     {
-        return Bootstrap->GetCypressManager()->GetVersionedNode(nodeId, Transaction);
+        auto cypressManager = Bootstrap->GetCypressManager();
+        return cypressManager->GetVersionedNode(nodeId, Transaction);
     }
 
-    ICypressNode* GetImplForUpdate(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive)
+    ICypressNode* LockImpl(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return Bootstrap->GetCypressManager()->GetVersionedNodeForUpdate(nodeId, Transaction, requestedMode);
+        auto cypressManager = Bootstrap->GetCypressManager();
+        return cypressManager->LockVersionedNode(NodeId, Transaction, requestedMode);
     }
 
 
@@ -305,9 +312,9 @@ protected:
         return static_cast<const TImpl*>(GetImpl(NodeId));
     }
 
-    TImpl* GetTypedImplForUpdate(ELockMode requestedMode = ELockMode::Exclusive)
+    TImpl* LockTypedImpl(ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return static_cast<TImpl*>(GetImplForUpdate(NodeId, requestedMode));
+        return static_cast<TImpl*>(LockImpl(NodeId, requestedMode));
     }
 
 
@@ -439,21 +446,16 @@ protected:
 
         virtual void SetYson(const Stroka& name, const NYTree::TYsonString& value)
         {
-            // This takes the lock.
-            Bootstrap
-                ->GetCypressManager()
-                ->GetVersionedNodeForUpdate(ObjectId, Transaction);
+            auto cypressManager = Bootstrap->GetCypressManager();
+            cypressManager->LockVersionedNode(ObjectId, Transaction);
 
             TUserAttributeDictionary::SetYson(name, value);
         }
 
         virtual bool Remove(const Stroka& name)
         {
-            // This takes the lock.
-            auto id = Bootstrap
-                ->GetCypressManager()
-                ->GetVersionedNodeForUpdate(ObjectId, Transaction)
-                ->GetId();
+            auto cypressManager = Bootstrap->GetCypressManager();
+            auto versionedId = cypressManager->LockVersionedNode(ObjectId, Transaction)->GetId();
 
             if (!Transaction) {
                 return TUserAttributeDictionary::Remove(name);
@@ -480,10 +482,10 @@ protected:
                 }
             }
 
-            auto* userAttributes = objectManager->FindAttributes(id);
+            auto* userAttributes = objectManager->FindAttributes(versionedId);
             if (contains) {
                 if (!userAttributes) {
-                    userAttributes = objectManager->CreateAttributes(id);
+                    userAttributes = objectManager->CreateAttributes(versionedId);
                 }
                 userAttributes->Attributes()[name] = Null;
                 return true;
@@ -528,7 +530,7 @@ public:
 
     virtual void SetValue(const TValue& value)
     {
-        this->GetTypedImplForUpdate(ELockMode::Exclusive)->Value() = value;
+        this->LockTypedImpl(ELockMode::Exclusive)->Value() = value;
     }
 
 private:
