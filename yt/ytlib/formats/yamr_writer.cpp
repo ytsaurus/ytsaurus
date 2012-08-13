@@ -36,7 +36,7 @@ void TYamrWriter::OnDoubleScalar(double value)
 
 void TYamrWriter::OnStringScalar(const TStringBuf& value)
 {
-    RememberItem(value, Config->NeedToOwn);
+    RememberItem(value, false);
 }
 
 void TYamrWriter::OnEntity()
