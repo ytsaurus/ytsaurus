@@ -3,7 +3,6 @@
 #endif
 #undef OBJECT_POOL_INL_H_
 
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,11 +10,11 @@ namespace NYT {
 template <class T>
 void TObjectPool<T>::TDeleter::Destroy(T* obj)
 {
-    TObjectPool<T>::Reclaim(obj);
+    ObjectPool<T>().Reclaim(obj);
 }
 
 template <class T>
-typename TObjectPool<T>::TPtr TObjectPool<T>::Allocate()
+typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
 {
     T* object;
     if (!PooledObjects.Dequeue(&object)) {
@@ -29,6 +28,13 @@ void TObjectPool<T>::Reclaim(T* obj)
 {
     CleanPooledObject(obj);
     PooledObjects.Enqueue(obj);
+}
+
+template <class T>
+TObjectPool<T>& ObjectPool()
+{
+    static TObjectPool<T> pool;
+    return pool;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

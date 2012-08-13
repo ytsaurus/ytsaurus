@@ -244,7 +244,7 @@ public:
 
     void DeserializeRequest()
     {
-        Request_ = TObjectPool<TTypedRequest>::Allocate();
+        Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context = Context.Get();
 
         if (!DeserializeFromProto(Request_.Get(), Context->GetRequestBody())) {
@@ -309,7 +309,7 @@ protected:
     IServiceContextPtr Context;
     THandlerInvocationOptions Options;
 
-    typename TObjectPool<TTypedRequest>::TPtr Request_;
+    typename TObjectPool<TTypedRequest>::TValuePtr Request_;
 
 };
 
@@ -334,7 +334,7 @@ public:
         const THandlerInvocationOptions& options)
         : TBase(context, options)
     {
-        Response_ = TObjectPool<TTypedResponse>::Allocate();
+        Response_ = ObjectPool<TTypedResponse>().Allocate();
         Response_->Context = this->Context.Get();
     }
 
@@ -422,7 +422,7 @@ private:
         this->Context->Reply(TError());
     }
 
-    typename TObjectPool<TTypedResponse>::TPtr Response_;
+    typename TObjectPool<TTypedResponse>::TValuePtr Response_;
 
 };
 
@@ -449,7 +449,7 @@ public:
     TClosure Wrap(TCallback<void(TIntrusivePtr<TThis>)> paramAction)
     {
         YASSERT(paramAction);
-        return this->Context->Wrap(~paramAction->BIND(MakeStrong(this)));
+        return this->Context->Wrap(paramAction->BIND(MakeStrong(this)));
     }
 };
 

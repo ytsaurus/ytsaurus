@@ -29,21 +29,21 @@ private:
     };
 
 public:
-    typedef TSharedPtr<T, TAtomicCounter, TDeleter> TPtr;
+    typedef TSharedPtr<T, TAtomicCounter, TDeleter> TValuePtr;
 
     //! Either creates a fresh instance or returns a pooled one.
-    static TPtr Allocate();
+    TValuePtr Allocate();
 
     //! Calls #CleanPooledObject and returns the instance back into the pool.
-    static void Reclaim(T* obj);
+    void Reclaim(T* obj);
 
 private:
-    static TLockFreeStack<T*> PooledObjects;
+    TLockFreeStack<T*> PooledObjects;
 
 };
 
 template <class T>
-void CleanPooledObject(T* obj);
+TObjectPool<T>& ObjectPool();
 
 ////////////////////////////////////////////////////////////////////////////////
 
