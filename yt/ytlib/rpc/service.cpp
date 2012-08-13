@@ -184,6 +184,13 @@ void TServiceBase::OnInvocationPrepared(
     InvokeHandler(activeRequest, wrappedHandler);
 }
 
+void TServiceBase::InvokeHandler(
+    TActiveRequestPtr activeRequest,
+    const TClosure& handler)
+{
+    activeRequest->RuntimeInfo->Invoker->Invoke(handler);
+}
+
 void TServiceBase::OnEndRequest(IServiceContextPtr context)
 {
     YASSERT(context);
