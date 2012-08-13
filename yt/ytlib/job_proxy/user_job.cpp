@@ -297,6 +297,7 @@ private:
             InputThread.Start();
             OutputThread.Start();
             OutputThread.Join();
+            InputThread.Detach();
 
             int status = 0;
             int waitpidResult = waitpid(ProcessId, &status, 0);
