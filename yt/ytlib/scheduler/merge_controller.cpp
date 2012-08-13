@@ -396,6 +396,17 @@ protected:
 
     // Unsorted helpers.
 
+    virtual TNodeResources GetMinRequestedResources() const override
+    {
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(1);
+        result.set_memory(
+            GetIOMemorySize(JobIOConfig, GetInputTablePaths().size(), 1) +
+            GetFootprintMemorySize());
+        return result;
+    }
+
     //! Returns True iff the chunk has nontrivial limits.
     //! Such chunks are always pooled.
     static bool IsCompleteChunk(TRefCountedInputChunkPtr inputChunk)
@@ -464,12 +475,12 @@ private:
         return Spec->CombineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
 
-    virtual std::vector<TYPath> GetInputTablePaths() override
+    virtual std::vector<TYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() override
+    virtual std::vector<TYPath> GetOutputTablePaths() const override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
@@ -507,11 +518,6 @@ private:
 
         // ToDo(psushin): set larger PrefetchWindow for unordered merge.
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
-    }
-
-    virtual NProto::TNodeResources GetMinRequestedResources() const override
-    {
-        return GetMergeJobResources(JobIOConfig, Spec);
     }
 };
 
@@ -568,12 +574,12 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() override
+    virtual std::vector<TYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() override
+    virtual std::vector<TYPath> GetOutputTablePaths() const override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
@@ -599,10 +605,6 @@ private:
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const override
-    {
-        return GetMergeJobResources(JobIOConfig, Spec);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -620,18 +622,17 @@ public:
         , Spec(spec)
     { }
 
-
 private:
     TEraseOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() override
+    virtual std::vector<TYPath> GetInputTablePaths() const override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->TablePath);
         return result;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() override
+    virtual std::vector<TYPath> GetOutputTablePaths() const override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->TablePath);
@@ -687,10 +688,6 @@ private:
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const override
-    {
-        return GetEraseResources(JobIOConfig, Spec);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -895,12 +892,12 @@ private:
         ScheduleClearOutputTables();
     }
 
-    virtual std::vector<TYPath> GetInputTablePaths() override
+    virtual std::vector<TYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() override
+    virtual std::vector<TYPath> GetOutputTablePaths() const override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
@@ -941,10 +938,6 @@ private:
         ScheduleSetOutputTablesSorted(KeyColumns);
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const override
-    {
-        return GetMergeJobResources(JobIOConfig, Spec);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -965,17 +958,17 @@ public:
 private:
     TReduceOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() override
+    virtual std::vector<TYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() override
+    virtual std::vector<TYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths() override
+    virtual std::vector<TYPath> GetFilePaths() const override
     {
         return Spec->Reducer->FilePaths;
     }
@@ -1015,9 +1008,14 @@ private:
 
     virtual NProto::TNodeResources GetMinRequestedResources() const override
     {
-        return NScheduler::GetSortedReduceResources(
-            JobIOConfig,
-            Spec);
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(Spec->Reducer->CoresLimit);
+        result.set_memory(
+            GetIOMemorySize(JobIOConfig, Spec->InputTablePaths.size(), Spec->OutputTablePaths.size()) +
+            Spec->Reducer->MemoryLimit +
+            GetFootprintMemorySize());
+        return result;
     }
 };
 

@@ -357,13 +357,13 @@ protected:
     virtual void DoGetProgress(NYTree::IYsonConsumer* consumer);
 
     //! Called to extract input table paths from the spec.
-    virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
+    virtual std::vector<NYTree::TYPath> GetInputTablePaths() const = 0;
     
     //! Called to extract output table paths from the spec.
-    virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
+    virtual std::vector<NYTree::TYPath> GetOutputTablePaths() const = 0;
     
     //! Called to extract file paths from the spec.
-    virtual std::vector<NYTree::TYPath> GetFilePaths();
+    virtual std::vector<NYTree::TYPath> GetFilePaths() const;
 
 
     //! Minimum resources that are needed to start any task.

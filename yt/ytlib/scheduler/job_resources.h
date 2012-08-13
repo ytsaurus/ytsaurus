@@ -40,75 +40,12 @@ void BuildNodeResourcesYson(
 NProto::TNodeResources ZeroResources();
 NProto::TNodeResources InfiniteResources();
 
+i64 GetFootprintMemorySize();
+
 i64 GetIOMemorySize(
     NJobProxy::TJobIOConfigPtr ioConfig,
     int inputStreamCount,
     int outputStreamCount);
-
-NProto::TNodeResources GetMapResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TMapOperationSpecPtr spec);
-
-NProto::TNodeResources GetMapDuringMapReduceResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TMapReduceOperationSpecPtr spec,
-    int partitionCount);
-
-NProto::TNodeResources GetMergeJobResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TMergeOperationSpecPtr spec);
-
-NProto::TNodeResources GetPartitionReduceDuringMapReduceResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TMapReduceOperationSpecPtr spec,
-    i64 dataSize,
-    i64 rowCount);
-
-NProto::TNodeResources GetSortedReduceDuringMapReduceResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TMapReduceOperationSpecPtr spec,
-    int stripeCount);
-
-NProto::TNodeResources GetEraseResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TEraseOperationSpecPtr spec);
-
-NProto::TNodeResources GetSortedReduceResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TReduceOperationSpecPtr spec);
-
-NProto::TNodeResources GetPartitionResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    i64 dataSize,
-    int partitionCount);
-
-NProto::TNodeResources GetSimpleSortResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TSortOperationSpecPtr spec,
-    i64 dataSize,
-    i64 rowCount,
-    i64 valueCount);
-
-NProto::TNodeResources GetPartitionSortDuringSortResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TSortOperationSpecPtr spec,
-    i64 dataSize,
-    i64 rowCount);
-
-NProto::TNodeResources GetPartitionSortDuringMapReduceResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TMapReduceOperationSpecPtr spec,
-    i64 dataSize,
-    i64 rowCount);
-
-NProto::TNodeResources GetSortedMergeDuringSortResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TSortOperationSpecPtr spec,
-    int stripeCount);
-
-NProto::TNodeResources GetUnorderedMergeDuringSortResources(
-    NJobProxy::TJobIOConfigPtr ioConfig,
-    TSortOperationSpecPtr spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

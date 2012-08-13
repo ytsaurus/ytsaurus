@@ -89,16 +89,12 @@ private:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const override
+        virtual TNodeResources GetMinRequestedResources() const override
         {
-            return NScheduler::GetMapResources(
-                Controller->JobIOConfig,
-                Controller->Spec);
+            return Controller->GetMinRequestedResources();
         }
 
     private:
-        friend class TMapController;
-
         TMapController* Controller;
 
         virtual int GetChunkListCountPerJob() const override
@@ -150,17 +146,17 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TYPath> GetInputTablePaths() override
+    virtual std::vector<TYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() override
+    virtual std::vector<TYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths() override
+    virtual std::vector<TYPath> GetFilePaths() const override
     {
         return Spec->Mapper->FilePaths;
     }
@@ -213,9 +209,18 @@ private:
     }
 
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const
+    virtual TNodeResources GetMinRequestedResources() const
     {
-        return MapTask ? MapTask->GetMinRequestedResources() : InfiniteResources();
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(Spec->Mapper->CoresLimit);
+        result.set_memory(
+            GetIOMemorySize(
+                JobIOConfig,
+                Spec->InputTablePaths.size(),
+                Spec->OutputTablePaths.size()) +
+            GetFootprintMemorySize());
+        return result;
     }
 
 

@@ -204,12 +204,12 @@ protected:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const
+        virtual TNodeResources GetMinRequestedResources() const
         {
             return Controller->GetMinRequestedPartitionResources();
         }
 
-        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const
+        virtual TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const
         {
             return Controller->GetPartitionResources(jip->PoolResult->TotalDataSize);
         }
@@ -231,7 +231,7 @@ protected:
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) override
+            TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
@@ -415,12 +415,12 @@ protected:
                 : static_cast<int>(floor(fractionalJobCount));
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const override
+        virtual TNodeResources GetMinRequestedResources() const override
         {
             return Controller->GetMinRequestedPartitionSortResources(Partition);
         }
 
-        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const override
+        virtual TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const override
         {
             return GetRequestedResourcesForDataSize(jip->PoolResult->TotalDataSize);
         }
@@ -441,7 +441,7 @@ protected:
         }
 
     private:
-        NProto::TNodeResources GetRequestedResourcesForDataSize(i64 dataSize) const
+        TNodeResources GetRequestedResourcesForDataSize(i64 dataSize) const
         {
             i64 rowCount = Controller->GetRowCountEstimate(Partition, dataSize);
             i64 valueCount = Controller->GetValueCountEstimate(dataSize);
@@ -468,7 +468,7 @@ protected:
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) override
+            TJobSpec* jobSpec) override
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 jobSpec->CopyFrom(Controller->IntermediateSortJobSpecTemplate);
@@ -615,7 +615,7 @@ protected:
                 ? 1 : 0;
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const override
+        virtual TNodeResources GetMinRequestedResources() const override
         {
             return Controller->GetSortedMergeResources(ChunkPool->StripeCounter().GetTotal());
         }
@@ -633,7 +633,7 @@ protected:
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) override
+            TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
             AddParallelInputSpec(jobSpec, jip);
@@ -712,7 +712,7 @@ protected:
             return false;
         }
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const override
+        virtual TNodeResources GetMinRequestedResources() const override
         {
             return Controller->GetUnorderedMergeResources();
         }
@@ -730,7 +730,7 @@ protected:
 
         virtual void BuildJobSpec(
             TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) override
+            TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
@@ -966,10 +966,10 @@ protected:
 
     virtual bool IsPartitionNonexpanding() const = 0;
 
-    virtual NProto::TNodeResources GetPartitionResources(
+    virtual TNodeResources GetPartitionResources(
         i64 dataSize) const = 0;
 
-    NProto::TNodeResources GetMinRequestedPartitionResources() const
+    TNodeResources GetMinRequestedPartitionResources() const
     {
         // Holds both for sort and map-reduce.
         return GetPartitionResources(std::min(
@@ -977,17 +977,17 @@ protected:
             TotalInputDataSize));
     }
 
-    virtual NProto::TNodeResources GetSimpleSortResources(
+    virtual TNodeResources GetSimpleSortResources(
         i64 dataSize,
         i64 rowCount,
         i64 valueCount) const = 0;
     
-    virtual NProto::TNodeResources GetPartitionSortResources(
+    virtual TNodeResources GetPartitionSortResources(
         TPartitionPtr partition,
         i64 dataSize,
         i64 rowCount) const = 0;
 
-    NProto::TNodeResources GetMinRequestedPartitionSortResources(
+    TNodeResources GetMinRequestedPartitionSortResources(
         TPartitionPtr partition) const
     {
         i64 dataSize = Spec->MaxDataSizePerSortJob;
@@ -998,12 +998,12 @@ protected:
         return GetPartitionSortResources(partition, dataSize, rowCount);
     }
 
-    virtual NProto::TNodeResources GetSortedMergeResources(
+    virtual TNodeResources GetSortedMergeResources(
         int stripeCount) const = 0;
 
-    virtual NProto::TNodeResources GetUnorderedMergeResources() const = 0;
+    virtual TNodeResources GetUnorderedMergeResources() const = 0;
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const override
+    virtual TNodeResources GetMinRequestedResources() const override
     {
         if (PartitionTask) {
             return PartitionTask->GetMinRequestedResources();
@@ -1086,12 +1086,12 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TYPath> GetInputTablePaths() override
+    virtual std::vector<TYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() override
+    virtual std::vector<TYPath> GetOutputTablePaths() const override
     {
         std::vector<TYPath> result;
         result.push_back(Spec->OutputTablePath);
@@ -1418,54 +1418,83 @@ private:
         return true;
     }
 
-    virtual NProto::TNodeResources GetPartitionResources(
+    virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
-        return NScheduler::GetPartitionResources(
-            PartitionJobIOConfig,
-            dataSize,
-            Partitions.size());
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(1);
+        result.set_memory(
+            GetIOMemorySize(PartitionJobIOConfig, 1, 1) +
+            std::min(PartitionJobIOConfig->TableWriter->BlockSize * Partitions.size(), dataSize) +
+            GetFootprintMemorySize());
+        return result;
     }
 
-    virtual NProto::TNodeResources GetSimpleSortResources(
+    virtual TNodeResources GetSimpleSortResources(
         i64 dataSize,
         i64 rowCount,
         i64 valueCount) const override
     {
-        return NScheduler::GetSimpleSortResources(
-            FinalSortJobIOConfig,
-            Spec,
-            dataSize,
-            rowCount,
-            valueCount);
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(1);
+        result.set_memory(
+            // NB: Sort jobs typically have large prefetch window, which would
+            // drastically increase the estimated consumption returned by GetIOMemorySize.
+            // Setting input count to zero to eliminates this term.
+            GetIOMemorySize(FinalSortJobIOConfig, 0, 1) +
+            dataSize +
+            // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
+            // starts reserving arrays of appropriate sizes.
+            (i64) 16 * Spec->SortBy.size() * rowCount * 2 +
+            (i64) 16 * rowCount * 2 +
+            (i64) 32 * valueCount * 2 +
+            GetFootprintMemorySize());
+        return result;
     }
 
-    virtual NProto::TNodeResources GetPartitionSortResources(
+    virtual TNodeResources GetPartitionSortResources(
         TPartitionPtr partition,
         i64 dataSize,
         i64 rowCount) const override
     {
-        return NScheduler::GetPartitionSortDuringSortResources(
-            IsSortedMergeNeeded(partition) ? IntermediateSortJobIOConfig : FinalSortJobIOConfig,
-            Spec,
-            dataSize,
-            rowCount);
+        auto ioConfig = IsSortedMergeNeeded(partition) ? IntermediateSortJobIOConfig : FinalSortJobIOConfig;
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(1);
+        result.set_memory(
+            // NB: See comment above for GetSimpleSortJobResources.
+            GetIOMemorySize(ioConfig, 0, 1) +
+            dataSize +
+            (i64) 16 * Spec->SortBy.size() * rowCount +
+            (i64) 12 * rowCount +
+            GetFootprintMemorySize());
+        result.set_network(Spec->ShuffleNetworkLimit);
+        return result;
     }
 
-    virtual NProto::TNodeResources GetSortedMergeResources(
+    virtual TNodeResources GetSortedMergeResources(
         int stripeCount) const override
     {
-        return NScheduler::GetSortedMergeDuringSortResources(
-            SortedMergeJobIOConfig,
-            Spec,
-            stripeCount);
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(1);
+        result.set_memory(
+            GetIOMemorySize(SortedMergeJobIOConfig, stripeCount, 1) +
+            GetFootprintMemorySize());
+        return result;
     }
 
-    virtual NProto::TNodeResources GetUnorderedMergeResources() const override
+    virtual TNodeResources GetUnorderedMergeResources() const override
     {
-        return NScheduler::GetUnorderedMergeDuringSortResources(
-            UnorderedMergeJobIOConfig,
-            Spec);
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(1);
+        result.set_memory(
+            GetIOMemorySize(UnorderedMergeJobIOConfig, 1, 1) +
+            GetFootprintMemorySize());
+        return result;
     }
 
 
@@ -1565,17 +1594,17 @@ private:
         }
     }
 
-    virtual std::vector<TYPath> GetInputTablePaths() override
+    virtual std::vector<TYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() override
+    virtual std::vector<TYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths() override
+    virtual std::vector<TYPath> GetFilePaths() const override
     {
         // Combine mapper and reducer files into a single collection.
         std::vector<TYPath> result;
@@ -1794,22 +1823,29 @@ private:
         return false;
     }
 
-    virtual NProto::TNodeResources GetPartitionResources(
+    virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
-        return
-            Spec->Mapper
-            ? NScheduler::GetMapDuringMapReduceResources(
-                PartitionJobIOConfig,
-                Spec,
-                Partitions.size())
-            : NScheduler::GetPartitionResources(
-                PartitionJobIOConfig,
-                dataSize,
-                Partitions.size());
+        TNodeResources result;
+        result.set_slots(1);
+        if (Spec->Mapper) {
+            result.set_cores(Spec->Mapper->CoresLimit);
+            result.set_memory(
+                GetIOMemorySize(PartitionJobIOConfig, 1, 1) +
+                PartitionJobIOConfig->TableWriter->BlockSize * Partitions.size() +
+                Spec->Mapper->MemoryLimit +
+                GetFootprintMemorySize());
+        } else {
+            result.set_cores(1);
+            result.set_memory(
+                GetIOMemorySize(PartitionJobIOConfig, 1, 1) +
+                std::min(PartitionJobIOConfig->TableWriter->BlockSize * Partitions.size(), dataSize) +
+                GetFootprintMemorySize());
+        }
+        return result;
     }
 
-    virtual NProto::TNodeResources GetSimpleSortResources(
+    virtual TNodeResources GetSimpleSortResources(
         i64 dataSize,
         i64 rowCount,
         i64 valueCount) const override
@@ -1817,35 +1853,49 @@ private:
         YUNREACHABLE();
     }
 
-    virtual NProto::TNodeResources GetPartitionSortResources(
+    virtual TNodeResources GetPartitionSortResources(
         TPartitionPtr partition,
         i64 dataSize,
         i64 rowCount) const override
     {
-        return
-            IsSortedMergeNeeded(partition)
-            ? NScheduler::GetPartitionSortDuringMapReduceResources(
-                IntermediateSortJobIOConfig,
-                Spec,
-                dataSize,
-                rowCount)
-            : NScheduler::GetPartitionReduceDuringMapReduceResources(
-                FinalSortJobIOConfig,
-                Spec,
-                dataSize,
-                rowCount);
+        TNodeResources result;
+        result.set_slots(1);
+        if (IsSortedMergeNeeded(partition)) {
+            result.set_cores(1);
+            result.set_memory(
+                GetIOMemorySize(IntermediateSortJobIOConfig, 0, 1) +
+                dataSize +
+                (i64) 16 * Spec->SortBy.size() * rowCount +
+                (i64) 12 * rowCount +
+                GetFootprintMemorySize());
+        } else {
+            result.set_cores(Spec->Reducer->CoresLimit);
+            result.set_memory(
+                GetIOMemorySize(FinalSortJobIOConfig, 0, Spec->OutputTablePaths.size()) +
+                dataSize +
+                (i64) 16 * Spec->SortBy.size() * rowCount +
+                (i64) 16 * rowCount +
+                Spec->Reducer->MemoryLimit +
+                GetFootprintMemorySize());
+        }
+        result.set_network(Spec->ShuffleNetworkLimit);
+        return result;
     }
 
-    virtual NProto::TNodeResources GetSortedMergeResources(
+    virtual TNodeResources GetSortedMergeResources(
         int stripeCount) const override
     {
-        return NScheduler::GetSortedReduceDuringMapReduceResources(
-            SortedMergeJobIOConfig,
-            Spec,
-            stripeCount);
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cores(Spec->Reducer->CoresLimit);
+        result.set_memory(
+            GetIOMemorySize(SortedMergeJobIOConfig, stripeCount, Spec->OutputTablePaths.size()) +
+            Spec->Reducer->MemoryLimit +
+            GetFootprintMemorySize());
+        return result;
     }
 
-    virtual NProto::TNodeResources GetUnorderedMergeResources() const override
+    virtual TNodeResources GetUnorderedMergeResources() const override
     {
         YUNREACHABLE();
     }

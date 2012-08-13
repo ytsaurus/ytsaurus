@@ -1457,7 +1457,7 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
         .EndMap();
 }
 
-std::vector<TYPath> TOperationControllerBase::GetFilePaths()
+std::vector<TYPath> TOperationControllerBase::GetFilePaths() const
 {
     return std::vector<TYPath>();
 }
