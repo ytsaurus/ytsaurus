@@ -242,6 +242,9 @@ private:
     Stroka CurrentToken;
 
     const char* Consume(const char* begin, const char* end);
+    const char* ConsumeLength(const char* begin, const char* end);
+    const char* ConsumeData(const char* begin, const char* end);
+
 
     union {
         ui32 Length;
@@ -295,6 +298,15 @@ void TYamrLenvalParser::Finish()
 
 const char* TYamrLenvalParser::Consume(const char* begin, const char* end)
 {
+    if (ReadingLength) {
+        return ConsumeLength(begin, end);
+    } else {
+        return ConsumeData(begin, end);
+    }
+}
+
+const char* TYamrLenvalParser::ConsumeLength(const char* begin, const char* end)
+{
     const char* current = begin;
     while (BytesToRead > 0 && current != end) {
         if (ReadingLength) {
@@ -308,40 +320,61 @@ const char* TYamrLenvalParser::Consume(const char* begin, const char* end)
     }
     if (BytesToRead != 0) return current;
 
-    if (ReadingLength) {
-        ReadingLength = false;
-        BytesToRead = Union.Length;
-    } else {
-        switch (State) {
-            case EState::InsideKey:
-                Consumer->OnListItem();
-                Consumer->OnBeginMap();
-                Consumer->OnKeyedItem(Config->Key);
-                Consumer->OnStringScalar(CurrentToken);
-                State = Config->HasSubkey ?
-                    EState::InsideSubkey :
-                    EState::InsideValue;
-                break;
-            case EState::InsideSubkey:
-                Consumer->OnKeyedItem(Config->Subkey);
-                Consumer->OnStringScalar(CurrentToken);
-                State = EState::InsideValue;
-                break;
-            case EState::InsideValue:
-                Consumer->OnKeyedItem(Config->Value);
-                Consumer->OnStringScalar(CurrentToken);
-                Consumer->OnEndMap();
-                State = EState::InsideKey;
-                break;
-            default:
-                YUNREACHABLE();
-        }
-        CurrentToken.clear();
-        ReadingLength = true;
-        BytesToRead = 4;
-    }
+    ReadingLength = false;
+    BytesToRead = Union.Length;
     return current;
 }
+
+const char* TYamrLenvalParser::ConsumeData(const char* begin, const char* end)
+{
+    TStringBuf data;
+    const char* current = begin + BytesToRead;
+
+    if (current > end) {
+        CurrentToken.append(begin, end);
+        BytesToRead -= (end - begin);
+        YCHECK(BytesToRead > 0);
+        return end;
+    }
+
+    if (CurrentToken.empty()) {
+        data = TStringBuf(begin, current);
+    } else {
+        CurrentToken.append(begin, current);
+        data = CurrentToken;
+    }
+
+    switch (State) {
+        case EState::InsideKey:
+            Consumer->OnListItem();
+            Consumer->OnBeginMap();
+            Consumer->OnKeyedItem(Config->Key);
+            Consumer->OnStringScalar(data);
+            State = Config->HasSubkey ?
+                EState::InsideSubkey :
+                EState::InsideValue;
+            break;
+        case EState::InsideSubkey:
+            Consumer->OnKeyedItem(Config->Subkey);
+            Consumer->OnStringScalar(data);
+            State = EState::InsideValue;
+            break;
+        case EState::InsideValue:
+            Consumer->OnKeyedItem(Config->Value);
+            Consumer->OnStringScalar(data);
+            Consumer->OnEndMap();
+            State = EState::InsideKey;
+            break;
+        default:
+            YUNREACHABLE();
+    }
+    CurrentToken.clear();
+    ReadingLength = true;
+    BytesToRead = 4;
+
+    return current;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
