@@ -81,7 +81,10 @@ struct TRule
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector<ILogWriter::TPtr> TLogWriters;
+typedef std::vector<ILogWriterPtr> TLogWriters;
+
+struct TLogConfig;
+typedef TIntrusivePtr<TLogConfig> TLogConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,8 +92,6 @@ class TLogConfig
     : public TYsonSerializable
 {
 public:
-    typedef TIntrusivePtr<TLogConfig> TPtr;
-    
     /*!
      * Needs to be public for TYsonSerializable.
      * Not for public use.
@@ -156,7 +157,7 @@ public:
         }
     }
 
-    static TPtr CreateDefault()
+    static TLogConfigPtr CreateDefault()
     {
         auto config = New<TLogConfig>();
 
@@ -175,7 +176,7 @@ public:
         return config;
     }
 
-    static TPtr CreateFromNode(INodePtr node, const TYPath& path = "")
+    static TLogConfigPtr CreateFromNode(INodePtr node, const TYPath& path = "")
     {
         auto config = New<TLogConfig>();
         config->Load(node, true, path);
@@ -239,7 +240,7 @@ private:
 
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
-    yhash_map<Stroka, ILogWriter::TPtr> Writers;
+    yhash_map<Stroka, ILogWriterPtr> Writers;
     ymap<TPair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 };
 
@@ -383,7 +384,7 @@ public:
     {
         bool result = false;
 
-        TLogConfig::TPtr config;
+        TLogConfigPtr config;
         while (ConfigsToUpdate.Dequeue(&config)) {
             DoUpdateConfig(config);
             result = true;
@@ -414,7 +415,7 @@ public:
     }
 
 private:
-    typedef std::vector<ILogWriter::TPtr> TWriters;
+    typedef std::vector<ILogWriterPtr> TWriters;
 
     TWriters GetWriters(const TLogEvent& event)
     {
@@ -433,7 +434,7 @@ private:
         }
     }
 
-    void DoUpdateConfig(TLogConfig::TPtr config)
+    void DoUpdateConfig(TLogConfigPtr config)
     {
         Config->FlushWriters();
 
@@ -447,12 +448,12 @@ private:
     // Configuration.
     TAtomic Version;
 
-    TLogConfig::TPtr Config;
+    TLogConfigPtr Config;
     NProfiling::TRateCounter EnqueueCounter;
     NProfiling::TRateCounter WriteCounter;
     TSpinLock SpinLock;
 
-    TLockFreeQueue<TLogConfig::TPtr> ConfigsToUpdate;
+    TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate;
     TLockFreeQueue<TLogEvent> LogEventQueue;
 
     TWriters SystemWriters;

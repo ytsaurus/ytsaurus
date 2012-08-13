@@ -36,13 +36,13 @@ void TStreamLogWriter::Reload()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStdErrLogWriter::TStdErrLogWriter(Stroka pattern)
+TStdErrLogWriter::TStdErrLogWriter(const Stroka& pattern)
     : TStreamLogWriter(&StdErrStream(), pattern)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStdOutLogWriter::TStdOutLogWriter(Stroka pattern)
+TStdOutLogWriter::TStdOutLogWriter(const Stroka& pattern)
     : TStreamLogWriter(&StdOutStream(), pattern)
 { }
 

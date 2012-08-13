@@ -21,8 +21,6 @@ extern const char* const SystemLoggingCategory;
 struct ILogWriter
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<ILogWriter> TPtr;
-
     virtual void Write(const TLogEvent& event) = 0;
     virtual void Flush() = 0;
     virtual void Reload() = 0;
@@ -100,7 +98,7 @@ class TStdErrLogWriter
     : public TStreamLogWriter
 {
 public:
-    TStdErrLogWriter(Stroka pattern);
+    explicit TStdErrLogWriter(const Stroka& pattern);
 
 };
 
@@ -110,7 +108,7 @@ class TStdOutLogWriter
     : public TStreamLogWriter
 {
 public:
-    TStdOutLogWriter(Stroka pattern);
+    explicit TStdOutLogWriter(const Stroka& pattern);
 
 };
 
@@ -138,7 +136,7 @@ private:
     bool Initialized;
     THolder<TFile> File;
     THolder<TBufferedFileOutput> FileOutput;
-    TStreamLogWriter::TPtr LogWriter;
+    ILogWriterPtr LogWriter;
 
 };
 
@@ -148,7 +146,7 @@ class TRawFileLogWriter
     : public ILogWriter
 {
 public:
-    TRawFileLogWriter(const Stroka& fileName);
+    explicit TRawFileLogWriter(const Stroka& fileName);
 
     virtual void Write(const TLogEvent& event);
     virtual void Flush();

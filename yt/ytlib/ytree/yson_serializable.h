@@ -74,8 +74,6 @@ class TYsonSerializable
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TYsonSerializable> TPtr;
-
     TYsonSerializable();
 
     void Load(NYTree::INodePtr node, bool validate = true, const NYTree::TYPath& path = "");
