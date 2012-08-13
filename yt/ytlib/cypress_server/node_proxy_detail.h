@@ -303,7 +303,7 @@ protected:
     ICypressNode* LockImpl(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
-        return cypressManager->LockVersionedNode(NodeId, Transaction, requestedMode);
+        return cypressManager->LockVersionedNode(nodeId, Transaction, requestedMode);
     }
 
 

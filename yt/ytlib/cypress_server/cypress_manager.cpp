@@ -657,7 +657,6 @@ void TCypressManager::ReleaseLock(ICypressNode* trunkNode, TTransaction* transac
         ~transaction->GetId().ToString());
 }
 
-
 ICypressNode* TCypressManager::LockVersionedNode(
     const TNodeId& nodeId,
     TTransaction* transaction,
