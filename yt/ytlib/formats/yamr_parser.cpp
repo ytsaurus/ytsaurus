@@ -28,7 +28,10 @@ private:
 
     const char* Consume(const char* begin, const char* end);
     const char* FindNextStopSymbol(const char* begin, const char* end);
-    const char* FindEndOfRow(const char* begin, const char* end);
+    const char* FindEndOfRecord(const char* begin, const char* end);
+
+    // returns pointer to next fragment or NULL if record is not fully present in [begin, end)
+    const char* TryConsumeRecord(const char* begin, const char *end);
 
     bool IsStopSymbol[256];
 
@@ -75,6 +78,15 @@ void TYamrDelimitedParser::Finish()
 
 const char* TYamrDelimitedParser::Consume(const char* begin, const char* end)
 {
+    // First, try fast parsing
+    if (State == EState::InsideKey && CurrentToken.empty()) {
+        const char* next = TryConsumeRecord(begin, end);
+        if (next !=  NULL) {
+            return next;
+        }
+    }
+
+    // Now, do more slow one
     switch (State) {
         case EState::InsideKey:
         case EState::InsideSubkey: {
@@ -115,7 +127,7 @@ const char* TYamrDelimitedParser::Consume(const char* begin, const char* end)
             return next;
         }
         case EState::InsideValue: {
-            const char* next = FindEndOfRow(begin, end);
+            const char* next = FindEndOfRecord(begin, end);
             CurrentToken.append(begin, next);
             if (next != end) {
                 Consumer->OnKeyedItem(Config->Value);
@@ -142,7 +154,7 @@ const char* TYamrDelimitedParser::FindNextStopSymbol(const char* begin, const ch
     return end;
 }
 
-const char* TYamrDelimitedParser::FindEndOfRow(const char* begin, const char* end)
+const char* TYamrDelimitedParser::FindEndOfRecord(const char* begin, const char* end)
 {
     auto current = begin;
     for ( ; current != end; ++current) {
@@ -152,6 +164,63 @@ const char* TYamrDelimitedParser::FindEndOfRow(const char* begin, const char* en
     }
     return end;
 }
+
+const char* TYamrDelimitedParser::TryConsumeRecord(const char* begin, const char* end)
+{
+    const char* endOfKey;
+    const char* endOfSubkey;
+    const char* endOfValue;
+    const char* current;
+
+    current = FindNextStopSymbol(begin, end);
+    if (current == end) {
+        return NULL;
+    }
+    if (*current == Config->RecordSeparator) {
+        return (current + 1);
+    }
+    YCHECK(*current == Config->FieldSeparator);
+    endOfKey = current;
+    ++current;
+
+    if (Config->HasSubkey) {
+        current = FindNextStopSymbol(current, end);
+        if (current == end) {
+            return NULL;
+        }
+        if (*current == Config->RecordSeparator) {
+            return (current + 1);
+        }
+        YCHECK(*current == Config->FieldSeparator);
+        endOfSubkey = current;
+        ++current;
+    }
+
+    current = FindEndOfRecord(current, end);
+    if (current == end) {
+        return NULL;
+    }
+    endOfValue = current;
+
+    Consumer->OnListItem();
+    Consumer->OnBeginMap();
+    Consumer->OnKeyedItem(Config->Key);
+    Consumer->OnStringScalar(TStringBuf(begin, endOfKey));
+    if (Config->HasSubkey) {
+        Consumer->OnKeyedItem(Config->Subkey);
+        Consumer->OnStringScalar(TStringBuf(endOfKey + 1, endOfSubkey));
+    }
+    Consumer->OnKeyedItem(Config->Value);
+
+    const char* beginOfValue = Config->HasSubkey ?
+                            endOfSubkey + 1 :
+                            endOfKey + 1;
+    Consumer->OnStringScalar(TStringBuf(beginOfValue, endOfValue));
+    Consumer->OnEndMap();
+
+    return endOfValue + 1;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
