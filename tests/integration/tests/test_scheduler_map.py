@@ -135,7 +135,7 @@ echo {v = 2} >&7
         assert read(output_tables[1]) == [{'v': 1}]
         assert read(output_tables[2]) == [{'v': 2}]
 
-    def test_tskv_in_format(self):
+    def test_tskv_input_format(self):
         create('table', '//tmp/t_in')
         write_str('//tmp/t_in', '{foo=bar}')
 
@@ -208,7 +208,7 @@ print "key" + "\\t" + "subkey" + "\\t" + "value" + "\\n"
 
         assert read('//tmp/t_out') == [{'key': 'key', 'subkey': 'subkey', 'value': 'value'}]
 
-    def test_yamr_in_format(self):
+    def test_yamr_input_format(self):
         create('table', '//tmp/t_in')
         write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
 
