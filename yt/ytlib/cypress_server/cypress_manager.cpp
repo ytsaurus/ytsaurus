@@ -667,7 +667,7 @@ ICypressNode* TCypressManager::LockVersionedNode(
     bool recursive)
 {
     auto* trunkNode = GetNode(nodeId);
-    return LockVersionedNode(trunkNode, transaction, requestedMode);
+    return LockVersionedNode(trunkNode, transaction, requestedMode, recursive);
 }
 
 ICypressNode* TCypressManager::LockVersionedNode(
