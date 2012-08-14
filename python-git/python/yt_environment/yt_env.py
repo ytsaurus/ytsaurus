@@ -87,7 +87,7 @@ class YTEnv(unittest.TestCase):
             return
 
         try:
-            logging.info("Configuring, ...")
+            logging.info("Configuring...")
             self._run_masters()
             self._run_nodes()
             self._run_schedulers()
