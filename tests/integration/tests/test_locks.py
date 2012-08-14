@@ -73,7 +73,7 @@ class TestLocks(YTEnvSetup):
             tx = start_transaction()
             if object_type != "file":
                 create(object_type, '//tmp/some', tx = tx)
-                assert get('//tmp/some/@type') == object_type
+                assert get('//tmp/some/@type', tx = tx) == object_type
             else:
                 #file can't be created via create
                 with pytest.raises(YTError): create(object_type, '//tmp/some', tx = tx)
@@ -86,7 +86,6 @@ class TestLocks(YTEnvSetup):
 
             abort_transaction(tx = tx)
 
-    @pytest.mark.xfail(run = False, reason = 'Issue #355')
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
         create('table', '//tmp/table', tx=tx_outer)
