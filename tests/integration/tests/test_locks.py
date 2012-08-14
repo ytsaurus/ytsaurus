@@ -15,32 +15,32 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YTError): lock('/')
 
         # at non-existsing node
-        tx_id = start_transaction()
-        with pytest.raises(YTError): lock('//tmp/non_existent', tx = tx_id)
+        tx = start_transaction()
+        with pytest.raises(YTError): lock('//tmp/non_existent', tx = tx)
 
         # error while parsing mode
-        with pytest.raises(YTError): lock('/', mode = 'invalid', tx = tx_id)
+        with pytest.raises(YTError): lock('/', mode = 'invalid', tx = tx)
 
         #taking None lock is forbidden
-        with pytest.raises(YTError): lock('/', mode = 'None', tx = tx_id)
+        with pytest.raises(YTError): lock('/', mode = 'None', tx = tx)
 
         # attributes do not have @lock_mode
-        set_str('//tmp/value', '<attr=some> 42', tx = tx_id)
-        with pytest.raises(YTError): lock('//tmp/value/@attr/@lock_mode', tx = tx_id)
+        set_str('//tmp/value', '<attr=some> 42', tx = tx)
+        with pytest.raises(YTError): lock('//tmp/value/@attr/@lock_mode', tx = tx)
        
-        abort_transaction(tx = tx_id)
+        abort_transaction(tx = tx)
 
     def test_display_locks(self):
-        tx_id = start_transaction()
+        tx = start_transaction()
         
-        set_str('//tmp/map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id)
+        set_str('//tmp/map', '{list = <attr=some> [1; 2; 3]}', tx = tx)
 
         # check that lock is set on nested nodes
-        assert get('//tmp/map/@lock_mode', tx = tx_id) == 'exclusive'
-        assert get('//tmp/map/list/@lock_mode', tx = tx_id) == 'exclusive'
-        assert get('//tmp/map/list/0/@lock_mode', tx = tx_id) == 'exclusive'
+        assert get('//tmp/map/@lock_mode', tx = tx) == 'exclusive'
+        assert get('//tmp/map/list/@lock_mode', tx = tx) == 'exclusive'
+        assert get('//tmp/map/list/0/@lock_mode', tx = tx) == 'exclusive'
 
-        abort_transaction(tx = tx_id)
+        abort_transaction(tx = tx)
 
 
     @pytest.mark.xfail(run = False, reason = 'Issue #293')
@@ -70,21 +70,21 @@ class TestLocks(YTEnvSetup):
 
         # check creation of different types and shared locks on them
         for object_type in types_to_check:
-            tx_id = start_transaction()
+            tx = start_transaction()
             if object_type != "file":
-                create(object_type, '//tmp/some', tx = tx_id)
+                create(object_type, '//tmp/some', tx = tx)
                 assert get('//tmp/some/@type') == object_type
             else:
                 #file can't be created via create
-                with pytest.raises(YTError): create(object_type, '//tmp/some', tx = tx_id)
+                with pytest.raises(YTError): create(object_type, '//tmp/some', tx = tx)
             
             if object_type != "table":
-                with pytest.raises(YTError): lock('//tmp/some', mode = 'shared', tx = tx_id)
+                with pytest.raises(YTError): lock('//tmp/some', mode = 'shared', tx = tx)
             else:
                 # shared locks are available only on tables 
-                lock('//tmp/some', mode = 'shared', tx = tx_id)
+                lock('//tmp/some', mode = 'shared', tx = tx)
 
-            abort_transaction(tx = tx_id)
+            abort_transaction(tx = tx)
 
     @pytest.mark.xfail(run = False, reason = 'Issue #355')
     def test_shared_lock_inside_tx(self):
@@ -97,17 +97,17 @@ class TestLocks(YTEnvSetup):
     def test_snapshot_lock(self):
         set('//tmp/node', 42)
         
-        tx_id = start_transaction()
-        lock('//tmp/node', mode = 'snapshot', tx = tx_id)
+        tx = start_transaction()
+        lock('//tmp/node', mode = 'snapshot', tx = tx)
         
         set('//tmp/node', 100)
         # check that node under snapshot lock wasn't changed
-        assert get('//tmp/node', tx = tx_id) == 42
+        assert get('//tmp/node', tx = tx) == 42
 
         # can't change value under snapshot lock
-        with pytest.raises(YTError): set('//tmp/node', 200, tx = tx_id)
+        with pytest.raises(YTError): set('//tmp/node', 200, tx = tx)
         
-        abort_transaction(tx = tx_id)
+        abort_transaction(tx = tx)
 
     @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
@@ -133,10 +133,12 @@ class TestLocks(YTEnvSetup):
 
     def test_remove_map_subtree_lock(self):
         set('//tmp/a', {'b' : 1})
-        lock('//tmp/a/b', mode = 'exclusive');
+        tx = start_transaction()
+        lock('//tmp/a/b', mode = 'exclusive', tx = tx);
         with pytest.raises(YTError): remove('//tmp/a')
 
     def test_remove_list_subtree_lock(self):
         set('//tmp/a', [1])
-        lock('//tmp/a/0', mode = 'exclusive');
+        tx = start_transaction()
+        lock('//tmp/a/0', mode = 'exclusive', tx = tx);
         with pytest.raises(YTError): remove('//tmp/a')
