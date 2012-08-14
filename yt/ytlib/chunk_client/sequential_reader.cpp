@@ -21,6 +21,7 @@ TSequentialReader::TSequentialReader(
     , AsyncSemaphore(config->WindowSize)
     , NextSequenceIndex(0)
     , NextUnfetchedIndex(0)
+    , FetchingCompleteEvent(NewPromise<void>())
     , Codec(GetCodec(codecId))
     , Logger(ChunkReaderLogger)
 {
@@ -163,8 +164,10 @@ void TSequentialReader::FetchNextGroup()
         ++NextUnfetchedIndex;
     }
 
-    if (!groupSize)
+    if (!groupSize) {
+        FetchingCompleteEvent.Set();
         return;
+    }
 
     LOG_DEBUG(
         "Requesting block group (FirstIndex: %d, BlockCount: %d, GroupSize: %d)", 
@@ -196,9 +199,9 @@ void TSequentialReader::RequestBlocks(
         MakeWeak(this)));
 }
 
-bool TSequentialReader::IsFetchingComplete() const
+TFuture<void> TSequentialReader::GetFetchingCompleteEvent()
 {
-    return NextUnfetchedIndex >= BlockSequence.size();
+    return FetchingCompleteEvent;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

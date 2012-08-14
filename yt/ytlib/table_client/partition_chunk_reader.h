@@ -3,6 +3,7 @@
 #include "public.h"
 #include "value.h"
 
+#include <ytlib/table_client/table_reader.pb.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/logging/tagged_logger.h>
@@ -14,12 +15,34 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPartitionChunkReaderProvider
+    : public TRefCounted
+{
+public:
+    TPartitionChunkReaderProvider(const NChunkClient::TSequentialReaderConfigPtr& config);
+
+    TPartitionChunkReaderPtr CreateNewReader(
+        const NProto::TInputChunk& inputChunk, 
+        const NChunkClient::IAsyncReaderPtr& chunkReader);
+
+    bool KeepInMemory() const;
+
+private:
+    NChunkClient::TSequentialReaderConfigPtr Config;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPartitionChunkReader
     : public virtual TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(const char*, RowPointer);
+    DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
 
 public:
+    typedef TPartitionChunkReaderProvider TProvider;
+
     TPartitionChunkReader(
         const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
         const NChunkClient::IAsyncReaderPtr& asyncReader,
@@ -35,13 +58,16 @@ public:
 
     TValue ReadValue(const TStringBuf& name);
 
-    bool IsFetchingComplete() const;
+    i64 GetRowIndex() const;
+
+    //! Must be called after AsyncOpen has finished.
+    TFuture<void> GetFetchingCompleteEvent();
 
 private:
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
     NChunkClient::IAsyncReaderPtr AsyncReader;
 
-    i64 CurrentRowCount;
+    i64 CurrentRowIndex;
     int PartitionTag;
     ECodecId CodecId;
 

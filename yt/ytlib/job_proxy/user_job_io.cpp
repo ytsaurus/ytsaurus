@@ -54,6 +54,12 @@ int TUserJobIO::GetInputCount() const
 
 TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer) const
 {
+
+}
+
+template <class TMultiChunkReader>
+TAutoPtr<TTableProducer> TUserJobIO::DoCreateTableInput(int index, IYsonConsumer* consumer) const
+{
     YCHECK(index >= 0 && index < GetInputCount());
 
     auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
@@ -66,6 +72,8 @@ TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* 
         index, 
         static_cast<int>(chunks.size()));
 
+    typedef TMultiChunkReader<TTableChunkReader> TReader;
+
     auto reader = New<TTableChunkSequenceReader>(
         IOConfig->TableReader,
         MasterChannel,
@@ -76,6 +84,8 @@ TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* 
 
     return new TTableProducer(syncReader, consumer);
 }
+
+
 
 int TUserJobIO::GetOutputCount() const
 {

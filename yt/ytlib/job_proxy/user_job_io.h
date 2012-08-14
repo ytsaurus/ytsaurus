@@ -56,6 +56,9 @@ protected:
 
     NChunkServer::TChunkId StderrChunkId;
 
+    template <class TMultiChunkReader>
+    TAutoPtr<TTableProducer> DoCreateTableInput(int index, IYsonConsumer* consumer) const;
+
     void PopulateUserJobResult(NScheduler::NProto::TUserJobResult* result);
 
 };

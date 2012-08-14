@@ -20,11 +20,36 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableChunkReaderProvider
+    : public TRefCounted
+{
+public:
+    TTableChunkReaderProvider(
+        const NChunkClient::TSequentialReaderConfigPtr& config,
+        const TReaderOptions& options = TReaderOptions());
+
+    TTableChunkReaderPtr CreateNewReader(
+        const NProto::TInputChunk& inputChunk, 
+        const NChunkClient::IAsyncReaderPtr& chunkReader);
+
+    bool KeepInMemory() const;
+
+private:
+    NChunkClient::TSequentialReaderConfigPtr Config;
+    TReaderOptions Options;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 //! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
 class TTableChunkReader
     : public virtual TRefCounted
 {
 public:
+    typedef TTableChunkReaderProvider TProvider;
+
     TTableChunkReader(
         NChunkClient::TSequentialReaderConfigPtr config,
         const TChannel& channel,
@@ -47,7 +72,7 @@ public:
     const NYTree::TYsonString& GetRowAttributes() const;
 
     i64 GetRowCount() const;
-    bool IsFetchingComplete() const;
+    TFuture<void> GetFetchingCompleteEvent();
 
 private:
     struct TColumnInfo

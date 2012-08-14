@@ -5,6 +5,7 @@
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/misc/serialize.h>
@@ -28,7 +29,8 @@ TPartitionChunkReader::TPartitionChunkReader(
     , PartitionTag(partitionTag)
     , CodecId(codecId)
     , Logger(TableReaderLogger)
-    , CurrentRowCount(0)
+    , CurrentRowIndex(0)
+    , RowCount_(0)
 { }
 
 TAsyncError TPartitionChunkReader::AsyncOpen()
@@ -69,6 +71,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
             blockSequence.push_back(TSequentialReader::TBlockInfo(
                 blockInfo.block_index(), 
                 blockInfo.block_size()));
+            RowCount_ += blockInfo.row_count();
         }
     }
 
@@ -100,7 +103,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
         return;
     }
 
-    LOG_DEBUG("Switching to next block, current row count %"PRId64, CurrentRowCount);
+    LOG_DEBUG("Switching to next block, current row count %"PRId64, CurrentRowIndex);
 
     Blocks.push_back(SequentialReader->GetBlock());
     YCHECK(Blocks.back().Size() > 0);
@@ -117,7 +120,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
     const char* dataEnd = RowPointer_ + dataSize;
     SizeBuffer.Reset(dataEnd, Blocks.back().End() - dataEnd);
 
-    ++CurrentRowCount;
+    ++CurrentRowIndex;
     YCHECK(NextRow());
     State.FinishOperation();
 }
@@ -166,7 +169,7 @@ bool TPartitionChunkReader::FetchNextItem()
         return false;
     }
 
-    ++CurrentRowCount;
+    ++CurrentRowIndex;
     return true;
 }
 
@@ -188,9 +191,39 @@ TValue TPartitionChunkReader::ReadValue(const TStringBuf& name)
     }
 }
 
-bool TPartitionChunkReader::IsFetchingComplete() const
+TFuture<void> TPartitionChunkReader::GetFetchingCompleteEvent()
 {
-    return SequentialReader->IsFetchingComplete();
+    return SequentialReader->GetFetchingCompleteEvent();
+}
+
+i64 TPartitionChunkReader::GetRowIndex() const
+{
+    return CurrentRowIndex;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
+    const NChunkClient::TSequentialReaderConfigPtr& config)
+    : Config(config)
+{ }
+
+TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateNewReader(
+    const NProto::TInputChunk& inputChunk, 
+    const NChunkClient::IAsyncReaderPtr& chunkReader)
+{
+    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
+
+    return New<TPartitionChunkReader>(
+        Config,
+        chunkReader,
+        inputChunk.partition_tag(),
+        ECodecId(miscExt.codec_id()));
+}
+
+bool TPartitionChunkReaderProvider::KeepInMemory() const
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
