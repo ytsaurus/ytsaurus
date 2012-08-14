@@ -5,17 +5,23 @@
 #include "type_handler.h"
 #include "node_proxy.h"
 
-#include <ytlib/cell_master/public.h>
+#include <ytlib/misc/small_vector.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/id_generator.h>
+
+#include <ytlib/cell_master/public.h>
+
 #include <ytlib/transaction_server/transaction.h>
 #include <ytlib/transaction_server/transaction_manager.h>
+
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/tree_builder.h>
-#include <ytlib/misc/id_generator.h>
+
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/meta_state/mutation.h>
+
 #include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
@@ -86,12 +92,14 @@ public:
     ICypressNode* LockVersionedNode(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
-        ELockMode requestedMode = ELockMode::Exclusive);
+        ELockMode requestedMode = ELockMode::Exclusive,
+        bool recursive = false);
 
     ICypressNode* LockVersionedNode(
         ICypressNode* node,
         NTransactionServer::TTransaction* transaction,
-        ELockMode requestedMode = ELockMode::Exclusive);
+        ELockMode requestedMode = ELockMode::Exclusive,
+        bool recursive = false);
 
     void RegisterNode(
         NTransactionServer::TTransaction* transaction,
@@ -185,6 +193,12 @@ private:
     void ReleaseLock(
         ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction);
+
+    typedef TSmallVector<ICypressNode*, 1> TSubtreeNodes;
+    void ListSubtreeNodeIds(
+        ICypressNode* root,
+        NTransactionServer::TTransaction* transaction,
+        TSubtreeNodes* nodes);
 
    ICypressNode* BranchNode(
        ICypressNode* node,

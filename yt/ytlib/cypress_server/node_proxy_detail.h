@@ -111,29 +111,15 @@ public:
     }
 
 
-    virtual const ICypressNode* GetImpl() const
-    {
-        return this->GetTypedImpl();
-    }
-
-    virtual ICypressNode* LockImpl()
-    {
-        return this->LockTypedImpl();
-    }
-
-
     virtual NYTree::ICompositeNodePtr GetParent() const
     {
-        auto nodeId = GetImpl()->GetParentId();
+        auto nodeId = GetThisImpl()->GetParentId();
         return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
     }
 
     virtual void SetParent(NYTree::ICompositeNodePtr parent)
     {
-        LockImpl()->SetParentId(
-            parent
-            ? ToProxy(NYTree::INodePtr(parent))->GetId()
-            : NullObjectId);
+        LockThisImpl()->SetParentId(parent ? GetNodeId(NYTree::INodePtr(parent)) : NullObjectId);
     }
 
 
@@ -203,7 +189,7 @@ protected:
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
-        const auto* node = GetImpl();
+        const auto* node = GetThisImpl();
 
         // NB: Locks are stored in trunk nodes (TransactionId == Null).
         const auto* trunkNode = Bootstrap->GetCypressManager()->GetNode(Id);
@@ -300,21 +286,39 @@ protected:
         return cypressManager->GetVersionedNode(nodeId, Transaction);
     }
 
-    ICypressNode* LockImpl(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive)
+    ICypressNode* LockImpl(
+        const TNodeId& nodeId,
+        ELockMode requestedMode = ELockMode::Exclusive,
+        bool recursive = false)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
-        return cypressManager->LockVersionedNode(nodeId, Transaction, requestedMode);
+        return cypressManager->LockVersionedNode(nodeId, Transaction, requestedMode, recursive);
     }
 
 
-    const TImpl* GetTypedImpl() const
+    const ICypressNode* GetThisImpl() const
     {
-        return static_cast<const TImpl*>(GetImpl(NodeId));
+        return GetImpl(NodeId);
     }
 
-    TImpl* LockTypedImpl(ELockMode requestedMode = ELockMode::Exclusive)
+    ICypressNode* LockThisImpl(
+        ELockMode requestedMode = ELockMode::Exclusive,
+        bool recursive = false)
     {
-        return static_cast<TImpl*>(LockImpl(NodeId, requestedMode));
+        return LockImpl(NodeId, requestedMode, recursive);
+    }
+
+
+    const TImpl* GetThisTypedImpl() const
+    {
+        return static_cast<const TImpl*>(GetThisImpl());
+    }
+
+    TImpl* LockThisTypedImpl(
+        ELockMode requestedMode = ELockMode::Exclusive,
+        bool recursive = false)
+    {
+        return static_cast<TImpl*>(LockThisImpl(requestedMode, recursive));
     }
 
 
@@ -324,16 +328,15 @@ protected:
         return Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, Transaction);
     }
 
-    static ICypressNodeProxyPtr ToProxy(NYTree::INodePtr node)
+
+    TNodeId GetNodeId(NYTree::INodePtr node)
     {
-        YASSERT(node);
-        return dynamic_cast<ICypressNodeProxy*>(~node);
+        return dynamic_cast<ICypressNodeProxy&>(*node).GetId();
     }
 
-    static TIntrusivePtr<const ICypressNodeProxy> ToProxy(NYTree::IConstNodePtr node)
+    TNodeId GetNodeId(NYTree::IConstNodePtr node)
     {
-        YASSERT(node);
-        return dynamic_cast<const ICypressNodeProxy*>(~node);
+        return dynamic_cast<const ICypressNodeProxy&>(*node).GetId();
     }
 
 
@@ -525,12 +528,12 @@ public:
 
     virtual TValue GetValue() const
     {
-        return this->GetTypedImpl()->Value();
+        return this->GetThisTypedImpl()->Value();
     }
 
     virtual void SetValue(const TValue& value)
     {
-        this->LockTypedImpl(ELockMode::Exclusive)->Value() = value;
+        this->LockThisTypedImpl(ELockMode::Exclusive)->Value() = value;
     }
 
 private:
@@ -539,9 +542,7 @@ private:
     virtual void DoCloneTo(TImpl* clonedNode)
     {
         TBase::DoCloneTo(clonedNode);
-
-        auto* node = this->GetTypedImpl();
-        clonedNode->Value() = node->Value();
+        clonedNode->Value() = this->GetThisTypedImpl()->Value();
     }
 
 };

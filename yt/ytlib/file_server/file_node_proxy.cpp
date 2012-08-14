@@ -40,8 +40,8 @@ void TFileNodeProxy::DoCloneTo(TFileNode* clonedNode)
 
     auto objectManager = Bootstrap->GetObjectManager();
 
-    auto* node = GetTypedImpl();
-    auto* chunkList = node->GetChunkList();
+    const auto* impl = GetThisTypedImpl();
+    auto* chunkList = impl->GetChunkList();
 
     clonedNode->SetChunkList(chunkList);
     objectManager->RefObject(chunkList);
@@ -107,8 +107,8 @@ void TFileNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes
 
 bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
 {
-    const auto* fileNode = GetTypedImpl();
-    const auto* chunkList = fileNode->GetChunkList();
+    const auto* impl = GetThisTypedImpl();
+    const auto* chunkList = impl->GetChunkList();
     const auto& statistics = chunkList->Statistics();
     YASSERT(chunkList->Children().size() == 1);
     auto chunkRef = chunkList->Children()[0];
@@ -163,9 +163,9 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
 
     auto chunkManager = Bootstrap->GetChunkManager();
 
-    const auto& fileNode = GetTypedImpl();
+    const auto* impl = GetThisTypedImpl();
     
-    const auto* chunkList = fileNode->GetChunkList();
+    const auto* chunkList = impl->GetChunkList();
     YASSERT(chunkList->Children().size() == 1);
     
     auto chunkRef = chunkList->Children()[0];

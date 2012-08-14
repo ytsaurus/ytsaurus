@@ -290,8 +290,8 @@ void TTableNodeProxy::DoCloneTo(TTableNode* clonedNode)
 
     auto objectManager = Bootstrap->GetObjectManager();
 
-    auto* node = GetTypedImpl();
-    auto* chunkList = node->GetChunkList();
+    const auto* impl = GetThisTypedImpl();
+    auto* chunkList = impl->GetChunkList();
     
     clonedNode->SetChunkList(chunkList);
     objectManager->RefObject(chunkList);
@@ -498,8 +498,8 @@ void TTableNodeProxy::TraverseChunkTree(
 
 void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
-    const auto* tableNode = GetTypedImpl();
-    const auto* chunkList = tableNode->GetChunkList();
+    const auto* impl = GetThisTypedImpl();
+    const auto* chunkList = impl->GetChunkList();
 
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
@@ -516,8 +516,8 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
 
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
 {
-    const auto* tableNode = GetTypedImpl();
-    const auto* chunkList = tableNode->GetChunkList();
+    const auto* impl = GetThisTypedImpl();
+    const auto* chunkList = impl->GetChunkList();
     const auto& statistics = chunkList->Statistics();
 
     if (name == "chunk_list_id") {
@@ -528,7 +528,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
     if (name == "chunk_ids") {
         std::vector<TChunkId> chunkIds;
-        TraverseChunkTree(&chunkIds, tableNode->GetChunkList());
+        TraverseChunkTree(&chunkIds, impl->GetChunkList());
         BuildYsonFluently(consumer)
             .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId) {
                 fluent.Item().Scalar(chunkId.ToString());
@@ -584,7 +584,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
     if (name == "update_mode") {
         BuildYsonFluently(consumer)
-            .Scalar(FormatEnum(tableNode->GetUpdateMode()));
+            .Scalar(FormatEnum(impl->GetUpdateMode()));
         return true;
     }
 
@@ -692,8 +692,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
     UNUSED(request);
     context->SetRequestInfo("");
 
-    auto* node = LockTypedImpl(ELockMode::Shared);
-    const auto* chunkList = EnsureNodeMutable(node);
+    auto* impl = LockThisTypedImpl(ELockMode::Shared);
+    const auto* chunkList = EnsureNodeMutable(impl);
 
     *response->mutable_chunk_list_id() = chunkList->GetId().ToProto();
     context->SetResponseInfo("ChunkListId: %s", ~chunkList->GetId().ToString());
@@ -705,12 +705,12 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
     context->SetRequestInfo("");
 
-    auto* tableNode = GetTypedImpl();
+    const auto* impl = GetThisTypedImpl();
 
     auto channel = TChannel::CreateEmpty();
     TReadLimit lowerLimit, upperLimit;
     ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
-    auto* chunkList = tableNode->GetChunkList();
+    auto* chunkList = impl->GetChunkList();
 
     if (lowerLimit.has_key() || upperLimit.has_key()) {
         if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
@@ -784,13 +784,13 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
-    auto* node = LockTypedImpl();
+    auto* impl = LockThisTypedImpl();
 
-    if (node->GetUpdateMode() != ETableUpdateMode::Overwrite) {
+    if (impl->GetUpdateMode() != ETableUpdateMode::Overwrite) {
         ythrow TServiceException(TError("Table node must be in overwrite mode"));
     }
 
-    node->GetChunkList()->SortedBy() = keyColumns;
+    impl->GetChunkList()->SortedBy() = keyColumns;
 
     context->Reply();
 }
@@ -799,9 +799,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
 {
     context->SetRequestInfo("");
 
-    auto* node = LockTypedImpl();
+    auto* impl = LockThisTypedImpl();
 
-    ClearNode(node);
+    ClearNode(impl);
 
     context->Reply();
 }

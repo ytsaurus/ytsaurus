@@ -38,7 +38,7 @@ protected:
 
     TImpl* GetImpl()
     {
-        return &Bootstrap->GetCypressManager()->GetNode(NodeId);
+        return Bootstrap->GetCypressManager()->GetNode(NodeId);
     }
 
     TIntrusivePtr<TProxy> GetProxy()

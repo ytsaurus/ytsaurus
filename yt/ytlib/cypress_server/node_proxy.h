@@ -25,12 +25,6 @@ struct ICypressNodeProxy
     //! Returns the id of the transaction for which the proxy is created.
     virtual TTransactionId GetTransactionId() const = 0;
 
-    //! Returns the physical node.
-    virtual const ICypressNode* GetImpl() const = 0;
-    
-    //! Returns the physical node and allows its mutation.
-    virtual ICypressNode* LockImpl() = 0;
-
     //! Constructs a deep copy of the node.
     virtual ICypressNodeProxyPtr Clone() = 0;
 };
