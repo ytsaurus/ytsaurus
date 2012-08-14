@@ -404,7 +404,7 @@ protected:
             }
 
             // Compute pending job count based on pooled data size and data size per job.
-            // If partition phase is completed, take any remaining da.
+            // If partition phase is completed, take any remaining data.
             // If partition phase is still in progress, only take size exceeding size per job.
             i64 dataSize = ChunkPool->DataSizeCounter().GetPending();
             i64 dataSizePerJob = Controller->Spec->MaxDataSizePerSortJob;
