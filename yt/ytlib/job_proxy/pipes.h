@@ -87,6 +87,9 @@ private:
     int JobDescriptor;
     TPipe Pipe;
     bool IsFinished;
+    bool IsClosed;
+
+    void Close();
 };
 
 ////////////////////////////////////////////////////////////////////

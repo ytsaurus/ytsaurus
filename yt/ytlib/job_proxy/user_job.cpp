@@ -299,6 +299,11 @@ private:
             OutputThread.Join();
             InputThread.Detach();
 
+            // Finish all output pipes before waitpid.
+            FOREACH (auto& pipe, OutputPipes) {
+                pipe->Finish();
+            }
+
             int status = 0;
             int waitpidResult = waitpid(ProcessId, &status, 0);
             if (waitpidResult < 0) {
@@ -315,10 +320,6 @@ private:
             }
 
             FOREACH (auto& pipe, InputPipes) {
-                pipe->Finish();
-            }
-
-            FOREACH (auto& pipe, OutputPipes) {
                 pipe->Finish();
             }
         } catch (...) {

@@ -138,6 +138,7 @@ TOutputPipe::TOutputPipe(
     : OutputStream(output)
     , JobDescriptor(jobDescriptor)
     , IsFinished(false)
+    , IsClosed(false)
 {
     int fd[2];
     SafePipe(fd);
@@ -206,11 +207,7 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
 
             continue;
         } else if (size == 0) {
-            errno = 0;
-            SafeClose(Pipe.ReadFd);
-
-            LOG_TRACE("Output pipe closed (JobDescriptor: %d)", JobDescriptor);
-
+            Close();
             return false;
         } else { // size < 0
             switch (errno) {
@@ -221,10 +218,7 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
                     // retry
                     break;
                 default:
-                    SafeClose(Pipe.ReadFd);
-
-                    LOG_TRACE("Output pipe closed (JobDescriptor: %d)", JobDescriptor);
-
+                    Close();
                     return false;
             }
         }
@@ -233,9 +227,21 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
     return true;
 }
 
+void TOutputPipe::Close()
+{
+    if (IsClosed)
+        return;
+
+    SafeClose(Pipe.ReadFd);
+    LOG_DEBUG("Output pipe closed (JobDescriptor: %d)", JobDescriptor);
+    IsClosed = true;
+}
+
 void TOutputPipe::Finish()
 {
     if (!IsFinished) {
+        Close();
+
         IsFinished = true;
         OutputStream->Finish();
     }
