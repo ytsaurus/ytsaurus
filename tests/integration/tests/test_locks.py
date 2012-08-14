@@ -133,10 +133,10 @@ class TestLocks(YTEnvSetup):
 
     def test_remove_map_subtree_lock(self):
         set('//tmp/a', {'b' : 1})
-        lock('//tmp/a/b');
+        lock('//tmp/a/b', mode = 'exclusive');
         with pytest.raises(YTError): remove('//tmp/a')
 
     def test_remove_list_subtree_lock(self):
         set('//tmp/a', [1])
-        lock('//tmp/a/0');
+        lock('//tmp/a/0', mode = 'exclusive');
         with pytest.raises(YTError): remove('//tmp/a')
