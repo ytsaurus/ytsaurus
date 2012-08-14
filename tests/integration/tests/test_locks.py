@@ -130,3 +130,13 @@ class TestLocks(YTEnvSetup):
         abort_transaction(tx = tx2)
 
         remove('//tmp/a')
+
+    def test_remove_map_subtree_lock(self):
+        set('//tmp/a', {'b' : 1})
+        lock('//tmp/a/b');
+        with pytest.raises(YTError): remove('//tmp/a')
+
+    def test_remove_list_subtree_lock(self):
+        set('//tmp/a', [1])
+        lock('//tmp/a/0');
+        with pytest.raises(YTError): remove('//tmp/a')
