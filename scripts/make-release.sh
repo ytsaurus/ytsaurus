@@ -14,21 +14,24 @@ patch=$(get_current_patch)
 version="${major}.${minor}.${patch}"
 echo "*** Current version is '${version}'"
 
-case "$1" in
+vtype=$1;shift
+vdiff=$1;shift;[[ -z "${vdiff}" ]]&&vdiff=1
+
+case "${vtype}" in
     --major)
         echo "*** Bumping major version"
-        major=$((${major} + 1))
+        major=$((${major} + ${vdiff}))
         minor=0
         patch=0
         ;;
     --minor)
         echo "*** Bumping minor version"
-        minor=$((${minor} + 1))
+        minor=$((${minor} + ${vdiff}))
         patch=0
         ;;
     --patch)
         echo "*** Bumping patch version"
-        patch=$((${patch} + 1))
+        patch=$((${patch} + ${vdiff}))
         ;;
     *)
         echo "Don't know what to do; please, specify either --major, --minor or --patch"
@@ -39,7 +42,7 @@ esac
 version="${major}.${minor}.${patch}"
 echo "*** New version is '${version}'"
 
-git flow release start "${version}" "$2"
+git flow release start "${version}" "$1"
 
 update_cmakelists $major $minor $patch
 update_debian_changelog $major $minor $patch
