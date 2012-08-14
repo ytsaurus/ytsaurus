@@ -9,12 +9,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSyncInvoker::Invoke(const TClosure& action)
+class TSyncInvoker
+    : public IInvoker
 {
-    action.Run();
-}
+public:
+    virtual bool Invoke(const TClosure& action)
+    {
+        action.Run();
+        return true;
+    }
+};
 
-IInvokerPtr TSyncInvoker::Get()
+IInvokerPtr GetSyncInvoker()
 {
     return RefCountedSingleton<TSyncInvoker>();
 }

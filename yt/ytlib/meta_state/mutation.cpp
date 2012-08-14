@@ -9,36 +9,26 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutation::TMutation(IMetaStateManagerPtr metaStateManager)
+TMutation::TMutation(
+    IMetaStateManagerPtr metaStateManager,
+    IInvokerPtr stateInvoker)
     : MetaStateManager(MoveRV(metaStateManager))
-    , Started(false)
-    , Retriable(false)
+    , StateInvoker(MoveRV(stateInvoker))
     , EpochContext(MetaStateManager->GetEpochContext())
 { }
 
-void TMutation::PostCommit()
+bool TMutation::PostCommit()
 {
     auto this_ = MakeStrong(this);
-    MetaStateManager
-        ->GetStateInvoker()
-        ->Invoke(BIND([=] () {
-            if (!this_->EpochContext->IsCanceled()) {
-                this_->Commit();
-            }
-        }));
+    return StateInvoker->Invoke(BIND([=] () {
+        if (!this_->EpochContext->IsCanceled()) {
+            this_->Commit();
+        }
+    }));
 }
 
 void TMutation::Commit()
 {
-    YASSERT(!Started);
-    Started = true;
-
-    DoCommit();
-}
-
-void TMutation::DoCommit()
-{
-    YASSERT(Started);
     MetaStateManager->CommitMutation(Request).Subscribe(
         BIND(&TMutation::OnCommitted, MakeStrong(this)));
 }
@@ -64,13 +54,6 @@ TMutationPtr TMutation::SetRequestData(const TSharedRef& data)
 TMutationPtr TMutation::SetAction(TClosure action)
 {
     Request.Action = MoveRV(action);
-    return this;
-}
-
-TMutationPtr TMutation::SetRetriable(TDuration backoffTime)
-{
-    Retriable = true;
-    BackoffTime = backoffTime;
     return this;
 }
 
@@ -106,12 +89,6 @@ void TMutation::OnCommitted(TValueOrError<TMutationResponse> result)
     } else {
         if (!OnError_.IsNull()) {
             OnError_.Run(result);
-        }
-        if (Retriable) {
-            TDelayedInvoker::Submit(
-                BIND(&TMutation::DoCommit, MakeStrong(this))
-                .Via(MetaStateManager->GetStateInvoker(), EpochContext),
-                BackoffTime);
         }
     }
 }

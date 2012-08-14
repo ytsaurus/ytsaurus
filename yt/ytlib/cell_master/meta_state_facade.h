@@ -13,6 +13,7 @@ namespace NCellMaster {
 DECLARE_ENUM(EStateThreadQueue,
     (Default)
     (ChunkRefresh)
+    (Heartbeat)
 );
 
 class TMetaStateFacade

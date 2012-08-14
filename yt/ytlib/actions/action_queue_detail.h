@@ -25,7 +25,7 @@ public:
         TActionQueueBase* owner,
         bool enableLogging);
 
-    void Invoke(const TClosure& action);
+    bool Invoke(const TClosure& action);
     void Shutdown();
     bool DequeueAndExecute();
 

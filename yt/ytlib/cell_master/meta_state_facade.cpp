@@ -60,6 +60,10 @@ public:
             GetInvoker(EStateThreadQueue::Default),
             BIND(&TImpl::OnTryInitialize, MakeWeak(this)),
             InitCheckPeriod);
+
+        for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
+            StateInvokers.push_back(MetaStateManager->CreateStateInvoker(StateQueue->GetInvoker(queueIndex)));
+        }
     }
 
     TCompositeMetaStatePtr GetState() const
@@ -74,7 +78,7 @@ public:
 
     IInvokerPtr GetInvoker(EStateThreadQueue queueIndex) const
     {
-        return StateQueue->GetInvoker(queueIndex.ToValue());
+        return StateInvokers[queueIndex];
     }
 
     void Start()
@@ -124,6 +128,7 @@ private:
     TCompositeMetaStatePtr MetaState;
     IMetaStateManagerPtr MetaStateManager;
     TPeriodicInvokerPtr InitInvoker;
+    std::vector<IInvokerPtr> StateInvokers;
 
     void OnTryInitialize()
     {

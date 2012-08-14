@@ -3,9 +3,9 @@
 #include "private.h"
 #include "meta_version.h"
 
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/ref.h>
-#include <ytlib/actions/callback_forward.h>
+#include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/actions/invoker.h>
 
 namespace NYT {
@@ -40,11 +40,20 @@ public:
      */
     void SetEpoch(const TEpoch& epoch);
 
-    //! Returns the invoker used for updating the state.
+    //! Returns the wrapper invoker used for updating the state.
     /*!
      * \note Thread affinity: any
      */
-    IInvokerPtr GetStateInvoker() const;
+    IInvokerPtr CreateUserStateInvoker(IInvokerPtr underlyingInvoker);
+
+    //! Returns the invoker used for performing recovery actions.
+    /*!
+     *  This invoker is bound to the same thread as returned by #GetRegularStateInvoker.
+     *
+     *  \note Thread affinity: any
+     *  
+     */
+    IInvokerPtr GetSystemStateInvoker();
 
     //! Returns the current version of the state.
     /*!
@@ -87,7 +96,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    IMetaStatePtr GetState() const;
+    IMetaStatePtr GetState();
 
     //! Delegates the call to IMetaState::Clear.
     /*!
@@ -144,8 +153,16 @@ public:
     TMutationContext* GetMutationContext();
 
 private:
+    class TUserStateInvoker;
+    class TSystemStateInvoker;
+
     IMetaStatePtr State;
+
     IInvokerPtr StateInvoker;
+    TAtomic UserEnqueueLock;
+    TAtomic SystemLock;
+    IInvokerPtr SystemStateInvoker;
+
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;
     
@@ -165,6 +182,11 @@ private:
     void ComputeReachableVersion();
     void UpdateVersion(const TMetaVersion& newVersion);
     TCachedAsyncChangeLogPtr GetCurrentChangeLog();
+
+    bool AcquireUserEnqueueLock();
+    void ReleaseUserEnqueueLock();
+    void AcquireSystemLock();
+    void ReleaseSystemLock();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

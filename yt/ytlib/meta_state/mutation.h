@@ -15,10 +15,12 @@ class TMutation
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TMutation(IMetaStateManagerPtr metaStateManager);
+    TMutation(
+        IMetaStateManagerPtr metaStateManager,
+        IInvokerPtr stateInvoker);
 
     void Commit();
-    void PostCommit();
+    bool PostCommit();
 
     TMutationPtr SetType(const Stroka& type);
 
@@ -30,8 +32,6 @@ public:
 
     TMutationPtr SetAction(TClosure action);
 
-    TMutationPtr SetRetriable(TDuration backoffTime);
-
     TMutationPtr OnSuccess(TClosure onSuccess);
     TMutationPtr OnSuccess(TCallback<void(const TMutationResponse&)> onSuccess);
     template <class TResponse>
@@ -41,16 +41,14 @@ public:
 
 private:
     IMetaStateManagerPtr MetaStateManager;
+    IInvokerPtr StateInvoker;
     bool Started;
-    bool Retriable;
     TCancelableContextPtr EpochContext;
 
     TMutationRequest Request;
-    TDuration BackoffTime;
     TCallback<void(const TMutationResponse&)> OnSuccess_;
     TCallback<void(const TError&)> OnError_;
 
-    void DoCommit();
     void OnCommitted(TValueOrError<TMutationResponse> response);
 
 };

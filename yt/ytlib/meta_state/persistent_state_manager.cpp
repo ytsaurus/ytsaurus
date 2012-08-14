@@ -54,7 +54,7 @@ public:
         : public IElectionCallbacks
     {
     public:
-        TElectionCallbacks(TPersistentStateManagerPtr owner)
+        explicit TElectionCallbacks(TPersistentStateManagerPtr owner)
             : Owner(owner)
         { }
 
@@ -149,7 +149,7 @@ public:
         server->RegisterService(ElectionManager);
     }
 
-    virtual void Start()
+    virtual void Start() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(ControlStatus == EPeerStatus::Stopped);
@@ -160,48 +160,42 @@ public:
 
         ControlStatus = EPeerStatus::Elections;
 
-        GetStateInvoker()->Invoke(BIND(
+        DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
             &TDecoratedMetaState::Clear,
             DecoratedState));
 
         ElectionManager->Start();
     }
 
-    virtual void Stop()
-    {
-        //TODO: implement this
-        YUNIMPLEMENTED();
-    }
-
-    virtual EPeerStatus GetControlStatus() const
+    virtual EPeerStatus GetControlStatus() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ControlStatus;
     }
 
-    virtual EPeerStatus GetStateStatus() const
+    virtual EPeerStatus GetStateStatus() const override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
         return StateStatus;
     }
 
-    virtual EPeerStatus GetStateStatusAsync() const
+    virtual EPeerStatus GetStateStatusAsync() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return StateStatus;
     }
 
-    virtual IInvokerPtr GetStateInvoker() const
+    virtual IInvokerPtr CreateStateInvoker(IInvokerPtr underlyingInvoker) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return DecoratedState->GetStateInvoker();
+        return DecoratedState->CreateUserStateInvoker(underlyingInvoker);
     }
 
-    virtual bool HasActiveQuorum() const
+    virtual bool HasActiveQuorum() const override
     {
         auto tracker = QuorumTracker;
         if (!tracker) {
@@ -210,21 +204,21 @@ public:
         return tracker->HasActiveQuorum();
     }
 
-    virtual TCancelableContextPtr GetEpochContext() const
+    virtual TCancelableContextPtr GetEpochContext() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return EpochContext;
     }
 
-    virtual void SetReadOnly(bool readOnly)
+    virtual void SetReadOnly(bool readOnly) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         ReadOnly = readOnly;
     }
 
-    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) override
     {
         auto tracker = QuorumTracker;
 
@@ -256,7 +250,7 @@ public:
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
 
-    virtual TFuture< TValueOrError<TMutationResponse> > CommitMutation(const TMutationRequest& request)
+    virtual TFuture< TValueOrError<TMutationResponse> > CommitMutation(const TMutationRequest& request) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         YCHECK(!DecoratedState->GetMutationContext());
@@ -287,7 +281,7 @@ public:
             .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
     }
 
-    virtual TMutationContext* GetMutationContext()
+    virtual TMutationContext* GetMutationContext() override
     {
         return DecoratedState->GetMutationContext();
     }
@@ -891,14 +885,14 @@ public:
 
         YCHECK(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
-            ~Config,
-            ~CellManager,
-            ~DecoratedState,
-            ~ChangeLogCache,
-            ~SnapshotStore,
+            Config,
+            CellManager,
+            DecoratedState,
+            ChangeLogCache,
+            SnapshotStore,
             DecoratedState->GetEpoch(),
-            ~EpochControlInvoker,
-            ~EpochStateInvoker);
+            EpochControlInvoker,
+            EpochStateInvoker);
 
         BIND(&TLeaderRecovery::Run, LeaderRecovery)
             .AsyncVia(EpochControlInvoker)
@@ -969,7 +963,7 @@ public:
 
         LOG_INFO("Stopped leading");
 
-        GetStateInvoker()->Invoke(BIND(
+        DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
             &TThis::DoStateStopLeading,
             MakeStrong(this)));
 
@@ -997,7 +991,7 @@ public:
         }
 
         if (SnapshotBuilder) {
-            GetStateInvoker()->Invoke(BIND(
+            DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
                 &TSnapshotBuilder::WaitUntilFinished,
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
@@ -1098,7 +1092,7 @@ public:
 
         LOG_INFO("Stopped following");
 
-        GetStateInvoker()->Invoke(BIND(
+        DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
             &TThis::DoStateStopFollowing,
             MakeStrong(this)));
 
@@ -1115,7 +1109,7 @@ public:
         }
 
         if (SnapshotBuilder) {
-            GetStateInvoker()->Invoke(BIND(
+            DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
                 &TSnapshotBuilder::WaitUntilFinished,
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
@@ -1140,7 +1134,7 @@ public:
         YCHECK(!EpochContext);
         EpochContext = New<TCancelableContext>();
         EpochControlInvoker = EpochContext->CreateInvoker(ControlInvoker);
-        EpochStateInvoker = EpochContext->CreateInvoker(GetStateInvoker());
+        EpochStateInvoker = EpochContext->CreateInvoker(DecoratedState->GetSystemStateInvoker());
 
         DecoratedState->SetEpoch(epoch);
     }

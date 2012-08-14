@@ -19,6 +19,65 @@ static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDecoratedMetaState::TUserStateInvoker
+    : public IInvoker
+{
+public:
+    TUserStateInvoker(TDecoratedMetaStatePtr metaState, IInvokerPtr underlyingInvoker)
+        : MetaState(metaState)
+        , UnderlyingInvoker(underlyingInvoker)
+    { }
+
+    virtual bool Invoke(const TClosure& action) override
+    {
+        if (!MetaState->AcquireUserEnqueueLock()) {
+            return false;
+        }
+        bool result = UnderlyingInvoker->Invoke(action);
+        MetaState->ReleaseUserEnqueueLock();
+        return result;
+    }
+
+private:
+    TDecoratedMetaStatePtr MetaState;
+    IInvokerPtr UnderlyingInvoker;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDecoratedMetaState::TSystemStateInvoker
+    : public IInvoker
+{
+public:
+    explicit TSystemStateInvoker(TDecoratedMetaState* metaState)
+        : MetaState(metaState)
+    { }
+
+    virtual bool Invoke(const TClosure& action) override
+    {
+        auto metaState = MakeStrong(MetaState);
+        metaState->AcquireSystemLock();
+        
+        bool result = metaState->StateInvoker->Invoke(BIND([=] () {
+            action.Run();
+            metaState->ReleaseSystemLock();
+        }));
+
+        if (!result) {
+            metaState->ReleaseSystemLock();
+        }
+
+        return result;
+    }
+
+private:
+    TDecoratedMetaState* MetaState;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDecoratedMetaState::TDecoratedMetaState(
     TPersistentStateManagerConfigPtr config,
     IMetaStatePtr state,
@@ -28,15 +87,18 @@ TDecoratedMetaState::TDecoratedMetaState(
     TChangeLogCachePtr changeLogCache)
     : State(state)
     , StateInvoker(stateInvoker)
+    , UserEnqueueLock(0)
+    , SystemLock(0)
+    , SystemStateInvoker(New<TSystemStateInvoker>(this))
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
     , Started(false)
 {
     YCHECK(config);
     YCHECK(state);
-    YCHECK(stateInvoker);
     YCHECK(snapshotStore);
     YCHECK(changeLogCache);
+
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
@@ -100,15 +162,23 @@ void TDecoratedMetaState::ComputeReachableVersion()
     LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
 }
 
-IInvokerPtr TDecoratedMetaState::GetStateInvoker() const
+IInvokerPtr TDecoratedMetaState::CreateUserStateInvoker(IInvokerPtr underlyingInvoker)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Started);
 
-    return StateInvoker;
+    return New<TUserStateInvoker>(this, underlyingInvoker);
 }
 
-IMetaStatePtr TDecoratedMetaState::GetState() const
+IInvokerPtr TDecoratedMetaState::GetSystemStateInvoker()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
+
+    return SystemStateInvoker;
+}
+
+IMetaStatePtr TDecoratedMetaState::GetState()
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Started);
@@ -308,6 +378,37 @@ TMutationContext* TDecoratedMetaState::GetMutationContext()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     return MutationContext;
+}
+
+bool TDecoratedMetaState::AcquireUserEnqueueLock()
+{
+    if (SystemLock != 0) {
+        return false;
+    }
+    AtomicIncrement(UserEnqueueLock);
+    if (AtomicGet(SystemLock) != 0) {
+        AtomicDecrement(UserEnqueueLock);
+        return false;
+    }
+    return true;
+}
+
+void TDecoratedMetaState::ReleaseUserEnqueueLock()
+{
+    AtomicDecrement(UserEnqueueLock);
+}
+
+void TDecoratedMetaState::AcquireSystemLock()
+{
+    AtomicIncrement(SystemLock);
+    while (AtomicGet(UserEnqueueLock) != 0) {
+        SpinLockPause();
+    }
+}
+
+void TDecoratedMetaState::ReleaseSystemLock()
+{
+    AtomicDecrement(SystemLock);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

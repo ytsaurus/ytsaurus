@@ -25,12 +25,6 @@ struct IMetaStateManager
      */
     virtual void Start() = 0;
 
-    //! Stops the manager.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void Stop() = 0;
-
     //! Returns the status as seen in the control thread.
     /*!
      *  \note Thread affinity: ControlThread
@@ -49,11 +43,11 @@ struct IMetaStateManager
      */
     virtual EPeerStatus GetStateStatusAsync() const = 0;
 
-    //! Returns an invoker used for updating the state.
+    //! Returns a wrapper invoker used for updating the state.
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvokerPtr GetStateInvoker() const = 0;
+    virtual IInvokerPtr CreateStateInvoker(IInvokerPtr underlyingInvoker) = 0;
 
     //! Returns True is the peer has a active quorum.
     /*!

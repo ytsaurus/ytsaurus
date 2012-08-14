@@ -10,7 +10,7 @@ namespace NYT {
 struct IInvoker
     : public virtual TRefCounted
 {
-    virtual void Invoke(const TClosure& action) = 0;
+    virtual bool Invoke(const TClosure& action) = 0;
 };
 
 typedef TIntrusivePtr<IInvoker> IInvokerPtr;

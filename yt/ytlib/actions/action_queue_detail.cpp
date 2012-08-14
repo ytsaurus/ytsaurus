@@ -40,7 +40,7 @@ void TQueueInvoker::Invoke(const TClosure& action)
 {
     if (!Owner) {
         LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", action.GetHandle());
-        return;
+        return false;
     }
 
     AtomicIncrement(QueueSize);
@@ -54,6 +54,8 @@ void TQueueInvoker::Invoke(const TClosure& action)
     LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", action.GetHandle());
 
     Owner->Signal();
+    return true;
+
 }
 
 void TQueueInvoker::Shutdown()
