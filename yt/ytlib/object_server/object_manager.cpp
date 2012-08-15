@@ -195,6 +195,9 @@ public:
                 if (!transaction) {
                     ythrow yexception() <<  Sprintf("No such transaction %s", ~transactionId.ToString());
                 }
+                if (transaction->GetState() != NTransactionServer::ETransactionState::Active) {
+                    ythrow yexception() <<  Sprintf("Transaction %s is not active", ~transactionId.ToString());
+                }
             }
         }
 
