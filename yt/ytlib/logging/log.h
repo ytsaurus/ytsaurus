@@ -66,28 +66,33 @@ private:
 #define LOG_FATAL_UNLESS(condition, ...)    if ( ! LIKELY(condition) ) LOG_FATAL(__VA_ARGS__)
 
 #define LOG_EVENT(logger, level, ...) \
-    if (logger.IsEnabled(level)) { \
-        ::NYT::NLog::LogEventImpl( \
+    do { \
+        if (logger.IsEnabled(level)) { \
+            ::NYT::NLog::LogEventImpl( \
             logger, \
             __FILE__, \
             __LINE__, \
             __FUNCTION__, \
             level, \
             Sprintf(__VA_ARGS__)); \
-    } \
+        } \
+    } while (false)
 
 #define LOG_EVENT_AND_THROW(logger, level, ex, ...) \
-    if (logger.IsEnabled(level)) { \
+    do { \
         Stroka message = Sprintf(__VA_ARGS__); \
-        ::NYT::NLog::LogEventImpl( \
-            logger, \
-            __FILE__, \
-            __LINE__, \
-            __FUNCTION__, \
-            level, \
-            message); \
+        if (logger.IsEnabled(level)) { \
+            ::NYT::NLog::LogEventImpl( \
+                logger, \
+                __FILE__, \
+                __LINE__, \
+                __FUNCTION__, \
+                level, \
+                message); \
+        } \
         ythrow ex << message; \
-    } \
+    } while (false)
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
