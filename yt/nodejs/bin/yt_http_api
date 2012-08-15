@@ -191,6 +191,18 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
                     staticServer.serve(req, rsp);
                 });
             })
+            .use("/_check_availability_time", function(req, rsp, next) {
+                fs.readFile("/var/lock/yt_check_availability_time", function(err, data) {
+                    if (err) {
+                        var body = "0";
+                        rsp.writeHead(200, { "Content-Length" : body.length, "Content-Type" : "text/plain" });
+                        rsp.end(body);
+                    } else {
+                        rsp.writeHead(200, { "Content-Length" : data.length, "Content-Type" : "text/plain" });
+                        rsp.end(data);
+                    }
+                }
+            })
             .use("/", function(req, rsp, next) {
                 if (req.url === "/") {
                     rsp.writeHead(303, {
