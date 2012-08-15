@@ -692,6 +692,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
     UNUSED(request);
     context->SetRequestInfo("");
 
+    if (!Transaction) {
+        ythrow yexception() << "Transaction required";
+    }
+
     auto* impl = LockThisTypedImpl(ELockMode::Shared);
     const auto* chunkList = EnsureNodeMutable(impl);
 
