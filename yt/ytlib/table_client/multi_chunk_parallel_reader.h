@@ -12,32 +12,41 @@ class TMultiChunkParallelReader
     : public TMultiChunkReaderBase<TChunkReader>
 {
 public:
+    typedef TMultiChunkReaderBase<TChunkReader> TBase;
+
     TMultiChunkParallelReader(
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         std::vector<NProto::TInputChunk>&& inputChunks,
-        const TProviderPtr& readerProvider);
+        const typename TBase::TProviderPtr& readerProvider);
 
     virtual TAsyncError AsyncOpen() override;
     virtual bool FetchNextItem() override;
     virtual bool IsValid() const override;
 
 private:
+    using typename TBase::TProviderPtr;
+    using typename TBase::TReaderPtr;
+    
+    using TBase::State;
+    using TBase::Logger;
+    using TBase::CurrentReader_;
+
     TSpinLock SpinLock;
-    std::vector<TReaderPtr> ReadyReaders;
-    std::vector<TReaderPtr> CompleteReaders;
+    std::vector<typename TBase::TReaderPtr> ReadyReaders;
+    std::vector<typename TBase::TReaderPtr> CompleteReaders;
 
     int CompleteReaderCount;
 
     void OnReaderOpened(
-        const TReaderPtr& chunkReader, 
+        const typename TBase::TReaderPtr& chunkReader, 
         int inputChunkIndex, 
         TError error) override;
-    void OnReaderReady(const TReaderPtr& chunkReader, TError error);
+    void OnReaderReady(const typename TBase::TReaderPtr& chunkReader, TError error);
 
-    void ProcessReadyReader(TReaderPtr chunkReader);
-    void FinishReader(const TReaderPtr& chunkReader);
+    void ProcessReadyReader(typename TBase::TReaderPtr chunkReader);
+    void FinishReader(const typename TBase::TReaderPtr& chunkReader);
 
 };
 

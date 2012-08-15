@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 #include "merging_reader.h"
-#include "multi_chunk_sequential_reader.h"
 #include "table_chunk_reader.h"
+#include "multi_chunk_sequential_reader.h"
 #include "key.h"
 
 #include <ytlib/misc/sync.h>

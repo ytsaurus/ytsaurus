@@ -12,23 +12,29 @@ class TMultiChunkSequentialReader
     : public TMultiChunkReaderBase<TChunkReader>
 {
 public:
+    typedef TMultiChunkReaderBase<TChunkReader> TBase;
+
     TMultiChunkSequentialReader(
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         std::vector<NProto::TInputChunk>&& inputChunks,
-        const TProviderPtr& readerProvider);
+        const typename TBase::TProviderPtr& readerProvider);
 
-    virtual TAsyncError AsyncOpen() override;
-    virtual bool FetchNextItem() override;
-    virtual bool IsValid() const override;
+    virtual TAsyncError AsyncOpen();
+    virtual bool FetchNextItem();
+    virtual bool IsValid() const;
 
 private:
-    std::vector< TPromise<TReaderPtr> > Readers;
+    using TBase::State;
+    using TBase::Logger;
+    using TBase::CurrentReader_;
+
+    std::vector< TPromise<typename TBase::TReaderPtr> > Readers;
     int CurrentReaderIndex;
 
-    virtual void OnReaderOpened(const TReaderPtr& chunkReader, int chunkIndex, TError error) override;
-    void SwitchCurrentChunk(TReaderPtr nextReader);
+    virtual void OnReaderOpened(const typename TBase::TReaderPtr& chunkReader, int chunkIndex, TError error) override;
+    void SwitchCurrentChunk(typename TBase::TReaderPtr nextReader);
     bool ValidateReader();
     void OnItemFetched(TError error);
 

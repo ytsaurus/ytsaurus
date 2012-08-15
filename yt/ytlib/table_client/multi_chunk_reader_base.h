@@ -9,6 +9,7 @@
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NTableClient {

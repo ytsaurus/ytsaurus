@@ -3,6 +3,8 @@
 #endif
 #undef USER_JOB_IO_INL_H_
 
+#include "config.h"
+
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 
@@ -33,7 +35,7 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     typedef TMultiChunkReader<NTableClient::TTableChunkReader> TReader;
 
-    auto provider = New<TTableChunkReaderProvider>(IOConfig->TableReader);
+    auto provider = New<NTableClient::TTableChunkReaderProvider>(IOConfig->TableReader);
     auto reader = New<TReader>(
         IOConfig->TableReader,
         MasterChannel,

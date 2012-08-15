@@ -83,7 +83,10 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(
     ItemCount_ += reader->GetRowCount() - InputChunks[chunkIndex].row_count();
     FetchingCompleteAwaiter->Await(reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == InputChunks.size()) {
-        FetchingCompleteAwaiter->Complete(BIND([=]() { IsFetchingComplete_ = true; }));
+        auto this_ = MakeStrong(this);
+        FetchingCompleteAwaiter->Complete(BIND([=]() { 
+            this_->IsFetchingComplete_ = true; 
+        }));
     }
 }
 
