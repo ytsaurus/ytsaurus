@@ -867,6 +867,11 @@ i64 TTableChunkReader::GetRowCount() const
     return EndRowIndex - StartRowIndex;
 }
 
+i64 TTableChunkReader::GetRowIndex() const
+{
+    return CurrentRowIndex - StartRowIndex;
+}
+
 TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
 {
     return SequentialReader->GetFetchingCompleteEvent();

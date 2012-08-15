@@ -6,14 +6,10 @@
 
 #include <ytlib/meta_state/config.h>
 
-#include <ytlib/chunk_client/client_block_cache.h>
-
-#include <ytlib/table_client/table_chunk_sequence_reader.h>
+#include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/table_producer.h>
 
 #include <ytlib/meta_state/leader_channel.h>
 
@@ -30,10 +26,6 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = JobProxyLogger;
-
-////////////////////////////////////////////////////////////////////
-
 TUserJobIO::TUserJobIO(
     TJobIOConfigPtr ioConfig, 
     NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
@@ -41,6 +33,7 @@ TUserJobIO::TUserJobIO(
     : IOConfig(ioConfig)
     , MasterChannel(CreateLeaderChannel(mastersConfig))
     , JobSpec(jobSpec)
+    , Logger(JobProxyLogger)
 { }
 
 TUserJobIO::~TUserJobIO()
@@ -54,38 +47,8 @@ int TUserJobIO::GetInputCount() const
 
 TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer) const
 {
-
+    return DoCreateTableInput<TMultiChunkSequentialReader>(index, consumer);
 }
-
-template <class TMultiChunkReader>
-TAutoPtr<TTableProducer> TUserJobIO::DoCreateTableInput(int index, IYsonConsumer* consumer) const
-{
-    YCHECK(index >= 0 && index < GetInputCount());
-
-    auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
-
-    std::vector<NTableClient::NProto::TInputChunk> chunks(
-        JobSpec.input_specs(0).chunks().begin(),
-        JobSpec.input_specs(0).chunks().end());
-
-    LOG_DEBUG("Opening input %d with %d chunks", 
-        index, 
-        static_cast<int>(chunks.size()));
-
-    typedef TMultiChunkReader<TTableChunkReader> TReader;
-
-    auto reader = New<TTableChunkSequenceReader>(
-        IOConfig->TableReader,
-        MasterChannel,
-        blockCache,
-        MoveRV(chunks));
-    auto syncReader = CreateSyncReader(reader);
-    syncReader->Open();
-
-    return new TTableProducer(syncReader, consumer);
-}
-
-
 
 int TUserJobIO::GetOutputCount() const
 {

@@ -7,27 +7,30 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TReaderProvider>
+template <class TChunkReader>
 class TMultiChunkSequentialReader
-    : public TMultiChunkReaderBase<TReaderProvider>
+    : public TMultiChunkReaderBase<TChunkReader>
 {
 public:
     TMultiChunkSequentialReader(
-		TTableReaderConfigPtr config,
+        TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         std::vector<NProto::TInputChunk>&& inputChunks,
-        const TReaderProviderPtr& readerProvider);
+        const TProviderPtr& readerProvider);
 
-    virtual TAsyncError AsyncOpen();
-    virtual bool FetchNextItem();
-    virtual bool IsValid() const;
+    virtual TAsyncError AsyncOpen() override;
+    virtual bool FetchNextItem() override;
+    virtual bool IsValid() const override;
 
 private:
-    
-
     std::vector< TPromise<TReaderPtr> > Readers;
     int CurrentReaderIndex;
+
+    virtual void OnReaderOpened(const TReaderPtr& chunkReader, int chunkIndex, TError error) override;
+    void SwitchCurrentChunk(TReaderPtr nextReader);
+    bool ValidateReader();
+    void OnItemFetched(TError error);
 
 };
 

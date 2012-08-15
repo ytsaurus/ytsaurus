@@ -13,6 +13,7 @@
 #include <ytlib/chunk_server/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -56,8 +57,12 @@ protected:
 
     NChunkServer::TChunkId StderrChunkId;
 
-    template <class TMultiChunkReader>
-    TAutoPtr<TTableProducer> DoCreateTableInput(int index, IYsonConsumer* consumer) const;
+    NLog::TLogger& Logger;
+
+    template <template <typename> class TMultiChunkReader>
+    TAutoPtr<NTableClient::TTableProducer> DoCreateTableInput(
+        int index, 
+        NYTree::IYsonConsumer* consumer) const;
 
     void PopulateUserJobResult(NScheduler::NProto::TUserJobResult* result);
 
@@ -67,3 +72,8 @@ protected:
 
 } // namespace NJobProxy
 } // namespace NYT
+
+#define USER_JOB_IO_INL_H_
+#include "user_job_io-inl.h"
+#undef USER_JOB_IO_INL_H_
+

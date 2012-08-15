@@ -71,6 +71,7 @@ public:
     const TNonOwningKey& GetKey() const;
     const NYTree::TYsonString& GetRowAttributes() const;
 
+    i64 GetRowIndex() const;
     i64 GetRowCount() const;
     TFuture<void> GetFetchingCompleteEvent();
 

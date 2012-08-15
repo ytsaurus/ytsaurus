@@ -65,12 +65,12 @@ public:
 
     virtual const TRow& GetRow() const override
     {
-        return AsyncReader->GetRow();
+        return AsyncReader->CurrentReader()->GetRow();
     }
 
     virtual const TNonOwningKey& GetKey() const override
     {
-        return AsyncReader->GetKey();
+        return AsyncReader->CurrentReader()->GetKey();
     }
 
     /*

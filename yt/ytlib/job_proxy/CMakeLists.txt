@@ -44,6 +44,7 @@ set( HDRS
   ${BASE}/table_output.h
   ${BASE}/user_job.h
   ${BASE}/user_job_io.h
+  ${BASE}/user_job_io-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

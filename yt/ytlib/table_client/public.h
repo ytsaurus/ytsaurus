@@ -53,6 +53,12 @@ typedef TIntrusivePtr<TPartitionChunkWriter> TPartitionChunkWriterPtr;
 class TTableChunkReader;
 typedef TIntrusivePtr<TTableChunkReader> TTableChunkReaderPtr;
 
+template <class TChunkReader>
+class TMultiChunkSequentialReader;
+
+typedef TMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
+typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;
+
 class TTableChunkSequenceWriter;
 typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
 
