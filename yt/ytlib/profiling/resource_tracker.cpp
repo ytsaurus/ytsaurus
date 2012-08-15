@@ -1,11 +1,10 @@
 #include "stdafx.h"
 #include "resource_tracker.h"
-#include "profiling_manager.h"
+#include "profiler.h"
 #include "timing.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/ytree/ypath_client.h>
-
 
 #include <util/folder/filelist.h>
 #include <util/stream/file.h>
@@ -19,6 +18,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 const TDuration TResourceTracker::UpdateInterval = TDuration::Seconds(1);
+static TProfiler Profiler("/resource_tracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,10 +40,12 @@ void TResourceTracker::EnqueueUsage()
 {
     PeriodicInvoker->ScheduleNext();
 
-    int pid = getpid();
     EnqueueMemoryUsage();
+    EnqueueCpuUsage();
+}
 
-
+void TResourceTracker::EnqueueCpuUsage()
+{
     // update proc ticks
     VectorStrok cpuFields;
     try {
@@ -60,7 +62,7 @@ void TResourceTracker::EnqueueUsage()
     if (totalProcTicks == 0)
         return;
 
-    Stroka path = Sprintf("/proc/%d/task/", pid);
+    Stroka path = Sprintf("/proc/self/task/");
     TDirsList dirsList;
     dirsList.Fill(path);
     i32 size = dirsList.Size();
@@ -78,7 +80,7 @@ void TResourceTracker::EnqueueUsage()
 
         // get rid of quotes
         Stroka threadName = cpuStatFields[1].substr(1, cpuStatFields[1].size() - 2);
-        TYPath baseProfilingPath = "/resource_usage/" + EscapeYPathToken(threadName);
+        TYPath pathPrefix = "/" + EscapeYPathToken(threadName);
 
         i64 userTicks = FromString<i64>(cpuStatFields[13]); // utime
         i64 kernelTicks = FromString<i64>(cpuStatFields[14]); // stime
@@ -86,20 +88,10 @@ void TResourceTracker::EnqueueUsage()
         auto it = PreviousUserTicks.find(threadName);
         if (it != PreviousUserTicks.end()) {
             i64 userCpuUsage = 100 * (userTicks - PreviousUserTicks[threadName]) / totalProcTicks;
-            TQueuedSample userSample;
-            userSample.Time = GetCpuInstant();
-            userSample.Path = baseProfilingPath + "/user_cpu";
-            userSample.Value = userCpuUsage;
-
-            TProfilingManager::Get()->Enqueue(userSample, false);
+            Profiler.Enqueue(pathPrefix + "/user_cpu", userCpuUsage);
 
             i64 kernelCpuUsage = 100 * (kernelTicks - PreviousKernelTicks[threadName]) / totalProcTicks;
-            TQueuedSample kernelSample;
-            kernelSample.Time = GetCpuInstant();
-            kernelSample.Path = baseProfilingPath + "/system_cpu";
-            kernelSample.Value = kernelCpuUsage;
-
-            TProfilingManager::Get()->Enqueue(kernelSample, false);
+            Profiler.Enqueue(pathPrefix + "/system_cpu", kernelCpuUsage);
         }
         PreviousUserTicks[threadName] = userTicks;
         PreviousKernelTicks[threadName] = kernelTicks;
@@ -110,10 +102,9 @@ void TResourceTracker::EnqueueUsage()
 
 void TResourceTracker::EnqueueMemoryUsage()
 {
-    int pid = getpid();
     VectorStrok memoryStatFields;
     try {
-        TIFStream memoryStatFile(Sprintf("/proc/%d/statm", pid));
+        TIFStream memoryStatFile("/proc/self/statm");
         memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
     } catch (const TIoException&) {
         // Ignore all IO exceptions.
@@ -121,11 +112,7 @@ void TResourceTracker::EnqueueMemoryUsage()
     }
 
     i64 residentSetSize = FromString<i64>(memoryStatFields[1]);
-    TQueuedSample memorySample;
-    memorySample.Time = GetCpuInstant();
-    memorySample.Path = "/resource_usage/Total/memory";
-    memorySample.Value = residentSetSize;
-    TProfilingManager::Get()->Enqueue(memorySample, false);
+    Profiler.Enqueue("/total/memory", residentSetSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
