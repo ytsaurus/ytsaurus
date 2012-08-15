@@ -22,8 +22,14 @@ static TProfiler Profiler("/resource_tracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Please, refer to /proc documentation to know more about available information.
+// http://www.kernel.org/doc/Documentation/filesystems/proc.txt
+
 TResourceTracker::TResourceTracker(IInvokerPtr invoker)
-    : PreviousProcTicks(0)
+    // CPU time is measured in jiffies; we need USER_HZ to convert them
+    // to milliseconds and percentages.
+    : TicksPerSecond(sysconf(_SC_CLK_TCK))
+    , LastUpdateTime(TInstant::Now())
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
         invoker,
@@ -46,58 +52,53 @@ void TResourceTracker::EnqueueUsage()
 
 void TResourceTracker::EnqueueCpuUsage()
 {
-    // update proc ticks
-    VectorStrok cpuFields;
-    try {
-        TIFStream procStat("/proc/stat");
-        cpuFields = splitStroku(procStat.ReadLine(), " ");
-    } catch (const TIoException&) {
-        // Ignore all IO exceptions.
+    ui64 timeDelta = TInstant::Now().MilliSeconds() - LastUpdateTime.MilliSeconds();
+
+    if (timeDelta == 0) {
         return;
     }
 
-    i64 procTicks = FromString<i64>(cpuFields[1]);
-    i64 totalProcTicks = procTicks - PreviousProcTicks;
-
-    if (totalProcTicks == 0)
-        return;
-
-    Stroka path = Sprintf("/proc/self/task/");
+    Stroka path = Sprintf("/proc/self/task");
     TDirsList dirsList;
     dirsList.Fill(path);
-    i32 size = dirsList.Size();
-    for (i32 i = 0; i < size; ++i) {
+
+    for (i32 i = 0; i < dirsList.Size(); ++i) {
         Stroka threadStatPath = NFS::CombinePaths(path, dirsList.Next());
         Stroka cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
-        VectorStrok cpuStatFields;
+
+        VectorStrok fields;
+
         try {
             TIFStream cpuStatFile(cpuStatPath);
-            cpuStatFields = splitStroku(cpuStatFile.ReadLine(), " ");
+            fields = splitStroku(cpuStatFile.ReadLine(), " ");
         } catch (const TIoException&) {
             // Ignore all IO exceptions.
             continue;
         }
 
-        // get rid of quotes
-        Stroka threadName = cpuStatFields[1].substr(1, cpuStatFields[1].size() - 2);
+        // Get rid of parentheses in process title.
+        YCHECK(fields[1].size() >= 2);
+
+        Stroka threadName = fields[1].substr(1, fields[1].size() - 2);
         TYPath pathPrefix = "/" + EscapeYPathToken(threadName);
 
-        i64 userTicks = FromString<i64>(cpuStatFields[13]); // utime
-        i64 kernelTicks = FromString<i64>(cpuStatFields[14]); // stime
+        i64 userJiffies = FromString<i64>(fields[13]); // In jiffies
+        i64 systemJiffies = FromString<i64>(fields[14]); // In jiffies
 
-        auto it = PreviousUserTicks.find(threadName);
-        if (it != PreviousUserTicks.end()) {
-            i64 userCpuUsage = 100 * (userTicks - PreviousUserTicks[threadName]) / totalProcTicks;
-            Profiler.Enqueue(pathPrefix + "/user_cpu", userCpuUsage);
+        auto it = PreviousUserJiffies.find(threadName);
+        if (it != PreviousUserJiffies.end()) {
+            i64 userCpuTime = (userJiffies - PreviousUserJiffies[threadName]) * 1000 / TicksPerSecond;
+            i64 systemCpuTime = (systemJiffies - PreviousSystemJiffies[threadName]) * 1000 / TicksPerSecond;
 
-            i64 kernelCpuUsage = 100 * (kernelTicks - PreviousKernelTicks[threadName]) / totalProcTicks;
-            Profiler.Enqueue(pathPrefix + "/system_cpu", kernelCpuUsage);
+            Profiler.Enqueue(pathPrefix + "/user_cpu", 100 * userCpuTime / timeDelta);
+            Profiler.Enqueue(pathPrefix + "/system_cpu", 100 * systemCpuTime / timeDelta);
         }
-        PreviousUserTicks[threadName] = userTicks;
-        PreviousKernelTicks[threadName] = kernelTicks;
+
+        PreviousUserJiffies[threadName] = userJiffies;
+        PreviousSystemJiffies[threadName] = systemJiffies;
     }
 
-    PreviousProcTicks = procTicks;
+    LastUpdateTime = TInstant::Now();
 }
 
 void TResourceTracker::EnqueueMemoryUsage()

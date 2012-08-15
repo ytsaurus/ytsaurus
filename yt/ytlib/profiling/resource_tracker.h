@@ -18,9 +18,11 @@ public:
     void Start();
 
 private:
-    i64 PreviousProcTicks;
-    yhash_map<Stroka, i64> PreviousUserTicks;
-    yhash_map<Stroka, i64> PreviousKernelTicks;
+    i64 TicksPerSecond;
+    TInstant LastUpdateTime;
+
+    yhash_map<Stroka, i64> PreviousUserJiffies;
+    yhash_map<Stroka, i64> PreviousSystemJiffies;
 
     TPeriodicInvokerPtr PeriodicInvoker;
     static const TDuration UpdateInterval;
