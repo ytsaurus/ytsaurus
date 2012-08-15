@@ -74,7 +74,7 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
         _exit(122);
     }
 
-    LOG_DEBUG("Successfully reported heartbeat to supervisor")
+    LOG_DEBUG("Successfully reported heartbeat to supervisor");
 }
 
 void TJobProxy::RetrieveJobSpec()

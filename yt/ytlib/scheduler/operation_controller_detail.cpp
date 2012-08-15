@@ -706,7 +706,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
 
 void TOperationControllerBase::AbortTransactions()
 {
-    LOG_INFO("Aborting transactions")
+    LOG_INFO("Aborting transactions");
 
     if (PrimaryTransaction) {
         // The call is async.
