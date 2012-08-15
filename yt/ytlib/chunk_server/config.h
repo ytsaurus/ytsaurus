@@ -94,7 +94,6 @@ struct TChunkManagerConfig
     TDuration OnlineNodeTimeout;
     TDuration RegisteredNodeTimeout;
     TDuration UnconfirmedNodeTimeout;
-    TDuration NodeExpirationBackoffTime;
 
     TDuration ChunkRefreshDelay;
     TDuration ChunkRefreshQuantum;
@@ -114,8 +113,6 @@ struct TChunkManagerConfig
             .Default(TDuration::Seconds(180));
         Register("unconfirmed_node_timeout", UnconfirmedNodeTimeout)
             .Default(TDuration::Seconds(30));
-        Register("node_expiration_backoff_time", NodeExpirationBackoffTime)
-            .Default(TDuration::Seconds(5));
         Register("chunk_refresh_delay", ChunkRefreshDelay)
             .Default(TDuration::Seconds(15));
         Register("chunk_refresh_quantum", ChunkRefreshQuantum)

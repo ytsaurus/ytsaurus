@@ -27,8 +27,8 @@ TNodeLeaseTracker::TNodeLeaseTracker(
     , Bootstrap(bootstrap)
     , OnlineNodeCount(0)
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
+    YCHECK(config);
+    YCHECK(bootstrap);
 }
 
 void TNodeLeaseTracker::OnNodeRegistered(const TDataNode* node, bool recovery)
@@ -43,7 +43,7 @@ void TNodeLeaseTracker::OnNodeRegistered(const TDataNode* node, bool recovery)
             MakeStrong(this),
             node->GetId())
         .Via(
-            metaStateFacade->GetInvoker(EStateThreadQueue::ChunkRefresh),
+            metaStateFacade->GetWrappedInvoker(EStateThreadQueue::ChunkRefresh),
             metaStateFacade->GetManager()->GetEpochContext()));
     YCHECK(NodeInfoMap.insert(MakePair(node->GetId(), nodeInfo)).second);
 }
@@ -53,7 +53,7 @@ void TNodeLeaseTracker::OnNodeOnline(const TDataNode* node, bool recovery)
     auto& nodeInfo = GetNodeInfo(node->GetId());
     nodeInfo.Confirmed = !recovery;
     RenewLease(node, nodeInfo);
-    YASSERT(node->GetState() == ENodeState::Online);
+    YCHECK(node->GetState() == ENodeState::Online);
     ++OnlineNodeCount;
 }
 
@@ -100,12 +100,11 @@ void TNodeLeaseTracker::OnExpired(TNodeId nodeId)
     Bootstrap
         ->GetChunkManager()
         ->CreateUnregisterNodeMutation(message)
-        ->SetRetriable(Config->NodeExpirationBackoffTime)
         ->OnSuccess(BIND([=] () {
             LOG_INFO("Node expiration commit success (NodeId: %d)", nodeId);
         }))
         ->OnError(BIND([=] (const TError& error) {
-            LOG_INFO("Node expiration commit failed (NodeId: %d)\n%s",
+            LOG_ERROR("Node expiration commit failed (NodeId: %d)\n%s",
                 nodeId,
                 ~error.ToString());
         }))

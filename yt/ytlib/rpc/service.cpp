@@ -161,7 +161,11 @@ void TServiceBase::OnInvocationPrepared(
         invoker = DefaultInvoker;
     }
 
-    invoker->Invoke(wrappedHandler);
+    if (!invoker->Invoke(wrappedHandler)) {
+        activeRequest->Context->Reply(TError(
+            EErrorCode::Unavailable,
+            "Service unavailable"));
+    }
 }
 
 void TServiceBase::OnEndRequest(IServiceContextPtr context)

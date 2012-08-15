@@ -37,17 +37,11 @@ struct IMetaStateManager
      */
     virtual EPeerStatus GetStateStatus() const = 0;
 
-    //! Similar to #GetStateStatus but can be called from any thread.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual EPeerStatus GetStateStatusAsync() const = 0;
-
     //! Returns a wrapper invoker used for updating the state.
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvokerPtr CreateStateInvoker(IInvokerPtr underlyingInvoker) = 0;
+    virtual IInvokerPtr CreateStateInvokerWrapper(IInvokerPtr underlyingInvoker) = 0;
 
     //! Returns True is the peer has a active quorum.
     /*!

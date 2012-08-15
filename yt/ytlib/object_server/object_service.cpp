@@ -154,7 +154,7 @@ private:
 
 TObjectService::TObjectService(TBootstrap* bootstrap)
     : TServiceBase(
-        bootstrap->GetMetaStateFacade()->GetInvoker(),
+        bootstrap->GetMetaStateFacade()->GetWrappedInvoker(),
         TObjectServiceProxy::GetServiceName(),
         ObjectServerLogger.GetCategory())
     , Bootstrap(bootstrap)
@@ -168,9 +168,6 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     UNUSED(request);
     UNUSED(response);
-
-    if (!Bootstrap->GetMetaStateFacade()->ValidateActiveStatus(context->GetUntypedContext()))
-        return;
 
     New<TExecuteSession>(Bootstrap, context)->Run();
 }

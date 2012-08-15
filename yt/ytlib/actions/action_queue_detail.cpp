@@ -36,7 +36,7 @@ TQueueInvoker::TQueueInvoker(
     , TotalTimeCounter("/time/total")
 { }
 
-void TQueueInvoker::Invoke(const TClosure& action)
+bool TQueueInvoker::Invoke(const TClosure& action)
 {
     if (!Owner) {
         LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", action.GetHandle());

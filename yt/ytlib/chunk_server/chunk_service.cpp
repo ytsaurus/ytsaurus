@@ -41,7 +41,7 @@ static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 TChunkService::TChunkService(TBootstrap* bootstrap)
     : TServiceBase(
-        bootstrap->GetMetaStateFacade()->GetInvoker(),
+        bootstrap->GetMetaStateFacade()->GetWrappedInvoker(),
         TChunkServiceProxy::GetServiceName(),
         ChunkServerLogger.GetCategory())
     , Bootstrap(bootstrap)
@@ -52,7 +52,7 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetHeavyRequest(true)
-            .SetInvoker(bootstrap->GetMetaStateFacade()->GetInvoker(EStateThreadQueue::ChunkRefresh)));
+            .SetInvoker(bootstrap->GetMetaStateFacade()->GetWrappedInvoker(EStateThreadQueue::ChunkRefresh)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetHeavyRequest(true));
@@ -105,7 +105,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
         ~requestCellGuid.ToString(),
         ~ToString(statistics));
 
-    if (!metaStateFacade->ValidateActiveLeaderStatus(context->GetUntypedContext()))
+    if (!metaStateFacade->ValidateActiveLeader(context->GetUntypedContext()))
         return;
 
     auto expectedCellGuid = objectManager->GetCellGuid();
@@ -146,7 +146,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 
     context->SetRequestInfo("NodeId: %d", nodeId);
 
-    if (!metaStateFacade->ValidateActiveLeaderStatus(context->GetUntypedContext()))
+    if (!metaStateFacade->ValidateActiveLeader(context->GetUntypedContext()))
         return;
 
     ValidateNodeId(nodeId);
@@ -176,7 +176,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     context->SetRequestInfo("NodeId: %d");
 
-    if (!metaStateFacade->ValidateActiveLeaderStatus(context->GetUntypedContext()))
+    if (!metaStateFacade->ValidateActiveLeader(context->GetUntypedContext()))
         return;
 
     ValidateNodeId(nodeId);

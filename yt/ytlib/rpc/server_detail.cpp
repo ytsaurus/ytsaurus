@@ -178,7 +178,7 @@ TClosure TServiceContextBase::Wrap(TClosure action)
     return BIND(
         &TServiceContextBase::WrapThunk,
         MakeStrong(this),
-        action);
+        MoveRV(action));
 }
 
 void TServiceContextBase::WrapThunk(TClosure action)

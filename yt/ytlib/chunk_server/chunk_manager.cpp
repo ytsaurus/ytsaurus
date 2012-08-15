@@ -190,20 +190,25 @@ public:
     TMutationPtr CreateRegisterNodeMutation(
         const TMetaReqRegisterNode& request)
     {
-        return CreateMutation(MetaStateManager, this, request, &TThis::RegisterNode);
+        return Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation(this, request, &TThis::RegisterNode);
     }
 
     TMutationPtr CreateUnregisterNodeMutation(
         const TMetaReqUnregisterNode& request)
     {
-        return CreateMutation(MetaStateManager, this, request, &TThis::UnregisterNode);
+        return Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation(this, request, &TThis::UnregisterNode);
     }
 
     TMutationPtr CreateFullHeartbeatMutation(
         TCtxFullHeartbeatPtr context)
     {
-        return
-            New<TMutation>(MetaStateManager)
+        return Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation(EStateThreadQueue::Heartbeat)
             ->SetRequestData(context->GetUntypedContext()->GetRequestBody())
             ->SetType(context->Request().GetTypeName())
             ->SetAction(BIND(&TThis::FullHeartbeatWithContext, MakeStrong(this), context));
@@ -212,19 +217,25 @@ public:
     TMutationPtr CreateIncrementalHeartbeatMutation(
         const TMetaReqIncrementalHeartbeat& request)
     {
-        return CreateMutation(MetaStateManager, this, request, &TThis::IncrementalHeartbeat);
+        return Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation(this, request, &TThis::IncrementalHeartbeat, EStateThreadQueue::Heartbeat);
     }
 
     TMutationPtr CreateUpdateJobsMutation(
         const TMetaReqUpdateJobs& request)
     {
-        return CreateMutation(MetaStateManager, this, request, &TThis::UpdateJobs);
+        return Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation(this, request, &TThis::UpdateJobs);
     }
 
     TMutationPtr CreateRebalanceChunkTreeMutation(
         const TMetaReqRebalanceChunkTree& request)
     {
-        return CreateMutation(MetaStateManager, this, request, &TThis::RebalanceChunkTree);
+        return Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation(this, request, &TThis::RebalanceChunkTree);
     }
 
 

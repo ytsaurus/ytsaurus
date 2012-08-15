@@ -53,6 +53,14 @@ private:
 
 };
 
+template <class TTarget, class TRequest, class TResponse>
+TMutationPtr CreateMutation(
+    IMetaStateManagerPtr metaStateManager,
+    IInvokerPtr invoker,
+    TTarget* target,
+    const TRequest& request,
+    TResponse (TTarget::* method)(const TRequest& request));
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NMetaState

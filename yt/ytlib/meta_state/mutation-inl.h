@@ -39,12 +39,13 @@ struct TMutationFactory
     template <class TTarget, class TRequest>
     static TMutationPtr Create(
         IMetaStateManagerPtr metaStateManager,
+        IInvokerPtr invoker,
         TTarget* target,
         const TRequest& request,
         TResponse (TTarget::* method)(const TRequest& request))
     {
         return
-            New<TMutation>(MoveRV(metaStateManager))
+            New<TMutation>(MoveRV(metaStateManager), MoveRV(invoker))
             ->SetRequestData(request)
             ->SetAction(BIND([=] () {
                 TResponse response((target->*method)(request));
@@ -66,12 +67,13 @@ struct TMutationFactory<void>
     template <class TTarget, class TRequest>
     static TMutationPtr Create(
         IMetaStateManagerPtr metaStateManager,
+        IInvokerPtr invoker,
         TTarget* target,
         const TRequest& request,
         void (TTarget::* method)(const TRequest& request))
     {
         return
-            New<TMutation>(MoveRV(metaStateManager))
+            New<TMutation>(MoveRV(metaStateManager), MoveRV(invoker))
             ->SetRequestData(request)
             ->SetAction(BIND(method, Unretained(target), request));
     }
@@ -80,12 +82,14 @@ struct TMutationFactory<void>
 template <class TTarget, class TRequest, class TResponse>
 TMutationPtr CreateMutation(
     IMetaStateManagerPtr metaStateManager,
+    IInvokerPtr invoker,
     TTarget* target,
     const TRequest& request,
     TResponse (TTarget::* method)(const TRequest& request))
 {
     return TMutationFactory<TResponse>::Create<TTarget, TRequest>(
-        metaStateManager,
+        MoveRV(metaStateManager),
+        MoveRV(invoker),
         target,
         request,
         method);

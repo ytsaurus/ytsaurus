@@ -59,13 +59,9 @@ public:
      */
     TNodeId GetRootNodeId();
 
-    //! Returns a service producer that is absolutely safe to use from any thread.
-    /*!
-     *  The producer first makes a coarse check to ensure that the peer is leading.
-     *  If it passes, then the request is forwarded to the state thread and
-     *  another (rigorous) check is made.
-     */
-    NYTree::TYPathServiceProducer GetRootServiceProducer();
+    //! Returns a service representing the root.
+    //! This service is fully thread-safe.
+    NYTree::IYPathServicePtr GetRootService();
 
     //! Creates a resolver that provides a view in the context of a given transaction.
     NYTree::IYPathResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = NULL);
@@ -113,6 +109,7 @@ private:
 
     class TNodeTypeHandler;
     class TYPathResolver;
+    class TRootService;
 
     class TNodeMapTraits
     {
@@ -123,6 +120,7 @@ private:
 
     private:
         TCypressManager* CypressManager;
+
     };
     
     NCellMaster::TBootstrap* Bootstrap;
@@ -130,6 +128,8 @@ private:
     NMetaState::TMetaStateMap<TVersionedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
 
     std::vector<INodeTypeHandlerPtr> TypeToHandler;
+
+    NYTree::IYPathServicePtr RootService;
 
     yhash_map<TNodeId, INodeBehaviorPtr> NodeBehaviors;
 

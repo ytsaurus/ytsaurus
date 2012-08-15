@@ -342,7 +342,7 @@ TTransactionManager::TTransactionManager(
 {
     YCHECK(config);
     YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetRawInvoker(), StateThread);
 
     TLoadContext context(Bootstrap);
 
@@ -573,7 +573,7 @@ void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
         .Via(
-            metaStateFacade->GetInvoker(),
+            metaStateFacade->GetWrappedInvoker(),
             metaStateFacade->GetManager()->GetEpochContext()));
     YCHECK(LeaseMap.insert(MakePair(transaction->GetId(), lease)).second);
 }
@@ -598,7 +598,15 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     LOG_INFO("Transaction has expired (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::Abort();
-    ExecuteVerb(proxy, req);
+    ExecuteVerb(proxy, req).Subscribe(BIND([=] (TTransactionYPathProxy::TRspAbortPtr rsp) {
+        if (rsp->IsOK()) {
+            LOG_INFO("Transaction expiration commit success (TransactionId: %d)", ~id.ToString());
+        } else {
+            LOG_ERROR("Transaction expiration commit failed (TransactionId: %d)\n%s",
+                ~id.ToString(),
+                ~rsp->GetError().ToString());
+        }
+    }));
 }
 
 IObjectProxyPtr TTransactionManager::GetRootTransactionProxy()

@@ -421,7 +421,7 @@ private:
             }
         })
         .Via(
-            metaStateFacade->GetInvoker(),
+            metaStateFacade->GetWrappedInvoker(),
             metaStateFacade->GetManager()->GetEpochContext())
         .Run();
     }

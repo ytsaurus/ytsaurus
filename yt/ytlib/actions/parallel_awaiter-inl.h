@@ -21,7 +21,7 @@ inline TParallelAwaiter::TParallelAwaiter(
     NProfiling::TProfiler* profiler,
     const NYTree::TYPath& timerPath)
 {
-    Init(TSyncInvoker::Get(), profiler, timerPath);
+    Init(GetSyncInvoker(), profiler, timerPath);
 }
 
 inline void TParallelAwaiter::Init(

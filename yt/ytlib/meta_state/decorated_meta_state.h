@@ -28,6 +28,16 @@ public:
     //! Initializes the instance.
     void Start();
 
+    void OnStartLeading();
+    void OnLeaderRecoveryComplete();
+    void OnStopLeading();
+    void OnStartFollowing();
+    void OnFollowerRecoveryComplete();
+    void OnStopFollowing();
+
+
+    DEFINE_BYVAL_RO_PROPERTY(EPeerStatus, Status);
+
     //! Returns current epoch id.
     /*!
      * \note Thread affinity: any
@@ -42,16 +52,15 @@ public:
 
     //! Returns the wrapper invoker used for updating the state.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: any
      */
-    IInvokerPtr CreateUserStateInvoker(IInvokerPtr underlyingInvoker);
+    IInvokerPtr CreateUserStateInvokerWrapper(IInvokerPtr underlyingInvoker);
 
     //! Returns the invoker used for performing recovery actions.
     /*!
-     *  This invoker is bound to the same thread as returned by #GetRegularStateInvoker.
+     *  This invoker is bound to the same thread as returned by #GetStateInvoker.
      *
      *  \note Thread affinity: any
-     *  
      */
     IInvokerPtr GetSystemStateInvoker();
 

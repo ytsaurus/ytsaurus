@@ -156,6 +156,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCypressManager::TRootService
+    : public TYPathServiceBase
+{
+public:
+    explicit TRootService(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
+    { }
+
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
+    {
+        UNUSED(verb);
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto service = cypressManager->GetVersionedNodeProxy(
+            cypressManager->GetRootNodeId());
+        return TResolveResult::There(service, path);
+    }
+
+private:
+    TBootstrap* Bootstrap;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
     : CypressManager(cypressManager)
 { }
@@ -177,7 +202,11 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     , TypeToHandler(MaxObjectType)
 {
     YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetRawInvoker(), StateThread);
+
+    RootService =
+        New<TRootService>(Bootstrap)
+        ->Via(Bootstrap->GetMetaStateFacade()->GetWrappedInvoker());
 
     auto transactionManager = bootstrap->GetTransactionManager();
     transactionManager->SubscribeTransactionCommitted(BIND(
@@ -314,69 +343,17 @@ TNodeId TCypressManager::GetRootNodeId()
         0xffffffffffffffff);
 }
 
-namespace {
-
-class TNotALeaderRootService
-    : public TYPathServiceBase
+IYPathServicePtr TCypressManager::GetRootService()
 {
-public:
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
-    {
-        UNUSED(path);
-        UNUSED(verb);
-        ythrow NRpc::TServiceException(TError(NRpc::EErrorCode::Unavailable, "Not an active leader"));
-    }
-};
+    VERIFY_THREAD_AFFINITY_ANY();
 
-class TLeaderRootService
-    : public TYPathServiceBase
-{
-public:
-    TLeaderRootService(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
-    { }
-
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
-    {
-        UNUSED(verb);
-
-        // Make a rigorous check at the right thread.
-        if (Bootstrap->GetMetaStateFacade()->GetManager()->GetStateStatus() != EPeerStatus::Leading) {
-            ythrow yexception() << "Not a leader";
-        }
-
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto service = cypressManager->GetVersionedNodeProxy(
-            cypressManager->GetRootNodeId());
-        return TResolveResult::There(service, path);
-    }
-
-private:
-    TBootstrap* Bootstrap;
-
-};
-
-} // namespace
-
-TYPathServiceProducer TCypressManager::GetRootServiceProducer()
-{
-    auto stateInvoker = Bootstrap->GetMetaStateFacade()->GetInvoker();
-    auto this_ = MakeStrong(this);
-    return BIND([=] () -> IYPathServicePtr
-        {
-            // Make a coarse check at this (wrong) thread first.
-            auto status = this_->MetaStateManager->GetStateStatusAsync();
-            if (status == EPeerStatus::Leading) {
-                return New<TLeaderRootService>(Bootstrap)->Via(stateInvoker);
-            } else {
-                return RefCountedSingleton<TNotALeaderRootService>();
-            }
-        });
-
+    return RootService;
 }
 
 IYPathResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     return New<TYPathResolver>(Bootstrap, transaction);
 }
 

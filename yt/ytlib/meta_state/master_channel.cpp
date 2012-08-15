@@ -32,11 +32,11 @@ TValueOrError<IChannelPtr> OnPeerFound(
     if (!result.Address) {
         return TError(
             EErrorCode::Unavailable,
-            "%s cannot be located",
+            "No %s found",
             ~role);
     }
 
-    LOG_INFO("%s located at %s", ~role, ~result.Address.Get());
+    LOG_INFO("Found %s at %s", ~role, ~result.Address.Get());
 
     auto clientConfig = New<TTcpBusClientConfig>();
     clientConfig->Address = result.Address.Get();
@@ -55,7 +55,7 @@ IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
         BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
             return masterDiscovery->GetLeader().Apply(BIND(
                 &OnPeerFound,
-                "Leader",
+                "leader",
                 config));
         }));
 }
@@ -68,7 +68,7 @@ IChannelPtr CreateMasterChannel(TMasterDiscoveryConfigPtr config)
         BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
             return masterDiscovery->GetMaster().Apply(BIND(
                 &OnPeerFound,
-                "Master",
+                "master",
                 config));
     }));
 }

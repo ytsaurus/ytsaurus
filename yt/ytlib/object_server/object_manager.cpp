@@ -675,7 +675,7 @@ void TObjectManager::ExecuteVerb(
             action.Run(context);
         }
     } else {
-        if (!Bootstrap->GetMetaStateFacade()->ValidateActiveLeaderStatus(context))
+        if (!Bootstrap->GetMetaStateFacade()->ValidateActiveLeader(context))
             return;
 
         TMetaReqExecute executeReq;
@@ -692,7 +692,9 @@ void TObjectManager::ExecuteVerb(
         auto mutationId = GetRpcMutationId(context);
         auto metaStateManager = MetaStateManager;
 
-        New<TMutation>(metaStateManager)
+        Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation()
             ->SetRequestData(executeReq)
             ->SetId(mutationId)
             ->SetAction(BIND([=] () {

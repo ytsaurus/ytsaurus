@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/bus_channel.cpp
   ${BASE}/channel_cache.cpp
   ${BASE}/client.cpp
+  ${BASE}/error.cpp
   ${BASE}/message.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp

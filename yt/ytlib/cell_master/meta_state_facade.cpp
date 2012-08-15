@@ -52,18 +52,18 @@ public:
         MetaStateManager = CreatePersistentStateManager(
             Config->MetaState,
             Bootstrap->GetControlInvoker(),
-            GetInvoker(EStateThreadQueue::Default),
+            StateQueue->GetInvoker(EStateThreadQueue::Default),
             MetaState,
             Bootstrap->GetRpcServer());
 
+        for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
+            WrappedInvokers.push_back(MetaStateManager->CreateStateInvokerWrapper(StateQueue->GetInvoker(queueIndex)));
+        }
+
         InitInvoker = New<TPeriodicInvoker>(
-            GetInvoker(EStateThreadQueue::Default),
+            GetWrappedInvoker(EStateThreadQueue::Default),
             BIND(&TImpl::OnTryInitialize, MakeWeak(this)),
             InitCheckPeriod);
-
-        for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
-            StateInvokers.push_back(MetaStateManager->CreateStateInvoker(StateQueue->GetInvoker(queueIndex)));
-        }
     }
 
     TCompositeMetaStatePtr GetState() const
@@ -76,9 +76,14 @@ public:
         return MetaStateManager;
     }
 
-    IInvokerPtr GetInvoker(EStateThreadQueue queueIndex) const
+    IInvokerPtr GetRawInvoker() const
     {
-        return StateInvokers[queueIndex];
+        return StateQueue->GetInvoker(EStateThreadQueue::Default);
+    }
+
+    IInvokerPtr GetWrappedInvoker(EStateThreadQueue queueIndex) const
+    {
+        return WrappedInvokers[queueIndex];
     }
 
     void Start()
@@ -87,39 +92,25 @@ public:
         InitInvoker->Start();
     }
 
-    bool ValidateActiveLeaderStatus(NRpc::IServiceContextPtr context)
+    bool ValidateActiveLeader(NRpc::IServiceContextPtr context)
     {
         if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
-                "The server is not an active leader"));
+                "Not a leader"));
             return false;
         }
 
         if (!MetaStateManager->HasActiveQuorum()) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
-                "The server has no active quorum"));
+                "No active quorum"));
             return false;
         }
 
         return true;
     }
 
-    bool ValidateActiveStatus(NRpc::IServiceContextPtr context)
-    {
-        if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading &&
-            MetaStateManager->GetStateStatus() != EPeerStatus::Following)
-        {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "The server is not active"));
-            return false;
-        }
-
-        return true;
-    }
-    
 private:
     TCellMasterConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -128,7 +119,7 @@ private:
     TCompositeMetaStatePtr MetaState;
     IMetaStateManagerPtr MetaStateManager;
     TPeriodicInvokerPtr InitInvoker;
-    std::vector<IInvokerPtr> StateInvokers;
+    std::vector<IInvokerPtr> WrappedInvokers;
 
     void OnTryInitialize()
     {
@@ -345,9 +336,14 @@ IMetaStateManagerPtr TMetaStateFacade::GetManager() const
     return Impl->GetManager();
 }
 
-IInvokerPtr TMetaStateFacade::GetInvoker(EStateThreadQueue queueIndex) const
+IInvokerPtr TMetaStateFacade::GetRawInvoker() const
 {
-    return Impl->GetInvoker(queueIndex);
+    return Impl->GetRawInvoker();
+}
+
+IInvokerPtr TMetaStateFacade::GetWrappedInvoker(EStateThreadQueue queueIndex) const
+{
+    return Impl->GetWrappedInvoker(queueIndex);
 }
 
 void TMetaStateFacade::Start()
@@ -355,14 +351,9 @@ void TMetaStateFacade::Start()
     Impl->Start();
 }
 
-bool TMetaStateFacade::ValidateActiveLeaderStatus(NRpc::IServiceContextPtr context)
+bool TMetaStateFacade::ValidateActiveLeader(NRpc::IServiceContextPtr context)
 {
-    return Impl->ValidateActiveLeaderStatus(context);
-}
-
-bool TMetaStateFacade::ValidateActiveStatus(NRpc::IServiceContextPtr context)
-{
-    return Impl->ValidateActiveStatus(context);
+    return Impl->ValidateActiveLeader(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,6 +33,12 @@ public:
         if (!MetaState->AcquireUserEnqueueLock()) {
             return false;
         }
+        if (MetaState->GetStatus() != EPeerStatus::Leading &&
+            MetaState->GetStatus() != EPeerStatus::Following)
+        {
+            MetaState->ReleaseUserEnqueueLock();
+            return false;
+        }
         bool result = UnderlyingInvoker->Invoke(action);
         MetaState->ReleaseUserEnqueueLock();
         return result;
@@ -85,7 +91,8 @@ TDecoratedMetaState::TDecoratedMetaState(
     IInvokerPtr controlInvoker,
     TSnapshotStorePtr snapshotStore,
     TChangeLogCachePtr changeLogCache)
-    : State(state)
+    : Status_(EPeerStatus::Stopped)
+    , State(state)
     , StateInvoker(stateInvoker)
     , UserEnqueueLock(0)
     , SystemLock(0)
@@ -112,6 +119,42 @@ void TDecoratedMetaState::Start()
     YCHECK(!Started);
     ComputeReachableVersion();
     Started = true;
+}
+
+void TDecoratedMetaState::OnStartLeading()
+{
+    YCHECK(Status_ == EPeerStatus::Stopped);
+    Status_ = EPeerStatus::LeaderRecovery;
+}
+
+void TDecoratedMetaState::OnLeaderRecoveryComplete()
+{
+    YCHECK(Status_ == EPeerStatus::LeaderRecovery);
+    Status_ = EPeerStatus::Leading;
+}
+
+void TDecoratedMetaState::OnStopLeading()
+{
+    YCHECK(Status_ == EPeerStatus::Leading || Status_ == EPeerStatus::LeaderRecovery);
+    Status_ = EPeerStatus::Stopped;
+}
+
+void TDecoratedMetaState::OnStartFollowing()
+{
+    YCHECK(Status_ == EPeerStatus::Stopped);
+    Status_ = EPeerStatus::FollowerRecovery;
+}
+
+void TDecoratedMetaState::OnFollowerRecoveryComplete()
+{
+    YCHECK(Status_ == EPeerStatus::FollowerRecovery);
+    Status_ = EPeerStatus::Following;
+}
+
+void TDecoratedMetaState::OnStopFollowing()
+{
+    YCHECK(Status_ == EPeerStatus::Following || Status_ == EPeerStatus::FollowerRecovery);
+    Status_ = EPeerStatus::Stopped;
 }
 
 void TDecoratedMetaState::SetEpoch(const TEpoch& epoch)
@@ -162,10 +205,9 @@ void TDecoratedMetaState::ComputeReachableVersion()
     LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
 }
 
-IInvokerPtr TDecoratedMetaState::CreateUserStateInvoker(IInvokerPtr underlyingInvoker)
+IInvokerPtr TDecoratedMetaState::CreateUserStateInvokerWrapper(IInvokerPtr underlyingInvoker)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
 
     return New<TUserStateInvoker>(this, underlyingInvoker);
 }
@@ -173,7 +215,6 @@ IInvokerPtr TDecoratedMetaState::CreateUserStateInvoker(IInvokerPtr underlyingIn
 IInvokerPtr TDecoratedMetaState::GetSystemStateInvoker()
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
 
     return SystemStateInvoker;
 }
@@ -181,7 +222,6 @@ IInvokerPtr TDecoratedMetaState::GetSystemStateInvoker()
 IMetaStatePtr TDecoratedMetaState::GetState()
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
 
     return State;
 }
@@ -228,6 +268,9 @@ void TDecoratedMetaState::Load(
 
 bool TDecoratedMetaState::FindKeptResponse(const TMutationId& id, TSharedRef* data)
 {
+    YASSERT(Started);
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     return ResponseKeeper->FindResponse(id, data);
 }
 

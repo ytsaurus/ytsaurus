@@ -114,12 +114,7 @@ private:
         virtual void OnError(const TError& error)
         {
             UnderlyingHandler->OnError(error);
-
-            auto code = error.GetCode();
-            if (code == EErrorCode::Timeout ||
-                code == EErrorCode::TransportError ||
-                code == EErrorCode::Unavailable)
-            {
+            if (IsRetriableError(error)) {
                 OnFailed.Run();
             }
         }

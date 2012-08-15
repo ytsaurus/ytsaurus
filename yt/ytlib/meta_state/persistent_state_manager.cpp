@@ -99,12 +99,11 @@ public:
         IMetaStatePtr metaState,
         NRpc::IServerPtr server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
-        , ControlStatus(EPeerStatus::Stopped)
-        , StateStatus(EPeerStatus::Stopped)
         , Config(config)
         , LeaderId(NElection::InvalidPeerId)
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
+        , ControlStatus(EPeerStatus::Stopped)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
@@ -178,21 +177,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        return StateStatus;
+        return DecoratedState->GetStatus();
     }
 
-    virtual EPeerStatus GetStateStatusAsync() const override
+    virtual IInvokerPtr CreateStateInvokerWrapper(IInvokerPtr underlyingInvoker) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return StateStatus;
-    }
-
-    virtual IInvokerPtr CreateStateInvoker(IInvokerPtr underlyingInvoker) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return DecoratedState->CreateUserStateInvoker(underlyingInvoker);
+        return DecoratedState->CreateUserStateInvokerWrapper(underlyingInvoker);
     }
 
     virtual bool HasActiveQuorum() const override
@@ -291,19 +283,17 @@ public:
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    EPeerStatus ControlStatus;
-    EPeerStatus StateStatus;
     TPersistentStateManagerConfigPtr Config;
     TPeerId LeaderId;
     TCellManagerPtr CellManager;
     IInvokerPtr ControlInvoker;
     bool ReadOnly;
+    EPeerStatus ControlStatus;
 
     NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCachePtr ChangeLogCache;
     TSnapshotStorePtr SnapshotStore;
     TDecoratedMetaStatePtr DecoratedState;
-
     TActionQueuePtr IOQueue;
 
     TCancelableContextPtr EpochContext;
@@ -618,7 +608,7 @@ public:
                         version);
 
                     FollowerRecovery->Run().Subscribe(
-                        BIND(&TThis::OnControlFollowerRecoveryFinished, MakeStrong(this))
+                        BIND(&TThis::OnControlFollowerRecoveryComplete, MakeStrong(this))
                         .Via(EpochControlInvoker));
                 }
                 break;
@@ -878,8 +868,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YCHECK(StateStatus == EPeerStatus::Stopped);
-        StateStatus = EPeerStatus::LeaderRecovery;
+        DecoratedState->OnStartLeading();
 
         StartLeading_.Fire();
 
@@ -898,11 +887,11 @@ public:
             .AsyncVia(EpochControlInvoker)
             .Run()
             .Subscribe(
-                BIND(&TThis::OnStateLeaderRecoveryFinished, MakeStrong(this))
+                BIND(&TThis::OnStateLeaderRecoveryComplete, MakeStrong(this))
                 .Via(EpochStateInvoker));
     }
 
-    void OnStateLeaderRecoveryFinished(TError error)
+    void OnStateLeaderRecoveryComplete(TError error)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -935,16 +924,15 @@ public:
 
         LeaderRecoveryComplete_.Fire();
 
-        YCHECK(StateStatus == EPeerStatus::LeaderRecovery);
-        StateStatus = EPeerStatus::Leading;
+        DecoratedState->OnLeaderRecoveryComplete();
 
         EpochControlInvoker->Invoke(BIND(
-            &TThis::DoControlLeaderRecoveryFinished,
+            &TThis::DoControlLeaderRecoveryComplete,
             MakeStrong(this)));
 
     }
 
-    void DoControlLeaderRecoveryFinished()
+    void DoControlLeaderRecoveryComplete()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1002,8 +990,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YCHECK(StateStatus == EPeerStatus::Leading || StateStatus == EPeerStatus::LeaderRecovery);
-        StateStatus = EPeerStatus::Stopped;
+        DecoratedState->OnStopLeading();
 
         StopLeading_.Fire();
     }
@@ -1029,13 +1016,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YCHECK(StateStatus == EPeerStatus::Stopped);
-        StateStatus = EPeerStatus::FollowerRecovery;
+        DecoratedState->OnStartFollowing();
 
         StartFollowing_.Fire();
     }
 
-    void OnControlFollowerRecoveryFinished(TError error)
+    void OnControlFollowerRecoveryComplete(TError error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1078,12 +1064,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YCHECK(StateStatus == EPeerStatus::FollowerRecovery);
-        StateStatus = EPeerStatus::Following;
+        DecoratedState->OnFollowerRecoveryComplete();
 
         FollowerRecoveryComplete_.Fire();
     }
-
 
 
     void OnElectionStopFollowing()
@@ -1120,8 +1104,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YCHECK(StateStatus == EPeerStatus::Following || StateStatus == EPeerStatus::FollowerRecovery);
-        StateStatus = EPeerStatus::Stopped;
+        DecoratedState->OnStopFollowing();
 
         StopFollowing_.Fire();
     }
@@ -1168,7 +1151,7 @@ public:
     void OnMutationApplied()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        YVERIFY(StateStatus == EPeerStatus::Leading);
+        YVERIFY(DecoratedState->GetStatus() == EPeerStatus::Leading);
 
         auto version = DecoratedState->GetVersion();
         auto period = Config->MaxChangesBetweenSnapshots;

@@ -558,7 +558,7 @@ TEST(TFutureTest, Regression_de94ea0)
 {
     int counter = 0;
 
-    auto awaiter = New<TParallelAwaiter>(TSyncInvoker::Get());
+    auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
     auto trigger = NewPromise<void>();
 
     awaiter->Await(trigger.ToFuture(), BIND([&counter] () { ++counter; }));

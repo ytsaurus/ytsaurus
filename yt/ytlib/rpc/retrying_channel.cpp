@@ -141,11 +141,7 @@ private:
         if (State == EState::Done)
             return;
 
-        auto errorCode = error.GetCode();
-        if (errorCode == EErrorCode::Timeout || 
-            errorCode == EErrorCode::TransportError || 
-            errorCode == EErrorCode::Unavailable)
-        {
+        if (IsRetriableError(error)) {
             int count = AtomicIncrement(CurrentAttempt);
 
             CumulativeErrorMessage.append(Sprintf("\n[#%d] %s",
