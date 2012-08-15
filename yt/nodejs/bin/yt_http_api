@@ -201,7 +201,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
                         rsp.writeHead(200, { "Content-Length" : data.length, "Content-Type" : "text/plain" });
                         rsp.end(data);
                     }
-                }
+                });
             })
             .use("/", function(req, rsp, next) {
                 if (req.url === "/") {
