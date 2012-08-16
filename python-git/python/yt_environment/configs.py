@@ -254,12 +254,12 @@ def get_node_config():
             };
             file = {
                 type = File;
-                file_name = "holder-0.log";
+                file_name = "node-0.log";
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             raw = {
                 type = Raw;
-                file_name = "holder-0.debug.log";
+                file_name = "node-0.debug.log";
             };
         }
     };
