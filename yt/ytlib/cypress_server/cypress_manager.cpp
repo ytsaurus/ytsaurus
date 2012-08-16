@@ -490,7 +490,7 @@ void TCypressManager::ValidateLock(
         }
 
         // For Exclusive and Shared locks we check the locks held by concurrent transactions.
-        if (IsConcurrentTransaction(transaction, existingTransaction) &&
+        if ((!transaction || IsConcurrentTransaction(transaction, existingTransaction)) &&
             (requestedMode == ELockMode::Exclusive || existingLock.Mode == ELockMode::Exclusive))
         {
             ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
