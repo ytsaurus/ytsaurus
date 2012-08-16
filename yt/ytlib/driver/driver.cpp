@@ -119,6 +119,7 @@ public:
             this,
             entry.Descriptor,
             &request,
+            LeaderChannel,
             entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
             SchedulerChannel);
         auto command = entry.Factory.Run(&context);
@@ -182,6 +183,7 @@ private:
             TDriver* driver,
             const TCommandDescriptor& descriptor,
             const TDriverRequest* request,
+            IChannelPtr leaderChannel,
             IChannelPtr masterChannel,
             IChannelPtr schedulerChannel)
             : Driver(driver)
@@ -191,7 +193,7 @@ private:
             , SchedulerChannel(schedulerChannel)
             , TransactionManager(New<TTransactionManager>(
                 Driver->Config->TransactionManager,
-                MasterChannel))
+                leaderChannel))
         { }
 
         ~TCommandContext()
