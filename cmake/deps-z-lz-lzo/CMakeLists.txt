@@ -56,8 +56,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}
 )
 
-target_link_libraries( ytext-snappy ytext-arcadia-util )
-
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( ytext-snappy stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)

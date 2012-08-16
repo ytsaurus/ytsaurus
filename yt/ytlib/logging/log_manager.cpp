@@ -374,7 +374,7 @@ public:
             formatter.AppendString(event.Message.c_str());
             formatter.AppendString("\n*** Aborting ***\n");
 
-            (void) write(2, formatter.GetData(), formatter.GetBytesWritten());
+            auto unused = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
 #endif
             std::terminate();
         }

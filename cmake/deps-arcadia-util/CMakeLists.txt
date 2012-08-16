@@ -358,10 +358,18 @@ add_library( ytext-arcadia-util STATIC
   ${LFA_SRC}
 )
 
+target_link_libraries ( ytext-arcadia-util
+  ytext-snappy
+  ytext-lz4
+  ytext-fastlz
+  ytext-minilzo
+  ytext-zlib
+)
+
 if (CMAKE_COMPILER_IS_GNUCXX)
   target_link_libraries ( ytext-arcadia-util -ldl )
   if (NOT APPLE)
-    target_link_libraries ( ytext-arcadia-util -lrt)
+    target_link_libraries ( ytext-arcadia-util -lrt )
   endif()
 endif()
 
