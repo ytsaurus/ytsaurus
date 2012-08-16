@@ -24,7 +24,8 @@ public:
 
     TChangeLogDownloader(
         TChangeLogDownloaderConfigPtr config,
-        NElection::TCellManagerPtr cellManager);
+        NElection::TCellManagerPtr cellManager,
+        IInvokerPtr controlInvoker);
 
     EResult Download(TMetaVersion version, TAsyncChangeLog& changeLog);
 
@@ -34,6 +35,7 @@ private:
 
     TChangeLogDownloaderConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
+    IInvokerPtr ControlInvoker;
 
     TPeerId GetChangeLogSource(TMetaVersion version);
 

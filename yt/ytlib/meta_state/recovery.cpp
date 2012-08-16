@@ -252,7 +252,8 @@ TAsyncError TRecovery::ReplayChangeLogs(
             if (localRecordCount < desiredRecordCount) {
                 TChangeLogDownloader changeLogDownloader(
                     Config->ChangeLogDownloader,
-                    CellManager);
+                    CellManager,
+                    EpochControlInvoker);
                 auto changeLogResult = changeLogDownloader.Download(
                     TMetaVersion(segmentId, desiredRecordCount),
                     *changeLog);
