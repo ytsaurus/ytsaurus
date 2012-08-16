@@ -101,7 +101,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
     UpdateProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
     
     TSharedRef metaData;
-    YCHECK(SerializeToProto(&ChunkMeta, &metaData));
+    YCHECK(SerializeToProtoWithEnvelope(ChunkMeta, &metaData));
 
     TChunkMetaHeader header;
     header.Signature = header.ExpectedSignature;

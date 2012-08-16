@@ -15,7 +15,7 @@ TCallback<void (const TError& error)> CreateRpcErrorHandler(IServiceContextPtr c
     return BIND([=] (const TError& error) {
         context->Reply(TError(
             EErrorCode::Unavailable,
-            Sprintf("Error committing mutations\n%s", error.ToString())));
+            Sprintf("Error committing mutations\n%s", ~error.ToString())));
     });
 }
 

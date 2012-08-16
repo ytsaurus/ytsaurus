@@ -100,6 +100,7 @@ TDecoratedMetaState::TDecoratedMetaState(
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
     , Started(false)
+    , MutationContext(NULL)
 {
     YCHECK(config);
     YCHECK(state);

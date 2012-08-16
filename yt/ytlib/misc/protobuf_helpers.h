@@ -1,12 +1,14 @@
-#pragma once
+ #pragma once
 
 #include "guid.h"
 #include "ref.h"
 #include "object_pool.h"
 
 #include <ytlib/misc/nullable.h>
-#include <ytlib/misc/extensions.pb.h>
+#include <ytlib/misc/protobuf_helpers.pb.h>
 #include <ytlib/misc/guid.pb.h>
+
+#include <ytlib/codecs/codec.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>
@@ -98,13 +100,32 @@ inline std::vector<TArrayItem> FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Serializes a given protobuf message into a given blob.
-//! Return true iff everything was OK.
-bool SerializeToProto(const google::protobuf::Message* message, TSharedRef* data);
+//! Serializes a protobuf message.
+//! Returns True iff everything went well.
+bool SerializeToProto(
+    const google::protobuf::Message& message,
+    TSharedRef* data);
 
-//! Deserializes a given chunk of memory into a given protobuf message.
-//! Return true iff everything was OK.
-bool DeserializeFromProto(google::protobuf::Message* message, TRef data);
+//! Deserializes a chunk of memory into a protobuf message.
+//! Returns True iff everything went well.
+bool DeserializeFromProto(
+    google::protobuf::Message* message,
+    const TRef& data);
+
+//! Serializes a given protobuf message and wraps it with envelope.
+//! Optionally compresses the serialized message.
+//! Returns True iff everything went well.
+bool SerializeToProtoWithEnvelope(
+    const google::protobuf::Message& message,
+    TSharedRef* data,
+    ECodecId codecId = ECodecId::None);
+
+//! Unwraps a chunk of memory obtained from #SerializeToProtoWithEnvelope
+//! and deserializes it into a protobuf message.
+//! Returns True iff everything went well.
+bool DeserializeFromProtoWithEnvelope(
+    google::protobuf::Message* message,
+    const TRef& data);
 
 ////////////////////////////////////////////////////////////////////////////////
 

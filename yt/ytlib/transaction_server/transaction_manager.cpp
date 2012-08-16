@@ -600,9 +600,10 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     auto req = TTransactionYPathProxy::Abort();
     ExecuteVerb(proxy, req).Subscribe(BIND([=] (TTransactionYPathProxy::TRspAbortPtr rsp) {
         if (rsp->IsOK()) {
-            LOG_INFO("Transaction expiration commit success (TransactionId: %d)", ~id.ToString());
+            LOG_INFO("Transaction expiration commit success (TransactionId: %s)",
+                ~id.ToString());
         } else {
-            LOG_ERROR("Transaction expiration commit failed (TransactionId: %d)\n%s",
+            LOG_ERROR("Transaction expiration commit failed (TransactionId: %s)\n%s",
                 ~id.ToString(),
                 ~rsp->GetError().ToString());
         }

@@ -17,7 +17,7 @@ TMutationPtr TMutation::OnSuccess(TCallback<void(const TResponse&)> onSuccess)
     YASSERT(OnSuccess_.IsNull());
     OnSuccess_ = BIND([=] (const TMutationResponse& mutationResponse) {
         TResponse response;
-        YCHECK(DeserializeFromProto(&response, mutationResponse.Data));
+        YCHECK(DeserializeFromProtoWithEnvelope(&response, mutationResponse.Data));
         onSuccess.Run(response);
     });
     return this;
@@ -27,7 +27,7 @@ template <class TRequest>
 TMutationPtr TMutation::SetRequestData(const TRequest& request)
 {
     TSharedRef requestData;
-    YCHECK(SerializeToProto(&request, &requestData));
+    YCHECK(SerializeToProtoWithEnvelope(request, &requestData));
     SetRequestData(requestData);
     Request.Type = request.GetTypeName();
     return this;
@@ -51,7 +51,7 @@ struct TMutationFactory
                 TResponse response((target->*method)(request));
 
                 TSharedRef responseData;
-                YCHECK(SerializeToProto(&response, &responseData));
+                YCHECK(SerializeToProtoWithEnvelope(response, &responseData));
 
                 auto* context = metaStateManager->GetMutationContext();
                 YASSERT(context);
@@ -87,7 +87,7 @@ TMutationPtr CreateMutation(
     const TRequest& request,
     TResponse (TTarget::* method)(const TRequest& request))
 {
-    return TMutationFactory<TResponse>::Create<TTarget, TRequest>(
+    return TMutationFactory<TResponse>::Create(
         MoveRV(metaStateManager),
         MoveRV(invoker),
         target,

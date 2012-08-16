@@ -13,7 +13,7 @@ TChunkMeta FilterChunkMetaExtensions(const TChunkMeta& chunkMeta, const std::vec
     TChunkMeta result;
     result.set_type(chunkMeta.type());
 
-    std::set<int> tagsSet(tags.begin(), tags.end());
+    yhash_set<int> tagsSet(tags.begin(), tags.end());
 
     FOREACH (const auto& extension, chunkMeta.extensions().extensions()) {
         if (tagsSet.find(extension.tag()) != tagsSet.end()) {

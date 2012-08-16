@@ -2,7 +2,7 @@ package NYT.NTableClient.NProto;
 
 import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/misc/guid.proto";
-import "yt/ytlib/misc/extensions.proto";
+import "yt/ytlib/misc/protobuf_helpers.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

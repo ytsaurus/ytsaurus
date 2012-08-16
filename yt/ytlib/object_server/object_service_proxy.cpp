@@ -59,9 +59,9 @@ int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 
 TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
-    TSharedRef ref;
-    YCHECK(SerializeToProto(&Body, &ref));
-    return ref;
+    TSharedRef data;
+    YCHECK(SerializeToProtoWithEnvelope(Body, &data));
+    return data;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +88,7 @@ void TObjectServiceProxy::TRspExecuteBatch::FireCompleted()
 
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
-    YCHECK(DeserializeFromProto(&Body, data));
+    YCHECK(DeserializeFromProtoWithEnvelope(&Body, data));
 
     int currentIndex = 0;
     BeginPartIndexes.reserve(Body.part_counts_size());
@@ -124,7 +124,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {
     // Keep this in sync with DEFINE_RPC_PROXY_METHOD.
     return
-        New<TReqExecuteBatch>(~Channel, ServiceName, "Execute")
+        New<TReqExecuteBatch>(Channel, ServiceName, "Execute")
         ->SetTimeout(DefaultTimeout_);
 }
 

@@ -104,7 +104,7 @@ void TFileWriter::Close()
                 ~rsp->GetError().ToString());
         }
 
-        NodeId = TNodeId::FromProto(rsp->object_id());
+        NodeId = NCypressClient::TNodeId::FromProto(rsp->object_id());
     }
     LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
 

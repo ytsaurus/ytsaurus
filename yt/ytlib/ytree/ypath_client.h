@@ -62,9 +62,9 @@ public:
 protected:
     virtual TSharedRef SerializeBody() const override
     {
-        TSharedRef ref;
-        YCHECK(SerializeToProto(this, &ref));
-        return ref;
+        TSharedRef data;
+        YCHECK(SerializeToProtoWithEnvelope(*this, &data));
+        return data;
     }
 };
 
@@ -100,7 +100,7 @@ class TTypedYPathResponse
 protected:
     virtual void DeserializeBody(const TRef& data) override
     {
-        YCHECK(DeserializeFromProto(this, data));
+        YCHECK(DeserializeFromProtoWithEnvelope(this, data));
     }
 
 };

@@ -17,12 +17,12 @@ struct TMetaStatePart::TThunkTraits
         TMutationContext* context)
     {
         TRequest request;
-        YCHECK(DeserializeFromProto(&request, context->GetRequestData()));
+        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->GetRequestData()));
 
         auto response = handler.Run(request);
 
         TSharedRef responseData;
-        YCHECK(SerializeToProto(&response, &responseData));
+        YCHECK(SerializeToProtoWithEnvelope(response, &responseData));
 
         context->SetResponseData(responseData);
     }
@@ -36,7 +36,7 @@ struct TMetaStatePart::TThunkTraits<TRequest, void>
         TMutationContext* context)
     {
         TRequest request;
-        YCHECK(DeserializeFromProto(&request, context->GetRequestData()));
+        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->GetRequestData()));
 
         handler.Run(request);
     }

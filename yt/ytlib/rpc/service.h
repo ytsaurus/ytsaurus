@@ -246,7 +246,7 @@ public:
         Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context = Context.Get();
 
-        if (!DeserializeFromProto(Request_.Get(), Context->GetRequestBody())) {
+        if (!DeserializeFromProtoWithEnvelope(Request_.Get(), Context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
@@ -327,7 +327,6 @@ public:
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
     typedef TTypedServiceResponse<TResponseMessage> TTypedResponse;
 
-public:
     explicit TTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
@@ -415,9 +414,9 @@ public:
 private:
     void SerializeResponseAndReply()
     {
-        TSharedRef responseBlob;
-        YCHECK(SerializeToProto(Response_.Get(), &responseBlob));
-        this->Context->SetResponseBody(MoveRV(responseBlob));
+        TSharedRef data;
+        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data));
+        this->Context->SetResponseBody(MoveRV(data));
         this->Context->Reply(TError());
     }
 
@@ -436,7 +435,6 @@ public:
     typedef TOneWayTypedServiceContext<TRequestMessage> TThis;
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
 
-public:
     explicit TOneWayTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
