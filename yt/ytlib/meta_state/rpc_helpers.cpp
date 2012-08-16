@@ -10,22 +10,6 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCallback<void (const TError& error)> CreateRpcErrorHandler(IServiceContextPtr context)
-{
-    return BIND([=] (const TError& error) {
-        context->Reply(TError(
-            EErrorCode::Unavailable,
-            Sprintf("Error committing mutations\n%s", ~error.ToString())));
-    });
-}
-
-TClosure CreateRpcSuccessHandler(IServiceContextPtr context)
-{
-    return BIND([=] () {
-        context->Reply(TError());
-    });
-}
-
 TMutationId GetRpcMutationId(IServiceContextPtr context)
 {
     return context->RequestAttributes().Get<TMutationId>("mutation_id", NullMutationId);

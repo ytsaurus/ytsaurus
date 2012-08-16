@@ -66,6 +66,7 @@ set( HDRS
   ${BASE}/snapshot_lookup.h
   ${BASE}/snapshot_store.h
   ${BASE}/rpc_helpers.h
+  ${BASE}/rpc_helpers-inl.h
   ${BASE}/response_keeper.h
 )
 

@@ -18,6 +18,8 @@ IMessagePtr CreateRequestMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
+    YCHECK(body);
+
     std::vector<TSharedRef> parts;
 
     TSharedRef headerData;
@@ -38,6 +40,8 @@ IMessagePtr CreateResponseMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
+    YCHECK(body);
+
     std::vector<TSharedRef> parts;
 
     TSharedRef headerData;

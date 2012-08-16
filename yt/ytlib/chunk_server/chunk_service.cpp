@@ -133,7 +133,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
             context->SetResponseInfo("NodeId: %d", nodeId);
             context->Reply();
         }))
-        ->OnError(CreateRpcErrorHandler(context->GetUntypedContext()))
+        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 
@@ -162,8 +162,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 
     chunkManager
         ->CreateFullHeartbeatMutation(context)
-        ->OnSuccess(CreateRpcSuccessHandler(context->GetUntypedContext()))
-        ->OnError(CreateRpcErrorHandler(context->GetUntypedContext()))
+        ->OnSuccess(CreateRpcSuccessHandler(context))
+        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 
@@ -238,7 +238,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
                 static_cast<int>(response->jobs_to_stop_size()));
             context->Reply();
         }))
-        ->OnError(CreateRpcErrorHandler(context->GetUntypedContext()))
+        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 

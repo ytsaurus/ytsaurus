@@ -159,10 +159,10 @@ void TClientResponse::Deserialize(IMessagePtr responseMessage)
     DeserializeBody(parts[1]);
     
     Attachments_.clear();
-    std::copy(
+    Attachments_.insert(
+        Attachments_.begin(),
         parts.begin() + 2,
-        parts.end(),
-        std::back_inserter(Attachments_));
+        parts.end());
 
     NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
