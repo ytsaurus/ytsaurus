@@ -14,7 +14,8 @@
 #include <ytlib/chunk_server/public.h>
 
 #include <ytlib/table_client/partition_chunk_sequence_writer.h>
-#include <ytlib/table_client/table_chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_reader.h>
+#include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/partitioner.h>
 
 #include <ytlib/ytree/lexer.h>
@@ -37,6 +38,8 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
+
 class TPartitionJob
     : public TJob
 {
@@ -58,11 +61,13 @@ public:
             jobSpec.input_specs(0).chunks().begin(),
             jobSpec.input_specs(0).chunks().end());
 
-        Reader = New<TTableChunkSequenceReader>(
+        auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
+        Reader = New<TReader>(
             config->JobIO->TableReader, 
             masterChannel, 
             blockCache, 
-            MoveRV(chunks));
+            MoveRV(chunks),
+            provider);
 
         if (jobSpecExt.partition_keys_size() > 0) {
             YCHECK(jobSpecExt.partition_keys_size() + 1 == jobSpecExt.partition_count());
@@ -88,7 +93,7 @@ public:
         PROFILE_TIMING ("/partition_time") {
             LOG_INFO("Initializing");
             {
-                Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
+                Sync(~Reader, &TReader::AsyncOpen);
                 Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncOpen);
             }
             PROFILE_TIMING_CHECKPOINT("init");
@@ -96,11 +101,11 @@ public:
             LOG_INFO("Partitioning");
             {
                 while (Reader->IsValid()) {
-                    while (!Writer->TryWriteRow(Reader->GetRow())) {
+                    while (!Writer->TryWriteRow(Reader->CurrentReader()->GetRow())) {
                         Sync(~Writer, &TPartitionChunkSequenceWriter::GetReadyEvent);
                     }
                     if (!Reader->FetchNextItem()) {
-                        Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+                        Sync(~Reader, &TReader::GetReadyEvent);
                     }
                 }
 
@@ -120,7 +125,7 @@ public:
     }
 
 private:
-    TTableChunkSequenceReaderPtr Reader;
+    TIntrusivePtr<TReader> Reader;
     TPartitionChunkSequenceWriterPtr Writer;
     std::vector<TOwningKey> PartitionKeys;
     TAutoPtr<IPartitioner> Partitioner;

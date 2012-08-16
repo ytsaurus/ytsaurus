@@ -6,7 +6,8 @@
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/meta_state/leader_channel.h>
-#include <ytlib/table_client/table_chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_reader.h>
+#include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
@@ -56,11 +57,13 @@ public:
             }
         }
 
+        auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
         Reader = CreateSyncReader(New<TTableChunkSequenceReader>(
             config->JobIO->TableReader,
             masterChannel,
             blockCache,
-            MoveRV(inputChunks)));
+            MoveRV(inputChunks),
+            provider));
 
         {
             if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {

@@ -13,7 +13,8 @@
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/private.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
-#include <ytlib/table_client/table_chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_reader.h>
+#include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/merging_reader.h>
 #include <ytlib/ytree/yson_string.h>
 
@@ -54,6 +55,8 @@ public:
             TReaderOptions options;
             options.ReadKey = true;
 
+            auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
+
             FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
                 // ToDo(psushin): validate that input chunks are sorted.
                 std::vector<NTableClient::NProto::TInputChunk> chunks(
@@ -65,7 +68,7 @@ public:
                     masterChannel,
                     blockCache,
                     MoveRV(chunks),
-                    options);
+                    provider);
 
                 readers.push_back(reader);
             }

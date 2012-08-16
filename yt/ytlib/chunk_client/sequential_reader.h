@@ -59,7 +59,7 @@ public:
      */
     TSharedRef GetBlock();
 
-    bool IsFetchingComplete() const;
+    TFuture<void> GetFetchingCompleteEvent();
 
 private:
     void OnGotBlocks(
@@ -89,6 +89,8 @@ private:
     //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader.
     volatile int NextSequenceIndex;
     int NextUnfetchedIndex;
+
+    TPromise<void> FetchingCompleteEvent;
 
     TAsyncStreamState State;
     TCodecPtr Codec;

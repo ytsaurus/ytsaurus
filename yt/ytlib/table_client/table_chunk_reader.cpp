@@ -867,9 +867,44 @@ i64 TTableChunkReader::GetRowCount() const
     return EndRowIndex - StartRowIndex;
 }
 
-bool TTableChunkReader::IsFetchingComplete() const
+i64 TTableChunkReader::GetRowIndex() const
 {
-    return SequentialReader->IsFetchingComplete();
+    return CurrentRowIndex - StartRowIndex;
+}
+
+TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
+{
+    return SequentialReader->GetFetchingCompleteEvent();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableChunkReaderProvider::TTableChunkReaderProvider(const NChunkClient::TSequentialReaderConfigPtr& config,
+    const TReaderOptions& options)
+    : Config(config)
+    , Options(options)
+{ }
+
+bool TTableChunkReaderProvider::KeepInMemory() const
+{
+    return Options.KeepBlocks;
+}
+
+TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
+    const NProto::TInputChunk& inputChunk, 
+    const NChunkClient::IAsyncReaderPtr& chunkReader)
+{
+    const auto& slice = inputChunk.slice();
+    return New<TTableChunkReader>(
+        Config,
+        TChannel::FromProto(inputChunk.channel()),
+        chunkReader,
+        slice.start_limit(),
+        slice.end_limit(),
+        // TODO(ignat) yson type ?
+        NYTree::TYsonString(inputChunk.row_attributes()),
+        inputChunk.partition_tag(),
+        Options); // ToDo(psushin): pass row attributes here.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
