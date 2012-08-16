@@ -174,7 +174,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
         });
     }
 
-    var staticServer = new static.Server(__dirname + "/../ui", { cache : 4 * 60 * 60 });
+    var staticServer = new static.Server("/usr/share/yt", { cache : 4 * 60 * 60 });
 
     try {
         connect()
