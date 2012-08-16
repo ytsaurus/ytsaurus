@@ -48,6 +48,30 @@ TError StatusToError(int status)
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnsafeEnvironmentBuilder
+    : public IEnvironmentBuilder
+{
+public:
+    TUnsafeEnvironmentBuilder()
+        : ProxyPath(GetExecPath())
+    { }
+
+    IProxyControllerPtr CreateProxyController(
+        NYTree::INodePtr config, 
+        const TJobId& jobId, 
+        const Stroka& workingDirectory);
+
+private:
+    friend class TUnsafeProxyController;
+
+    Stroka ProxyPath;
+    TMutex ForkMutex;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUnsafeProxyController
     : public IProxyController
 {
@@ -55,12 +79,14 @@ public:
     TUnsafeProxyController(
         const Stroka& proxyPath,
         const TJobId& jobId,
-        const Stroka& workingDirectory)
+        const Stroka& workingDirectory,
+        TUnsafeEnvironmentBuilder* envBuilder)
         : ProxyPath(proxyPath)
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
         , Logger(ExecAgentLogger)
         , ProcessId(-1)
+        , EnvironmentBuilder(envBuilder)
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
     {
@@ -74,7 +100,10 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)", 
             ~WorkingDirectory);
 
+        //ToDo(psushin): Remove this mutex when libc is fixed.
+        EnvironmentBuilder->ForkMutex.Acquire();
         ProcessId = fork();
+
         if (ProcessId == 0) {
             // ToDo(psushin): pass errors to parent process
             // cause logging doesn't work here.
@@ -108,6 +137,8 @@ public:
             // TODO(babenko): use some meaningful constant
             _exit(7);
         }
+
+        EnvironmentBuilder->ForkMutex.Release();
 
         if (ProcessId < 0) {
             ythrow yexception() << Sprintf("Failed to start job proxy: fork failed (Error: %s)",
@@ -218,6 +249,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     int ProcessId;
+    TIntrusivePtr<TUnsafeEnvironmentBuilder> EnvironmentBuilder;
 
     TSpinLock SpinLock;
     TError Error;
@@ -295,31 +327,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnsafeEnvironmentBuilder
-    : public IEnvironmentBuilder
+IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
+    NYTree::INodePtr config, 
+    const TJobId& jobId, 
+    const Stroka& workingDirectory)
 {
-public:
-    TUnsafeEnvironmentBuilder()
-        : ProxyPath(GetExecPath())
-    { }
-
-    IProxyControllerPtr CreateProxyController(
-        NYTree::INodePtr config, 
-        const TJobId& jobId, 
-        const Stroka& workingDirectory)
-    {
 #ifndef _win_
-        return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory);
+    return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory, this);
 #else
-        UNUSED(config);
-        UNUSED(workingDirectory);
-        return New<TUnsafeProxyController>(jobId);
+    UNUSED(config);
+    UNUSED(workingDirectory);
+    return New<TUnsafeProxyController>(jobId);
 #endif
-    }
+}
 
-private:
-    Stroka ProxyPath;
-};
+////////////////////////////////////////////////////////////////////////////////
 
 IEnvironmentBuilderPtr CreateUnsafeEnvironmentBuilder()
 {
