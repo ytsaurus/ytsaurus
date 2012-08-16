@@ -9,7 +9,7 @@ import time
 
 class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_HOLDERS = 0
+    NUM_NODES = 0
 
     def test_simple(self):
 

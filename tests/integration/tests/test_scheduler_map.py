@@ -13,7 +13,7 @@ def check_all_stderrs(op_id, expected):
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_HOLDERS = 5
+    NUM_NODES = 5
     START_SCHEDULER = True
 
     def test_empty_table(self):
