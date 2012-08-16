@@ -415,6 +415,7 @@ TSessionManager::TSessionManager(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , SessionCount(0)
 {
     YCHECK(config);
     YCHECK(bootstrap);
