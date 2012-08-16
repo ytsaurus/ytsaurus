@@ -189,8 +189,8 @@ private:
             : Driver(driver)
             , Descriptor(descriptor)
             , Request(request)
-            , MasterChannel(masterChannel)
-            , SchedulerChannel(schedulerChannel)
+            , MasterChannel(CreateScopedChannel(masterChannel))
+            , SchedulerChannel(CreateScopedChannel(schedulerChannel))
             , TransactionManager(New<TTransactionManager>(
                 Driver->Config->TransactionManager,
                 leaderChannel))
