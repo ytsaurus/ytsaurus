@@ -216,6 +216,7 @@ protected:
 #ifdef _WIN32
         return result != WSAEINPROGRESS && result != WSAEWOULDBLOCK;
 #else
+        YCHECK(result != EINTR);
         return result != EINPROGRESS && result != EWOULDBLOCK;
 #endif
     }
