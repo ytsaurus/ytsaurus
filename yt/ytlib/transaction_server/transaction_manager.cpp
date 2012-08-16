@@ -53,6 +53,9 @@ public:
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObject);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(ReleaseObject);
+        // NB: RenewLease is not logged and thus is not considered to be a write
+        // request. It can only be served at leaders though, so its handler explicitly
+        // checks the status.
         return TBase::IsWriteRequest(context);
     }
 
@@ -195,12 +198,15 @@ private:
     {
         UNUSED(response);
 
+        bool renewAncestors = request->renew_ancestors();
+        context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
+
         ValidateTransactionIsValid();
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        bool renewAncestors = request->renew_ancestors();
-        context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
+        if (!Owner->Bootstrap->GetMetaStateFacade()->ValidateActiveLeader(context->GetUntypedContext()))
+            return;
 
         Owner->RenewLease(transaction, renewAncestors);
         context->Reply();
