@@ -122,7 +122,7 @@ template <class TChunkReader>
 bool TMultiChunkSequentialReader<TChunkReader>::FetchNextItem()
 {
     YASSERT(!State.HasRunningOperation());
-    YASSERT(TBase::IsValid());
+    YASSERT(IsValid());
 
     if (TBase::CurrentReader_->FetchNextItem()) {
         if (!ValidateReader()) {
