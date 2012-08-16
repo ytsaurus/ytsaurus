@@ -141,6 +141,7 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
             &TMultiChunkParallelReader<TChunkReader>::FinishReader,
             MakeWeak(this),
             CurrentReader_));
+        TBase::PrepareNextChunk();
     } else {
         CurrentReader_->GetReadyEvent().Subscribe(BIND(
             &TMultiChunkParallelReader<TChunkReader>::OnReaderReady,
