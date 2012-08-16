@@ -128,7 +128,6 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-
     Local<Object> result = Object::New();
     result->Set(
         String::New("name"),

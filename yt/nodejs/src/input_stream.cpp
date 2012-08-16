@@ -2,6 +2,8 @@
 
 #include <ytlib/misc/foreach.h>
 
+#include <util/system/spinlock.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +212,7 @@ Handle<Value> TNodeJSInputStream::DoEnd()
         Conditional.BroadCast();
     }
 
-    EnqueueSweep();
+    EnqueueSweep(true);
 
     return Undefined();
 }
@@ -247,7 +249,7 @@ Handle<Value> TNodeJSInputStream::DoDestroy()
         Conditional.BroadCast();
     }
 
-    EnqueueDrain();
+    EnqueueDrain(true);
 
     return Undefined();
 }
@@ -277,7 +279,7 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
     YASSERT(args.Length() == 0);
 
     // Do the work.
-    stream->EnqueueSweep();
+    stream->EnqueueSweep(true);
 
     // TODO(sandello): Think about OnSuccess & OnError callbacks.
     return Undefined();
@@ -309,12 +311,12 @@ void TNodeJSInputStream::DoSweep()
                 break;
             }
             for (unsigned int innerSpin = 0; innerSpin < outerSpin * outerSpin; ++innerSpin) {
-                DoNothing();
+                SpinLockPause();
             }
         }
 
         if (!mutexAcquired) {
-            EnqueueSweep();
+            EnqueueSweep(true);
             return;
         }
     }
@@ -340,7 +342,7 @@ Handle<Value> TNodeJSInputStream::Drain(const Arguments& args)
     YASSERT(args.Length() == 0);
 
     // Do the work.
-    stream->EnqueueDrain();
+    stream->EnqueueDrain(true);
 
     return Undefined();
 }
@@ -429,13 +431,19 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
         }
     };
 
+    // (A note on Enqueue*() functions below.)
+    // We require that calling party holds a synchronous lock on the stream.
+    // In case of TNodeJSDriver an instance TNodeJSInputStack holds a lock
+    // and TNodeJSDriver implementation guarantees that all Read() calls
+    // are within scope of the lock.
+
     if (!InactiveQueue.empty()) {
-        EnqueueSweep();
+        EnqueueSweep(false);
     }
 
     auto transientBufferSize = AtomicSub(CurrentBufferSize, result);
     if (transientBufferSize < LowWatermark && LowWatermark <= transientBufferSize + result) {
-        EnqueueDrain();
+        EnqueueDrain(false);
     }
 
     AtomicAdd(BytesCounter, result);
