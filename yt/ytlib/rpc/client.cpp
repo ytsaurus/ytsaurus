@@ -2,6 +2,7 @@
 #include "client.h"
 #include "private.h"
 #include "message.h"
+#include "rpc_dispatcher.h"
 
 #include <iterator>
 
@@ -191,8 +192,11 @@ void TClientResponse::OnResponse(IMessagePtr message)
         State = EState::Done;
     }
 
-    Deserialize(message);
-    FireCompleted();
+    auto this_ = MakeStrong(this);
+    TRpcDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
+        this_->Deserialize(message);
+        this_->FireCompleted();
+    }));
 }
 
 IAttributeDictionary& TClientResponse::Attributes()
