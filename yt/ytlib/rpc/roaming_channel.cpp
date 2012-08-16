@@ -22,7 +22,7 @@ public:
         , ChannelPromise(Null)
     { }
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const
+    virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
         return DefaultTimeout;
     }
@@ -30,7 +30,7 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout)
+        TNullable<TDuration> timeout) override
     {
         YASSERT(request);
         YASSERT(responseHandler);
@@ -66,7 +66,7 @@ public:
             timeout));
     }
 
-    virtual void Terminate(const TError& error)
+    virtual void Terminate(const TError& error) override
     {
         YCHECK(!error.IsOK());
 
@@ -101,17 +101,17 @@ private:
             , OnFailed(onFailed)
         { }
 
-        virtual void OnAcknowledgement()
+        virtual void OnAcknowledgement() override
         {
             UnderlyingHandler->OnAcknowledgement();
         }
 
-        virtual void OnResponse(IMessagePtr message)
+        virtual void OnResponse(IMessagePtr message) override
         {
             UnderlyingHandler->OnResponse(message);
         }
 
-        virtual void OnError(const TError& error)
+        virtual void OnError(const TError& error) override
         {
             UnderlyingHandler->OnError(error);
             if (IsRetriableError(error)) {
