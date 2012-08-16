@@ -46,8 +46,8 @@ public:
         , Aborted(NewPromise<void>())
         , PingAncestorTransactions_(pingAncestorTransactions)
     {
-        YASSERT(cellChannel);
-        YASSERT(owner);
+        YCHECK(cellChannel);
+        YCHECK(owner);
     }
 
     TTransaction(
@@ -63,8 +63,8 @@ public:
         , Aborted(NewPromise<void>())
         , PingAncestorTransactions_(pingAncestorTransactions)
     {
-        YASSERT(cellChannel);
-        YASSERT(owner);
+        YCHECK(cellChannel);
+        YCHECK(owner);
     }
 
     ~TTransaction()
@@ -297,7 +297,7 @@ TTransactionManager::TTransactionManager(
     , Channel(channel)
     , ObjectProxy(channel)
 {
-    YASSERT(channel);
+    YCHECK(channel);
 }
 
 ITransactionPtr TTransactionManager::Start(

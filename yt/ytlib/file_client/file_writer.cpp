@@ -120,7 +120,7 @@ void TFileWriter::Close()
 
 NCypressClient::TNodeId TFileWriter::GetNodeId() const
 {
-    YASSERT(NodeId != NullObjectId);
+    YCHECK(NodeId != NullObjectId);
     return NodeId;
 }
 

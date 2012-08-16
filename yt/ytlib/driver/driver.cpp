@@ -50,7 +50,7 @@ public:
     explicit TDriver(TDriverConfigPtr config)
         : Config(config)
     {
-        YASSERT(config);
+        YCHECK(config);
 
         LeaderChannel = CreateRetryingChannel(
             Config->MasterRetries,
@@ -103,8 +103,8 @@ public:
 
     TDriverResponse Execute(const TDriverRequest& request) override
     {
-        YASSERT(request.InputStream);
-        YASSERT(request.OutputStream);
+        YCHECK(request.InputStream);
+        YCHECK(request.OutputStream);
 
         auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
