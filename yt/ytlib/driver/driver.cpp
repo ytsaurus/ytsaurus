@@ -198,8 +198,9 @@ private:
 
         ~TCommandContext()
         {
-            MasterChannel->Terminate();
-            SchedulerChannel->Terminate();
+            TError error("Command context terminated");
+            MasterChannel->Terminate(error);
+            SchedulerChannel->Terminate(error);
         }
 
         TDriverConfigPtr GetConfig() override

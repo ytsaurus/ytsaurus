@@ -383,7 +383,7 @@ private:
             }
 
             if (Terminated) {
-                return TError("Channel terminated");
+                return TError(EErrorCode::TransportError, "Channel terminated");
             }
 
             session = New<TSession>(DefaultTimeout);

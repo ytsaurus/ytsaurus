@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "channel_cache.h"
+#include "error.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/foreach.h>
@@ -43,7 +44,9 @@ IChannelPtr TChannelCache::GetChannel(const Stroka& address)
         if (it == ChannelMap.end()) {
             it = ChannelMap.insert(MakePair(address, channel)).first;
         } else {
-            channel->Terminate();
+            channel->Terminate(TError(
+                EErrorCode::TransportError,
+                "Channel terminated"));
         }
     }
 
@@ -62,7 +65,9 @@ void TChannelCache::Shutdown()
     IsTerminated  = true;
 
     FOREACH (const auto& pair, ChannelMap) {
-        pair.second->Terminate();
+        pair.second->Terminate(TError(
+            EErrorCode::TransportError,
+            "Channel terminated"));
     }
 
     ChannelMap.clear();

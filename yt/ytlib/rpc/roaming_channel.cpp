@@ -42,7 +42,7 @@ public:
 
             if (Terminated) {
                 guard.Release();
-                responseHandler->OnError(TError("Channel terminated"));
+                responseHandler->OnError(TError(EErrorCode::TransportError, "Channel terminated"));
                 return;
             }
 
