@@ -86,6 +86,7 @@ public:
 protected:
     NCellMaster::TBootstrap* Bootstrap;
     TObjectId Id;
+    TCallback<void(NRpc::IServiceContextPtr)> CachedGuardedInvokeCallback;
     TAutoPtr<NYTree::IAttributeDictionary> UserAttributes;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
@@ -124,6 +125,8 @@ protected:
         TObjectManagerPtr ObjectManager;
         TObjectId ObjectId;
     };
+
+    bool IsRecovery() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

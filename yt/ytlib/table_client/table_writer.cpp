@@ -5,13 +5,19 @@
 #include "schema.h"
 #include "table_chunk_sequence_writer.h"
 
-#include <ytlib/transaction_client/transaction.h>
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
-#include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/nullable.h>
+
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
+
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+
+#include <ytlib/table_server/table_ypath_proxy.h>
+
+#include <ytlib/meta_state/rpc_helpers.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -84,12 +90,14 @@ void TTableWriter::Open()
             }
             {
                 auto req = TTableYPathProxy::Clear(WithTransaction(Path, uploadTransactionId));
+                NMetaState::GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "clear");
             }
         }
 
         {
             auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, uploadTransactionId));
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "get_chunk_list_for_update");
         }
         {
@@ -200,8 +208,11 @@ void TTableWriter::Close()
     if (KeyColumns) {
         auto keyColumns = KeyColumns.Get();
         LOG_INFO("Marking table as sorted by %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
+        
         auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
+        NMetaState::GenerateRpcMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
+
         auto rsp = ObjectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",

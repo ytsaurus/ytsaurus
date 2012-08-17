@@ -31,7 +31,7 @@ public:
         , Invoker(invoker)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
     {
         return TResolveResult::Here(path);
     }
@@ -40,20 +40,18 @@ private:
     IYPathServicePtr UnderlyingService;
     IInvokerPtr Invoker;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        Invoker->Invoke(BIND(
-            &TViaYPathService::ExecuteRequest,
-            MakeStrong(this),
-            context));
-    }
-
-    void ExecuteRequest(NRpc::IServiceContextPtr context)
-    {
-        try {
+        auto underlyingService = UnderlyingService;
+        auto handler = BIND([=] () {
             ExecuteVerb(UnderlyingService, context);
-        } catch (const std::exception& ex) {
-            context->Reply(TError(ex.what()));
+        });
+        auto wrappedHandler = context->Wrap(handler);
+        bool result = Invoker->Invoke(wrappedHandler);
+        if (!result) {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Service unavailable"));
         }
     }
 };
@@ -73,11 +71,11 @@ class TFromProducerPathService
     : public TYPathServiceBase
 {
 public:
-    TFromProducerPathService(TYPathServiceProducer producer)
+    explicit TFromProducerPathService(TYPathServiceProducer producer)
         : Producer(producer)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
     {
         return TResolveResult::Here(path);
     }
@@ -85,7 +83,7 @@ public:
 private:
     TYPathServiceProducer Producer;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
     {
         auto service = Producer.Run();
         ExecuteVerb(service, context);

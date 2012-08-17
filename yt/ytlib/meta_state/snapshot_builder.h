@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/checksum.h>
@@ -43,7 +43,7 @@ public:
     typedef TPromise<TLocalResult> TAsyncLocalPromise;
 
     TSnapshotBuilder(
-        TSnapshotBuilderConfig* config,
+        TSnapshotBuilderConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
         TSnapshotStorePtr snapshotStore,

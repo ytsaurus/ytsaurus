@@ -1,8 +1,9 @@
 #include "stdafx.h"
-#include "world_initializer.h"
+#include "meta_state_facade.h"
 #include "config.h"
 
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/cypress_server/cypress_manager.h>
@@ -10,6 +11,8 @@
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/persistent_state_manager.h>
 #include <ytlib/logging/log.h>
 
 namespace NYT {
@@ -24,25 +27,110 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TDuration CheckPeriod = TDuration::Seconds(1);
-static NLog::TLogger Logger("Cypress");
+static TDuration InitCheckPeriod = TDuration::Seconds(1);
+static NLog::TLogger Logger("MetaState");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWorldInitializer::TImpl
+class TMetaStateFacade::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+    TImpl(
+        TCellMasterConfigPtr config,
+        TBootstrap* bootstrap)
+        : Config(config)
+        , Bootstrap(bootstrap)
     {
-        YASSERT(bootstrap);
+        YCHECK(config);
+        YCHECK(bootstrap);
 
-        PeriodicInvoker = New<TPeriodicInvoker>(
-            bootstrap->GetStateInvoker(),
-            BIND(&TImpl::OnCheck, MakeWeak(this)),
-            CheckPeriod);
-        PeriodicInvoker->Start();
+        StateQueue = New<TFairShareActionQueue>(EStateThreadQueue::GetDomainSize(), "MetaState");
+
+        MetaState = New<TCompositeMetaState>();
+
+        MetaStateManager = CreatePersistentStateManager(
+            Config->MetaState,
+            Bootstrap->GetControlInvoker(),
+            StateQueue->GetInvoker(EStateThreadQueue::Default),
+            MetaState,
+            Bootstrap->GetRpcServer());
+
+        for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
+            WrappedInvokers.push_back(MetaStateManager->CreateStateInvokerWrapper(StateQueue->GetInvoker(queueIndex)));
+        }
+
+        InitInvoker = New<TPeriodicInvoker>(
+            GetWrappedInvoker(EStateThreadQueue::Default),
+            BIND(&TImpl::OnTryInitialize, MakeWeak(this)),
+            InitCheckPeriod);
+    }
+
+    TCompositeMetaStatePtr GetState() const
+    {
+        return MetaState;
+    }
+
+    IMetaStateManagerPtr GetManager() const
+    {
+        return MetaStateManager;
+    }
+
+    IInvokerPtr GetRawInvoker() const
+    {
+        return StateQueue->GetInvoker(EStateThreadQueue::Default);
+    }
+
+    IInvokerPtr GetWrappedInvoker(EStateThreadQueue queue) const
+    {
+        return WrappedInvokers[queue];
+    }
+
+    void Start()
+    {
+        MetaStateManager->Start();
+        InitInvoker->Start();
+    }
+
+    bool ValidateActiveLeader(NRpc::IServiceContextPtr context)
+    {
+        if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Not a leader"));
+            return false;
+        }
+
+        if (!MetaStateManager->HasActiveQuorum()) {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "No active quorum"));
+            return false;
+        }
+
+        return true;
+    }
+
+private:
+    TCellMasterConfigPtr Config;
+    TBootstrap* Bootstrap;
+
+    TFairShareActionQueuePtr StateQueue;
+    TCompositeMetaStatePtr MetaState;
+    IMetaStateManagerPtr MetaStateManager;
+    TPeriodicInvokerPtr InitInvoker;
+    std::vector<IInvokerPtr> WrappedInvokers;
+
+    void OnTryInitialize()
+    {
+        if (IsInitialized()) {
+            InitInvoker->Stop();
+        } else if (CanInitialize()) {
+            Initialize();
+            InitInvoker->Stop();
+        } else {
+            InitInvoker->ScheduleNext();
+        }
     }
 
     bool IsInitialized() const
@@ -52,28 +140,11 @@ public:
         return Bootstrap->GetCypressManager()->GetNodeCount() > 1;
     }
 
-private:
-    TBootstrap* Bootstrap;
-    TPeriodicInvokerPtr PeriodicInvoker;
-
-    void OnCheck()
-    {
-        if (IsInitialized()) {
-            PeriodicInvoker->Stop();
-        } else if (CanInitialize()) {
-            Initialize();
-            PeriodicInvoker->Stop();
-        } else {
-            PeriodicInvoker->ScheduleNext();
-        }
-    }
-
     bool CanInitialize() const
     {
-        auto metaStateManager = Bootstrap->GetMetaStateManager();
         return
-            metaStateManager->GetStateStatus() == EPeerStatus::Leading &&
-            metaStateManager->HasActiveQuorum();
+            MetaStateManager->GetStateStatus() == EPeerStatus::Leading &&
+            MetaStateManager->HasActiveQuorum();
     }
 
     void Initialize()
@@ -131,7 +202,7 @@ private:
             SyncYPathCreate(
                 rootService,
                 WithTransaction("//sys/holders", transactionId),
-                EObjectType::HolderMap);
+                EObjectType::NodeMap);
             SyncYPathSet(
                 rootService,
                 WithTransaction("//sys/holders/@opaque", transactionId),
@@ -246,16 +317,43 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWorldInitializer::TWorldInitializer(TBootstrap* bootstrap)
-    : Impl(New<TImpl>(bootstrap))
+TMetaStateFacade::TMetaStateFacade(
+    TCellMasterConfigPtr config,
+    TBootstrap* bootstrap)
+    : Impl(New<TImpl>(config, bootstrap))
 { }
 
-TWorldInitializer::~TWorldInitializer()
+TMetaStateFacade::~TMetaStateFacade()
 { }
 
-bool TWorldInitializer::IsInitialized() const
+TCompositeMetaStatePtr TMetaStateFacade::GetState() const
 {
-    return Impl->IsInitialized();
+    return Impl->GetState();
+}
+
+IMetaStateManagerPtr TMetaStateFacade::GetManager() const
+{
+    return Impl->GetManager();
+}
+
+IInvokerPtr TMetaStateFacade::GetRawInvoker() const
+{
+    return Impl->GetRawInvoker();
+}
+
+IInvokerPtr TMetaStateFacade::GetWrappedInvoker(EStateThreadQueue queue) const
+{
+    return Impl->GetWrappedInvoker(queue);
+}
+
+void TMetaStateFacade::Start()
+{
+    Impl->Start();
+}
+
+bool TMetaStateFacade::ValidateActiveLeader(NRpc::IServiceContextPtr context)
+{
+    return Impl->ValidateActiveLeader(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

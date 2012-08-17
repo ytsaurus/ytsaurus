@@ -13,7 +13,7 @@ namespace NChunkServer {
 struct TChunkReplicatorConfig
     : public TYsonSerializable
 {
-    //! Minimum number of holders the cell must have online to enable starting new jobs.
+    //! Minimum number of nodes the cell must have online to enable starting new jobs.
     TNullable<int> MinOnlineNodeCount;
     
     //! Max lost chunk fraction the cell is allowed to have to enable starting new jobs.
@@ -25,13 +25,13 @@ struct TChunkReplicatorConfig
     //! Maximum number of incoming upload sessions during replication and balancing.
     int MaxReplicationFanIn;
     
-    //! Maximum number of concurrent removal jobs that can be scheduled to a holder.
+    //! Maximum number of concurrent removal jobs that can be scheduled to a node.
     int MaxRemovalJobsPerNode;
     
-    //! Minimum difference in fill coefficient (between the most and the least loaded holders) to start balancing.
+    //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinBalancingFillCoeffDiff;
     
-    //! Minimum fill coefficient of the most loaded holder to start balancing.
+    //! Minimum fill coefficient of the most loaded node to start balancing.
     double MinBalancingFillCoeff;
     
     //! Maximum duration a job can run before it is considered dead.
@@ -94,14 +94,13 @@ struct TChunkManagerConfig
     TDuration OnlineNodeTimeout;
     TDuration RegisteredNodeTimeout;
     TDuration UnconfirmedNodeTimeout;
-    TDuration NodeExpirationBackoffTime;
 
     TDuration ChunkRefreshDelay;
     TDuration ChunkRefreshQuantum;
     int MaxChunksPerRefresh;
 
-    double MaxHolderFillCoeff;
-    i64 MinHolderFreeSpace;
+    double MaxNodeFillCoeff;
+    i64 MinNodeFreeSpace;
     double ActiveSessionsPenalityCoeff;
     TChunkReplicatorConfigPtr ChunkReplicator;
     TChunkTreeBalancerConfigPtr ChunkTreeBalancer;
@@ -114,8 +113,6 @@ struct TChunkManagerConfig
             .Default(TDuration::Seconds(180));
         Register("unconfirmed_node_timeout", UnconfirmedNodeTimeout)
             .Default(TDuration::Seconds(30));
-        Register("node_expiration_backoff_time", NodeExpirationBackoffTime)
-            .Default(TDuration::Seconds(5));
         Register("chunk_refresh_delay", ChunkRefreshDelay)
             .Default(TDuration::Seconds(15));
         Register("chunk_refresh_quantum", ChunkRefreshQuantum)

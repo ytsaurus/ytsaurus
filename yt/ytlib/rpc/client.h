@@ -63,15 +63,15 @@ class TClientRequest
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
 public:
-    virtual NBus::IMessagePtr Serialize() const;
+    virtual NBus::IMessagePtr Serialize() const override;
 
-    virtual bool IsOneWay() const;
-    virtual const TRequestId& GetRequestId() const;
-    virtual const Stroka& GetPath() const;
-    virtual const Stroka& GetVerb() const;
+    virtual bool IsOneWay() const override;
+    virtual const TRequestId& GetRequestId() const override;
+    virtual const Stroka& GetPath() const override;
+    virtual const Stroka& GetVerb() const override;
 
-    virtual NYTree::IAttributeDictionary& Attributes();
-    virtual const NYTree::IAttributeDictionary& Attributes() const;
+    virtual NYTree::IAttributeDictionary& Attributes() override;
+    virtual const NYTree::IAttributeDictionary& Attributes() const override;
 
 protected:
     IChannelPtr Channel;
@@ -127,12 +127,11 @@ public:
     }
 
 private:
-    virtual TSharedRef SerializeBody() const
+    virtual TSharedRef SerializeBody() const override
     {
-        auto& Logger = RpcClientLogger;
-        TSharedRef ref;
-        YCHECK(SerializeToProto(this, &ref));
-        return ref;
+        TSharedRef data;
+        YCHECK(SerializeToProtoWithEnvelope(*this, &data));
+        return data;
     }
 
 };
@@ -189,7 +188,7 @@ protected:
     EState State;
 
     // IClientResponseHandler implementation.
-    virtual void OnError(const TError& error);
+    virtual void OnError(const TError& error) override;
 
 };
 
@@ -218,8 +217,8 @@ private:
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     // IClientResponseHandler implementation.
-    virtual void OnAcknowledgement();
-    virtual void OnResponse(NBus::IMessagePtr message);
+    virtual void OnAcknowledgement() override;
+    virtual void OnResponse(NBus::IMessagePtr message) override;
 
     void Deserialize(NBus::IMessagePtr responseMessage);
 
@@ -254,10 +253,9 @@ private:
         Promise.Reset();
     }
 
-    virtual void DeserializeBody(const TRef& data)
+    virtual void DeserializeBody(const TRef& data) override
     {
-        auto& Logger = RpcClientLogger;
-        YCHECK(DeserializeFromProto(this, data));
+        YCHECK(DeserializeFromProtoWithEnvelope(this, data));
     }
 };
 

@@ -7,7 +7,7 @@ from yt_commands import *
 
 class TestTableCommands(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_HOLDERS = 5
+    NUM_NODES = 5
 
     # test that chunks are not available from chunk_lists
     # Issue #198

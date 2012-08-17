@@ -1,11 +1,11 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "meta_version.h"
 
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/ref.h>
-#include <ytlib/actions/callback_forward.h>
+#include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/actions/invoker.h>
 
 namespace NYT {
@@ -18,6 +18,7 @@ class TDecoratedMetaState
 {
 public:
     TDecoratedMetaState(
+        TPersistentStateManagerConfigPtr config,
         IMetaStatePtr state,
         IInvokerPtr stateInvoker,
         IInvokerPtr controlInvoker,
@@ -26,6 +27,16 @@ public:
 
     //! Initializes the instance.
     void Start();
+
+    void OnStartLeading();
+    void OnLeaderRecoveryComplete();
+    void OnStopLeading();
+    void OnStartFollowing();
+    void OnFollowerRecoveryComplete();
+    void OnStopFollowing();
+
+
+    DEFINE_BYVAL_RO_PROPERTY(EPeerStatus, Status);
 
     //! Returns current epoch id.
     /*!
@@ -39,11 +50,19 @@ public:
      */
     void SetEpoch(const TEpoch& epoch);
 
-    //! Returns the invoker used for updating the state.
+    //! Returns the wrapper invoker used for updating the state.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: any
      */
-    IInvokerPtr GetStateInvoker() const;
+    IInvokerPtr CreateUserStateInvokerWrapper(IInvokerPtr underlyingInvoker);
+
+    //! Returns the invoker used for performing recovery actions.
+    /*!
+     *  This invoker is bound to the same thread as returned by #GetStateInvoker.
+     *
+     *  \note Thread affinity: any
+     */
+    IInvokerPtr GetSystemStateInvoker();
 
     //! Returns the current version of the state.
     /*!
@@ -86,7 +105,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    IMetaStatePtr GetState() const;
+    IMetaStatePtr GetState();
 
     //! Delegates the call to IMetaState::Clear.
     /*!
@@ -106,19 +125,18 @@ public:
      */
     void Load(i32 segmentId, TInputStream* input);
 
-    //! Delegates the call to IMetaState::ApplyMutation and updates the version.
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    void ApplyMutation(const TSharedRef& recordData);
+    //! Checks if the mutation with this particular id was already applied.
+    //! Fill mutation response data on success.
+    bool FindKeptResponse(const TMutationId& id, TSharedRef* data);
 
-    //! Executes a given action and updates the version.
+    //! Invokes IMetaState::ApplyMutation and updates the version.
     /*!
      * \note Thread affinity: StateThread
      */
-    void ApplyMutation(
-        const TSharedRef& recordData,
-        const TClosure& mutationAction);
+    void ApplyMutation(TMutationContext* context) throw();
+
+    //! Deserializes the mutation, invokes IMetaState::ApplyMutation, and updates the version.
+    void ApplyMutation(const TSharedRef& recordData) throw();
 
     //! Appends a new record into an appropriate changelog.
     /*!
@@ -144,13 +162,24 @@ public:
     TMutationContext* GetMutationContext();
 
 private:
+    class TUserStateInvoker;
+    class TSystemStateInvoker;
+
     IMetaStatePtr State;
+
     IInvokerPtr StateInvoker;
+    TAtomic UserEnqueueLock;
+    TAtomic SystemLock;
+    IInvokerPtr SystemStateInvoker;
+
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;
-    TEpoch Epoch;
-    bool Started;
+    
+    TResponseKeeperPtr ResponseKeeper;
 
+    bool Started;
+    TEpoch Epoch;
+    TMutationContext* MutationContext;
     TCachedAsyncChangeLogPtr CurrentChangeLog;
 
     TSpinLock VersionSpinLock;
@@ -158,15 +187,15 @@ private:
     TMetaVersion ReachableVersion;
     TMetaVersion PingVersion;
 
-    TAutoPtr<TMutationContext> MutationContext;
-
     void IncrementRecordCount();
     void ComputeReachableVersion();
     void UpdateVersion(const TMetaVersion& newVersion);
     TCachedAsyncChangeLogPtr GetCurrentChangeLog();
 
-    void EnterMutation(const TSharedRef& recordData);
-    void LeaveMutation();
+    bool AcquireUserEnqueueLock();
+    void ReleaseUserEnqueueLock();
+    void AcquireSystemLock();
+    void ReleaseSystemLock();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

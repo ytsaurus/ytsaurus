@@ -21,15 +21,10 @@ DECLARE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-FORCED_INLINE bool IsRpcError(const TError& error)
-{
-    return error.GetCode() < TError::OK;
-}
+bool IsRpcError(const TError& error);
+bool IsServiceError(const TError& error);
+bool IsRetriableError(const TError& error);
 
-FORCED_INLINE bool IsServiceError(const TError& error)
-{
-    return error.GetCode() > TError::OK;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

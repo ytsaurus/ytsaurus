@@ -20,35 +20,10 @@ static NProfiling::TProfiler& Profiler = RpcServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IServiceContext::Reply(NBus::IMessagePtr message)
-{
-    auto parts = message->GetParts();
-    YASSERT(!parts.empty());
-
-    TResponseHeader header;
-    YCHECK(DeserializeFromProto(&header, parts[0]));
-
-    auto error = TError::FromProto(header.error());
-    if (error.IsOK()) {
-        YASSERT(parts.size() >= 2);
-
-        SetResponseBody(parts[1]);
-
-        parts.erase(parts.begin(), parts.begin() + 2);
-        ResponseAttachments() = MoveRV(parts);
-    }
-
-    Reply(error);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
-    IInvokerPtr invoker,
     const NYTree::TYPath& profilingPath)
     : Descriptor(descriptor)
-    , Invoker(invoker)
     , ProfilingPath(profilingPath)
     , RequestCounter(profilingPath + "/request_rate")
 { }
@@ -181,14 +156,16 @@ void TServiceBase::OnInvocationPrepared(
         }
     });
 
-    InvokeHandler(activeRequest, wrappedHandler);
-}
+    auto invoker = activeRequest->RuntimeInfo->Descriptor.Invoker;
+    if (!invoker) {
+        invoker = DefaultInvoker;
+    }
 
-void TServiceBase::InvokeHandler(
-    TActiveRequestPtr activeRequest,
-    const TClosure& handler)
-{
-    activeRequest->RuntimeInfo->Invoker->Invoke(handler);
+    if (!invoker->Invoke(wrappedHandler)) {
+        activeRequest->Context->Reply(TError(
+            EErrorCode::Unavailable,
+            "Service unavailable"));
+    }
 }
 
 void TServiceBase::OnEndRequest(IServiceContextPtr context)
@@ -224,21 +201,13 @@ void TServiceBase::OnEndRequest(IServiceContextPtr context)
 
 void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
-    RegisterMethod(descriptor, DefaultInvoker);
-}
-
-void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvokerPtr invoker)
-{
-    YASSERT(invoker);
-
-    TGuard<TSpinLock> guard(SpinLock);
     auto path = "/services/" + ServiceName + "/methods/" +  descriptor.Verb;
-    auto info = New<TRuntimeMethodInfo>(
-        descriptor,
-        invoker,
-        path);
-    // Failure here means that such verb is already registered.
-    YCHECK(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        auto info = New<TRuntimeMethodInfo>(descriptor, path);
+        // Failure here means that such verb is already registered.
+        YCHECK(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

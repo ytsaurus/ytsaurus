@@ -11,7 +11,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EHolderState,
+DECLARE_ENUM(ENodeState,
     // Not registered.
     (Offline)
     // Registered but did not report the full heartbeat yet.
@@ -20,25 +20,25 @@ DECLARE_ENUM(EHolderState,
     (Online)
 );
 
-class THolder
+class TDataNode
 {
-    DEFINE_BYVAL_RO_PROPERTY(THolderId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
     DEFINE_BYVAL_RO_PROPERTY(TIncarnationId, IncarnationId);
-    DEFINE_BYVAL_RW_PROPERTY(EHolderState, State);
-    DEFINE_BYREF_RW_PROPERTY(NProto::THolderStatistics, Statistics);
+    DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
+    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, StoredChunks);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, CachedChunks);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, UnapprovedChunks);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJob*>, Jobs);
 
 public:
-    THolder(
-        THolderId id,
+    TDataNode(
+        TNodeId id,
         const Stroka& address,
         const TIncarnationId& incarnationId);
 
-    explicit THolder(THolderId id);
+    explicit TDataNode(TNodeId id);
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

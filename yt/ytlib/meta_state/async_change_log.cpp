@@ -28,7 +28,7 @@ public:
     // Guarded by TImpl::SpinLock
     TAtomic UseCount;
 
-    TChangeLogQueue(const TChangeLogPtr& changeLog)
+    explicit TChangeLogQueue(TChangeLogPtr changeLog)
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
@@ -468,10 +468,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncChangeLog::TAsyncChangeLog(const TChangeLogPtr& changeLog)
+TAsyncChangeLog::TAsyncChangeLog(TChangeLogPtr changeLog)
     : ChangeLog(changeLog)
 {
-    YASSERT(changeLog);
+    YCHECK(changeLog);
 }
 
 TAsyncChangeLog::~TAsyncChangeLog()

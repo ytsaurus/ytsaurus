@@ -19,11 +19,11 @@ public:
 
     bool CheckRebalanceNeeded(
         TChunkList* chunkList,
-        NProto::TMsgRebalanceChunkTree* message);
+        NProto::TMetaReqRebalanceChunkTree* message);
 
     bool RebalanceChunkTree(
         TChunkList* chunkList,
-        const NProto::TMsgRebalanceChunkTree& message);
+        const NProto::TMetaReqRebalanceChunkTree& message);
 
 private:
     NCellMaster::TBootstrap* Bootstrap;
@@ -32,16 +32,16 @@ private:
     void MergeChunkTrees(
         std::vector<TChunkTreeRef>* children,
         TChunkTreeRef child,
-        const NProto::TMsgRebalanceChunkTree& message);
+        const NProto::TMetaReqRebalanceChunkTree& message);
     
     void AppendChunkTree(
         std::vector<TChunkTreeRef>* children,
         TChunkTreeRef child,
-        const NProto::TMsgRebalanceChunkTree& message);
+        const NProto::TMetaReqRebalanceChunkTree& message);
 
     void InitRebalanceMessage(
         TChunkList* chunkList,
-        NProto::TMsgRebalanceChunkTree* message);
+        NProto::TMetaReqRebalanceChunkTree* message);
 
 };
 

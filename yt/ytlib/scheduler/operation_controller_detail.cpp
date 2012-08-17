@@ -300,7 +300,7 @@ void TOperationControllerBase::Initialize()
 void TOperationControllerBase::DoInitialize()
 { }
 
-void TOperationControllerBase::DoGetProgress(IYsonConsumer* consumer)
+void TOperationControllerBase::DoBuildProgressYson(IYsonConsumer* consumer)
 {
     UNUSED(consumer);
 }
@@ -1443,7 +1443,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
                 .Item("completed").Scalar(CompletedJobCount)
                 .Item("failed").Scalar(FailedJobCount)
             .EndMap()
-            .Do(BIND(&TThis::DoGetProgress, Unretained(this)))
+            .Do(BIND(&TThis::DoBuildProgressYson, Unretained(this)))
         .EndMap();
 }
 

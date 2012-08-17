@@ -5,13 +5,16 @@
 #include "meta_version.h"
 #include "decorated_meta_state.h"
 #include "change_log_cache.h"
-#include "follower_tracker.h"
+#include "quorum_tracker.h"
+#include "serialize.h"
 
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/logging/tagged_logger.h>
+
+#include <util/random/random.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -57,17 +60,17 @@ public:
         TLeaderCommitterPtr committer,
         const TMetaVersion& startVersion)
         : Committer(committer)
-        , Promise(NewPromise<TCommitPromise::TValueType>())
+        , Promise(NewPromise<TError>())
         , StartVersion(startVersion)
         // The local commit is also counted.
-        , CommitCount(0)
+        , CommitSuccessCount(0)
         , IsSent(false)
         , Logger(MetaStateLogger)
     {
         Logger.AddTag(Sprintf("StartVersion: %s", ~StartVersion.ToString()));
     }
 
-    TCommitResult AddMutation(const TSharedRef& recordData)
+    TAsyncError AddMutation(const TSharedRef& recordData)
     {
         VERIFY_THREAD_AFFINITY(Committer->StateThread);
         YASSERT(!IsSent);
@@ -77,7 +80,7 @@ public:
             StartVersion.RecordCount + BatchedRecordsData.size());
         BatchedRecordsData.push_back(recordData);
 
-        LOG_DEBUG("Mutation is added to batch (Version: %s)", ~currentVersion.ToString());
+        LOG_DEBUG("Mutation is added to batch at version %s", ~currentVersion.ToString());
 
         return Promise;
     }
@@ -118,14 +121,14 @@ private:
             auto cellManager = Committer->CellManager;
 
             Awaiter = New<TParallelAwaiter>(
-                ~Committer->EpochControlInvoker,
+                Committer->EpochControlInvoker,
                 &Profiler,
                 "/commit_batch_time");
 
             Awaiter->Await(
                 LogResult,
                 EscapeYPathToken(cellManager->GetSelfAddress()),
-                BIND(&TBatch::OnLocalCommit, MakeStrong(this)));
+                BIND(&TBatch::OnLocalFlush, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched mutations to followers");
             for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
@@ -165,10 +168,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
-        if (CommitCount < Committer->CellManager->GetQuorum())
+        if (CommitSuccessCount < Committer->CellManager->GetQuorum())
             return false;
 
-        Promise.Set(EResult::Committed);
+        Promise.Set(TError());
         Awaiter->Cancel();
         
         LOG_DEBUG("Mutations are committed by quorum");
@@ -189,20 +192,19 @@ private:
 
         if (response->committed()) {
             LOG_DEBUG("Mutations are committed by follower %d", peerId);
-
-            ++CommitCount;
+            ++CommitSuccessCount;
             CheckCommitQuorum();
         } else {
             LOG_DEBUG("Mutations are acknowledged by follower %d", peerId);
         }
     }
     
-    void OnLocalCommit()
+    void OnLocalFlush()
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
-        LOG_DEBUG("Mutations are committed locally");
-        ++CommitCount;
+        LOG_DEBUG("Mutations are flushed locally");
+        ++CommitSuccessCount;
         CheckCommitQuorum();
     }
 
@@ -213,15 +215,17 @@ private:
         if (CheckCommitQuorum())
             return;
 
-        LOG_WARNING("Mutations are uncertain (CommitCount: %d)", CommitCount);
-
-        Promise.Set(EResult::MaybeCommitted);
+        Promise.Set(TError(
+            ECommitCode::MaybeCommitted,
+            "Mutations are uncertain: %d out of %d commits were successful",
+            CommitSuccessCount,
+            Committer->CellManager->GetQuorum()));
     }
 
     TLeaderCommitterPtr Committer;
-    TCommitPromise Promise;
+    TPromise<TError> Promise;
     TMetaVersion StartVersion;
-    int CommitCount;
+    int CommitSuccessCount;
     volatile bool IsSent;
     NLog::TTaggedLogger Logger;
 
@@ -238,7 +242,7 @@ TLeaderCommitter::TLeaderCommitter(
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
     TChangeLogCachePtr changeLogCache,
-    TFollowerTrackerPtr followerTracker,
+    TQuorumTrackerPtr followerTracker,
     const TEpoch& epoch,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
@@ -291,33 +295,68 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
     }
 }
 
-TLeaderCommitter::TCommitResult TLeaderCommitter::Commit(
-    const TSharedRef& recordData,
-    const TClosure& mutationAction)
+TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMutationRequest& request)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(!mutationAction.IsNull());
+    YASSERT(!request.Action.IsNull());
+
+    if (request.Id != NullMutationId) {
+        TSharedRef responseData;
+        if (MetaState->FindKeptResponse(request.Id, &responseData)) {
+            LOG_DEBUG("Kept response returned (MutationId: %s)", ~request.Id.ToString());
+            TMutationResponse response;
+            response.Applied = false;
+            response.Data = responseData;
+            return MakeFuture(TValueOrError<TMutationResponse>(response));
+        }
+    }
+
+    auto timestamp = TInstant::Now();
+    auto randomSeed = RandomNumber<ui64>();
+
+    NProto::TMutationHeader header;
+    header.set_mutation_type(request.Type);
+    if (request.Id != NullMutationId) {
+        *header.mutable_mutation_id() = request.Id.ToProto();
+    }
+    header.set_timestamp(timestamp.GetValue());
+    header.set_random_seed(randomSeed);
+    auto recordData = SerializeMutationRecord(header, request.Data);
 
     PROFILE_AGGREGATED_TIMING (CommitTimeCounter) {
         auto version = MetaState->GetVersion();
-        LOG_DEBUG("Starting commit at version %s", ~version.ToString());
+        LOG_DEBUG("Committing mutation at version %s (MutationId: %s)",
+            ~version.ToString(),
+            ~request.Id.ToString());
 
         auto logResult = MetaState->LogMutation(version, recordData);
         auto batchResult = AddMutationToBatch(version, recordData, logResult);
 
-        MetaState->ApplyMutation(recordData, mutationAction);
-
-        LOG_DEBUG("Change is applied locally at version %s", ~version.ToString());
+        TMutationContext context(
+            MetaState->GetVersion(),
+            request,
+            timestamp,
+            randomSeed);
+        MetaState->ApplyMutation(&context);
 
         MutationApplied_.Fire();
-
         Profiler.Increment(CommitCounter);
 
-        return batchResult;
+        auto responseData = context.GetResponseData();
+        return batchResult.Apply(BIND([=] (TError error) -> TValueOrError<TMutationResponse> {
+            if (error.IsOK()) {
+                TMutationResponse response;
+                response.Applied = true;
+                response.Data = responseData;
+                return response;
+            } else {
+                return error;
+            }
+        }));
     }
 }
 
-TLeaderCommitter::TCommitResult TLeaderCommitter::AddMutationToBatch(
+TAsyncError TLeaderCommitter::AddMutationToBatch(
     const TMetaVersion& version,
     const TSharedRef& recordData,
     TFuture<void> changeLogResult)
@@ -389,7 +428,7 @@ TFollowerCommitter::TFollowerCommitter(
 TFollowerCommitter::~TFollowerCommitter()
 { }
 
-TCommitter::TCommitResult TFollowerCommitter::Commit(
+TAsyncError TFollowerCommitter::Commit(
     const TMetaVersion& expectedVersion,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -411,7 +450,7 @@ TCommitter::TCommitResult TFollowerCommitter::Commit(
     }
 }
 
-TCommitter::TCommitResult TFollowerCommitter::DoCommit(
+TAsyncError TFollowerCommitter::DoCommit(
     const TMetaVersion& expectedVersion,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -419,17 +458,19 @@ TCommitter::TCommitResult TFollowerCommitter::DoCommit(
 
     auto currentVersion = MetaState->GetVersion();
     if (currentVersion > expectedVersion) {
-        LOG_WARNING("Late mutations received by follower, ignored: expected %s but got %s",
+        return MakeFuture(TError(
+            ECommitCode::LateMutations,
+            "Late mutations received by follower, ignored: expected %s but got %s",
             ~currentVersion.ToString(),
-            ~expectedVersion.ToString());
-        return MakeFuture(EResult(EResult::LateMutations));
+            ~expectedVersion.ToString()));
     }
 
     if (currentVersion != expectedVersion) {
-        LOG_WARNING("Out-of-order mutations received by follower, restarting: expected %s but got %s",
+        return MakeFuture(TError(
+            ECommitCode::OutOfOrderMutations,
+            "Out-of-order mutations received by follower: expected %s but got %s",
             ~currentVersion.ToString(),
-            ~expectedVersion.ToString());
-        return MakeFuture(EResult(EResult::OutOfOrderMutations));
+            ~expectedVersion.ToString()));
     }
 
     LOG_DEBUG("Applying %d mutations at version %s",
@@ -439,14 +480,12 @@ TCommitter::TCommitResult TFollowerCommitter::DoCommit(
     TFuture<void> result;
     FOREACH (const auto& recordData, recordsData) {
         result = MetaState->LogMutation(currentVersion, recordData);
-        
         MetaState->ApplyMutation(recordData);
-        
         ++currentVersion.RecordCount;
     }
 
-    return result.Apply(BIND([] () -> TCommitter::EResult {
-        return TCommitter::EResult::Committed;
+    return result.Apply(BIND([] () -> TError {
+        return TError();
     }));
 }
 

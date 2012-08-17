@@ -59,9 +59,9 @@ int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 
 TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
-    TSharedRef ref;
-    YCHECK(SerializeToProto(&Body, &ref));
-    return ref;
+    TSharedRef data;
+    YCHECK(SerializeToProtoWithEnvelope(Body, &data));
+    return data;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +88,7 @@ void TObjectServiceProxy::TRspExecuteBatch::FireCompleted()
 
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
-    YCHECK(DeserializeFromProto(&Body, data));
+    YCHECK(DeserializeFromProtoWithEnvelope(&Body, data));
 
     int currentIndex = 0;
     BeginPartIndexes.reserve(Body.part_counts_size());
@@ -103,17 +103,17 @@ int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
     return Body.part_counts_size();
 }
 
-TYPathResponse::TPtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
+TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
     return GetResponse<TYPathResponse>(index);
 }
 
-TYPathResponse::TPtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<NYTree::TYPathResponse::TPtr> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+std::vector<NYTree::TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }
@@ -124,7 +124,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {
     // Keep this in sync with DEFINE_RPC_PROXY_METHOD.
     return
-        New<TReqExecuteBatch>(~Channel, ServiceName, "Execute")
+        New<TReqExecuteBatch>(Channel, ServiceName, "Execute")
         ->SetTimeout(DefaultTimeout_);
 }
 

@@ -5,6 +5,7 @@
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
+
 #include <ytlib/bus/client.h>
 
 namespace NYT {
@@ -37,7 +38,7 @@ struct IChannel
      *  It is safe to call this method multiple times.
      *  After the first call the instance is no longer usable.
      */
-    virtual void Terminate(const TError& error = TError("Channel terminated")) = 0;
+    virtual void Terminate(const TError& error) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

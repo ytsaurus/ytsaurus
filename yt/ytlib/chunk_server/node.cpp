@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "holder.h"
+#include "node.h"
 #include "job.h"
 #include "chunk.h"
 
@@ -17,8 +17,8 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THolder::THolder(
-    THolderId id,
+TDataNode::TDataNode(
+    TNodeId id,
     const Stroka& address,
     const TIncarnationId& incarnationId)
     : Id_(id)
@@ -26,11 +26,11 @@ THolder::THolder(
     , IncarnationId_(incarnationId)
 { }
 
-THolder::THolder(THolderId id)
+TDataNode::TDataNode(TNodeId id)
     : Id_(id)
 { }
 
-void THolder::Save(TOutputStream* output) const
+void TDataNode::Save(TOutputStream* output) const
 {
     ::Save(output, Address_);
     ::Save(output, IncarnationId_);
@@ -42,7 +42,7 @@ void THolder::Save(TOutputStream* output) const
     SaveObjectRefs(output, Jobs_);
 }
 
-void THolder::Load(const TLoadContext& context, TInputStream* input)
+void TDataNode::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     ::Load(input, Address_);
@@ -55,12 +55,12 @@ void THolder::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRefs(input, Jobs_, context);
 }
 
-void THolder::AddJob(TJob* job)
+void TDataNode::AddJob(TJob* job)
 {
     Jobs_.push_back(job);
 }
 
-void THolder::RemoveJob(TJob* job)
+void TDataNode::RemoveJob(TJob* job)
 {
     auto it = std::find(Jobs_.begin(), Jobs_.end(), job);
     if (it != Jobs_.end()) {
@@ -68,7 +68,7 @@ void THolder::RemoveJob(TJob* job)
     }
 }
 
-void THolder::AddChunk(TChunk* chunk, bool cached)
+void TDataNode::AddChunk(TChunk* chunk, bool cached)
 {
     if (cached) {
         YCHECK(CachedChunks_.insert(chunk).second);
@@ -77,7 +77,7 @@ void THolder::AddChunk(TChunk* chunk, bool cached)
     }
 }
 
-void THolder::RemoveChunk(TChunk* chunk, bool cached)
+void TDataNode::RemoveChunk(TChunk* chunk, bool cached)
 {
     if (cached) {
         YCHECK(CachedChunks_.erase(chunk) == 1);
@@ -87,7 +87,7 @@ void THolder::RemoveChunk(TChunk* chunk, bool cached)
     }
 }
 
-bool THolder::HasChunk(TChunk* chunk, bool cached) const
+bool TDataNode::HasChunk(TChunk* chunk, bool cached) const
 {
     if (cached) {
         return CachedChunks_.find(chunk) != CachedChunks_.end();
@@ -96,18 +96,18 @@ bool THolder::HasChunk(TChunk* chunk, bool cached) const
     }
 }
 
-void THolder::MarkChunkUnapproved(TChunk* chunk)
+void TDataNode::MarkChunkUnapproved(TChunk* chunk)
 {
     YASSERT(HasChunk(chunk, false));
     YCHECK(UnapprovedChunks_.insert(chunk).second);
 }
 
-bool THolder::HasUnapprovedChunk(TChunk* chunk) const
+bool TDataNode::HasUnapprovedChunk(TChunk* chunk) const
 {
     return UnapprovedChunks_.find(chunk) != UnapprovedChunks_.end();
 }
 
-void THolder::ApproveChunk(TChunk* chunk)
+void TDataNode::ApproveChunk(TChunk* chunk)
 {
     YASSERT(HasChunk(chunk, false));
     YCHECK(UnapprovedChunks_.erase(chunk) == 1);

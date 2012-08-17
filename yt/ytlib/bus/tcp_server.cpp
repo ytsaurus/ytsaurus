@@ -8,7 +8,10 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
+
 #include <ytlib/logging/tagged_logger.h>
+
+#include <ytlib/rpc/error.h>
 
 #include <util/folder/dirut.h>
 
@@ -73,7 +76,7 @@ public:
         CloseServerSocket();
 
         FOREACH (auto connection, Connections) {
-            connection->Terminate(TError("Bus server terminated"));
+            connection->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus server terminated"));
         }
     }
 

@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/public.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
-namespace NMetaState {
+namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a channel that takes care of choosing leader among the peers.
-NRpc::IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config);
+extern NLog::TLogger ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NElection
+} // namespace NObjectServer
 } // namespace NYT
+

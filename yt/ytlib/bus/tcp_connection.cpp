@@ -4,6 +4,8 @@
 #include "server.h"
 #include "config.h"
 
+#include <ytlib/rpc/error.h>
+
 #include <util/system/error.h>
 #include <util/folder/dirut.h>
 
@@ -143,7 +145,7 @@ void TTcpConnection::SyncInitialize()
 
 void TTcpConnection::SyncFinalize()
 {
-    SyncClose(TError("Bus terminated"));
+    SyncClose(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
 }
 
 Stroka TTcpConnection::GetLoggingId() const
@@ -220,7 +222,7 @@ void TTcpConnection::SyncResolve()
     try {
         ParseServiceAddress(Address, &hostName, &Port);
     } catch (const std::exception& ex) {
-        SyncClose(TError(ex.what()));
+        SyncClose(TError(NRpc::EErrorCode::TransportError, ex.what()));
         return;
     }
 
@@ -277,7 +279,7 @@ void TTcpConnection::OnResolved(const TNetworkAddress& netAddress)
     try {
         ConnectSocket(netAddress);
     } catch (const std::exception& ex) {
-        SyncClose(TError(ex.what()));
+        SyncClose(TError(NRpc::EErrorCode::TransportError, ex.what()));
         return;
     }
 
@@ -495,7 +497,7 @@ void TTcpConnection::OnSocket(ev::io&, int revents)
     YASSERT(State != EState::Closed);
     
     if (revents & ev::ERROR) {
-        SyncClose(TError("Socket failed"));
+        SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket failed"));
         return;
     }
 
@@ -592,7 +594,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 bool TTcpConnection::CheckReadError(ssize_t result)
 {
     if (result == 0) {
-        SyncClose(TError("Socket was closed"));
+        SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket was closed"));
         return false;
     }
 
@@ -602,7 +604,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
             LOG_WARNING("Socket read error (ErrorCode: %d)\n%s",
                 error,
                 LastSystemErrorText(error));
-            SyncClose(TError("Socket read error"));
+            SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket read error"));
         }
         return false;
     }
@@ -613,7 +615,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
 bool TTcpConnection::AdvanceDecoder(size_t size)
 {
     if (!Decoder.Advance(size)) {
-        SyncClose(TError("Error decoding incoming packet"));
+        SyncClose(TError(NRpc::EErrorCode::TransportError, "Error decoding incoming packet"));
         return false;
     }
 
@@ -643,7 +645,9 @@ bool TTcpConnection::OnAckPacketReceived()
 {
     if (UnackedMessages.empty()) {
         LOG_ERROR("Unexpected ack received");
-        SyncClose(TError("Unexpected ack received"));
+        SyncClose(TError(
+        	NRpc::EErrorCode::TransportError,
+        	"Unexpected ack received"));
         return false;
     }
 
@@ -653,7 +657,9 @@ bool TTcpConnection::OnAckPacketReceived()
         LOG_ERROR("Ack for invalid packet ID received: expected %s, found %s",
             ~unackedMessage.PacketId.ToString(),
             ~Decoder.GetPacketId().ToString());
-        SyncClose(TError("Ack for invalid packet ID received"));
+        SyncClose(TError(
+        	NRpc::EErrorCode::TransportError,
+        	"Ack for invalid packet ID received"));
         return false;
     }
 
@@ -710,7 +716,9 @@ void TTcpConnection::OnSocketWrite()
                 LastSystemErrorText(error));
 
             // We're currently in event loop context, so calling |SyncClose| is safe.
-            SyncClose(TError("Failed to connect to %s (ErrorCode: %d)\n%s",
+            SyncClose(TError(
+                NRpc::EErrorCode::TransportError,
+                "Failed to connect to %s (ErrorCode: %d)\n%s",
                 ~Address,
                 error,
                 LastSystemErrorText(error)));
@@ -837,7 +845,7 @@ bool TTcpConnection::EncodeMoreFragments()
 
         auto& encoder = encodedPacket->Encoder;
         if (!encoder.Start(queuedPacket->Type, queuedPacket->PacketId, queuedPacket->Message)) {
-            SyncClose(TError("Error encoding outcoming packet"));
+            SyncClose(TError(NRpc::EErrorCode::TransportError, "Error encoding outcoming packet"));
             return false;
         }
 
@@ -865,7 +873,7 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
             LOG_WARNING("Socket write error (ErrorCode: %d)\n%s",
                 error,
                 LastSystemErrorText(error));
-            SyncClose(TError("Socket write error"));
+            SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket write error"));
         }
         return false;
     }

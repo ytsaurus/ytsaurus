@@ -1,12 +1,13 @@
 #include "stdafx.h"
 #include "file_writer.h"
 
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
-
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
+
 #include <ytlib/logging/log.h>
+
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -58,10 +59,10 @@ bool TFileWriter::TryWriteBlock(const TSharedRef& block)
 
         DataSize += block.Size();
         return true;
-    } catch (const std::exception& e) {
+    } catch (const std::exception& ex) {
         Result = MakeFuture(TError(
-            "Failed to write block to file: %s",
-            e.what()));
+            "Failed to write block to file\n%s",
+            ex.what()));
         return false;
     }
 }
@@ -100,7 +101,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
     UpdateProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
     
     TSharedRef metaData;
-    YCHECK(SerializeToProto(&ChunkMeta, &metaData));
+    YCHECK(SerializeToProtoWithEnvelope(ChunkMeta, &metaData));
 
     TChunkMetaHeader header;
     header.Signature = header.ExpectedSignature;

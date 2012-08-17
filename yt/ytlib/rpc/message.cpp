@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "message.h"
 #include "private.h"
+#include "service.h"
 
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/rpc/rpc.pb.h>
@@ -17,12 +18,14 @@ IMessagePtr CreateRequestMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
+    YCHECK(body);
+
     std::vector<TSharedRef> parts;
 
-    TSharedRef headerRef;
-    YCHECK(SerializeToProto(&header, &headerRef));
+    TSharedRef headerData;
+    YCHECK(SerializeToProto(header, &headerData));
+    parts.push_back(headerData);
 
-    parts.push_back(headerRef);
     parts.push_back(body);
 
     FOREACH (const auto& attachment, attachments) {
@@ -37,12 +40,14 @@ IMessagePtr CreateResponseMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
+    YCHECK(body);
+
     std::vector<TSharedRef> parts;
 
-    TSharedRef headerBlob;
-    YCHECK(SerializeToProto(&header, &headerBlob));
+    TSharedRef headerData;
+    YCHECK(SerializeToProto(header, &headerData));
+    parts.push_back(headerData);
 
-    parts.push_back(headerBlob);
     parts.push_back(body);
 
     FOREACH (const auto& attachment, attachments) {
@@ -52,12 +57,28 @@ IMessagePtr CreateResponseMessage(
     return CreateMessageFromParts(MoveRV(parts));
 }
 
+IMessagePtr CreateResponseMessage(IServiceContextPtr context)
+{
+    NProto::TResponseHeader header;
+    *header.mutable_request_id() = context->GetRequestId().ToProto();
+    *header.mutable_error() = context->GetError().ToProto();
+    ToProto(header.mutable_attributes(), context->ResponseAttributes());
+
+    return 
+        context->GetError().IsOK()
+        ? CreateResponseMessage(
+            header,
+            context->GetResponseBody(),
+            context->ResponseAttachments())
+        : CreateErrorResponseMessage(header);
+}
+
 IMessagePtr CreateErrorResponseMessage(
     const NProto::TResponseHeader& header)
 {
-    TSharedRef headerBlob;
-    YCHECK(SerializeToProto(&header, &headerBlob));
-    return CreateMessageFromPart(MoveRV(headerBlob));
+    TSharedRef headerData;
+    YCHECK(SerializeToProto(header, &headerData));
+    return CreateMessageFromPart(MoveRV(headerData));
 }
 
 IMessagePtr CreateErrorResponseMessage(
@@ -92,7 +113,7 @@ bool ParseRequestHeader(
 IMessagePtr SetRequestHeader(IMessagePtr message, const NProto::TRequestHeader& header)
 {
     TSharedRef headerData;
-    YCHECK(SerializeToProto(&header, &headerData));
+    YCHECK(SerializeToProto(header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());
@@ -115,7 +136,7 @@ bool ParseResponseHeader(
 IMessagePtr SetResponseHeader(IMessagePtr message, const NProto::TResponseHeader& header)
 {
     TSharedRef headerData;
-    YCHECK(SerializeToProto(&header, &headerData));
+    YCHECK(SerializeToProto(header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());

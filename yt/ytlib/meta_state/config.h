@@ -173,10 +173,27 @@ struct TSnapshotStoreConfig
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResponseKeeperConfig
+    : public TYsonSerializable
+{
+    //! How long responses are kept in memory.
+    TDuration ExpirationPeriod;
+    //! Interval between consequent attempts to sweep expired responses.
+    TDuration SweepPeriod;
+
+    TResponseKeeperConfig()
+    {
+        Register("expiration_period", ExpirationPeriod)
+            .Default(TDuration::Minutes(5));
+        Register("sweep_period", SweepPeriod)
+            .Default(TDuration::Seconds(5));
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes a configuration of TMetaStateManager.
 struct TPersistentStateManagerConfig
     : public TYsonSerializable
 {
@@ -191,9 +208,9 @@ struct TPersistentStateManagerConfig
      *  a new snapshot generation request is issued when the previous one is still in progress.
      *  This situation is considered abnormal and a warning is reported.
      *
-     *  A special value of -1 means that snapshot creation is switched off.
+     *  |Null| means that snapshot creation is switched off.
      */
-    i32 MaxChangesBetweenSnapshots;
+    TNullable<int> MaxChangesBetweenSnapshots;
 
     //! Default timeout for RPC requests.
     TDuration RpcTimeout;
@@ -216,13 +233,15 @@ struct TPersistentStateManagerConfig
 
     TChangeLogCacheConfigPtr ChangeLogCache;
 
+    TResponseKeeperConfigPtr ResponseKeeper;
+
     TPersistentStateManagerConfig()
     {
         Register("changelogs", ChangeLogs);
         Register("snapshots", Snapshots);
         Register("max_changes_between_snapshots", MaxChangesBetweenSnapshots)
-            .Default(-1)
-            .GreaterThanOrEqual(-1);
+            .Default()
+            .GreaterThan(0);
         Register("rpc_timeout", RpcTimeout)
             .Default(TDuration::MilliSeconds(3000));
         Register("cell", Cell)
@@ -243,10 +262,13 @@ struct TPersistentStateManagerConfig
             .DefaultNew();
         Register("change_log_cache", ChangeLogCache)
             .DefaultNew();
+        Register("response_keeper", ResponseKeeper)
+            .DefaultNew();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 //! Master discovery configuration.
 struct TMasterDiscoveryConfig
     : public TYsonSerializable

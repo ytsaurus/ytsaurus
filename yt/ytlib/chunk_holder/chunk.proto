@@ -1,7 +1,7 @@
 package NYT.NChunkHolder.NProto;
 
 import "yt/ytlib/misc/guid.proto";
-import "yt/ytlib/misc/extensions.proto";
+import "yt/ytlib/misc/protobuf_helpers.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

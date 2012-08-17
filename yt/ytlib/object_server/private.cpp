@@ -1,12 +1,14 @@
 #include "stdafx.h"
-#include "holder_authority.h"
+#include "private.h"
 
 namespace NYT {
-namespace NChunkServer {
+namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NLog::TLogger ObjectServerLogger("ObjectServer");
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
+} // namespace NObjectServer
 } // namespace NYT

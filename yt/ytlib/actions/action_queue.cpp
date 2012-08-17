@@ -228,7 +228,7 @@ public:
         return this;
     }
 
-    virtual void Invoke(const TClosure& action) override
+    virtual bool Invoke(const TClosure& action) override
     {
         // Pick a seemingly least-loaded thread in the pool.
         // Do not lock, just scan and choose the minimum.
@@ -244,6 +244,7 @@ public:
         }
 
         minThread->GetInvoker()->Invoke(action);
+        return true;
     }
 
 private:
@@ -354,9 +355,10 @@ public:
         , Priority(priority)
     { }
 
-    virtual void Invoke(const TClosure& action) override
+    virtual bool Invoke(const TClosure& action) override
     {
         Impl->Enqueue(action, Priority);
+        return true;
     }
 
 private:
@@ -393,10 +395,11 @@ public:
         , Lock(0)
     { }
 
-    virtual void Invoke(const TClosure& action) override
+    virtual bool Invoke(const TClosure& action) override
     {
         Queue.Enqueue(action);
         TrySchedule();
+        return true;
     }
 
 private:

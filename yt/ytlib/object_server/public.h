@@ -22,6 +22,9 @@ typedef TIntrusivePtr<IObjectProxy> IObjectProxyPtr;
 struct IObjectTypeHandler;
 typedef TIntrusivePtr<IObjectTypeHandler> IObjectTypeHandlerPtr;
 
+class TObjectService;
+typedef TIntrusivePtr<TObjectService> TObjectServicePtr;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NObjectServer

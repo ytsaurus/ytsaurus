@@ -7,7 +7,7 @@ from yt_commands import *
 
 class TestCypressCommands(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_HOLDERS = 0
+    NUM_NODES = 0
 
     def test_invalid_cases(self):
         # path not starting with /

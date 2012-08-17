@@ -5,12 +5,20 @@
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/address.h>
+
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
+
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
+
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/chunk_client/remote_writer.h>
+
 #include <ytlib/object_server/object_service_proxy.h>
+
+#include <ytlib/meta_state/rpc_helpers.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -56,10 +64,11 @@ void TFileChunkOutput::Open()
     LOG_INFO("Creating chunk");
     std::vector<Stroka> addresses;
     {
-        TObjectServiceProxy objectProxy(MasterChannel);
+        TObjectServiceProxy proxy(MasterChannel);
 
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
         req->set_type(EObjectType::Chunk);
+        NMetaState::GenerateRpcMutationId(req);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk);
         reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
@@ -67,7 +76,7 @@ void TFileChunkOutput::Open()
         reqExt->set_replication_factor(Config->ReplicationFactor);
         reqExt->set_movable(Config->ChunkMovable);
 
-        auto rsp = objectProxy.Execute(req).Get();
+        auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
                 ~rsp->GetError().ToString());
@@ -173,10 +182,12 @@ void TFileChunkOutput::DoFinish()
     LOG_INFO("Confirming chunk");
     {
         TObjectServiceProxy proxy(MasterChannel);
+
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = Writer->GetChunkInfo();
         ToProto(req->mutable_node_addresses(), Writer->GetNodeAddresses());
         *req->mutable_chunk_meta() = Meta;
+        NMetaState::GenerateRpcMutationId(req);
 
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
@@ -213,6 +224,7 @@ void TFileChunkOutput::FlushBlock()
 
 TChunkId TFileChunkOutput::GetChunkId() const
 {
+    YASSERT(ChunkId != NullChunkId);
     return ChunkId;
 }
 

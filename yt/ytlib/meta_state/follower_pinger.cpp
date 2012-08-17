@@ -4,7 +4,7 @@
 #include "config.h"
 #include "decorated_meta_state.h"
 #include "snapshot_store.h"
-#include "follower_tracker.h"
+#include "quorum_tracker.h"
 #include "decorated_meta_state.h"
 
 #include <ytlib/election/cell_manager.h>
@@ -26,13 +26,13 @@ TFollowerPinger::TFollowerPinger(
     TFollowerPingerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
-    TFollowerTrackerPtr followerTracker,
+    TQuorumTrackerPtr followerTracker,
     const TEpoch& epoch,
     IInvokerPtr epochControlInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)
-    , FollowerTracker(followerTracker)
+    , QuorumTracker(followerTracker)
     , Epoch(epoch)
     , EpochControlInvoker(epochControlInvoker)
 {
@@ -112,7 +112,7 @@ void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowe
     LOG_DEBUG("Ping reply received from follower %d (Status: %s)",
         followerId,
         ~status.ToString());
-    FollowerTracker->ProcessPing(followerId, status);
+    QuorumTracker->ProcessPing(followerId, status);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

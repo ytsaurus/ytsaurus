@@ -10,6 +10,7 @@
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
 
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -155,6 +156,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCypressManager::TRootService
+    : public TYPathServiceBase
+{
+public:
+    explicit TRootService(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
+    { }
+
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
+    {
+        UNUSED(verb);
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto service = cypressManager->GetVersionedNodeProxy(
+            cypressManager->GetRootNodeId());
+        return TResolveResult::There(service, path);
+    }
+
+private:
+    TBootstrap* Bootstrap;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
     : CypressManager(cypressManager)
 { }
@@ -169,14 +195,18 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedN
 
 TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : TMetaStatePart(
-        bootstrap->GetMetaStateManager(),
-        bootstrap->GetMetaState())
+        bootstrap->GetMetaStateFacade()->GetManager(),
+        bootstrap->GetMetaStateFacade()->GetState())
     , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType)
 {
     YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetRawInvoker(), StateThread);
+
+    RootService =
+        New<TRootService>(Bootstrap)
+        ->Via(Bootstrap->GetMetaStateFacade()->GetWrappedInvoker());
 
     auto transactionManager = bootstrap->GetTransactionManager();
     transactionManager->SubscribeTransactionCommitted(BIND(
@@ -192,7 +222,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));
 
-    auto metaState = bootstrap->GetMetaState();
+    auto metaState = bootstrap->GetMetaStateFacade()->GetState();
     TLoadContext context(bootstrap);
     metaState->RegisterLoader(
         "Cypress.Keys.1",
@@ -313,69 +343,17 @@ TNodeId TCypressManager::GetRootNodeId()
         0xffffffffffffffff);
 }
 
-namespace {
-
-class TNotALeaderRootService
-    : public TYPathServiceBase
+IYPathServicePtr TCypressManager::GetRootService()
 {
-public:
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
-    {
-        UNUSED(path);
-        UNUSED(verb);
-        ythrow NRpc::TServiceException(TError(NRpc::EErrorCode::Unavailable, "Not an active leader"));
-    }
-};
+    VERIFY_THREAD_AFFINITY_ANY();
 
-class TLeaderRootService
-    : public TYPathServiceBase
-{
-public:
-    TLeaderRootService(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
-    { }
-
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
-    {
-        UNUSED(verb);
-
-        // Make a rigorous check at the right thread.
-        if (Bootstrap->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading) {
-            ythrow yexception() << "Not a leader";
-        }
-
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto service = cypressManager->GetVersionedNodeProxy(
-            cypressManager->GetRootNodeId());
-        return TResolveResult::There(service, path);
-    }
-
-private:
-    TBootstrap* Bootstrap;
-
-};
-
-} // namespace
-
-TYPathServiceProducer TCypressManager::GetRootServiceProducer()
-{
-    auto stateInvoker = MetaStateManager->GetStateInvoker();
-    auto this_ = MakeStrong(this);
-    return BIND([=] () -> IYPathServicePtr
-        {
-            // Make a coarse check at this (wrong) thread first.
-            auto status = this_->MetaStateManager->GetStateStatusAsync();
-            if (status == EPeerStatus::Leading) {
-                return New<TLeaderRootService>(Bootstrap)->Via(stateInvoker);
-            } else {
-                return RefCountedSingleton<TNotALeaderRootService>();
-            }
-        });
-
+    return RootService;
 }
 
 IYPathResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     return New<TYPathResolver>(Bootstrap, transaction);
 }
 
@@ -512,7 +490,7 @@ void TCypressManager::ValidateLock(
         }
 
         // For Exclusive and Shared locks we check the locks held by concurrent transactions.
-        if (IsConcurrentTransaction(transaction, existingTransaction) &&
+        if ((!transaction || IsConcurrentTransaction(transaction, existingTransaction)) &&
             (requestedMode == ELockMode::Exclusive || existingLock.Mode == ELockMode::Exclusive))
         {
             ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
@@ -724,9 +702,11 @@ void TCypressManager::RegisterNode(
     auto nodeId = node->GetId().ObjectId;
     YASSERT(node->GetId().TransactionId == NullTransactionId);
     
-    auto metaStateManager = Bootstrap->GetMetaStateManager();
-    auto* mutationContext = metaStateManager->GetMutationContext();
     auto objectManager = Bootstrap->GetObjectManager();
+    auto* mutationContext = Bootstrap
+        ->GetMetaStateFacade()
+        ->GetManager()
+        ->GetMutationContext();
 
     node->SetCreationTime(mutationContext->GetTimestamp());
 

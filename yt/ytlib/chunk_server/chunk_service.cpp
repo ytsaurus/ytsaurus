@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "chunk_service.h"
-#include "holder_statistics.h"
-#include "holder.h"
-#include "holder_authority.h"
+#include "node_statistics.h"
+#include "node.h"
+#include "node_authority.h"
 
 #include <ytlib/misc/string.h>
 
@@ -12,10 +12,13 @@
 #include <ytlib/object_server/object_manager.h>
 
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_facade.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
 
 #include <ytlib/chunk_server/chunk_manager.h>
+
+#include <ytlib/meta_state/rpc_helpers.h>
 
 #include <ytlib/profiling/profiler.h>
 
@@ -25,44 +28,45 @@ namespace NChunkServer {
 using namespace NRpc;
 using namespace NMetaState;
 using namespace NChunkHolder;
-using namespace NProto;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger Logger("ChunkServer");
-NProfiling::TProfiler Profiler("/chunk_server");
+static NLog::TLogger& Logger = ChunkServerLogger;
+static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkService::TChunkService(TBootstrap* bootstrap)
-    : TMetaStateServiceBase(
-        bootstrap,
+    : TServiceBase(
+        bootstrap->GetMetaStateFacade()->GetWrappedInvoker(),
         TChunkServiceProxy::GetServiceName(),
         ChunkServerLogger.GetCategory())
+    , Bootstrap(bootstrap)
 {
-    YASSERT(bootstrap);
+    YCHECK(bootstrap);
 
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
-            .SetHeavyRequest(true),
-        bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh));
+            .SetHeavyRequest(true)
+            .SetInvoker(bootstrap->GetMetaStateFacade()->GetWrappedInvoker(EStateThreadQueue::ChunkRefresh)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetHeavyRequest(true));
 }
 
- void TChunkService::ValidateHolderId(THolderId holderId)
+void TChunkService::ValidateNodeId(TNodeId nodeId) const
 {
-    if (!Bootstrap->GetChunkManager()->FindHolder(holderId)) {
-        ythrow TServiceException(EErrorCode::NoSuchHolder) <<
-            Sprintf("Invalid or expired holder id %d", holderId);
+    if (!Bootstrap->GetChunkManager()->FindNode(nodeId)) {
+        ythrow TServiceException(EErrorCode::NoSuchNode) <<
+            Sprintf("Invalid or expired node id %d", nodeId);
     }
 }
 
-void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
+void TChunkService::ValidateTransactionId(const TTransactionId& transactionId) const
 {
     if (!Bootstrap->GetTransactionManager()->FindTransaction(transactionId)) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
@@ -70,11 +74,25 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
     }
 }
 
+void TChunkService::CheckAuthorization(const Stroka& address) const
+{
+    auto nodeAuthority = Bootstrap->GetNodeAuthority();
+    if (!nodeAuthority->IsAuthorized(address)) {
+        ythrow TServiceException(TError(
+            EErrorCode::NotAuthorized,
+            Sprintf("Node %s is not authorized", ~address)));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
+DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 {
     UNUSED(response);
+
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto objectManager = Bootstrap->GetObjectManager();
 
     Stroka address = request->address();
     auto incarnationId = TIncarnationId::FromProto(request->incarnation_id());
@@ -87,8 +105,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
         ~requestCellGuid.ToString(),
         ~ToString(statistics));
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto objectManager = Bootstrap->GetObjectManager();
+    if (!metaStateFacade->ValidateActiveLeader(context->GetUntypedContext()))
+        return;
 
     auto expectedCellGuid = objectManager->GetCellGuid();
     if (!requestCellGuid.IsEmpty() && requestCellGuid != expectedCellGuid) {
@@ -100,94 +118,103 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
             ~requestCellGuid.ToString()));
     }
 
-    CheckHolderAuthorization(address);
+    CheckAuthorization(address);
 
-    TMsgRegisterHolder message;
-    message.set_address(address);
-    *message.mutable_incarnation_id() = incarnationId.ToProto();
-    *message.mutable_statistics() = statistics;
+    TMetaReqRegisterNode registerReq;
+    registerReq.set_address(address);
+    *registerReq.mutable_incarnation_id() = incarnationId.ToProto();
+    *registerReq.mutable_statistics() = statistics;
     chunkManager
-        ->InitiateRegisterHolder(message)
-        ->OnSuccess(BIND([=] (THolderId nodeId) {
-            response->set_holder_id(nodeId);
+        ->CreateRegisterNodeMutation(registerReq)
+        ->OnSuccess(BIND([=] (const TMetaRspRegisterNode& registerRsp) {
+            TNodeId nodeId = registerRsp.node_id();
+            context->Response().set_node_id(nodeId);
             *response->mutable_cell_guid() = expectedCellGuid.ToProto();
-            context->SetResponseInfo("HolderId: %d", nodeId);
+            context->SetResponseInfo("NodeId: %d", nodeId);
             context->Reply();
         }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
-    auto holderId = request->holder_id();
-
-    context->SetRequestInfo("HolderId: %d", holderId);
-
-    ValidateHolderId(holderId);
-
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto* holder = chunkManager->GetHolder(holderId);
-    if (holder->GetState() != EHolderState::Registered) {
+
+    auto nodeId = request->node_id();
+
+    context->SetRequestInfo("NodeId: %d", nodeId);
+
+    if (!metaStateFacade->ValidateActiveLeader(context->GetUntypedContext()))
+        return;
+
+    ValidateNodeId(nodeId);
+
+    const auto* node = chunkManager->GetNode(nodeId);
+    if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
             EErrorCode::InvalidState,
-            Sprintf("Cannot process a full heartbeat in %s state", ~holder->GetState().ToString())));
+            Sprintf("Cannot process a full heartbeat in %s state", ~node->GetState().ToString())));
         return;
     }
-    CheckHolderAuthorization(holder->GetAddress());
+    CheckAuthorization(node->GetAddress());
 
     chunkManager
-        ->InitiateFullHeartbeat(context)
-        ->OnSuccess(BIND([=] (TVoid) {
-            context->Reply();
-        }))
-        ->OnError(CreateErrorHandler(context))
+        ->CreateFullHeartbeatMutation(context)
+        ->OnSuccess(CreateRpcSuccessHandler(context))
+        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 {
-    auto holderId = request->holder_id();
-
-    context->SetRequestInfo("HolderId: %d");
-
-    ValidateHolderId(holderId);
-
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto* holder = chunkManager->GetHolder(holderId);
-    if (holder->GetState() != EHolderState::Online) {
+
+    auto nodeId = request->node_id();
+
+    context->SetRequestInfo("NodeId: %d");
+
+    if (!metaStateFacade->ValidateActiveLeader(context->GetUntypedContext()))
+        return;
+
+    ValidateNodeId(nodeId);
+
+    auto* node = chunkManager->GetNode(nodeId);
+    if (node->GetState() != ENodeState::Online) {
         context->Reply(TError(
             EErrorCode::InvalidState,
-            Sprintf("Cannot process an incremental heartbeat in %s state", ~holder->GetState().ToString())));
+            Sprintf("Cannot process an incremental heartbeat in %s state", ~node->GetState().ToString())));
         return;
     }
-    CheckHolderAuthorization(holder->GetAddress());
+    CheckAuthorization(node->GetAddress());
 
-    TMsgIncrementalHeartbeat heartbeatMsg;
-    heartbeatMsg.set_holder_id(holderId);
-    *heartbeatMsg.mutable_statistics() = request->statistics();
-    heartbeatMsg.mutable_added_chunks()->MergeFrom(request->added_chunks());
-    heartbeatMsg.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
+    TMetaReqIncrementalHeartbeat heartbeatReq;
+    heartbeatReq.set_node_id(nodeId);
+    *heartbeatReq.mutable_statistics() = request->statistics();
+    heartbeatReq.mutable_added_chunks()->MergeFrom(request->added_chunks());
+    heartbeatReq.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
 
     chunkManager
-        ->InitiateIncrementalHeartbeat(heartbeatMsg)
+        ->CreateIncrementalHeartbeatMutation(heartbeatReq)
         ->Commit();
 
     std::vector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
     std::vector<TJobStartInfo> jobsToStart;
     std::vector<TJobStopInfo> jobsToStop;
     chunkManager->ScheduleJobs(
-        holder,
+        node,
         runningJobs,
         &jobsToStart,
         &jobsToStop);
 
-    TMsgUpdateJobs updateJobsMsg;
-    updateJobsMsg.set_holder_id(holderId);
+    TMetaReqUpdateJobs updateJobsReq;
+    updateJobsReq.set_node_id(nodeId);
 
     FOREACH (const auto& jobInfo, jobsToStart) {
         *response->add_jobs_to_start() = jobInfo;
-        *updateJobsMsg.add_started_jobs() = jobInfo;
+        *updateJobsReq.add_started_jobs() = jobInfo;
     }
 
     yhash_set<TJobId> runningJobIds;
@@ -200,29 +227,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
         if (runningJobIds.find(jobId) != runningJobIds.end()) {
             *response->add_jobs_to_stop() = jobInfo;
         }
-        *updateJobsMsg.add_stopped_jobs() = jobInfo;
+        *updateJobsReq.add_stopped_jobs() = jobInfo;
     }
 
     chunkManager
-        ->InitiateUpdateJobs(updateJobsMsg)
-        ->OnSuccess(BIND([=] (TVoid) {
+        ->CreateUpdateJobsMutation(updateJobsReq)
+        ->OnSuccess(BIND([=] () {
             context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
                 static_cast<int>(response->jobs_to_start_size()),
                 static_cast<int>(response->jobs_to_stop_size()));
             context->Reply();
         }))
-        ->OnError(CreateErrorHandler(context))
+        ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
-}
-
-void TChunkService::CheckHolderAuthorization(const Stroka &address) const
-{
-    auto holderAuthority = Bootstrap->GetHolderAuthority();
-    if (!holderAuthority->IsHolderAuthorized(address)) {
-        ythrow TServiceException(TError(
-            EErrorCode::NotAuthorized,
-            Sprintf("Holder %s is not authorized", ~address.Quote())));
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

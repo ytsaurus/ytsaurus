@@ -161,9 +161,9 @@ void TCompositeMetaState::Load(TInputStream* input)
     }
 }
 
-void TCompositeMetaState::ApplyMutation(const TMutationContext& context)
+void TCompositeMetaState::ApplyMutation(TMutationContext* context) throw()
 {
-    auto it = Methods.find(context.GetMutationType());
+    auto it = Methods.find(context->GetType());
     YCHECK(it != Methods.end());
     it->second.Run(context);
 }

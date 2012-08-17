@@ -30,7 +30,7 @@ TChunkTreeBalancer::TChunkTreeBalancer(
 
 bool TChunkTreeBalancer::CheckRebalanceNeeded(
     TChunkList* chunkList,
-    NProto::TMsgRebalanceChunkTree* message)
+    NProto::TMetaReqRebalanceChunkTree* message)
 {
     bool rebalanceNeeded = false;
     auto* currentChunkList = chunkList;
@@ -65,7 +65,7 @@ bool TChunkTreeBalancer::CheckRebalanceNeeded(
 
 bool TChunkTreeBalancer::RebalanceChunkTree(
     TChunkList* root,
-    const NProto::TMsgRebalanceChunkTree& message)
+    const NProto::TMetaReqRebalanceChunkTree& message)
 {
 
     if (root->GetRigid() ||
@@ -120,7 +120,7 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
 void TChunkTreeBalancer::AppendChunkTree(
     std::vector<TChunkTreeRef>* children,
     TChunkTreeRef child,
-    const NProto::TMsgRebalanceChunkTree& message)
+    const NProto::TMetaReqRebalanceChunkTree& message)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
 
@@ -177,7 +177,7 @@ void TChunkTreeBalancer::AppendChunkTree(
 void TChunkTreeBalancer::MergeChunkTrees(
     std::vector<TChunkTreeRef>* children,
     TChunkTreeRef child,
-    const NProto::TMsgRebalanceChunkTree& message)
+    const NProto::TMetaReqRebalanceChunkTree& message)
 {
     // We are trying to add the child to the last chunk list.
     auto* lastChunkList = children->back().AsChunkList();
@@ -232,7 +232,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
 
 void TChunkTreeBalancer::InitRebalanceMessage(
     TChunkList* chunkList,
-    NProto::TMsgRebalanceChunkTree* message)
+    NProto::TMetaReqRebalanceChunkTree* message)
 {
     if (!message)
         return;

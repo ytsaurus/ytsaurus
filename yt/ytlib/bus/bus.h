@@ -45,7 +45,7 @@ struct IBus
 
      *  \note Thread affinity: any.
      */
-    virtual void Terminate(const TError& error = TError("Bus terminated")) = 0;
+    virtual void Terminate(const TError& error) = 0;
 
     //! Invoked upon bus termination
     //! (either due to call to #Terminate or other party's failure).

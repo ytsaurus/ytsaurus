@@ -11,8 +11,6 @@ class TCancelableContext::TCancelableInvoker
     : public IInvoker
 {
 public:
-    typedef TIntrusivePtr<TCancelableInvoker> TPtr;
-
     TCancelableInvoker(
         TCancelableContextPtr context,
         IInvokerPtr underlyingInvoker)
@@ -22,12 +20,13 @@ public:
         YASSERT(underlyingInvoker);
     }
 
-    virtual void Invoke(const TClosure& action)
+    virtual bool Invoke(const TClosure& action) override
     {
         YASSERT(!action.IsNull());
 
-        if (Context->Canceled)
-            return;
+        if (Context->Canceled) {
+            return false;
+        }
 
         auto context = Context;
         UnderlyingInvoker->Invoke(BIND([=] {
@@ -35,6 +34,8 @@ public:
                 action.Run();
             }
         }));
+
+        return true;
     }
 
     void Cancel();

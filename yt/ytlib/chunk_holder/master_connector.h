@@ -10,9 +10,9 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Mediates connection between the holder and its master.
+//! Mediates connection between a node and its master.
 /*!
- *  This class is responsible for registering the holder and sending
+ *  This class is responsible for registering the node and sending
  *  heartbeats. In particular, it reports chunk deltas to the master
  *  and manages jobs.
  */
@@ -31,8 +31,8 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
     typedef yhash_set<TChunkPtr> TChunks;
 
-    //! Special id value indicating that the holder is not registered.
-    static const int InvalidHolderId = -1;
+    //! Special id value indicating that the node is not registered.
+    static const int InvalidNodeId = -1;
 
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -50,8 +50,8 @@ private:
     //! The current connection state.
     EState State;
     
-    //! Current id assigned by the master, #InvalidHolderId if not registered.
-    int HolderId;
+    //! Current id assigned by the master, #InvalidnodeId if not registered.
+    int NodeId;
 
     //! Proxy for the master.
     THolder<TProxy> Proxy;
@@ -77,11 +77,11 @@ private:
     //! Sends out a registration request.
     void SendRegister();
 
-    //! Computes the current holder statistics.
-    NChunkServer::NProto::THolderStatistics ComputeStatistics();
+    //! Computes the current node statistics.
+    NChunkServer::NProto::TNodeStatistics ComputeStatistics();
 
     //! Handles registration response.
-    void OnRegisterResponse(TProxy::TRspRegisterHolderPtr response);
+    void OnRegisterResponse(TProxy::TRspRegisterNodePtr response);
 
     //! Sends out a full heartbeat.
     void SendFullHeartbeat();

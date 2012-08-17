@@ -55,7 +55,7 @@ void TFileReader::Open()
                 checksum);
     }
 
-    if (!DeserializeFromProto(&ChunkMeta, chunkMetaRef)) {
+    if (!DeserializeFromProtoWithEnvelope(&ChunkMeta, chunkMetaRef)) {
         ythrow yexception() << Sprintf("Failed to parse chunk meta (FileName: %s)",
             ~FileName); 
     }

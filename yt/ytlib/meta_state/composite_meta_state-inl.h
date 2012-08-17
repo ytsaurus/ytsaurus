@@ -9,27 +9,48 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TMessage, class TResult>
-void TMetaStatePart::RegisterMethod(
-    TCallback<TResult(const TMessage&)> handler)
+template <class TRequest, class TResponse>
+struct TMetaStatePart::TThunkTraits
 {
-    Stroka mutationType = TMessage().GetTypeName();
+    static void Thunk(
+        TCallback<TResponse(const TRequest& request)> handler,
+        TMutationContext* context)
+    {
+        TRequest request;
+        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->GetRequestData()));
+
+        auto response = handler.Run(request);
+
+        TSharedRef responseData;
+        YCHECK(SerializeToProtoWithEnvelope(response, &responseData));
+
+        context->SetResponseData(responseData);
+    }
+};
+
+template <class TRequest>
+struct TMetaStatePart::TThunkTraits<TRequest, void>
+{
+    static void Thunk(
+        TCallback<void(const TRequest& request)> handler,
+        TMutationContext* context)
+    {
+        TRequest request;
+        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->GetRequestData()));
+
+        handler.Run(request);
+    }
+};
+
+template <class TRequest, class TResponse>
+void TMetaStatePart::RegisterMethod(
+    TCallback<TResponse(const TRequest&)> handler)
+{
+    Stroka mutationType = TRequest().GetTypeName();
     auto wrappedHandler = BIND(
-        &TMetaStatePart::MethodThunk<TMessage, TResult>,
-        Unretained(this),
+        &TThunkTraits<TRequest, TResponse>::Thunk,
         MoveRV(handler));
     YCHECK(MetaState->Methods.insert(MakePair(mutationType, wrappedHandler)).second);
-}
-
-template <class TMessage, class TResult>
-void TMetaStatePart::MethodThunk(
-    TCallback<TResult(const TMessage& message)> handler,
-    const TMutationContext& context)
-{
-    TMessage message;
-    YCHECK(DeserializeFromProto(&message, context.GetMutationData()));
-
-    handler.Run(message);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

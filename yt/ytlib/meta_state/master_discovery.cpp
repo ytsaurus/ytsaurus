@@ -25,6 +25,99 @@ static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMasterDiscovery::TQuorumRequester
+    : public TRefCounted
+{
+public:
+    explicit TQuorumRequester(TMasterDiscoveryConfigPtr config)
+        : Config(config)
+        , PromiseLatch(0)
+        , Promise(NewPromise<TProxy::TRspGetQuorumPtr>())
+        , Awaiter(New<TParallelAwaiter>(&Profiler, "/time"))
+    { }
+
+    TFuture<TMasterDiscovery::TProxy::TRspGetQuorumPtr> Run()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto promise = Promise;
+        auto awaiter = Awaiter;
+        
+        FOREACH (const Stroka& address, Config->Addresses) {
+            LOG_DEBUG("Requesting quorum information from peer %s", ~address);
+
+            TProxy proxy(ChannelCache.GetChannel(address));
+            proxy.SetDefaultTimeout(Config->RpcTimeout);
+
+            auto request = proxy.GetQuorum();
+            awaiter->Await(
+                request->Invoke(),
+                EscapeYPathToken(address),
+                BIND(&TQuorumRequester::OnResponse, MakeStrong(this), address));
+        }
+
+        awaiter->Complete(BIND(&TQuorumRequester::OnComplete, MakeStrong(this)));
+
+        return promise;
+    }
+
+private:
+    TMasterDiscoveryConfigPtr Config;
+
+    TAtomic PromiseLatch;
+    TPromise<TMasterDiscovery::TProxy::TRspGetQuorumPtr> Promise;
+    TParallelAwaiterPtr Awaiter;
+
+    bool AcquireLatch()
+    {
+        return AtomicIncrement(PromiseLatch) == 1;
+    }
+
+    void OnResponse(const Stroka& address, TProxy::TRspGetQuorumPtr response)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!response->IsOK()) {
+            LOG_WARNING("Error requesting quorum information from peer %s\n%s",
+                ~address,
+                ~response->GetError().ToString());
+            return;
+        }
+
+        LOG_DEBUG("Received quorum information from peer %s (Epoch: %s, LeaderAddress: %s, FollowerAddresses: [%s])",
+            ~address,
+            ~TEpoch::FromProto(response->epoch()).ToString(),
+            ~response->leader_address(),
+            ~JoinToString(response->follower_addresses()));
+
+        if (!AcquireLatch())
+            return;
+
+        Promise.Set(MoveRV(response));
+        Awaiter->Cancel();
+        Cleanup();
+    }
+
+    void OnComplete()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!AcquireLatch())
+            return;
+
+        LOG_INFO("No quorum information received");
+
+        Promise.Set(NULL);
+        Cleanup();
+    }
+
+    void Cleanup()
+    {
+        Promise.Reset();
+        Awaiter.Reset();
+    }
+};
+
 TMasterDiscovery::TMasterDiscovery(TMasterDiscoveryConfigPtr config)
     : Config(config)
 { }
@@ -67,7 +160,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetFollower()
     return GetQuorum().Apply(
         BIND([] (TProxy::TRspGetQuorumPtr quorum) -> TAsyncResult {
             TResult result;
-            if (quorum) {
+            if (quorum && quorum->follower_addresses_size() > 0) {
                 int id = RandomNumber<unsigned int>(quorum->follower_addresses_size());
                 result.Address = quorum->follower_addresses().Get(id);
                 result.Epoch = TGuid::FromProto(quorum->epoch());
@@ -79,78 +172,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetFollower()
 
 TFuture<TMasterDiscovery::TProxy::TRspGetQuorumPtr> TMasterDiscovery::GetQuorum()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto promise = NewPromise<TProxy::TRspGetQuorumPtr>();
-    auto awaiter = New<TParallelAwaiter>(&Profiler, "/time");
-
-    FOREACH (const Stroka& address, Config->Addresses) {
-        LOG_DEBUG("Requesting quorum information from peer %s", ~address);
-
-        TProxy proxy(ChannelCache.GetChannel(address));
-        proxy.SetDefaultTimeout(Config->RpcTimeout);
-
-        auto request = proxy.GetQuorum();
-        awaiter->Await(
-            request->Invoke(),
-            EscapeYPathToken(address),
-            BIND(
-                &TMasterDiscovery::OnResponse,
-                MakeStrong(this),
-                awaiter,
-                promise,
-                address));
-    }
-
-    awaiter->Complete(BIND(
-        &TMasterDiscovery::OnComplete,
-        MakeStrong(this),
-        promise));
-
-    return promise;
-}
-
-void TMasterDiscovery::OnResponse(
-    TParallelAwaiterPtr awaiter,
-    TPromise<TProxy::TRspGetQuorumPtr> promise,
-    const Stroka& address,
-    TProxy::TRspGetQuorumPtr response)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!response->IsOK()) {
-        LOG_WARNING("Error requesting quorum information from peer %s\n%s",
-            ~address,
-            ~response->GetError().ToString());
-        return;
-    }
-
-    LOG_DEBUG("Received quorum information from peer %s (Epoch: %s, LeaderAddress: %s, FollowerAddresses: [%s])",
-        ~address,
-        ~TEpoch::FromProto(response->epoch()).ToString(),
-        ~response->leader_address(),
-        ~JoinToString(response->follower_addresses()));
-
-    TGuard<TSpinLock> guard(SpinLock);    
-    if (promise.IsSet())
-        return;
-
-    promise.Set(MoveRV(response));
-
-    awaiter->Cancel();
-}
-
-void TMasterDiscovery::OnComplete(TPromise<TProxy::TRspGetQuorumPtr> promise)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TGuard<TSpinLock> guard(SpinLock);    
-    if (promise.IsSet())
-        return;
-
-    promise.Set(NULL);
-
-    LOG_INFO("No quorum information received");
+    return New<TQuorumRequester>(Config)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

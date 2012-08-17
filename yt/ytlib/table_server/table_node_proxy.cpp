@@ -276,7 +276,7 @@ TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
-    const TNodeId& nodeId)
+    const NCypressServer::TNodeId& nodeId)
     : TCypressNodeProxyBase<IEntityNode, TTableNode>(
         typeHandler,
         bootstrap,
@@ -651,8 +651,7 @@ TChunkList* TTableNodeProxy::EnsureNodeMutable(TTableNode* node)
 
             objectManager->UnrefObject(snapshotChunkList);
 
-            LOG_DEBUG_UNLESS(Bootstrap->GetMetaStateManager()->IsRecovery(),
-                "Table node is switched to append mode (NodeId: %s, NewChunkListId: %s, SnapshotChunkListId: %s, DeltaChunkListId: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Table node is switched to append mode (NodeId: %s, NewChunkListId: %s, SnapshotChunkListId: %s, DeltaChunkListId: %s)",
                 ~node->GetId().ToString(),
                 ~newChunkList->GetId().ToString(),
                 ~snapshotChunkList->GetId().ToString(),
@@ -681,8 +680,7 @@ void TTableNodeProxy::ClearNode(TTableNode* node)
 
     node->SetUpdateMode(ETableUpdateMode::Overwrite);
 
-    LOG_DEBUG_UNLESS(Bootstrap->GetMetaStateManager()->IsRecovery(),
-        "Table node is cleared and switched to overwrite mode (NodeId: %s, NewChunkListId: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Table node is cleared and switched to overwrite mode (NodeId: %s, NewChunkListId: %s)",
         ~node->GetId().ToString(),
         ~newChunkList->GetId().ToString());
 }

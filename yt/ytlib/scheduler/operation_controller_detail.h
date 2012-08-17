@@ -354,7 +354,7 @@ protected:
 
     virtual void DoInitialize();
     virtual void LogProgress() = 0;
-    virtual void DoGetProgress(NYTree::IYsonConsumer* consumer);
+    virtual void DoBuildProgressYson(NYTree::IYsonConsumer* consumer);
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYTree::TYPath> GetInputTablePaths() const = 0;

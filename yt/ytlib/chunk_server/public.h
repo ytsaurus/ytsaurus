@@ -12,22 +12,22 @@ class TChunk;
 class TChunkList;
 class TJob;
 class TJobList;
-class THolder;
+class TDataNode;
 class TReplicationSink;
 
 struct TChunkTreeStatistics;
-struct TTotalHolderStatistics;
+struct TTotalNodeStatistics;
 
 class TChunkTreeRef;
 
 class TChunkManager;
 typedef TIntrusivePtr<TChunkManager> TChunkManagerPtr;
 
-struct IHolderAuthority;
-typedef TIntrusivePtr<IHolderAuthority> IHolderAuthorityPtr;
+struct INodeAuthority;
+typedef TIntrusivePtr<INodeAuthority> INodeAuthorityPtr;
 
-class THolderLeaseTracker;
-typedef TIntrusivePtr<THolderLeaseTracker> THolderLeaseTrackerPtr;
+class TNodeLeaseTracker;
+typedef TIntrusivePtr<TNodeLeaseTracker> TNodeLeaseTrackerPtr;
 
 class TChunkReplicator;
 typedef TIntrusivePtr<TChunkReplicator> TChunkReplicatorPtr;
@@ -50,8 +50,8 @@ typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;
 using NObjectServer::TTransactionId;
 using NObjectServer::NullTransactionId;
 
-typedef i32 THolderId;
-const i32 InvalidHolderId = -1;
+typedef i32 TNodeId;
+const i32 InvalidNodeId = -1;
 
 typedef TGuid TIncarnationId;
 

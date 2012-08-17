@@ -3,15 +3,21 @@
 #include "transaction.h"
 #include "transaction_ypath_proxy.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/transaction_server/transaction_ypath.pb.h>
+
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
-#include <ytlib/misc/string.h>
+#include <ytlib/cell_master/meta_state_facade.h>
+
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/cypress_server/cypress_manager.h>
+
 #include <ytlib/object_server/object_service_proxy.h>
 #include <ytlib/object_server/type_handler_detail.h>
 
@@ -47,6 +53,9 @@ public:
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObject);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(ReleaseObject);
+        // NB: RenewLease is not logged and thus is not considered to be a write
+        // request. It can only be served at leaders though, so its handler explicitly
+        // checks the status.
         return TBase::IsWriteRequest(context);
     }
 
@@ -189,12 +198,15 @@ private:
     {
         UNUSED(response);
 
+        bool renewAncestors = request->renew_ancestors();
+        context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
+
         ValidateTransactionIsValid();
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        bool renewAncestors = request->renew_ancestors();
-        context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
+        if (!Owner->Bootstrap->GetMetaStateFacade()->ValidateActiveLeader(context->GetUntypedContext()))
+            return;
 
         Owner->RenewLease(transaction, renewAncestors);
         context->Reply();
@@ -329,18 +341,18 @@ TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
-        bootstrap->GetMetaStateManager(),
-        bootstrap->GetMetaState())
+        bootstrap->GetMetaStateFacade()->GetManager(),
+        bootstrap->GetMetaStateFacade()->GetState())
     , Config(config)
     , Bootstrap(bootstrap)
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
+    YCHECK(config);
+    YCHECK(bootstrap);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetRawInvoker(), StateThread);
 
     TLoadContext context(Bootstrap);
 
-    auto metaState = Bootstrap->GetMetaState();
+    auto metaState = Bootstrap->GetMetaStateFacade()->GetState();
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
         BIND(&TTransactionManager::LoadKeys, MakeStrong(this)));
@@ -391,7 +403,10 @@ TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
 
     transaction->SetState(ETransactionState::Active);
 
-    auto* mutationContext = Bootstrap->GetMetaStateManager()->GetMutationContext();
+    auto* mutationContext = Bootstrap
+        ->GetMetaStateFacade()
+        ->GetManager()
+        ->GetMutationContext();
     transaction->SetStartTime(mutationContext->GetTimestamp());
 
     TransactionStarted_.Fire(transaction);
@@ -559,12 +574,13 @@ void TTransactionManager::OnStopLeading()
 
 void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration timeout)
 {
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto lease = TLeaseManager::CreateLease(
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
         .Via(
-            Bootstrap->GetStateInvoker(),
-            Bootstrap->GetMetaStateManager()->GetEpochContext()));
+            metaStateFacade->GetWrappedInvoker(),
+            metaStateFacade->GetManager()->GetEpochContext()));
     YCHECK(LeaseMap.insert(MakePair(transaction->GetId(), lease)).second);
 }
 
@@ -585,10 +601,19 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (!proxy)
         return;
 
-    LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
+    LOG_INFO("Transaction has expired (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::Abort();
-    ExecuteVerb(proxy, req);
+    ExecuteVerb(proxy, req).Subscribe(BIND([=] (TTransactionYPathProxy::TRspAbortPtr rsp) {
+        if (rsp->IsOK()) {
+            LOG_INFO("Transaction expiration commit success (TransactionId: %s)",
+                ~id.ToString());
+        } else {
+            LOG_ERROR("Transaction expiration commit failed (TransactionId: %s)\n%s",
+                ~id.ToString(),
+                ~rsp->GetError().ToString());
+        }
+    }));
 }
 
 IObjectProxyPtr TTransactionManager::GetRootTransactionProxy()

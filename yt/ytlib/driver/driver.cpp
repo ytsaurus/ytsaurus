@@ -13,10 +13,11 @@
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/ephemeral.h>
 
-#include <rpc/scoped_channel.h>
+#include <ytlib/rpc/scoped_channel.h>
+#include <ytlib/rpc/retrying_channel.h>
 
 #include <ytlib/meta_state/config.h>
-#include <ytlib/meta_state/leader_channel.h>
+#include <ytlib/meta_state/master_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 
@@ -49,16 +50,22 @@ public:
     explicit TDriver(TDriverConfigPtr config)
         : Config(config)
     {
-        YASSERT(config);
+        YCHECK(config);
 
-        MasterChannel = CreateLeaderChannel(config->Masters);
+        LeaderChannel = CreateRetryingChannel(
+            Config->MasterRetries,
+            CreateLeaderChannel(Config->Masters));
+
+        MasterChannel = CreateRetryingChannel(
+            Config->MasterRetries,
+            CreateMasterChannel(Config->Masters));
 
         // TODO(babenko): for now we use the same timeout both for masters and scheduler
         SchedulerChannel = CreateSchedulerChannel(
-            config->Masters->RpcTimeout,
-            MasterChannel);
+            Config->Masters->RpcTimeout,
+            LeaderChannel);
 
-        BlockCache = CreateClientBlockCache(config->BlockCache);
+        BlockCache = CreateClientBlockCache(Config->BlockCache);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -96,8 +103,8 @@ public:
 
     TDriverResponse Execute(const TDriverRequest& request) override
     {
-        YASSERT(request.InputStream);
-        YASSERT(request.OutputStream);
+        YCHECK(request.InputStream);
+        YCHECK(request.OutputStream);
 
         auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
@@ -108,7 +115,13 @@ public:
 
         const auto& entry = it->second;
 
-        TCommandContext context(this, entry.Descriptor, &request);
+        TCommandContext context(
+            this,
+            entry.Descriptor,
+            &request,
+            LeaderChannel,
+            LeaderChannel, //entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
+            SchedulerChannel);
         auto command = entry.Factory.Run(&context);
         command->Execute();
 
@@ -136,7 +149,7 @@ public:
 
     IChannelPtr GetMasterChannel() override
     {
-        return MasterChannel;
+        return LeaderChannel;
     }
 
     IChannelPtr GetSchedulerChannel() override
@@ -147,6 +160,7 @@ public:
 private:
     TDriverConfigPtr Config;
 
+    IChannelPtr LeaderChannel;
     IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
@@ -168,21 +182,25 @@ private:
         TCommandContext(
             TDriver* driver,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest* request)
+            const TDriverRequest* request,
+            IChannelPtr leaderChannel,
+            IChannelPtr masterChannel,
+            IChannelPtr schedulerChannel)
             : Driver(driver)
             , Descriptor(descriptor)
             , Request(request)
-            , MasterChannel(CreateScopedChannel(Driver->GetMasterChannel()))
-            , SchedulerChannel(CreateScopedChannel(Driver->GetSchedulerChannel()))
+            , MasterChannel(CreateScopedChannel(masterChannel))
+            , SchedulerChannel(CreateScopedChannel(schedulerChannel))
             , TransactionManager(New<TTransactionManager>(
                 Driver->Config->TransactionManager,
-                MasterChannel))
+                leaderChannel))
         { }
 
         ~TCommandContext()
         {
-            MasterChannel->Terminate();
-            SchedulerChannel->Terminate();
+            TError error("Command context terminated");
+            MasterChannel->Terminate(error);
+            SchedulerChannel->Terminate(error);
         }
 
         TDriverConfigPtr GetConfig() override

@@ -59,10 +59,10 @@ class YTEnvSetup(YTEnv):
 # decorator form
 ATTRS = [
     'NUM_MASTERS',
-    'NUM_HOLDERS',
+    'NUM_NODES',
     'NUM_SCHEDULERS',
     'DELTA_MASTER_CONFIG',
-    'DELTA_HOLDER_CONFIG',
+    'DELTA_NODE_CONFIG',
     'DELTA_SCHEDULER_CONFIG']
 
 def ytenv(**attrs):

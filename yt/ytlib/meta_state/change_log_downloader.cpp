@@ -24,11 +24,15 @@ static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 TChangeLogDownloader::TChangeLogDownloader(
     TChangeLogDownloaderConfigPtr config,
-    TCellManagerPtr cellManager)
+    TCellManagerPtr cellManager,
+    IInvokerPtr controlInvoker)
     : Config(config)
     , CellManager(cellManager)
+    , ControlInvoker(controlInvoker)
 {
-    YASSERT(cellManager);
+    YCHECK(config);
+    YCHECK(cellManager);
+    YCHECK(ControlInvoker);
 }
 
 TChangeLogDownloader::EResult TChangeLogDownloader::Download(
@@ -58,7 +62,10 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
     auto promise = NewPromise<TPeerId>();
-    auto awaiter = New<TParallelAwaiter>(&Profiler, "/changelog_source_lookup_time");
+    auto awaiter = New<TParallelAwaiter>(
+        ControlInvoker,
+        &Profiler,
+        "/changelog_source_lookup_time");
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         LOG_INFO("Requesting changelog info from peer %d", id);

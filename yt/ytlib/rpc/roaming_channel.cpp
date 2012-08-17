@@ -22,7 +22,7 @@ public:
         , ChannelPromise(Null)
     { }
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const
+    virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
         return DefaultTimeout;
     }
@@ -30,7 +30,7 @@ public:
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout)
+        TNullable<TDuration> timeout) override
     {
         YASSERT(request);
         YASSERT(responseHandler);
@@ -42,7 +42,7 @@ public:
 
             if (Terminated) {
                 guard.Release();
-                responseHandler->OnError(TError("Channel terminated"));
+                responseHandler->OnError(TError(EErrorCode::TransportError, "Channel terminated"));
                 return;
             }
 
@@ -66,7 +66,7 @@ public:
             timeout));
     }
 
-    virtual void Terminate(const TError& error)
+    virtual void Terminate(const TError& error) override
     {
         YCHECK(!error.IsOK());
 
@@ -78,7 +78,7 @@ public:
                 return;
             }
 
-            channel = ChannelPromise.TryGet();
+            channel = ChannelPromise.IsNull() ? Null : ChannelPromise.TryGet();
             ChannelPromise.Reset();
             TerminationError = error;
             Terminated = true;
@@ -101,25 +101,20 @@ private:
             , OnFailed(onFailed)
         { }
 
-        virtual void OnAcknowledgement()
+        virtual void OnAcknowledgement() override
         {
             UnderlyingHandler->OnAcknowledgement();
         }
 
-        virtual void OnResponse(IMessagePtr message)
+        virtual void OnResponse(IMessagePtr message) override
         {
             UnderlyingHandler->OnResponse(message);
         }
 
-        virtual void OnError(const TError& error)
+        virtual void OnError(const TError& error) override
         {
             UnderlyingHandler->OnError(error);
-
-            auto code = error.GetCode();
-            if (code == EErrorCode::Timeout ||
-                code == EErrorCode::TransportError ||
-                code == EErrorCode::Unavailable)
-            {
+            if (IsRetriableError(error)) {
                 OnFailed.Run();
             }
         }

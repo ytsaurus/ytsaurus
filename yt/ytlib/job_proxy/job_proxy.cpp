@@ -98,7 +98,7 @@ void TJobProxy::RetrieveJobSpec()
 void TJobProxy::Run()
 {
     HeartbeatInvoker = New<TPeriodicInvoker>(
-        TSyncInvoker::Get(),
+        GetSyncInvoker(),
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)), 
         Config->HeartbeatPeriod);
 

@@ -2,6 +2,7 @@
 #include "client.h"
 #include "private.h"
 #include "message.h"
+#include "rpc_dispatcher.h"
 
 #include <iterator>
 
@@ -158,10 +159,10 @@ void TClientResponse::Deserialize(IMessagePtr responseMessage)
     DeserializeBody(parts[1]);
     
     Attachments_.clear();
-    std::copy(
+    Attachments_.insert(
+        Attachments_.begin(),
         parts.begin() + 2,
-        parts.end(),
-        std::back_inserter(Attachments_));
+        parts.end());
 
     NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
@@ -191,8 +192,11 @@ void TClientResponse::OnResponse(IMessagePtr message)
         State = EState::Done;
     }
 
-    Deserialize(message);
-    FireCompleted();
+    auto this_ = MakeStrong(this);
+    TRpcDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
+        this_->Deserialize(message);
+        this_->FireCompleted();
+    }));
 }
 
 IAttributeDictionary& TClientResponse::Attributes()

@@ -17,41 +17,41 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void OnHolderRegistered(THolder* holder);
-    void OnHolderUnregistered(THolder* holder);
-    void OnHolderUpdated(THolder* holder);
+    void OnNodeRegistered(TDataNode* node);
+    void OnNodeUnregistered(TDataNode* node);
+    void OnNodeUpdated(TDataNode* node);
 
-    void OnSessionHinted(THolder* holder);
+    void OnSessionHinted(TDataNode* node);
 
-    double GetLoadFactor(THolder* holder) const;
-    double GetFillCoeff(THolder* holder) const;
+    double GetLoadFactor(TDataNode* node) const;
+    double GetFillCoeff(TDataNode* node) const;
 
     // TODO(babenko): consider using small vectors here
-    std::vector<THolder*> GetUploadTargets(
+    std::vector<TDataNode*> GetUploadTargets(
         int count,
         const yhash_set<Stroka>* forbiddenAddresses,
         Stroka* preferredHostName);
-    std::vector<THolder*> GetReplicationTargets(const TChunk* chunk, int count);
-    std::vector<THolder*> GetRemovalTargets(const TChunk* chunk, int count);
-    THolder* GetReplicationSource(const TChunk* chunk);
-    std::vector<TChunk*> GetBalancingChunks(THolder* holder, int count);
-    THolder* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
+    std::vector<TDataNode*> GetReplicationTargets(const TChunk* chunk, int count);
+    std::vector<TDataNode*> GetRemovalTargets(const TChunk* chunk, int count);
+    TDataNode* GetReplicationSource(const TChunk* chunk);
+    std::vector<TChunk*> GetBalancingChunks(TDataNode* node, int count);
+    TDataNode* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:
-    typedef ymultimap<double, THolder*> TLoadFactorMap;
-    typedef yhash_map<THolder*, TLoadFactorMap::iterator> TIteratorMap;
+    typedef ymultimap<double, TDataNode*> TLoadFactorMap;
+    typedef yhash_map<TDataNode*, TLoadFactorMap::iterator> TIteratorMap;
 
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     TLoadFactorMap LoadFactorMap;
     TIteratorMap IteratorMap;
-    yhash_map<THolder*, int> HintedSessionsMap;
+    yhash_map<TDataNode*, int> HintedSessionsMap;
 
-    bool IsFull(THolder* holder) const;
-    int GetSessionCount(THolder* holder) const;
-    bool IsValidUploadTarget(THolder* targetHolder) const;
-    bool IsValidBalancingTarget(THolder* targetHolder, TChunk *chunk) const;
+    bool IsFull(TDataNode* node) const;
+    int GetSessionCount(TDataNode* node) const;
+    bool IsValidUploadTarget(TDataNode* targetNode) const;
+    bool IsValidBalancingTarget(TDataNode* targetNode, TChunk *chunk) const;
 
 };
 

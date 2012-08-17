@@ -71,12 +71,16 @@ public:
         TSessionPtr session;
         {
             TGuard<TSpinLock> guard(SpinLock);
+            
             if (Terminated) {
                 return;
             }
+            
             session = Session;
             Session.Reset();
+
             Terminated = true;
+            TerminationError = error;
         }
 
         if (session) {
@@ -369,6 +373,7 @@ private:
 
     TSpinLock SpinLock;
     volatile bool Terminated;
+    TError TerminationError;
     TSessionPtr Session;
 
     TValueOrError<TSessionPtr> GetOrCreateSession()
@@ -383,7 +388,10 @@ private:
             }
 
             if (Terminated) {
-                return TError("Channel terminated");
+                return TError(
+                    EErrorCode::TransportError,
+                    "Channel terminated\n%s",
+                    ~TerminationError.ToString());
             }
 
             session = New<TSession>(DefaultTimeout);

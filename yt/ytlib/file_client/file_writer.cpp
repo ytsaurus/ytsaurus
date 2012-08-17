@@ -5,10 +5,15 @@
 #include "private.h"
 
 #include <ytlib/object_server/object_service_proxy.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/file_server/file_ypath_proxy.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
+
+#include <ytlib/meta_state/rpc_helpers.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -70,12 +75,11 @@ void TFileWriter::Open()
     Writer->Open();
 }
 
-void TFileWriter::Write(TRef data)
+void TFileWriter::Write(const TRef& data)
 {
     CheckAborted();
     Writer->Write(data.Begin(), data.Size());
 }
-
 
 void TFileWriter::Close()
 {
@@ -85,20 +89,22 @@ void TFileWriter::Close()
 
     LOG_INFO("Creating file node");
     {
-        TObjectServiceProxy objectProxy(MasterChannel);
-
+        TObjectServiceProxy proxy(MasterChannel);
         auto req = TCypressYPathProxy::Create(WithTransaction(
             Path,
             Transaction ? Transaction->GetId() : NullTransactionId));
         req->set_type(EObjectType::File);
         auto* reqExt = req->MutableExtension(NFileServer::NProto::TReqCreateFileExt::create_file);
         *reqExt->mutable_chunk_id() = Writer->GetChunkId().ToProto();
-        auto rsp = objectProxy.Execute(req).Get();
+        NMetaState::GenerateRpcMutationId(req);
+
+        auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
                 ~rsp->GetError().ToString());
         }
-        NodeId = TNodeId::FromProto(rsp->object_id());
+
+        NodeId = NCypressClient::TNodeId::FromProto(rsp->object_id());
     }
     LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
 
@@ -114,6 +120,7 @@ void TFileWriter::Close()
 
 NCypressClient::TNodeId TFileWriter::GetNodeId() const
 {
+    YCHECK(NodeId != NullObjectId);
     return NodeId;
 }
 

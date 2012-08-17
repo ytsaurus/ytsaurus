@@ -7,7 +7,7 @@ from yt_commands import *
 
 class TestFileCommands(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_HOLDERS = 5
+    NUM_NODES = 5
 
     def test_simple(self):
         content = "some_data"

@@ -2,27 +2,17 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/actions/action_queue.h>
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/cypress_server/public.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/meta_state/meta_state_manager.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/meta_state/composite_meta_state.h>
-// TODO(babenko): replace with public.h
-#include <ytlib/object_server/object_manager.h>
+#include <ytlib/actions/action_queue.h>
+#include <ytlib/object_server/public.h>
 #include <ytlib/chunk_server/public.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_ENUM(EStateThreadQueue,
-    (Default)
-    (ChunkRefresh)
-);
 
 class TBootstrap
 {
@@ -35,17 +25,14 @@ public:
 
     TCellMasterConfigPtr GetConfig() const;
 
+    NRpc::IServerPtr GetRpcServer() const;
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
     NCypressServer::TCypressManagerPtr GetCypressManager() const;
-    TWorldInitializerPtr GetWorldInitializer() const;
-    NMetaState::IMetaStateManagerPtr GetMetaStateManager() const;
-    NMetaState::TCompositeMetaStatePtr GetMetaState() const;
+    TMetaStateFacadePtr GetMetaStateFacade() const;
     NObjectServer::TObjectManagerPtr GetObjectManager() const;
     NChunkServer::TChunkManagerPtr GetChunkManager() const;
-    NChunkServer::IHolderAuthorityPtr GetHolderAuthority() const;
-
+    NChunkServer::INodeAuthorityPtr GetNodeAuthority() const;
     IInvokerPtr GetControlInvoker();
-    IInvokerPtr GetStateInvoker(EStateThreadQueue queue = EStateThreadQueue::Default);
 
     void Run();
 
@@ -53,17 +40,14 @@ private:
     Stroka ConfigFileName;
     TCellMasterConfigPtr Config;
 
+    NRpc::IServerPtr RpcServer;
     NTransactionServer::TTransactionManagerPtr TransactionManager;
     NCypressServer::TCypressManagerPtr CypressManager;
-    TWorldInitializerPtr WorldInitializer;
-    NMetaState::IMetaStateManagerPtr MetaStateManager;
-    NMetaState::TCompositeMetaStatePtr MetaState;
+    TMetaStateFacadePtr MetaStateFacade;
     NObjectServer::TObjectManagerPtr ObjectManager;
     NChunkServer::TChunkManagerPtr ChunkManager;
-    NChunkServer::IHolderAuthorityPtr HolderAuthority;
-
+    NChunkServer::INodeAuthorityPtr HolderAuthority;
     TActionQueuePtr ControlQueue;
-    TFairShareActionQueuePtr StateQueue;
 
 };
 

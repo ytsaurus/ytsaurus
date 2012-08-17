@@ -69,8 +69,7 @@ DECLARE_ENUM(EObjectType,
     ((ChunkListMap)(406))
     ((TransactionMap)(407))
     ((NodeMap)(408))
-    ((Holder)(410))
-    ((HolderMap)(411))
+    ((Node)(410))
     ((Orchid)(412))
 );
 

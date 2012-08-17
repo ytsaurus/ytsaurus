@@ -76,18 +76,20 @@ struct IServiceContext
     //! Signals that the request processing is complete and sends reply to the client.
     virtual void Reply(const TError& error) = 0;
 
-    //! An extension method that extracts the error code, the response body, and attachments
-    //! from #message and replies to the client.
-    void Reply(NBus::IMessagePtr message);
+    //! Parses the message and forwards to the client.
+    virtual void Reply(NBus::IMessagePtr message) = 0;
 
     //! Returns the error that was previously set by #Reply.
     /*!
      *  Calling #GetError before #Reply is forbidden.
      */
-    virtual TError GetError() const = 0;
+    virtual const TError& GetError() const = 0;
 
     //! Returns the request body.
     virtual TSharedRef GetRequestBody() const = 0;
+
+    //! Returns the response body.
+    virtual TSharedRef GetResponseBody() = 0;
 
     //! Sets the response body.
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;
@@ -214,9 +216,6 @@ struct THandlerInvocationOptions
 
     //! Should we be serializing the response in a separate thread?
     bool HeavyResponse;
-
-    //! The invoker
-    IInvokerPtr Invoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,7 +246,7 @@ public:
         Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context = Context.Get();
 
-        if (!DeserializeFromProto(Request_.Get(), Context->GetRequestBody())) {
+        if (!DeserializeFromProtoWithEnvelope(Request_.Get(), Context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
@@ -328,7 +327,6 @@ public:
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
     typedef TTypedServiceResponse<TResponseMessage> TTypedResponse;
 
-public:
     explicit TTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
@@ -416,9 +414,9 @@ public:
 private:
     void SerializeResponseAndReply()
     {
-        TSharedRef responseBlob;
-        YCHECK(SerializeToProto(Response_.Get(), &responseBlob));
-        this->Context->SetResponseBody(MoveRV(responseBlob));
+        TSharedRef data;
+        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data));
+        this->Context->SetResponseBody(MoveRV(data));
         this->Context->Reply(TError());
     }
 
@@ -437,7 +435,6 @@ public:
     typedef TOneWayTypedServiceContext<TRequestMessage> TThis;
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
 
-public:
     explicit TOneWayTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
@@ -473,6 +470,10 @@ protected:
             , OneWay(false)
         { }
 
+        //! Invoker used to executing the handler.
+        //! If NULL then the default one is used.
+        IInvokerPtr Invoker;
+
         //! Service method name.
         Stroka Verb;
 
@@ -484,6 +485,13 @@ protected:
 
         //! Options to pass to the handler.
         THandlerInvocationOptions Options;
+
+        TMethodDescriptor SetInvoker(IInvokerPtr invoker)
+        {
+            TMethodDescriptor result(*this);
+            result.Invoker = invoker;
+            return result;
+        }
 
         TMethodDescriptor SetOneWay(bool value)
         {
@@ -513,14 +521,13 @@ protected:
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            IInvokerPtr invoker,
             const NYTree::TYPath& profilingPath);
 
         TMethodDescriptor Descriptor;
-        //! Invoker that is used to handle all requests for this method.
-        IInvokerPtr Invoker;
+
         //! Path prefix for all profiling information regarding this method.
         NYTree::TYPath ProfilingPath;
+
         //! Increments with each method call.
         NProfiling::TRateCounter RequestCounter;
     };
@@ -586,9 +593,6 @@ protected:
     //! Registers a method.
     void RegisterMethod(const TMethodDescriptor& descriptor);
 
-    //! Registers a method with a supplied custom invoker.
-    void RegisterMethod(const TMethodDescriptor& descriptor, IInvokerPtr invoker);
-
 private:
     IInvokerPtr DefaultInvoker;
     Stroka ServiceName;
@@ -605,10 +609,6 @@ private:
 
     virtual void OnBeginRequest(IServiceContextPtr context) override;
     virtual void OnEndRequest(IServiceContextPtr context) override;
-
-    virtual void InvokeHandler(
-        TActiveRequestPtr activeRequest,
-        const TClosure& handler);
 
     void OnInvocationPrepared(
         TActiveRequestPtr activeRequest,

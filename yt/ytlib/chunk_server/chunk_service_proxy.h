@@ -21,17 +21,16 @@ public:
 
     DECLARE_ENUM(EErrorCode,
         ((NoSuchTransaction)(1))
-        ((NoSuchHolder)(2))
-        ((NotEnoughHolders)(3))
+        ((NoSuchNode)(2))
         ((InvalidState)(4))
         ((NotAuthorized)(5))
     );
 
-    TChunkServiceProxy(NRpc::IChannelPtr channel)
+    explicit TChunkServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NProto, RegisterHolder);
+    DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);
     DEFINE_RPC_PROXY_METHOD(NProto, FullHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, IncrementalHeartbeat);
 

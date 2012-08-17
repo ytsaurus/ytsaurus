@@ -11,7 +11,7 @@
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/schema.h>
 
-#include <ytlib/meta_state/leader_channel.h>
+#include <ytlib/meta_state/master_channel.h>
 
 namespace NYT {
 namespace NJobProxy {

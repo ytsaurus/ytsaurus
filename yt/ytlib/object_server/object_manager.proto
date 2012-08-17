@@ -4,7 +4,7 @@ import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMsgExecuteVerb
+message TMetaReqExecute
 {
     required NYT.NProto.TGuid object_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;

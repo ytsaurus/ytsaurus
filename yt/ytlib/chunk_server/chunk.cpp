@@ -18,6 +18,7 @@ using namespace NChunkHolder::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkServerLogger;
+const i64 TChunk::UnknownSize = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,29 +78,29 @@ void TChunk::Load(const TLoadContext& context, TInputStream* input)
     LoadNullableSet(input, CachedLocations_);
 }
 
-void TChunk::AddLocation(THolderId holderId, bool cached)
+void TChunk::AddLocation(TNodeId nodeId, bool cached)
 {
     if (cached) {
         if (!CachedLocations_) {
-            CachedLocations_.Reset(new yhash_set<THolderId>());
+            CachedLocations_.Reset(new yhash_set<TNodeId>());
         }
-        YCHECK(CachedLocations_->insert(holderId).second);
+        YCHECK(CachedLocations_->insert(nodeId).second);
     } else {
-        StoredLocations_.push_back(holderId);
+        StoredLocations_.push_back(nodeId);
     }
 }
 
-void TChunk::RemoveLocation(THolderId holderId, bool cached)
+void TChunk::RemoveLocation(TNodeId nodeId, bool cached)
 {
     if (cached) {
         YASSERT(~CachedLocations_);
-        YCHECK(CachedLocations_->erase(holderId) == 1);
+        YCHECK(CachedLocations_->erase(nodeId) == 1);
         if (CachedLocations_->empty()) {
             CachedLocations_.Destroy();
         }
     } else {
         for (auto it = StoredLocations_.begin(); it != StoredLocations_.end(); ++it) {
-            if (*it == holderId) {
+            if (*it == nodeId) {
                 StoredLocations_.erase(it);
                 return;
             }
@@ -108,9 +109,9 @@ void TChunk::RemoveLocation(THolderId holderId, bool cached)
     }
 }
 
-std::vector<THolderId> TChunk::GetLocations() const
+std::vector<TNodeId> TChunk::GetLocations() const
 {
-    std::vector<THolderId> result(StoredLocations_.begin(), StoredLocations_.end());
+    std::vector<TNodeId> result(StoredLocations_.begin(), StoredLocations_.end());
     if (~CachedLocations_) {
         result.insert(result.end(), CachedLocations_->begin(), CachedLocations_->end());
     }
@@ -138,8 +139,6 @@ bool TChunk::ValidateChunkInfo(const NChunkHolder::NProto::TChunkInfo& chunkInfo
 
     return ChunkInfo_.size() == chunkInfo.size();
 }
-
-const i64 TChunk::UnknownSize = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

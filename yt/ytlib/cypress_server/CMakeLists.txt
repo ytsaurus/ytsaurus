@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress_server )
 set( SRCS
-  ${BASE}/cypress_integration.cpp
   ${BASE}/cypress_manager.cpp
   ${BASE}/node.cpp
   ${BASE}/node_detail.cpp
@@ -10,7 +9,6 @@ set( SRCS
   ${BASE}/virtual.cpp
 )
 set( HDRS
-  ${BASE}/cypress_integration.h
   ${BASE}/cypress_manager.h
   ${BASE}/node.h
   ${BASE}/node_detail.h

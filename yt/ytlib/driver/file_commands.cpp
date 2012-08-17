@@ -21,8 +21,8 @@ void TDownloadCommand::DoExecute()
     auto reader = New<TFileReader>(
         config,
         Context->GetMasterChannel(),
-        ~GetTransaction(false),
-        ~Context->GetBlockCache(),
+        GetTransaction(false),
+        Context->GetBlockCache(),
         Request->Path);
     reader->Open();
 

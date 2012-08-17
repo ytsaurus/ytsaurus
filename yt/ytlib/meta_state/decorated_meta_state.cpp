@@ -6,9 +6,8 @@
 #include "meta_state.h"
 #include "snapshot.h"
 #include "serialize.h"
-
-#include <ytlib/actions/callback.h>
-#include <ytlib/profiling/profiler.h>
+#include "response_keeper.h"
+#include "config.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -20,24 +19,100 @@ static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDecoratedMetaState::TUserStateInvoker
+    : public IInvoker
+{
+public:
+    TUserStateInvoker(TDecoratedMetaStatePtr metaState, IInvokerPtr underlyingInvoker)
+        : MetaState(metaState)
+        , UnderlyingInvoker(underlyingInvoker)
+    { }
+
+    virtual bool Invoke(const TClosure& action) override
+    {
+        if (!MetaState->AcquireUserEnqueueLock()) {
+            return false;
+        }
+        if (MetaState->GetStatus() != EPeerStatus::Leading &&
+            MetaState->GetStatus() != EPeerStatus::Following)
+        {
+            MetaState->ReleaseUserEnqueueLock();
+            return false;
+        }
+        bool result = UnderlyingInvoker->Invoke(action);
+        MetaState->ReleaseUserEnqueueLock();
+        return result;
+    }
+
+private:
+    TDecoratedMetaStatePtr MetaState;
+    IInvokerPtr UnderlyingInvoker;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDecoratedMetaState::TSystemStateInvoker
+    : public IInvoker
+{
+public:
+    explicit TSystemStateInvoker(TDecoratedMetaState* metaState)
+        : MetaState(metaState)
+    { }
+
+    virtual bool Invoke(const TClosure& action) override
+    {
+        auto metaState = MakeStrong(MetaState);
+        metaState->AcquireSystemLock();
+        
+        bool result = metaState->StateInvoker->Invoke(BIND([=] () {
+            action.Run();
+            metaState->ReleaseSystemLock();
+        }));
+
+        if (!result) {
+            metaState->ReleaseSystemLock();
+        }
+
+        return result;
+    }
+
+private:
+    TDecoratedMetaState* MetaState;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDecoratedMetaState::TDecoratedMetaState(
+    TPersistentStateManagerConfigPtr config,
     IMetaStatePtr state,
     IInvokerPtr stateInvoker,
     IInvokerPtr controlInvoker,
     TSnapshotStorePtr snapshotStore,
     TChangeLogCachePtr changeLogCache)
-    : State(state)
+    : Status_(EPeerStatus::Stopped)
+    , State(state)
     , StateInvoker(stateInvoker)
+    , UserEnqueueLock(0)
+    , SystemLock(0)
+    , SystemStateInvoker(New<TSystemStateInvoker>(this))
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
     , Started(false)
+    , MutationContext(NULL)
 {
+    YCHECK(config);
     YCHECK(state);
-    YCHECK(stateInvoker);
     YCHECK(snapshotStore);
     YCHECK(changeLogCache);
+
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+
+    ResponseKeeper = New<TResponseKeeper>(  
+        config->ResponseKeeper,
+        StateInvoker);
 }
 
 void TDecoratedMetaState::Start()
@@ -45,6 +120,42 @@ void TDecoratedMetaState::Start()
     YCHECK(!Started);
     ComputeReachableVersion();
     Started = true;
+}
+
+void TDecoratedMetaState::OnStartLeading()
+{
+    YCHECK(Status_ == EPeerStatus::Stopped);
+    Status_ = EPeerStatus::LeaderRecovery;
+}
+
+void TDecoratedMetaState::OnLeaderRecoveryComplete()
+{
+    YCHECK(Status_ == EPeerStatus::LeaderRecovery);
+    Status_ = EPeerStatus::Leading;
+}
+
+void TDecoratedMetaState::OnStopLeading()
+{
+    YCHECK(Status_ == EPeerStatus::Leading || Status_ == EPeerStatus::LeaderRecovery);
+    Status_ = EPeerStatus::Stopped;
+}
+
+void TDecoratedMetaState::OnStartFollowing()
+{
+    YCHECK(Status_ == EPeerStatus::Stopped);
+    Status_ = EPeerStatus::FollowerRecovery;
+}
+
+void TDecoratedMetaState::OnFollowerRecoveryComplete()
+{
+    YCHECK(Status_ == EPeerStatus::FollowerRecovery);
+    Status_ = EPeerStatus::Following;
+}
+
+void TDecoratedMetaState::OnStopFollowing()
+{
+    YCHECK(Status_ == EPeerStatus::Following || Status_ == EPeerStatus::FollowerRecovery);
+    Status_ = EPeerStatus::Stopped;
 }
 
 void TDecoratedMetaState::SetEpoch(const TEpoch& epoch)
@@ -81,13 +192,13 @@ void TDecoratedMetaState::ComputeReachableVersion()
         }
 
         auto changeLog = result.Value();
-        bool isFinal = !ChangeLogCache->Get(segmentId + 1).IsOK();
+        bool isLast = !ChangeLogCache->Get(segmentId + 1).IsOK();
 
-        LOG_DEBUG("Found changelog %d (RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+        LOG_DEBUG("Changelog found (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsLast: %s)",
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),
-            ~FormatBool(isFinal));
+            ~FormatBool(isLast));
 
         currentVersion = TMetaVersion(segmentId, changeLog->GetRecordCount());
     }
@@ -95,18 +206,23 @@ void TDecoratedMetaState::ComputeReachableVersion()
     LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
 }
 
-IInvokerPtr TDecoratedMetaState::GetStateInvoker() const
+IInvokerPtr TDecoratedMetaState::CreateUserStateInvokerWrapper(IInvokerPtr underlyingInvoker)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
 
-    return StateInvoker;
+    return New<TUserStateInvoker>(this, underlyingInvoker);
 }
 
-IMetaStatePtr TDecoratedMetaState::GetState() const
+IInvokerPtr TDecoratedMetaState::GetSystemStateInvoker()
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
+
+    return SystemStateInvoker;
+}
+
+IMetaStatePtr TDecoratedMetaState::GetState()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
 
     return State;
 }
@@ -117,6 +233,7 @@ void TDecoratedMetaState::Clear()
     YASSERT(Started);
 
     State->Clear();
+    ResponseKeeper->Clear();
     Version = TMetaVersion();
     CurrentChangeLog.Reset();
 }
@@ -150,42 +267,50 @@ void TDecoratedMetaState::Load(
     LOG_INFO("Finished loading snapshot");
 }
 
-void TDecoratedMetaState::ApplyMutation(const TSharedRef& recordData)
+bool TDecoratedMetaState::FindKeptResponse(const TMutationId& id, TSharedRef* data)
 {
     YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    try {
-        EnterMutation(recordData);
-        State->ApplyMutation(*MutationContext);
-        LeaveMutation();
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error applying mutation (Version: %s)\n%s",
-            ~Version.ToString(),
-            ex.what());
+    return ResponseKeeper->FindResponse(id, data);
+}
+
+void TDecoratedMetaState::ApplyMutation(TMutationContext* context) throw()
+{
+    YASSERT(Started);
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    MutationContext = context;
+    const auto& action = context->GetRequestAction();
+    if (action.IsNull()) {
+        State->ApplyMutation(context);
+    } else {
+        action.Run();
+    }
+    MutationContext = NULL;
+
+    if (context->GetId() != NullMutationId) {
+        ResponseKeeper->RegisterResponse(context->GetId(), context->GetResponseData());
     }
 
     IncrementRecordCount();
 }
 
-void TDecoratedMetaState::ApplyMutation(
-    const TSharedRef& recordData,
-    const TClosure& mutationAction)
+void TDecoratedMetaState::ApplyMutation(const TSharedRef& recordData) throw()
 {
-    YASSERT(Started);
-    VERIFY_THREAD_AFFINITY(StateThread);
+    NProto::TMutationHeader header;
+    TSharedRef requestData;
+    DeserializeMutationRecord(recordData, &header, &requestData);
 
-    try {
-        EnterMutation(recordData);
-        mutationAction.Run();
-        LeaveMutation();
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error applying mutation (Version: %s)\n%s",
-            ~Version.ToString(),
-            ex.what());
-    }
-
-    IncrementRecordCount();
+    TMutationRequest request(
+        header.mutation_type(),
+        requestData);
+    TMutationContext context(
+        Version,
+        request,
+        TInstant(header.timestamp()),
+        header.random_seed());
+    ApplyMutation(&context);
 }
 
 void TDecoratedMetaState::IncrementRecordCount()
@@ -296,25 +421,38 @@ TMutationContext* TDecoratedMetaState::GetMutationContext()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    return ~MutationContext;
+    return MutationContext;
 }
 
-void TDecoratedMetaState::EnterMutation(const TSharedRef& recordData)
+bool TDecoratedMetaState::AcquireUserEnqueueLock()
 {
-    NProto::TMutationHeader mutationHeader;
-    TSharedRef mutationData;
-    DeserializeMutationRecord(recordData, &mutationHeader, &mutationData);
-    MutationContext.Reset(new TMutationContext(
-        Version,
-        mutationHeader.mutation_type(),
-        mutationData,
-        TInstant(mutationHeader.timestamp()),
-        mutationHeader.random_seed()));
+    if (SystemLock != 0) {
+        return false;
+    }
+    AtomicIncrement(UserEnqueueLock);
+    if (AtomicGet(SystemLock) != 0) {
+        AtomicDecrement(UserEnqueueLock);
+        return false;
+    }
+    return true;
 }
 
-void TDecoratedMetaState::LeaveMutation()
+void TDecoratedMetaState::ReleaseUserEnqueueLock()
 {
-    MutationContext.Destroy();
+    AtomicDecrement(UserEnqueueLock);
+}
+
+void TDecoratedMetaState::AcquireSystemLock()
+{
+    AtomicIncrement(SystemLock);
+    while (AtomicGet(UserEnqueueLock) != 0) {
+        SpinLockPause();
+    }
+}
+
+void TDecoratedMetaState::ReleaseSystemLock()
+{
+    AtomicDecrement(SystemLock);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

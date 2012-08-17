@@ -17,7 +17,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
-    typedef TReqFullHeartbeat TMsgFullHeartbeat;
+    typedef TReqFullHeartbeat TMetaReqFullHeartbeat;
 }
 
 class TChunkManager
@@ -31,52 +31,52 @@ public:
 
     ~TChunkManager();
 
-    NMetaState::TMutation<THolderId>::TPtr InitiateRegisterHolder(
-        const NProto::TMsgRegisterHolder& message);
+    NMetaState::TMutationPtr CreateRegisterNodeMutation(
+        const NProto::TMetaReqRegisterNode& message);
 
-    NMetaState::TMutation<TVoid>::TPtr InitiateUnregisterHolder(
-        const NProto::TMsgUnregisterHolder& message);
+    NMetaState::TMutationPtr CreateUnregisterNodeMutation(
+        const NProto::TMetaReqUnregisterNode& message);
 
     // Pass RPC service context to full heartbeat handler to avoid copying request message.
     typedef NRpc::TTypedServiceContext<NProto::TReqFullHeartbeat, NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
     typedef TIntrusivePtr<TCtxFullHeartbeat> TCtxFullHeartbeatPtr;
-    NMetaState::TMutation<TVoid>::TPtr InitiateFullHeartbeat(
+    NMetaState::TMutationPtr CreateFullHeartbeatMutation(
         TCtxFullHeartbeatPtr context);
 
-    NMetaState::TMutation<TVoid>::TPtr InitiateIncrementalHeartbeat(
-        const NProto::TMsgIncrementalHeartbeat& message);
+    NMetaState::TMutationPtr CreateIncrementalHeartbeatMutation(
+        const NProto::TMetaReqIncrementalHeartbeat& message);
 
-    NMetaState::TMutation<TVoid>::TPtr InitiateUpdateJobs(
-        const NProto::TMsgUpdateJobs& message);
+    NMetaState::TMutationPtr CreateUpdateJobsMutation(
+        const NProto::TMetaReqUpdateJobs& message);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
-    DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
+    DECLARE_METAMAP_ACCESSORS(Node, TDataNode, TNodeId);
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
     DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
-    //! Fired when a holder gets registered.
+    //! Fired when a node gets registered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_SIGNAL(void(const THolder*), HolderRegistered);
-    //! Fired when a holder gets unregistered.
+    DECLARE_SIGNAL(void(const TDataNode*), NodeRegistered);
+    //! Fired when a node gets unregistered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_SIGNAL(void(const THolder*), HolderUnregistered);
+    DECLARE_SIGNAL(void(const TDataNode*), NodeUnregistered);
 
-    //! Returns a holder registered at the given address (|NULL| if none).
-    THolder* FindHolderByAddress(const Stroka& address);
+    //! Returns a node registered at the given address (|NULL| if none).
+    TDataNode* FindNodeByAddress(const Stroka& address);
 
-    //! Returns an arbitrary holder registered at the host (|NULL| if none).
-    THolder* FindHolderByHostName(const Stroka& hostName);
+    //! Returns an arbitrary node registered at the host (|NULL| if none).
+    TDataNode* FindNodeByHostName(const Stroka& hostName);
 
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
-    std::vector<THolder*> AllocateUploadTargets(
+    std::vector<TDataNode*> AllocateUploadTargets(
         int nodeCount,
         TNullable<Stroka> preferredHostName);
 
@@ -101,7 +101,7 @@ public:
     void ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef);
 
     void ScheduleJobs(
-        THolder* holder,
+        TDataNode* node,
         const std::vector<NProto::TJobInfo>& runningJobs,
         std::vector<NProto::TJobStartInfo>* jobsToStart,
         std::vector<NProto::TJobStopInfo>* jobsToStop);
@@ -120,9 +120,9 @@ public:
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
-    TTotalHolderStatistics GetTotalHolderStatistics();
+    TTotalNodeStatistics GetTotalNodeStatistics();
 
-    bool IsHolderConfirmed(const THolder* holder);
+    bool IsNodeConfirmed(const TDataNode* node);
 
     //! Returns the total number of all chunk replicas.
     i32 GetChunkReplicaCount();

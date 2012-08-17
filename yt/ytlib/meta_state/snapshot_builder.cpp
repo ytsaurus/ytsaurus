@@ -206,7 +206,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotBuilder::TSnapshotBuilder(
-    TSnapshotBuilderConfig *config,
+    TSnapshotBuilderConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
     TSnapshotStorePtr snapshotStore,

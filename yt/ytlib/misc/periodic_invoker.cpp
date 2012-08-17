@@ -72,13 +72,16 @@ void TPeriodicInvoker::PostDelayedCallback(TDuration delay)
 void TPeriodicInvoker::PostCallback()
 {
     auto this_ = MakeStrong(this);
-    Invoker->Invoke(BIND([this, this_] () {
+    bool result = Invoker->Invoke(BIND([this, this_] () {
         if (Started && !Busy) {
             Busy = true;
             TDelayedInvoker::CancelAndClear(Cookie);
             Callback.Run();
         }
     }));
+    if (!result) {
+        PostDelayedCallback(Period);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/object_manager.cpp
   ${BASE}/object_service.cpp
   ${BASE}/object_service_proxy.cpp
+  ${BASE}/private.cpp
 )
 set( HDRS
   ${BASE}/attribute_set.h
@@ -20,6 +21,7 @@ set( HDRS
   ${BASE}/object_service_proxy.h
   ${BASE}/object_ypath_proxy.h
   ${BASE}/public.h
+  ${BASE}/private.h
   ${BASE}/type_handler.h
   ${BASE}/type_handler_detail.h
 )

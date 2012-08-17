@@ -27,12 +27,12 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
-    typedef TSmallVector<THolderId, 3> TStoredLocations;
+    typedef TSmallVector<TNodeId, 3> TStoredLocations;
     DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);
 
     // This list is usually empty.
     // Keeping a holder is very space efficient (takes just 8 bytes).
-    DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<THolderId> >, CachedLocations);
+    DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<TNodeId> >, CachedLocations);
 
 public:
     static const i64 UnknownSize;
@@ -45,9 +45,9 @@ public:
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 
-    void AddLocation(THolderId holderId, bool cached);
-    void RemoveLocation(THolderId holderId, bool cached);
-    std::vector<THolderId> GetLocations() const;
+    void AddLocation(TNodeId nodeId, bool cached);
+    void RemoveLocation(TNodeId nodeId, bool cached);
+    std::vector<TNodeId> GetLocations() const;
 
     bool ValidateChunkInfo(const NChunkHolder::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;

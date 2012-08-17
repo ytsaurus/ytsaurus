@@ -2,8 +2,12 @@
 #include "cypress_commands.h"
 
 #include <ytlib/object_server/object_service_proxy.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/ytree/ypath_proxy.h>
+
+#include <ytlib/meta_state/rpc_helpers.h>
 
 namespace NYT {
 namespace NDriver {
@@ -40,12 +44,14 @@ void TSetCommand::DoExecute()
     auto req = TYPathProxy::Set(WithTransaction(
         Request->Path,
         GetTransactionId(false)));
-
+    NMetaState::GenerateRpcMutationId(req);
+    
     auto producer = Context->CreateInputProducer();
     TYsonString value = ConvertToYsonString(producer);
     req->set_value(value.Data());
 
     req->Attributes().MergeFrom(Request->GetOptions());
+    
     auto rsp = proxy.Execute(req).Get();
 
     if (!rsp->IsOK()) {
@@ -61,6 +67,7 @@ void TRemoveCommand::DoExecute()
     auto req = TYPathProxy::Remove(WithTransaction(
         Request->Path,
         GetTransactionId(false)));
+    NMetaState::GenerateRpcMutationId(req);
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
@@ -98,6 +105,7 @@ void TCreateCommand::DoExecute()
     auto req = TCypressYPathProxy::Create(WithTransaction(
         Request->Path,
         GetTransactionId(false)));
+    NMetaState::GenerateRpcMutationId(req);
 
     req->set_type(Request->Type);
 
@@ -123,6 +131,7 @@ void TLockCommand::DoExecute()
     auto req = TCypressYPathProxy::Lock(WithTransaction(
         Request->Path,
         GetTransactionId(true)));
+    NMetaState::GenerateRpcMutationId(req);
 
     req->set_mode(Request->Mode);
 
@@ -142,6 +151,7 @@ void TCopyCommand::DoExecute()
     auto req = TCypressYPathProxy::Copy(WithTransaction(
         Request->DestinationPath,
         GetTransactionId(false)));
+    NMetaState::GenerateRpcMutationId(req);
     req->set_source_path(Request->SourcePath);
 
     auto rsp = proxy.Execute(req).Get();
@@ -165,6 +175,7 @@ void TMoveCommand::DoExecute()
     auto req = TCypressYPathProxy::Move(WithTransaction(
         Request->DestinationPath,
         GetTransactionId(false)));
+    NMetaState::GenerateRpcMutationId(req);
     req->set_source_path(Request->SourcePath);
 
     auto rsp = proxy.Execute(req).Get();

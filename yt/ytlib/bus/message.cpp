@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "message.h"
 
+#include <ytlib/misc/serialize.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -10,15 +12,15 @@ class TMessage
     : public IMessage
 {
 public:
-    TMessage(const std::vector<TSharedRef>& parts)
+    explicit TMessage(const std::vector<TSharedRef>& parts)
         : Parts(parts)
     { }
 
-    TMessage(std::vector<TSharedRef>&& parts)
+    explicit TMessage(std::vector<TSharedRef>&& parts)
         : Parts(ForwardRV< std::vector<TSharedRef> >(parts))
     { }
 
-    virtual const std::vector<TSharedRef>& GetParts()
+    virtual const std::vector<TSharedRef>& GetParts() override
     {
         return Parts;
     }
@@ -55,6 +57,18 @@ IMessagePtr CreateMessageFromParts(TBlob&& blob, const std::vector<TRef>& refs)
         parts[i] = TSharedRef(sharedBlob, refs[i]);
     }
     return New<TMessage>(MoveRV(parts));
+}
+
+TSharedRef PackMessage(IMessagePtr message)
+{
+    return PackRefs(message->GetParts());
+}
+
+IMessagePtr UnpackMessage(const TSharedRef& packedBlob)
+{
+    std::vector<TSharedRef> parts;
+    UnpackRefs(packedBlob, &parts);
+    return CreateMessageFromParts(parts);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

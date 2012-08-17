@@ -571,14 +571,14 @@ private:
     \
     template <> \
     inline ICypressNodeProxyPtr TScalarNodeTypeHandler<type>::GetProxy( \
-        const TNodeId& nodeId, \
+        const TNodeId& NodeId, \
         NTransactionServer::TTransaction* transaction) \
     { \
         return New<T##key##NodeProxy>( \
             this, \
             Bootstrap, \
             transaction, \
-            nodeId); \
+            NodeId); \
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka)
