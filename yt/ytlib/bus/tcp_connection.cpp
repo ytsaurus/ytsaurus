@@ -965,6 +965,7 @@ bool TTcpConnection::IsSocketError(ssize_t result)
         result != WSAEINTR &&
         result != WSAEINPROGRESS;
 #else
+    YCHECK(result != EINTR);
     return
         result != EWOULDBLOCK &&
         result != EAGAIN &&

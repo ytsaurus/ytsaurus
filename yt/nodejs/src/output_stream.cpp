@@ -207,6 +207,11 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
     part.Length = length;
     Queue.Enqueue(part);
 
+    // We require that calling party holds a synchronous lock on the stream.
+    // In case of TNodeJSDriver an instance TNodeJSInputStack holds a lock
+    // and TNodeJSDriver implementation guarantees that all Write() calls
+    // are within scope of the lock.
+    
     EnqueueOnWrite();
 
     AtomicAdd(BytesCounter, length);

@@ -42,6 +42,7 @@ private:
     NDriver::IDriverPtr Driver;
     Stroka Message;
 
+    // This is for testing purposes only.
     const bool Echo;
 
 private:

@@ -39,12 +39,12 @@ public:
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Sweep(const v8::Arguments& args);
     static int AsyncSweep(eio_req* request);
-    void EnqueueSweep();
+    void EnqueueSweep(bool withinV8);
     void DoSweep();
 
     static v8::Handle<v8::Value> Drain(const v8::Arguments& args);
     static int AsyncDrain(eio_req* request);
-    void EnqueueDrain();
+    void EnqueueDrain(bool withinV8);
     void DoDrain();
 
 protected:
@@ -76,20 +76,18 @@ private:
     TNodeJSInputStream& operator=(const TNodeJSInputStream&);
 };
 
-inline void TNodeJSInputStream::EnqueueSweep()
+inline void TNodeJSInputStream::EnqueueSweep(bool withinV8)
 {
     if (AtomicCas(&SweepRequestPending, 1, 0)) {
-        // Post to V8 thread.
-        AsyncRef(false);
+        AsyncRef(withinV8);
         EIO_PUSH(TNodeJSInputStream::AsyncSweep, this);
     }
 }
 
-inline void TNodeJSInputStream::EnqueueDrain()
+inline void TNodeJSInputStream::EnqueueDrain(bool withinV8)
 {
     if (AtomicCas(&DrainRequestPending, 1, 0)) {
-        // Post to V8 thread.
-        AsyncRef(false);
+        AsyncRef(withinV8);
         EIO_PUSH(TNodeJSInputStream::AsyncDrain, this);
     }
 }
