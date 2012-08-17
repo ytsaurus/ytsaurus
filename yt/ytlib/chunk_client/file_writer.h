@@ -13,7 +13,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a local and synchronous implementation of #IAsynckWriter.
+//! Provides a local and synchronous implementation of #IAsyncWriter.
 class TFileWriter
     : public IAsyncWriter
 {
