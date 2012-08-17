@@ -21,7 +21,7 @@ TNodeFactory::TNodeFactory(
     : Bootstrap(bootstrap)
     , Transaction(transaction)
 {
-    YASSERT(bootstrap);
+    YCHECK(bootstrap);
 }
 
 TNodeFactory::~TNodeFactory()
@@ -96,45 +96,75 @@ TMapNodeProxy::TMapNodeProxy(
 
 void TMapNodeProxy::Clear()
 {
-    auto* impl = LockThisTypedImpl();
+    // Take shared lock for the node itself.
+    auto* impl = LockThisTypedImpl(ELockMode::Shared);
 
-    // Validate locks before applying any mutations.
-    std::vector<ICypressNode*> storedChildren;
-    FOREACH (const auto& pair, impl->KeyToChild()) {
-        storedChildren.push_back(LockImpl(pair.second));
+    // Construct children list.
+    yhash_map<Stroka, TNodeId> keyToChild;
+    DoListChildren(&keyToChild);
+
+    // Take exclusive locks for children.
+    std::vector< std::pair<Stroka, ICypressNode*> > children;
+    FOREACH (const auto& pair, keyToChild) {
+        LockThisImpl(TLockRequest::SharedChild(pair.first));
+        auto* child = LockImpl(pair.second);
+        children.push_back(std::make_pair(pair.first, child));
     }
 
-    FOREACH (auto* child, storedChildren) {
-        DetachChild(child);
-    }
-
-    impl->KeyToChild().clear();
-    impl->ChildToKey().clear();
-    impl->ChildCountDelta() = 0;
-
-    auto children = DoGetChildren();
+    // Detach children.
+    // Insert tombstones.
     FOREACH (const auto& pair, children) {
-        YCHECK(impl->KeyToChild().insert(MakePair(pair.first, NullObjectId)).second);
+        const auto& key = pair.first;
+        auto* child = pair.second;
+        const auto& childId = child->GetId().ObjectId;
+        if (impl->KeyToChild().find(key) != impl->KeyToChild().end()) {
+            YCHECK(impl->KeyToChild().erase(key) == 1);
+            YCHECK(impl->ChildToKey().erase(childId) == 1);
+            DetachChild(child, true);
+        } else {
+            YCHECK(impl->KeyToChild().insert(std::make_pair(key, NullObjectId)).second);
+            DetachChild(child, false);
+        }
         --impl->ChildCountDelta();
     }
 }
 
 int TMapNodeProxy::GetChildCount() const
 {
-    return GetThisTypedImpl()->ChildCountDelta();
+    auto cypressManager = Bootstrap->GetCypressManager();
+    auto transactionManager = Bootstrap->GetTransactionManager();
+
+    auto transactions = transactionManager->GetTransactionPath(Transaction);
+
+    int result = 0;
+    FOREACH (const auto* transaction, transactions) {
+        const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
+        const auto* mapNode = static_cast<const TMapNode*>(node);
+        result += mapNode->ChildCountDelta();
+    }
+    return result;
 }
 
 std::vector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 {
-    auto children = DoGetChildren();
-    return std::vector< TPair<Stroka, INodePtr> >(children.begin(), children.end());
+    yhash_map<Stroka, TNodeId> keyToChild;
+    DoListChildren(&keyToChild);
+
+    std::vector< TPair<Stroka, INodePtr> > result;
+    result.reserve(keyToChild.size());
+    FOREACH (const auto& pair, keyToChild) {
+        result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
+    }
+    return result;
 }
 
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
+    yhash_map<Stroka, TNodeId> keyToChild;
+    DoListChildren(&keyToChild);
+
     std::vector<Stroka> result;
-    auto children = DoGetChildren();
-    FOREACH (const auto& pair, children) {
+    FOREACH (const auto& pair, keyToChild) {
         result.push_back(pair.first);
     }
     return result;
@@ -142,7 +172,8 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
 
 INodePtr TMapNodeProxy::FindChild(const TStringBuf& key) const
 {
-    return DoFindChild(key, false);
+    auto versionedChildId = DoFindChild(Stroka(key));
+    return versionedChildId.ObjectId == NullObjectId ? NULL : GetProxy(versionedChildId.ObjectId);
 }
 
 bool TMapNodeProxy::AddChild(INodePtr child, const TStringBuf& key)
@@ -153,13 +184,14 @@ bool TMapNodeProxy::AddChild(INodePtr child, const TStringBuf& key)
         return false;
     }
 
-    auto* impl = LockThisTypedImpl();
+    Stroka keyString(key);
+    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(keyString));
 
     auto childId = GetNodeId(child);
     auto* childImpl = LockImpl(childId);
 
-    YCHECK(impl->KeyToChild().insert(MakePair(key, childId)).second);
-    YCHECK(impl->ChildToKey().insert(MakePair(childId, key)).second);
+    YCHECK(impl->KeyToChild().insert(MakePair(keyString, childId)).second);
+    YCHECK(impl->ChildToKey().insert(MakePair(childId, keyString)).second);
     ++impl->ChildCountDelta();
 
     AttachChild(childImpl);
@@ -169,58 +201,49 @@ bool TMapNodeProxy::AddChild(INodePtr child, const TStringBuf& key)
 
 bool TMapNodeProxy::RemoveChild(const TStringBuf& key)
 {
-    auto* impl = LockThisTypedImpl(ELockMode::Exclusive, true);
+    Stroka keyString(key);
 
-    auto it = impl->KeyToChild().find(Stroka(key));
-    if (it != impl->KeyToChild().end()) {
-        // NB: don't use const auto& here, it becomes invalid!
-        auto childId = it->second;
-        if (childId == NullObjectId) {
-            return false;
-        }
-        
-        auto* childImpl = LockImpl(childId);
-
-        if (DoFindChild(key, true)) {
-            it->second = NullObjectId;
-        } else {
-            impl->KeyToChild().erase(it);
-        }
-
-        YCHECK(impl->ChildToKey().erase(childId) == 1);
-        DetachChild(childImpl);
-    } else {
-        if (!DoFindChild(key, true)) {
-            return false;
-        }
-        YCHECK(impl->KeyToChild().insert(MakePair(key, NullObjectId)).second);
+    auto versionedChildId = DoFindChild(keyString);
+    if (versionedChildId.ObjectId == NullObjectId) {
+        return false;
     }
-    
+
+    const auto& childId = versionedChildId.ObjectId;
+    auto* childImpl = LockImpl(childId, ELockMode::Exclusive, true);
+    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(keyString));
+
+    if (versionedChildId.TransactionId == GetObjectId(Transaction)) {
+        YCHECK(impl->KeyToChild().erase(keyString) == 1);
+        YCHECK(impl->ChildToKey().erase(childId) == 1);
+        DetachChild(childImpl, true);
+    } else {
+        YCHECK(impl->KeyToChild().insert(MakePair(key, NullObjectId)).second);
+        DetachChild(childImpl, false);
+    }
+
     --impl->ChildCountDelta();
+
     return true;
 }
 
 void TMapNodeProxy::RemoveChild(INodePtr child)
 {
-    auto* impl = LockThisTypedImpl(ELockMode::Exclusive, true);
-    
+    auto key = GetChildKey(child);
     auto childId = GetNodeId(child);
-    auto* childImpl = LockImpl(childId);
+
+    auto* childImpl = LockImpl(childId, ELockMode::Exclusive, true);
+    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
 
     auto it = impl->ChildToKey().find(childId);
     if (it != impl->ChildToKey().end()) {
-        const auto& key = it->second;
-        if (DoFindChild(key, true)) {
-            impl->KeyToChild().find(key)->second = NullObjectId;
-        } else {
-            YCHECK(impl->KeyToChild().erase(key) == 1);
-        }
-        impl->ChildToKey().erase(it);
-        DetachChild(childImpl);    
+        YCHECK(impl->KeyToChild().erase(key) == 1);
+        YCHECK(impl->ChildToKey().erase(childId) == 1);
+        DetachChild(childImpl, true);
     } else {
-        const auto& key = GetChildKey(child);
         YCHECK(impl->KeyToChild().insert(MakePair(key, NullObjectId)).second);
+        DetachChild(childImpl, false);
     }
+
     --impl->ChildCountDelta();
 }
 
@@ -229,7 +252,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     if (oldChild == newChild)
         return;
 
-    auto* impl = LockThisTypedImpl();
+    auto key = GetChildKey(oldChild);
 
     auto oldChildId = GetNodeId(oldChild);
     auto* oldChildImpl = LockImpl(oldChildId, ELockMode::Exclusive, true);
@@ -237,20 +260,11 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto newChildId = GetNodeId(newChild);
     auto* newChildImpl = LockImpl(newChildId);
 
-    Stroka key;
-
-    auto it = impl->ChildToKey().find(oldChildId);
-    if (it != impl->ChildToKey().end()) {
-        key = it->second;
-        impl->ChildToKey().erase(it);
-        DetachChild(oldChildImpl);
-    } else {
-        key = GetChildKey(oldChild);
-        oldChildImpl->SetParentId(NullObjectId);
-    }
+    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
     impl->KeyToChild()[key] = newChildId;
+    bool ownsOldChild = impl->KeyToChild().find(key) != impl->KeyToChild().end();
+    DetachChild(oldChildImpl, ownsOldChild);
     YCHECK(impl->ChildToKey().insert(MakePair(newChildId, key)).second);    
-
     AttachChild(newChildImpl);
 }
 
@@ -275,7 +289,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     YUNREACHABLE();
 }
 
-yhash_map<Stroka, ICypressNodeProxyPtr> TMapNodeProxy::DoGetChildren() const
+void TMapNodeProxy::DoListChildren(yhash_map<Stroka, TNodeId>* keyToChild) const
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     auto transactionManager = Bootstrap->GetTransactionManager();
@@ -283,44 +297,36 @@ yhash_map<Stroka, ICypressNodeProxyPtr> TMapNodeProxy::DoGetChildren() const
     auto transactions = transactionManager->GetTransactionPath(Transaction);
     std::reverse(transactions.begin(), transactions.end());
 
-    yhash_map<Stroka, ICypressNodeProxyPtr> result;
     FOREACH (const auto* transaction, transactions) {
         const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
         const auto* mapNode = static_cast<const TMapNode*>(node);
         FOREACH (const auto& pair, mapNode->KeyToChild()) {
             if (pair.second == NullObjectId) {
-                YCHECK(result.erase(pair.first) == 1);
+                YCHECK(keyToChild->erase(pair.first) == 1);
             } else {
-                auto childProxy = GetProxy(pair.second);
-                YCHECK(result.insert(std::make_pair(pair.first, childProxy)).second);
+                (*keyToChild)[pair.first] = pair.second;
             }
         }
     }
-    return result;
 }
 
-INodePtr TMapNodeProxy::DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const
+TVersionedNodeId TMapNodeProxy::DoFindChild(const Stroka& key) const
 {
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto cypressManager = Bootstrap->GetCypressManager();
 
-    Stroka keyString(key);
-
     auto transactions = transactionManager->GetTransactionPath(Transaction);
 
     FOREACH (const auto* transaction, transactions) {
-        if (skipCurrentTransaction && transaction == Transaction) {
-            continue;
-        }
         const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
         const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
-        auto it = map.find(keyString);
+        auto it = map.find(key);
         if (it != map.end()) {
-            return it->second == NullObjectId ? NULL : GetProxy(it->second);
+            return TVersionedNodeId(it->second, GetObjectId(transaction));
         }
     }
 
-    return NULL;
+    return TVersionedNodeId(NullObjectId, NullTransactionId);
 }
 
 void TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
@@ -347,10 +353,12 @@ void TMapNodeProxy::DoCloneTo(TMapNode* clonedNode)
 
     auto objectManager = Bootstrap->GetObjectManager();
 
-    auto children = DoGetChildren();
-    FOREACH (const auto& pair, children) {
+    yhash_map<Stroka, TNodeId> keyToChild;
+    DoListChildren(&keyToChild);
+
+    FOREACH (const auto& pair, keyToChild) {
         auto key = pair.first;
-        auto childId = pair.second->GetId();
+        auto childId = pair.second;
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, childId)).second);
         YCHECK(clonedNode->ChildToKey().insert(std::make_pair(childId, key)).second);
         objectManager->RefObject(childId);
@@ -377,14 +385,14 @@ void TListNodeProxy::Clear()
 {
     auto* impl = LockThisTypedImpl();
 
-    // Validate locks and obtain impls first;
+    // Validate locks and obtain impls first.
     std::vector<ICypressNode*> children;
-    FOREACH (auto& nodeId, impl->IndexToChild()) {
+    FOREACH (const auto& nodeId, impl->IndexToChild()) {
         children.push_back(LockImpl(nodeId));
     }
 
     FOREACH (auto* child, children) {
-        DetachChild(child);
+        DetachChild(child, true);
     }
 
     impl->IndexToChild().clear();
@@ -393,19 +401,27 @@ void TListNodeProxy::Clear()
 
 int TListNodeProxy::GetChildCount() const
 {
-    return GetThisTypedImpl()->IndexToChild().size();
+    const auto* impl = GetThisTypedImpl();
+    return impl->IndexToChild().size();
 }
 
 std::vector<INodePtr> TListNodeProxy::GetChildren() const
 {
-    auto children = DoGetChildren();
-    return std::vector<INodePtr>(children.begin(), children.end());
+    std::vector<INodePtr> result;
+    const auto* impl = GetThisTypedImpl();
+    const auto& indexToChild = impl->IndexToChild();
+    result.reserve(indexToChild.size());
+    FOREACH (const auto& nodeId, indexToChild) {
+        result.push_back(GetProxy(nodeId));
+    }
+    return result;
 }
 
 INodePtr TListNodeProxy::FindChild(int index) const
 {
-    const auto& list = GetThisTypedImpl()->IndexToChild();
-    return index >= 0 && index < list.size() ? GetProxy(list[index]) : NULL;
+    const auto* impl = GetThisTypedImpl();
+    const auto& indexToChild = impl->IndexToChild();
+    return index >= 0 && index < indexToChild.size() ? GetProxy(indexToChild[index]) : NULL;
 }
 
 void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
@@ -453,7 +469,7 @@ bool TListNodeProxy::RemoveChild(int index)
     // Remove the child.
     list.erase(list.begin() + index);
     YCHECK(impl->ChildToIndex().erase(childProxy->GetId()));
-    DetachChild(childImpl);
+    DetachChild(childImpl, true);
 
     return true;
 }
@@ -482,7 +498,7 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
     int index = it->second;
 
-    DetachChild(oldChildImpl);
+    DetachChild(oldChildImpl, true);
 
     impl->IndexToChild()[index] = newChildId;
     impl->ChildToIndex().erase(it);
@@ -514,27 +530,15 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
     return TListNodeMixin::ResolveRecursive(path, verb);
 }
 
-std::vector<ICypressNodeProxyPtr> TListNodeProxy::DoGetChildren() const
-{
-    std::vector<ICypressNodeProxyPtr> result;
-    const auto& list = GetThisTypedImpl()->IndexToChild();
-    result.reserve(list.size());
-    FOREACH (const auto& nodeId, list) {
-        result.push_back(GetProxy(nodeId));
-    }
-    return result;
-}
-
 void TListNodeProxy::DoCloneTo(TListNode* clonedNode)
 {
     TBase::DoCloneTo(clonedNode);
 
     auto objectManager = Bootstrap->GetObjectManager();
-
-    auto children = DoGetChildren();
-    for (int index = 0; index < static_cast<int>(children.size()); ++index) {
-        auto child = children[index];
-        auto childId = child->GetId();
+    const auto* impl = GetThisTypedImpl();
+    const auto& indexToChild = impl->IndexToChild();
+    for (int index = 0; index < indexToChild.size(); ++index) {
+        const auto& childId = indexToChild[index];
         clonedNode->IndexToChild().push_back(childId);
         YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(childId, index)).second);
         objectManager->RefObject(childId);

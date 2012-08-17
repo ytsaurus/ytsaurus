@@ -47,7 +47,7 @@ EObjectType TCypressNodeBase::GetObjectType() const
     return TypeFromId(Id.ObjectId);
 }
 
-TVersionedNodeId TCypressNodeBase::GetId() const
+const TVersionedNodeId& TCypressNodeBase::GetId() const
 {
     return Id;
 }
@@ -81,11 +81,13 @@ void TCypressNodeBase::Save(TOutputStream* output) const
 void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
+
     TObjectBase::Load(input);
     LoadObjectRefs(input, Locks_, context);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
+
     TrunkNode_ = Id.IsBranched() ? context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId)) : this;
 }
 

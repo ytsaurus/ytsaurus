@@ -35,7 +35,7 @@ public:
         , NodeId(nodeId)
     { }
 
-    virtual void Destroy()
+    virtual void Destroy() override
     { }
 
 protected:
@@ -68,7 +68,7 @@ public:
         : Bootstrap(bootstrap)
     { }
 
-    virtual TAutoPtr<ICypressNode> Instantiate(const TVersionedNodeId& id)
+    virtual TAutoPtr<ICypressNode> Instantiate(const TVersionedNodeId& id) override
     {
         return new TImpl(id);
     }
@@ -76,13 +76,13 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
-        TRspCreate* response)
+        TRspCreate* response) override
     {
         // TODO(babenko): Release is needed due to cast to ICypressNode.
         return DoCreate(transaction, request, response).Release();
     }
 
-    virtual void Destroy(ICypressNode* node)
+    virtual void Destroy(ICypressNode* node) override
     {
         auto id = node->GetId();
         auto objectManager = Bootstrap->GetObjectManager();
@@ -93,17 +93,10 @@ public:
         DoDestroy(dynamic_cast<TImpl*>(node));
     }
 
-    virtual bool IsLockModeSupported(ELockMode mode)
-    {
-        return
-            mode == ELockMode::Exclusive ||
-            mode == ELockMode::Snapshot;
-    }
-
     virtual TAutoPtr<ICypressNode> Branch(
         const ICypressNode* originatingNode,
         NTransactionServer::TTransaction* transaction,
-        ELockMode mode)
+        ELockMode mode) override
     {
         auto originatingId = originatingNode->GetId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
@@ -126,7 +119,7 @@ public:
 
     virtual void Merge(
         ICypressNode* originatingNode,
-        ICypressNode* branchedNode)
+        ICypressNode* branchedNode) override
     {
         auto originatingId = originatingNode->GetId();
         auto branchedId = branchedNode->GetId();
@@ -142,7 +135,7 @@ public:
         DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
     }
 
-    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& id)
+    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& id) override
     {
         UNUSED(id);
         return NULL;
@@ -215,15 +208,15 @@ class TCypressNodeBase
 public:
     explicit TCypressNodeBase(const TVersionedNodeId& id);
 
-    virtual NObjectServer::EObjectType GetObjectType() const;
-    virtual TVersionedNodeId GetId() const;
+    virtual NObjectServer::EObjectType GetObjectType() const override;
+    virtual const TVersionedNodeId& GetId() const override;
 
-    virtual i32 RefObject();
-    virtual i32 UnrefObject();
-    virtual i32 GetObjectRefCounter() const;
+    virtual i32 RefObject() override;
+    virtual i32 UnrefObject() override;
+    virtual i32 GetObjectRefCounter() const override;
 
-    virtual void Save(TOutputStream* output) const;
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    virtual void Save(TOutputStream* output) const override;
+    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) override;
 
 protected:
     TVersionedNodeId Id;
@@ -277,13 +270,13 @@ public:
         , Value_()
     { }
 
-    virtual void Save(TOutputStream* output) const
+    virtual void Save(TOutputStream* output) const override
     {
         TCypressNodeBase::Save(output);
         ::Save(output, Value_);
     }
     
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input)
+    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) override
     {
         TCypressNodeBase::Load(context, input);
         ::Load(input, Value_);
@@ -305,31 +298,31 @@ public:
         : TCypressNodeTypeHandlerBase< TScalarNode<TValue> >(bootstrap)
     { }
 
-    virtual NObjectServer::EObjectType GetObjectType()
+    virtual NObjectServer::EObjectType GetObjectType() override
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::ObjectType;
     }
 
-    virtual NYTree::ENodeType GetNodeType()
+    virtual NYTree::ENodeType GetNodeType() override
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction) override;
 
 protected:
     virtual void DoBranch(
         const TScalarNode<TValue>* originatingNode,
-        TScalarNode<TValue>* branchedNode)
+        TScalarNode<TValue>* branchedNode) override
     {
         branchedNode->Value() = originatingNode->Value();
     }
 
     virtual void DoMerge(
         TScalarNode<TValue>* originatingNode,
-        TScalarNode<TValue>* branchedNode)
+        TScalarNode<TValue>* branchedNode) override
     {
         originatingNode->Value() = branchedNode->Value();
     }
@@ -355,8 +348,8 @@ class TMapNode
 public:
     explicit TMapNode(const TVersionedNodeId& id);
 
-    virtual void Save(TOutputStream* output) const;
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    virtual void Save(TOutputStream* output) const override;
+    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) override;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -367,25 +360,25 @@ class TMapNodeTypeHandler
 public:
     explicit TMapNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectServer::EObjectType GetObjectType();
-    virtual NYTree::ENodeType GetNodeType();
+    virtual NObjectServer::EObjectType GetObjectType() override;
+    virtual NYTree::ENodeType GetNodeType() override;
 
     virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction) override;
 
 private:
     typedef TMapNodeTypeHandler TThis;
 
-    virtual void DoDestroy(TMapNode* node);
+    virtual void DoDestroy(TMapNode* node) override;
 
     virtual void DoBranch(
         const TMapNode* originatingNode,
-        TMapNode* branchedNode);
+        TMapNode* branchedNode) override;
 
     virtual void DoMerge(
         TMapNode* originatingNode,
-        TMapNode* branchedNode);
+        TMapNode* branchedNode) override;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -402,8 +395,8 @@ class TListNode
 public:
     explicit TListNode(const TVersionedNodeId& id);
 
-    virtual void Save(TOutputStream* output) const;
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    virtual void Save(TOutputStream* output) const override;
+    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) override;
 
 };
 
@@ -413,27 +406,27 @@ class TListNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TListNode>
 {
 public:
-    TListNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+    explicit TListNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectServer::EObjectType GetObjectType();
-    virtual NYTree::ENodeType GetNodeType();
+    virtual NObjectServer::EObjectType GetObjectType() override;
+    virtual NYTree::ENodeType GetNodeType() override;
 
     virtual ICypressNodeProxyPtr GetProxy(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction) override;
 
 private:
     typedef TListNodeTypeHandler TThis;
 
-    virtual void DoDestroy(TListNode* node);
+    virtual void DoDestroy(TListNode* node) override;
 
     virtual void DoBranch(
         const TListNode* originatingNode,
-        TListNode* branchedNode);
+        TListNode* branchedNode) override;
 
     virtual void DoMerge(
         TListNode* originatingNode,
-        TListNode* branchedNode);
+        TListNode* branchedNode) override;
 
 };
 

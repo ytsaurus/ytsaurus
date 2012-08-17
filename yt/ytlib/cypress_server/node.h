@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "lock.h"
 
 #include <ytlib/cypress_client/public.h>
 #include <ytlib/cell_master/public.h>
@@ -9,17 +10,6 @@
 
 namespace NYT {
 namespace NCypressServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Describes a lock held by a transaction of some Cypress node.
-struct TLock
-{
-    ELockMode Mode;
-};
-
-void Save(TOutputStream* output, const TLock& lock);
-void Load(TInputStream* input, TLock& lock);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,14 +30,14 @@ struct ICypressNode
     virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) = 0;
 
     //! Returns the composite (versioned) id of the node.
-    virtual TVersionedNodeId GetId() const = 0;
+    virtual const TVersionedNodeId& GetId() const = 0;
 
     //! Gets the lock mode.
     virtual ELockMode GetLockMode() const = 0;
     //! Sets the lock mode.
     virtual void SetLockMode(ELockMode mode) = 0;
 
-    //! Returns the trunk node, i.e. for a node with id |(objectId, transactionid)| returns
+    //! Returns the trunk node, i.e. for a node with id |(objectId, transactionId)| returns
     //! the node with id |(objectId, NullTransactionId)|.
     virtual ICypressNode* GetTrunkNode() const = 0;
     //! Used internally to set the trunk node during branching.
@@ -60,11 +50,11 @@ struct ICypressNode
 
     typedef yhash_map<NTransactionServer::TTransaction*, TLock> TLockMap;
 
-    //! Gets an immutable reference to the node's locks.
+    //! Gets an immutable reference to transaction-to-lock map.
     virtual const TLockMap& Locks() const = 0;
-    //! Gets a mutable reference to the node's locks.
+    //! Gets a mutable reference to transaction-to-lock map.
     virtual TLockMap& Locks() = 0;
-
+    
     virtual TInstant GetCreationTime() const = 0;
     virtual void SetCreationTime(TInstant value) = 0;
 

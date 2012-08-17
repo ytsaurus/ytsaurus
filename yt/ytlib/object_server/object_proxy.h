@@ -16,7 +16,7 @@ struct IObjectProxy
     , public virtual NYTree::IAttributeProvider
 {
     //! Returns object id.
-    virtual TObjectId GetId() const = 0;
+    virtual const TObjectId& GetId() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

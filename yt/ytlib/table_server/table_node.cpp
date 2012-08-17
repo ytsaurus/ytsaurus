@@ -73,14 +73,6 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual bool IsLockModeSupported(ELockMode mode)
-    {
-        return
-            mode == ELockMode::Exclusive ||
-            mode == ELockMode::Shared ||
-            mode == ELockMode::Snapshot;
-    }
-
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,

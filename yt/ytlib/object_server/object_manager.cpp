@@ -635,6 +635,7 @@ void TObjectManager::MergeAttributes(
     if (!branchedAttributes) {
         return;
     }
+
     if (!originatingAttributes) {
         Attributes.Insert(
             originatingId,
@@ -647,8 +648,8 @@ void TObjectManager::MergeAttributes(
                 originatingAttributes->Attributes()[pair.first] = pair.second;
             }
         }
+        Attributes.Remove(branchedId);
     }
-    Attributes.Remove(branchedId);
 }
 
 void TObjectManager::ExecuteVerb(

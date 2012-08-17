@@ -156,7 +156,7 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/json_out', {'list': [1, 2, {'string': 'this'}]})
         assert get_str('//tmp/json_out', format="json") == '{"list":[1,2,{"string":"this"}]}'
 
-    def test_remove(self):
+    def test_map_remove_all1(self):
         # remove items from map
         set('//tmp/map', {"a" : "b", "c": "d"})
         assert get('//tmp/map/@count') == 2
@@ -164,6 +164,18 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/map') == {}
         assert get('//tmp/map/@count') == 0
 
+    def test_map_remove_all2(self):
+        set('//tmp/map', {'a' : 1})
+        tx = start_transaction()
+        set('//tmp/map', {'b' : 2}, tx = tx)
+        remove('//tmp/map/*', tx = tx)
+        assert get('//tmp/map', tx = tx) == {}
+        assert get('//tmp/map/@count', tx = tx) == 0
+        commit_transaction(tx = tx)
+        assert get('//tmp/map') == {}
+        assert get('//tmp/map/@count') == 0
+
+    def test_list_remove_all(self):
         # remove items from list
         set('//tmp/list', [10, 20, 30])
         assert get('//tmp/list/@count') == 3
@@ -171,11 +183,23 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/list') == []
         assert get('//tmp/list/@count') == 0
 
+    def test_attr_remove_all1(self):
         # remove items from attributes
         set_str('//tmp/attr', '<_foo=bar;_key=value>42');
         remove('//tmp/attr/@*')
         with pytest.raises(YTError): get('//tmp/attr/@_foo')
         with pytest.raises(YTError): get('//tmp/attr/@_key')
+
+    def test_attr_remove_all2(self):
+        set('//tmp/@a', 1)
+        tx = start_transaction()
+        set('//tmp/@b', 2, tx = tx)
+        remove('//tmp/@*', tx = tx)
+        with pytest.raises(YTError): get('//tmp/@a', tx = tx)
+        with pytest.raises(YTError): get('//tmp/@b', tx = tx)
+        commit_transaction(tx = tx)
+        with pytest.raises(YTError): get('//tmp/@a')
+        with pytest.raises(YTError): get('//tmp/@b')
 
     def test_copy_simple1(self):
         set('//tmp/a', 1)
@@ -192,3 +216,171 @@ class TestCypressCommands(YTEnvSetup):
         copy('//tmp/a', '//tmp/b')
         assert get('//tmp/b/@x') == 'y'
 
+    def test_remove_locks(self):
+        set('//tmp/a', {'b' : 1})
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+
+        set('//tmp/a/b', 2, tx = tx1)
+        with pytest.raises(YTError): remove('//tmp/a', tx = tx2)
+
+    def test_map_locks1(self):
+        tx = start_transaction()
+        set('//tmp/a', 1, tx = tx)
+        assert get('//tmp/@lock_mode') == 'none'
+        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
+
+        locks = get('//tmp/@locks', tx = tx)
+        assert len(locks) == 1
+        
+        lock = locks[0]
+        assert lock['mode'] == 'shared'
+        assert lock['child_keys'] == ['a']
+
+        commit_transaction(tx = tx)
+        assert get('//tmp') == {'a' : 1}
+
+    def test_map_locks2(self):
+        tx1 = start_transaction()
+        set('//tmp/a', 1, tx = tx1)
+
+        tx2 = start_transaction()
+        set('//tmp/b', 2, tx = tx2)
+
+        assert get('//tmp', tx = tx1) == {'a' : 1}
+        assert get('//tmp', tx = tx2) == {'b' : 2}
+        assert get('//tmp') == {}
+
+        commit_transaction(tx = tx1)
+        assert get('//tmp') == {'a' : 1}
+        assert get('//tmp', tx = tx2) == {'a' : 1, 'b' : 2}
+
+        commit_transaction(tx = tx2)
+        assert get('//tmp') == {'a' : 1, 'b' : 2}
+                
+    def test_map_locks3(self):
+        tx1 = start_transaction()
+        set('//tmp/a', 1, tx = tx1)
+
+        tx2 = start_transaction()
+        with pytest.raises(YTError): set('//tmp/a', 2, tx = tx2)
+        
+    def test_map_locks4(self):
+        set('//tmp/a', 1)
+
+        tx = start_transaction()
+        remove('//tmp/a', tx = tx)
+
+        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
+
+        locks = get('//tmp/@locks', tx = tx)
+        assert len(locks) == 1
+        
+        lock = locks[0]
+        assert lock['mode'] == 'shared'
+        assert lock['child_keys'] == ['a']
+
+    def test_map_locks5(self):
+        set('//tmp/a', 1)
+
+        tx1 = start_transaction()
+        remove('//tmp/a', tx = tx1)
+
+        tx2 = start_transaction()
+        with pytest.raises(YTError): set('//tmp/a', 2, tx = tx2)
+
+    def test_map_locks6(self):
+        tx = start_transaction()
+        set('//tmp/a', 1, tx = tx)
+        assert get('//tmp/a', tx = tx) == 1
+        assert get('//tmp') == {}
+
+        with pytest.raises(YTError): remove('//tmp/a')
+        remove('//tmp/a', tx = tx)
+        assert get('//tmp', tx = tx) == {}
+
+        commit_transaction(tx = tx)
+        assert get('//tmp') == {}
+    
+    def test_attr_locks1(self):
+        tx = start_transaction()
+        set('//tmp/@a', 1, tx = tx)
+        assert get('//tmp/@lock_mode') == 'none'
+        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
+
+        locks = get('//tmp/@locks', tx = tx)
+        assert len(locks) == 1
+        
+        lock = locks[0]
+        assert lock['mode'] == 'shared'
+        assert lock['attribute_keys'] == ['a']
+
+        commit_transaction(tx = tx)
+        assert get('//tmp/@a') == 1
+
+    def test_attr_locks2(self):
+        tx1 = start_transaction()
+        set('//tmp/@a', 1, tx = tx1)
+
+        tx2 = start_transaction()
+        set('//tmp/@b', 2, tx = tx2)
+
+        assert get('//tmp/@a', tx = tx1) == 1
+        assert get('//tmp/@b', tx = tx2) == 2
+        with pytest.raises(YTError): get('//tmp/@a')
+        with pytest.raises(YTError): get('//tmp/@b')
+
+        commit_transaction(tx = tx1)
+        assert get('//tmp/@a') == 1
+        assert get('//tmp/@a', tx = tx2) == 1
+        assert get('//tmp/@b', tx = tx2) == 2
+
+        commit_transaction(tx = tx2)
+        assert get('//tmp/@a') == 1
+        assert get('//tmp/@b') == 2
+                
+    def test_attr_locks3(self):
+        tx1 = start_transaction()
+        set('//tmp/@a', 1, tx = tx1)
+
+        tx2 = start_transaction()
+        with pytest.raises(YTError): set('//tmp/@a', 2, tx = tx2)
+        
+    def test_attr_locks4(self):
+        set('//tmp/@a', 1)
+
+        tx = start_transaction()
+        remove('//tmp/@a', tx = tx)
+
+        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
+
+        locks = get('//tmp/@locks', tx = tx)
+        assert len(locks) == 1
+        
+        lock = locks[0]
+        assert lock['mode'] == 'shared'
+        assert lock['attribute_keys'] == ['a']
+
+    def test_attr_locks5(self):
+        set('//tmp/@a', 1)
+
+        tx1 = start_transaction()
+        remove('//tmp/@a', tx = tx1)
+
+        tx2 = start_transaction()
+        with pytest.raises(YTError): set('//tmp/@a', 2, tx = tx2)
+
+    def test_attr_locks6(self):
+        tx = start_transaction()
+        set('//tmp/@a', 1, tx = tx)
+        assert get('//tmp/@a', tx = tx) == 1
+        with pytest.raises(YTError): get('//tmp/@a')
+
+        with pytest.raises(YTError): remove('//tmp/@a')
+        remove('//tmp/@a', tx = tx)
+        with pytest.raises(YTError): get('//tmp/@a', tx = tx)
+
+        commit_transaction(tx = tx)
+        with pytest.raises(YTError): get('//tmp/@a')
+    

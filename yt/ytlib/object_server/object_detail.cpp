@@ -95,7 +95,7 @@ TObjectProxyBase::TObjectProxyBase(
 TObjectProxyBase::~TObjectProxyBase()
 { }
 
-TObjectId TObjectProxyBase::GetId() const
+const TObjectId& TObjectProxyBase::GetId() const
 {
     return Id;
 }

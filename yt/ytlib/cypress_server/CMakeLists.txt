@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/node_proxy.cpp
   ${BASE}/node_proxy_detail.cpp
   ${BASE}/virtual.cpp
+  ${BASE}/lock.cpp
 )
 set( HDRS
   ${BASE}/cypress_manager.h
@@ -17,6 +18,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
+  ${BASE}/lock.h
 )
 
 list(APPEND YT_SOURCE_FILES

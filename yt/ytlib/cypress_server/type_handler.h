@@ -49,7 +49,7 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
-    //! Create an empty instance of the node (used during snapshot deserializion).
+    //! Create an empty instance of the node (used during snapshot deserialization).
     virtual TAutoPtr<ICypressNode> Instantiate(const TVersionedNodeId& id) = 0;
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
@@ -67,20 +67,15 @@ struct INodeTypeHandler
     /*!
      *  This is called prior to the actual removal of the node from the meta-map.
      *  A typical implementation will release the resources held by the node,
-     *  decrement the ref-counters of the children etc.
-     *  
-     *  \note This method is only called for committed and uncommitted nodes.
-     *  It is not called for branched ones.
+     *  decrement the ref-counters of its children etc.
      */
     virtual void Destroy(ICypressNode* node) = 0;
-
-    //! Returns True if the given locking mode is supported.
-    virtual bool IsLockModeSupported(ELockMode mode) = 0;
 
     //! Branches a node into a given transaction.
     /*!
      *  \param node The originating node.
-     *  \param transaction* Transaction that needs a copy of the node.
+     *  \param transaction Transaction that needs a copy of the node.
+     *  \param mode The lock mode for which the node is being branched.
      *  \returns The branched node.
      */
     virtual TAutoPtr<ICypressNode> Branch(
@@ -99,15 +94,8 @@ struct INodeTypeHandler
         ICypressNode* originatingNode,
         ICypressNode* branchedNode) = 0;
 
-    //! Creates a behavior object.
-    /*!
-     *  \note
-     *  The method may return NULL if no behavior is needed.
-     *  
-     *  The implementation must not keep the node reference since node's
-     *  content may get eventually destroyed by TMetaStateMap.
-     *  It should keep node id instead.
-     */
+    //! Creates a behavior associated with the node.
+    //! The method may return NULL if no behavior is needed.
     virtual INodeBehaviorPtr CreateBehavior(const TNodeId& id) = 0;
 };
 

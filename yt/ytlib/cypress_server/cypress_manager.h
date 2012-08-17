@@ -4,6 +4,7 @@
 #include "node.h"
 #include "type_handler.h"
 #include "node_proxy.h"
+#include "lock.h"
 
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -28,8 +29,6 @@ namespace NYT {
 namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct ICypressNodeProxy;
 
 class TCypressManager
     : public NMetaState::TMetaStatePart
@@ -88,13 +87,13 @@ public:
     ICypressNode* LockVersionedNode(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
-        ELockMode requestedMode = ELockMode::Exclusive,
+        const TLockRequest& request,
         bool recursive = false);
 
     ICypressNode* LockVersionedNode(
         ICypressNode* node,
         NTransactionServer::TTransaction* transaction,
-        ELockMode requestedMode = ELockMode::Exclusive,
+        const TLockRequest& request,
         bool recursive = false);
 
     void RegisterNode(
@@ -168,12 +167,15 @@ private:
     void ValidateLock(
         ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
-        ELockMode requestedMode,
+        const TLockRequest& request,
         bool* isMandatory);
     void ValidateLock(
         ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
-        ELockMode requestedMode);
+        const TLockRequest& request);
+    bool IsRedundantLock(
+        const TLock& existingLock,
+        const TLockRequest& request);
 
     static bool IsParentTransaction(
         NTransactionServer::TTransaction* transaction,
@@ -185,11 +187,11 @@ private:
     ICypressNode* AcquireLock(
         ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
-        ELockMode mode);
-    TLock* CreateLock(
+        const TLockRequest& request);
+    TLock* DoAcquireLock(
         ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
-        ELockMode mode);
+        const TLockRequest& request);
     void ReleaseLock(
         ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction);

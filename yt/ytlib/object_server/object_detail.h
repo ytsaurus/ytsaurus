@@ -77,7 +77,7 @@ public:
     ~TObjectProxyBase();
 
     // IObjectProxy members
-    virtual TObjectId GetId() const;
+    virtual const TObjectId& GetId() const;
     virtual NYTree::IAttributeDictionary& Attributes();
     virtual const NYTree::IAttributeDictionary& Attributes() const;
     virtual void Invoke(NRpc::IServiceContextPtr context);
