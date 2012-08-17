@@ -5,14 +5,20 @@
 #include "config.h"
 
 #include <ytlib/object_server/id.h>
+
 #include <ytlib/meta_state/master_channel.h>
-#include <ytlib/table_client/table_chunk_sequence_reader.h>
+
+#include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
+#include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/sync_writer.h>
+
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
+
 #include <ytlib/chunk_server/public.h>
+
 #include <ytlib/ytree/yson_string.h>
 #include <ytlib/ytree/lexer.h>
 
