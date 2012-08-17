@@ -33,12 +33,12 @@ def write_with_flush(data):
 
 class YTEnv(unittest.TestCase):
     NUM_MASTERS = 3
-    NUM_HOLDERS = 5
+    NUM_NODES = 5
     START_SCHEDULER = False
     START_PROXY = False
 
     DELTA_MASTER_CONFIG = {}
-    DELTA_HOLDER_CONFIG = {}
+    DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
 
     # needed for compatibility with unittest.TestCase
@@ -77,7 +77,7 @@ class YTEnv(unittest.TestCase):
             self._ports.update(ports)
 
         logging.info('Setting up configuration with %s masters, %s nodes, %s schedulers.' %
-                     (self.NUM_MASTERS, self.NUM_HOLDERS, self.START_SCHEDULER))
+                     (self.NUM_MASTERS, self.NUM_NODES, self.START_SCHEDULER))
         logging.info('SANDBOX_DIR is %s', self.path_to_run)
 
         self.process_to_kill = []
@@ -225,14 +225,14 @@ class YTEnv(unittest.TestCase):
 
 
     def _run_nodes(self):
-        if self.NUM_HOLDERS == 0: return
+        if self.NUM_NODES == 0: return
 
         self.node_configs = []
 
         config_paths = []
 
         os.mkdir(os.path.join(self.path_to_run, 'node'))
-        for i in xrange(self.NUM_HOLDERS):
+        for i in xrange(self.NUM_NODES):
             config = configs.get_node_config()
 
             current = os.path.join(self.path_to_run, 'node', str(i))
@@ -250,7 +250,7 @@ class YTEnv(unittest.TestCase):
             init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
 
             self.modify_node_config(config)
-            update(config, self.DELTA_HOLDER_CONFIG)
+            update(config, self.DELTA_NODE_CONFIG)
 
             self.node_configs.append(config)
 
@@ -264,8 +264,8 @@ class YTEnv(unittest.TestCase):
         def all_nodes_ready():
             nodes_status = {}
 
-            good_marker = re.compile(r".*Holder online .* HolderId: (\d+).*")
-            bad_marker = re.compile(r".*Holder unregistered .* HolderId: (\d+).*")
+            good_marker = re.compile(r".*Node online .* NodeId: (\d+).*")
+            bad_marker = re.compile(r".*Node unregistered .* NodeId: (\d+).*")
 
             def update_status(marker, line, status, value):
                 match = marker.match(line)
@@ -278,11 +278,11 @@ class YTEnv(unittest.TestCase):
                 update_status(good_marker, line, nodes_status, True)
                 update_status(bad_marker, line, nodes_status, False)
 
-            if len(nodes_status) != self.NUM_HOLDERS: return False
+            if len(nodes_status) != self.NUM_NODES: return False
             return all(nodes_status.values())
 
         self._wait_for(all_nodes_ready, name = "nodes",
-                       max_wait_time = max(self.NUM_HOLDERS * 6.0, 20))
+                       max_wait_time = max(self.NUM_NODES * 6.0, 20))
 
 
     def _run_schedulers(self):

@@ -23,7 +23,7 @@ TEST_DIR = "//home/tests"
 
 class YtTest(YTEnv):
     NUM_MASTERS = 1
-    NUM_HOLDERS = 3
+    NUM_NODES = 3
     START_SCHEDULER = True
     START_PROXY = True
 
