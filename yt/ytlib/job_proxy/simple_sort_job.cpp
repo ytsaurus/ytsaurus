@@ -11,7 +11,8 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
-#include <ytlib/table_client/table_chunk_sequence_reader.h>
+#include <ytlib/table_client/table_chunk_reader.h>
+#include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/ytree/lexer.h>
 
@@ -31,7 +32,11 @@ using namespace NScheduler::NProto;
 static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
+typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+// ToDo(psushin): get rid of value count.
 
 class TSimpleSortJob
     : public TJob
@@ -62,12 +67,14 @@ public:
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());
 
-        Reader = New<TTableChunkSequenceReader>(
+        auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
+
+        Reader = New<TReader>(
             config->JobIO->TableReader, 
             masterChannel, 
             blockCache, 
             MoveRV(chunks),
-            options);
+            provider);
 
         Writer = New<TTableChunkSequenceWriter>(
             config->JobIO->TableWriter,
@@ -98,12 +105,12 @@ public:
                     keyColumnToIndex[name] = i;
                 }
 
-                Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
+                Sync(~Reader, &TReader::AsyncOpen);
 
-                valueBuffer.reserve(Reader->GetValueCount());
-                keyBuffer.reserve(Reader->GetRowCount() * keyColumnCount);
-                valueIndexBuffer.reserve(Reader->GetRowCount() + 1);
-                rowIndexBuffer.reserve(Reader->GetRowCount());
+                valueBuffer.reserve(1000000);
+                keyBuffer.reserve(Reader->GetItemCount() * keyColumnCount);
+                valueIndexBuffer.reserve(Reader->GetItemCount() + 1);
+                rowIndexBuffer.reserve(Reader->GetItemCount());
 
                 // Add fake row.
                 valueIndexBuffer.push_back(0);
@@ -120,7 +127,7 @@ public:
 
                     keyBuffer.resize(keyBuffer.size() + keyColumnCount);
 
-                    FOREACH (const auto& pair, Reader->GetRow()) {
+                    FOREACH (const auto& pair, Reader->CurrentReader()->GetRow()) {
                         auto it = keyColumnToIndex.find(pair.first);
                         if (it != keyColumnToIndex.end()) {
                             auto& keyPart = keyBuffer[rowIndexBuffer.back() * keyColumnCount + it->second];
@@ -132,7 +139,7 @@ public:
                     valueIndexBuffer.push_back(valueBuffer.size());
 
                     if (!Reader->FetchNextItem()) {
-                        Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+                        Sync(~Reader, &TReader::GetReadyEvent);
                     }
                 }
             }
@@ -210,7 +217,7 @@ public:
 
 private:
     TKeyColumns KeyColumns;
-    TTableChunkSequenceReaderPtr Reader;
+    TIntrusivePtr<TReader> Reader;
     TTableChunkSequenceWriterPtr Writer;
 
 };

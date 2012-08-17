@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "merging_reader.h"
-#include "table_chunk_sequence_reader.h"
+#include "table_chunk_reader.h"
+#include "multi_chunk_sequential_reader.h"
 #include "key.h"
 
 #include <ytlib/misc/sync.h>
@@ -21,7 +22,7 @@ inline bool CompareReaders(
     const TTableChunkSequenceReader* lhs,
     const TTableChunkSequenceReader* rhs)
 {
-    return CompareKeys(lhs->GetKey(), rhs->GetKey()) < 0;
+    return CompareKeys(lhs->CurrentReader()->GetKey(), rhs->CurrentReader()->GetKey()) < 0;
 }
 
 } // namespace
@@ -106,12 +107,12 @@ public:
 
     virtual const TRow& GetRow() const override
     {
-        return ReaderHeap.front()->GetRow();
+        return ReaderHeap.front()->CurrentReader()->GetRow();
     }
 
     virtual const TNonOwningKey& GetKey() const override
     {
-        return ReaderHeap.front()->GetKey();
+        return ReaderHeap.front()->CurrentReader()->GetKey();
     }
 
 private:

@@ -6,7 +6,8 @@
 #include "small_key.h"
 
 #include <ytlib/table_client/value.h>
-#include <ytlib/table_client/partition_chunk_sequence_reader.h>
+#include <ytlib/table_client/partition_chunk_reader.h>
+#include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/meta_state/leader_channel.h>
 #include <ytlib/chunk_client/client_block_cache.h>
@@ -27,6 +28,8 @@ using namespace NYTree;
 
 static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
+
+typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,11 +59,13 @@ public:
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());
 
-        Reader = New<TPartitionChunkSequenceReader>(
+        auto provider = New<TPartitionChunkReaderProvider>(config->JobIO->TableReader);
+        Reader = New<TReader>(
             config->JobIO->TableReader, 
             masterChannel, 
             blockCache, 
-            MoveRV(chunks));
+            MoveRV(chunks),
+            provider);
 
         Writer = New<TTableChunkSequenceWriter>(
             config->JobIO->TableWriter,
@@ -80,11 +85,11 @@ public:
             std::vector<TSmallKeyPart> keyBuffer;
             std::vector<const char*> rowPtrBuffer;
             std::vector<ui32> rowIndexHeap;
-            i64 estimatedRowCount = Reader->GetRowCount();
+            i64 estimatedRowCount = Reader->GetItemCount();
 
             LOG_INFO("Initializing");
             {
-                Sync(~Reader, &TPartitionChunkSequenceReader::AsyncOpen);
+                Sync(~Reader, &TReader::AsyncOpen);
 
                 keyBuffer.reserve(estimatedRowCount * keyColumnCount);
                 rowPtrBuffer.reserve(estimatedRowCount);
@@ -137,13 +142,13 @@ public:
                     // Push row index and readjust the heap.
                     std::push_heap(rowIndexHeap.begin(), rowIndexHeap.end(), comparer);
 
-                    if (!isNetworkReleased && Reader->IsFetchingComplete()) {
+                    if (!isNetworkReleased && Reader->GetIsFetchingComplete()) {
                         Host->ReleaseNetwork();
                         isNetworkReleased =  true;
                     }
 
                     if (!Reader->FetchNextItem()) {
-                        Sync(~Reader, &TPartitionChunkSequenceReader::GetReadyEvent);
+                        Sync(~Reader, &TReader::GetReadyEvent);
                     }
                 }
 
@@ -263,7 +268,7 @@ public:
 
 private:
     TKeyColumns KeyColumns;
-    TPartitionChunkSequenceReaderPtr Reader;
+    TIntrusivePtr<TReader> Reader;
     TTableChunkSequenceWriterPtr Writer;
 
 };

@@ -1,7 +1,8 @@
 ﻿#include "stdafx.h"
 #include "table_reader.h"
 #include "config.h"
-#include "table_chunk_sequence_reader.h"
+#include "table_chunk_reader.h"
+#include "multi_chunk_sequential_reader.h"
 #include "private.h"
 
 #include <ytlib/table_server/table_ypath_proxy.h>
@@ -63,11 +64,13 @@ void TTableReader::Open()
 
     auto inputChunks = FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
+    auto provider = New<TTableChunkReaderProvider>(Config);
     Reader = New<TTableChunkSequenceReader>(
         Config,
         MasterChannel,
         BlockCache,
-        MoveRV(inputChunks));
+        MoveRV(inputChunks),
+        provider);
     Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {
@@ -106,7 +109,7 @@ const TRow& TTableReader::GetRow() const
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
-    return Reader->GetRow();
+    return Reader->CurrentReader()->GetRow();
 }
 
 const TNonOwningKey& TTableReader::GetKey() const 

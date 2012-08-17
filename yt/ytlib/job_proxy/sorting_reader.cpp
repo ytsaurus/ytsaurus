@@ -8,8 +8,9 @@
 
 #include <ytlib/actions/action_queue.h>
 
+#include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/partition_chunk_sequence_reader.h>
+#include <ytlib/table_client/partition_chunk_reader.h>
 
 #include <ytlib/rpc/channel.h>
 
@@ -59,11 +60,13 @@ public:
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());
 
-        Reader = New<TPartitionChunkSequenceReader>(
+        auto provider = New<TPartitionChunkReaderProvider>(config);
+        Reader = New<TReader>(
             config,
             masterChannel, 
             blockCache, 
-            MoveRV(chunks));
+            MoveRV(chunks),
+            provider);
     }
 
     virtual void Open() override
@@ -98,12 +101,15 @@ public:
     }
 
 private:
+    typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
+    typedef TIntrusivePtr<TReader> TReaderPtr;
+
     TKeyColumns KeyColumns;
     int KeyColumnCount;
     TClosure OnNetworkReleased;
 
     bool IsValid_;
-    TPartitionChunkSequenceReaderPtr Reader;
+    TReaderPtr Reader;
     TActionQueuePtr SortQueue;
 
     int EstimatedRowCount;
@@ -199,9 +205,9 @@ private:
     {
         LOG_INFO("Initializing input");
         PROFILE_TIMING ("/reduce/init_time") {
-            Sync(~Reader, &TPartitionChunkSequenceReader::AsyncOpen);
+            Sync(~Reader, &TReader::AsyncOpen);
 
-            EstimatedRowCount = Reader->GetRowCount();
+            EstimatedRowCount = Reader->GetItemCount();
             EstimatedBucketCount = (EstimatedRowCount + SortBucketSize - 1) / SortBucketSize;
             LOG_INFO("Input size estimated (RowCount: %d, BucketCount: %d)",
                 EstimatedRowCount,
@@ -258,13 +264,13 @@ private:
                     flushBucket();
                 }
 
-                if (!isNetworkReleased && Reader->IsFetchingComplete()) {
+                if (!isNetworkReleased && Reader->GetIsFetchingComplete()) {
                     OnNetworkReleased.Run();
                     isNetworkReleased =  true;
                 }
 
                 if (!Reader->FetchNextItem()) {
-                    Sync(~Reader, &TPartitionChunkSequenceReader::GetReadyEvent);
+                    Sync(~Reader, &TReader::GetReadyEvent);
                 }
             }
 

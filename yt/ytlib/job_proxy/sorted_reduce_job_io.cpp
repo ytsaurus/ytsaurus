@@ -3,7 +3,8 @@
 #include "config.h"
 
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/table_client/table_chunk_sequence_reader.h>
+#include <ytlib/table_client/multi_chunk_sequential_reader.h>
+#include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/merging_reader.h>
@@ -41,6 +42,8 @@ public:
         TReaderOptions options;
         options.ReadKey = true;
 
+        auto provider = New<TTableChunkReaderProvider>(IOConfig->TableReader, options);
+
         FOREACH (const auto& inputSpec, JobSpec.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             std::vector<NTableClient::NProto::TInputChunk> chunks(
@@ -52,7 +55,7 @@ public:
                 MasterChannel,
                 blockCache,
                 MoveRV(chunks),
-                options);
+                provider);
 
             readers.push_back(reader);
         }
