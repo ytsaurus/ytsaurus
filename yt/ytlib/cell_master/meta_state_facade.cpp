@@ -81,9 +81,9 @@ public:
         return StateQueue->GetInvoker(EStateThreadQueue::Default);
     }
 
-    IInvokerPtr GetWrappedInvoker(EStateThreadQueue queueIndex) const
+    IInvokerPtr GetWrappedInvoker(EStateThreadQueue queue) const
     {
-        return WrappedInvokers[queueIndex];
+        return WrappedInvokers[queue];
     }
 
     void Start()
@@ -341,9 +341,9 @@ IInvokerPtr TMetaStateFacade::GetRawInvoker() const
     return Impl->GetRawInvoker();
 }
 
-IInvokerPtr TMetaStateFacade::GetWrappedInvoker(EStateThreadQueue queueIndex) const
+IInvokerPtr TMetaStateFacade::GetWrappedInvoker(EStateThreadQueue queue) const
 {
-    return Impl->GetWrappedInvoker(queueIndex);
+    return Impl->GetWrappedInvoker(queue);
 }
 
 void TMetaStateFacade::Start()

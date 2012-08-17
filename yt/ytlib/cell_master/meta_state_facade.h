@@ -33,7 +33,7 @@ public:
 
     IInvokerPtr GetRawInvoker() const;
 
-    IInvokerPtr GetWrappedInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default) const;
+    IInvokerPtr GetWrappedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
 
     bool ValidateActiveLeader(NRpc::IServiceContextPtr context);
 
@@ -42,21 +42,21 @@ public:
         TTarget* target,
         const TRequest& request,
         TResponse (TTarget::* method)(const TRequest& request),
-        EStateThreadQueue queueIndex = EStateThreadQueue::Default)
+        EStateThreadQueue queue = EStateThreadQueue::Default)
     {
         return NMetaState::CreateMutation<TTarget, TRequest, TResponse>(
             GetManager(),
-            GetWrappedInvoker(queueIndex),
+            GetWrappedInvoker(queue),
             target,
             request,
             method);
     }
 
-    NMetaState::TMutationPtr CreateMutation(EStateThreadQueue queueIndex = EStateThreadQueue::Default)
+    NMetaState::TMutationPtr CreateMutation(EStateThreadQueue queue = EStateThreadQueue::Default)
     {
         return New<NMetaState::TMutation>(
             GetManager(),
-            GetWrappedInvoker(queueIndex));
+            GetWrappedInvoker(queue));
     }
 
 private:
