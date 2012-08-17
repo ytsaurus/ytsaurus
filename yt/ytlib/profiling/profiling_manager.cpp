@@ -145,7 +145,9 @@ public:
         , EnqueueCounter("/enqueue_rate")
         , DequeueCounter("/dequeue_rate")
     {
+#ifndef _win_
         ResourceTracker = New<TResourceTracker>(GetInvoker());
+#endif
     }
 
     ~TImpl()
@@ -157,7 +159,7 @@ public:
     void Start()
     {
         TActionQueueBase::Start();
-#ifdef __unix__
+#ifndef _win_
         ResourceTracker->Start();
 #endif
     }
@@ -200,7 +202,9 @@ private:
     yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
     TIdGenerator<i64> IdGenerator;
 
+#ifndef _win_
     TIntrusivePtr<TResourceTracker> ResourceTracker;
+#endif
 
     static const TDuration MaxKeepInterval;
 
