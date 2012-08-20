@@ -364,6 +364,7 @@ target_link_libraries ( ytext-arcadia-util
   ytext-fastlz
   ytext-minilzo
   ytext-zlib
+  ytext-quicklz
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)

@@ -166,7 +166,7 @@ TCodecPtr GetCodec(ECodecId id)
             return New<NCodec::TLz4Codec>(true);
         
         case ECodecId::QuickLzCompression:
-            return New<NCodec::TLz4Codec>(true);
+            return New<NCodec::TQuickLzCodec>();
 
         default:
             YUNREACHABLE();
