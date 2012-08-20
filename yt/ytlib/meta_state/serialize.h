@@ -14,9 +14,9 @@ namespace NMetaState {
 
 /*!
  *  Each mutation record has the following format:
- *  - TFixedMutationHeader
- *  - serialized NProto::TMutationHeader (of size #TFixedMutation::HeaderSize)
- *  - custom mutation data (of size #TFixedMutation::DataSize)
+ *  - TMutationRecordHeader
+ *  - serialized NProto::TMutationHeader (of size #TMutationRecordHeader::HeaderSize)
+ *  - custom mutation data (of size #TMutationRecordHeader::DataSize)
  */
 struct TMutationRecordHeader
 {
