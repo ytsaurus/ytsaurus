@@ -35,6 +35,9 @@ public:
     void Create(i32 prevRecordCount, const TEpoch& epoch);
     //! Finalizes current changelog.
     void Finalize();
+    //! Make changelog opened from finalized state.
+    //! Debug method, use it with care.
+    void Definalize();
 
     //! Appends records to the changelog.
     void Append(i32 firstRecordId, const std::vector<TSharedRef>& records);

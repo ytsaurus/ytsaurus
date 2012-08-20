@@ -2,6 +2,7 @@
 
 #include <util/system/yassert.h>
 
+// TODO(ignat): delete namespace, because it doesn't depend on define declarations
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

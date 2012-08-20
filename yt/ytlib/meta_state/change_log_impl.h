@@ -145,6 +145,7 @@ public:
     void Truncate(i32 atRecordId);
 
     void Finalize();
+    void Definalize();
 
     i32 GetId() const;
     i32 GetPrevRecordCount() const;

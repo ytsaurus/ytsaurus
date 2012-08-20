@@ -60,6 +60,11 @@ void TChangeLog::Finalize()
     Impl->Finalize();
 }
 
+void TChangeLog::Definalize()
+{
+    Impl->Definalize();
+}
+
 void TChangeLog::Append(i32 firstRecordId, const std::vector<TSharedRef>& records)
 {
     Impl->Append(firstRecordId, records);

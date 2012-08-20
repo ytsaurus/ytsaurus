@@ -240,6 +240,7 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
         IndexFile->Resize(sizeof(TLogIndexHeader) + Index.size() * sizeof(TLogIndexRecord));
         RefreshIndexHeader();
         File->Resize(CurrentFilePosition);
+        File->Seek(0, sEnd);
     }
 }
 
@@ -273,12 +274,35 @@ void TChangeLog::TImpl::Finalize()
     // Write to the header that changelog is finalized.
     File->Seek(0, sSet);
     WritePod(*File, TLogHeader(Id, Epoch, PrevRecordCount, /*Finalized*/ true));
+    File->Seek(0, sEnd);
     File->Flush();
 
     State = EState::Finalized;
 
     LOG_DEBUG("Changelog finalized");
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChangeLog::TImpl::Definalize()
+{
+    YCHECK(State == EState::Finalized);
+
+    LOG_DEBUG("Definalizing changelog");
+
+    TGuard<TMutex> guard(Mutex);
+
+    // Write to the header that changelog is finalized.
+    File->Seek(0, sSet);
+    WritePod(*File, TLogHeader(Id, Epoch, PrevRecordCount, /*Finalized*/ false));
+    File->Seek(0, sEnd);
+    File->Flush();
+
+    State = EState::Open;
+
+    LOG_DEBUG("Changelog definalized");
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

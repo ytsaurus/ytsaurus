@@ -57,6 +57,12 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->SubscribeStopFollowing(BIND(
         &TThis::OnStopFollowing,
         MakeWeak(this)));
+
+    // Rpc method that do nothing
+    auto noOperation = BIND(&TMetaStatePart::NoOperation, Unretained(this));
+    if (!HasMethod(noOperation)) {
+        RegisterMethod(noOperation);
+    }
 }
 
 void TMetaStatePart::Clear()
@@ -99,6 +105,9 @@ void TMetaStatePart::OnStartRecovery()
 { }
 
 void TMetaStatePart::OnStopRecovery()
+{ }
+
+void TMetaStatePart::NoOperation(const NProto::TReqNoOperation&)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
