@@ -4,6 +4,7 @@
 #include "schema.h"
 
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -13,16 +14,22 @@ namespace NTableClient {
 class TChannelWriter
     : public TRefCounted
 {
+    DEFINE_BYVAL_RW_PROPERTY(int, HeapIndex);
+    DEFINE_BYVAL_RO_PROPERTY(int, BufferIndex);
+
 public:
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
-    TChannelWriter(int fixedColumnCount, bool writeRangeSizes = false);
+    TChannelWriter(
+        int bufferIndex,
+        int fixedColumnCount,
+        bool writeRangeSizes = false);
 
-    void WriteFixed(int fixedIndex, const TStringBuf& value);
-    void WriteRange(const TStringBuf& name, const TStringBuf& value);
-    void WriteRange(int chunkColumnIndex, const TStringBuf& value);
+    int WriteFixed(int fixedIndex, const TStringBuf& value);
+    int WriteRange(const TStringBuf& name, const TStringBuf& value);
+    int WriteRange(int chunkColumnIndex, const TStringBuf& value);
 
-    void EndRow();
+    int EndRow();
 
     size_t GetCurrentSize() const;
 
@@ -32,9 +39,6 @@ public:
     std::vector<TSharedRef> FlushBlock();
 
 private:
-    //! Size reserved for column offsets
-    size_t GetEmptySize() const;
-
     //! Current buffers for fixed columns.
     std::vector<TBlobOutput> FixedColumns;
 
@@ -54,6 +58,7 @@ private:
     int CurrentRowCount;
 
     bool WriteRangeSizes;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -51,22 +51,13 @@ private:
     NYTree::TLexer Lexer;
     yhash_map<TStringBuf, int> KeyColumnIndexes;
 
-    //! Current size of written data.
-    /*!
-     *  - This counter is updated every #AsyncEndRow call.
-     *  - This is an upper bound approximation of the size of written data.
-     *    (Indeed, the counter includes compressed size of complete blocks and
-     *    uncompressed size of incomplete blocks.)
-     */
-    i64 CurrentSize;
-
-    std::vector<TChannelWriterPtr> ChannelWriters;
+    i64 CurrentBufferSize;
 
     i64 BasicMetaSize;
    
     NProto::TPartitionsExt PartitionsExt;
 
-    void PrepareBlock(int partitionTag);
+    void PrepareBlock();
 
     void OnFinalBlocksWritten(TError error);
 

@@ -26,6 +26,8 @@ struct TChunkWriterConfig
 
     bool AllowDuplicateColumnNames;
 
+    i64 MaxBufferSize;
+
     TChunkWriterConfig()
     {
         // Block less than 1M is nonsense.
@@ -46,6 +48,8 @@ struct TChunkWriterConfig
             .Default(0.2);
         Register("allow_duplicate_column_names", AllowDuplicateColumnNames)
             .Default(true);
+        Register("max_buffer_size", MaxBufferSize)
+            .Default(32 * 1024 * 1024);
 
         CodecId = ECodecId::Snappy;
     }

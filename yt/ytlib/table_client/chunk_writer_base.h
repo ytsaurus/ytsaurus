@@ -37,6 +37,9 @@ protected:
 
     NChunkClient::TEncodingWriterPtr EncodingWriter;
 
+    std::vector<TChannelWriterPtr> Buffers;
+    std::vector<TChannelWriter*> BuffersHeap;
+
     int CurrentBlockIndex;
 
     //! Approximate data size counting all written rows.
@@ -50,6 +53,8 @@ protected:
 
     i64 CurrentSize;
 
+    i64 CurrentBufferSize;
+
     TAsyncStreamState State;
 
     NChunkHolder::NProto::TChunkMeta Meta;
@@ -57,6 +62,10 @@ protected:
     NProto::TChannelsExt ChannelsExt;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
+
+    bool IsLess(const TChannelWriter* lhs, const TChannelWriter* rhs);
+    void AdjustBufferHeap(int updatedBufferIndex);
+    void PopBufferHeap();
 
     void FinalizeWriter();
 };

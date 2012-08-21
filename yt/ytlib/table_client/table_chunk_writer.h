@@ -98,8 +98,6 @@ private:
     //! Approximate size of collected index.
     i64 IndexSize;
 
-    std::vector<TChannelWriterPtr> ChannelWriters;
-
     i64 BasicMetaSize;
 
     NProto::TSamplesExt SamplesExt;
@@ -107,7 +105,7 @@ private:
     NProto::TBoundaryKeysExt BoundaryKeysExt;
     NProto::TIndexExt IndexExt;
 
-    void PrepareBlock(int channelIndex);
+    void PrepareBlock();
 
     void OnFinalBlocksWritten(TError error);
 

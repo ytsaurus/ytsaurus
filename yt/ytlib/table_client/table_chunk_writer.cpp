@@ -54,9 +54,11 @@ TTableChunkWriter::TTableChunkWriter(
     }
     Channels.push_back(trashChannel);
 
-    FOREACH (const auto& channel, Channels) {
-        *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
-        ChannelWriters.push_back(New<TChannelWriter>(channel.GetColumns().size()));
+    for (int i = 0; i < static_cast<int>(Channels.size()); ++i) {
+        *ChannelsExt.add_items()->mutable_channel() = Channels[i].ToProto();
+        auto channelWriter = New<TChannelWriter>(i, Channels[i].GetColumns().size());
+        Buffers.push_back(channelWriter);
+        BuffersHeap.push_back(~channelWriter);
     }
 
     BasicMetaSize = ChannelsExt.ByteSize() + MiscExt.ByteSize();
@@ -86,12 +88,12 @@ void TTableChunkWriter::SelectChannels(const TStringBuf& name, TColumnInfo& colu
         for (int columnIndex = 0; columnIndex < channel.GetColumns().size(); ++columnIndex) {
             const auto& fixed = channel.GetColumns()[columnIndex];
             if (fixed == name) {
-                columnInfo.Channels.push_back(TChannelColumn(ChannelWriters[channelIndex], columnIndex));
+                columnInfo.Channels.push_back(TChannelColumn(Buffers[channelIndex], columnIndex));
             }
         }
 
         if (channel.ContainsInRanges(name)) {
-            columnInfo.Channels.push_back(TChannelColumn(ChannelWriters[channelIndex], RangeColumnIndex));
+            columnInfo.Channels.push_back(TChannelColumn(Buffers[channelIndex], RangeColumnIndex));
         }
     }
 }
@@ -109,8 +111,8 @@ TAsyncError TTableChunkWriter::AsyncOpen()
 
 void TTableChunkWriter::FinalizeRow(const TRow& row)
 {
-    FOREACH (const auto& writer, ChannelWriters) {
-        writer->EndRow();
+    FOREACH (const auto& writer, Buffers) {
+        CurrentBufferSize += writer->EndRow();
     }
 
     if (SamplesSize < Config->SampleRate * DataWeight * EncodingWriter->GetCompressionRatio()) {
@@ -120,12 +122,16 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
     RowCount += 1;
 
     CurrentSize = EncodingWriter->GetCompressedSize();
-    for (int channelIndex = 0; channelIndex < static_cast<int>(ChannelWriters.size()); ++channelIndex) {
-        auto& channel = ChannelWriters[channelIndex];
+    FOREACH(const auto& channel, Buffers) {
         CurrentSize += channel->GetCurrentSize();
-        if (channel->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
-            PrepareBlock(channelIndex);
-        }
+    }
+
+    while (BuffersHeap.front()->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
+        PrepareBlock();
+    }
+
+    while (CurrentBufferSize > Config->MaxBufferSize) {
+        PrepareBlock();
     }
 }
 
@@ -145,10 +151,11 @@ void TTableChunkWriter::WriteValue(const std::pair<TStringBuf, TStringBuf>& valu
 {
     FOREACH (auto& channel, columnInfo.Channels) {
         if (channel.ColumnIndex == RangeColumnIndex) {
-            channel.Writer->WriteRange(value.first, value.second);
+            CurrentBufferSize += channel.Writer->WriteRange(value.first, value.second);
         } else {
-            channel.Writer->WriteFixed(channel.ColumnIndex, value.second);
+            CurrentBufferSize += channel.Writer->WriteFixed(channel.ColumnIndex, value.second);
         }
+        AdjustBufferHeap(channel.Writer->GetBufferIndex());
     }
 
     DataWeight += value.first.size();
@@ -254,13 +261,14 @@ void TTableChunkWriter::ProcessKey()
     }
 }
 
-void TTableChunkWriter::PrepareBlock(int channelIndex)
+void TTableChunkWriter::PrepareBlock()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto channel = ChannelWriters[channelIndex];
+    PopBufferHeap();
+    auto* channel = BuffersHeap.back();
 
-    auto* blockInfo = ChannelsExt.mutable_items(channelIndex)->add_blocks();
+    auto* blockInfo = ChannelsExt.mutable_items(channel->GetBufferIndex())->add_blocks();
     blockInfo->set_row_count(channel->GetCurrentRowCount());
     blockInfo->set_block_index(CurrentBlockIndex);
 
@@ -308,13 +316,11 @@ TAsyncError TTableChunkWriter::AsyncClose()
 
     State.StartOperation();
 
-    for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++channelIndex) {
-        auto& channel = ChannelWriters[channelIndex];
-
-        if (channel->GetCurrentRowCount()) {
-            PrepareBlock(channelIndex);
-        }
+    while (BuffersHeap.front()->GetCurrentSize() > 0) {
+        PrepareBlock();
     }
+
+    YCHECK(CurrentBufferSize == 0);
 
     EncodingWriter->AsyncFlush().Subscribe(BIND(
         &TTableChunkWriter::OnFinalBlocksWritten,

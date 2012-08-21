@@ -9,40 +9,51 @@ namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChannelWriter::TChannelWriter(int fixedColumnCount, bool writeRangeSizes)
-    : FixedColumns(fixedColumnCount)
+TChannelWriter::TChannelWriter(
+    int bufferIndex,
+    int fixedColumnCount,
+    bool writeRangeSizes)
+    : BufferIndex_(bufferIndex)
+    , HeapIndex_(bufferIndex)
+    , FixedColumns(fixedColumnCount)
     , IsColumnUsed(fixedColumnCount)
     , CurrentRowCount(0)
     , WriteRangeSizes(writeRangeSizes)
     , RangeOffset(0)
-{
-    CurrentSize = GetEmptySize();
-}
+    , CurrentSize(0)
+{ }
 
-void TChannelWriter::WriteFixed(int columnIndex, const TStringBuf& value)
+int TChannelWriter::WriteFixed(int columnIndex, const TStringBuf& value)
 {
+    auto currentSize = CurrentSize;
     auto& columnOutput = FixedColumns[columnIndex];
     CurrentSize += TValue(value).Save(&columnOutput);
     IsColumnUsed[columnIndex] = true;
+    return CurrentSize - currentSize;
 }
 
-void TChannelWriter::WriteRange(const TStringBuf& name, const TStringBuf& value)
+int TChannelWriter::WriteRange(const TStringBuf& name, const TStringBuf& value)
 {
+    auto currentSize = CurrentSize;
     CurrentSize += TValue(value).Save(&RangeColumns);
     CurrentSize += WriteVarInt32(&RangeColumns, static_cast<i32>(name.length()));
     CurrentSize += name.length();
     RangeColumns.Write(name);
+    return CurrentSize - currentSize;
 }
 
-void TChannelWriter::WriteRange(int chunkColumnIndex, const TStringBuf& value)
+int TChannelWriter::WriteRange(int chunkColumnIndex, const TStringBuf& value)
 {
+    auto currentSize = CurrentSize;
     YASSERT(chunkColumnIndex > 0);
     CurrentSize += TValue(value).Save(&RangeColumns);
     CurrentSize += WriteVarInt32(&RangeColumns, -(chunkColumnIndex + 1));
+    return CurrentSize - currentSize;
 }
 
-void TChannelWriter::EndRow()
+int TChannelWriter::EndRow()
 {
+    auto currentSize = CurrentSize;
     for (int columnIdx = 0; columnIdx < IsColumnUsed.size(); ++columnIdx) {
         if (IsColumnUsed[columnIdx]) {
             // Clean flags
@@ -62,16 +73,12 @@ void TChannelWriter::EndRow()
     }
 
     ++ CurrentRowCount;
+    return CurrentSize - currentSize;
 }
 
 size_t TChannelWriter::GetCurrentSize() const
 {
     return CurrentSize;
-}
-
-size_t TChannelWriter::GetEmptySize() const
-{
-    return FixedColumns.size() * sizeof(i32);
 }
 
 std::vector<TSharedRef> TChannelWriter::FlushBlock()
@@ -106,7 +113,7 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
         RangeOffset = 0;
     }
 
-    CurrentSize = GetEmptySize();
+    CurrentSize = 0;
     CurrentRowCount = 0;
 
     return result;

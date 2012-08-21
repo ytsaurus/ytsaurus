@@ -1,6 +1,8 @@
 ﻿#include "stdafx.h"
 #include "chunk_writer_base.h"
 #include "config.h"
+#include "private.h"
+#include "channel_writer.h"
 #include "chunk_meta_extensions.h"
 
 #include <ytlib/chunk_client/private.h>
@@ -13,8 +15,12 @@
 namespace NYT {
 namespace NTableClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NChunkClient;
 using namespace NChunkServer;
+
+static NLog::TLogger& Logger = TableWriterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +37,7 @@ TChunkWriterBase::TChunkWriterBase(
     , RowCount(0)
     , ValueCount(0)
     , CurrentSize(0)
+    , CurrentBufferSize(0)
 {
     VERIFY_INVOKER_AFFINITY(WriterThread->GetInvoker(), WriterThread);
 }
@@ -74,6 +81,65 @@ TAsyncError TChunkWriterBase::GetReadyEvent()
     }));
 
     return State.GetOperationError();
+}
+
+bool TChunkWriterBase::IsLess(const TChannelWriter* lhs, const TChannelWriter* rhs)
+{
+    return lhs->GetCurrentSize() < rhs->GetCurrentSize();
+}
+
+void TChunkWriterBase::AdjustBufferHeap(int updatedBufferIndex)
+{
+    auto updatedHeapIndex = Buffers[updatedBufferIndex]->GetHeapIndex();
+    while (updatedHeapIndex > 0) {
+        auto parentHeapIndex = (updatedHeapIndex - 1) / 2;
+
+        if (IsLess(BuffersHeap[parentHeapIndex], BuffersHeap[updatedHeapIndex])) {
+            BuffersHeap[parentHeapIndex]->SetHeapIndex(updatedHeapIndex);
+            BuffersHeap[updatedHeapIndex]->SetHeapIndex(parentHeapIndex);
+            std::swap(BuffersHeap[parentHeapIndex], BuffersHeap[updatedHeapIndex]);
+            updatedHeapIndex = parentHeapIndex;
+        } else {
+            return;
+        }
+    }
+}
+
+void TChunkWriterBase::PopBufferHeap()
+{
+    LOG_DEBUG("Finish block (CurrentBufferSize: %"PRId64", CurrentBlockSize: %"PRId64")",
+        CurrentBufferSize,
+        BuffersHeap.front()->GetCurrentSize());
+
+    int lastIndex = BuffersHeap.size() - 1;
+
+    std::swap(BuffersHeap[0], BuffersHeap[lastIndex]);
+    BuffersHeap.back()->SetHeapIndex(lastIndex);
+    BuffersHeap.front()->SetHeapIndex(0);
+
+    CurrentBufferSize -= BuffersHeap.back()->GetCurrentSize();
+
+    int currentIndex = 0;
+    while (currentIndex < lastIndex) {
+        int leftChild = 2 * currentIndex + 1;
+        int rightChild = leftChild + 1;
+        if (!IsLess(BuffersHeap[currentIndex], BuffersHeap[leftChild]) &&
+            !IsLess(BuffersHeap[currentIndex], BuffersHeap[rightChild])) {
+            return;
+        }
+
+        if (IsLess(BuffersHeap[leftChild], BuffersHeap[rightChild])) {
+            std::swap(BuffersHeap[currentIndex], BuffersHeap[rightChild]);
+            BuffersHeap[rightChild]->SetHeapIndex(rightChild);
+            BuffersHeap[currentIndex]->SetHeapIndex(currentIndex);
+            currentIndex = rightChild;
+        } else {
+            std::swap(BuffersHeap[currentIndex], BuffersHeap[leftChild]);
+            BuffersHeap[leftChild]->SetHeapIndex(leftChild);
+            BuffersHeap[currentIndex]->SetHeapIndex(currentIndex);
+            currentIndex = leftChild;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,7 +30,6 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     IPartitioner* partitioner)
     : TChunkWriterBase(config, chunkWriter, keyColumns)
     , Partitioner(partitioner)
-    , CurrentSize(0)
     , BasicMetaSize(0)
 {
     for (int i = 0; i < KeyColumns.Get().size(); ++i) {
@@ -40,11 +39,15 @@ TPartitionChunkWriter::TPartitionChunkWriter(
 
     for (int partitionTag = 0; partitionTag < Partitioner->GetPartitionCount(); ++partitionTag) {
         // Write range column sizes to effectively skip during reading.
-        ChannelWriters.push_back(New<TChannelWriter>(0, true));
+        Buffers.push_back(New<TChannelWriter>(partitionTag, 0, true));
+        BuffersHeap.push_back(~Buffers.back());
+
         auto* partitionAttributes = PartitionsExt.add_partitions();
         partitionAttributes->set_row_count(0);
         partitionAttributes->set_uncompressed_data_size(0);
     }
+
+    YCHECK(Buffers.size() == BuffersHeap.size());
 
     BasicMetaSize =
         ChannelsExt.ByteSize() +
@@ -80,17 +83,17 @@ bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
     }
 
     int partitionTag = Partitioner->GetPartitionTag(key);
-    auto& channelWriter = ChannelWriters[partitionTag];
+    auto& channelWriter = Buffers[partitionTag];
 
     i64 rowDataWeight = 1;
     FOREACH (const auto& pair, row) {
-        channelWriter->WriteRange(pair.first, pair.second);
+        CurrentBufferSize += channelWriter->WriteRange(pair.first, pair.second);
 
         rowDataWeight += pair.first.size();
         rowDataWeight += pair.second.size();
         ValueCount += 1;
     }
-    channelWriter->EndRow();
+    CurrentBufferSize += channelWriter->EndRow();
 
     // Update partition counters.
     auto* partitionAttributes = PartitionsExt.mutable_partitions(partitionTag);
@@ -100,17 +103,28 @@ bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
     DataWeight += rowDataWeight;
     RowCount += 1;
 
+    AdjustBufferHeap(partitionTag);
+
     if (channelWriter->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
-        PrepareBlock(partitionTag);
+        YCHECK(channelWriter->GetHeapIndex() == 0);
+        PrepareBlock();
+    }
+
+    if (CurrentBufferSize > Config->MaxBufferSize) {
+        PrepareBlock();
     }
 
     CurrentSize = EncodingWriter->GetCompressedSize() + channelWriter->GetCurrentSize();
     return true;
 }
 
-void TPartitionChunkWriter::PrepareBlock(int partitionTag)
+void TPartitionChunkWriter::PrepareBlock()
 {
-    auto& channelWriter = ChannelWriters[partitionTag];
+    PopBufferHeap();
+    auto* channelWriter = BuffersHeap.back();
+
+    auto partitionTag = channelWriter->GetBufferIndex();
+
     auto* blockInfo = ChannelsExt.mutable_items(0)->add_blocks();
     blockInfo->set_row_count(channelWriter->GetCurrentRowCount());
     blockInfo->set_partition_tag(partitionTag);
@@ -173,12 +187,11 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
 
     State.StartOperation();
 
-    for (int partitionTag = 0; partitionTag < Partitioner->GetPartitionCount(); ++partitionTag) {
-        auto& channelWriter = ChannelWriters[partitionTag];
-        if (channelWriter->GetCurrentRowCount() > 0) {
-            PrepareBlock(partitionTag);
-        }
+    while (BuffersHeap.front()->GetCurrentRowCount() > 0) {
+        PrepareBlock();
     }
+
+    YCHECK(CurrentBufferSize == 0);
 
     EncodingWriter->AsyncFlush().Subscribe(BIND(
         &TPartitionChunkWriter::OnFinalBlocksWritten,
