@@ -187,6 +187,8 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
 
     State.StartOperation();
 
+    Sleep(TDuration::Seconds(10));
+
     while (BuffersHeap.front()->GetCurrentRowCount() > 0) {
         PrepareBlock();
     }

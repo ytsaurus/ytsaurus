@@ -51,8 +51,6 @@ private:
     NYTree::TLexer Lexer;
     yhash_map<TStringBuf, int> KeyColumnIndexes;
 
-    i64 CurrentBufferSize;
-
     i64 BasicMetaSize;
    
     NProto::TPartitionsExt PartitionsExt;

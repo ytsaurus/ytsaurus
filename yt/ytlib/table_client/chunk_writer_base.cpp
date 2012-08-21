@@ -113,33 +113,38 @@ void TChunkWriterBase::PopBufferHeap()
 
     int lastIndex = BuffersHeap.size() - 1;
 
-    std::swap(BuffersHeap[0], BuffersHeap[lastIndex]);
-    BuffersHeap.back()->SetHeapIndex(lastIndex);
-    BuffersHeap.front()->SetHeapIndex(0);
+    auto* currentBuffer = BuffersHeap[lastIndex];
+    int currentIndex = 0;
 
+    BuffersHeap[lastIndex] = BuffersHeap[0];
+
+    BuffersHeap.back()->SetHeapIndex(lastIndex);
     CurrentBufferSize -= BuffersHeap.back()->GetCurrentSize();
 
-    int currentIndex = 0;
     while (currentIndex < lastIndex) {
-        int leftChild = 2 * currentIndex + 1;
-        int rightChild = leftChild + 1;
-        if (!IsLess(BuffersHeap[currentIndex], BuffersHeap[leftChild]) &&
-            !IsLess(BuffersHeap[currentIndex], BuffersHeap[rightChild])) {
-            return;
+        int maxChild = 2 * currentIndex + 1;
+        if (maxChild >= lastIndex) {
+            break;
         }
 
-        if (IsLess(BuffersHeap[leftChild], BuffersHeap[rightChild])) {
-            std::swap(BuffersHeap[currentIndex], BuffersHeap[rightChild]);
-            BuffersHeap[rightChild]->SetHeapIndex(rightChild);
-            BuffersHeap[currentIndex]->SetHeapIndex(currentIndex);
-            currentIndex = rightChild;
+        TChannelWriter* maxBuffer = BuffersHeap[maxChild];
+        int rightChild = maxChild + 1;
+        if (rightChild < lastIndex && IsLess(maxBuffer, BuffersHeap[rightChild])) {
+            maxBuffer = BuffersHeap[rightChild];
+            maxChild = rightChild;
+        }
+
+        if (IsLess(currentBuffer, maxBuffer)) {
+            BuffersHeap[currentIndex] = maxBuffer;
+            maxBuffer->SetHeapIndex(currentIndex);
+            currentIndex = maxChild;
         } else {
-            std::swap(BuffersHeap[currentIndex], BuffersHeap[leftChild]);
-            BuffersHeap[leftChild]->SetHeapIndex(leftChild);
-            BuffersHeap[currentIndex]->SetHeapIndex(currentIndex);
-            currentIndex = leftChild;
+            break;
         }
     }
+
+    BuffersHeap[currentIndex] = currentBuffer;
+    currentBuffer->SetHeapIndex(currentIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
