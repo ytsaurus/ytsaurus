@@ -113,11 +113,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQuickLzCodec
+    : public ICodec
+{
+public:
+    explicit TQuickLzCodec()
+        : Compressor_(BIND(NCodec::QuickLzCompress))
+    { }
+
+    virtual TSharedRef Compress(const TSharedRef& block) override
+    {
+        return NCodec::Apply(Compressor_, block);
+    }
+
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    {
+        return NCodec::Apply(Compressor_, blocks);
+    }
+
+    virtual TSharedRef Decompress(const TSharedRef& block) override
+    {
+        return NCodec::Apply(BIND(NCodec::QuickLzDecompress), block);
+    }
+
+private:
+    NCodec::TConverter Compressor_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NCodec
-} // namespace NYT
-
-
-namespace NYT {
 
 TCodecPtr GetCodec(ECodecId id)
 {
@@ -139,6 +164,9 @@ TCodecPtr GetCodec(ECodecId id)
 
         case ECodecId::Lz4HighCompression:
             return New<NCodec::TLz4Codec>(true);
+        
+        case ECodecId::QuickLzCompression:
+            return New<NCodec::TQuickLzCodec>();
 
         default:
             YUNREACHABLE();

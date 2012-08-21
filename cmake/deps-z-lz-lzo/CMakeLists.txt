@@ -93,6 +93,11 @@ set_target_properties( ytext-zlib PROPERTIES
   SOVERSION 1.2.3
 )
 
+set_target_properties( ytext-quicklz PROPERTIES
+  VERSION   1.5.1
+  SOVERSION 1.5.1
+)
+
 set_target_properties( ytext-zlib PROPERTIES
   COMPILE_DEFINITIONS BUILD_ZLIB
 )
@@ -104,6 +109,7 @@ install(
   ytext-minilzo
   ytext-snappy
   ytext-zlib
+  ytext-quicklz
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
 )
