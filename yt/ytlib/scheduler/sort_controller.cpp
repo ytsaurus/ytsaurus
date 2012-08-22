@@ -1421,12 +1421,15 @@ private:
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
+        i64 bufferSize = std::min(PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), dataSize);
+        bufferSize = std::min(bufferSize, PartitionJobIOConfig->TableWriter->MaxBufferSize);
+
         TNodeResources result;
         result.set_slots(1);
         result.set_cores(1);
         result.set_memory(
-            GetIOMemorySize(PartitionJobIOConfig, 1, 1) +
-            std::min(PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), dataSize) +
+            GetIOMemorySize(PartitionJobIOConfig, 1, 1) + 
+            bufferSize +
             GetFootprintMemorySize());
         return result;
     }
@@ -1826,20 +1829,25 @@ private:
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
+        i64 bufferSize = std::min(
+            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), 
+            PartitionJobIOConfig->TableWriter->MaxBufferSize);
+
         TNodeResources result;
         result.set_slots(1);
         if (Spec->Mapper) {
             result.set_cores(Spec->Mapper->CoresLimit);
             result.set_memory(
-                GetIOMemorySize(PartitionJobIOConfig, 1, 1) +
-                PartitionJobIOConfig->TableWriter->BlockSize * Partitions.size() +
+                GetIOMemorySize(PartitionJobIOConfig, 1, 1) + 
+                bufferSize +
                 Spec->Mapper->MemoryLimit +
                 GetFootprintMemorySize());
         } else {
+            bufferSize = std::min(bufferSize, dataSize);
             result.set_cores(1);
             result.set_memory(
-                GetIOMemorySize(PartitionJobIOConfig, 1, 1) +
-                std::min(PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), dataSize) +
+                GetIOMemorySize(PartitionJobIOConfig, 1, 1) + 
+                bufferSize +
                 GetFootprintMemorySize());
         }
         return result;

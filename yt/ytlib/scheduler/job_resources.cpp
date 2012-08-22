@@ -126,8 +126,8 @@ i64 GetIOMemorySize(
 {
     return
         ioConfig->TableReader->WindowSize * ioConfig->TableReader->PrefetchWindow * inputStreamCount +
-        ioConfig->TableWriter->WindowSize * outputStreamCount +
-        ioConfig->TableWriter->WindowSize * outputStreamCount;
+        (ioConfig->TableWriter->WindowSize + 
+        ioConfig->TableWriter->EncodeWindowSize) * outputStreamCount * 2;
 }
 
 ////////////////////////////////////////////////////////////////////

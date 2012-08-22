@@ -107,6 +107,8 @@ struct TSchedulerConfig
         UnorderedMergeJobIO->TableReader->PrefetchWindow = 10;
         PartitionSortJobIO->TableReader->PrefetchWindow = 10;
         PartitionReduceJobIO->TableReader->PrefetchWindow = 10;
+
+        PartitionJobIO->TableWriter->MaxBufferSize = 2l * 1024 * 1024 * 1024; // 2 GB
     }
 };
 
