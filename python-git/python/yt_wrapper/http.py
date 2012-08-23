@@ -36,15 +36,10 @@ def make_request(http_method, request_type, params,
         if http_method != "PUT" and data is not None:
             print >>sys.stderr, data
 
-    # Some hack from @sandello
-    #request_config = requests.defaults.defaults
-    #if "Accept-Encoding" in request_config["base_headers"]:
-    #    del request_config["base_headers"]["Accept-Encoding"]
     response = requests.request(
         url=url,
         method=http_method,
         headers=headers,
-        #config=request_config,
         prefetch=False,
         params=params,
         data=data,
