@@ -20,7 +20,7 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
         TQuorumTrackerPtr followerTracker,
-        const TEpoch& epoch,
+        const TEpochId& epochId,
         IInvokerPtr epochControlInvoker);
 
     void Start();
@@ -38,7 +38,7 @@ private:
     TDecoratedMetaStatePtr DecoratedState;
     TQuorumTrackerPtr QuorumTracker;
     TSnapshotStorePtr SnapshotStore;
-    TEpoch Epoch;
+    TEpochId EpochId;
     IInvokerPtr EpochControlInvoker;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

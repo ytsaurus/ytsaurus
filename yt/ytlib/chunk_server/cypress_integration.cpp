@@ -74,7 +74,7 @@ private:
         return chunkIds.find(chunkId) != chunkIds.end();
     }
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         if (Filter == EChunkFilter::All) {
             const auto& chunkIds = Bootstrap->GetChunkManager()->GetChunkIds(sizeLimit);
@@ -85,7 +85,7 @@ private:
         }
     }
 
-    virtual size_t GetSize() const
+    virtual size_t GetSize() const override
     {
         if (Filter == EChunkFilter::All) {
             return Bootstrap->GetChunkManager()->GetChunkCount();
@@ -94,7 +94,7 @@ private:
         }
     }
 
-    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const override
     {
         auto id = TChunkId::FromString(key);
 
@@ -127,7 +127,8 @@ INodeTypeHandlerPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::LostChunkMap,
-        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Lost));
+        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Lost),
+        true);
 }
 
 INodeTypeHandlerPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
@@ -137,7 +138,8 @@ INodeTypeHandlerPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* bootstra
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::OverreplicatedChunkMap,
-        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Overreplicated));
+        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Overreplicated),
+        true);
 }
 
 INodeTypeHandlerPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
@@ -147,7 +149,8 @@ INodeTypeHandlerPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* bootstr
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::UnderreplicatedChunkMap,
-        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Underreplicated));
+        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Underreplicated),
+        true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,25 +159,25 @@ class TVirtualChunkListMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualChunkListMap(TBootstrap* bootstrap)
+    explicit TVirtualChunkListMap(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
     { }
 
 private:
     TBootstrap* Bootstrap;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         const auto& chunkListIds = Bootstrap->GetChunkManager()->GetChunkListIds(sizeLimit);
         return ConvertToStrings(chunkListIds.begin(), chunkListIds.end(), sizeLimit);
     }
 
-    virtual size_t GetSize() const
+    virtual size_t GetSize() const override
     {
         return Bootstrap->GetChunkManager()->GetChunkListCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const override
     {
         auto id = TChunkListId::FromString(key);
         if (TypeFromId(id) != EObjectType::ChunkList) {
@@ -200,13 +203,11 @@ class TNodeAuthority
     : public INodeAuthority
 {
 public:
-    typedef TIntrusivePtr<TNodeAuthority> TPtr;
-
-    TNodeAuthority(TBootstrap* bootstrap)
+    explicit TNodeAuthority(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
     { }
 
-    virtual bool IsAuthorized(const Stroka& address)
+    virtual bool IsAuthorized(const Stroka& address) override
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
@@ -257,7 +258,7 @@ private:
         return Bootstrap->GetChunkManager()->FindNodeByAddress(address);
     }
 
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* node = GetNode();
         attributes->push_back(TAttributeInfo("state"));
@@ -271,7 +272,7 @@ private:
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) override
     {
         const auto* node = GetNode();
 
@@ -284,6 +285,7 @@ private:
 
         if (node) {
             if (name == "confirmed") {
+                ValidateLeaderStatus();
                 BuildYsonFluently(consumer)
                     .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsNodeConfirmed(node)));
                 return true;
@@ -328,8 +330,8 @@ private:
 
     virtual void OnUpdateAttribute(
         const Stroka& key,
-        const TNullable<NYTree::TYsonString>& oldValue,
-        const TNullable<NYTree::TYsonString>& newValue)
+        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& newValue) override
     {
         UNUSED(oldValue);
         if (key == "banned") {
@@ -348,14 +350,14 @@ public:
         : TMapNodeTypeHandler(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType()
+    virtual EObjectType GetObjectType() override
     {
         return EObjectType::Node;
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
         const NCypressServer::TNodeId& nodeId,
-        TTransaction* transaction)
+        TTransaction* transaction) override
     {
         return New<TNodeProxy>(
             this,
@@ -390,40 +392,42 @@ private:
     void OnRegistered(const TDataNode* node)
     {
         Stroka address = node->GetAddress();
-        auto proxy = GetProxy();
 
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        auto cypressManager = Bootstrap->GetCypressManager();
 
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn node registration and Cypress update into a single
         // logged change, which is undesirable.
-        BIND([=] () {
-            if (proxy->FindChild(address))
-                return;
+        BIND(&TNodeMapBehavior::CreateNodeIfNeeded, MakeStrong(this), address)
+            .Via(metaStateFacade->GetWrappedEpochInvoker())
+            .Run();
+    }
 
-            auto service = cypressManager->GetVersionedNodeProxy(NodeId);
+    void CreateNodeIfNeeded(const Stroka& address)
+    {
+        auto proxy = GetProxy();
 
-            // TODO(babenko): make a single transaction
-            // TODO(babenko): check for errors and retry
+        if (proxy->FindChild(address))
+            return;
 
-            {
-                auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address));
-                req->set_type(EObjectType::Node);
-                ExecuteVerb(service, req);
-            }
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto service = cypressManager->GetVersionedNodeProxy(NodeId);
 
-            {
-                auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address) + "/orchid");
-                req->set_type(EObjectType::Orchid);
-                req->Attributes().Set<Stroka>("remote_address", address);
-                ExecuteVerb(service, req);
-            }
-        })
-        .Via(
-            metaStateFacade->GetWrappedInvoker(),
-            metaStateFacade->GetManager()->GetEpochContext())
-        .Run();
+        // TODO(babenko): make a single transaction
+        // TODO(babenko): check for errors and retry
+
+        {
+            auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address));
+            req->set_type(EObjectType::Node);
+            ExecuteVerb(service, req);
+        }
+
+        {
+            auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address) + "/orchid");
+            req->set_type(EObjectType::Orchid);
+            req->Attributes().Set<Stroka>("remote_address", address);
+            ExecuteVerb(service, req);
+        }
     }
 
 };
@@ -445,7 +449,7 @@ public:
     { }
 
 private:
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("offline");
         attributes->push_back("registered");
@@ -461,7 +465,7 @@ private:
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
 
@@ -487,6 +491,7 @@ private:
         }
 
         if (name == "unconfirmed" || name == "confirmed") {
+            ValidateLeaderStatus();
             bool state = name == "confirmed";
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
@@ -529,6 +534,7 @@ private:
         }
 
         if (name == "chunk_replicator_enabled") {
+            ValidateLeaderStatus();
             BuildYsonFluently(consumer)
                 .Scalar(chunkManager->IsReplicatorEnabled());
             return true;
@@ -546,14 +552,14 @@ public:
         : TMapNodeTypeHandler(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType()
+    virtual EObjectType GetObjectType() override
     {
         return EObjectType::NodeMap;
     }
     
     virtual ICypressNodeProxyPtr GetProxy(
         const NCypressServer::TNodeId& nodeId,
-        TTransaction* transaction)
+        TTransaction* transaction) override
     {
         return New<TNodeMapProxy>(
             this,
@@ -562,7 +568,8 @@ public:
             nodeId);
     }
 
-    virtual INodeBehaviorPtr CreateBehavior(const NCypressServer::TNodeId& nodeId)
+    virtual INodeBehaviorPtr CreateBehavior(
+        const NCypressServer::TNodeId& nodeId) override
     {
         return New<TNodeMapBehavior>(Bootstrap, nodeId);
     }

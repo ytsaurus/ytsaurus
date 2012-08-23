@@ -70,10 +70,10 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         LOG_INFO("Requesting changelog info from peer %d", id);
 
-        auto request =
-            CellManager->GetMasterProxy<TProxy>(id)
-            ->GetChangeLogInfo()
-            ->SetTimeout(Config->LookupTimeout);
+        TProxy proxy(CellManager->GetMasterChannel(id));
+        proxy.SetDefaultTimeout(Config->LookupTimeout);
+        
+        auto request = proxy.GetChangeLogInfo();
         request->set_change_log_id(version.SegmentId);
         awaiter->Await(
             request->Invoke(),
@@ -103,11 +103,11 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         version.RecordCount - 1,
         sourceId);
 
-    auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
-    proxy->SetDefaultTimeout(Config->ReadTimeout);
+    TProxy proxy(CellManager->GetMasterChannel(sourceId));
+    proxy.SetDefaultTimeout(Config->ReadTimeout);
 
     while (downloadedRecordCount < version.RecordCount) {
-        auto request = proxy->ReadChangeLog();
+        auto request = proxy.ReadChangeLog();
         request->set_change_log_id(version.SegmentId);
         request->set_start_record_id(downloadedRecordCount);
         int desiredChunkSize = Min(

@@ -62,10 +62,10 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
 
         LOG_INFO("Requesting snapshot info from peer %d", peerId);
 
-        auto request =
-            CellManager->GetMasterProxy<TProxy>(peerId)
-            ->GetSnapshotInfo()
-            ->SetTimeout(Config->LookupTimeout);
+        TProxy proxy(CellManager->GetMasterChannel(peerId));
+        proxy.SetDefaultTimeout(Config->LookupTimeout);
+
+        auto request = proxy.GetSnapshotInfo();
         request->set_snapshot_id(snapshotId);
         awaiter->Await(request->Invoke(), BIND(
             &TSnapshotDownloader::OnSnapshotInfoResponse,
@@ -167,12 +167,12 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         sourceId,
         snapshotLength);
 
-    auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
-    proxy->SetDefaultTimeout(Config->ReadTimeout);
+    TProxy proxy(CellManager->GetMasterChannel(sourceId));
+    proxy.SetDefaultTimeout(Config->ReadTimeout);
 
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
-        auto request = proxy->ReadSnapshot();
+        auto request = proxy.ReadSnapshot();
         request->set_snapshot_id(snapshotId);
         request->set_offset(downloadedLength);
         i32 blockSize = Min(Config->BlockSize, (i32)(snapshotLength - downloadedLength));

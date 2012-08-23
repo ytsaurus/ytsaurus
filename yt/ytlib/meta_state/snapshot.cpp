@@ -34,7 +34,7 @@ struct TSnapshotHeader
 
     ui64 Signature;
     i32 SegmentId;
-    TEpoch Epoch;
+    TEpochId Epoch;
     i32 PrevRecordCount;
     ui64 DataLength;
     ui64 Checksum;
@@ -123,7 +123,7 @@ i32 TSnapshotReader::GetPrevRecordCount() const
     return Header->PrevRecordCount;
 }
 
-const TEpoch& TSnapshotReader::GetEpoch() const
+const TEpochId& TSnapshotReader::GetEpoch() const
 {
     YASSERT(~Header);
     return Header->Epoch;
@@ -147,7 +147,7 @@ TSnapshotWriter::TSnapshotWriter(
 TSnapshotWriter::~TSnapshotWriter()
 { }
 
-void TSnapshotWriter::Open(i32 prevRecordCount, const TEpoch& epoch)
+void TSnapshotWriter::Open(i32 prevRecordCount, const TEpochId& epoch)
 {
     YASSERT(State == EState::Uninitialized);
 

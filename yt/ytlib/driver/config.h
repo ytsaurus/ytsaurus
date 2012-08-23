@@ -25,6 +25,7 @@ struct TDriverConfig
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
+    bool ReadFromFollowers;
 
     TDriverConfig()
     {
@@ -43,6 +44,8 @@ struct TDriverConfig
             .DefaultNew();
         Register("block_cache", BlockCache)
             .DefaultNew();
+        Register("read_from_followers", ReadFromFollowers)
+            .Default(false);
     }
 };
 

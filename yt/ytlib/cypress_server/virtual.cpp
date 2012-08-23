@@ -38,27 +38,35 @@ public:
         TBootstrap* bootstrap,
         TTransaction* transaction,
         const TNodeId& nodeId,
-        IYPathServicePtr service)
+        IYPathServicePtr service,
+        bool requiredLeaderStatus)
         : TBase(
             typeHandler,
             bootstrap,
             transaction,
             nodeId)
         , Service(service)
+        , RequireLeaderStatus(requiredLeaderStatus)
     { }
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
+        if (RequireLeaderStatus) {
+            ValidateLeaderStatus();
+        }
+
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
         if (tokenizer.GetCurrentType() == SuppressRedirectToken) {
             return TBase::Resolve(TYPath(tokenizer.GetCurrentSuffix()), verb);
         }
+
         return TResolveResult::There(Service, path);
     }
 
 private:
     IYPathServicePtr Service;
+    bool RequireLeaderStatus;
 
 };
 
@@ -73,10 +81,12 @@ public:
     TVirtualNodeTypeHandler(
         TBootstrap* bootstrap,
         TYPathServiceProducer producer,
-        EObjectType objectType)
+        EObjectType objectType,
+        bool requireLeaderStatus)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(bootstrap)
         , Producer(producer)
         , ObjectType(objectType)
+        , RequireLeaderStatus(requireLeaderStatus)
     { }
 
     virtual ICypressNodeProxyPtr GetProxy(
@@ -89,7 +99,8 @@ public:
             Bootstrap,
             transaction,
             id,
-            service);
+            service,
+            RequireLeaderStatus);
     }
 
     virtual EObjectType GetObjectType()
@@ -105,24 +116,28 @@ public:
 private:
     TYPathServiceProducer Producer;
     EObjectType ObjectType;
+    bool RequireLeaderStatus;
 
 };
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    TYPathServiceProducer producer)
+    TYPathServiceProducer producer,
+    bool requireLeaderStatus)
 {
     return New<TVirtualNodeTypeHandler>(
         bootstrap,
         producer,
-        objectType);
+        objectType,
+        requireLeaderStatus);
 }
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    IYPathServicePtr service)
+    IYPathServicePtr service,
+    bool requireLeaderStatus)
 {
     IYPathServicePtr service_ = service;
     return CreateVirtualTypeHandler(
@@ -131,7 +146,8 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
         BIND([=] (const TNodeId& id) -> IYPathServicePtr {
             UNUSED(id);
             return service_;
-        }));
+        }),
+        requireLeaderStatus);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

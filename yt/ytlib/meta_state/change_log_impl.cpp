@@ -132,7 +132,7 @@ void AtomicWriteHeader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChangeLog::TImpl::Create(i32 prevRecordCount, const TEpoch& epoch)
+void TChangeLog::TImpl::Create(i32 prevRecordCount, const TEpochId& epoch)
 {
     YCHECK(State == EState::Uninitialized);
 
@@ -321,7 +321,7 @@ i32 TChangeLog::TImpl::GetRecordCount() const
     return RecordCount;
 }
 
-const TEpoch& TChangeLog::TImpl::GetEpoch() const
+const TEpochId& TChangeLog::TImpl::GetEpoch() const
 {
     YCHECK(State != EState::Uninitialized);
     return Epoch;

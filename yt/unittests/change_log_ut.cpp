@@ -38,7 +38,7 @@ protected:
     TChangeLogPtr CreateChangeLog(size_t recordsCount) const
     {
         TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
-        changeLog->Create(0, TEpoch());
+        changeLog->Create(0, TEpochId());
         std::vector<TSharedRef> records = MakeRecords<RecordType>(0, recordsCount);
         changeLog->Append(0, records);
         changeLog->Flush();
@@ -141,7 +141,7 @@ TEST_F(TChangeLogTest, EmptyChangeLog)
 {
     ASSERT_NO_THROW({
         TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 1024);
-        changeLog->Create(0, TEpoch());
+        changeLog->Create(0, TEpochId());
     });
 
     ASSERT_NO_THROW({

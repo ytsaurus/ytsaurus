@@ -45,10 +45,10 @@ TChunkReplicator::TChunkReplicator(
     , NodeLeaseTracker(nodeLeaseTracker)
     , ChunkRefreshDelay(DurationToCpuDuration(config->ChunkRefreshDelay))
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
-    YASSERT(chunkPlacement);
-    YASSERT(nodeLeaseTracker);
+    YCHECK(config);
+    YCHECK(bootstrap);
+    YCHECK(chunkPlacement);
+    YCHECK(nodeLeaseTracker);
 
     ScheduleNextRefresh();
 }
@@ -597,21 +597,15 @@ void TChunkReplicator::RefreshAllChunks()
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto* chunk, chunkManager->GetChunks()) {
-
         Refresh(chunk);
     }
 }
 
 void TChunkReplicator::ScheduleNextRefresh()
 {
-    auto context = Bootstrap->GetMetaStateFacade()->GetManager()->GetEpochContext();
-    if (!context)
-        return;
     TDelayedInvoker::Submit(
         BIND(&TChunkReplicator::OnRefresh, MakeStrong(this))
-        .Via(
-            Bootstrap->GetMetaStateFacade()->GetWrappedInvoker(EStateThreadQueue::ChunkRefresh),
-            context),
+            .Via(Bootstrap->GetMetaStateFacade()->GetWrappedEpochInvoker(EStateThreadQueue::ChunkRefresh)),
         Config->ChunkRefreshQuantum);
 }
 

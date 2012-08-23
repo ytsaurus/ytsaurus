@@ -69,7 +69,7 @@ public:
     i32 GetId() const;
     i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
-    const TEpoch& GetEpoch() const;
+    const TEpochId& GetEpoch() const;
     bool IsFinalized() const;
 
     // XXX(sandello): This is very-very-very dirty. Dirty-dirty-dirty. 

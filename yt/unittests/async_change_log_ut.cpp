@@ -32,7 +32,7 @@ protected:
         TemporaryIndexFile.Reset(new TTempFile(TemporaryFile->Name() + ".index"));
 
         ChangeLog = New<TChangeLog>(TemporaryFile->Name(), 0, /*index block size*/ 64);
-        ChangeLog->Create(0, TEpoch());
+        ChangeLog->Create(0, TEpochId());
 
         AsyncChangeLog.Reset(new TAsyncChangeLog(ChangeLog));
 

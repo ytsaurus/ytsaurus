@@ -47,7 +47,7 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
         TSnapshotStorePtr snapshotStore,
-        const TEpoch& epoch,
+        const TEpochId& epochId,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
 
@@ -95,7 +95,7 @@ private:
     NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TSnapshotStorePtr SnapshotStore;
-    TEpoch Epoch;
+    TEpochId EpochId;
     IInvokerPtr EpochControlInvoker;
     IInvokerPtr EpochStateInvoker;
 

@@ -26,7 +26,7 @@ struct TLogHeader
 
     ui64 Signature;
     i32 ChangeLogId;
-    TEpoch Epoch;
+    TEpochId Epoch;
     i32 PrevRecordCount;
     bool Finalized;
 
@@ -37,7 +37,7 @@ struct TLogHeader
         , Finalized(false)
     { }
 
-    TLogHeader(i32 changeLogId, const TEpoch& epoch, i32 prevRecordCount, bool finalized)
+    TLogHeader(i32 changeLogId, const TEpochId& epoch, i32 prevRecordCount, bool finalized)
         : Signature(CorrectSignature)
         , ChangeLogId(changeLogId)
         , Epoch(epoch)
@@ -134,7 +134,7 @@ public:
         i64 indexBlockSize);
 
     void Open();
-    void Create(i32 previousRecordCount, const TEpoch& epoch);
+    void Create(i32 previousRecordCount, const TEpochId& epoch);
 
     void Append(const std::vector<TSharedRef>&);
     void Append(i32 firstRecordId, const std::vector<TSharedRef>&);
@@ -150,7 +150,7 @@ public:
     i32 GetId() const;
     i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
-    const TEpoch& GetEpoch() const;
+    const TEpochId& GetEpoch() const;
     bool IsFinalized() const;
 
 private:
@@ -221,7 +221,7 @@ private:
     //! This is a foreign constraint and it is used to verify integrity of a sequence of changelogs.
     //! \see IMetaState
     i32 PrevRecordCount;
-    TEpoch Epoch;
+    TEpochId Epoch;
 
     std::vector<TLogIndexRecord> Index;
 

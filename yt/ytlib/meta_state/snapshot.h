@@ -29,7 +29,7 @@ public:
     TInputStream* GetStream() const;
     i64 GetLength() const;
     TChecksum GetChecksum() const;
-    const TEpoch& GetEpoch() const;
+    const TEpochId& GetEpoch() const;
     i32 GetPrevRecordCount() const;
 
 private:
@@ -57,7 +57,7 @@ public:
         bool enableCompression);
     ~TSnapshotWriter();
 
-    void Open(i32 prevRecordCount, const TEpoch& epoch);
+    void Open(i32 prevRecordCount, const TEpochId& epoch);
 
     TOutputStream* GetStream() const;
     void Close();

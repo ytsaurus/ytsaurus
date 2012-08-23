@@ -22,19 +22,17 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
-    typedef TIntrusivePtr<TYPathServiceBase> TPtr;
-
     virtual void Invoke(NRpc::IServiceContextPtr context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
     virtual Stroka GetLoggingCategory() const;
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
 
-    void GuardedInvoke(NRpc::IServiceContextPtr context);
-
 protected:
     NLog::TLogger Logger;
 
+    void GuardedInvoke(NRpc::IServiceContextPtr context);
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
+
     virtual TResolveResult ResolveSelf(const TYPath& path, const Stroka& verb);
     virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);

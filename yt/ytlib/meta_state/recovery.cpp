@@ -35,7 +35,7 @@ TRecovery::TRecovery(
     TDecoratedMetaStatePtr decoratedState,
     TChangeLogCachePtr changeLogCache,
     TSnapshotStorePtr snapshotStore,
-    const TEpoch& epoch,
+    const TEpochId& epochId,
     TPeerId leaderId,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
@@ -44,7 +44,7 @@ TRecovery::TRecovery(
     , DecoratedState(decoratedState)
     , ChangeLogCache(changeLogCache)
     , SnapshotStore(snapshotStore)
-    , Epoch(epoch)
+    , EpochId(epochId)
     , LeaderId(leaderId)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
@@ -171,7 +171,7 @@ TAsyncError TRecovery::ReplayChangeLogs(
 
             LOG_INFO("Changelog %d is missing and will be created", segmentId);
             YCHECK(expectedPrevRecordCount != UnknownPrevRecordCount);
-            changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount, Epoch);
+            changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount, EpochId);
         } else {
             changeLog = changeLogResult.Value();
         }
@@ -191,10 +191,10 @@ TAsyncError TRecovery::ReplayChangeLogs(
         }
 
         if (!IsLeader()) {
-            auto request =
-                CellManager->GetMasterProxy<TProxy>(LeaderId)
-                ->GetChangeLogInfo()
-                ->SetTimeout(Config->RpcTimeout);
+            TProxy proxy(CellManager->GetMasterChannel(LeaderId));
+            proxy.SetDefaultTimeout(Config->RpcTimeout);
+
+            auto request = proxy.GetChangeLogInfo();
             request->set_change_log_id(segmentId);
 
             auto response = request->Invoke().Get();
@@ -346,7 +346,7 @@ TLeaderRecovery::TLeaderRecovery(
     TDecoratedMetaStatePtr decoratedState,
     TChangeLogCachePtr changeLogCache,
     TSnapshotStorePtr snapshotStore,
-    const TEpoch& epoch,
+    const TEpochId& epochId,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
     : TRecovery(
@@ -355,7 +355,7 @@ TLeaderRecovery::TLeaderRecovery(
         decoratedState,
         changeLogCache,
         snapshotStore,
-        epoch,
+        epochId,
         cellManager->GetSelfId(),
         epochControlInvoker,
         epochStateInvoker)
@@ -392,7 +392,7 @@ TFollowerRecovery::TFollowerRecovery(
     TDecoratedMetaStatePtr decoratedState,
     TChangeLogCachePtr changeLogCache,
     TSnapshotStorePtr snapshotStore,
-    const TEpoch& epoch,
+    const TEpochId& epochId,
     TPeerId leaderId,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker,
@@ -403,7 +403,7 @@ TFollowerRecovery::TFollowerRecovery(
         decoratedState,
         changeLogCache,
         snapshotStore,
-        epoch,
+        epochId,
         leaderId,
         epochControlInvoker,
         epochStateInvoker)
@@ -497,7 +497,7 @@ TAsyncError TFollowerRecovery::ApplyPostponedMutations(
             }
 
             case TPostponedMutation::EType::SegmentAdvance:
-                DecoratedState->RotateChangeLog();
+                DecoratedState->RotateChangeLog(EpochId);
                 break;
 
             default:

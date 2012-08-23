@@ -153,14 +153,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectService::TObjectService(TBootstrap* bootstrap)
-    : TServiceBase(
-        bootstrap->GetMetaStateFacade()->GetWrappedInvoker(),
+    : TMetaStateServiceBase(
+        bootstrap,
         TObjectServiceProxy::GetServiceName(),
         ObjectServerLogger.GetCategory())
-    , Bootstrap(bootstrap)
 {
-    YCHECK(bootstrap);
-
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 }
 

@@ -38,18 +38,6 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(EPeerStatus, Status);
 
-    //! Returns current epoch id.
-    /*!
-     * \note Thread affinity: any
-     */
-    const TEpoch& GetEpoch() const;
-
-    //! Set new epoch id.
-    /*!
-     *  \note Thread affinity: ControlThread
-     */
-    void SetEpoch(const TEpoch& epoch);
-
     //! Returns the wrapper invoker used for updating the state.
     /*!
      *  \note Thread affinity: any
@@ -150,7 +138,7 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    void RotateChangeLog();
+    void RotateChangeLog(const TEpochId& epochId);
 
     //! Updates the version so as to switch to a new segment.
     /*!
@@ -178,7 +166,7 @@ private:
     TResponseKeeperPtr ResponseKeeper;
 
     bool Started;
-    TEpoch Epoch;
+    TEpochId Epoch;
     TMutationContext* MutationContext;
     TCachedAsyncChangeLogPtr CurrentChangeLog;
 

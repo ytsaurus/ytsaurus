@@ -61,9 +61,9 @@ public:
     private:
         TPersistentStateManagerPtr Owner;
 
-        void OnStartLeading(const TEpoch& epoch)
+        void OnStartLeading()
         {
-            Owner->OnElectionStartLeading(epoch);
+            Owner->OnElectionStartLeading();
         }
 
         void OnStopLeading()
@@ -71,9 +71,9 @@ public:
             Owner->OnElectionStopLeading();
         }
 
-        void OnStartFollowing(TPeerId leaderId, const TEpoch& epoch)
+        void OnStartFollowing()
         {
-            Owner->OnElectionStartFollowing(leaderId, epoch);
+            Owner->OnElectionStartFollowing();
         }
 
         void OnStopFollowing()
@@ -100,7 +100,6 @@ public:
         NRpc::IServerPtr server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , Config(config)
-        , LeaderId(NElection::InvalidPeerId)
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
         , ControlStatus(EPeerStatus::Stopped)
@@ -196,11 +195,16 @@ public:
         return tracker->HasActiveQuorum();
     }
 
-    virtual TCancelableContextPtr GetEpochContext() const override
+    virtual TEpochContextPtr GetEpochContext() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return EpochContext;
+    }
+
+    virtual TCellManagerPtr GetCellManager() const override
+    {
+        return CellManager;
     }
 
     virtual void SetReadOnly(bool readOnly) override
@@ -284,20 +288,18 @@ public:
     typedef TProxy::EErrorCode EErrorCode;
 
     TPersistentStateManagerConfigPtr Config;
-    TPeerId LeaderId;
     TCellManagerPtr CellManager;
     IInvokerPtr ControlInvoker;
     bool ReadOnly;
     EPeerStatus ControlStatus;
 
-    NElection::TElectionManager::TPtr ElectionManager;
+    NElection::TElectionManagerPtr ElectionManager;
     TChangeLogCachePtr ChangeLogCache;
     TSnapshotStorePtr SnapshotStore;
     TDecoratedMetaStatePtr DecoratedState;
     TActionQueuePtr IOQueue;
 
-    TCancelableContextPtr EpochContext;
-
+    TEpochContextPtr EpochContext;
     IInvokerPtr EpochControlInvoker;
     IInvokerPtr EpochStateInvoker;
 
@@ -486,13 +488,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epoch = TEpoch::FromProto(request->epoch());
+        auto epochId = TEpochId::FromProto(request->epoch_id());
         i32 segmentId = request->segment_id();
         i32 recordCount = request->record_count();
         TMetaVersion version(segmentId, recordCount);
 
-        context->SetRequestInfo("Epoch: %s, Version: %s",
-            ~epoch.ToString(),
+        context->SetRequestInfo("EpochId: %s, Version: %s",
+            ~epochId.ToString(),
             ~version.ToString());
 
         if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
@@ -500,7 +502,7 @@ public:
                 Sprintf("Cannot apply changes while in %s", ~GetControlStatus().ToString());
         }
 
-        CheckEpoch(epoch);
+        CheckEpoch(epochId);
 
         int changeCount = request->Attachments().size();
         switch (GetControlStatus()) {
@@ -568,11 +570,11 @@ public:
         i32 segmentId = request->segment_id();
         i32 recordCount = request->record_count();
         auto version = TMetaVersion(segmentId, recordCount);
-        auto epoch = TEpoch::FromProto(request->epoch());
+        auto epochId = TEpochId::FromProto(request->epoch_id());
 
-        context->SetRequestInfo("Version: %s, Epoch: %s",
+        context->SetRequestInfo("Version: %s, EpochId: %s",
             ~version.ToString(),
-            ~epoch.ToString());
+            ~epochId.ToString());
 
         auto status = GetControlStatus();
 
@@ -581,7 +583,7 @@ public:
                 Sprintf("Cannot process follower ping while in %s", ~GetControlStatus().ToString());
         }
 
-        CheckEpoch(epoch);
+        CheckEpoch(epochId);
 
         switch (status) {
             case EPeerStatus::Following:
@@ -593,7 +595,7 @@ public:
                 if (!FollowerRecovery) {
                     LOG_INFO("Received sync ping from leader (Version: %s, Epoch: %s)",
                         ~version.ToString(),
-                        ~epoch.ToString());
+                        ~epochId.ToString());
 
                     FollowerRecovery = New<TFollowerRecovery>(
                         Config,
@@ -601,8 +603,8 @@ public:
                         DecoratedState,
                         ChangeLogCache,
                         SnapshotStore,
-                        epoch,
-                        LeaderId,
+                        epochId,
+                        EpochContext->LeaderId,
                         EpochControlInvoker,
                         EpochStateInvoker,
                         version);
@@ -628,14 +630,14 @@ public:
         UNUSED(response);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epoch = TEpoch::FromProto(request->epoch());
+        auto epochId = TEpochId::FromProto(request->epoch_id());
         i32 segmentId = request->segment_id();
         i32 recordCount = request->record_count();
         auto version = TMetaVersion(segmentId, recordCount);
         bool createSnapshot = request->create_snapshot();
 
-        context->SetRequestInfo("Epoch: %s, Version: %s, CreateSnapshot: %s",
-            ~epoch.ToString(),
+        context->SetRequestInfo("EpochId: %s, Version: %s, CreateSnapshot: %s",
+            ~epochId.ToString(),
             ~version.ToString(),
             ~ToString(createSnapshot));
 
@@ -644,7 +646,7 @@ public:
                 Sprintf("Cannot advance segment while in %s", ~GetControlStatus().ToString());
         }
 
-        CheckEpoch(epoch);
+        CheckEpoch(epochId);
 
         switch (GetControlStatus()) {
             case EPeerStatus::Following:
@@ -664,7 +666,8 @@ public:
                     EpochStateInvoker->Invoke(context->Wrap(BIND(
                         &TThis::DoStateAdvanceSegment,
                         MakeStrong(this),
-                        version)));
+                        version,
+                        EpochContext->EpochId)));
                 }
                 break;
 
@@ -699,7 +702,10 @@ public:
         }
     }
 
-    void DoStateAdvanceSegment(TMetaVersion version, TCtxAdvanceSegmentPtr context)
+    void DoStateAdvanceSegment(
+        const TMetaVersion& version,
+        const TEpochId& epochId,
+        TCtxAdvanceSegmentPtr context)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -711,7 +717,7 @@ public:
                 ~DecoratedState->GetVersion().ToString());
         }
 
-        DecoratedState->RotateChangeLog();
+        DecoratedState->RotateChangeLog(epochId);
 
         context->Reply();
     }
@@ -782,7 +788,7 @@ public:
             }
         }
 
-        *response->mutable_epoch() = DecoratedState->GetEpoch().ToProto();
+        *response->mutable_epoch_id() = EpochContext->EpochId.ToProto();
 
         context->Reply();
     }
@@ -793,12 +799,6 @@ public:
     void Restart()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
-        // To prevent multiple restarts.
-        auto epochContext = EpochContext;
-        if (epochContext) {
-            epochContext->Cancel();
-        }
 
         ElectionManager->Restart();
     }
@@ -816,16 +816,14 @@ public:
     }
 
 
-    void OnElectionStartLeading(const TEpoch& epoch)
+    void OnElectionStartLeading()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Starting leader recovery");
 
         ControlStatus = EPeerStatus::LeaderRecovery;
-        LeaderId = CellManager->GetSelfId();
-
-        StartEpoch(epoch);
+        StartEpoch();
 
         YCHECK(!QuorumTracker);
         QuorumTracker = New<TQuorumTracker>(
@@ -840,7 +838,7 @@ public:
             DecoratedState,
             ChangeLogCache,
             QuorumTracker,
-            epoch,
+            EpochContext->EpochId,
             EpochControlInvoker,
             EpochStateInvoker);
         LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnMutationApplied, MakeWeak(this)));
@@ -855,7 +853,7 @@ public:
             CellManager,
             DecoratedState,
             QuorumTracker,
-            epoch,
+            EpochContext->EpochId,
             EpochControlInvoker);
         FollowerPinger->Start();
 
@@ -868,6 +866,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
+        auto epochContext = EpochContext;
+        if (!epochContext)
+            return;
+
         DecoratedState->OnStartLeading();
 
         StartLeading_.Fire();
@@ -879,7 +881,7 @@ public:
             DecoratedState,
             ChangeLogCache,
             SnapshotStore,
-            DecoratedState->GetEpoch(),
+            epochContext->EpochId,
             EpochControlInvoker,
             EpochStateInvoker);
 
@@ -904,13 +906,17 @@ public:
             return;
         }
 
+        auto epochContext = EpochContext;
+        if (!epochContext)
+            return;
+
         YCHECK(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
             Config->SnapshotBuilder,
             CellManager,
             DecoratedState,
             SnapshotStore,
-            DecoratedState->GetEpoch(),
+            epochContext->EpochId,
             EpochControlInvoker,
             EpochStateInvoker);
 
@@ -996,16 +1002,14 @@ public:
     }
 
 
-    void OnElectionStartFollowing(TPeerId leaderId, const TEpoch& epoch)
+    void OnElectionStartFollowing()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Starting follower recovery");
 
         ControlStatus = EPeerStatus::FollowerRecovery;
-        LeaderId = leaderId;
-
-        StartEpoch(epoch);
+        StartEpoch();
 
         EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateStartFollowing,
@@ -1035,6 +1039,10 @@ public:
             return;
         }
 
+        auto epochContext = EpochContext;
+        if (!epochContext)
+            return;
+
         EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateFollowerRecoveryComplete,
             MakeStrong(this)));
@@ -1051,7 +1059,7 @@ public:
             CellManager,
             DecoratedState,
             SnapshotStore,
-            DecoratedState->GetEpoch(),
+            epochContext->EpochId,
             EpochControlInvoker,
             EpochStateInvoker);
 
@@ -1110,40 +1118,32 @@ public:
     }
 
 
-    void StartEpoch(const TEpoch& epoch)
+    void StartEpoch()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(!EpochContext);
-        EpochContext = New<TCancelableContext>();
-        EpochControlInvoker = EpochContext->CreateInvoker(ControlInvoker);
-        EpochStateInvoker = EpochContext->CreateInvoker(DecoratedState->GetSystemStateInvoker());
-
-        DecoratedState->SetEpoch(epoch);
+        EpochContext = ElectionManager->GetEpochContext();
+        EpochControlInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
+        EpochStateInvoker = EpochContext->CancelableContext->CreateInvoker(DecoratedState->GetSystemStateInvoker());
     }
 
     void StopEpoch()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LeaderId = NElection::InvalidPeerId;
-        DecoratedState->SetEpoch(TEpoch());
-
-        YCHECK(EpochContext);
-        EpochContext->Cancel();
+        
         EpochContext.Reset();
         EpochControlInvoker.Reset();
         EpochStateInvoker.Reset();
     }
 
-    void CheckEpoch(const TEpoch& epoch) const
+    void CheckEpoch(const TEpochId& epochId) const
     {
-        auto currentEpoch = DecoratedState->GetEpoch();
-        if (epoch != currentEpoch) {
+        auto currentEpochId = EpochContext->EpochId;
+        if (epochId != currentEpochId) {
             ythrow TServiceException(EErrorCode::InvalidEpoch) <<
                 Sprintf("Invalid epoch: expected %s, received %s",
-                    ~currentEpoch.ToString(),
-                    ~epoch.ToString());
+                    ~currentEpochId.ToString(),
+                    ~epochId.ToString());
         }
     }
 

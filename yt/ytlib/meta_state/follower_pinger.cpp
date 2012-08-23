@@ -27,13 +27,13 @@ TFollowerPinger::TFollowerPinger(
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
     TQuorumTrackerPtr followerTracker,
-    const TEpoch& epoch,
+    const TEpochId& epoch,
     IInvokerPtr epochControlInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)
     , QuorumTracker(followerTracker)
-    , Epoch(epoch)
+    , EpochId(epoch)
     , EpochControlInvoker(epochControlInvoker)
 {
     YASSERT(config);
@@ -68,18 +68,18 @@ void TFollowerPinger::SendPing(TPeerId followerId)
     
     auto version = DecoratedState->GetPingVersion();
 
-    LOG_DEBUG("Sending ping to follower %d (Version: %s, Epoch: %s)",
+    LOG_DEBUG("Sending ping to follower %d (Version: %s, EpochId: %s)",
         followerId,
         ~version.ToString(),
-        ~Epoch.ToString());
+        ~EpochId.ToString());
 
-    auto request = CellManager
-        ->GetMasterProxy<TProxy>(followerId)
-        ->PingFollower()
-        ->SetTimeout(Config->RpcTimeout);
+    TProxy proxy(CellManager->GetMasterChannel(followerId));
+    proxy.SetDefaultTimeout(Config->RpcTimeout);
+
+    auto request = proxy.PingFollower();
     request->set_segment_id(version.SegmentId);
     request->set_record_count(version.RecordCount);
-    *request->mutable_epoch() = Epoch.ToProto();
+    *request->mutable_epoch_id() = EpochId.ToProto();
     request->Invoke().Subscribe(
         BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
         .Via(EpochControlInvoker));       

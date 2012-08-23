@@ -32,7 +32,7 @@ public:
     void Open();
     //! Creates new changelog.
     //! Throws exception on failure.
-    void Create(i32 prevRecordCount, const TEpoch& epoch);
+    void Create(i32 prevRecordCount, const TEpochId& epoch);
     //! Finalizes current changelog.
     void Finalize();
     //! Make changelog opened from finalized state.
@@ -51,7 +51,7 @@ public:
     i32 GetId() const;
     i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
-    const TEpoch& GetEpoch() const;
+    const TEpochId& GetEpoch() const;
     bool IsFinalized() const;
 
 private:

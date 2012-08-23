@@ -509,7 +509,7 @@ i32 TAsyncChangeLog::GetRecordCount() const
     return TImpl::Get()->GetRecordCount(ChangeLog);
 }
 
-const TEpoch& TAsyncChangeLog::GetEpoch() const
+const TEpochId& TAsyncChangeLog::GetEpoch() const
 {
     return ChangeLog->GetEpoch();
 }

@@ -204,8 +204,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     YCHECK(bootstrap);
     VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetRawInvoker(), StateThread);
 
-    RootService =
-        New<TRootService>(Bootstrap)
+    RootService = New<TRootService>(Bootstrap)
         ->Via(Bootstrap->GetMetaStateFacade()->GetWrappedInvoker());
 
     auto transactionManager = bootstrap->GetTransactionManager();

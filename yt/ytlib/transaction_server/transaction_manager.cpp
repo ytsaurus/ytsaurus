@@ -201,12 +201,12 @@ private:
         bool renewAncestors = request->renew_ancestors();
         context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
 
+        ValidateLeaderStatus();
+
         ValidateTransactionIsValid();
+
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
-
-        if (!Owner->Bootstrap->GetMetaStateFacade()->ValidateActiveLeader(context->GetUntypedContext()))
-            return;
 
         Owner->RenewLease(transaction, renewAncestors);
         context->Reply();
@@ -578,9 +578,7 @@ void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration
     auto lease = TLeaseManager::CreateLease(
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-        .Via(
-            metaStateFacade->GetWrappedInvoker(),
-            metaStateFacade->GetManager()->GetEpochContext()));
+            .Via(metaStateFacade->GetWrappedEpochInvoker()));
     YCHECK(LeaseMap.insert(MakePair(transaction->GetId(), lease)).second);
 }
 

@@ -158,19 +158,6 @@ void TDecoratedMetaState::OnStopFollowing()
     Status_ = EPeerStatus::Stopped;
 }
 
-void TDecoratedMetaState::SetEpoch(const TEpoch& epoch)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(Started);
-    Epoch = epoch;
-}
-
-const TEpoch& TDecoratedMetaState::GetEpoch() const
-{
-    YASSERT(Started);
-    return Epoch;
-}
-
 void TDecoratedMetaState::ComputeReachableVersion()
 {
     i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
@@ -355,7 +342,7 @@ void TDecoratedMetaState::AdvanceSegment()
     LOG_INFO("Switched to a new segment %d", Version.SegmentId);
 }
 
-void TDecoratedMetaState::RotateChangeLog()
+void TDecoratedMetaState::RotateChangeLog(const TEpochId& epochId)
 {
     YCHECK(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -365,7 +352,7 @@ void TDecoratedMetaState::RotateChangeLog()
 
     AdvanceSegment();
 
-    ChangeLogCache->Create(Version.SegmentId, changeLog->GetRecordCount(), Epoch);
+    ChangeLogCache->Create(Version.SegmentId, changeLog->GetRecordCount(), epochId);
 }
 
 TMetaVersion TDecoratedMetaState::GetVersion() const

@@ -45,7 +45,7 @@ public:
     TSession(
         TSnapshotBuilderPtr owner,
         const TMetaVersion& version,
-        const TEpoch& epoch,
+        const TEpochId& epoch,
         bool createSnapshot)
         : Owner(owner)
         , Version(version)
@@ -84,7 +84,7 @@ public:
                 &TSession::DoCompleteSession,
                 MakeStrong(this)));
         } else {
-            Owner->DecoratedState->RotateChangeLog();
+            Owner->DecoratedState->RotateChangeLog(Owner->EpochId);
             // No need to complete the awaiter.
         }
     }
@@ -103,13 +103,13 @@ private:
                 LOG_DEBUG("Requesting follower %d to rotate the changelog", id);
             }
 
-            auto proxy = Owner->CellManager->GetMasterProxy<TProxy>(id);
-            auto request = proxy
-                ->AdvanceSegment()
-                ->SetTimeout(Owner->Config->RemoteTimeout);
+            TProxy proxy(Owner->CellManager->GetMasterChannel(id));
+            proxy.SetDefaultTimeout(Owner->Config->RemoteTimeout);
+
+            auto request = proxy.AdvanceSegment();
             request->set_segment_id(Version.SegmentId);
             request->set_record_count(Version.RecordCount);
-            *request->mutable_epoch() = Owner->Epoch.ToProto();
+            *request->mutable_epoch_id() = Owner->EpochId.ToProto();
             request->set_create_snapshot(CreateSnapshot);
 
             auto responseHandler =
@@ -196,7 +196,7 @@ private:
 
     TSnapshotBuilderPtr Owner;
     TMetaVersion Version;
-    TEpoch Epoch;
+    TEpochId Epoch;
     bool CreateSnapshot;
 
     TParallelAwaiterPtr Awaiter;
@@ -210,14 +210,14 @@ TSnapshotBuilder::TSnapshotBuilder(
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
     TSnapshotStorePtr snapshotStore,
-    const TEpoch& epoch,
+    const TEpochId& epochId,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)
     , SnapshotStore(snapshotStore)
-    , Epoch(epoch)
+    , EpochId(epochId)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
     , LocalPromise(MakePromise(TLocalResult()))
@@ -240,7 +240,7 @@ void TSnapshotBuilder::CreateDistributedSnapshot()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto version = DecoratedState->GetVersion();
-    New<TSession>(MakeStrong(this), version, Epoch, true)->Run();
+    New<TSession>(MakeStrong(this), version, EpochId, true)->Run();
 }
 
 void TSnapshotBuilder::RotateChangeLog()
@@ -248,7 +248,7 @@ void TSnapshotBuilder::RotateChangeLog()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto version = DecoratedState->GetVersion();
-    New<TSession>(MakeStrong(this), version, Epoch, false)->Run();
+    New<TSession>(MakeStrong(this), version, EpochId, false)->Run();
 }
 
 TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const TMetaVersion& version)
@@ -298,14 +298,14 @@ TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const 
     OnLocalSnapshotCreated(snapshotId, checksum);
 #endif
         
-    DecoratedState->RotateChangeLog();
+    DecoratedState->RotateChangeLog(EpochId);
     return LocalPromise;
 }
 
 TChecksum TSnapshotBuilder::DoCreateLocalSnapshot(TMetaVersion version)
 {
     auto writer = SnapshotStore->GetWriter(version.SegmentId + 1);
-    writer->Open(version.RecordCount, Epoch);
+    writer->Open(version.RecordCount, EpochId);
     DecoratedState->Save(writer->GetStream());
     writer->Close();
     return writer->GetChecksum();

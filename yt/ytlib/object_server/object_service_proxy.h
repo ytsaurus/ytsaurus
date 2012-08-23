@@ -21,16 +21,19 @@ public:
         return "ObjectService";
     }
 
-    TObjectServiceProxy(NRpc::IChannelPtr channel)
+    explicit TObjectServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
 
-    //! Executes a single Cypress request.
+    //! Executes a single typed request.
     template <class TTypedRequest>
     TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
     Execute(TIntrusivePtr<TTypedRequest> innerRequest);
+
+    //! Executes a single untyped request.
+    TFuture<NBus::IMessagePtr> Execute(NBus::IMessagePtr innerRequestMessage);
 
     class TReqExecuteBatch;
     class TRspExecuteBatch;

@@ -39,10 +39,10 @@ i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
         LOG_INFO("Requesting snapshot from peer %d", peerId);
 
-        auto request =
-            CellManager->GetMasterProxy<TProxy>(peerId)
-            ->LookupSnapshot()
-            ->SetTimeout(Config->RpcTimeout);
+        TProxy proxy(CellManager->GetMasterChannel(peerId));
+        proxy.SetDefaultTimeout(Config->RpcTimeout);
+
+        auto request = proxy.LookupSnapshot();
         request->set_max_snapshot_id(maxSnapshotId);
         awaiter->Await(
             request->Invoke(),

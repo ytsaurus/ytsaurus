@@ -18,12 +18,14 @@ typedef
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::EObjectType objectType,
-    TYPathServiceProducer producer);
+    TYPathServiceProducer producer,
+    bool requireLeaderStatus = false);
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::EObjectType objectType,
-    NYTree::IYPathServicePtr service);
+    NYTree::IYPathServicePtr service,
+    bool requireLeaderStatus = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

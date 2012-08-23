@@ -92,7 +92,7 @@ DECLARE_ENUM(ECommitCode,
 
 using NElection::TPeerId;
 using NElection::TPeerPriority;
-using NElection::TEpoch;
+using NElection::TEpochId;
 
 ////////////////////////////////////////////////////////////////////////////////
             

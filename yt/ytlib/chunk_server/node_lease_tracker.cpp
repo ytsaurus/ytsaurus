@@ -38,13 +38,8 @@ void TNodeLeaseTracker::OnNodeRegistered(const TDataNode* node, bool recovery)
     nodeInfo.Confirmed = !recovery;
     nodeInfo.Lease = TLeaseManager::CreateLease(
         GetTimeout(node, nodeInfo),
-        BIND(
-            &TNodeLeaseTracker::OnExpired,
-            MakeStrong(this),
-            node->GetId())
-        .Via(
-            metaStateFacade->GetWrappedInvoker(EStateThreadQueue::ChunkRefresh),
-            metaStateFacade->GetManager()->GetEpochContext()));
+        BIND(&TNodeLeaseTracker::OnExpired, MakeStrong(this), node->GetId())
+            .Via(metaStateFacade->GetWrappedEpochInvoker(EStateThreadQueue::ChunkRefresh)));
     YCHECK(NodeInfoMap.insert(MakePair(node->GetId(), nodeInfo)).second);
 }
 

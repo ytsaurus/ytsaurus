@@ -22,9 +22,7 @@ public:
     i32 GetQuorum() const;
     i32 GetPeerCount() const;
     Stroka GetPeerAddress(TPeerId id) const;
-
-    template <class TProxy>
-    TAutoPtr<TProxy> GetMasterProxy(TPeerId id) const;
+    NRpc::IChannelPtr GetMasterChannel(TPeerId id) const;
 
 private:
     TCellConfigPtr Config;
@@ -33,14 +31,6 @@ private:
     static NRpc::TChannelCache ChannelCache;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TProxy>
-TAutoPtr<TProxy> TCellManager::GetMasterProxy(TPeerId id) const
-{
-    return new TProxy(ChannelCache.GetChannel(GetPeerAddress(id)));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
