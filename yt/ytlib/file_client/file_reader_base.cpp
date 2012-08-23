@@ -66,6 +66,15 @@ void TFileReaderBase::Open(
 
     auto& chunkMeta = getMetaResult.Value();
     YCHECK(chunkMeta.type() == NChunkServer::EChunkType::File);
+
+    if (chunkMeta.version() != FormatVersion) {
+        LOG_ERROR_AND_THROW(
+            yexception(), 
+            "Chunk format version mismatch (Expected: %d, Received: %d)",
+            FormatVersion,
+            chunkMeta.version());
+    }
+
     auto blocksExt = GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(chunkMeta.extensions());
     BlockCount = blocksExt.blocks_size();
 

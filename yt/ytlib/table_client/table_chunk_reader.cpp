@@ -187,6 +187,20 @@ private:
 
         LOG_DEBUG("Chunk meta received");
 
+        if (result.Value().type() != EChunkType::Table) {
+            LOG_FATAL("Invalid chunk type %d", result.Value().type());
+        }
+
+        if (result.Value().version() != FormatVersion) {
+            auto message = Sprintf(
+                "Invalid chunk format version (Expected: %d, ChunkVersion: %d)", 
+                result.Value().version(),
+                FormatVersion);
+            LOG_WARNING("%s", ~message);
+            OnFail(TError(message), chunkReader);
+            return;
+        }
+
         FOREACH (const auto& column, Channel.GetColumns()) {
             auto& columnInfo = chunkReader->ColumnsMap[TStringBuf(column)];
             columnInfo.InChannel = true;

@@ -161,6 +161,7 @@ void TFileChunkOutput::DoFinish()
     LOG_INFO("Closing chunk");
     {
         Meta.set_type(EChunkType::File);
+        Meta.set_version(FormatVersion);
 
         TMiscExt miscExt;
         miscExt.set_uncompressed_data_size(Size);

@@ -53,6 +53,7 @@ message TMiscExt
 
     // Number of key-value pairs across all rows in the chunk.
     optional int64 value_count = 8 [default = 0];
+
 }
 
 // TChunkMeta is stored in *.meta files on chunk holders
@@ -61,6 +62,9 @@ message TChunkMeta
 {
     required int32 type = 1;
     required NYT.NProto.TExtensionSet extensions = 2;
+
+    // Format version validated by reader.
+    required int32 version = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

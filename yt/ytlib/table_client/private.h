@@ -11,6 +11,7 @@ extern NLog::TLogger TableReaderLogger;
 extern NLog::TLogger TableWriterLogger;
 
 extern int DefaultPartitionTag;
+extern int FormatVersion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
