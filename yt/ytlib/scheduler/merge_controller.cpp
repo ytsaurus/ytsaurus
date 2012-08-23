@@ -266,7 +266,6 @@ protected:
         CurrentTaskDataSize += dataSize;
         stripe->AddChunk(inputChunk, dataSize, rowCount);
 
-        auto& table = OutputTables[0];
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
             ~chunkId.ToString(),
@@ -472,7 +471,7 @@ private:
 
     virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
-        return Spec->CombineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
+        return IsPassthroughChunkImpl(Spec->CombineChunks, inputChunk);
     }
 
     virtual std::vector<TYPath> GetInputTablePaths() const override
