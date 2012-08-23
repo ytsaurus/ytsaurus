@@ -4,11 +4,8 @@ from common import flatten, require, YtError, parse_bool, unlist, update
 from path_tools import escape_path
 from http import make_request
 from table import get_yson_name, to_table
-from tree_commands import exists, remove, get_attribute, set, copy, mkdir, find_free_subpath
+from tree_commands import exists, remove, get_attribute, copy, mkdir, find_free_subpath
 from file_commands import upload_file
-from operation_commands import \
-        get_operation_stderr, get_operation_result, get_jobs_errors
-
 
 import os
 import types
@@ -287,11 +284,10 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     run_map_reduce.files_to_remove = []
     def prepare_operation(binary, files, spec_keyword):
         """ Returns new spec """
-        new_spec = spec
         files = prepare_files(files)
         if binary is not None:
             if isinstance(binary, types.FunctionType):
-                binary, additional_files = py_wrapper.wrap(op)
+                binary, additional_files = py_wrapper.wrap(binary)
                 files += prepare_files(additional_files)
             run_map_reduce.spec = update(run_map_reduce.spec, 
                 {

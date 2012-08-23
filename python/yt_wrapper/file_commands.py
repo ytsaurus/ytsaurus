@@ -40,11 +40,11 @@ def upload_file(filename, yt_filename=None, destination=None, placement_strategy
         if placement_strategy == "random":
             destination = find_free_subpath(destination)
         if placement_strategy == "replace" and exists(destination):
-            yt.remove(destination)
+            remove(destination)
         if placement_strategy == "ignore" and exists(destination):
             return
     
-    operation = make_request(
+    make_request(
             "PUT", "upload", 
             {"path": escape_path(destination)},
             data=open(filename))

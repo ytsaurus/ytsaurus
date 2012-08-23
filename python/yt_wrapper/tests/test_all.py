@@ -9,11 +9,9 @@ from common import flatten
 from yt_environment import YTEnv
 
 import os
-import sys
 import logging
 import random
 import string
-import shutil
 from itertools import imap, izip, starmap, chain
 from functools import partial
 
