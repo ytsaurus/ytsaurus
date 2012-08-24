@@ -73,11 +73,11 @@ TObjectWithIdBase::TObjectWithIdBase(const TObjectId& id)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderFallbackException
-    : public std::exception
+    : public std::runtime_error
 {
 public:
     TLeaderFallbackException()
-        : std::exception("Not a leader")
+        : std::runtime_error("Not a leader")
     { }
 };
 
