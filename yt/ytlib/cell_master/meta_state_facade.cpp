@@ -371,6 +371,14 @@ void TMetaStateFacade::Start()
     Impl->Start();
 }
 
+TMutationPtr TMetaStateFacade::CreateMutation(
+    EStateThreadQueue queue)
+{
+    return New<TMutation>(
+        GetManager(),
+        GetWrappedEpochInvoker(queue));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellMaster

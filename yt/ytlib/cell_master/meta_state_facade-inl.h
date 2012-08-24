@@ -23,14 +23,6 @@ NMetaState::TMutationPtr TMetaStateFacade::CreateMutation(
         method);
 }
 
-NMetaState::TMutationPtr TMetaStateFacade::CreateMutation(
-	EStateThreadQueue queue)
-{
-    return New<NMetaState::TMutation>(
-        GetManager(),
-        GetWrappedEpochInvoker(queue));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NCellMaster
