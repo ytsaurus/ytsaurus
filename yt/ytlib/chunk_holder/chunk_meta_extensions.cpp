@@ -12,6 +12,7 @@ TChunkMeta FilterChunkMetaExtensions(const TChunkMeta& chunkMeta, const std::vec
 {
     TChunkMeta result;
     result.set_type(chunkMeta.type());
+    result.set_version(chunkMeta.version());
 
     yhash_set<int> tagsSet(tags.begin(), tags.end());
 

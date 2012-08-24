@@ -60,6 +60,20 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
 
     LOG_DEBUG("Chunk meta received");
 
+    if (result.Value().type() != NChunkServer::EChunkType::Table) {
+        LOG_FATAL("Invalid chunk type %d", result.Value().type());
+    }
+
+    if (result.Value().version() != FormatVersion) {
+        auto message = Sprintf(
+            "Invalid chunk format version (Expected: %d, ChunkVersion: %d)", 
+            result.Value().version(),
+            FormatVersion);
+        LOG_WARNING("%s", ~message);
+        State.Fail(TError(message));
+        return;
+    }
+
     auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
     YCHECK(channelsExt.items_size() == 1);
 

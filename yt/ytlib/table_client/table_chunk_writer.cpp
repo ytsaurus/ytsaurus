@@ -421,6 +421,7 @@ NChunkHolder::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 
     NChunkHolder::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
+    meta.set_version(FormatVersion);
     SetProtoExtension(meta.mutable_extensions(), MiscExt);
     if (KeyColumns) {
         SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt);

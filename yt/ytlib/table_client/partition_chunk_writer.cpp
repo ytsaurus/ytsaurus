@@ -166,6 +166,7 @@ NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
 {
     NChunkHolder::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
+    meta.set_version(FormatVersion);
     SetProtoExtension(meta.mutable_extensions(), MiscExt);
 
     return meta;
@@ -175,6 +176,7 @@ NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
 {
     NChunkHolder::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
+    meta.set_version(FormatVersion);
     SetProtoExtension(meta.mutable_extensions(), MiscExt);
     SetProtoExtension(meta.mutable_extensions(), PartitionsExt);
 
