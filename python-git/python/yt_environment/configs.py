@@ -118,6 +118,7 @@ def get_driver_config():
         addresses = [
             "localhost";
         ];
+	"rpc_timeout" = 30000;
     };
 
     logging = {
