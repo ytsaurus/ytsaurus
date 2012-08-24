@@ -198,6 +198,9 @@ INodePtr CloneNode(INodePtr node);
 //! Returns the resulting tree.
 INodePtr UpdateNode(INodePtr base, INodePtr patch);
 
+//! Check nodes represent the same data. Do not unfold entities.
+bool AreNodesEqual(INodePtr lhs, INodePtr rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

@@ -57,12 +57,6 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->SubscribeStopFollowing(BIND(
         &TThis::OnStopFollowing,
         MakeWeak(this)));
-
-    // Rpc method that do nothing
-    auto noOperation = BIND(&TMetaStatePart::NoOperation, Unretained(this));
-    if (!HasMethod(noOperation)) {
-        RegisterMethod(noOperation);
-    }
 }
 
 void TMetaStatePart::Clear()
@@ -105,9 +99,6 @@ void TMetaStatePart::OnStartRecovery()
 { }
 
 void TMetaStatePart::OnStopRecovery()
-{ }
-
-void TMetaStatePart::NoOperation(const NProto::TReqNoOperation&)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,6 +163,10 @@ void TCompositeMetaState::Load(TInputStream* input)
 
 void TCompositeMetaState::ApplyMutation(TMutationContext* context) throw()
 {
+    if (context->GetType() == "")  {
+        // Empty mutation. It is used for debug purpose.
+        return;
+    }
     auto it = Methods.find(context->GetType());
     YCHECK(it != Methods.end());
     it->second.Run(context);

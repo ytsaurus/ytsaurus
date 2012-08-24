@@ -35,7 +35,7 @@ public:
     void Create(i32 prevRecordCount, const TEpochId& epoch);
     //! Finalizes current changelog.
     void Finalize();
-    //! Make changelog opened from finalized state.
+    //! Reverts the effects of #FInalize, that is marks a finalize changelog as opened.
     //! Debug method, use it with care.
     void Definalize();
 

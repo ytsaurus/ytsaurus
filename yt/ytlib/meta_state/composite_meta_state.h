@@ -46,8 +46,6 @@ protected:
     virtual void OnStartRecovery();
     virtual void OnStopRecovery();
 
-    void NoOperation(const NProto::TReqNoOperation& request);
-
 private:
     typedef TMetaStatePart TThis;
     friend class TCompositeMetaState;

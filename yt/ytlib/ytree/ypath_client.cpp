@@ -577,7 +577,6 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         auto patchMap = patch->AsMap();
         auto baseMap = base->AsMap();
         FOREACH (Stroka key, patchMap->GetKeys()) {
-            std::cerr << key << std::endl;
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
                 resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key);
@@ -597,6 +596,50 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         }
         result->Attributes().MergeFrom(patch->Attributes());
         return result;
+    }
+}
+
+bool AreNodesEqual(INodePtr lhs, INodePtr rhs) {
+    if (lhs->GetType() == ENodeType::Map && rhs->GetType() == ENodeType::Map) {
+        auto lhsMap = lhs->AsMap();
+        auto lhsKeys = lhsMap->GetKeys();
+        sort(lhsKeys.begin(), lhsKeys.end());
+        
+        auto rhsMap = rhs->AsMap();
+        auto rhsKeys = rhsMap->GetKeys();
+        sort(rhsKeys.begin(), rhsKeys.end());
+        if (rhsKeys != lhsKeys) {
+            return false;
+        }
+        FOREACH (Stroka key, lhsKeys) {
+            if (!AreNodesEqual(lhsMap->FindChild(key), rhsMap->FindChild(key))) {
+                return false;
+            }
+        }
+        return true;
+    }
+    else if (lhs->GetType() == ENodeType::List && rhs->GetType() == ENodeType::List) {
+        auto lhsList = lhs->AsList();
+        auto lhsChildren = lhsList->GetChildren();
+
+        auto rhsList = rhs->AsList();
+        auto rhsChildren = rhsList->GetChildren();
+
+        if (lhsChildren.size() != rhsChildren.size()) {
+            return false;
+        }
+        for (size_t i = 0; i < lhsChildren.size(); ++i) {
+            if (!AreNodesEqual(lhsList->FindChild(i), rhsList->FindChild(i))) {
+                return false;
+            }
+        }
+        return true; 
+    }
+    else if (lhs->GetType() == rhs->GetType()) {
+        return ConvertToYsonString(lhs) == ConvertToYsonString(rhs);
+    }
+    else {
+        return false;
     }
 }
 

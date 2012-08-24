@@ -260,6 +260,15 @@ void TChangeLog::TImpl::Flush()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChangeLog::TImpl::WriteHeader(bool finalized)
+{
+    TGuard<TMutex> guard(Mutex);
+
+    File->Seek(0, sSet);
+    WritePod(*File, TLogHeader(Id, Epoch, PrevRecordCount, finalized));
+    File->Flush();
+}
+
 void TChangeLog::TImpl::Finalize()
 {
     YCHECK(State != EState::Uninitialized);
@@ -268,21 +277,10 @@ void TChangeLog::TImpl::Finalize()
     }
 
     LOG_DEBUG("Finalizing changelog");
-
-    TGuard<TMutex> guard(Mutex);
-
-    // Write to the header that changelog is finalized.
-    File->Seek(0, sSet);
-    WritePod(*File, TLogHeader(Id, Epoch, PrevRecordCount, /*Finalized*/ true));
-    File->Seek(0, sEnd);
-    File->Flush();
-
+    WriteHeader(true);
     State = EState::Finalized;
-
     LOG_DEBUG("Changelog finalized");
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 void TChangeLog::TImpl::Definalize()
 {
@@ -290,14 +288,13 @@ void TChangeLog::TImpl::Definalize()
 
     LOG_DEBUG("Definalizing changelog");
 
-    TGuard<TMutex> guard(Mutex);
-
-    // Write to the header that changelog is finalized.
-    File->Seek(0, sSet);
-    WritePod(*File, TLogHeader(Id, Epoch, PrevRecordCount, /*Finalized*/ false));
-    File->Seek(0, sEnd);
-    File->Flush();
-
+    WriteHeader(false);
+    
+    {
+        // Additionally seek to the end of changelog
+        TGuard<TMutex> guard(Mutex);
+        File->Seek(0, sEnd);
+    }
     State = EState::Open;
 
     LOG_DEBUG("Changelog definalized");

@@ -399,7 +399,6 @@ void TSupportsAttributes::GetAttribute(
         if (userAttributes) {
             auto userAttributeSet = userAttributes->List();
             std::vector<Stroka> userAttributeList(userAttributeSet.begin(), userAttributeSet.end());
-            std::sort(userAttributeList.begin(), userAttributeList.end());
             FOREACH (const auto& key, userAttributeList) {
                 writer.OnKeyedItem(key);
                 Consume(userAttributes->GetYson(key), &writer);
@@ -451,8 +450,6 @@ void TSupportsAttributes::ListAttribute(
                 Stroka(tokenizer.CurrentToken().GetStringValue())));
         keys = SyncYPathList(node, TYPath(tokenizer.GetCurrentSuffix()));
     }
-
-    std::sort(keys.begin(), keys.end());
 
     response->set_keys(ConvertToYsonString(keys).Data());
     context->Reply();

@@ -205,6 +205,9 @@ private:
     //! Reads changelog starting from the last indexed record until the end of file.
     void ReadChangeLogUntilEnd();
 
+    //! Write header
+    void WriteHeader(bool finalized);
+
     //! Constant data.
     const i32 Id;
     const i64 IndexBlockSize;
