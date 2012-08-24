@@ -135,7 +135,6 @@ TAsyncError TChunk::ReadMeta()
                 if (!HasMeta) {
                     // These are very quick getters.
                     Meta = reader->GetChunkMeta();
-                    Info_ = reader->GetChunkInfo();
                     HasMeta = true;
                 }
             }

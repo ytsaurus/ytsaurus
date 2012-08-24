@@ -187,7 +187,7 @@ private:
 
         LOG_DEBUG("Chunk meta received");
 
-        if (result.Value().type() != EChunkType::Table) {
+        if (result.Value().type() != NChunkServer::EChunkType::Table) {
             LOG_FATAL("Invalid chunk type %d", result.Value().type());
         }
 

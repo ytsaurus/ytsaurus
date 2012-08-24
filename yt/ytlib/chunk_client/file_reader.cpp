@@ -26,9 +26,9 @@ void TFileReader::Open()
 {
     YASSERT(!Opened);
 
-    Stroka chunkInfoFileName = FileName + ChunkMetaSuffix;
+    Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
     TFile chunkMetaFile(
-        chunkInfoFileName,
+        chunkMetaFileName,
         OpenExisting | RdOnly | Seq);
     InfoSize = chunkMetaFile.GetLength();
     TBufferedFileInput chunkMetaInput(chunkMetaFile);
@@ -60,12 +60,7 @@ void TFileReader::Open()
             ~FileName); 
     }
 
-    ChunkInfo.set_meta_checksum(checksum);
-
     DataFile.Reset(new TFile(FileName, OpenExisting | RdOnly));
-    DataSize = DataFile->GetLength();
-
-    ChunkInfo.set_size(DataSize + InfoSize);
 
     Opened = true;
 }
@@ -145,12 +140,6 @@ TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* tags) const
 {
     YASSERT(Opened);
     return tags ? FilterChunkMetaExtensions(ChunkMeta, *tags) : ChunkMeta;
-}
-
-const TChunkInfo& TFileReader::GetChunkInfo() const
-{
-    YASSERT(Opened);
-    return ChunkInfo;
 }
 
 IAsyncReader::TAsyncGetMetaResult

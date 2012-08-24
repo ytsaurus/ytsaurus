@@ -33,8 +33,6 @@ public:
 
     NChunkHolder::NProto::TChunkMeta GetChunkMeta(const std::vector<int>* tags = NULL) const;
 
-    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
-
     //! Implements IChunkReader and calls #ReadBlock.
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
 
@@ -55,7 +53,6 @@ private:
     THolder<TFile> DataFile;
     i64 InfoSize;
     i64 DataSize;
-    NChunkHolder::NProto::TChunkInfo ChunkInfo;
     NChunkHolder::NProto::TChunkMeta ChunkMeta;
 
 };

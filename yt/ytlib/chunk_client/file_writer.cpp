@@ -9,6 +9,8 @@
 
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
+#include <util/stream/null.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -17,6 +19,8 @@ using namespace NChunkHolder::NProto;
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkWriterLogger;
+
+static TNullOutput NullOutput;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +31,7 @@ TFileWriter::TFileWriter(const Stroka& fileName, bool directMode)
     , DataSize(0)
     , Result(MakeFuture(TError()))
     , DirectMode(directMode)
+    , ChecksumOutput(&NullOutput)
 { }
 
 void TFileWriter::Open()
@@ -53,7 +58,10 @@ bool TFileWriter::TryWriteBlock(const TSharedRef& block)
         auto* blockInfo = BlocksExt.add_blocks();
         blockInfo->set_offset(DataFile->GetPosition());
         blockInfo->set_size(static_cast<int>(block.Size()));
-        blockInfo->set_checksum(GetChecksum(block));
+
+        auto checksum = GetChecksum(block);
+        blockInfo->set_checksum(checksum);
+        ChecksumOutput.Write(&checksum, sizeof(checksum));
 
         DataFile->Write(block.Begin(), block.Size());
 
@@ -143,7 +151,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chun
             ~FileName.Quote()));
     }
 
-    ChunkInfo.set_meta_checksum(header.Checksum);
+    ChunkInfo.set_meta_checksum(ChecksumOutput.GetChecksum());
     ChunkInfo.set_size(DataSize + metaData.Size() + sizeof (TChunkMetaHeader));
 
     return MakeFuture(TError());

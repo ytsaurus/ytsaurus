@@ -27,7 +27,7 @@ class TChunk
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, Id);
     //! Chunk location.
     DEFINE_BYVAL_RO_PROPERTY(TLocationPtr, Location);
-    //! The physical chunk size (including data and meta).
+
     DEFINE_BYVAL_RO_PROPERTY(NProto::TChunkInfo, Info);
 
 public:

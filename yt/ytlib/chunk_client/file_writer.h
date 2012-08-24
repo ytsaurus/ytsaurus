@@ -5,6 +5,7 @@
 #include "format.h"
 
 #include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/misc/checksum.h>
 
 #include <util/system/file.h>
 
@@ -45,6 +46,8 @@ private:
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
     NChunkHolder::NProto::TBlocksExt BlocksExt;
     NChunkHolder::NProto::TChunkMeta ChunkMeta;
+
+    TChecksummableOutput ChecksumOutput;
 
     TAsyncError Result;
 

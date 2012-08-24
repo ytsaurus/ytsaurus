@@ -50,7 +50,7 @@ const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
 void TChunkWriterBase::FinalizeWriter()
 {
     Meta.set_type(EChunkType::Table);
-    Meta.ser_version(FormatVersion);
+    Meta.set_version(FormatVersion);
 
     SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
 
