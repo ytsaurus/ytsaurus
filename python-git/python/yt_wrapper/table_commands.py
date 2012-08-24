@@ -136,9 +136,9 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
     if sort_by is None:
         require(hasattr(config.DEFAULT_FORMAT, "has_subkey"),
                 YtError("You must pass sort_by parameter to sort operation"))
-        sort_by = ["key"]
-        if config.DEFAULT_FORMAT.has_subkey:
-            sort_by.append("subkey")
+        sort_by = ["key", "subkey"]
+        #if config.DEFAULT_FORMAT.has_subkey:
+        #    sort_by.append("subkey")
 
     source_table = map(to_table, flatten(source_table))
     source_table = filter(lambda table: exists(table.name), source_table)
