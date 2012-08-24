@@ -20,6 +20,8 @@
 
 #include <ytlib/meta_state/meta_state_manager.h>
 
+#include <stdexcept>
+
 namespace NYT {
 namespace NObjectServer {
 
