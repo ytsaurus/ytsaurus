@@ -11,6 +11,10 @@
 
 #include <ytlib/ytree/public.h>
 
+// TODO(babenko): replace with public.h
+#include <ytlib/election/election_manager.h>
+#include <ytlib/election/cell_manager.h>
+
 namespace NYT {
 namespace NMetaState {
 
@@ -49,11 +53,14 @@ struct IMetaStateManager
      */
     virtual bool HasActiveQuorum() const = 0;
 
-    //! Returns a cancelable context representing the current epoch.
+    //! Returns the epoch context of the aggregated election manager.
     /*!
      *  \note Thread affinity: any
      */
-    virtual TCancelableContextPtr GetEpochContext() const = 0;
+    virtual NElection::TEpochContextPtr GetEpochContext() const = 0;
+
+    //! Returns the cell manager.
+    virtual NElection::TCellManagerPtr GetCellManager() const = 0;
 
     //! Commits the mutation.
     /*!

@@ -19,16 +19,34 @@ namespace NElection {
 struct IElectionCallbacks
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IElectionCallbacks> TPtr;
-
-    virtual void OnStartLeading(const TEpoch& epoch) = 0;
+    virtual void OnStartLeading() = 0;
     virtual void OnStopLeading() = 0;
-    virtual void OnStartFollowing(TPeerId leaderId, const TEpoch& epoch) = 0;
+    virtual void OnStartFollowing() = 0;
     virtual void OnStopFollowing() = 0;
 
     virtual TPeerPriority GetPriority() = 0;
     virtual Stroka FormatPriority(TPeerPriority priority) = 0;
 };
+
+typedef TIntrusivePtr<IElectionCallbacks> IElectionCallbacksPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TEpochContext
+    : public TIntrinsicRefCounted
+{
+    TEpochContext()
+        : LeaderId(InvalidPeerId)
+        , CancelableContext(New<TCancelableContext>())
+    { }
+
+    TPeerId LeaderId;
+    TEpochId EpochId;
+    TInstant StartTime;
+    TCancelableContextPtr CancelableContext;
+};
+
+typedef TIntrusivePtr<TEpochContext> TEpochContextPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,13 +54,11 @@ class TElectionManager
     : public NRpc::TServiceBase
 {
 public:
-    typedef TIntrusivePtr<TElectionManager> TPtr;
-
     TElectionManager(
-        TElectionManagerConfig* config,
-        TCellManager* cellManager,
+        TElectionManagerConfigPtr config,
+        TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker,
-        IElectionCallbacks* electionCallbacks);
+        IElectionCallbacksPtr electionCallbacks);
 
     ~TElectionManager();
 
@@ -66,6 +82,12 @@ public:
      * \note Thread affinity: any.
      */
     void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
+
+    //! Returns the current current epoch context.
+    /*!
+     *  \note Thread affinity: any.
+     */
+    TEpochContextPtr GetEpochContext();
     
 private:
     typedef TElectionManager TThis;
@@ -73,19 +95,19 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     class TVotingRound;
+    typedef TIntrusivePtr<TVotingRound> TVotingRoundPtr;
+
     class TFollowerPinger;
+    typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
 
     EPeerState State;
     
     // Voting parameters.
     TPeerId VoteId;
-    TEpoch VoteEpoch;
+    TEpochId VoteEpochId;
 
     // Epoch parameters.
-    TPeerId LeaderId;
-    TGuid Epoch;
-    TInstant EpochStart;
-    TCancelableContextPtr ControlEpochContext;
+    TEpochContextPtr EpochContext;
     IInvokerPtr ControlEpochInvoker;
     
     typedef yhash_set<TPeerId> TPeerSet;
@@ -93,12 +115,12 @@ private:
     TPeerSet PotentialFollowers;
 
     TDelayedInvoker::TCookie PingTimeoutCookie;
-    TIntrusivePtr<TFollowerPinger> FollowerPinger;
+    TFollowerPingerPtr FollowerPinger;
 
     TElectionManagerConfigPtr Config;
     TCellManagerPtr CellManager;
     IInvokerPtr ControlInvoker;
-    IElectionCallbacks::TPtr ElectionCallbacks;
+    IElectionCallbacksPtr ElectionCallbacks;
 
     // Corresponds to #ControlInvoker.
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -113,19 +135,20 @@ private:
     void DoStop();
 
     void StartVotingRound();
-    void StartVoteFor(TPeerId voteId, const TEpoch& voteEpoch);
-    void StartVoteForSelf();
+    void StartVoteFor(TPeerId voteId, const TEpochId& voteEpoch);
+    void StartVoting();
 
     void StartLeading();
-    void StartFollowing(TPeerId leaderId, const TEpoch& epoch);
+    void StartFollowing(TPeerId leaderId, const TEpochId& epoch);
     void StopLeading();
     void StopFollowing();
 
-    void StartEpoch(TPeerId leaderId, const TEpoch& epoch);
-    void StopEpoch();
+    void InitEpochContext(TPeerId leaderId, const TEpochId& epoch);
+    void SetState(EPeerState newState);
 
-    void UpdateState(EPeerState newState);
 };
+
+typedef TIntrusivePtr<TElectionManager> TElectionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

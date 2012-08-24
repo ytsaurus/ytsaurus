@@ -3,11 +3,14 @@
 
 #include <ytlib/misc/rvalue.h>
 
+#include <ytlib/rpc/message.h>
+
 namespace NYT {
 namespace NObjectServer {
 
 using namespace NYTree;
 using namespace NRpc;
+using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,6 +122,23 @@ std::vector<NYTree::TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::Ge
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IMessagePtr> TObjectServiceProxy::Execute(IMessagePtr innerRequestMessage)
+{
+    auto outerRequest = Execute();
+    outerRequest->add_part_counts(static_cast<int>(innerRequestMessage->GetParts().size()));
+    outerRequest->Attachments() = innerRequestMessage->GetParts();
+
+    return outerRequest->Invoke().Apply(BIND(
+        [] (TRspExecutePtr outerResponse) -> IMessagePtr {
+            auto error = outerResponse->GetError();
+            if (error.IsOK()) {
+                return CreateMessageFromParts(outerResponse->Attachments());
+            } else {
+                return CreateErrorResponseMessage(error);
+            }
+        }));
+}
 
 TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {

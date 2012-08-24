@@ -163,6 +163,10 @@ void TCompositeMetaState::Load(TInputStream* input)
 
 void TCompositeMetaState::ApplyMutation(TMutationContext* context) throw()
 {
+    if (context->GetType() == "")  {
+        // Empty mutation. It is used for debug purpose.
+        return;
+    }
     auto it = Methods.find(context->GetType());
     YCHECK(it != Methods.end());
     it->second.Run(context);

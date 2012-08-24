@@ -17,7 +17,7 @@ class TMutation
 public:
     TMutation(
         IMetaStateManagerPtr metaStateManager,
-        IInvokerPtr stateInvoker);
+        IInvokerPtr epochStateInvoker);
 
     void Commit();
     bool PostCommit();
@@ -41,9 +41,7 @@ public:
 
 private:
     IMetaStateManagerPtr MetaStateManager;
-    IInvokerPtr StateInvoker;
-    bool Started;
-    TCancelableContextPtr EpochContext;
+    IInvokerPtr EpochStateInvoker;
 
     TMutationRequest Request;
     TCallback<void(const TMutationResponse&)> OnSuccess_;

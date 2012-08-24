@@ -675,9 +675,6 @@ void TObjectManager::ExecuteVerb(
             action.Run(context);
         }
     } else {
-        if (!Bootstrap->GetMetaStateFacade()->ValidateActiveLeader(context))
-            return;
-
         TMetaReqExecute executeReq;
         *executeReq.mutable_object_id() = id.ObjectId.ToProto();
         *executeReq.mutable_transaction_id() = id.TransactionId.ToProto();

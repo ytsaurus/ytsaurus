@@ -48,7 +48,7 @@ public:
     {
         return TextifyYson(SyncYPathGet(RootService, path));
     }
-
+    
     std::vector<Stroka> List(const TYPath& path)
     {
         return SyncYPathList(RootService, path);
@@ -57,7 +57,10 @@ public:
     void Check(const TYPath& path, const Stroka& expected)
     {
         TYsonString output = Get(path);
-        EXPECT_EQ(TYsonString(expected), output);
+        EXPECT_TRUE(
+            AreNodesEqual(
+                ConvertToNode(TYsonString(expected)),
+                ConvertToNode(output)));
     }
 
     void CheckList(const TYPath& path, Stroka expected)

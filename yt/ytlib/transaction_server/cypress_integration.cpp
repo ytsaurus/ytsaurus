@@ -55,7 +55,7 @@ private:
     }
 };
 
-NCypressServer::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 

@@ -153,7 +153,6 @@ bool TChunkHolderService::CheckThrottling() const
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
-
 {
     UNUSED(response);
 

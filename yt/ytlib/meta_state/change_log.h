@@ -32,9 +32,12 @@ public:
     void Open();
     //! Creates new changelog.
     //! Throws exception on failure.
-    void Create(i32 prevRecordCount, const TEpoch& epoch);
+    void Create(i32 prevRecordCount, const TEpochId& epoch);
     //! Finalizes current changelog.
     void Finalize();
+    //! Reverts the effects of #FInalize, that is marks a finalize changelog as opened.
+    //! Debug method, use it with care.
+    void Definalize();
 
     //! Appends records to the changelog.
     void Append(i32 firstRecordId, const std::vector<TSharedRef>& records);
@@ -48,7 +51,7 @@ public:
     i32 GetId() const;
     i32 GetPrevRecordCount() const;
     i32 GetRecordCount() const;
-    const TEpoch& GetEpoch() const;
+    const TEpochId& GetEpoch() const;
     bool IsFinalized() const;
 
 private:

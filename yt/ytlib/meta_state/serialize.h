@@ -34,7 +34,7 @@ TSharedRef SerializeMutationRecord(
 
 void DeserializeMutationRecord(
     const TSharedRef& recordData,
-    NMetaState::NProto::TMutationHeader* mutationHeader,
+    NProto::TMutationHeader* mutationHeader,
     TSharedRef* mutationData);
 
 ////////////////////////////////////////////////////////////////////////////////

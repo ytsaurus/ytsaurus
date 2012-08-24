@@ -78,7 +78,7 @@ TChangeLogCache::TGetResult TChangeLogCache::Get(i32 id)
 TCachedAsyncChangeLogPtr TChangeLogCache::Create(
     i32 id,
     i32 prevRecordCount,
-    const TEpoch& epoch)
+    const TEpochId& epoch)
 {
     TInsertCookie cookie(id);
     if (!BeginInsert(&cookie)) {

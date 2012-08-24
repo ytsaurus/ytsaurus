@@ -486,32 +486,28 @@ protected:
         //! Options to pass to the handler.
         THandlerInvocationOptions Options;
 
-        TMethodDescriptor SetInvoker(IInvokerPtr invoker)
+        TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {
-            TMethodDescriptor result(*this);
-            result.Invoker = invoker;
-            return result;
+            Invoker = value;
+            return *this;
         }
 
-        TMethodDescriptor SetOneWay(bool value)
+        TMethodDescriptor& SetOneWay(bool value)
         {
-            TMethodDescriptor result(*this);
-            result.OneWay = value;
-            return result;
+            OneWay = value;
+            return *this;
         }
 
-        TMethodDescriptor SetHeavyRequest(bool value)
+        TMethodDescriptor& SetHeavyRequest(bool value)
         {
-            TMethodDescriptor result(*this);
-            result.Options.HeavyRequest = value;
-            return result;
+            Options.HeavyRequest = value;
+            return *this;
         }
 
-        TMethodDescriptor SetHeavyResponse(bool value)
+        TMethodDescriptor& SetHeavyResponse(bool value)
         {
-            TMethodDescriptor result(*this);
-            result.Options.HeavyResponse = value;
-            return result;
+            Options.HeavyResponse = value;
+            return *this;
         }
     };
 

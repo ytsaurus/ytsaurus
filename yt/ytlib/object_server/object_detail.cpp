@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "object_detail.h"
 #include "object_manager.h"
+#include "object_service.h"
 
 #include <ytlib/misc/string.h>
 
@@ -10,8 +11,16 @@
 
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/meta_state_facade.h>
+#include <ytlib/cell_master/config.h>
+
+#include <ytlib/rpc/message.h>
+#include <ytlib/rpc/rpc.pb.h>
+
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/meta_state/meta_state_manager.h>
+
+#include <stdexcept>
 
 namespace NYT {
 namespace NObjectServer {
@@ -19,15 +28,12 @@ namespace NObjectServer {
 using namespace NRpc;
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectBase::TObjectBase()
     : RefCounter(0)
-{ }
-
-TObjectBase::TObjectBase(const TObjectBase& other)
-    : RefCounter(-1)
 { }
 
 i32 TObjectBase::RefObject()
@@ -65,6 +71,17 @@ TObjectWithIdBase::TObjectWithIdBase()
 TObjectWithIdBase::TObjectWithIdBase(const TObjectId& id)
     : Id_(id)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLeaderFallbackException
+    : public std::runtime_error
+{
+public:
+    TLeaderFallbackException()
+        : std::runtime_error("Not a leader")
+    { }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,14 +128,64 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 
 void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
-    if (CachedGuardedInvokeCallback.IsNull()) {
-        CachedGuardedInvokeCallback = BIND(&TYPathServiceBase::GuardedInvoke, Unretained(this));
-    }
     Bootstrap->GetObjectManager()->ExecuteVerb(
         GetVersionedId(),
         IsWriteRequest(context),
         context,
-        CachedGuardedInvokeCallback);
+        BIND(&TObjectProxyBase::GuardedInvoke, MakeStrong(this)));
+}
+
+void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
+{
+    try {
+        DoInvoke(context);
+    } catch (const TLeaderFallbackException&) {
+        ForwardToLeader(context);
+    } catch (const TServiceException& ex) {
+        context->Reply(ex.GetError());
+    } catch (const std::exception& ex) {
+        context->Reply(TError(ex.what()));
+    }
+}
+
+void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
+{
+    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto epochContext = metaStateManager->GetEpochContext();
+
+    LOG_DEBUG("Forwarding request to leader (RequestId: %s, LeaderId: %d)",
+        ~context->GetRequestId().ToString(),
+        epochContext->LeaderId);
+
+    auto cellManager = metaStateManager->GetCellManager();
+    auto channel = cellManager->GetMasterChannel(epochContext->LeaderId);
+
+    // Update request path to include the current object id and transaction id.
+    auto requestMessage = context->GetRequestMessage();
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+    auto versionedId = GetVersionedId();
+    auto pathPrefix = WithTransaction(FromObjectId(versionedId.ObjectId), versionedId.TransactionId);
+    requestHeader.set_path(pathPrefix + requestHeader.path());
+    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+
+    TObjectServiceProxy proxy(channel);
+    // TODO(babenko): use proper timeout
+    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->MetaState->RpcTimeout);
+    proxy
+        .Execute(updatedRequestMessage)
+        .Subscribe(BIND(&TObjectProxyBase::OnLeaderResponse, MakeStrong(this), context));
+}
+
+void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, NBus::IMessagePtr responseMessage)
+{
+    NRpc::NProto::TResponseHeader responseHeader;
+    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+    auto error = TError::FromProto(responseHeader.error());
+    LOG_DEBUG("Received response for forwarded request (RequestId: %s)\n%s",
+        ~context->GetRequestId().ToString(),
+        ~error.ToString());
+    context->Reply(responseMessage);
 }
 
 void TObjectProxyBase::DoInvoke(IServiceContextPtr context)
@@ -131,7 +198,7 @@ void TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     TYPathServiceBase::DoInvoke(context);
 }
 
-bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContextPtr context) const
+bool TObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
@@ -206,6 +273,15 @@ bool TObjectProxyBase::IsRecovery() const
     return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
 }
 
+void TObjectProxyBase::ValidateLeaderStatus()
+{
+    auto status = Bootstrap->GetMetaStateFacade()->GetManager()->GetStateStatus();
+    if (status == NMetaState::EPeerStatus::Following) {
+        throw TLeaderFallbackException();
+    }
+    YCHECK(status == NMetaState::EPeerStatus::Leading);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
@@ -248,7 +324,6 @@ void TObjectProxyBase::TUserAttributeDictionary::SetYson(
     const Stroka& key,
     const NYTree::TYsonString& value)
 {
-    YASSERT(value.Data() != "");
     auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
         attributeSet = ObjectManager->CreateAttributes(ObjectId);

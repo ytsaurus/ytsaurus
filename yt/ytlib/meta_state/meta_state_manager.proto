@@ -71,7 +71,7 @@ message TReqPingFollower
 {
     required int32 segment_id = 1;
     required int32 record_count = 2;
-    required NYT.NProto.TGuid epoch = 3;
+    required NYT.NProto.TGuid epoch_id = 3;
 }
 
 message TRspPingFollower
@@ -85,7 +85,7 @@ message TReqApplyMutations
 {
     required int32 segment_id = 1;
     required int32 record_count = 2;
-    required NYT.NProto.TGuid epoch = 3;
+    required NYT.NProto.TGuid epoch_id = 3;
     // Records data is passed via attachments.
 }
 
@@ -100,7 +100,7 @@ message TReqAdvanceSegment
 {
     required int32 segment_id = 1;
     required int32 record_count = 2;
-    required NYT.NProto.TGuid epoch = 3;
+    required NYT.NProto.TGuid epoch_id = 3;
     required bool create_snapshot = 4;
 }
 
@@ -130,7 +130,7 @@ message TRspGetQuorum
 {
     required bytes leader_address = 1;
     repeated bytes follower_addresses = 2;
-    required NYT.NProto.TGuid epoch = 3;
+    required NYT.NProto.TGuid epoch_id = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

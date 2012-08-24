@@ -18,6 +18,7 @@ def get_master_config():
         "path" = ""
     };
     "max_changes_between_snapshots" = 1000000;
+    "max_batch_delay" = 0;
   };
   transactions = {
     default_transaction_timeout = 300000;

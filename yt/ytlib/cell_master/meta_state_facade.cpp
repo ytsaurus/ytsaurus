@@ -3,21 +3,33 @@
 #include "config.h"
 
 #include <ytlib/misc/periodic_invoker.h>
+
 #include <ytlib/actions/action_queue.h>
+
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
+
+#include <ytlib/rpc/bus_channel.h>
+
 #include <ytlib/cypress_server/cypress_manager.h>
+#include <ytlib/cypress_server/node_detail.h>
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/object_server/object_service_proxy.h>
+
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
+
 #include <ytlib/cell_master/bootstrap.h>
+
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/persistent_state_manager.h>
+
 #include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NCellMaster {
 
+using namespace NRpc;
 using namespace NMetaState;
 using namespace NYTree;
 using namespace NCypressServer;
@@ -41,6 +53,7 @@ public:
         TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
+        , Root(NULL)
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -55,6 +68,11 @@ public:
             StateQueue->GetInvoker(EStateThreadQueue::Default),
             MetaState,
             Bootstrap->GetRpcServer());
+
+        MetaStateManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, Unretained(this)));
+        MetaStateManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, Unretained(this)));
+        MetaStateManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, Unretained(this)));
+        MetaStateManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, Unretained(this)));
 
         for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
             WrappedInvokers.push_back(MetaStateManager->CreateStateInvokerWrapper(StateQueue->GetInvoker(queueIndex)));
@@ -86,29 +104,15 @@ public:
         return WrappedInvokers[queue];
     }
 
+    IInvokerPtr GetWrappedEpochInvoker(EStateThreadQueue queue) const
+    {
+        return WrappedEpochInvokers[queue];
+    }
+
     void Start()
     {
         MetaStateManager->Start();
         InitInvoker->Start();
-    }
-
-    bool ValidateActiveLeader(NRpc::IServiceContextPtr context)
-    {
-        if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Not a leader"));
-            return false;
-        }
-
-        if (!MetaStateManager->HasActiveQuorum()) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "No active quorum"));
-            return false;
-        }
-
-        return true;
     }
 
 private:
@@ -120,7 +124,27 @@ private:
     IMetaStateManagerPtr MetaStateManager;
     TPeriodicInvokerPtr InitInvoker;
     std::vector<IInvokerPtr> WrappedInvokers;
+    std::vector<IInvokerPtr> WrappedEpochInvokers;
 
+    TMapNode* Root;
+
+
+    void OnStartEpoch()
+    {
+        YCHECK(WrappedEpochInvokers.empty());
+        auto cancelableContext = MetaStateManager->GetEpochContext()->CancelableContext;
+        FOREACH (auto invoker, WrappedInvokers) {
+            WrappedEpochInvokers.push_back(cancelableContext->CreateInvoker(invoker));
+        }
+    }
+
+    void OnStopEpoch()
+    {
+        WrappedEpochInvokers.clear();
+    }
+
+
+    // TODO(babenko): move initializer to a separate class
     void OnTryInitialize()
     {
         if (IsInitialized()) {
@@ -133,11 +157,14 @@ private:
         }
     }
 
-    bool IsInitialized() const
+    bool IsInitialized()
     {
-        // 1 means just the root.
-        // TODO(babenko): fixme
-        return Bootstrap->GetCypressManager()->GetNodeCount() > 1;
+        if (!Root) {
+            auto cypressManager = Bootstrap->GetCypressManager();
+            Root = dynamic_cast<TMapNode*>(cypressManager->GetNode(cypressManager->GetRootNodeId()));
+            YCHECK(Root);
+        }
+        return !Root->KeyToChild().empty();
     }
 
     bool CanInitialize() const
@@ -162,7 +189,7 @@ private:
             auto transactionId = StartTransaction();
 
             TYsonString emptyMap("{}");
-            TYsonString opaqueEmptyMap("<opaque = true>{}");
+            TYsonString emptyOpaqueMap("<opaque = true>{}");
 
             SyncYPathSet(
                 rootService,
@@ -182,7 +209,7 @@ private:
             SyncYPathSet(
                 rootService,
                 WithTransaction("//sys/scheduler", transactionId),
-                opaqueEmptyMap);
+                emptyOpaqueMap);
 
             SyncYPathSet(
                 rootService,
@@ -197,7 +224,7 @@ private:
             SyncYPathSet(
                 rootService,
                 WithTransaction("//sys/operations", transactionId),
-                opaqueEmptyMap);
+                emptyOpaqueMap);
 
             SyncYPathCreate(
                 rootService,
@@ -211,7 +238,7 @@ private:
             SyncYPathSet(
                 rootService,
                 WithTransaction("//sys/masters", transactionId),
-                opaqueEmptyMap);
+                emptyOpaqueMap);
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
                 auto addressPath = "/" + EscapeYPathToken(address);
@@ -254,11 +281,6 @@ private:
                 rootService,
                 WithTransaction("//sys/chunk_lists", transactionId),
                 EObjectType::ChunkListMap);
-
-            SyncYPathCreate(
-                rootService,
-                WithTransaction("//sys/nodes", transactionId),
-                EObjectType::NodeMap);
 
             SyncYPathCreate(
                 rootService,
@@ -346,14 +368,21 @@ IInvokerPtr TMetaStateFacade::GetWrappedInvoker(EStateThreadQueue queue) const
     return Impl->GetWrappedInvoker(queue);
 }
 
+IInvokerPtr TMetaStateFacade::GetWrappedEpochInvoker(EStateThreadQueue queue) const
+{
+    return Impl->GetWrappedEpochInvoker(queue);
+}
+
 void TMetaStateFacade::Start()
 {
     Impl->Start();
 }
 
-bool TMetaStateFacade::ValidateActiveLeader(NRpc::IServiceContextPtr context)
+TMutationPtr TMetaStateFacade::CreateMutation(EStateThreadQueue queue)
 {
-    return Impl->ValidateActiveLeader(context);
+    return New<TMutation>(
+        GetManager(),
+        GetWrappedEpochInvoker(queue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

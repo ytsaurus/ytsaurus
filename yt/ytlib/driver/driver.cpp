@@ -120,7 +120,7 @@ public:
             entry.Descriptor,
             &request,
             LeaderChannel,
-            LeaderChannel, //entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
+            !Config->ReadFromFollowers || entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
             SchedulerChannel);
         auto command = entry.Factory.Run(&context);
         command->Execute();

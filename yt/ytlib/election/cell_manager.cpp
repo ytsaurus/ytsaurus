@@ -50,6 +50,11 @@ Stroka TCellManager::GetPeerAddress(TPeerId id) const
     return OrderedAddresses[id];
 }
 
+NRpc::IChannelPtr TCellManager::GetMasterChannel(TPeerId id) const
+{
+    return ChannelCache.GetChannel(GetPeerAddress(id));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NElection

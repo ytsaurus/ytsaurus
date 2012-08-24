@@ -53,7 +53,7 @@ public:
         TDecoratedMetaStatePtr metaState,
         TChangeLogCachePtr changeLogCache,
         TQuorumTrackerPtr followerTracker,
-        const TEpoch& epoch,
+        const TEpochId& epoch,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
 
@@ -111,7 +111,7 @@ private:
     NElection::TCellManagerPtr CellManager;
     TChangeLogCachePtr ChangeLogCache;
     TQuorumTrackerPtr FollowerTracker;
-    TEpoch Epoch;
+    TEpochId EpochId;
 
     //! Protects the rest.
     TSpinLock BatchSpinLock;

@@ -547,7 +547,6 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-
     void UpdateStatistics(TChunkList* chunkList, const TChunkTreeStatistics& statisticsDelta)
     {
         // Go upwards and apply delta.

@@ -3,6 +3,7 @@
 #include "public.h"
 #include "meta_state.h"
 
+#include <ytlib/rpc/service.h>
 #include <ytlib/meta_state/meta_state_manager.pb.h>
 
 namespace NYT {
@@ -23,7 +24,10 @@ protected:
     TCompositeMetaStatePtr MetaState;
 
     template <class TRequest, class TResponse>
-    void RegisterMethod(TCallback<TResponse(const TRequest& message)> handler);
+    void RegisterMethod(TCallback<TResponse(const TRequest&)> handler);
+    
+    template <class TRequest, class TResponse>
+    bool HasMethod(TCallback<TResponse(const TRequest&)> handler);
 
     bool IsLeader() const;
     bool IsFolllower() const;

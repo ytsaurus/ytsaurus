@@ -29,7 +29,7 @@ public:
         TNullable<Stroka> Address;
 
         //! Quorum epoch.
-        TGuid Epoch;
+        TGuid EpochId;
     };
 
     typedef TFuture<TResult> TAsyncResult;

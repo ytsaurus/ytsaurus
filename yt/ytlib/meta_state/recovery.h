@@ -22,7 +22,7 @@ public:
         TDecoratedMetaStatePtr decoratedState,
         TChangeLogCachePtr changeLogCache,
         TSnapshotStorePtr snapshotStore,
-        const TEpoch& epoch,
+        const TEpochId& epoch,
         TPeerId leaderId,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
@@ -102,7 +102,7 @@ protected:
     TDecoratedMetaStatePtr DecoratedState;
     TChangeLogCachePtr ChangeLogCache;
     TSnapshotStorePtr SnapshotStore;
-    TEpoch Epoch;
+    TEpochId EpochId;
     TPeerId LeaderId;
     IInvokerPtr EpochControlInvoker;
     IInvokerPtr EpochStateInvoker;
@@ -128,7 +128,7 @@ public:
         TDecoratedMetaStatePtr decoratedState,
         TChangeLogCachePtr changeLogCache,
         TSnapshotStorePtr snapshotStore,
-        const TEpoch& epoch,
+        const TEpochId& epochId,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker);
 
@@ -160,7 +160,7 @@ public:
         TDecoratedMetaStatePtr decoratedState,
         TChangeLogCachePtr changeLogCache,
         TSnapshotStorePtr snapshotStore,
-        const TEpoch& epoch,
+        const TEpochId& epoch,
         TPeerId leaderId,
         IInvokerPtr epochControlInvoker,
         IInvokerPtr epochStateInvoker,

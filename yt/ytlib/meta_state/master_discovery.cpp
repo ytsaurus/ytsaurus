@@ -84,9 +84,9 @@ private:
             return;
         }
 
-        LOG_DEBUG("Received quorum information from peer %s (Epoch: %s, LeaderAddress: %s, FollowerAddresses: [%s])",
+        LOG_DEBUG("Received quorum information from peer %s (EpochId: %s, LeaderAddress: %s, FollowerAddresses: [%s])",
             ~address,
-            ~TEpoch::FromProto(response->epoch()).ToString(),
+            ~TEpochId::FromProto(response->epoch_id()).ToString(),
             ~response->leader_address(),
             ~JoinToString(response->follower_addresses()));
 
@@ -134,7 +134,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetMaster()
                 } else {
                     result.Address = quorum->follower_addresses().Get(id);
                 }
-                result.Epoch = TGuid::FromProto(quorum->epoch());
+                result.EpochId = TGuid::FromProto(quorum->epoch_id());
             }
             return MakeFuture(MoveRV(result)); 
         })
@@ -148,7 +148,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetLeader()
             TResult result;
             if (quorum) {
                 result.Address = quorum->leader_address();
-                result.Epoch = TGuid::FromProto(quorum->epoch());
+                result.EpochId = TGuid::FromProto(quorum->epoch_id());
             }
             return MakeFuture(MoveRV(result));
         })
@@ -163,7 +163,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetFollower()
             if (quorum && quorum->follower_addresses_size() > 0) {
                 int id = RandomNumber<unsigned int>(quorum->follower_addresses_size());
                 result.Address = quorum->follower_addresses().Get(id);
-                result.Epoch = TGuid::FromProto(quorum->epoch());
+                result.EpochId = TGuid::FromProto(quorum->epoch_id());
             }
             return MakeFuture(MoveRV(result)); 
         })

@@ -11,20 +11,14 @@ namespace NMetaState {
 
 TMutation::TMutation(
     IMetaStateManagerPtr metaStateManager,
-    IInvokerPtr stateInvoker)
+    IInvokerPtr epochStateInvoker)
     : MetaStateManager(MoveRV(metaStateManager))
-    , StateInvoker(MoveRV(stateInvoker))
-    , EpochContext(MetaStateManager->GetEpochContext())
+    , EpochStateInvoker(MoveRV(epochStateInvoker))
 { }
 
 bool TMutation::PostCommit()
 {
-    auto this_ = MakeStrong(this);
-    return StateInvoker->Invoke(BIND([=] () {
-        if (!this_->EpochContext->IsCanceled()) {
-            this_->Commit();
-        }
-    }));
+    return EpochStateInvoker->Invoke(BIND(&TMutation::Commit, MakeStrong(this)));
 }
 
 void TMutation::Commit()

@@ -5,7 +5,7 @@
 
 #include <ytlib/rpc/service.h>
 
-#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/meta_state_service.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -13,7 +13,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkService
-    : public NRpc::TServiceBase
+    : public NCellMaster::TMetaStateServiceBase
 {
 public:
     explicit TChunkService(NCellMaster::TBootstrap* bootstrap);
@@ -21,8 +21,6 @@ public:
 private:
     typedef TChunkService TThis;
     typedef TChunkServiceProxy::EErrorCode EErrorCode;
-
-    NCellMaster::TBootstrap* Bootstrap;
 
     void ValidateNodeId(TNodeId nodeId) const;
     void ValidateTransactionId(const TTransactionId& transactionId) const;

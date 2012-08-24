@@ -53,6 +53,14 @@ void TMetaStatePart::RegisterMethod(
     YCHECK(MetaState->Methods.insert(MakePair(mutationType, wrappedHandler)).second);
 }
 
+template <class TRequest, class TResponse>
+bool TMetaStatePart::HasMethod(
+    TCallback<TResponse(const TRequest&)> handler)
+{
+    Stroka mutationType = TRequest().GetTypeName();
+    return MetaState->Methods.count(mutationType) > 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NMetaState

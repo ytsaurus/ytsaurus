@@ -27,6 +27,28 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnsafeEnvironmentBuilder
+    : public IEnvironmentBuilder
+{
+public:
+    TUnsafeEnvironmentBuilder()
+        : ProxyPath(GetExecPath())
+    { }
+
+    IProxyControllerPtr CreateProxyController(
+        NYTree::INodePtr config, 
+        const TJobId& jobId, 
+        const Stroka& workingDirectory) override;
+
+private:
+    friend class TUnsafeProxyController;
+
+    Stroka ProxyPath;
+    TMutex ForkMutex;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifndef _win_
 
 namespace {
@@ -47,28 +69,6 @@ TError StatusToError(int status)
 }
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUnsafeEnvironmentBuilder
-    : public IEnvironmentBuilder
-{
-public:
-    TUnsafeEnvironmentBuilder()
-        : ProxyPath(GetExecPath())
-    { }
-
-    IProxyControllerPtr CreateProxyController(
-        NYTree::INodePtr config, 
-        const TJobId& jobId, 
-        const Stroka& workingDirectory);
-
-private:
-    friend class TUnsafeProxyController;
-
-    Stroka ProxyPath;
-    TMutex ForkMutex;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

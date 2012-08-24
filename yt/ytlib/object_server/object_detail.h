@@ -19,6 +19,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectBase
+    : private TNonCopyable
 {
 public:
     TObjectBase();
@@ -43,8 +44,6 @@ public:
     i32 GetObjectRefCounter() const;
 
 protected:
-    TObjectBase(const TObjectBase& other);
-
     void Save(TOutputStream* output) const;
     void Load(TInputStream* input);
 
@@ -86,14 +85,16 @@ public:
 protected:
     NCellMaster::TBootstrap* Bootstrap;
     TObjectId Id;
-    TCallback<void(NRpc::IServiceContextPtr)> CachedGuardedInvokeCallback;
     TAutoPtr<NYTree::IAttributeDictionary> UserAttributes;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
+    //! Returns the full object id that coincides with #Id
+    //! for non-versioned objects and additionally includes transaction id for
+    //! versioned ones.
     virtual TVersionedObjectId GetVersionedId() const;
 
-    // NYTree::TYPathServiceBase members
+    void GuardedInvoke(NRpc::IServiceContextPtr context);
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
 
@@ -127,6 +128,10 @@ protected:
     };
 
     bool IsRecovery() const;
+    void ValidateLeaderStatus();
+    void ForwardToLeader(NRpc::IServiceContextPtr context);
+    void OnLeaderResponse(NRpc::IServiceContextPtr context, NBus::IMessagePtr responseMessage);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

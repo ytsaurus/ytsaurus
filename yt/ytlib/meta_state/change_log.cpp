@@ -35,7 +35,7 @@ i32 TChangeLog::GetRecordCount() const
     return Impl->GetRecordCount();
 }
 
-const TEpoch& TChangeLog::GetEpoch() const
+const TEpochId& TChangeLog::GetEpoch() const
 {
     return Impl->GetEpoch();
 }
@@ -50,7 +50,7 @@ void TChangeLog::Open()
     Impl->Open();
 }
 
-void TChangeLog::Create(i32 prevRecordCount, const TEpoch& epoch)
+void TChangeLog::Create(i32 prevRecordCount, const TEpochId& epoch)
 {
     Impl->Create(prevRecordCount, epoch);
 }
@@ -58,6 +58,11 @@ void TChangeLog::Create(i32 prevRecordCount, const TEpoch& epoch)
 void TChangeLog::Finalize()
 {
     Impl->Finalize();
+}
+
+void TChangeLog::Definalize()
+{
+    Impl->Definalize();
 }
 
 void TChangeLog::Append(i32 firstRecordId, const std::vector<TSharedRef>& records)

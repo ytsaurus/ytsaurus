@@ -12,7 +12,7 @@ extern NLog::TLogger ElectionLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TGuid TEpoch;
+typedef TGuid TEpochId;
 typedef i64 TPeerPriority;
 typedef i32 TPeerId;
 

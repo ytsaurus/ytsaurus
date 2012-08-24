@@ -15,6 +15,8 @@ namespace NProfiling {
 
 using namespace NYTree;
 
+#ifndef _win_
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TDuration TResourceTracker::UpdateInterval = TDuration::Seconds(1);
@@ -116,7 +118,11 @@ void TResourceTracker::EnqueueMemoryUsage()
     Profiler.Enqueue("/total/memory", residentSetSize);
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
+
+#endif
+
 
 } // namespace NProfiling
 } // namespace NYT

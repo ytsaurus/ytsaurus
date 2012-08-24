@@ -35,29 +35,16 @@ public:
 
     IInvokerPtr GetWrappedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
 
-    bool ValidateActiveLeader(NRpc::IServiceContextPtr context);
+    IInvokerPtr GetWrappedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
 
     template <class TTarget, class TRequest, class TResponse>
     NMetaState::TMutationPtr CreateMutation(
         TTarget* target,
         const TRequest& request,
-        TResponse (TTarget::* method)(const TRequest& request),
-        EStateThreadQueue queue = EStateThreadQueue::Default)
-    {
-        return NMetaState::CreateMutation<TTarget, TRequest, TResponse>(
-            GetManager(),
-            GetWrappedInvoker(queue),
-            target,
-            request,
-            method);
-    }
+        TResponse (TTarget::* method)(const TRequest&),
+        EStateThreadQueue queue = EStateThreadQueue::Default);
 
-    NMetaState::TMutationPtr CreateMutation(EStateThreadQueue queue = EStateThreadQueue::Default)
-    {
-        return New<NMetaState::TMutation>(
-            GetManager(),
-            GetWrappedInvoker(queue));
-    }
+    NMetaState::TMutationPtr CreateMutation(EStateThreadQueue queue = EStateThreadQueue::Default);
 
 private:
     class TImpl;
@@ -70,3 +57,6 @@ private:
 } // namespace NCellMaster
 } // namespace NYT
 
+#define META_STATE_FACADE_INL_H_
+#include "meta_state_facade-inl.h"
+#undef META_STATE_FACADE_INL_H_

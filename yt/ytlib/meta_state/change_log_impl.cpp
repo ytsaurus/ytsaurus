@@ -132,7 +132,7 @@ void AtomicWriteHeader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChangeLog::TImpl::Create(i32 prevRecordCount, const TEpoch& epoch)
+void TChangeLog::TImpl::Create(i32 prevRecordCount, const TEpochId& epoch)
 {
     YCHECK(State == EState::Uninitialized);
 
@@ -240,6 +240,7 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
         IndexFile->Resize(sizeof(TLogIndexHeader) + Index.size() * sizeof(TLogIndexRecord));
         RefreshIndexHeader();
         File->Resize(CurrentFilePosition);
+        File->Seek(0, sEnd);
     }
 }
 
@@ -259,6 +260,15 @@ void TChangeLog::TImpl::Flush()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChangeLog::TImpl::WriteHeader(bool finalized)
+{
+    TGuard<TMutex> guard(Mutex);
+
+    File->Seek(0, sSet);
+    WritePod(*File, TLogHeader(Id, Epoch, PrevRecordCount, finalized));
+    File->Flush();
+}
+
 void TChangeLog::TImpl::Finalize()
 {
     YCHECK(State != EState::Uninitialized);
@@ -267,18 +277,29 @@ void TChangeLog::TImpl::Finalize()
     }
 
     LOG_DEBUG("Finalizing changelog");
-
-    TGuard<TMutex> guard(Mutex);
-
-    // Write to the header that changelog is finalized.
-    File->Seek(0, sSet);
-    WritePod(*File, TLogHeader(Id, Epoch, PrevRecordCount, /*Finalized*/ true));
-    File->Flush();
-
+    WriteHeader(true);
     State = EState::Finalized;
-
     LOG_DEBUG("Changelog finalized");
 }
+
+void TChangeLog::TImpl::Definalize()
+{
+    YCHECK(State == EState::Finalized);
+
+    LOG_DEBUG("Definalizing changelog");
+
+    WriteHeader(false);
+    
+    {
+        // Additionally seek to the end of changelog
+        TGuard<TMutex> guard(Mutex);
+        File->Seek(0, sEnd);
+    }
+    State = EState::Open;
+
+    LOG_DEBUG("Changelog definalized");
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -297,7 +318,7 @@ i32 TChangeLog::TImpl::GetRecordCount() const
     return RecordCount;
 }
 
-const TEpoch& TChangeLog::TImpl::GetEpoch() const
+const TEpochId& TChangeLog::TImpl::GetEpoch() const
 {
     YCHECK(State != EState::Uninitialized);
     return Epoch;

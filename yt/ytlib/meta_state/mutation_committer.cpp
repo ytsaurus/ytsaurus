@@ -136,13 +136,13 @@ private:
 
                 LOG_DEBUG("Sending mutations to follower %d", id);
 
-                auto request =
-                    cellManager->GetMasterProxy<TProxy>(id)
-                    ->ApplyMutations()
-                    ->SetTimeout(Committer->Config->RpcTimeout);
+                TProxy proxy(cellManager->GetMasterChannel(id));
+                proxy.SetDefaultTimeout(Committer->Config->RpcTimeout);
+
+                auto request = proxy.ApplyMutations();
                 request->set_segment_id(StartVersion.SegmentId);
                 request->set_record_count(StartVersion.RecordCount);
-                *request->mutable_epoch() = Committer->Epoch.ToProto();
+                *request->mutable_epoch_id() = Committer->EpochId.ToProto();
                 FOREACH (const auto& mutation, BatchedRecordsData) {
                     request->Attachments().push_back(mutation);
                 }
@@ -243,7 +243,7 @@ TLeaderCommitter::TLeaderCommitter(
     TDecoratedMetaStatePtr decoratedState,
     TChangeLogCachePtr changeLogCache,
     TQuorumTrackerPtr followerTracker,
-    const TEpoch& epoch,
+    const TEpochId& epochId,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
     : TCommitter(decoratedState, epochControlInvoker, epochStateInvoker)
@@ -251,7 +251,7 @@ TLeaderCommitter::TLeaderCommitter(
     , CellManager(cellManager)
     , ChangeLogCache(changeLogCache)
     , FollowerTracker(followerTracker)
-    , Epoch(epoch)
+    , EpochId(epochId)
 {
     YASSERT(config);
     YASSERT(cellManager);
