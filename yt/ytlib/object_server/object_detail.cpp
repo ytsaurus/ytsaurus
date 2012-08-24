@@ -322,7 +322,6 @@ void TObjectProxyBase::TUserAttributeDictionary::SetYson(
     const Stroka& key,
     const NYTree::TYsonString& value)
 {
-    YASSERT(value.Data() != "");
     auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
         attributeSet = ObjectManager->CreateAttributes(ObjectId);
