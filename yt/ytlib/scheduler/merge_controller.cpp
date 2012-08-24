@@ -471,7 +471,7 @@ private:
 
     virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
-        return IsPassthroughChunkImpl(Spec->CombineChunks, inputChunk);
+        return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
     virtual std::vector<TYPath> GetInputTablePaths() const override
