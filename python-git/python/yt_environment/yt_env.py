@@ -97,32 +97,40 @@ class YTEnv(unittest.TestCase):
             self.clear_environment()
             raise
 
+    def kill_process(self, proc, name):
+        ok = True
+        message = ""
+        proc.poll()
+        if proc.returncode is not None:
+            ok = False
+            message += '%s (pid %d) is already terminated with exit status %d\n' % (name, proc.pid, proc.returncode)
+        else:
+            os.killpg(proc.pid, signal.SIGKILL)
+
+        time.sleep(0.250)
+
+        # now try to kill unkilled process
+        for i in xrange(50):
+            proc.poll()
+            if proc.returncode is not None:
+                break
+            logging.warning('%s (pid %d) was not killed by the kill command' % (name, proc.pid))
+
+            os.killpg(proc.pid, signal.SIGKILL)
+            time.sleep(0.100)
+
+        if proc.returncode is None:
+            ok = False
+            message += 'Alarm! %s (pid %d) was not killed after 50 iterations\n' % (name, proc.pid)
+        return message, ok
+
     def clear_environment(self):
         ok = True
         message = ""
         for p, name in self.process_to_kill:
-            p.poll()
-            if p.returncode is not None:
-                ok = False
-                message += '%s (pid %d) is already terminated with exit status %d\n' % (name, p.pid, p.returncode)
-            else:
-                os.killpg(p.pid, signal.SIGKILL)
-
-            time.sleep(0.250)
-
-            # now try to kill unkilled process
-            for i in xrange(50):
-                p.poll()
-                if p.returncode is not None:
-                    break
-                logging.warning('%s (pid %d) was not killed by the kill command' % (name, p.pid))
-
-                os.killpg(p.pid, signal.SIGKILL)
-                time.sleep(0.100)
-
-            if p.returncode is None:
-                ok = False
-                message += 'Alarm! %s (pid %d) was not killed after 50 iterations\n' % (name, p. pid)
+            p_message, p_ok = self.kill_process(p, name)
+            if not p_ok: ok = False
+            message += p_message
 
         assert ok, message
 
@@ -165,7 +173,7 @@ class YTEnv(unittest.TestCase):
         self.pids_file = open(self._pids_filename, 'wt')
 
 
-    def _run_masters(self):
+    def _run_masters(self, prepare_files=True):
         if self.NUM_MASTERS == 0: return
 
         short_hostname = socket.gethostname()
@@ -173,16 +181,19 @@ class YTEnv(unittest.TestCase):
 
         self._master_addresses = ["%s:%s" % (hostname, self._ports["master"] + i)
                                   for i in xrange(self.NUM_MASTERS)]
+        self._master_configs = []
 
         logs = []
         config_paths = []
 
-        os.mkdir(os.path.join(self.path_to_run, 'master'))
+        if prepare_files:
+            os.mkdir(os.path.join(self.path_to_run, 'master'))
         for i in xrange(self.NUM_MASTERS):
             config = configs.get_master_config()
 
             current = os.path.join(self.path_to_run, 'master', str(i))
-            os.mkdir(current)
+            if prepare_files:
+                os.mkdir(current)
 
             config['meta_state']['cell']['addresses'] = self._master_addresses
             config['meta_state']['changelogs']['path'] = \
@@ -196,8 +207,11 @@ class YTEnv(unittest.TestCase):
 
             logs.append(config['logging']['writers']['file']['file_name'])
 
+            self._master_configs.append(config)
+
             config_path = os.path.join(current, 'master_config.yson')
-            write_config(config, config_path)
+            if prepare_files:
+                write_config(config, config_path)
             config_paths.append(config_path)
 
 

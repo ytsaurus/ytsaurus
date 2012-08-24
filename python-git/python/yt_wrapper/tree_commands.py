@@ -5,7 +5,6 @@ from http import make_request
 import os
 import string
 import random
-from itertools import imap, izip
 
 def get(path, with_attributes=False, check_errors=True):
     return make_request("GET", "get",
