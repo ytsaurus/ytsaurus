@@ -12,6 +12,7 @@
 #include <ytlib/rpc/bus_channel.h>
 
 #include <ytlib/cypress_server/cypress_manager.h>
+#include <ytlib/cypress_server/node_detail.h>
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_server/object_service_proxy.h>
@@ -52,6 +53,7 @@ public:
         TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
+        , Root(NULL)
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -124,6 +126,8 @@ private:
     std::vector<IInvokerPtr> WrappedInvokers;
     std::vector<IInvokerPtr> WrappedEpochInvokers;
 
+    TMapNode* Root;
+
 
     void OnStartEpoch()
     {
@@ -153,11 +157,14 @@ private:
         }
     }
 
-    bool IsInitialized() const
+    bool IsInitialized()
     {
-        // 1 means just the root.
-        // TODO(babenko): fixme
-        return Bootstrap->GetCypressManager()->GetNodeCount() > 1;
+        if (!Root) {
+            auto cypressManager = Bootstrap->GetCypressManager();
+            Root = dynamic_cast<TMapNode*>(cypressManager->GetNode(cypressManager->GetRootNodeId()));
+            YCHECK(Root);
+        }
+        return !Root->KeyToChild().empty();
     }
 
     bool CanInitialize() const
