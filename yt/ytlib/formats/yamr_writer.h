@@ -2,11 +2,9 @@
 
 #include "public.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <ytlib/misc/blob_output.h>
-
-#include <ytlib/ytree/yson_consumer.h>
-#include <ytlib/ytree/lexer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -15,11 +13,13 @@ namespace NFormats {
 
 //! Note: #TYamrWriter supports only tabular data
 class TYamrWriter
-    : public virtual NYTree::TYsonConsumerBase
+    : public virtual TFormatsConsumerBase
 {
 public:
     explicit TYamrWriter(
         TOutputStream* stream,
+        // TODO(ignat): replace default value with YCHECK.
+        // Default value is used in tests.
         TYamrFormatConfigPtr config = NULL);
 
     ~TYamrWriter();
@@ -37,8 +37,6 @@ public:
     virtual void OnEndMap() override;
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
-
-    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type) override;
 
 private:
     TOutputStream* Stream;
@@ -66,8 +64,6 @@ private:
         (ExpectingValue)
     );
     EState State;
-
-    NYTree::TLexer Lexer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

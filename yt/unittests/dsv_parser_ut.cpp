@@ -192,9 +192,7 @@ TEST_F(TTskvParserTest, Escaping)
 
     Stroka input =
         "t\\s\\kv\n"
-
         "tskv" "\t" "a\\=b"  "="  "c\\=d or e=f" "\n" // Note: unescaping is less strict
-
         "tskv" "\t"
         "key_with_\\t,\\\\_and_\\n"
         "="

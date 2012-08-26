@@ -25,6 +25,6 @@ void ParseYamr(
     TYamrFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT

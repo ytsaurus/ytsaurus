@@ -299,7 +299,7 @@ TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType
         case EFormatType::Dsv: {
             auto config = New<TDsvFormatConfig>();
             config->Load(ConvertToNode(&format.Attributes())->AsMap());
-            return new TDsvParser(consumer, config);
+            return CreateParserForDsv(consumer, config);
         }
         case EFormatType::Yamr: {
             auto config = New<TYamrFormatConfig>();
