@@ -35,13 +35,13 @@ struct TRequestBase
 struct TTransactedRequest
     : public TRequestBase
 {
-    NObjectServer::TTransactionId TransactionId;
+    NObjectClient::TTransactionId TransactionId;
     bool PingAncestorTransactions;
 
     TTransactedRequest()
     {
         Register("transaction_id", TransactionId)
-            .Default(NObjectServer::NullTransactionId);
+            .Default(NObjectClient::NullTransactionId);
         Register("ping_ancestor_transactions", PingAncestorTransactions)
             .Default(false);
     }

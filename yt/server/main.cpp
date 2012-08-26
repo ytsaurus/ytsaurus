@@ -11,24 +11,24 @@
 
 #include <ytlib/profiling/profiling_manager.h>
 
-#include <ytlib/chunk_holder/config.h>
-
-#include <ytlib/cell_master/bootstrap.h>
-#include <ytlib/cell_master/config.h>
-#include <ytlib/cell_node/bootstrap.h>
-#include <ytlib/cell_node/config.h>
-#include <ytlib/cell_node/bootstrap.h>
-#include <ytlib/cell_scheduler/config.h>
-#include <ytlib/cell_scheduler/bootstrap.h>
-
 #include <ytlib/scheduler/config.h>
-
-#include <ytlib/job_proxy/config.h>
-#include <ytlib/job_proxy/job_proxy.h>
 
 #include <ytlib/meta_state/async_change_log.h>
 
 #include <tclap/CmdLine.h>
+
+#include <server/chunk_holder/config.h>
+
+#include <server/cell_master/bootstrap.h>
+#include <server/cell_master/config.h>
+#include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
+#include <server/cell_node/bootstrap.h>
+#include <server/cell_scheduler/config.h>
+#include <server/cell_scheduler/bootstrap.h>
+
+#include <server/job_proxy/config.h>
+#include <server/job_proxy/job_proxy.h>
 
 #include <yt/build.h>
 

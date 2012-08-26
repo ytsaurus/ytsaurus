@@ -24,8 +24,6 @@
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/scheduler_channel.h>
 
-#include <ytlib/job_proxy/config.h>
-
 namespace NYT {
 namespace NDriver {
 

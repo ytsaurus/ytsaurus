@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/object_server/object_ypath_proxy.h>
+#include <ytlib/object_client/object_ypath_proxy.h>
+
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 namespace NYT {
@@ -19,7 +20,7 @@ NYTree::TYPath WithTransaction(const NYTree::TYPath& path, const TTransactionId&
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressYPathProxy
-    : public NObjectServer::TObjectYPathProxy
+    : public NObjectClient::TObjectYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, Create);
     DEFINE_YPATH_PROXY_METHOD(NProto, Lock);
@@ -28,5 +29,6 @@ struct TCypressYPathProxy
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NCypressClient
 } // namespace NYT

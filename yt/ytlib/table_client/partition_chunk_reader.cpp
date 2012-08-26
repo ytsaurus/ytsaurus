@@ -5,7 +5,7 @@
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/misc/serialize.h>
@@ -60,15 +60,15 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
 
     LOG_DEBUG("Chunk meta received");
 
-    if (result.Value().type() != NChunkServer::EChunkType::Table) {
+    if (result.Value().type() != EChunkType::Table) {
         LOG_FATAL("Invalid chunk type %d", result.Value().type());
     }
 
     if (result.Value().version() != FormatVersion) {
         auto message = Sprintf(
-            "Invalid chunk format version (Expected: %d, ChunkVersion: %d)", 
-            result.Value().version(),
-            FormatVersion);
+            "Invalid chunk format version (Expected: %d, Actual: %d)", 
+            FormatVersion,
+            result.Value().version());
         LOG_WARNING("%s", ~message);
         State.Fail(TError(message));
         return;
@@ -226,7 +226,7 @@ TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateNewReader(
     const NProto::TInputChunk& inputChunk, 
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
-    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
 
     return New<TPartitionChunkReader>(
         Config,

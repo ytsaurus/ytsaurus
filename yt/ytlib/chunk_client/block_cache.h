@@ -25,7 +25,7 @@ struct IBlockCache
      *  If the block was not downloaded from another peer, it must be Null.
      */
     virtual void Put(
-        const NChunkServer::TBlockId& id,
+        const TBlockId& id,
         const TSharedRef& data,
         const TNullable<Stroka>& sourceAddress) = 0;
 
@@ -33,7 +33,7 @@ struct IBlockCache
     /*!
      *  If no such block is present, then NULL is returned.
      */
-    virtual TSharedRef Find(const NChunkServer::TBlockId& id) = 0;
+    virtual TSharedRef Find(const TBlockId& id) = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

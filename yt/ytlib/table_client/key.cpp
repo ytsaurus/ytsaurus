@@ -2,7 +2,7 @@
 #include "key.h"
 
 #include <ytlib/misc/string.h>
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -128,7 +128,7 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk
 
     std::vector<TRefCountedInputChunkPtr> result;
 
-    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(inputChunk.extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
 
     const auto& startLimit = inputChunk.slice().start_limit();
     // Inclusive.

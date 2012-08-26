@@ -1,14 +1,8 @@
 set( DIRS
   actions
   election
-  cell_master
-  cell_node
-  cell_scheduler
-  chunk_holder
   chunk_client
-  chunk_server
   codecs
-  transaction_server
   transaction_client
   logging
   meta_state
@@ -16,21 +10,16 @@ set( DIRS
   rpc
   bus
   ytree
-  cypress_server
   cypress_client
   orchid
-  file_server
   file_client
-  table_server
   table_client
+  object_client
   monitoring
   profiling
   driver
-  object_server
-  scheduler
-  exec_agent
-  job_proxy
   formats
+  scheduler
 )
 
 foreach( _d_ ${DIRS} )
@@ -38,7 +27,12 @@ foreach( _d_ ${DIRS} )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
 
-add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" YT_SOURCE_FILES )
+add_msvc_precompiled_header(
+  "stdafx.h"
+  "stdafx.cpp"
+  YT_SOURCE_FILES
+)
+
 add_library( ytlib STATIC
   ${YT_SOURCE_FILES}
 )

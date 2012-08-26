@@ -6,7 +6,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-using namespace NChunkHolder::NProto;
+using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 

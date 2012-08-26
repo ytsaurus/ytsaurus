@@ -5,19 +5,21 @@
 #include "multi_chunk_sequential_reader.h"
 #include "private.h"
 
-#include <ytlib/table_server/table_ypath_proxy.h>
-#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/misc/sync.h>
+
+#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/transaction_client/transaction.h>
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NTableClient {
 
 using namespace NYTree;
 using namespace NCypressClient;
-using namespace NTableServer;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +55,7 @@ void TTableReader::Open()
 
     LOG_INFO("Fetching table info");
     auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
-    fetchReq->add_extension_tags(TProtoExtensionTag<NChunkHolder::NProto::TMiscExt>::Value);
+    fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
     fetchReq->set_fetch_node_addresses(true);
 
     auto fetchRsp = Proxy.Execute(fetchReq).Get();

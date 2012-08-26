@@ -3,13 +3,18 @@
 #include "public.h"
 
 #include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/codecs/codec.h>
+
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/object_server/object_service_proxy.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/remote_reader.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
@@ -34,7 +39,7 @@ public:
 
     //! Opens the reader.
     void Open(
-        const NChunkServer::TChunkId& chunkId,
+        const NChunkClient::TChunkId& chunkId,
         const std::vector<Stroka>& nodeAddresses);
 
     //! Returns the size of the file.
@@ -55,7 +60,7 @@ private:
     i32 BlockCount;
     i32 BlockIndex;
 protected:
-    NObjectServer::TObjectServiceProxy Proxy;
+    NObjectClient::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 
 private:

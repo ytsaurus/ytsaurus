@@ -1,7 +1,6 @@
 #include "cypress_executors.h"
 #include "preprocess.h"
 
-#include <ytlib/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
 
 namespace NYT {
@@ -123,7 +122,7 @@ Stroka TListExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateExecutor::TCreateExecutor()
-    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Null, "NODE_TYPE")
+    : TypeArg("type", "type of node", true, NObjectClient::EObjectType::Null, "NODE_TYPE")
     , PathArg("path", "path for a new object in Cypress", true, "", "YPATH")
 {
     CmdLine.add(TypeArg);

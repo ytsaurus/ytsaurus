@@ -46,9 +46,9 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 
     if (CurrentReaderIndex < TBase::InputChunks.size()) {
         State.StartOperation();
-        Readers[CurrentReaderIndex].Subscribe(BIND(
-            &TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk,
-            MakeWeak(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
+        Readers[CurrentReaderIndex].Subscribe(
+            BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
+                .Via(NChunkClient::ReaderThread->GetInvoker()));
     }
 
     return State.GetOperationError();
@@ -109,9 +109,9 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
             if (!State.HasRunningOperation())
                 State.StartOperation();
 
-            Readers[CurrentReaderIndex].Subscribe(BIND(
-                &TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk,
-                MakeWeak(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
+            Readers[CurrentReaderIndex].Subscribe(
+                BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
+                    .Via(NChunkClient::ReaderThread->GetInvoker()));
             return false;
         }
     }
@@ -136,9 +136,8 @@ bool TMultiChunkSequentialReader<TChunkReader>::FetchNextItem()
         return true;
     } else {
         State.StartOperation();
-        TBase::CurrentReader_->GetReadyEvent().Subscribe(BIND(
-            IgnoreResult(&TMultiChunkSequentialReader<TChunkReader>::OnItemFetched), 
-            MakeWeak(this)));
+        TBase::CurrentReader_->GetReadyEvent().Subscribe(
+            BIND(IgnoreResult(&TMultiChunkSequentialReader<TChunkReader>::OnItemFetched), MakeWeak(this)));
         return false;
     }
 }

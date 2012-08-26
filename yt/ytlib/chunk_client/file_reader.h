@@ -2,7 +2,7 @@
 
 #include "async_reader.h"
 #include "format.h"
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 
 #include <util/system/file.h>
 
@@ -31,7 +31,7 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    NChunkHolder::NProto::TChunkMeta GetChunkMeta(const std::vector<int>* tags = NULL) const;
+    NChunkClient::NProto::TChunkMeta GetChunkMeta(const std::vector<int>* tags = NULL) const;
 
     //! Implements IChunkReader and calls #ReadBlock.
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
@@ -53,7 +53,7 @@ private:
     THolder<TFile> DataFile;
     i64 InfoSize;
     i64 DataSize;
-    NChunkHolder::NProto::TChunkMeta ChunkMeta;
+    NChunkClient::NProto::TChunkMeta ChunkMeta;
 
 };
 

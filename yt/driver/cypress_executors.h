@@ -79,7 +79,7 @@ public:
     TCreateExecutor();
 
 private:
-    typedef TCLAP::UnlabeledValueArg<NObjectServer::EObjectType> TTypeArg;
+    typedef TCLAP::UnlabeledValueArg<NObjectClient::EObjectType> TTypeArg;
     TTypeArg TypeArg;
 
     TUnlabeledStringArg PathArg;

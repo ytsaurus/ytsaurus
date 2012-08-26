@@ -10,19 +10,15 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/remote_writer.h>
-
-#include <ytlib/chunk_server/public.h>
-#include <ytlib/chunk_server/chunk_service_proxy.h>
-
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/table_client/table_reader.pb.h>
 
-#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -38,7 +34,7 @@ public:
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkServer::TChunkListId& parentChunkList,
+        const NChunkClient::TChunkListId& parentChunkList,
         const TNullable<TKeyColumns>& keyColumns);
 
     ~TChunkSequenceWriterBase();
@@ -87,7 +83,7 @@ protected:
     void CreateNextSession();
     virtual void InitCurrentSession(TSession nextSession);
 
-    void OnChunkCreated(NTransactionServer::TTransactionYPathProxy::TRspCreateObjectPtr rsp);
+    void OnChunkCreated(NTransactionClient::TTransactionYPathProxy::TRspCreateObjectPtr rsp);
     virtual void PrepareChunkWriter(TSession* newSession) = 0;
 
     void FinishCurrentSession();
@@ -98,12 +94,12 @@ protected:
         TError error);
 
     void OnChunkRegistered(
-        NChunkServer::TChunkId chunkId,
+        NChunkClient::TChunkId chunkId,
         TAsyncErrorPromise finishResult,
-        NObjectServer::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+        NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     void OnChunkFinished(
-        NChunkServer::TChunkId chunkId,
+        NChunkClient::TChunkId chunkId,
         TError error);
 
     void OnRowWritten();
@@ -114,8 +110,8 @@ protected:
 
     const TTableWriterConfigPtr Config;
     const NRpc::IChannelPtr MasterChannel;
-    const NObjectServer::TTransactionId TransactionId;
-    const NChunkServer::TChunkListId ParentChunkList;
+    const NObjectClient::TTransactionId TransactionId;
+    const NChunkClient::TChunkListId ParentChunkList;
     const TNullable<TKeyColumns> KeyColumns;
 
     i64 RowCount;

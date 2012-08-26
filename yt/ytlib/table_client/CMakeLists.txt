@@ -60,6 +60,7 @@ set( HDRS
   ${BASE}/table_reader.h
   ${BASE}/table_writer.h
   ${BASE}/value.h
+  ${BASE}/table_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -69,3 +70,4 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/table_chunk_meta.proto YT_SOURCE_FILES )
 protoc( ${BASE}/table_reader.proto YT_SOURCE_FILES )
+protoc( ${BASE}/table_ypath.proto YT_SOURCE_FILES )

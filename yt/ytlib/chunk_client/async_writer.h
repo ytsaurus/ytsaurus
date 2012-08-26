@@ -5,7 +5,7 @@
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/error.h>
 
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -51,7 +51,7 @@ struct IAsyncWriter
      *  Should be called only once.
      *  Calling #AsyncWriteBlock afterwards is an error.
      */
-    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta) = 0;
+    virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
 
     //! Returns the chunk info.
     /*!
@@ -59,7 +59,7 @@ struct IAsyncWriter
      *  
      * \note Thread affinity: ClientThread.
      */
-    virtual const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const = 0;
+    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;
 
 };
 

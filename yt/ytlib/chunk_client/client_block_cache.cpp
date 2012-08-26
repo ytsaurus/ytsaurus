@@ -3,14 +3,13 @@
 #include "config.h"
 #include "client_block_cache.h"
 
-#include <ytlib/chunk_server/block_id.h>
 #include <ytlib/misc/cache.h>
 #include <ytlib/misc/property.h>
 
+#include <ytlib/chunk_client/block_id.h>
+
 namespace NYT {
 namespace NChunkClient {
-
-using namespace NChunkServer;
 
 ///////////////////////////////////////////////////////////////////////////////
 

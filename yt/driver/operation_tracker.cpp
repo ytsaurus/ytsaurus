@@ -6,7 +6,7 @@
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <util/stream/format.h>
 
@@ -15,7 +15,7 @@ namespace NDriver {
 
 using namespace NYTree;
 using namespace NScheduler;
-using namespace NObjectServer;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

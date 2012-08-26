@@ -2,13 +2,13 @@
 #include "preprocess.h"
 #include "operation_tracker.h"
 
-#include <ytlib/job_proxy/config.h>
+#include <server/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/helpers.h>
 #include <ytlib/logging/log_manager.h>
-#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <util/stream/format.h>
 
@@ -18,7 +18,6 @@ namespace NDriver {
 using namespace NFormats;
 using namespace NYTree;
 using namespace NScheduler;
-using namespace NObjectServer;
 
 //////////////////////////////////////////////////////////////////////////////////
 

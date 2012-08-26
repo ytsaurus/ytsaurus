@@ -6,8 +6,8 @@
 
 #include <ytlib/actions/future.h>
 
-#include <ytlib/chunk_holder/public.h>
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -24,7 +24,7 @@ struct IAsyncReader
     typedef TPromise<TReadResult> TAsyncReadPromise;
 
     //! Describes a result of #AsyncGetChunkInfo.
-    typedef TValueOrError<NChunkHolder::NProto::TChunkMeta> TGetMetaResult;
+    typedef TValueOrError<NChunkClient::NProto::TChunkMeta> TGetMetaResult;
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
     typedef TPromise<TGetMetaResult> TAsyncGetMetaPromise;
 
@@ -39,7 +39,7 @@ struct IAsyncReader
         const TNullable<int>& partitionTag = Null, 
         const std::vector<int>* tags = NULL) = 0;
 
-    virtual NChunkHolder::TChunkId GetChunkId() const = 0;
+    virtual TChunkId GetChunkId() const = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,15 +1,16 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/object_server/id.h>
+
+#include <ytlib/object_client/public.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NObjectServer::TTransactionId;
-using NObjectServer::NullTransactionId;
+using NObjectClient::TTransactionId;
+using NObjectClient::NullTransactionId;
 
 struct TTransactionManagerConfig;
 typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;

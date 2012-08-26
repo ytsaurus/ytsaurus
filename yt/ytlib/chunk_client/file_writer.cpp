@@ -7,19 +7,18 @@
 
 #include <ytlib/logging/log.h>
 
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <util/stream/null.h>
 
 namespace NYT {
 namespace NChunkClient {
 
-using namespace NChunkHolder::NProto;
+using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkWriterLogger;
-
 static TNullOutput NullOutput;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -80,7 +79,7 @@ TAsyncError TFileWriter::GetReadyEvent()
     return Result;
 }
 
-TAsyncError TFileWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
+TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
     if (!IsOpen || !Result.Get().IsOK()) {
         return Result;

@@ -11,7 +11,7 @@
 #include <ytlib/ytree/yson_format.h>
 #include <ytlib/ytree/fluent.h>
 
-#include <ytlib/job_proxy/config.h>
+#include <server/job_proxy/config.h>
 
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/command.h>

@@ -2,14 +2,11 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/guid.h>
-#include <ytlib/transaction_server/public.h>
 
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using NTransactionServer::TTransactionId;
 
 typedef TGuid TJobId;
 typedef TGuid TOperationId;
@@ -80,33 +77,7 @@ DECLARE_ENUM(ESchedulerStrategy,
     (Fifo)
 );
 
-class TSchedulerService;
-typedef TIntrusivePtr<TSchedulerService> TSchedulerServicePtr;
-
 class TSchedulerServiceProxy;
-
-class TOperation;
-typedef TIntrusivePtr<TOperation> TOperationPtr;
-
-class TJob;
-typedef TIntrusivePtr<TJob> TJobPtr;
-
-class TExecNode;
-typedef TIntrusivePtr<TExecNode> TExecNodePtr;
-
-class TSchedulerConfig;
-typedef TIntrusivePtr<TSchedulerConfig> TSchedulerConfigPtr;
-
-class TScheduler;
-typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
-
-struct ISchedulerStrategy;
-
-struct IOperationHost;
-struct ISchedulingContext;
-
-struct IOperationController;
-typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
 
 struct TOperationSpecBase;
 typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;

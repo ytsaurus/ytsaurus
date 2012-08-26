@@ -3,7 +3,7 @@
 #include "public.h"
 #include "async_reader.h"
 
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/actions/future.h>
 
 #include <ytlib/misc/async_stream_state.h>

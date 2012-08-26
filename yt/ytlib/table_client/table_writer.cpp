@@ -13,10 +13,6 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
-
-#include <ytlib/table_server/table_ypath_proxy.h>
-
 #include <ytlib/meta_state/rpc_helpers.h>
 
 namespace NYT {
@@ -25,8 +21,7 @@ namespace NTableClient {
 using namespace NYTree;
 using namespace NCypressClient;
 using namespace NTransactionClient;
-using namespace NTableServer;
-using namespace NChunkServer;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

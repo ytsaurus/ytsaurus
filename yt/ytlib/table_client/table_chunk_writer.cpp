@@ -9,7 +9,7 @@
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/private.h>
@@ -18,14 +18,12 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = TableWriterLogger;
-
 static const int RangeColumnIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,8 +40,8 @@ TTableChunkWriter::TTableChunkWriter(
     , IndexSize(0)
     , BasicMetaSize(0)
 {
-    YASSERT(config);
-    YASSERT(chunkWriter);
+    YCHECK(config);
+    YCHECK(chunkWriter);
 
     MiscExt.set_codec_id(Config->CodecId);
 
@@ -415,11 +413,11 @@ void TTableChunkWriter::EmitSample(const TRow& row)
     }
 }
 
-NChunkHolder::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
+NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 {
     YASSERT(State.IsClosed());
 
-    NChunkHolder::NProto::TChunkMeta meta;
+    NChunkClient::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
     meta.set_version(FormatVersion);
     SetProtoExtension(meta.mutable_extensions(), MiscExt);
@@ -430,7 +428,7 @@ NChunkHolder::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
     return meta;
 }
 
-NChunkHolder::NProto::TChunkMeta TTableChunkWriter::GetSchedulerMeta() const
+NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetSchedulerMeta() const
 {
     return GetMasterMeta();
 }

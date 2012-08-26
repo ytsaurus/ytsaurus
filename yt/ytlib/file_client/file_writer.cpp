@@ -4,11 +4,11 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/file_server/file_ypath_proxy.h>
+#include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
@@ -20,11 +20,9 @@ namespace NFileClient {
 
 using namespace NYTree;
 using namespace NCypressClient;
-using namespace NObjectServer;
-using namespace NChunkServer;
+using namespace NObjectClient;
 using namespace NChunkClient;
-using namespace NFileServer;
-using namespace NChunkHolder::NProto;
+using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +92,7 @@ void TFileWriter::Close()
             Path,
             Transaction ? Transaction->GetId() : NullTransactionId));
         req->set_type(EObjectType::File);
-        auto* reqExt = req->MutableExtension(NFileServer::NProto::TReqCreateFileExt::create_file);
+        auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
         *reqExt->mutable_chunk_id() = Writer->GetChunkId().ToProto();
         NMetaState::GenerateRpcMutationId(req);
 

@@ -3,7 +3,6 @@
 #include "command.h"
 
 #include <ytlib/ytree/public.h>
-#include <ytlib/object_server/id.h>
 #include <ytlib/cypress_client/public.h>
 
 namespace NYT {
@@ -132,7 +131,7 @@ struct TCreateRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NObjectServer::EObjectType Type;
+    NObjectClient::EObjectType Type;
 
     TCreateRequest()
     {

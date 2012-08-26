@@ -2,9 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/object_server/object_service_proxy.h>
-#include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/ytree/public.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/transaction_client//transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -77,11 +78,11 @@ private:
 
     void OnPingResponse(
         const TTransactionId& id,
-        TIntrusivePtr<NTransactionServer::TTransactionYPathProxy::TRspRenewLease> rsp);
+        TIntrusivePtr<NTransactionClient::TTransactionYPathProxy::TRspRenewLease> rsp);
 
     TTransactionManagerConfigPtr Config;
     NRpc::IChannelPtr Channel;
-    NObjectServer::TObjectServiceProxy ObjectProxy;
+    NObjectClient::TObjectServiceProxy ObjectProxy;
 
     TSpinLock SpinLock;
 

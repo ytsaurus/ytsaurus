@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "scheduler_channel.h"
 
-#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/bus/config.h>
 #include <ytlib/bus/tcp_client.h>
@@ -13,7 +13,7 @@ namespace NScheduler {
 
 using namespace NBus;
 using namespace NRpc;
-using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////

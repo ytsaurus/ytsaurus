@@ -3,22 +3,24 @@
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
-
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
-#include <ytlib/file_server/file_ypath_proxy.h>
+
+#include <ytlib/file_client/file_ypath_proxy.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/transaction_client/transaction.h>
+
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NFileClient {
 
-using namespace NObjectServer;
 using namespace NCypressClient;
 using namespace NYTree;
 using namespace NTransactionClient;
-using namespace NFileServer;
+using namespace NFileClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 
@@ -65,7 +67,7 @@ void TFileReaderBase::Open(
     }
 
     auto& chunkMeta = getMetaResult.Value();
-    YCHECK(chunkMeta.type() == NChunkServer::EChunkType::File);
+    YCHECK(chunkMeta.type() == EChunkType::File);
 
     if (chunkMeta.version() != FormatVersion) {
         LOG_ERROR_AND_THROW(
@@ -75,10 +77,10 @@ void TFileReaderBase::Open(
             chunkMeta.version());
     }
 
-    auto blocksExt = GetProtoExtension<NChunkHolder::NProto::TBlocksExt>(chunkMeta.extensions());
+    auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());
     BlockCount = blocksExt.blocks_size();
 
-    auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(chunkMeta.extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
     Size = miscExt.uncompressed_data_size();
 
     LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ")",

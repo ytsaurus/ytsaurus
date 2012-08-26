@@ -1,11 +1,10 @@
 #pragma once
 
-#include <ytlib/logging/log.h>
-#include <ytlib/chunk_server/public.h>
-#include <ytlib/actions/action_queue.h>
-
 #include <ytlib/misc/lazy_ptr.h>
 
+#include <ytlib/actions/action_queue.h>
+
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -14,11 +13,6 @@ namespace NChunkClient {
 
 extern NLog::TLogger ChunkReaderLogger;
 extern NLog::TLogger ChunkWriterLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NChunkServer::TChunkId;
-using NChunkServer::NullChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

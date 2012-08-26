@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "file_reader.h"
+#include "chunk_meta_extensions.h"
 
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/fs.h>
@@ -10,8 +10,7 @@
 namespace NYT {
 namespace NChunkClient {
 
-using namespace NChunkHolder;
-using namespace NChunkHolder::NProto;
+using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 

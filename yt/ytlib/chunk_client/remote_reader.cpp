@@ -4,18 +4,20 @@
 #include "async_reader.h"
 #include "block_cache.h"
 #include "holder_channel_cache.h"
+#include "block_id.h"
+#include "chunk_ypath_proxy.h"
+#include "chunk_holder_service_proxy.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/address.h>
+
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/chunk_server/block_id.h>
-#include <ytlib/chunk_server/chunk_ypath_proxy.h>
-#include <ytlib/chunk_server/chunk_service_proxy.h>
-#include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
-#include <ytlib/object_server/object_service_proxy.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <util/random/shuffle.h>
@@ -24,13 +26,9 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
-using namespace NChunkHolder;
-using namespace NChunkHolder::NProto;
-using namespace NChunkServer;
-using namespace NChunkServer::NProto;
-using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NCypressClient;
-using ::ToString;
+using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -42,9 +40,6 @@ class TRemoteReader
     : public IAsyncReader
 {
 public:
-    typedef TIntrusivePtr<TRemoteReader> TPtr;
-    typedef TRemoteReaderConfig TConfig;
-
     typedef TValueOrError< std::vector<Stroka> > TGetSeedsResult;
     typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
     typedef TPromise<TGetSeedsResult> TAsyncGetSeedsPromise;
@@ -59,11 +54,9 @@ public:
         , BlockCache(blockCache)
         , ChunkId(chunkId)
         , Logger(ChunkReaderLogger)
-        , ChunkProxy(new TChunkServiceProxy(masterChannel))
         , ObjectProxy(new TObjectServiceProxy(masterChannel))
         , InitialSeedAddresses(seedAddresses)
         , GetSeedsPromise(Null)
-
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
@@ -71,6 +64,8 @@ public:
 
     void Initialize()
     {
+        using ::ToString;
+
         if (!Config->AllowFetchingSeedsFromMaster && InitialSeedAddresses.empty()) {
             ythrow yexception() << "Reader is unusable: master seeds retries are disabled and no initial seeds are given";
         }
@@ -145,7 +140,6 @@ private:
     TChunkId ChunkId;
     NLog::TTaggedLogger Logger;
 
-    TAutoPtr<TChunkServiceProxy> ChunkProxy;
     TAutoPtr<TObjectServiceProxy> ObjectProxy;
 
     TSpinLock SpinLock;
@@ -206,8 +200,6 @@ class TSessionBase
     : public TRefCounted
 {
 protected:
-    typedef TIntrusivePtr<TSessionBase> TPtr;
-
     TWeakPtr<TRemoteReader> Reader;
     int RetryIndex;
     int PassIndex;
@@ -215,7 +207,7 @@ protected:
     NLog::TTaggedLogger Logger;
     std::vector<Stroka> SeedAddresses;
 
-    TSessionBase(TRemoteReader* reader)
+    explicit TSessionBase(TRemoteReader* reader)
         : Reader(reader)
         , RetryIndex(0)
         , PassIndex(0)
@@ -330,8 +322,6 @@ class TReadSession
     : public TSessionBase
 {
 public:
-    typedef TIntrusivePtr<TReadSession> TPtr;
-
     TReadSession(TRemoteReader* reader, const std::vector<int>& blockIndexes)
         : TSessionBase(reader)
         , Promise(NewPromise<IAsyncReader::TReadResult>())
@@ -642,8 +632,6 @@ class TGetMetaSession
     : public TSessionBase
 {
 public:
-    typedef TIntrusivePtr<TGetMetaSession> TPtr;
-
     TGetMetaSession(
         TRemoteReader* reader,
         const TNullable<int> partitionTag,

@@ -20,10 +20,10 @@
 
 #include <ytlib/ytree/yson_parser.h>
 
-#include <ytlib/exec_agent/config.h>
-
 #include <ytlib/misc/crash_handler.h>
 #include <ytlib/misc/thread.h>
+
+#include <server/exec_agent/config.h>
 
 #include <util/stream/pipe.h>
 #include <util/system/sigset.h>

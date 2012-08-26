@@ -5,10 +5,10 @@
 #include <ytlib/codecs/codec.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/object_server/public.h>
+#include <server/object_server/public.h>
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_server/public.h>
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <server/chunk_server/public.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/rpc/public.h>
 
 namespace NYT {
@@ -29,12 +29,12 @@ public:
     TFileChunkOutput(
         TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NObjectServer::TTransactionId transactionId);
+        NObjectClient::TTransactionId transactionId);
 
     ~TFileChunkOutput() throw();
 
     void Open();
-    NChunkServer::TChunkId GetChunkId() const;
+    NChunkClient::TChunkId GetChunkId() const;
 
 private:
     //! Adds another portion of data.
@@ -51,16 +51,16 @@ private:
     TFileWriterConfigPtr Config;
 
     NRpc::IChannelPtr MasterChannel;
-    NObjectServer::TTransactionId TransactionId;
+    NObjectClient::TTransactionId TransactionId;
 
     bool IsOpen;
     i64 Size;
     i32 BlockCount;
     NChunkClient::TRemoteWriterPtr Writer;
-    NChunkServer::TChunkId ChunkId;
+    NChunkClient::TChunkId ChunkId;
     TCodecPtr Codec;
     TBlob Buffer;
-    NChunkHolder::NProto::TChunkMeta Meta;
+    NChunkClient::NProto::TChunkMeta Meta;
 
     NLog::TTaggedLogger Logger;
 };

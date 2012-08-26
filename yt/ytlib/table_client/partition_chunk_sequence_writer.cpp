@@ -7,10 +7,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NChunkClient;
-using namespace NChunkServer;
-using namespace NObjectServer;
-using namespace NTransactionServer;
-using namespace NChunkServer::NProto;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +19,7 @@ TPartitionChunkSequenceWriter::TPartitionChunkSequenceWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
-    const NChunkServer::TChunkListId& parentChunkList,
+    const NChunkClient::TChunkListId& parentChunkList,
     const TKeyColumns& keyColumns,
     IPartitioner* partitioner)
     : TChunkSequenceWriterBase<TPartitionChunkWriter>(

@@ -15,6 +15,7 @@ set( HDRS
   ${BASE}/file_writer.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/file_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -22,3 +23,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
+protoc( ${BASE}/file_ypath.proto YT_SOURCE_FILES )

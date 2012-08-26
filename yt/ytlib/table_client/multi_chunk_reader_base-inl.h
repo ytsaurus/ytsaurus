@@ -53,7 +53,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
     }
 
     const auto& inputChunk = InputChunks[LastPreparedReader];
-    auto chunkId = NChunkServer::TChunkId::FromProto(inputChunk.slice().chunk_id());
+    auto chunkId = NChunkClient::TChunkId::FromProto(inputChunk.slice().chunk_id());
 
     LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)", 
         LastPreparedReader,

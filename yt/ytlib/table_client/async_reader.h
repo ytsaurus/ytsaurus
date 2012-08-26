@@ -2,11 +2,12 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/public.h>
-#include <ytlib/chunk_holder/public.h>
-#include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/blob_output.h>
+
+#include <ytlib/ytree/public.h>
+
+#include <ytlib/chunk_client/public.h>
 
 namespace NYT {
 namespace NTableClient {

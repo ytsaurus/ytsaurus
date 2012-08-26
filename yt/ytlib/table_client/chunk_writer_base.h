@@ -4,7 +4,7 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/ref.h>
@@ -57,8 +57,8 @@ protected:
 
     TAsyncStreamState State;
 
-    NChunkHolder::NProto::TChunkMeta Meta;
-    NChunkHolder::NProto::TMiscExt MiscExt;
+    NChunkClient::NProto::TChunkMeta Meta;
+    NChunkClient::NProto::TMiscExt MiscExt;
     NProto::TChannelsExt ChannelsExt;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);

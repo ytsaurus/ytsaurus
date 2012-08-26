@@ -13,7 +13,7 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/private.h>
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/logging/tagged_logger.h>
@@ -146,7 +146,7 @@ public:
 
         std::vector<int> tags;
         tags.reserve(10);
-        tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TMiscExt>::Value);
+        tags.push_back(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
         HasRangeRequest =
@@ -187,15 +187,15 @@ private:
 
         LOG_DEBUG("Chunk meta received");
 
-        if (result.Value().type() != NChunkServer::EChunkType::Table) {
+        if (result.Value().type() != EChunkType::Table) {
             LOG_FATAL("Invalid chunk type %d", result.Value().type());
         }
 
         if (result.Value().version() != FormatVersion) {
             auto message = Sprintf(
-                "Invalid chunk format version (Expected: %d, ChunkVersion: %d)", 
-                result.Value().version(),
-                FormatVersion);
+                "Invalid chunk format version (Expected: %d, Actual: %d)", 
+                FormatVersion,
+                result.Value().version());
             LOG_WARNING("%s", ~message);
             OnFail(TError(message), chunkReader);
             return;
@@ -206,7 +206,7 @@ private:
             columnInfo.InChannel = true;
         }
 
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
             result.Value().extensions());
 
         chunkReader->EndRowIndex = miscExt.row_count();
@@ -585,7 +585,7 @@ public:
 
         std::vector<int> tags;
         tags.reserve(10);
-        tags.push_back(TProtoExtensionTag<NChunkHolder::NProto::TMiscExt>::Value);
+        tags.push_back(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
         AsyncReader->AsyncGetChunkMeta(chunkReader->PartitionTag, &tags).Subscribe(BIND(
@@ -607,7 +607,7 @@ public:
 
         LOG_DEBUG("Chunk meta received");
 
-        auto miscExt = GetProtoExtension<NChunkHolder::NProto::TMiscExt>(
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
             result.Value().extensions());
 
         YASSERT(miscExt.row_count() > 0);

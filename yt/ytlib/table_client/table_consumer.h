@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/lexer.h>

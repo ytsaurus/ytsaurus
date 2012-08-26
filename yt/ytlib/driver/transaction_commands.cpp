@@ -3,9 +3,9 @@
 
 #include <ytlib/ytree/fluent.h>
 
-#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -16,9 +16,8 @@ namespace NDriver {
 
 using namespace NYTree;
 using namespace NTransactionClient;
-using namespace NTransactionServer;
 using namespace NCypressClient;
-using namespace NObjectServer;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

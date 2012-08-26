@@ -1,7 +1,7 @@
 #include "table_executors.h"
 #include "preprocess.h"
 
-#include <ytlib/job_proxy/config.h>
+#include <server/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
 
 namespace NYT {

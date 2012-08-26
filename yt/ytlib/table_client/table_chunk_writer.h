@@ -8,13 +8,16 @@
 #include "key.h"
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_server/chunk_ypath_proxy.h>
-#include <ytlib/codecs/codec.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/blob_output.h>
+
+#include <ytlib/chunk_client/public.h>
+
+#include <ytlib/codecs/codec.h>
+
+#include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -50,8 +53,8 @@ public:
     i64 GetRowCount() const;
 
     i64 GetCurrentSize() const;
-    NChunkHolder::NProto::TChunkMeta GetMasterMeta() const;
-    NChunkHolder::NProto::TChunkMeta GetSchedulerMeta() const;
+    NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
+    NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const;
 
     i64 GetMetaSize() const;
 

@@ -1,9 +1,9 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/chunk_holder/chunk.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
 import "yt/ytlib/table_client/table_reader.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
-import "yt/ytlib/file_server/file_ypath.proto";
+import "yt/ytlib/file_client/file_ypath.proto";
 import "yt/ytlib/misc/error.proto";
 import "yt/ytlib/misc/guid.proto";
 
@@ -93,7 +93,7 @@ message TJobProgress
 message TUserJobSpec
 {
     // Additional files to be placed into the sandbox.
-    repeated NYT.NFileServer.NProto.TRspFetch files = 1;
+    repeated NYT.NFileClient.NProto.TRspFetch files = 1;
 
     // The user command to be executed.
     required string shell_command = 2;

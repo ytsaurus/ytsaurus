@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_commands.h"
 
-#include <ytlib/object_server/object_service_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -14,7 +14,7 @@ namespace NDriver {
 
 using namespace NYTree;
 using namespace NCypressClient;
-using namespace NObjectServer;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,8 +9,6 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/job_proxy/config.h>
-
 #include <ytlib/ytree/ypath_proxy.h>
 
 namespace NYT {

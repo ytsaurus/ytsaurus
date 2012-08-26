@@ -4,12 +4,17 @@
 #include "sync_writer.h"
 
 #include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/logging/tagged_logger.h>
+
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/object_server/object_service_proxy.h>
-#include <ytlib/chunk_server/public.h>
-#include <ytlib/table_server/table_ypath_proxy.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/chunk_client/public.h>
+
+#include <ytlib/table_client/table_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -62,11 +67,11 @@ private:
 
     bool IsOpen;
     bool IsClosed;
-    NObjectServer::TObjectServiceProxy ObjectProxy;
+    NObjectClient::TObjectServiceProxy ObjectProxy;
     NLog::TTaggedLogger Logger;
 
     NTransactionClient::ITransactionPtr UploadTransaction;
-    NChunkServer::TChunkListId ChunkListId;
+    NChunkClient::TChunkListId ChunkListId;
 
     TTableChunkSequenceWriterPtr Writer;
 

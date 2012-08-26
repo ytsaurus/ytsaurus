@@ -4,12 +4,18 @@
 #include "sync_reader.h"
 
 #include <ytlib/logging/tagged_logger.h>
+
 #include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
+
 #include <ytlib/cypress_client/public.h>
-#include <ytlib/object_server/object_service_proxy.h>
-#include <ytlib/table_server/table_ypath_proxy.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/table_client/table_ypath_proxy.h>
+
 #include <ytlib/chunk_client/public.h>
 
 namespace NYT {
@@ -55,7 +61,7 @@ private:
     NChunkClient::IBlockCachePtr BlockCache;
     NYTree::TYPath Path;
     bool IsOpen;
-    NObjectServer::TObjectServiceProxy Proxy;
+    NObjectClient::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 
     TTableChunkSequenceReaderPtr Reader;

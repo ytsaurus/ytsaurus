@@ -1,21 +1,20 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/object_server/public.h>
-#include <ytlib/transaction_server/public.h>
+
+#include <ytlib/object_client/public.h>
 
 namespace NYT {
 namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NObjectServer::TObjectId;
-using NObjectServer::NullObjectId;
-using NObjectServer::EObjectType;
-using NObjectServer::TVersionedObjectId;
-
-using NTransactionServer::TTransactionId;
-using NTransactionServer::NullTransactionId;
+using NObjectClient::TObjectId;
+using NObjectClient::TTransactionId;
+using NObjectClient::NullObjectId;
+using NObjectClient::NullTransactionId;
+using NObjectClient::EObjectType;
+using NObjectClient::TVersionedObjectId;
 
 typedef TObjectId TNodeId;
 typedef TVersionedObjectId TVersionedNodeId;

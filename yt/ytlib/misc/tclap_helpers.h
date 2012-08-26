@@ -5,10 +5,10 @@
 #include "string.h"
 #include "nullable.h"
 
-#include <ytlib/object_server/public.h>
-#include <ytlib/object_server/id.h>
-#include <ytlib/cypress_server/public.h>
+#include <ytlib/object_client/public.h>
+
 #include <ytlib/cypress_client/public.h>
+
 #include <ytlib/ytree/yson_writer.h>
 
 #include <tclap/CmdLine.h>
@@ -22,7 +22,7 @@ struct ArgTraits<Stroka>
 };
 
 template <>
-struct ArgTraits< ::NYT::NObjectServer::TTransactionId >
+struct ArgTraits< ::NYT::NObjectClient::TTransactionId >
 {
     typedef ValueLike ValueCategory;
 };
@@ -34,7 +34,7 @@ struct ArgTraits< ::NYT::NCypressClient::ELockMode >
 };
 
 template <>
-struct ArgTraits< ::NYT::NObjectServer::EObjectType >
+struct ArgTraits< ::NYT::NObjectClient::EObjectType >
 {
     typedef ValueLike ValueCategory;
 };

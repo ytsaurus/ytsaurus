@@ -4,7 +4,7 @@
 #include "async_writer.h"
 #include "format.h"
 
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/misc/checksum.h>
 
 #include <util/system/file.h>
@@ -26,15 +26,15 @@ public:
     virtual bool TryWriteBlock(const TSharedRef& block);
     virtual TAsyncError GetReadyEvent();
 
-    virtual TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+    virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     void Abort();
 
     //! Returns chunk info. The writer must be already closed.
-    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
 
     //! Returns chunk meta. The writer must be already closed.
-    const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const;
+    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
 private:
     Stroka FileName;
@@ -43,9 +43,9 @@ private:
     const bool DirectMode;
     i64 DataSize;
     THolder<TFile> DataFile;
-    NChunkHolder::NProto::TChunkInfo ChunkInfo;
-    NChunkHolder::NProto::TBlocksExt BlocksExt;
-    NChunkHolder::NProto::TChunkMeta ChunkMeta;
+    NChunkClient::NProto::TChunkInfo ChunkInfo;
+    NChunkClient::NProto::TBlocksExt BlocksExt;
+    NChunkClient::NProto::TChunkMeta ChunkMeta;
 
     TChecksummableOutput ChecksumOutput;
 

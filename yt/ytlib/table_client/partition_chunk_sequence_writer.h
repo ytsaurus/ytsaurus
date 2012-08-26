@@ -17,7 +17,7 @@ public:
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkServer::TChunkListId& parentChunkList,
+        const NChunkClient::TChunkListId& parentChunkList,
         const TKeyColumns& keyColumns,
         IPartitioner* partitioner);
 

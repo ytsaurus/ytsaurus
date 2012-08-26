@@ -2,16 +2,17 @@
 #include "remote_writer.h"
 #include "config.h"
 #include "holder_channel_cache.h"
-
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
-#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/periodic_invoker.h>
+
 #include <ytlib/actions/parallel_awaiter.h>
+
+#include <ytlib/chunk_client/chunk_holder_service.pb.h>
 
 #include <util/generic/yexception.h>
 
@@ -19,8 +20,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
-using namespace NChunkHolder::NProto;
-using namespace NChunkServer;
+using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -44,9 +44,9 @@ public:
     bool TryWriteBlock(const TSharedRef& block);
     TAsyncError GetReadyEvent();
 
-    TAsyncError AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta);
+    TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
-    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetNodeAddresses() const;
     const TChunkId& GetChunkId() const;
 
@@ -68,7 +68,7 @@ private:
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
-    NChunkHolder::NProto::TChunkMeta ChunkMeta;
+    NChunkClient::NProto::TChunkMeta ChunkMeta;
 
     TWindow Window;
     TAsyncSemaphore WindowSlots;
@@ -86,7 +86,7 @@ private:
     int BlockCount;
 
     //! Returned from node in Finish.
-    NChunkHolder::NProto::TChunkInfo ChunkInfo;
+    NChunkClient::NProto::TChunkInfo ChunkInfo;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;
@@ -1013,7 +1013,7 @@ void TRemoteWriter::TImpl::DoClose()
     }
 }
 
-TAsyncError TRemoteWriter::TImpl::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
+TAsyncError TRemoteWriter::TImpl::AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
     YCHECK(IsOpen);
     YCHECK(!IsClosing);
@@ -1048,7 +1048,7 @@ Stroka TRemoteWriter::TImpl::GetDebugInfo()
         ~FlushBlockTiming.GetDebugInfo());
 }
 
-const NChunkHolder::NProto::TChunkInfo& TRemoteWriter::TImpl::GetChunkInfo() const
+const NChunkClient::NProto::TChunkInfo& TRemoteWriter::TImpl::GetChunkInfo() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return ChunkInfo;
@@ -1098,12 +1098,12 @@ TAsyncError TRemoteWriter::GetReadyEvent()
     return Impl->GetReadyEvent();
 }
 
-TAsyncError TRemoteWriter::AsyncClose(const NChunkHolder::NProto::TChunkMeta& chunkMeta)
+TAsyncError TRemoteWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
     return Impl->AsyncClose(chunkMeta);
 }
 
-const NChunkHolder::NProto::TChunkInfo& TRemoteWriter::GetChunkInfo() const
+const NChunkClient::NProto::TChunkInfo& TRemoteWriter::GetChunkInfo() const
 {
     return Impl->GetChunkInfo();
 }

@@ -10,14 +10,15 @@
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/encoding_writer.h>
-#include <ytlib/chunk_holder/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NTableClient {
 
-using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = TableWriterLogger;
 
@@ -52,8 +53,8 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     BasicMetaSize =
         ChannelsExt.ByteSize() +
         sizeof(i64) * Partitioner->GetPartitionCount() + 
-        sizeof(NChunkHolder::NProto::TMiscExt) + 
-        sizeof(NChunkHolder::NProto::TChunkMeta);
+        sizeof(NChunkClient::NProto::TMiscExt) + 
+        sizeof(NChunkClient::NProto::TChunkMeta);
 }
 
 TPartitionChunkWriter::~TPartitionChunkWriter()
@@ -162,9 +163,9 @@ i64 TPartitionChunkWriter::GetMetaSize() const
     return BasicMetaSize + CurrentBlockIndex * sizeof(NProto::TBlockInfo);
 }
 
-NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
+NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
 {
-    NChunkHolder::NProto::TChunkMeta meta;
+    NChunkClient::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
     meta.set_version(FormatVersion);
     SetProtoExtension(meta.mutable_extensions(), MiscExt);
@@ -172,9 +173,9 @@ NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
     return meta;
 }
 
-NChunkHolder::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
+NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
 {
-    NChunkHolder::NProto::TChunkMeta meta;
+    NChunkClient::NProto::TChunkMeta meta;
     meta.set_type(EChunkType::Table);
     meta.set_version(FormatVersion);
     SetProtoExtension(meta.mutable_extensions(), MiscExt);

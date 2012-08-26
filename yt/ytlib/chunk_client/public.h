@@ -2,10 +2,51 @@
 
 #include <ytlib/misc/common.h>
 
+#include <ytlib/object_client/public.h>
+
 namespace NYT {
 namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
+
+typedef TGuid TIncarnationId;
+
+typedef NObjectClient::TObjectId TChunkId;
+extern TChunkId NullChunkId;
+
+typedef NObjectClient::TObjectId TChunkListId;
+extern TChunkListId NullChunkListId;
+
+typedef NObjectClient::TObjectId TChunkTreeId;
+extern TChunkTreeId NullChunkTreeId;
+
+typedef TGuid TJobId;
+
+DECLARE_ENUM(EJobState,
+    (Running)
+    (Completed)
+    (Failed)
+);
+
+DECLARE_ENUM(EJobType,
+    (Replicate)
+    (Remove)
+);
+
+//! Represents an offset inside a chunk.
+typedef i64 TBlockOffset;
+
+//! A |(chunkId, blockIndex)| pair.
+struct TBlockId;
+
+DECLARE_ENUM(EChunkType,
+    ((Unknown)(0))
+    ((File)(1))
+    ((Table)(2))
+);
+
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteReaderConfig;
 typedef TIntrusivePtr<TRemoteReaderConfig> TRemoteReaderConfigPtr;
