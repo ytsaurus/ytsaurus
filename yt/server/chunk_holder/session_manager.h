@@ -130,7 +130,7 @@ private:
     TChunkPtr OnFileClosed(TVoid);
 
     void EnqueueWrites();
-    TVoid DoWrite(const TSharedRef& block, i32 blockIndex);
+    TVoid DoWriteBlock(const TSharedRef& block, i32 blockIndex);
     void OnBlockWritten(i32 blockIndex, TVoid);
 
     void OnBlockFlushed(i32 blockIndex, TVoid);

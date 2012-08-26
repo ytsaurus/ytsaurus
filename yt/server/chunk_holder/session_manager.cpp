@@ -193,8 +193,9 @@ void TSession::EnqueueWrites()
         YCHECK(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
         if (slot.State == ESlotState::Empty)
             break;
+
         BIND(
-            &TSession::DoWrite,
+            &TSession::DoWriteBlock,
             MakeStrong(this),
             slot.Block, 
             WriteIndex)
@@ -209,7 +210,7 @@ void TSession::EnqueueWrites()
     }
 }
 
-TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
+TVoid TSession::DoWriteBlock(const TSharedRef& block, i32 blockIndex)
 {
     LOG_DEBUG("Started writing block (Index: %d)", blockIndex);
 
