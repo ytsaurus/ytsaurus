@@ -40,7 +40,7 @@ struct INodeTypeHandler
      *  \return The constructed proxy.
      */
     virtual ICypressNodeProxyPtr GetProxy(
-        const TNodeId& nodeId,
+        ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
     //! Returns the (dynamic) node type.

@@ -22,6 +22,8 @@
 
 #include <server/object_server/object_manager.h>
 
+#include <server/cypress_server/node.h>
+
 namespace NYT {
 namespace NOrchid {
 
@@ -31,6 +33,7 @@ using namespace NYTree;
 using namespace NCypressServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NTransactionServer;
 using namespace NOrchid::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,9 +50,11 @@ class TOrchidYPathService
 public:
     TOrchidYPathService(
         TBootstrap* bootstrap,
-        const TNodeId& id)
+        ICypressNode* node,
+        TTransaction* transaction)
         : Bootstrap(bootstrap)
-        , Id(id)
+        , Node(node)
+        , Transaction(transaction)
     { }
 
     TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
@@ -113,12 +118,15 @@ public:
 
 private:
     TBootstrap* Bootstrap;
-    TNodeId Id;
+    ICypressNode* Node;
+    TTransaction* Transaction;
 
     TOrchidManifest::TPtr LoadManifest()
     {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto proxy = objectManager->GetProxy(Node->GetId().ObjectId, Transaction);
         auto manifest = New<TOrchidManifest>();
-        auto manifestNode = ConvertToNode(Bootstrap->GetObjectManager()->GetProxy(Id)->Attributes());
+        auto manifestNode = ConvertToNode(proxy->Attributes());
         try {
             manifest->Load(manifestNode);
         } catch (const std::exception& ex) {
@@ -163,8 +171,8 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::Orchid,
-        BIND([=] (const TNodeId& id) -> IYPathServicePtr {
-            return New<TOrchidYPathService>(bootstrap, id);
+        BIND([=] (ICypressNode* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
+            return New<TOrchidYPathService>(bootstrap, trunkNode, transaction);
         }));
 }
 

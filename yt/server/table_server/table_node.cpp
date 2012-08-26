@@ -105,14 +105,14 @@ public:
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const NCypressServer::TNodeId& nodeId,
+        ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override
     {
         return New<TTableNodeProxy>(
             this,
             Bootstrap,
             transaction,
-            nodeId);
+            trunkNode);
     }
 
 protected:

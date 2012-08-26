@@ -276,12 +276,12 @@ TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
-    const NCypressServer::TNodeId& nodeId)
+    ICypressNode* trunkNode)
     : TCypressNodeProxyBase<IEntityNode, TTableNode>(
         typeHandler,
         bootstrap,
         transaction,
-        nodeId)
+        trunkNode)
 { }
 
 void TTableNodeProxy::DoCloneTo(TTableNode* clonedNode)

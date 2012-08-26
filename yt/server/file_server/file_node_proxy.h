@@ -25,7 +25,7 @@ public:
         NCypressServer::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        const NCypressServer::TNodeId& nodeId);
+        NCypressServer::ICypressNode* trunkNode);
 
     bool IsExecutable();
     Stroka GetFileName();

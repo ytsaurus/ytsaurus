@@ -250,12 +250,12 @@ public:
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        const NCypressServer::TNodeId& nodeId)
+        ICypressNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
             transaction,
-            nodeId)
+            trunkNode)
     { }
 
 private:
@@ -363,14 +363,14 @@ public:
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const NCypressServer::TNodeId& nodeId,
+        ICypressNode* trunkNode,
         TTransaction* transaction) override
     {
         return New<TNodeProxy>(
             this,
             Bootstrap,
             transaction,
-            nodeId);
+            trunkNode);
     }
 };
 
@@ -447,12 +447,12 @@ public:
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        const NCypressServer::TNodeId& nodeId)
+        ICypressNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
             transaction,
-            nodeId)
+            trunkNode)
     { }
 
 private:
@@ -565,14 +565,14 @@ public:
     }
     
     virtual ICypressNodeProxyPtr GetProxy(
-        const NCypressServer::TNodeId& nodeId,
+        ICypressNode* trunkNode,
         TTransaction* transaction) override
     {
         return New<TNodeMapProxy>(
             this,
             Bootstrap,
             transaction,
-            nodeId);
+            trunkNode);
     }
 
     virtual INodeBehaviorPtr CreateBehavior(

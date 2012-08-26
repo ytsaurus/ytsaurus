@@ -12,7 +12,7 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef
-    TCallback< NYTree::IYPathServicePtr(const TNodeId&) >
+    TCallback< NYTree::IYPathServicePtr(ICypressNode*, NTransactionServer::TTransaction*) >
     TYPathServiceProducer;
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(

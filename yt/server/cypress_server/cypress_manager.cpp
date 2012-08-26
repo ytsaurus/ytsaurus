@@ -395,12 +395,12 @@ ICypressNodeProxyPtr TCypressManager::FindVersionedNodeProxy(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    const auto* node = FindVersionedNode(id, transaction);
+    auto* node = FindVersionedNode(id, transaction);
     if (!node) {
         return NULL;
     }
 
-    return GetHandler(node)->GetProxy(id, transaction);
+    return GetHandler(node)->GetProxy(node, transaction);
 }
 
 ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(

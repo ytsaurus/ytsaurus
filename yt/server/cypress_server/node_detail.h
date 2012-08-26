@@ -309,7 +309,7 @@ public:
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const TNodeId& nodeId,
+        ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
 protected:
@@ -364,7 +364,7 @@ public:
     virtual NYTree::ENodeType GetNodeType() override;
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const TNodeId& nodeId,
+        ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
 private:
@@ -412,7 +412,7 @@ public:
     virtual NYTree::ENodeType GetNodeType() override;
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const TNodeId& nodeId,
+        ICypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
 private:

@@ -37,14 +37,14 @@ public:
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TTransaction* transaction,
-        const TNodeId& nodeId,
+        ICypressNode* trunkNode,
         IYPathServicePtr service,
         bool requiredLeaderStatus)
         : TBase(
             typeHandler,
             bootstrap,
             transaction,
-            nodeId)
+            trunkNode)
         , Service(service)
         , RequireLeaderStatus(requiredLeaderStatus)
     { }
@@ -90,15 +90,15 @@ public:
     { }
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const TNodeId& id,
-        TTransaction* transaction)
+        ICypressNode* trunkNode,
+        TTransaction* transaction) override
     {
-        auto service = Producer.Run(id);
+        auto service = Producer.Run(trunkNode, transaction);
         return New<TVirtualNodeProxy>(
             this,
             Bootstrap,
             transaction,
-            id,
+            trunkNode,
             service,
             RequireLeaderStatus);
     }
@@ -139,13 +139,13 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
     IYPathServicePtr service,
     bool requireLeaderStatus)
 {
-    IYPathServicePtr service_ = service;
     return CreateVirtualTypeHandler(
         bootstrap,
         objectType,
-        BIND([=] (const TNodeId& id) -> IYPathServicePtr {
-            UNUSED(id);
-            return service_;
+        BIND([=] (ICypressNode* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
+            UNUSED(trunkNode);
+            UNUSED(transaction);
+            return service;
         }),
         requireLeaderStatus);
 }

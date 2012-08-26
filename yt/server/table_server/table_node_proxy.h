@@ -26,7 +26,7 @@ public:
         NCypressServer::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        const NCypressServer::TNodeId& nodeId);
+        NCypressServer::ICypressNode* trunkNode);
 
     virtual TResolveResult Resolve(const NYTree::TYPath& path, const Stroka& verb);
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;

@@ -73,7 +73,7 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
-        TRspCreate* response)
+        TRspCreate* response) override
     {
         YCHECK(request);
         UNUSED(transaction);
@@ -114,25 +114,25 @@ public:
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
-        const NCypressServer::TNodeId& nodeId,
-        TTransaction* transaction)
+        ICypressNode* trunkNode,
+        TTransaction* transaction) override
     {
         return New<TFileNodeProxy>(
             this,
             Bootstrap,
             transaction,
-            nodeId);
+            trunkNode);
     }
 
 protected:
-    virtual void DoDestroy(TFileNode* node)
+    virtual void DoDestroy(TFileNode* node) override
     {
         auto* chunkList = node->GetChunkList();
         YCHECK(chunkList->OwningNodes().erase(node) == 1);
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
     }
 
-    virtual void DoBranch(const TFileNode* originatingNode, TFileNode* branchedNode)
+    virtual void DoBranch(const TFileNode* originatingNode, TFileNode* branchedNode) override
     {
         auto* chunkList = originatingNode->GetChunkList();
         branchedNode->SetChunkList(chunkList);
@@ -140,7 +140,7 @@ protected:
         YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
     }
 
-    virtual void DoMerge(TFileNode* originatingNode, TFileNode* branchedNode)
+    virtual void DoMerge(TFileNode* originatingNode, TFileNode* branchedNode) override
     {
         UNUSED(originatingNode);
 

@@ -17,8 +17,11 @@ struct ICypressNodeProxy
     : public virtual NYTree::INode
     , public virtual NObjectServer::IObjectProxy
 {
-    //! Returns the id of the transaction for which the proxy is created.
-    virtual TTransactionId GetTransactionId() const = 0;
+    //! Returns the transaction for which the proxy is created.
+    virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
+
+    //! Returns the trunk node for which the proxy is created.
+    virtual ICypressNode* GetTrunkNode() const = 0;
 
     //! Constructs a deep copy of the node.
     virtual ICypressNodeProxyPtr Clone() = 0;

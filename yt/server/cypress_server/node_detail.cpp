@@ -206,14 +206,14 @@ void TMapNodeTypeHandler::DoMerge(
 }
 
 ICypressNodeProxyPtr TMapNodeTypeHandler::GetProxy(
-    const TNodeId& nodeId,
+    ICypressNode* trunkNode,
     TTransaction* transaction)
 {
     return New<TMapNodeProxy>(
         this,
         Bootstrap,
         transaction,
-        nodeId);
+        trunkNode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,14 +254,14 @@ ENodeType TListNodeTypeHandler::GetNodeType()
 }
 
 ICypressNodeProxyPtr TListNodeTypeHandler::GetProxy(
-    const TNodeId& nodeId,
+    ICypressNode* trunkNode,
     TTransaction* transaction)
 {
     return New<TListNodeProxy>(
         this,
         Bootstrap,
         transaction,
-        nodeId);
+        trunkNode);
 }
 
 void TListNodeTypeHandler::DoDestroy(TListNode* node)

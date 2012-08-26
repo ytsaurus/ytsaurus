@@ -26,12 +26,12 @@ TFileNodeProxy::TFileNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
-    const NCypressServer::TNodeId& nodeId)
+    ICypressNode* trunkNode)
     : TCypressNodeProxyBase<IEntityNode, TFileNode>(
         typeHandler,
         bootstrap,
         transaction,
-        nodeId)
+        trunkNode)
 { }
 
 void TFileNodeProxy::DoCloneTo(TFileNode* clonedNode)

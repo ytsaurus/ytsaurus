@@ -86,12 +86,12 @@ TMapNodeProxy::TMapNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
-    const TNodeId& nodeId)
+    ICypressNode* trunkNode)
     : TBase(
         typeHandler,
         bootstrap,
         transaction,
-        nodeId)
+        trunkNode)
 { }
 
 void TMapNodeProxy::Clear()
@@ -138,7 +138,7 @@ int TMapNodeProxy::GetChildCount() const
 
     int result = 0;
     FOREACH (const auto* transaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
+        const auto* node = cypressManager->GetVersionedNode(Id, transaction);
         const auto* mapNode = static_cast<const TMapNode*>(node);
         result += mapNode->ChildCountDelta();
     }
@@ -275,7 +275,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     auto transactions = transactionManager->GetTransactionPath(Transaction);
     
     FOREACH (const auto* transaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
+        const auto* node = cypressManager->GetVersionedNode(Id, transaction);
         const auto& map = static_cast<const TMapNode*>(node)->ChildToKey();
         auto it = map.find(childId);
         if (it != map.end()) {
@@ -295,7 +295,7 @@ void TMapNodeProxy::DoListChildren(yhash_map<Stroka, TNodeId>* keyToChild) const
     std::reverse(transactions.begin(), transactions.end());
 
     FOREACH (const auto* transaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
+        const auto* node = cypressManager->GetVersionedNode(Id, transaction);
         const auto* mapNode = static_cast<const TMapNode*>(node);
         FOREACH (const auto& pair, mapNode->KeyToChild()) {
             if (pair.second == NullObjectId) {
@@ -315,7 +315,7 @@ TVersionedNodeId TMapNodeProxy::DoFindChild(const Stroka& key) const
     auto transactions = transactionManager->GetTransactionPath(Transaction);
 
     FOREACH (const auto* transaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(NodeId, transaction);
+        const auto* node = cypressManager->GetVersionedNode(Id, transaction);
         const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
         auto it = map.find(key);
         if (it != map.end()) {
@@ -370,12 +370,12 @@ TListNodeProxy::TListNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
-    const TNodeId& nodeId)
+    ICypressNode* trunkNode)
     : TBase(
         typeHandler,
         bootstrap,
         transaction,
-        nodeId)
+        trunkNode)
 { }
 
 void TListNodeProxy::Clear()
@@ -433,7 +433,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
         YCHECK(impl->ChildToIndex().insert(MakePair(childId, list.size())).second);
         list.push_back(childId);
     } else {
-        // Update the indices.
+        // Update indices.
         for (auto it = list.begin() + beforeIndex; it != list.end(); ++it) {
             ++impl->ChildToIndex()[*it];
         }
