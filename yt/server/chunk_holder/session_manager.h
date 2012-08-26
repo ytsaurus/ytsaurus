@@ -94,8 +94,8 @@ private:
     TLocationPtr Location;
 
     TWindow Window;
-    i32 WindowStart;
-    i32 LastEnqueuedIndex;
+    i32 WindowStartIndex;
+    i32 WriteIndex;
     i64 Size;
 
     Stroka FileName;

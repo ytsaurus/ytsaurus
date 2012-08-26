@@ -37,8 +37,8 @@ TSession::TSession(
     : Bootstrap(bootstrap)
     , ChunkId(chunkId)
     , Location(location)
-    , WindowStart(0)
-    , LastEnqueuedIndex(-1)
+    , WindowStartIndex(0)
+    , WriteIndex(0)
     , Size(0)
     , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
     , Logger(DataNodeLogger)
@@ -115,7 +115,7 @@ i64 TSession::GetSize() const
 
 int TSession::GetWrittenBlockCount() const
 {
-    return WindowStart;
+    return WindowStartIndex;
 }
 
 TChunkInfo TSession::GetChunkInfo() const
@@ -134,7 +134,7 @@ TSharedRef TSession::GetBlock(i32 blockIndex)
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Trying to retrieve a block %d that is not received yet (WindowStart: %d)",
                 blockIndex,
-                WindowStart);
+                WindowStartIndex);
     }
 
     LOG_DEBUG("Chunk block %d retrieved", blockIndex);
@@ -168,7 +168,7 @@ void TSession::PutBlock(
         ythrow TServiceException(EErrorCode::BlockContentMismatch) <<
             Sprintf("Block %d with a different content already received (WindowStart: %d)",
                 blockIndex,
-                WindowStart);
+                WindowStartIndex);
     }
 
     slot.State = ESlotState::Received;
@@ -188,23 +188,24 @@ void TSession::PutBlock(
 
 void TSession::EnqueueWrites()
 {
-    while (LastEnqueuedIndex + 1 < Window.size()) {
-        const auto& slot = GetSlot(LastEnqueuedIndex + 1);
-        if (slot.State != ESlotState::Received)
+    while (WriteIndex < Window.size()) {
+        const auto& slot = GetSlot(WriteIndex);
+        YCHECK(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
+        if (slot.State == ESlotState::Empty)
             break;
-        ++LastEnqueuedIndex;
         BIND(
             &TSession::DoWrite,
             MakeStrong(this),
             slot.Block, 
-            LastEnqueuedIndex)
+            WriteIndex)
         .AsyncVia(WriteInvoker)
         .Run()
         .Subscribe(BIND(
             &TSession::OnBlockWritten,
             MakeStrong(this),
-            blockIndex)
+            WriteIndex)
         .Via(Bootstrap->GetControlInvoker()));
+        ++WriteIndex;
     }
 }
 
@@ -254,7 +255,7 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Attempt to flush an unreceived block %d (WindowStart: %d, WindowSize: %" PRISZT ")",
                 blockIndex,
-                WindowStart,
+                WindowStartIndex,
                 Window.size());
     }
 
@@ -274,13 +275,13 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 {
     CloseLease();
 
-    for (i32 blockIndex = WindowStart; blockIndex < Window.size(); ++blockIndex) {
+    for (i32 blockIndex = WindowStartIndex; blockIndex < Window.size(); ++blockIndex) {
         const TSlot& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             ythrow TServiceException(EErrorCode::WindowError) <<
                 Sprintf("Attempt to finish a session with an unflushed block %d (WindowStart: %d, WindowSize: %" PRISZT ")",
                     blockIndex,
-                    WindowStart,
+                    WindowStartIndex,
                     Window.size());
         }
     }
@@ -369,23 +370,23 @@ TChunkPtr TSession::OnFileClosed(TVoid)
 
 void TSession::ReleaseBlocks(i32 flushedBlockIndex)
 {
-    YASSERT(WindowStart <= flushedBlockIndex);
+    YASSERT(WindowStartIndex <= flushedBlockIndex);
 
-    while (WindowStart <= flushedBlockIndex) {
-        auto& slot = GetSlot(WindowStart);
+    while (WindowStartIndex <= flushedBlockIndex) {
+        auto& slot = GetSlot(WindowStartIndex);
         YASSERT(slot.State == ESlotState::Written);
         slot.Block = TSharedRef();
         slot.IsWritten.Reset();
-        ++WindowStart;
+        ++WindowStartIndex;
     }
 
     LOG_DEBUG("Released blocks (WindowStart: %d)",
-        WindowStart);
+        WindowStartIndex);
 }
 
 bool TSession::IsInWindow(i32 blockIndex)
 {
-    return blockIndex >= WindowStart;
+    return blockIndex >= WindowStartIndex;
 }
 
 void TSession::VerifyInWindow(i32 blockIndex)
@@ -394,7 +395,7 @@ void TSession::VerifyInWindow(i32 blockIndex)
         ythrow TServiceException(EErrorCode::WindowError) <<
             Sprintf("Block %d is out of the window (WindowStart: %d, WindowSize: %" PRISZT ")",
                 blockIndex,
-                WindowStart,
+                WindowStartIndex,
                 Window.size());
     }
 }
