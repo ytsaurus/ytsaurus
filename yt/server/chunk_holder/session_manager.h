@@ -95,6 +95,7 @@ private:
 
     TWindow Window;
     i32 WindowStart;
+    i32 LastEnqueuedIndex;
     i64 Size;
 
     Stroka FileName;
@@ -128,6 +129,7 @@ private:
     TVoid DoCloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     TChunkPtr OnFileClosed(TVoid);
 
+    void EnqueueWrites();
     TVoid DoWrite(const TSharedRef& block, i32 blockIndex);
     void OnBlockWritten(i32 blockIndex, TVoid);
 

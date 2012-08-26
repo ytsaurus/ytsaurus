@@ -38,6 +38,7 @@ TSession::TSession(
     , ChunkId(chunkId)
     , Location(location)
     , WindowStart(0)
+    , LastEnqueuedIndex(-1)
     , Size(0)
     , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
     , Logger(DataNodeLogger)
@@ -182,18 +183,29 @@ void TSession::PutBlock(
 
     LOG_DEBUG("Chunk block %d received", blockIndex);
 
-    BIND(
-        &TSession::DoWrite,
-        MakeStrong(this),
-        data, 
-        blockIndex)
-    .AsyncVia(WriteInvoker)
-    .Run()
-    .Subscribe(BIND(
-        &TSession::OnBlockWritten,
-        MakeStrong(this),
-        blockIndex)
-    .Via(Bootstrap->GetControlInvoker()));
+    EnqueueWrites();
+}
+
+void TSession::EnqueueWrites()
+{
+    while (LastEnqueuedIndex + 1 < Window.size()) {
+        const auto& slot = GetSlot(LastEnqueuedIndex + 1);
+        if (slot.State != ESlotState::Received)
+            break;
+        ++LastEnqueuedIndex;
+        BIND(
+            &TSession::DoWrite,
+            MakeStrong(this),
+            slot.Block, 
+            LastEnqueuedIndex)
+        .AsyncVia(WriteInvoker)
+        .Run()
+        .Subscribe(BIND(
+            &TSession::OnBlockWritten,
+            MakeStrong(this),
+            blockIndex)
+        .Via(Bootstrap->GetControlInvoker()));
+    }
 }
 
 TVoid TSession::DoWrite(const TSharedRef& block, i32 blockIndex)
