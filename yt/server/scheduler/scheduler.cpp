@@ -131,6 +131,7 @@ public:
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetHeavyRequest(true)
                 .SetHeavyResponse(true)
+                .SetResponseCodec(ECodecId::Lz4)
                 .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
 
         JobTypeCounters.resize(EJobType::GetDomainSize());

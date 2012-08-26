@@ -10,6 +10,8 @@
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/object_pool.h>
 
+#include <ytlib/codecs/codec.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -180,6 +182,7 @@ struct THandlerInvocationOptions
     THandlerInvocationOptions()
         : HeavyRequest(false)
         , HeavyResponse(false)
+        , ResponseCodec(ECodecId::None)
     { }
 
     //! Should we be deserializing the request in a separate thread?
@@ -187,6 +190,10 @@ struct THandlerInvocationOptions
 
     //! Should we be serializing the response in a separate thread?
     bool HeavyResponse;
+
+    //! The codec to compress response body.
+    ECodecId ResponseCodec;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -386,7 +393,7 @@ private:
     void SerializeResponseAndReply()
     {
         TSharedRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data));
+        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, Options.ResponseCodec));
         this->Context->SetResponseBody(MoveRV(data));
         this->Context->Reply(TError());
     }
@@ -478,6 +485,12 @@ protected:
         TMethodDescriptor& SetHeavyResponse(bool value)
         {
             Options.HeavyResponse = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetResponseCodec(ECodecId value)
+        {
+            Options.ResponseCodec = value;
             return *this;
         }
     };
