@@ -589,9 +589,9 @@ void TSupportsAttributes::RemoveAttribute(
                 systemAttributeProvider,
                 key,
                 &isSystem);
-            INodePtr node = ConvertToNode(yson);
+            auto node = ConvertToNode(yson);
             SyncYPathRemove(node, TYPath(tokenizer.CurrentInput()));
-            TYsonString updatedYson = ConvertToYsonString(~node);
+            auto updatedYson = ConvertToYsonString(~node);
             OnUpdateAttribute(
                 key,
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),

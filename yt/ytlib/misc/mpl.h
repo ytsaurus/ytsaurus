@@ -256,8 +256,35 @@ struct TIsPod
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+template <class T, bool isPrimitive>
+struct TCallTraitsHelper
+{  };
+
 template <class T>
-typename TAddRvalueReference<T>::TType DeclVal(); // noexcept
+struct TCallTraitsHelper<T, true>
+{ 
+    typedef T TType;
+};
+
+template <class T>
+struct TCallTraitsHelper<T, false>
+{ 
+    typedef const T& TType;
+};
+
+} // namespace NDetail
+
+//! A trait for choosing appropriate argument and return types for functions.
+/*!
+ *  All types except for primitive ones should be passed to functions
+ *  and returned from const getters by const ref.
+ */
+template <class T>
+struct TCallTraits
+    : public NDetail::TCallTraitsHelper<T, TTypeTraits<T>::IsPrimitive>
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

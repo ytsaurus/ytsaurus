@@ -545,12 +545,12 @@ public:
             nodeId)
     { }
 
-    virtual TValue GetValue() const override
+    virtual typename NMpl::TCallTraits<TValue>::TType GetValue() const override
     {
         return this->GetThisTypedImpl()->Value();
     }
 
-    virtual void SetValue(const TValue& value) override
+    virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
     {
         this->LockThisTypedImpl(ELockMode::Exclusive)->Value() = value;
     }
@@ -763,9 +763,9 @@ public:
     virtual int GetChildCount() const override;
     virtual std::vector< TPair<Stroka, NYTree::INodePtr> > GetChildren() const override;
     virtual std::vector<Stroka> GetKeys() const override;
-    virtual NYTree::INodePtr FindChild(const TStringBuf& key) const override;
-    virtual bool AddChild(NYTree::INodePtr child, const TStringBuf& key) override;
-    virtual bool RemoveChild(const TStringBuf& key) override;
+    virtual NYTree::INodePtr FindChild(const Stroka& key) const override;
+    virtual bool AddChild(NYTree::INodePtr child, const Stroka& key) override;
+    virtual bool RemoveChild(const Stroka& key) override;
     virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild) override;
     virtual void RemoveChild(NYTree::INodePtr child) override;
     virtual Stroka GetChildKey(NYTree::IConstNodePtr child) override;

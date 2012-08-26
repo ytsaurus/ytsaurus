@@ -5,6 +5,8 @@
 #include "ypath_service.h"
 #include "yson_consumer.h"
 
+#include <ytlib/misc/mpl.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -92,7 +94,7 @@ struct INode
     //! A helper method for retrieving a scalar value from a node.
     //! Invokes the appropriate |AsSomething| followed by |GetValue|.
     template <class T>
-    T GetValue() const
+    typename NMpl::TCallTraits<T>::TType GetValue() const
     {
         return NDetail::TScalarTypeTraits<T>::GetValue(this);
     }
@@ -100,7 +102,7 @@ struct INode
     //! A helper method for assigning a scalar value to a node.
     //! Invokes the appropriate |AsSomething| followed by |SetValue|.
     template <class T>
-    void SetValue(typename NDetail::TScalarTypeTraits<T>::TParamType value)
+    void SetValue(typename NMpl::TCallTraits<T>::TType value)
     {
         NDetail::TScalarTypeTraits<T>::SetValue(this, value);
     }
@@ -119,13 +121,14 @@ struct IScalarNode
     typedef T TValue;
 
     //! Gets the value.
-    virtual TValue GetValue() const = 0;
+    virtual typename NMpl::TCallTraits<TValue>::TType GetValue() const = 0;
+
     //! Sets the value.
-    virtual void SetValue(const TValue& value) = 0;
+    virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) = 0;
 };
 
 // Define the actual scalar node types: IStringNode, IIntegerNode, IDoubleNode.
-#define DECLARE_SCALAR_TYPE(name, type, paramType) \
+#define DECLARE_SCALAR_TYPE(name, type) \
     struct I##name##Node \
         : IScalarNode<type> \
     { }; \
@@ -137,27 +140,31 @@ struct IScalarNode
     { \
         typedef I##name##Node TNode; \
         typedef type TType; \
-        typedef paramType TParamType; \
+        typedef NMpl::TConditional< \
+            NMpl::TIsSame<type, Stroka>::Value, \
+            /* if-true  */ const TStringBuf&, \
+            /* if-false */ type \
+        >::TType TConsumerType; \
         \
         static const ENodeType::EDomain NodeType; \
         \
-        static type GetValue(IConstNodePtr node) \
+        static NMpl::TCallTraits<type>::TType GetValue(const IConstNodePtr& node) \
         { \
             return node->As##name()->GetValue(); \
         } \
         \
-        static void SetValue(INodePtr node, TParamType value) \
+        static void SetValue(const INodePtr& node, NMpl::TCallTraits<type>::TType value) \
         { \
-            node->As##name()->SetValue(TType(value)); \
+            node->As##name()->SetValue(value); \
         } \
     }; \
     \
     }
 
-// Don't forget to define a #TScalarTypeTraits<>::NodeType constant in "ytree.cpp".
-DECLARE_SCALAR_TYPE(String, Stroka, const TStringBuf&)
-DECLARE_SCALAR_TYPE(Integer, i64, i64)
-DECLARE_SCALAR_TYPE(Double, double, double)
+// Don't forget to define a #TScalarTypeTraits<>::NodeType constant in "node.cpp".
+DECLARE_SCALAR_TYPE(String, Stroka)
+DECLARE_SCALAR_TYPE(Integer, i64)
+DECLARE_SCALAR_TYPE(Double, double)
 
 #undef DECLARE_SCALAR_TYPE
 
@@ -169,11 +176,14 @@ struct ICompositeNode
 {
     //! Removes all child nodes.
     virtual void Clear() = 0;
+
     //! Returns the number of child nodes.
     virtual int GetChildCount() const = 0;
+
     //! Replaces one child by the other.
     //! #newChild must be a root.
     virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild) = 0;
+
     //! Removes a child.
     //! The removed child becomes a root.
     virtual void RemoveChild(INodePtr child) = 0;
@@ -204,7 +214,7 @@ struct IMapNode
      *  \param key A key.
      *  \return A child with the given key or NULL if the index is not valid.
      */
-    virtual INodePtr FindChild(const TStringBuf& key) const = 0;
+    virtual INodePtr FindChild(const Stroka& key) const = 0;
 
     //! Adds a new child with a given key.
     /*!
@@ -215,17 +225,17 @@ struct IMapNode
      *  \note
      *  #child must be a root.
      */
-    virtual bool AddChild(INodePtr child, const TStringBuf& key) = 0;
+    virtual bool AddChild(INodePtr child, const Stroka& key) = 0;
 
     //! Removes a child by its key.
     /*!
      *  \param key A key.
      *  \return True iff there was a child with the given key.
      */
-    virtual bool RemoveChild(const TStringBuf& key) = 0;
+    virtual bool RemoveChild(const Stroka& key) = 0;
 
     //! Similar to #FindChild but throws if no child is found.
-    INodePtr GetChild(const TStringBuf& key) const;
+    INodePtr GetChild(const Stroka& key) const;
 
     //! Returns the key for a given child.
     /*!
@@ -310,14 +320,19 @@ struct INodeFactory
 {
     //! Creates a string node.
     virtual IStringNodePtr CreateString() = 0;
+    
     //! Creates an integer node.
     virtual IIntegerNodePtr CreateInteger() = 0;
+    
     //! Creates an FP number node.
     virtual IDoubleNodePtr CreateDouble() = 0;
+    
     //! Creates a map node.
     virtual IMapNodePtr CreateMap() = 0;
+    
     //! Creates a list node.
     virtual IListNodePtr CreateList() = 0;
+
     //! Creates an entity node.
     virtual IEntityNodePtr CreateEntity() = 0;
 };

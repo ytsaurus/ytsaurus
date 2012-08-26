@@ -59,22 +59,22 @@ public:
         : Parent(NULL)
     { }
 
-    virtual INodeFactoryPtr CreateFactory() const
+    virtual INodeFactoryPtr CreateFactory() const override
     {
         return GetEphemeralNodeFactory();
     }
 
-    virtual IYPathResolverPtr GetResolver() const
+    virtual IYPathResolverPtr GetResolver() const override
     {
         return New<TEphemeralYPathResolver>(const_cast<TEphemeralNodeBase*>(this));
     }
 
-    virtual ICompositeNodePtr GetParent() const
+    virtual ICompositeNodePtr GetParent() const override
     {
         return Parent;
     }
 
-    virtual void SetParent(ICompositeNodePtr parent)
+    virtual void SetParent(ICompositeNodePtr parent) override
     {
         YASSERT(!parent || !Parent);
         Parent = ~parent;
@@ -82,7 +82,7 @@ public:
 
 protected:
     // TSupportsAttributes members
-    virtual IAttributeDictionary* GetUserAttributes()
+    virtual IAttributeDictionary* GetUserAttributes() override
     {
         return &Attributes();
     }
@@ -104,12 +104,12 @@ public:
         : Value()
     { }
 
-    virtual TValue GetValue() const
+    virtual typename NMpl::TCallTraits<TValue>::TType GetValue() const override
     {
         return Value;
     }
 
-    virtual void SetValue(const TValue& value)
+    virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
     {
         Value = value;
     }
@@ -142,12 +142,12 @@ class TCompositeNodeBase
     , public virtual IBase
 {
 public:
-    virtual TIntrusivePtr<ICompositeNode> AsComposite()
+    virtual TIntrusivePtr<ICompositeNode> AsComposite() override
     {
         return this;
     }
 
-    virtual TIntrusivePtr<const ICompositeNode> AsComposite() const
+    virtual TIntrusivePtr<const ICompositeNode> AsComposite() const override
     {
         return this;
     }
@@ -162,7 +162,7 @@ class TMapNode
     YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
-    virtual void Clear()
+    virtual void Clear() override
     {
         FOREACH (const auto& pair, KeyToChild) {
             pair.second->SetParent(NULL);
@@ -171,17 +171,17 @@ public:
         ChildToKey.clear();
     }
 
-    virtual int GetChildCount() const
+    virtual int GetChildCount() const override
     {
         return KeyToChild.ysize();
     }
 
-    virtual std::vector< TPair<Stroka, INodePtr> > GetChildren() const
+    virtual std::vector< TPair<Stroka, INodePtr> > GetChildren() const override
     {
         return std::vector< TPair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
-    virtual std::vector<Stroka> GetKeys() const
+    virtual std::vector<Stroka> GetKeys() const override
     {
         std::vector<Stroka> result;
         result.reserve(KeyToChild.size());
@@ -191,13 +191,13 @@ public:
         return result;
     }
 
-    virtual INodePtr FindChild(const TStringBuf& key) const
+    virtual INodePtr FindChild(const Stroka& key) const override
     {
-        auto it = KeyToChild.find(Stroka(key));
+        auto it = KeyToChild.find(key);
         return it == KeyToChild.end() ? NULL : it->second;
     }
 
-    virtual bool AddChild(INodePtr child, const TStringBuf& key)
+    virtual bool AddChild(INodePtr child, const Stroka& key) override
     {
         YASSERT(!key.empty());
         YASSERT(child);
@@ -211,7 +211,7 @@ public:
         }
     }
 
-    virtual bool RemoveChild(const TStringBuf& key)
+    virtual bool RemoveChild(const Stroka& key) override
     {
         auto it = KeyToChild.find(Stroka(key));
         if (it == KeyToChild.end())
@@ -225,7 +225,7 @@ public:
         return true;
     }
 
-    virtual void RemoveChild(INodePtr child)
+    virtual void RemoveChild(INodePtr child) override
     {
         YASSERT(child);
 
@@ -240,7 +240,7 @@ public:
         YCHECK(KeyToChild.erase(key) == 1);
     }
 
-    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild)
+    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild) override
     {
         YASSERT(oldChild);
         YASSERT(newChild);
@@ -262,7 +262,7 @@ public:
         YCHECK(ChildToKey.insert(MakePair(newChild, key)).second);
     }
 
-    virtual Stroka GetChildKey(IConstNodePtr child)
+    virtual Stroka GetChildKey(IConstNodePtr child) override
     {
         YASSERT(child);
 
@@ -275,13 +275,13 @@ private:
     yhash_map<Stroka, INodePtr> KeyToChild;
     yhash_map<INodePtr, Stroka> ChildToKey;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TEphemeralNodeBase::DoInvoke(context);
     }
 
-    virtual IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb)
+    virtual IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb) override
     {
         return TMapNodeMixin::ResolveRecursive(path, verb);
     }
@@ -296,7 +296,7 @@ class TListNode
     YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
-    virtual void Clear()
+    virtual void Clear() override
     {
         FOREACH (const auto& node, IndexToChild) {
             node->SetParent(NULL);
@@ -305,22 +305,22 @@ public:
         ChildToIndex.clear();
     }
 
-    virtual int GetChildCount() const
+    virtual int GetChildCount() const override
     {
         return IndexToChild.size();
     }
 
-    virtual std::vector<INodePtr> GetChildren() const
+    virtual std::vector<INodePtr> GetChildren() const override
     {
         return IndexToChild;
     }
 
-    virtual INodePtr FindChild(int index) const
+    virtual INodePtr FindChild(int index) const override
     {
         return index >= 0 && index < IndexToChild.size() ? IndexToChild[index] : NULL;
     }
 
-    virtual void AddChild(INodePtr child, int beforeIndex = -1)
+    virtual void AddChild(INodePtr child, int beforeIndex = -1) override
     {
         YASSERT(child);
 
@@ -338,7 +338,7 @@ public:
         child->SetParent(this);
     }
 
-    virtual bool RemoveChild(int index)
+    virtual bool RemoveChild(int index) override
     {
         if (index < 0 || index >= IndexToChild.size())
             return false;
@@ -356,7 +356,7 @@ public:
         return true;
     }
 
-    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild)
+    virtual void ReplaceChild(INodePtr oldChild, INodePtr newChild) override
     {
         YASSERT(oldChild);
         YASSERT(newChild);
@@ -377,7 +377,7 @@ public:
         newChild->SetParent(this);
     }
 
-    virtual void RemoveChild(INodePtr child)
+    virtual void RemoveChild(INodePtr child) override
     {
         YASSERT(child);
 
@@ -385,7 +385,7 @@ public:
         YCHECK(RemoveChild(index));
     }
 
-    virtual int GetChildIndex(IConstNodePtr child)
+    virtual int GetChildIndex(IConstNodePtr child) override
     {
         YASSERT(child);
 
@@ -398,7 +398,7 @@ private:
     std::vector<INodePtr> IndexToChild;
     yhash_map<INodePtr, int> ChildToIndex;
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb) override
     {
         return TListNodeMixin::ResolveRecursive(path, verb);
     }
@@ -419,32 +419,32 @@ class TEphemeralNodeFactory
     : public INodeFactory
 {
 public:
-    virtual IStringNodePtr CreateString()
+    virtual IStringNodePtr CreateString() override
     {
         return New<TStringNode>();
     }
 
-    virtual IIntegerNodePtr CreateInteger()
+    virtual IIntegerNodePtr CreateInteger() override
     {
         return New<TIntegerNode>();
     }
 
-    virtual IDoubleNodePtr CreateDouble()
+    virtual IDoubleNodePtr CreateDouble() override
     {
         return New<TDoubleNode>();
     }
 
-    virtual IMapNodePtr CreateMap()
+    virtual IMapNodePtr CreateMap() override
     {
         return New<TMapNode>();
     }
 
-    virtual IListNodePtr CreateList()
+    virtual IListNodePtr CreateList() override
     {
         return New<TListNode>();
     }
 
-    virtual IEntityNodePtr CreateEntity()
+    virtual IEntityNodePtr CreateEntity() override
     {
         return New<TEntityNode>();
     }

@@ -170,13 +170,13 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
     return result;
 }
 
-INodePtr TMapNodeProxy::FindChild(const TStringBuf& key) const
+INodePtr TMapNodeProxy::FindChild(const Stroka& key) const
 {
-    auto versionedChildId = DoFindChild(Stroka(key));
+    auto versionedChildId = DoFindChild(key);
     return versionedChildId.ObjectId == NullObjectId ? NULL : GetProxy(versionedChildId.ObjectId);
 }
 
-bool TMapNodeProxy::AddChild(INodePtr child, const TStringBuf& key)
+bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
 {
     YASSERT(!key.empty());
 
@@ -184,14 +184,13 @@ bool TMapNodeProxy::AddChild(INodePtr child, const TStringBuf& key)
         return false;
     }
 
-    Stroka keyString(key);
-    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(keyString));
+    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
 
     auto childId = GetNodeId(child);
     auto* childImpl = LockImpl(childId);
 
-    YCHECK(impl->KeyToChild().insert(MakePair(keyString, childId)).second);
-    YCHECK(impl->ChildToKey().insert(MakePair(childId, keyString)).second);
+    YCHECK(impl->KeyToChild().insert(MakePair(key, childId)).second);
+    YCHECK(impl->ChildToKey().insert(MakePair(childId, key)).second);
     ++impl->ChildCountDelta();
 
     AttachChild(childImpl);
@@ -199,21 +198,19 @@ bool TMapNodeProxy::AddChild(INodePtr child, const TStringBuf& key)
     return true;
 }
 
-bool TMapNodeProxy::RemoveChild(const TStringBuf& key)
+bool TMapNodeProxy::RemoveChild(const Stroka& key)
 {
-    Stroka keyString(key);
-
-    auto versionedChildId = DoFindChild(keyString);
+    auto versionedChildId = DoFindChild(key);
     if (versionedChildId.ObjectId == NullObjectId) {
         return false;
     }
 
     const auto& childId = versionedChildId.ObjectId;
     auto* childImpl = LockImpl(childId, ELockMode::Exclusive, true);
-    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(keyString));
+    auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
 
     if (versionedChildId.TransactionId == GetObjectId(Transaction)) {
-        YCHECK(impl->KeyToChild().erase(keyString) == 1);
+        YCHECK(impl->KeyToChild().erase(key) == 1);
         YCHECK(impl->ChildToKey().erase(childId) == 1);
         DetachChild(childImpl, true);
     } else {

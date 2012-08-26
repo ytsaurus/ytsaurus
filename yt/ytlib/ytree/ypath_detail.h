@@ -22,10 +22,10 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
-    virtual void Invoke(NRpc::IServiceContextPtr context);
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
-    virtual Stroka GetLoggingCategory() const;
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
+    virtual void Invoke(NRpc::IServiceContextPtr context) override;
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override;
+    virtual Stroka GetLoggingCategory() const override;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
 protected:
     NLog::TLogger Logger;
@@ -136,17 +136,17 @@ protected:
     void ThrowInvalidType(ENodeType actualType);
     virtual ENodeType GetExpectedType() = 0;
 
-    virtual void OnMyStringScalar(const TStringBuf& value);
-    virtual void OnMyIntegerScalar(i64 value);
-    virtual void OnMyDoubleScalar(double value);
-    virtual void OnMyEntity();
+    virtual void OnMyStringScalar(const TStringBuf& value) override;
+    virtual void OnMyIntegerScalar(i64 value) override;
+    virtual void OnMyDoubleScalar(double value) override;
+    virtual void OnMyEntity() override;
 
-    virtual void OnMyBeginList();
+    virtual void OnMyBeginList() override;
 
-    virtual void OnMyBeginMap();
+    virtual void OnMyBeginMap() override;
 
-    virtual void OnMyBeginAttributes();
-    virtual void OnMyEndAttributes();
+    virtual void OnMyBeginAttributes() override;
+    virtual void OnMyEndAttributes() override;
 
 protected:
     class TAttributesSetter;
@@ -176,19 +176,16 @@ class TNodeSetter
         { } \
     \
     private: \
-        typedef type TType; \
-        \
         I##name##NodePtr Node; \
         \
-        virtual ENodeType GetExpectedType() \
+        virtual ENodeType GetExpectedType() override \
         { \
             return ENodeType::name; \
         } \
         \
-        virtual void On##name##Scalar( \
-            NDetail::TScalarTypeTraits<type>::TParamType value) \
+        virtual void On##name##Scalar(NDetail::TScalarTypeTraits<type>::TConsumerType value) override \
         { \
-            Node->SetValue(TType(value)); \
+            Node->SetValue(type(value)); \
         } \
     }
 
@@ -216,17 +213,17 @@ private:
     IMapNodePtr Map;
     Stroka ItemKey;
 
-    virtual ENodeType GetExpectedType()
+    virtual ENodeType GetExpectedType() override
     {
         return ENodeType::Map;
     }
 
-    virtual void OnMyBeginMap()
+    virtual void OnMyBeginMap() override
     {
         Map->Clear();
     }
 
-    virtual void OnMyKeyedItem(const TStringBuf& key)
+    virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         ItemKey = key;
         TreeBuilder->BeginTree();
@@ -239,7 +236,7 @@ private:
         ItemKey.clear();
     }
 
-    virtual void OnMyEndMap()
+    virtual void OnMyEndMap() override
     {
         // Just do nothing.
     }
@@ -262,17 +259,17 @@ private:
 
     IListNodePtr List;
 
-    virtual ENodeType GetExpectedType()
+    virtual ENodeType GetExpectedType() override
     {
         return ENodeType::List;
     }
 
-    virtual void OnMyBeginList()
+    virtual void OnMyBeginList() override
     {
         List->Clear();
     }
 
-    virtual void OnMyListItem()
+    virtual void OnMyListItem() override
     {
         TreeBuilder->BeginTree();
         Forward(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
@@ -283,7 +280,7 @@ private:
         List->AddChild(TreeBuilder->EndTree());
     }
 
-    virtual void OnMyEndList()
+    virtual void OnMyEndList() override
     {
         // Just do nothing.
     }
@@ -301,14 +298,13 @@ public:
     { }
 
 private:
-    virtual ENodeType GetExpectedType()
+    virtual ENodeType GetExpectedType() override
     {
         return ENodeType::Entity;
     }
 
-    virtual void OnMyEntity()
+    virtual void OnMyEntity() override
     {
-
         // Just do nothing.
     }
 };

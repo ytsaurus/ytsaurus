@@ -22,11 +22,11 @@ TYPath INode::GetPath() const
     return GetResolver()->GetPath(const_cast<INode*>(this));
 }
 
-INodePtr IMapNode::GetChild(const TStringBuf& key) const
+INodePtr IMapNode::GetChild(const Stroka& key) const
 {
     auto child = FindChild(key);
     if (!child) {
-        ThrowNoSuchChildKey(this, Stroka(key));
+        ThrowNoSuchChildKey(this, key);
     }
     return child;
 }
