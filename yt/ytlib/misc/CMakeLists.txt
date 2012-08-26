@@ -7,7 +7,6 @@ set( SRCS
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
   ${BASE}/checksum.cpp
-  ${BASE}/chunked_output_stream.cpp
   ${BASE}/crash_handler.cpp
   ${BASE}/delayed_invoker.cpp
   ${BASE}/demangle.cpp
@@ -44,7 +43,6 @@ set( HDRS
   ${BASE}/cache-inl.h
   ${BASE}/cache.h
   ${BASE}/checksum.h
-  ${BASE}/chunked_output_stream.h
   ${BASE}/common.h
   ${BASE}/crash_handler.h
   ${BASE}/delayed_invoker.h
