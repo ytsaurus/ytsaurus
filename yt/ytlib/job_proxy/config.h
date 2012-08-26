@@ -5,7 +5,7 @@
 #include <ytlib/table_client/config.h>
 #include <ytlib/file_client/config.h>
 #include <ytlib/meta_state/config.h>
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/node.h>
 #include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/bus/config.h>
 

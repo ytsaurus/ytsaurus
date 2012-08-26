@@ -102,7 +102,7 @@ void Serialize(
 template <class T>
 void Serialize(const TNullable<T>& value, IYsonConsumer* consumer);
 
-// TODO(roizner): move to ytree.h
+// TODO(roizner): move to node.h
 void Serialize(INode& value, IYsonConsumer* consumer);
 
 // std::vector

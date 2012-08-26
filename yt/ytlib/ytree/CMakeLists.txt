@@ -26,7 +26,7 @@ set( SRCS
   ${BASE}/yson_serializable.cpp
   ${BASE}/yson_string.cpp
   ${BASE}/yson_writer.cpp
-  ${BASE}/ytree.cpp
+  ${BASE}/node.cpp
 )
 set( HDRS
   ${BASE}/attribute_consumer.h
@@ -68,7 +68,7 @@ set( HDRS
   ${BASE}/yson_stream.h
   ${BASE}/yson_string.h
   ${BASE}/yson_writer.h
-  ${BASE}/ytree.h
+  ${BASE}/node.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -2,7 +2,7 @@
 #include "ytree_integration.h"
 
 #include <ytlib/actions/bind.h>
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/node.h>
 #include <ytlib/ytree/virtual.h>
 
 namespace NYT {

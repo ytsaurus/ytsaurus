@@ -3,7 +3,7 @@
 #endif
 #undef SERIALIZE_INL_H_
 
-#include "ytree.h"
+#include "node.h"
 #include "yson_stream.h"
 #include "yson_string.h"
 #include "yson_serializable.h"

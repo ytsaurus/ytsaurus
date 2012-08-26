@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/node.h>
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
 namespace NYT {

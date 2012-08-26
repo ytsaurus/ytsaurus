@@ -3,7 +3,7 @@
 #include "log_manager.h"
 
 #include <ytlib/misc/pattern_formatter.h>
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/node.h>
 
 #include <util/folder/dirut.h>
 

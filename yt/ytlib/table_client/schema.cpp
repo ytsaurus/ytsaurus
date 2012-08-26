@@ -2,7 +2,7 @@
 #include "schema.h"
 
 #include <ytlib/misc/foreach.h>
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/node.h>
 #include <ytlib/ytree/convert.h>
 
 namespace NYT {

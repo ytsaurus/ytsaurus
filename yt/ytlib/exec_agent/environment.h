@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/node.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/actions/signal.h>
 
