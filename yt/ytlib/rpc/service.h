@@ -393,7 +393,7 @@ private:
     void SerializeResponseAndReply()
     {
         TSharedRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, Options.ResponseCodec));
+        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, this->Options.ResponseCodec));
         this->Context->SetResponseBody(MoveRV(data));
         this->Context->Reply(TError());
     }
