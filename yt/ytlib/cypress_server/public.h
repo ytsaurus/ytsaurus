@@ -27,6 +27,8 @@ using NCypressClient::TNodeId;
 using NCypressClient::ELockMode;
 using NCypressClient::TVersionedNodeId;
 
+using NObjectServer::TTransactionId;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NCypressServer

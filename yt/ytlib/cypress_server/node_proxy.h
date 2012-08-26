@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "node.h"
 
 #include <ytlib/ytree/public.h>
@@ -7,8 +8,6 @@
 
 namespace NYT {
 namespace NCypressServer {
-
-using NObjectServer::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,10 +17,6 @@ struct ICypressNodeProxy
     : public virtual NYTree::INode
     , public virtual NObjectServer::IObjectProxy
 {
-    // TODO: removing this causes link error, investigate!
-    ICypressNodeProxy()
-    { }
-
     //! Returns the id of the transaction for which the proxy is created.
     virtual TTransactionId GetTransactionId() const = 0;
 
