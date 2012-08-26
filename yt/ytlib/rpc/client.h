@@ -8,10 +8,16 @@
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/protobuf_helpers.h>
+
+#include <ytlib/codecs/codec.h>
+
 #include <ytlib/bus/client.h>
 #include <ytlib/bus/message.h>
+
 #include <ytlib/actions/future.h>
+
 #include <ytlib/ytree/attributes.h>
+
 #include <ytlib/logging/log.h>
 
 namespace NYT {
@@ -109,6 +115,7 @@ public:
         const Stroka& verb,
         bool oneWay)
         : TClientRequest(channel, path, verb, oneWay)
+        , RequestCodec(ECodecId::None)
     { }
 
     TFuture< TIntrusivePtr<TResponse> > Invoke()
@@ -126,11 +133,19 @@ public:
         return this;
     }
 
+    TIntrusivePtr<TTypedClientRequest> SetRequestCodec(ECodecId codec)
+    {
+        RequestCodec = codec;
+        return this;
+    }
+
 private:
+    ECodecId RequestCodec;
+
     virtual TSharedRef SerializeBody() const override
     {
         TSharedRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*this, &data));
+        YCHECK(SerializeToProtoWithEnvelope(*this, &data, RequestCodec));
         return data;
     }
 

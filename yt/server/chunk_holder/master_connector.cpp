@@ -42,8 +42,8 @@ TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootst
     , State(EState::Offline)
     , NodeId(InvalidNodeId)
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
+    YCHECK(config);
+    YCHECK(bootstrap);
 }
 
 void TMasterConnector::Start()
@@ -161,9 +161,10 @@ void TMasterConnector::SendFullHeartbeat()
 {
     auto request = Proxy
         ->FullHeartbeat()
+        ->SetRequestCodec(ECodecId::Lz4)
         ->SetTimeout(Config->FullHeartbeatTimeout);
 
-    YASSERT(NodeId != InvalidNodeId);
+    YCHECK(NodeId != InvalidNodeId);
     request->set_node_id(NodeId);
     *request->mutable_statistics() = ComputeStatistics();
 
@@ -184,9 +185,11 @@ void TMasterConnector::SendFullHeartbeat()
 
 void TMasterConnector::SendIncrementalHeartbeat()
 {
-    auto request = Proxy->IncrementalHeartbeat();
+    auto request = Proxy
+        ->IncrementalHeartbeat()
+        ->SetRequestCodec(ECodecId::Lz4);
 
-    YASSERT(NodeId != InvalidNodeId);
+    YCHECK(NodeId != InvalidNodeId);
     request->set_node_id(NodeId);
     *request->mutable_statistics() = ComputeStatistics();
 
@@ -306,11 +309,7 @@ void TMasterConnector::OnHeartbeatError(const TError& error)
 
     LOG_WARNING("Error sending heartbeat to master\n%s", ~error.ToString());
 
-    // Don't panic upon getting Timeout, TransportError or Unavailable.
-    if (errorCode != NRpc::EErrorCode::Timeout && 
-        errorCode != NRpc::EErrorCode::TransportError && 
-        errorCode != NRpc::EErrorCode::Unavailable)
-    {
+    if (!IsRetriableError(error)) {
         Disconnect();
     }
 }
