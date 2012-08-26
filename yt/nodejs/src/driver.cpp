@@ -5,7 +5,7 @@
 #include "output_stack.h"
 
 #include <ytlib/logging/log_manager.h>
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/node.h>
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/formats/format.h>
