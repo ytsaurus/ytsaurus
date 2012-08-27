@@ -404,7 +404,9 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
 
     int result;
     PROFILE_TIMING ("/connect_time") {
-        result = connect(Socket, netAddress.GetSockAddr(), netAddress.GetLength());
+        do {
+            result = connect(Socket, netAddress.GetSockAddr(), netAddress.GetLength());
+        } while (result < 0 && errno == EINTR);
     }
 
     if (result != 0) {
@@ -784,7 +786,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     PROFILE_AGGREGATED_TIMING (SendTime) {
         do {
             result = writev(Socket, &*SendVector.begin(), SendVector.size());
-        } while (result < 0 && errno == EINTR)
+        } while (result < 0 && errno == EINTR);
     }
     *bytesWritten = result >= 0 ? result : 0;
 #endif
