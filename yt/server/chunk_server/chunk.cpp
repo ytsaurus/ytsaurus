@@ -30,7 +30,6 @@ TChunk::TChunk(const TChunkId& id)
     ChunkInfo_.set_size(UnknownSize);
     
     ChunkMeta_.set_type(EChunkType::Unknown);
-    ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
     ChunkMeta_.set_version(-1);
 }
