@@ -238,6 +238,8 @@ def run_operation(binary, source_table, destination_table,
         for fd in xrange(3, 3 + len(destination_table)):
             yt_fd = 1 + (fd - 3) * 3
             binary = binary + " %d>&%d" % (fd, yt_fd)
+            if fd == 3:
+                binary = binary + " %d>&%d" % (1, yt_fd)
 
     operation_descr = \
                 {"command": binary,
