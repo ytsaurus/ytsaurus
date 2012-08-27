@@ -55,7 +55,9 @@ def mkdir(path):
         if create:
             set(dir, "{}")
 
-def get_attribute(path, attribute, check_errors=True):
+def get_attribute(path, attribute, check_errors=True, default=None):
+    if default is not None and attribute not in list_attributes(path):
+        return default
     return get("%s/@%s" % (path, attribute), check_errors=check_errors)
 
 def set_attribute(path, attribute, value):
