@@ -23,7 +23,7 @@ TObjectId CreateId(EObjectType type, TCellId cellId, ui64 counter)
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
 
-    char data[12];
+    char data[12] = { 0 };
     *reinterpret_cast<ui64*>(&data[ 0]) = counter;
     *reinterpret_cast<ui16*>(&data[ 8]) = typeValue;
     *reinterpret_cast<ui16*>(&data[10]) = cellId;
