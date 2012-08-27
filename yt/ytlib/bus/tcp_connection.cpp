@@ -572,7 +572,9 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
     ssize_t result;
     PROFILE_AGGREGATED_TIMING (ReceiveTime) {
-        result = recv(Socket, buffer, size, 0);
+        do {
+            result = recv(Socket, buffer, size, 0);
+        } while (result < 0 && errno == EINTR);
     }
 
     if (!CheckReadError(result)) {
@@ -780,7 +782,9 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
     PROFILE_AGGREGATED_TIMING (SendTime) {
-        result = writev(Socket, &*SendVector.begin(), SendVector.size());
+        do {
+            result = writev(Socket, &*SendVector.begin(), SendVector.size());
+        } while (result < 0 && errno == EINTR)
     }
     *bytesWritten = result >= 0 ? result : 0;
 #endif
@@ -965,14 +969,11 @@ bool TTcpConnection::IsSocketError(ssize_t result)
 #ifdef _WIN32
     return
         result != WSAEWOULDBLOCK &&
-        result != WSAEINTR &&
         result != WSAEINPROGRESS;
 #else
-    YCHECK(result != EINTR);
     return
         result != EWOULDBLOCK &&
         result != EAGAIN &&
-        result != EINTR &&
         result != EINPROGRESS;
 #endif
 }
