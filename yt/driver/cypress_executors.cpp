@@ -12,8 +12,10 @@ using namespace NYTree;
 
 TGetExecutor::TGetExecutor()
     : PathArg("path", "path to an object in Cypress that must be retrieved", true, "", "YPATH")
+    , AttributeArg("", "attribute", "attribute to fetch with node", false, "ATTRIBUTE")
 {
     CmdLine.add(PathArg);
+    CmdLine.add(AttributeArg);
 }
 
 void TGetExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -21,7 +23,8 @@ void TGetExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path);
+        .Item("path").Scalar(path)
+        .Item("attributes").List(AttributeArg);
 
     TTransactedExecutor::BuildArgs(consumer);
 }

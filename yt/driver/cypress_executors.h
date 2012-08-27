@@ -15,6 +15,7 @@ public:
 
 private:
     TUnlabeledStringArg PathArg;
+    TCLAP::MultiArg<Stroka> AttributeArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

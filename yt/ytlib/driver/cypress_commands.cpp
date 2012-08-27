@@ -25,6 +25,10 @@ void TGetCommand::DoExecute()
         Request->Path,
         GetTransactionId(false)));
 
+    std::copy(
+        Request->Attributes.begin(), Request->Attributes.end(),
+        RepeatedFieldBackInserter(req->mutable_attributes()));
+
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
@@ -51,7 +55,6 @@ void TSetCommand::DoExecute()
     req->set_value(value.Data());
 
     req->Attributes().MergeFrom(Request->GetOptions());
-    
     auto rsp = proxy.Execute(req).Get();
 
     if (!rsp->IsOK()) {

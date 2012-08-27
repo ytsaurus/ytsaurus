@@ -14,7 +14,6 @@ struct TReadRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TReadRequest()
     {
@@ -44,7 +43,6 @@ struct TWriteRequest
 {
     NYTree::TYPath Path;
     TNullable<NTableClient::TKeyColumns> SortedBy;
-    // Note: Value is passed via StdIn
 
     TWriteRequest()
     {

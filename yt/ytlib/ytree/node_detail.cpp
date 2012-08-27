@@ -85,13 +85,21 @@ void TNodeBase::DoInvoke(IServiceContextPtr context)
 
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
-    UNUSED(request);
-    
-    auto withAttributes = request->Attributes().Get<bool>("with_attributes", false);
+    TNullable< std::vector<Stroka> > attributesToVisit;
+
+    if (request->attributes_size() > 0) {
+        attributesToVisit = std::vector<Stroka>(
+            request->attributes().begin(),
+            request->attributes().end());
+    }
 
     TStringStream stream;
     TYsonWriter writer(&stream);
-    VisitTree(this, &writer, withAttributes);
+
+    VisitTree(this,
+        &writer,
+        attributesToVisit,
+        attributesToVisit ? attributesToVisit.GetPtr() : NULL);
 
     response->set_value(stream.Str());
     context->Reply();
