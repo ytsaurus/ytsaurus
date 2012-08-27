@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from cPickle import load
+from dill import load
 
 import imp
 import sys
@@ -15,9 +15,11 @@ if __name__ == "__main__":
     
     with ZipFile(modules_archive) as zip:
         zip.extractall("modules")
+    sys.path = ["./modules"] + sys.path
     
     # Magically replace out main module  by client side main
-    sys.modules['__main__'] = imp.load_module(main_filename, open(main_module_name, 'U'), main_module_name, ('.py', 'U', 1))
+    sys.modules['__main__'] = imp.load_module(main_module_name, open(main_filename, 'U'), main_filename, ('.py', 'U', 1))
+    imp.reload(sys)
     
     operation = load(open(operation_dump))
     sys.stdout.writelines(chain(*imap(operation, sys.stdin.xreadlines())))

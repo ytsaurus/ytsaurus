@@ -3,7 +3,7 @@ import py_wrapper
 from common import flatten, require, YtError, parse_bool, unlist, update
 from path_tools import escape_path
 from http import make_request
-from table import get_yson_name, to_table
+from table import get_yson_name, to_table, to_name
 from tree_commands import exists, remove, get_attribute, copy, mkdir, find_free_subpath
 from file_commands import upload_file
 
@@ -14,9 +14,7 @@ from itertools import imap, ifilter
 
 """ Auxiliary methods """
 def prepare_source_tables(tables):
-    tables = map(to_table, flatten(tables))
-    tables = filter(lambda table: exists(table.name), tables)
-    return tables
+    return map(to_table, filter(exists, map(to_name, flatten(tables))))
 
 class Buffer(object):
     """ Reads line iterator by chunks """
@@ -126,6 +124,9 @@ def records_count(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
     return get_attribute(table, "row_count")
 
+def is_empty(table):
+    return records_count(table) == 0
+
 def is_sorted(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
     return parse_bool(get_attribute(table, "sorted"))
@@ -142,7 +143,7 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
 
     source_table = map(to_table, flatten(source_table))
     source_table = filter(lambda table: exists(table.name), source_table)
-    if not source_table:
+    if not source_table or get_attribute(source_table, "sorted", default=[]) == sort_by:
         return
 
     if destination_table is None:
@@ -191,7 +192,8 @@ def merge_tables(source_table, destination_table, mode, strategy=None, spec=None
 
 
 
-def prepare_files(files):
+""" Map and reduce methods """
+def _prepare_files(files):
     if files is None:
         return []
 
@@ -200,7 +202,18 @@ def prepare_files(files):
         file_paths.append(upload_file(file))
     return file_paths
 
-""" Map and reduce methods """
+class Finalizer(object):
+    def __init__(self, files, output_tables):
+        self.files = files if files is not None else []
+        self.output_tables = output_tables
+    
+    def __call__(self):
+        for table in filter(is_empty, map(to_name, self.output_tables)):
+            remove_table(table)
+        for file in self.files:
+            remove(file)
+
+
 def run_operation(binary, source_table, destination_table,
                   files, file_paths, format, strategy, spec, op_type,
                   reduce_by=None):
@@ -209,10 +222,10 @@ def run_operation(binary, source_table, destination_table,
     if reduce_by is None: reduce_by = "key"
     if spec is None: spec = {}
 
-    files = prepare_files(files)
+    files = _prepare_files(files)
     if isinstance(binary, types.FunctionType):
         binary, additional_files = py_wrapper.wrap(binary)
-        files += prepare_files(additional_files)
+        files += _prepare_files(additional_files)
     if file_paths is None:
         file_paths = []
     file_paths += files
@@ -254,7 +267,7 @@ def run_operation(binary, source_table, destination_table,
              "output_table_paths": map(get_yson_name, destination_table),
              op_key[op_type]: operation_descr})})
     operation = make_request("POST", op_type, None, params)
-    strategy.process_operation(op_type, operation, files)
+    strategy.process_operation(op_type, operation, Finalizer(files, destination_table))
 
 def run_map(binary, source_table, destination_table,
             files=None, file_paths=None, format=None, strategy=None, spec=None):
@@ -286,11 +299,11 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     run_map_reduce.files_to_remove = []
     def prepare_operation(binary, files, spec_keyword):
         """ Returns new spec """
-        files = prepare_files(files)
+        files = _prepare_files(files)
         if binary is not None:
             if isinstance(binary, types.FunctionType):
                 binary, additional_files = py_wrapper.wrap(binary)
-                files += prepare_files(additional_files)
+                files += _prepare_files(additional_files)
             run_map_reduce.spec = update(run_map_reduce.spec, 
                 {
                     spec_keyword: {
@@ -323,5 +336,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
             })
         })
     operation = make_request("POST", "map_reduce", None, params)
-    strategy.process_operation("map_reduce", operation, run_map_reduce.files_to_remove)
+    strategy.process_operation("map_reduce", operation,
+         Finalizer(run_map_reduce.files_to_remove, destination_table))
     

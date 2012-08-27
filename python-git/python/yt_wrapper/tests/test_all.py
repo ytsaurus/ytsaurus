@@ -19,6 +19,7 @@ import unittest
     
 TEST_DIR = "//home/tests"
 
+
 class YtTest(YTEnv):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -348,9 +349,9 @@ class YtTest(YTEnv):
 
 
 if __name__ == "__main__":
-    #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_map_reduce_operation"))
-    #unittest.TextTestRunner().run(suite)
-    unittest.main()
+    suite = unittest.TestSuite()
+    suite.addTest(YtTest("test_python_operations"))
+    unittest.TextTestRunner().run(suite)
+    #unittest.main()
 
 
