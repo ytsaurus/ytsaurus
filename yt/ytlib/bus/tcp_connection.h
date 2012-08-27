@@ -51,13 +51,13 @@ public:
     const TConnectionId& GetId() const;
 
     // IEventLoopObject implementation.
-    virtual void SyncInitialize();
-    virtual void SyncFinalize();
-    virtual Stroka GetLoggingId() const;
+    virtual void SyncInitialize() override;
+    virtual void SyncFinalize() override;
+    virtual Stroka GetLoggingId() const override;
 
     // IBus implementation.
-    virtual TSendResult Send(IMessagePtr message);
-    virtual void Terminate(const TError& error);
+    virtual TSendResult Send(IMessagePtr message) override;
+    virtual void Terminate(const TError& error) override;
 
     DECLARE_SIGNAL(void(TError), Terminated);
 
