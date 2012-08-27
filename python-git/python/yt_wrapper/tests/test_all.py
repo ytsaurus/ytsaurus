@@ -347,10 +347,16 @@ class YtTest(YTEnv):
             sorted(list(yt.read_table(other_table))),
             sorted(list(chain(*imap(func, self.temp_records())))))
 
+    def check_empty_output_table_deletion(self):
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+        yt.run_map("cat 1>&2 2>/dev/null", table, other_table)
+        self.assertFalse(yt.exists(other_table))
+
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()
-    suite.addTest(YtTest("test_python_operations"))
+    suite.addTest(YtTest("check_empty_output_table_deletion"))
     unittest.TextTestRunner().run(suite)
     #unittest.main()
 
