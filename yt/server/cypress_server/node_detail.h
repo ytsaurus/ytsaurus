@@ -103,7 +103,7 @@ public:
 
         // Create a branched copy.
         TAutoPtr<TImpl> branchedNode(new TImpl(branchedId));
-        branchedNode->SetParent(originatingNode->GetParent());
+        branchedNode->SetParentId(originatingNode->GetParentId());
         branchedNode->SetCreationTime(originatingNode->GetCreationTime());
         branchedNode->SetLockMode(mode);
         branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
@@ -129,7 +129,7 @@ public:
         Bootstrap->GetObjectManager()->MergeAttributes(originatingId, branchedId);
 
         // Merge parent id.
-        originatingNode->SetParent(branchedNode->GetParent());
+        originatingNode->SetParentId(branchedNode->GetParentId());
 
         // Run custom merging.
         DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
@@ -200,7 +200,7 @@ class TCypressNodeBase
     // This also overrides appropriate methods from ICypressNode.
     DEFINE_BYREF_RW_PROPERTY(TLockMap, Locks);
 
-    DEFINE_BYVAL_RW_PROPERTY(ICypressNode*, Parent);
+    DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
     DEFINE_BYVAL_RW_PROPERTY(ICypressNode*, TrunkNode);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);

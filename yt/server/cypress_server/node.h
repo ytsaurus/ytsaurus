@@ -46,10 +46,10 @@ struct ICypressNode
     //! Used internally to set the trunk node during branching.
     virtual void SetTrunkNode(ICypressNode* trunkNode) = 0;
 
-    //! Gets the parent node.
-    virtual ICypressNode* GetParent() const = 0;
-    //! Sets the parent node.
-    virtual void SetParent(ICypressNode* parent) = 0;
+    //! Gets the parent node id.
+    virtual TNodeId GetParentId() const = 0;
+    //! Sets the parent node id.
+    virtual void SetParentId(TNodeId value) = 0;
 
     typedef yhash_map<NTransactionServer::TTransaction*, TLock> TLockMap;
 

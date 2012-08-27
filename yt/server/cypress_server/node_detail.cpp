@@ -35,7 +35,7 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
-    : Parent_(NULL)
+    : ParentId_(NullObjectId)
     , LockMode_(ELockMode::None)
     , TrunkNode_(NULL)
     , CreationTime_(0)
@@ -73,7 +73,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
 {
     TObjectBase::Save(output);
     SaveObjectRefs(output, Locks_);
-    SaveObjectRef(output, Parent_);
+    ::Save(output, ParentId_);
     ::Save(output, LockMode_);
     ::Save(output, CreationTime_);
 }
@@ -84,7 +84,7 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
 
     TObjectBase::Load(input);
     LoadObjectRefs(input, Locks_, context);
-    LoadObjectRef(input, Parent_, context);
+    ::Load(input, ParentId_);
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
 

@@ -2,7 +2,6 @@
 
 #include "node_proxy.h"
 #include "node_detail.h"
-#include "node.h"
 
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/ypath_format.h>
@@ -116,17 +115,14 @@ public:
 
     virtual NYTree::ICompositeNodePtr GetParent() const override
     {
-        auto* parent = GetThisImpl()->GetParent();
-        return parent ? GetProxy(parent->GetId().ObjectId)->AsComposite() : NULL;
+        auto nodeId = GetThisImpl()->GetParentId();
+        return nodeId == NObjectClient::NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
     }
 
     virtual void SetParent(NYTree::ICompositeNodePtr parent) override
     {
         auto* impl = LockThisImpl();
-        impl->SetParent(
-            parent
-            ? ToProxy(parent)->GetTrunkNode()
-            : NULL);
+        impl->SetParentId(parent ? GetNodeId(NYTree::INodePtr(parent)) : NObjectClient::NullObjectId);
     }
 
 
@@ -203,7 +199,7 @@ protected:
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
-                .Scalar(NObjectServer::GetObjectId(node->GetParent()).ObjectId.ToString());
+                .Scalar(node->GetParentId().ToString());
             return true;
         }
 
@@ -363,13 +359,13 @@ protected:
 
     void AttachChild(ICypressNode* child)
     {
-        child->SetParent(TrunkNode);
+        child->SetParentId(Id);
         Bootstrap->GetObjectManager()->RefObject(child);
     }
 
     void DetachChild(ICypressNode* child, bool unref)
     {
-        child->SetParent(NULL);
+        child->SetParentId(NObjectClient::NullObjectId);
         if (unref) {
             Bootstrap->GetObjectManager()->UnrefObject(child);
         }
