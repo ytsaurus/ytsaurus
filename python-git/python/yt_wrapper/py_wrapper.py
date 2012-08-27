@@ -1,7 +1,8 @@
-from dill import *
+from cPickle import dump
 
 import os
 import sys
+import shutil
 from zipfile import ZipFile
 
 def module_relpath(module_path):
@@ -23,7 +24,13 @@ def wrap(function):
             if hasattr(module, __file__):
                 zip.write(module.__file__, module_relpath(module.__file__))
 
-    return ("PYTHONPATH=modules:$PYTHONPATH ./py_runner.py {0} {1}".\
+    main_filename = "/tmp/.main.module"
+    main_path = sys.modules['__main__'].__file__
+    shutil.copy(main_path, main_filename)
+
+    return ("PYTHONPATH=modules:$PYTHONPATH ./py_runner.py {0} {1} {2} {3}".\
                 format(os.path.basename(function_filename), 
-                       os.path.basename(zip_filename)),
-            ["py_runner.py", function_filename, zip_filename])
+                       os.path.basename(zip_filename),
+                       os.path.basename(main_filename),
+                       os.path.basename(main_path)),
+            ["py_runner.py", function_filename, zip_filename, main_filename])
