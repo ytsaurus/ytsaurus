@@ -92,7 +92,7 @@ TVersionedObjectId GetObjectId(
     T object,
     typename NMpl::TEnableIf< NMpl::TIsConvertible<T, NCypressServer::ICypressNode*>, void* >::TType = NULL)
 {
-    return object->GetId();
+    return object ? object->GetId() : TVersionedObjectId(NullObjectId, NullTransactionId);
 }
 
 } // namespace NObjectServer
