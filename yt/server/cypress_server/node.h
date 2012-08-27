@@ -61,6 +61,9 @@ struct ICypressNode
     virtual TInstant GetCreationTime() const = 0;
     virtual void SetCreationTime(TInstant value) = 0;
 
+    virtual TInstant GetModificationTime() const = 0;
+    virtual void SetModificationTime(TInstant value) = 0;
+
     //! Increments the reference counter, returns the incremented value.
     virtual i32 RefObject() = 0;
     //! Decrements the reference counter, returns the decremented value.

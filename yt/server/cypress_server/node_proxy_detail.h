@@ -187,6 +187,7 @@ protected:
         attributes->push_back("lock_mode");
         attributes->push_back(TAttributeInfo("path", true, true));
         attributes->push_back("creation_time");
+        attributes->push_back("modification_time");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -238,6 +239,12 @@ protected:
         if (name == "creation_time") {
             BuildYsonFluently(consumer)
                 .Scalar(node->GetCreationTime().ToString());
+            return true;
+        }
+
+        if (name == "modification_time") {
+            BuildYsonFluently(consumer)
+                .Scalar(node->GetModificationTime().ToString());
             return true;
         }
 
@@ -397,16 +404,14 @@ protected:
     }
 
     class TVersionedUserAttributeDictionary
-        : public NObjectServer::TObjectProxyBase::TUserAttributeDictionary
+        : public NYTree::IAttributeDictionary
     {
     public:
         TVersionedUserAttributeDictionary(
-            const NObjectClient::TObjectId& objectId,
+            const NObjectClient::TObjectId& id,
             NTransactionServer::TTransaction* transaction,
             NCellMaster::TBootstrap* bootstrap)
-            : TUserAttributeDictionary(
-                bootstrap->GetObjectManager(),
-                objectId)
+            : Id(id)
             , Transaction(transaction)
             , Bootstrap(bootstrap)
         { }
@@ -422,7 +427,7 @@ protected:
 
             yhash_set<Stroka> attributes;
             FOREACH (const auto* transaction, transactions) {
-                NObjectServer::TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     FOREACH (const auto& pair, userAttributes->Attributes()) {
@@ -445,7 +450,7 @@ protected:
             auto transactions = transactionManager->GetTransactionPath(Transaction);
 
             FOREACH (const auto* transaction, transactions) {
-                NObjectServer::TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
@@ -464,7 +469,7 @@ protected:
             auto cypressManager = Bootstrap->GetCypressManager();
 
             auto* node = cypressManager->LockVersionedNode(
-                ObjectId,
+                Id,
                 Transaction,
                 TLockRequest::SharedAttribute(key));
             auto versionedId = node->GetId();
@@ -475,6 +480,8 @@ protected:
             }
 
             userAttributes->Attributes()[key] = value;
+
+            cypressManager->SetModified(Id, Transaction);
         }
 
         virtual bool Remove(const Stroka& key) override
@@ -489,7 +496,7 @@ protected:
             const NTransactionServer::TTransaction* containingTransaction = NULL;
             bool contains = false;
             FOREACH (const auto* transaction, transactions) {
-                NObjectServer::TVersionedObjectId versionedId(ObjectId, NObjectServer::GetObjectId(transaction));
+                NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
                 const auto* userAttributes = objectManager->FindAttributes(versionedId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(key);
@@ -508,7 +515,7 @@ protected:
             }
 
             auto* node = cypressManager->LockVersionedNode(
-                ObjectId,
+                Id,
                 Transaction,
                 TLockRequest::SharedAttribute(key));
             auto versionedId = node->GetId();
@@ -525,14 +532,22 @@ protected:
                 userAttributes->Attributes()[key] = Null;           
             }
 
+            cypressManager->SetModified(Id, Transaction);
             return true;
         }
 
     protected:
+        TNodeId Id;
         NTransactionServer::TTransaction* Transaction;
         NCellMaster::TBootstrap* Bootstrap;
+
     };
 
+
+    void SetModified()
+    {
+        Bootstrap->GetCypressManager()->SetModified(Id, Transaction);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -562,6 +577,7 @@ public:
     virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
     {
         this->LockThisTypedImpl(ELockMode::Exclusive)->Value() = value;
+        SetModified();
     }
 
 private:

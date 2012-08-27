@@ -39,6 +39,7 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , LockMode_(ELockMode::None)
     , TrunkNode_(NULL)
     , CreationTime_(0)
+    , ModificationTime_(0)
     , Id(id)
 { }
 

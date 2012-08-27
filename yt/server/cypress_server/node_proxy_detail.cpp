@@ -127,6 +127,8 @@ void TMapNodeProxy::Clear()
         }
         --impl->ChildCountDelta();
     }
+
+    SetModified();
 }
 
 int TMapNodeProxy::GetChildCount() const
@@ -195,6 +197,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
 
     AttachChild(childImpl);
 
+    SetModified();
     return true;
 }
 
@@ -220,6 +223,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
 
     --impl->ChildCountDelta();
 
+    SetModified();
     return true;
 }
 
@@ -242,6 +246,8 @@ void TMapNodeProxy::RemoveChild(INodePtr child)
     }
 
     --impl->ChildCountDelta();
+
+    SetModified();
 }
 
 void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
@@ -263,6 +269,8 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     DetachChild(oldChildImpl, ownsOldChild);
     YCHECK(impl->ChildToKey().insert(MakePair(newChildId, key)).second);    
     AttachChild(newChildImpl);
+
+    SetModified();
 }
 
 Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
@@ -394,6 +402,8 @@ void TListNodeProxy::Clear()
 
     impl->IndexToChild().clear();
     impl->ChildToIndex().clear();
+
+    SetModified();
 }
 
 int TListNodeProxy::GetChildCount() const
@@ -444,6 +454,8 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
     }
 
     AttachChild(childImpl);
+
+    SetModified();
 }
 
 bool TListNodeProxy::RemoveChild(int index)
@@ -468,6 +480,7 @@ bool TListNodeProxy::RemoveChild(int index)
     YCHECK(impl->ChildToIndex().erase(childProxy->GetId()));
     DetachChild(childImpl, true);
 
+    SetModified();
     return true;
 }
 
@@ -501,6 +514,8 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     impl->ChildToIndex().erase(it);
     YCHECK(impl->ChildToIndex().insert(MakePair(newChildId, index)).second);
     AttachChild(newChildImpl);
+
+    SetModified();
 }
 
 int TListNodeProxy::GetChildIndex(IConstNodePtr child)

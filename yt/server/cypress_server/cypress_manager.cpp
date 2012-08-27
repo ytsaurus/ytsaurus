@@ -751,6 +751,25 @@ ICypressNode* TCypressManager::LockVersionedNode(
     return lockedNode;
 }
 
+void TCypressManager::SetModified(
+    const TNodeId& nodeId,
+    TTransaction* transaction)
+{
+    // Failure here means that the node wasn't indeed locked,
+    // which is strange given that we're about to mark it as modified.
+    auto* node = GetNode(TVersionedNodeId(
+        nodeId,
+        GetObjectId(transaction)));
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto* mutationContext = Bootstrap
+        ->GetMetaStateFacade()
+        ->GetManager()
+        ->GetMutationContext();
+
+    node->SetModificationTime(mutationContext->GetTimestamp());
+}
+
 void TCypressManager::RegisterNode(
     TTransaction* transaction,
     TAutoPtr<ICypressNode> node,
@@ -766,6 +785,7 @@ void TCypressManager::RegisterNode(
         ->GetMutationContext();
 
     node->SetCreationTime(mutationContext->GetTimestamp());
+    node->SetModificationTime(mutationContext->GetTimestamp());
 
     auto node_ = node.Get();
     NodeMap.Insert(nodeId, node.Release());
@@ -867,8 +887,10 @@ void TCypressManager::Clear()
     // Create the root.
     auto* root = new TMapNode(GetRootNodeId());
     root->SetTrunkNode(root);
+
     NodeMap.Insert(root->GetId(), root);
-    Bootstrap->GetObjectManager()->RefObject(root);}
+    Bootstrap->GetObjectManager()->RefObject(root);
+}
 
 void TCypressManager::OnLeaderRecoveryComplete()
 {
@@ -1004,6 +1026,16 @@ void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branche
         // Merge changes back.
         auto* originatingNode = NodeMap.Get(originatingId);
         handler->Merge(originatingNode, branchedNode);
+
+        // The root needs a special handling.
+        // When Cypress gets cleared, the root is created and is assigned zero creation time.
+        // (We don't have any mutation context at hand to provide a synchronized timestamp.)
+        // Later on, Cypress is initialized and filled with nodes.
+        // At this point we set the root's creation time.
+        if (originatingId == GetRootNodeId() && !parentTransaction) {
+            originatingNode->SetCreationTime(originatingNode->GetModificationTime());
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~branchedId.ToString());
     } else {
         handler->Destroy(branchedNode);

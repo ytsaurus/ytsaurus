@@ -700,6 +700,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
     *response->mutable_chunk_list_id() = chunkList->GetId().ToProto();
     context->SetResponseInfo("ChunkListId: %s", ~chunkList->GetId().ToString());
 
+    SetModified();
+
     context->Reply();
 }
 
@@ -794,6 +796,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 
     impl->GetChunkList()->SortedBy() = keyColumns;
 
+    SetModified();
+
     context->Reply();
 }
 
@@ -804,6 +808,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
     auto* impl = LockThisTypedImpl();
 
     ClearNode(impl);
+
+    SetModified();
 
     context->Reply();
 }

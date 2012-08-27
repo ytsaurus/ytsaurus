@@ -105,6 +105,7 @@ public:
         TAutoPtr<TImpl> branchedNode(new TImpl(branchedId));
         branchedNode->SetParentId(originatingNode->GetParentId());
         branchedNode->SetCreationTime(originatingNode->GetCreationTime());
+        branchedNode->SetModificationTime(originatingNode->GetModificationTime());
         branchedNode->SetLockMode(mode);
         branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
 
@@ -130,6 +131,11 @@ public:
 
         // Merge parent id.
         originatingNode->SetParentId(branchedNode->GetParentId());
+
+        // Merge modification time.
+        if (branchedNode->GetModificationTime() > originatingNode->GetModificationTime()) {
+            originatingNode->SetModificationTime(branchedNode->GetModificationTime());
+        }
 
         // Run custom merging.
         DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
@@ -204,6 +210,7 @@ class TCypressNodeBase
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
     DEFINE_BYVAL_RW_PROPERTY(ICypressNode*, TrunkNode);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
 
 public:
     explicit TCypressNodeBase(const TVersionedNodeId& id);

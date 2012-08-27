@@ -96,6 +96,10 @@ public:
         const TLockRequest& request,
         bool recursive = false);
 
+    void SetModified(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction);
+
     void RegisterNode(
         NTransactionServer::TTransaction* transaction,
         TAutoPtr<ICypressNode> node,
