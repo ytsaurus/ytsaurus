@@ -207,9 +207,10 @@ void TTcpConnection::SyncOpen()
     LOG_INFO("Connection established (Address: %s)", ~Address);
 
     // Flush messages that were enqueued when the connection was still opening.
-    OnOutcomingMessage(*OutcomingMessageWatcher, 0);
+    ProcessOutcomingMessages();
 
-    UpdateSocketWatcher();
+    // Simulate read-write notification.
+    OnSocket(*SocketWatcher, ev::READ|ev::WRITE);
 }
 
 void TTcpConnection::SyncResolve()
@@ -580,6 +581,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     }
 
     if (!CheckReadError(result)) {
+        *bytesRead = 0;
         return false;
     }
 
@@ -924,6 +926,12 @@ void TTcpConnection::OnOutcomingMessage(ev::async&, int)
     VERIFY_THREAD_AFFINITY(EventLoop);
     YASSERT(State != EState::Closed);
 
+    ProcessOutcomingMessages();
+    UpdateSocketWatcher();
+}
+
+void TTcpConnection::ProcessOutcomingMessages()
+{
     TQueuedMessage queuedMessage;
     while (QueuedMessages.Dequeue(&queuedMessage)) {
         LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
@@ -933,8 +941,6 @@ void TTcpConnection::OnOutcomingMessage(ev::async&, int)
         TUnackedMessage unackedMessage(queuedMessage.PacketId, queuedMessage.Promise);
         UnackedMessages.push(unackedMessage);
     }
-
-    UpdateSocketWatcher();
 }
 
 void TTcpConnection::UpdateSocketWatcher()

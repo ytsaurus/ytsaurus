@@ -208,6 +208,7 @@ private:
     void OnAckPacketSent(const TEncodedPacket& packet);
     void OnMessagePacketSent(const TEncodedPacket& packet);
     void OnOutcomingMessage(ev::async&, int);
+    void ProcessOutcomingMessages();
     void UpdateSocketWatcher();
 
     void OnTerminated(ev::async&, int);
