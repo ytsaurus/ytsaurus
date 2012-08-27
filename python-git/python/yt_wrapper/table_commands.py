@@ -247,12 +247,10 @@ def run_operation(binary, source_table, destination_table,
         "map": "mapper",
         "reduce": "reducer"}
 
-    if config.USE_MAPREDUCE_STYLE_DST_TABLES and len(destination_table) > 1:
+    if config.USE_MAPREDUCE_STYLE_DST_TABLES:
         for fd in xrange(3, 3 + len(destination_table)):
             yt_fd = 1 + (fd - 3) * 3
             binary = binary + " %d>&%d" % (fd, yt_fd)
-            if fd == 3:
-                binary = binary + " %d>&%d" % (1, yt_fd)
 
     operation_descr = \
                 {"command": binary,

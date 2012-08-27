@@ -355,9 +355,9 @@ class YtTest(YTEnv):
 
 
 if __name__ == "__main__":
-    suite = unittest.TestSuite()
-    suite.addTest(YtTest("check_empty_output_table_deletion"))
-    unittest.TextTestRunner().run(suite)
-    #unittest.main()
+    #suite = unittest.TestSuite()
+    #suite.addTest(YtTest("check_empty_output_table_deletion"))
+    #unittest.TextTestRunner().run(suite)
+    unittest.main()
 
 
