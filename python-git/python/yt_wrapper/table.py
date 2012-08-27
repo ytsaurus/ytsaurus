@@ -77,3 +77,9 @@ def to_table(object):
         return object
     else:
         return Table(object)
+
+def to_name(object):
+    if isinstance(object, Table):
+        return object.name
+    else:
+        return object
