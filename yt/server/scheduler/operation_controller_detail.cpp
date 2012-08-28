@@ -276,6 +276,9 @@ void TOperationControllerBase::Initialize()
     FOREACH (const auto& path, GetOutputTablePaths()) {
         TOutputTable table;
         table.Path = path;
+        if (path.Attributes().Get<bool>("overwrite", false)) {
+            table.Clear = true;
+        }
         OutputTables.push_back(table);
     }
 
@@ -996,7 +999,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto ypath = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(WithTransaction(ypath, OutputTransaction->GetId()));
-            req->set_mode(ELockMode::Shared);
+            req->set_mode(table.Clear ? ELockMode::Exclusive : ELockMode::Shared);
             batchReq->AddRequest(req, "lock_out");
         }
         {
@@ -1010,7 +1013,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         {
             auto req = TTableYPathProxy::Clear(WithTransaction(ypath, OutputTransaction->GetId()));
             // Even if |Clear| is False we still add a dummy request
-            // to keep "clear_out" requests aligned with output tables.
+            // to keep "clear_out" requests aligned with output tables.            // 
             batchReq->AddRequest(table.Clear ? req : NULL, "clear_out");
         }
         {
