@@ -101,7 +101,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         auto ioConfig = New<TJobIOConfig>();
         ioConfig->Load(ioConfigNode);
 
-        auto proxyConfig = CloneConfigurable(ProxyConfig);
+        auto proxyConfig = CloneYsonSerializable(ProxyConfig);
         proxyConfig->JobIO = ioConfig;
 
         auto proxyConfigPath = NFS::CombinePaths(

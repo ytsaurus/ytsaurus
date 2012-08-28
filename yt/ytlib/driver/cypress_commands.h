@@ -14,10 +14,13 @@ struct TGetRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
+    std::vector<Stroka> Attributes;
 
     TGetRequest()
     {
         Register("path", Path);
+        Register("attributes", Attributes)
+            .Default();
     }
 };
 
@@ -43,7 +46,6 @@ struct TSetRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    // Note: Value is passed input stream.
 
     TSetRequest()
     {

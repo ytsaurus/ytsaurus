@@ -40,7 +40,7 @@ void IAttributeDictionary::MergeFrom(const IAttributeDictionary& other)
     }
 }
 
-TAutoPtr<IAttributeDictionary> IAttributeDictionary::Clone()
+TAutoPtr<IAttributeDictionary> IAttributeDictionary::Clone() const
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->MergeFrom(*this);

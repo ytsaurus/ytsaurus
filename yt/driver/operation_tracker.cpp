@@ -63,7 +63,9 @@ void TOperationTracker::AppendPhaseProgress(
     const Stroka& phase,
     const TYsonString& progress)
 {
-    INodePtr progressNode = ConvertToNode(progress);
+    using ::ToString;
+
+    auto progressNode = ConvertToNode(progress);
     i64 total = ConvertTo<i64>(NYTree::GetNodeByYPath(progressNode, "/total"));
     if (total == 0) {
         return;

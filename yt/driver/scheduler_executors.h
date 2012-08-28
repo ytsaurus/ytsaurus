@@ -30,10 +30,10 @@ public:
     TMapExecutor();
 
 private:
-    TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::MultiArg<Stroka> OutArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> CommandArg;
-    TCLAP::MultiArg<Stroka> FileArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> FileArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
@@ -49,8 +49,8 @@ public:
     TMergeExecutor();
 
 private:
-    TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::ValueArg<Stroka> OutArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
+    TCLAP::ValueArg<NYTree::TRichYPath> OutArg;
 
     typedef TNullable<NScheduler::EMergeMode> TMode;
     typedef TCLAP::ValueArg<TMode> TModeArg;
@@ -73,8 +73,8 @@ public:
     TSortExecutor();
 
 private:
-    TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::ValueArg<Stroka> OutArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
+    TCLAP::ValueArg<NYTree::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> SortByArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
@@ -91,7 +91,7 @@ public:
     TEraseExecutor();
 
 private:
-    TUnlabeledStringArg PathArg;
+    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
     TCLAP::SwitchArg CombineArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
@@ -108,10 +108,10 @@ public:
     TReduceExecutor();
 
 private:
-    TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::MultiArg<Stroka> OutArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> CommandArg;
-    TCLAP::MultiArg<Stroka> FileArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> FileArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
@@ -128,12 +128,12 @@ public:
     TMapReduceExecutor();
 
 private:
-    TCLAP::MultiArg<Stroka> InArg;
-    TCLAP::MultiArg<Stroka> OutArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> MapperCommandArg;
-    TCLAP::MultiArg<Stroka> MapperFileArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> MapperFileArg;
     TCLAP::ValueArg<Stroka> ReducerCommandArg;
-    TCLAP::MultiArg<Stroka> ReducerFileArg;
+    TCLAP::MultiArg<NYTree::TRichYPath> ReducerFileArg;
     TCLAP::ValueArg<Stroka> SortByArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 

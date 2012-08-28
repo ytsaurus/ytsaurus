@@ -146,17 +146,17 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TYPath> GetInputTablePaths() const override
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() const override
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths() const override
+    virtual std::vector<TRichYPath> GetFilePaths() const override
     {
         return Spec->Mapper->FilePaths;
     }

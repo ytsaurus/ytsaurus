@@ -2,6 +2,8 @@
 
 #include "executor.h"
 
+#include <ytlib/ytree/ypath.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -14,7 +16,7 @@ public:
     TReadExecutor();
 
 private:
-    TUnlabeledStringArg PathArg;
+    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
@@ -29,8 +31,7 @@ public:
     TWriteExecutor();
 
 private:
-    TUnlabeledStringArg PathArg;
-    // TODO(panin) : think of extracting common part of this and TSetExecutor
+    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
     TUnlabeledStringArg ValueArg;
     TCLAP::ValueArg<Stroka> SortedBy;
 

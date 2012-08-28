@@ -27,7 +27,6 @@ inline auto End(T& collection) -> decltype(collection.end())
     return collection.end();
 }
 
-
 template <class T>
 inline auto Deref(T& it) -> decltype(*it)
 {

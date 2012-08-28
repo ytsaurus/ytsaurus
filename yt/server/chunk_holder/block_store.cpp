@@ -122,6 +122,7 @@ public:
 
         TSharedPtr<TInsertCookie, TAtomicCounter> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(cookie.Get())) {
+            chunk->ReleaseReadLock();
             auto cachedBlock = cookie->GetValue().Get().Value();
             Profiler.Increment(CacheReadThroughputCounter, cachedBlock->GetData().Size());
             LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());

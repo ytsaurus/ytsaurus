@@ -16,6 +16,8 @@
 
 #include <ytlib/table_client/table_ypath_proxy.h>
 
+#include <ytlib/ytree/ypath.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -42,7 +44,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NTransactionClient::TTransactionManagerPtr transactionManager,
-        const NYTree::TYPath& path,
+        const NYTree::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns);
 
     //! Opens the writer.
@@ -62,7 +64,7 @@ private:
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
-    NYTree::TYPath Path;
+    NYTree::TRichYPath RichPath;
     TNullable<TKeyColumns> KeyColumns;
 
     bool IsOpen;

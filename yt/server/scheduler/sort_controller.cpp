@@ -1086,14 +1086,14 @@ private:
 
     // Custom bits of preparation pipeline.
 
-    virtual std::vector<TYPath> GetInputTablePaths() const override
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() const override
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
@@ -1597,20 +1597,20 @@ private:
         }
     }
 
-    virtual std::vector<TYPath> GetInputTablePaths() const override
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() const override
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths() const override
+    virtual std::vector<TRichYPath> GetFilePaths() const override
     {
         // Combine mapper and reducer files into a single collection.
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
         if (Spec->Mapper) {
             result.insert(
                 result.end(),

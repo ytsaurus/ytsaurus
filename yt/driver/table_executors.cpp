@@ -1,7 +1,6 @@
 #include "table_executors.h"
 #include "preprocess.h"
 
-#include <server/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
 
 namespace NYT {
@@ -49,7 +48,6 @@ TWriteExecutor::TWriteExecutor()
 void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
-    // TODO(babenko): refactor
     auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedBy.getValue(), EYsonType::ListFragment));
 
     const auto& value = ValueArg.getValue();

@@ -30,14 +30,13 @@ Stroka RemoveSpaces(const Stroka& str)
 
 TEST(TYTreeSerializationTest, All)
 {
-    TYsonString someYson("<\"acl\"={\"read\"=[\"*\"];\"write\"=[\"sandello\"]};"
-                      "\"lock_scope\"=\"mytables\">"
-                      "{\"mode\"=755;\"path\"=\"/home/sandello\"}");
-    auto root = ConvertToNode(someYson);
+    TYsonString canonicalYson(
+        "<\"acl\"={\"execute\"=[\"*\"]}>"
+        "{\"mode\"=755;\"path\"=\"/home/sandello\"}"
+    );
+    auto root = ConvertToNode(canonicalYson);
     auto deserializedYson = ConvertToYsonString(root, EYsonFormat::Text);
-    EXPECT_EQ(RemoveSpaces(someYson.Data()), deserializedYson.Data()) <<
-        "Before deserialize/serialize: " << someYson.Data() << "\n" <<
-        "After: " << deserializedYson.Data();
+    EXPECT_EQ(RemoveSpaces(canonicalYson.Data()), deserializedYson.Data());
 }
 
 TEST(TCustomTypeSerializationTest, TInstant)
@@ -53,11 +52,11 @@ TEST(TSerializationTest, PackRefs)
     std::vector<TSharedRef> refs;
     refs.push_back(TSharedRef::FromString("abc"));
     refs.push_back(TSharedRef::FromString("12"));
-    
+
     TSharedRef packed = PackRefs(refs);
     std::vector<TSharedRef> unpacked;
     UnpackRefs(packed, &unpacked);
-    
+
     EXPECT_EQ(unpacked.size(), 2);
     EXPECT_EQ(ToString(unpacked[0]), "abc");
     EXPECT_EQ(ToString(unpacked[1]), "12");

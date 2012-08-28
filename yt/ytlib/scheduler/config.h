@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
+#include <ytlib/ytree/ypath.h>
 
 #include <ytlib/table_client/config.h>
 
@@ -27,7 +28,7 @@ struct TUserJobSpec
 {
     Stroka Command;
     
-    std::vector<NYTree::TYPath> FilePaths;
+    std::vector<NYTree::TRichYPath> FilePaths;
 
     NYTree::INodePtr Format;
     NYTree::INodePtr InputFormat;
@@ -60,8 +61,8 @@ struct TMapOperationSpec
     : public TOperationSpecBase
 {
     TUserJobSpecPtr Mapper;   
-    std::vector<NYTree::TYPath> InputTablePaths;
-    std::vector<NYTree::TYPath> OutputTablePaths;
+    std::vector<NYTree::TRichYPath> InputTablePaths;
+    std::vector<NYTree::TRichYPath> OutputTablePaths;
     TNullable<int> JobCount;
     i64 JobSliceDataSize;
     i64 MaxDataSizePerJob;
@@ -126,8 +127,8 @@ DECLARE_ENUM(EMergeMode,
 struct TMergeOperationSpec
     : public TMergeOperationSpecBase
 {
-    std::vector<NYTree::TYPath> InputTablePaths;
-    NYTree::TYPath OutputTablePath;
+    std::vector<NYTree::TRichYPath> InputTablePaths;
+    NYTree::TRichYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
     TNullable< std::vector<Stroka> > MergeBy;
@@ -150,7 +151,7 @@ struct TMergeOperationSpec
 struct TEraseOperationSpec
     : public TMergeOperationSpecBase
 {
-    NYTree::TYPath TablePath;
+    NYTree::TRichYPath TablePath;
     bool CombineChunks;
 
     TEraseOperationSpec()
@@ -167,8 +168,8 @@ struct TReduceOperationSpec
     : public TMergeOperationSpecBase
 {
     TUserJobSpecPtr Reducer;
-    std::vector<NYTree::TYPath> InputTablePaths;
-    std::vector<NYTree::TYPath> OutputTablePaths;
+    std::vector<NYTree::TRichYPath> InputTablePaths;
+    std::vector<NYTree::TRichYPath> OutputTablePaths;
     TNullable< std::vector<Stroka> > ReduceBy;
 
     TReduceOperationSpec()
@@ -186,7 +187,7 @@ struct TReduceOperationSpec
 struct TSortOperationSpecBase
     : public TOperationSpecBase
 {
-    std::vector<NYTree::TYPath> InputTablePaths;
+    std::vector<NYTree::TRichYPath> InputTablePaths;
 
     TNullable<int> PartitionCount;
 
@@ -254,7 +255,7 @@ struct TSortOperationSpecBase
 struct TSortOperationSpec
     : public TSortOperationSpecBase
 {
-    NYTree::TYPath OutputTablePath;
+    NYTree::TRichYPath OutputTablePath;
     
     std::vector<Stroka> SortBy;
 
@@ -316,7 +317,7 @@ struct TSortOperationSpec
 struct TMapReduceOperationSpec
     : public TSortOperationSpecBase
 {
-    std::vector<NYTree::TYPath> OutputTablePaths;
+    std::vector<NYTree::TRichYPath> OutputTablePaths;
 
     std::vector<Stroka> SortBy;
     std::vector<Stroka> ReduceBy;

@@ -906,13 +906,13 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
     auto batchReq = ObjectProxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
-        auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path, InputTransaction->GetId()));
+        auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path.GetPath(), InputTransaction->GetId()));
         req->set_allow_nonempty_path_suffix(true);
         batchReq->AddRequest(req, "get_in_id");
     }
 
     FOREACH (const auto& table, OutputTables) {
-        auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path, InputTransaction->GetId()));
+        auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path.GetPath(), InputTransaction->GetId()));
         // TODO(babenko): should we allow this?
         req->set_allow_nonempty_path_suffix(true);
         batchReq->AddRequest(req, "get_out_id");
@@ -935,7 +935,7 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
                 auto rsp = getInIdRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting id for input table %s", ~table.Path));
+                    Sprintf("Error getting id for input table %s", ~table.Path.GetPath()));
                 table.ObjectId = TObjectId::FromProto(rsp->object_id());
             }
         }
@@ -949,7 +949,8 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
                 auto rsp = getOutIdRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting id for output table %s", ~table.Path));
+                    Sprintf("Error getting id for output table %s",
+                        ~table.Path.GetPath()));
                 table.ObjectId = TObjectId::FromProto(rsp->object_id());
             }
         }
@@ -975,7 +976,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
         {
             // NB: Use table.Path, not YPath here, otherwise path suffix is ignored.
-            auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path, InputTransaction->GetId()));
+            auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path.GetPath(), InputTransaction->GetId()));
             req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
             req->set_negate(table.NegateFetch);
@@ -1019,7 +1020,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     }
 
     FOREACH (const auto& file, Files) {
-        auto ypath = file.Path;
+        auto ypath = file.Path.GetPath();
         {
             auto req = TFileYPathProxy::Fetch(WithTransaction(ypath, Operation->GetTransactionId()));
             batchReq->AddRequest(req, "fetch_files");
@@ -1048,47 +1049,48 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = lockInRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error locking input table %s", ~table.Path));
+                    Sprintf("Error locking input table %s", ~table.Path.GetPath()));
                 LOG_INFO("Input table %s was locked successfully",
-                    ~table.Path);
+                    ~table.Path.GetPath());
             }
             {
                 auto rsp = fetchInRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error fetching input input table %s", ~table.Path));
+                    Sprintf("Error fetching input input table %s", ~table.Path.GetPath()));
                 table.FetchResponse = rsp;
                 FOREACH (const auto& chunk, rsp->chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     if (chunk.node_addresses_size() == 0) {
                         ythrow yexception() << Sprintf("Chunk %s in input table %s is lost",
                             ~chunkId.ToString(),
-                            ~table.Path);
+                            ~table.Path.GetPath());
                     }
                     InputChunkIds.insert(chunkId);
                 }
                 LOG_INFO("Input table %s has %d chunks",
-                    ~table.Path,
+                    ~table.Path.GetPath(),
                     rsp->chunks_size());
             }
             {
                 auto rsp = getInSortedRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting \"sorted\" attribute for input table %s", ~table.Path));
+                    Sprintf("Error getting \"sorted\" attribute for input table %s", ~table.Path.GetPath()));
                 table.Sorted = ConvertTo<bool>(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s is %s",
-                    ~table.Path,
+                    ~table.Path.GetPath(),
                     table.Sorted ? "sorted" : "not sorted");
             }
             if (table.Sorted) {
                 auto rsp = getInKeyColumns[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting \"sorted_by\" attribute for input table %s", ~table.Path));
+                    Sprintf("Error getting \"sorted_by\" attribute for input table %s",
+                        ~table.Path.GetPath()));
                 table.KeyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s has key columns %s",
-                    ~table.Path,
+                    ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data());
             }
         }
@@ -1106,43 +1108,48 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = lockOutRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error locking output table %s", ~table.Path));
+                    Sprintf("Error locking output table %s",
+                        ~table.Path.GetPath()));
                 LOG_INFO("Output table %s was locked successfully",
-                    ~table.Path);
+                    ~table.Path.GetPath());
             }
             {
                 auto rsp = getOutChannelsRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting channels for output table %s", ~table.Path));
+                    Sprintf("Error getting channels for output table %s",
+                        ~table.Path.GetPath()));
                 table.Channels = TYsonString(rsp->value());
                 LOG_INFO("Output table %s has channels %s",
-                    ~table.Path,
+                    ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data());
             }
             {
                 auto rsp = getOutRowCountRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting \"row_count\" attribute for output table %s", ~table.Path));
+                    Sprintf("Error getting \"row_count\" attribute for output table %s",
+                        ~table.Path.GetPath()));
                 table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
             }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error clearing output table %s", ~table.Path));
+                    Sprintf("Error clearing output table %s",
+                        ~table.Path.GetPath()));
                 LOG_INFO("Output table %s was cleared successfully",
-                    ~table.Path);
+                    ~table.Path.GetPath());
             }
             {
                 auto rsp = getOutChunkListRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error getting output chunk list for table %s", ~table.Path));
+                    Sprintf("Error getting output chunk list for table %s",
+                        ~table.Path.GetPath()));
                 table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
                 LOG_INFO("Output table %s has output chunk list %s",
-                    ~table.Path,
+                    ~table.Path.GetPath(),
                     ~table.OutputChunkListId.ToString());
             }
         }
@@ -1157,7 +1164,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 CheckResponse(rsp, "Error fetching files");
                 file.FetchResponse = rsp;
                 LOG_INFO("File %s consists of chunk %s",
-                    ~file.Path,
+                    ~file.Path.GetPath(),
                     ~TChunkId::FromProto(rsp->chunk_id()).ToString());
             }
         }
@@ -1309,7 +1316,8 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
 
     FOREACH (const auto& table, InputTables) {
         if (!table.Sorted) {
-            ythrow yexception() << Sprintf("Input table %s is not sorted", ~table.Path);
+            ythrow yexception() << Sprintf("Input table %s is not sorted",
+                ~table.Path.GetPath());
         }
     }
 
@@ -1317,7 +1325,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
         FOREACH (const auto& table, InputTables) {
             if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns.Get())) {
                 ythrow yexception() << Sprintf("Input table %s has key columns %s that are not compatible with the requested key columns %s",
-                    ~table.Path,
+                    ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
                     ~ConvertToYsonString(keyColumns.Get(), EYsonFormat::Text).Data());
             }
@@ -1328,9 +1336,9 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
         FOREACH (const auto& table, InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
                 ythrow yexception() << Sprintf("Key columns do not match: input table %s is sorted by %s while input table %s is sorted by %s",
-                    ~table.Path,
+                    ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
-                    ~referenceTable.Path,
+                    ~referenceTable.Path.GetPath(),
                     ~ConvertToYsonString(referenceTable.KeyColumns, EYsonFormat::Text).Data());
             }
         }
@@ -1359,7 +1367,8 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
 {
     FOREACH (const auto& table, OutputTables) {
         if (table.InitialRowCount > 0) {
-            ythrow yexception() << Sprintf("Output table %s is not empty", ~table.Path);
+            ythrow yexception() << Sprintf("Output table %s is not empty",
+                ~table.Path.GetPath());
         }
     }
 }
@@ -1458,9 +1467,9 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
         .EndMap();
 }
 
-std::vector<TYPath> TOperationControllerBase::GetFilePaths() const
+std::vector<TRichYPath> TOperationControllerBase::GetFilePaths() const
 {
-    return std::vector<TYPath>();
+    return std::vector<TRichYPath>();
 }
 
 int TOperationControllerBase::GetJobCount(
@@ -1515,12 +1524,7 @@ TJobIOConfigPtr TOperationControllerBase::BuildJobIOConfig(
     TJobIOConfigPtr schedulerConfig,
     INodePtr specConfigNode)
 {
-    if (specConfigNode) {
-        auto schedulerConfigNode = ConvertTo<INodePtr>(schedulerConfig);
-        return ConvertTo<TJobIOConfigPtr>(UpdateNode(schedulerConfigNode, specConfigNode));
-    } else {
-        return CloneConfigurable(schedulerConfig);
-    }
+    return UpdateYsonSerializable(schedulerConfig, specConfigNode);
 }
 
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)

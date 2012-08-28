@@ -111,6 +111,11 @@ TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) 
     return GetResponse<TYPathResponse>(index);
 }
 
+TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::FindResponse(const Stroka& key) const
+{
+    return FindResponse<TYPathResponse>(key);
+}
+
 TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     return GetResponse<TYPathResponse>(key);

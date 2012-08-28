@@ -96,6 +96,8 @@ typedef TIntrusivePtr<TYPathResponse> TYPathResponsePtr;
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathResponse;
 
+class TRichYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree 

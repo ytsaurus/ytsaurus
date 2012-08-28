@@ -13,21 +13,23 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath PreprocessYPath(const TYPath& path)
+TRichYPath PreprocessYPath(const TRichYPath& path)
 {
-    TTokenizer tokenizer(path);
+    TTokenizer tokenizer(path.GetPath());
     tokenizer.ParseNext();
     if (tokenizer.GetCurrentType() == HomeDirToken) {
         auto userName = Stroka(getenv("USERNAME"));
         TYPath userDirectory = Stroka("//home/") + EscapeYPathToken(userName);
-        return userDirectory + tokenizer.GetCurrentSuffix();
+        return TRichYPath(
+            userDirectory + tokenizer.GetCurrentSuffix(),
+            path.Attributes());
     }
     return path;
 }
 
-std::vector<TYPath> PreprocessYPaths(const std::vector<TYPath>& paths)
+std::vector<TRichYPath> PreprocessYPaths(const std::vector<TRichYPath>& paths)
 {
-    std::vector<TYPath> result;
+    std::vector<TRichYPath> result;
     result.reserve(paths.size());
     FOREACH (const auto& path, paths) {
         result.push_back(PreprocessYPath(path));

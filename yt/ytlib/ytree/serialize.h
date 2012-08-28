@@ -121,6 +121,9 @@ void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer);
 template <class T>
 void Serialize(const yhash_map<Stroka, T>& value, IYsonConsumer* consumer);
 
+// TRichYPath
+void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -199,6 +202,9 @@ void Deserialize(yhash_set<T>& value, INodePtr node);
 // yhash_map
 template <class T>
 void Deserialize(yhash_map<Stroka, T>& value, INodePtr node);
+
+// TRichYPath
+void Deserialize(TRichYPath& richPath, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

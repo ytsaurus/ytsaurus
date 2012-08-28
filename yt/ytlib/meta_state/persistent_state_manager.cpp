@@ -831,18 +831,6 @@ public:
             CellManager,
             EpochControlInvoker);
 
-        YCHECK(!LeaderCommitter);
-        LeaderCommitter = New<TLeaderCommitter>(
-            Config->LeaderCommitter,
-            CellManager,
-            DecoratedState,
-            ChangeLogCache,
-            QuorumTracker,
-            EpochContext->EpochId,
-            EpochControlInvoker,
-            EpochStateInvoker);
-        LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnMutationApplied, MakeWeak(this)));
-
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
         DecoratedState->SetPingVersion(version);
@@ -873,6 +861,18 @@ public:
         DecoratedState->OnStartLeading();
 
         StartLeading_.Fire();
+
+        YCHECK(!LeaderCommitter);
+        LeaderCommitter = New<TLeaderCommitter>(
+            Config->LeaderCommitter,
+            CellManager,
+            DecoratedState,
+            ChangeLogCache,
+            QuorumTracker,
+            EpochContext->EpochId,
+            EpochControlInvoker,
+            EpochStateInvoker);
+        LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnMutationApplied, MakeWeak(this)));
 
         YCHECK(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
@@ -965,11 +965,6 @@ public:
 
         StopEpoch();
 
-        if (LeaderCommitter) {
-            LeaderCommitter->Stop();
-            LeaderCommitter.Reset();
-        }
-
         if (FollowerPinger) {
             FollowerPinger->Stop();
             FollowerPinger.Reset();
@@ -995,6 +990,11 @@ public:
     void DoStateStopLeading()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
+
+        if (LeaderCommitter) {
+            LeaderCommitter->Stop();
+            LeaderCommitter.Reset();
+        }
 
         DecoratedState->OnStopLeading();
 

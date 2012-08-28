@@ -104,10 +104,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TIntrusivePtr<T> CloneConfigurable(TIntrusivePtr<T> obj);
+TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj);
 
 void Serialize(const TYsonSerializable& value, NYTree::IYsonConsumer* consumer);
 void Deserialize(TYsonSerializable& value, NYTree::INodePtr node);
+
+template <class T>
+void UpdateYsonSerializable(T* ysonSerializable, NYTree::INodePtr patch);
 
 ////////////////////////////////////////////////////////////////////////////////
 

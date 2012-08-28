@@ -14,11 +14,13 @@ struct TReadRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
+    NYTree::INodePtr TableReaderConfig;
 
     TReadRequest()
     {
         Register("path", Path);
+        Register("table_reader", TableReaderConfig)
+            .Default(NULL);
     }
 };
 
@@ -44,13 +46,15 @@ struct TWriteRequest
 {
     NYTree::TYPath Path;
     TNullable<NTableClient::TKeyColumns> SortedBy;
-    // Note: Value is passed via StdIn
+    NYTree::INodePtr TableWriterConfig;
 
     TWriteRequest()
     {
         Register("path", Path);
         Register("sorted_by", SortedBy)
             .Default();
+        Register("table_writer", TableWriterConfig)
+            .Default(NULL);
     }
 };
 

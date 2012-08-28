@@ -127,9 +127,18 @@ public:
         //! Returns the individual generic response with a given index.
         NYTree::TYPathResponsePtr GetResponse(int index) const;
 
+        //! Returns the individual generic response with a given key or NULL if no request with
+        //! this key is known. At most one such response must exist.
+        NYTree::TYPathResponsePtr FindResponse(const Stroka& key) const;
+
         //! Returns the individual generic response with a given key.
         //! Such a response must be unique.
         NYTree::TYPathResponsePtr GetResponse(const Stroka& key) const;
+
+        //! Returns the individual response with a given key or NULL if no request with
+        //! this key is known. At most one such response must exist.
+        template <class TTypedResponse>
+        TIntrusivePtr<TTypedResponse> FindResponse(const Stroka& key) const;
 
         //! Returns the individual response with a given key.
         //! Such a response must be unique.

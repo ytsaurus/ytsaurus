@@ -27,6 +27,7 @@ set( SRCS
   ${BASE}/yson_string.cpp
   ${BASE}/yson_writer.cpp
   ${BASE}/node.cpp
+  ${BASE}/ypath.cpp
 )
 set( HDRS
   ${BASE}/attribute_consumer.h
@@ -69,6 +70,7 @@ set( HDRS
   ${BASE}/yson_string.h
   ${BASE}/yson_writer.h
   ${BASE}/node.h
+  ${BASE}/ypath.h
 )
 
 list(APPEND YT_SOURCE_FILES

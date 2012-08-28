@@ -3,7 +3,9 @@ package NYT.NYTree.NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGet
-{ }
+{
+    repeated bytes attributes = 1;
+}
 
 message TRspGet
 {

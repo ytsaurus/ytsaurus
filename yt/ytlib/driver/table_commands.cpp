@@ -25,7 +25,9 @@ using namespace NTableClient;
 void TReadCommand::DoExecute()
 {
     auto reader = New<TTableReader>(
-        Context->GetConfig()->TableReader,
+        UpdateYsonSerializable(
+            Context->GetConfig()->TableReader,
+            Request->TableReaderConfig),
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetBlockCache(),
@@ -45,7 +47,9 @@ void TReadCommand::DoExecute()
 void TWriteCommand::DoExecute()
 {
     auto writer = New<TTableWriter>(
-        Context->GetConfig()->TableWriter,
+        UpdateYsonSerializable(
+            Context->GetConfig()->TableWriter,
+            Request->TableWriterConfig),
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetTransactionManager(),
