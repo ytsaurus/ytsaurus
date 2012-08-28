@@ -39,14 +39,7 @@ class Base(AggrBase):
     libs = [
         '/home/yt/build/lib/libstlport.so.5.2',
         '/home/yt/build/lib/libyajl.so.2',
-        '/home/yt/build/lib/libytext-fastlz.so.0.1',
         '/home/yt/build/lib/libytext-json.so',
-        '/home/yt/build/lib/libytext-lz4.so.0.71',
-        '/home/yt/build/lib/libytext-minilzo.so.2.0',
-        '/home/yt/build/lib/libytext-quality-misc.so',
-        '/home/yt/build/lib/libytext-quality-netliba_v6.so',
-        '/home/yt/build/lib/libytext-snappy.so.1.0',
-        '/home/yt/build/lib/libytext-zlib.so.1.2.3',
         '/home/yt/build/lib/libytext-uv.so.0.6'
     ]
     

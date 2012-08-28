@@ -1,10 +1,4 @@
-if (UNIX)
-  set( LTYPE SHARED )
-endif()
-
-if (WIN32)
-  set( LTYPE STATIC )
-endif()
+set( LTYPE STATIC )
 
 set( BASE ${CMAKE_SOURCE_DIR}/contrib/z-lz-lzo )
 
@@ -104,12 +98,6 @@ set_target_properties( ytext-zlib PROPERTIES
 
 install(
   TARGETS
-  ytext-fastlz
-  ytext-lz4
-  ytext-minilzo
-  ytext-snappy
-  ytext-zlib
-  ytext-quicklz
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
 )
