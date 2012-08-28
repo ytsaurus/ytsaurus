@@ -10,6 +10,7 @@
 #include <util/datetime/base.h>
 #include <util/random/random.h>
 #include <util/string/printf.h>
+#include <util/string/escape.h>
 
 #include <contrib/testing/framework.h>
 
@@ -66,6 +67,16 @@ Matcher<Stroka>::Matcher(const char* s)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace testing
+
+void PrintTo(const Stroka& string, ::std::ostream* os)
+{
+    *os << '"' + EscapeC(string) + '"';
+}
+
+void PrintTo(const TStringBuf& string, ::std::ostream* os)
+{
+    *os << '"' + EscapeC(string) + '"';
+}
 
 int main(int argc, char **argv)
 {
