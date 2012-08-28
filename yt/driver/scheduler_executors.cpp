@@ -336,7 +336,7 @@ EOperationType TMapReduceExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TAbortOpExecutor::TAbortOpExecutor()
-    : OpArg("", "id of an operation that must be aborted", true, "", "OP_ID")
+    : OpArg("", "id of an operation to abort", true, "", "OP_ID")
 {
     CmdLine.add(OpArg);
 }
