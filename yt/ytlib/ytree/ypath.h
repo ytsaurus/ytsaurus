@@ -17,6 +17,7 @@ public:
     TRichYPath(TRichYPath&& other);
     TRichYPath(const char* path);
     TRichYPath(const TYPath& path);
+    TRichYPath(const TYPath& path, const IAttributeDictionary& attributes);
 
     const TYPath& GetPath() const;
     void SetPath(const TYPath& path);

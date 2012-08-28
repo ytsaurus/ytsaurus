@@ -14,7 +14,7 @@ public:
     TUploadExecutor();
 
 private:
-    TUnlabeledStringArg PathArg;
+    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
@@ -29,7 +29,7 @@ public:
     TDownloadExecutor();
 
 private:
-    TUnlabeledStringArg PathArg;
+    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;

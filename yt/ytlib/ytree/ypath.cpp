@@ -28,6 +28,11 @@ TRichYPath::TRichYPath(TRichYPath&& other)
     , Attributes_(other.Attributes_)
 { }
 
+TRichYPath::TRichYPath(const TYPath& path, const IAttributeDictionary& attributes)
+    : Path_(path)
+    , Attributes_(attributes.Clone())
+{ }
+
 const TYPath& TRichYPath::GetPath() const
 {
     return Path_;

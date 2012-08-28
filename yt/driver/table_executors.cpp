@@ -18,7 +18,7 @@ TReadExecutor::TReadExecutor()
 
 void TReadExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto path = PreprocessYPath(PathArg.getValue().GetPath());
+    auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("read")
@@ -47,8 +47,7 @@ TWriteExecutor::TWriteExecutor()
 
 void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto path = PreprocessYPath(PathArg.getValue().GetPath());
-    // TODO(babenko): refactor
+    auto path = PreprocessYPath(PathArg.getValue());
     auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedBy.getValue(), EYsonType::ListFragment));
 
     const auto& value = ValueArg.getValue();
