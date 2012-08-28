@@ -28,21 +28,21 @@ TTableReader::TTableReader(
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransactionPtr transaction,
     NChunkClient::IBlockCachePtr blockCache,
-    const NYTree::TYPath& path)
+    const NYTree::TRichYPath& richPath)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
-    , Path(path)
+    , RichPath(richPath)
     , IsOpen(false)
     , Proxy(masterChannel)
     , Logger(TableReaderLogger)
 {
-    YASSERT(masterChannel);
+    YCHECK(masterChannel);
 
     Logger.AddTag(Sprintf("Path: %s, TransactihonId: %s",
-        ~path,
+        ~ToString(RichPath),
         ~TransactionId.ToString()));
 }
 
@@ -54,7 +54,10 @@ void TTableReader::Open()
     LOG_INFO("Opening table reader");
 
     LOG_INFO("Fetching table info");
-    auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
+    
+    auto path = RichPath.GetPath();
+    
+    auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(path, TransactionId));
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
     fetchReq->set_fetch_node_addresses(true);
 
@@ -118,16 +121,6 @@ const TNonOwningKey& TTableReader::GetKey() const
 {
     YUNREACHABLE();
 }
-
-/*
-const NYTree::TYsonString& TTableReader::GetRowAttributes() const
-{
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(IsOpen);
-
-    return Reader->GetRowAttributes();
-}
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

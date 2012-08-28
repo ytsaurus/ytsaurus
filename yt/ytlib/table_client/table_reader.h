@@ -7,6 +7,8 @@
 
 #include <ytlib/misc/thread_affinity.h>
 
+#include <ytlib/ytree/ypath.h>
+
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 
@@ -42,7 +44,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NChunkClient::IBlockCachePtr blockCache,
-        const NYTree::TYPath& path);
+        const NYTree::TRichYPath& richPath);
 
     virtual void Open() override;
 
@@ -59,7 +61,7 @@ private:
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCachePtr BlockCache;
-    NYTree::TYPath Path;
+    NYTree::TRichYPath RichPath;
     bool IsOpen;
     NObjectClient::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
