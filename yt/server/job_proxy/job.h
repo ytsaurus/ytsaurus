@@ -29,6 +29,7 @@ struct IJobHost
 
 //! Represents a job running inside job proxy.
 struct IJob
+    : public virtual TRefCounted
 {
     virtual ~IJob()
     { }

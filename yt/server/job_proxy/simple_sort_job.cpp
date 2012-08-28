@@ -223,9 +223,9 @@ private:
 
 };
 
-TAutoPtr<IJob> CreateSimpleSortJob(IJobHost* host)
+TJobPtr CreateSimpleSortJob(IJobHost* host)
 {
-    return new TSimpleSortJob(host);
+    return New<TSimpleSortJob>(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

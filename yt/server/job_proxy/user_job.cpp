@@ -214,14 +214,14 @@ private:
     static void* InputThreadFunc(void* param) 
     {
         NThread::SetCurrentThreadName("JobProxyInput");
-        TUserJob* job = (TUserJob*)param;
+        TIntrusivePtr<TUserJob> job = (TUserJob*)param;
         job->ProcessPipes(job->InputPipes);
     }
 
     static void* OutputThreadFunc(void* param) 
     {
         NThread::SetCurrentThreadName("JobProxyOutput");
-        TUserJob* job = (TUserJob*)param;
+        TIntrusivePtr<TUserJob> job = (TUserJob*)param;
         job->ProcessPipes(job->OutputPipes);
     }
 
@@ -394,12 +394,12 @@ private:
     int ProcessId;
 };
 
-TAutoPtr<IJob> CreateUserJob(
+TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     TAutoPtr<TUserJobIO> userJobIO)
 {
-    return new TUserJob(
+    return New<TUserJob>(
         host,
         userJobSpec,
         userJobIO);
@@ -407,12 +407,12 @@ TAutoPtr<IJob> CreateUserJob(
 
 #else
 
-TAutoPtr<IJob> CreateUserJob(
+TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     TAutoPtr<TUserJobIO> userJobIO)
 {
-    ythrow yexception() << "Streaming jobs are supported only under Linux";    
+    ythrow yexception() << "Streaming jobs are supported only under Linux";
 }
 
 #endif

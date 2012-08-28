@@ -48,10 +48,10 @@ struct TLocationConfig
         Register("quota", Quota).Default(TNullable<i64>());
         Register("low_watermark", LowWatermark)
             .GreaterThan(0)
-            .Default(20 * 1024 * 1024 * 1024); // 1 G
+            .Default(20L * 1024 * 1024 * 1024); // 1 G
         Register("high_watermark", HighWatermark)
             .GreaterThan(0)
-            .Default(10 * 1024 * 1024 * 1024); // 100 Mb
+            .Default(10L * 1024 * 1024 * 1024); // 100 Mb
     }
 
     virtual void DoValidate() const

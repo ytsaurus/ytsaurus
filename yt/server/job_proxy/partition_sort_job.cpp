@@ -273,9 +273,9 @@ private:
 
 };
 
-TAutoPtr<IJob> CreatePartitionSortJob(IJobHost* host)
+TJobPtr CreatePartitionSortJob(IJobHost* host)
 {
-    return new TPartitionSortJob(host);
+    return New<TPartitionSortJob>(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

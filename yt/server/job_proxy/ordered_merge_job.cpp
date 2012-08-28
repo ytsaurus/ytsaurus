@@ -157,9 +157,9 @@ private:
 
 };
 
-TAutoPtr<IJob> CreateOrderedMergeJob(IJobHost* host)
+TJobPtr CreateOrderedMergeJob(IJobHost* host)
 {
-    return new TOrderedMergeJob(host);
+    return New<TOrderedMergeJob>(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

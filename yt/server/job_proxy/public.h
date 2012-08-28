@@ -19,6 +19,8 @@ typedef TIntrusivePtr<TJobProxyConfig> TJobProxyConfigPtr;
 class TUserJobIO;
 
 struct IJob;
+typedef TIntrusivePtr<IJob> TJobPtr;
+
 struct IJobHost;
 
 struct IDataPipe;

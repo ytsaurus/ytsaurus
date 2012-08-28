@@ -43,7 +43,7 @@ private:
     NScheduler::TJobId JobId;
     NLog::TTaggedLogger Logger;
 
-    TAutoPtr<IJob> Job;
+    TJobPtr Job;
     TPeriodicInvokerPtr HeartbeatInvoker;
 
     NScheduler::NProto::TJobSpec JobSpec;

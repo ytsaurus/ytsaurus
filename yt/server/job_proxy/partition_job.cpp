@@ -129,9 +129,9 @@ private:
 
 };
 
-TAutoPtr<IJob> CreatePartitionJob(IJobHost* host)
+TJobPtr CreatePartitionJob(IJobHost* host)
 {
-    return new TPartitionJob(host);
+    return New<TPartitionJob>(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

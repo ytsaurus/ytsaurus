@@ -10,7 +10,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IJob> CreateUserJob(
+TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     TAutoPtr<TUserJobIO> userJobIO);
