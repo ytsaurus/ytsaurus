@@ -110,7 +110,9 @@ void Serialize(const TYsonSerializable& value, NYTree::IYsonConsumer* consumer);
 void Deserialize(TYsonSerializable& value, NYTree::INodePtr node);
 
 template <class T>
-void UpdateYsonSerializable(T* ysonSerializable, NYTree::INodePtr patch);
+TIntrusivePtr<T> UpdateYsonSerializable(
+    TIntrusivePtr<T> obj,
+    NYTree::INodePtr patch);
 
 ////////////////////////////////////////////////////////////////////////////////
 

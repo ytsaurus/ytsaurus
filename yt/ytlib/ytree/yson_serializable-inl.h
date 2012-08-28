@@ -347,9 +347,10 @@ inline TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj)
     return NYTree::ConvertTo< TIntrusivePtr<T> >(NYTree::ConvertToYsonString(*obj));
 }
 
-
 template <class T>
-TIntrusivePtr<T> UpdateYsonSerializable(TIntrusivePtr<T> obj, NYTree::INodePtr patch)
+TIntrusivePtr<T> UpdateYsonSerializable(
+    TIntrusivePtr<T> obj,
+    NYTree::INodePtr patch)
 {
     static_assert(
         NMpl::TIsConvertible<T, TYsonSerializable>::Value,
