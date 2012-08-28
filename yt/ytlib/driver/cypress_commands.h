@@ -105,10 +105,13 @@ struct TListRequest
     : public TTransactedRequest
 {
     NYTree::TRichYPath Path;
+    std::vector<Stroka> Attributes;
 
     TListRequest()
     {
         Register("path", Path);
+        Register("attributes", Attributes)
+            .Default();
     }
 };
 

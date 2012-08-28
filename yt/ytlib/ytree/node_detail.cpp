@@ -11,6 +11,8 @@
 #include "tokenizer.h"
 #include "ypath_format.h"
 
+#include <ytlib/misc/protobuf_helpers.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -88,9 +90,11 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     TNullable< std::vector<Stroka> > attributesToVisit;
 
     if (request->attributes_size() > 0) {
-        attributesToVisit = std::vector<Stroka>(
-            request->attributes().begin(),
-            request->attributes().end());
+        attributesToVisit = NYT::FromProto<Stroka>(request->attributes());
+        std::sort(attributesToVisit->begin(), attributesToVisit->end());
+        attributesToVisit->erase(
+            std::unique(attributesToVisit->begin(), attributesToVisit->end()),
+            attributesToVisit->end());
     }
 
     TStringStream stream;
@@ -217,10 +221,46 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
 void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
 {
-    UNUSED(request);
+    if (request->attributes_size() == 0) {
+        // Fast path.
+        response->set_keys(ConvertToYsonString(GetKeys()).Data());
+        context->Reply();
+        return;
+    }
 
-    auto keys = GetKeys();
-    response->set_keys(ConvertToYsonString(keys).Data());
+    auto attributesToVisit = NYT::FromProto<Stroka>(request->attributes());
+
+    std::sort(attributesToVisit.begin(), attributesToVisit.end());
+    attributesToVisit.erase(
+        std::unique(attributesToVisit.begin(), attributesToVisit.end()),
+        attributesToVisit.end());
+
+    TStringStream stream;
+    TYsonWriter writer(&stream);
+
+    writer.OnBeginList();
+    FOREACH (const auto& pair, GetChildren()) {
+        const auto& key = pair.First();
+        const auto& node = pair.Second();
+        const auto& attributes = node->Attributes();
+
+        writer.OnListItem();
+        writer.OnBeginAttributes();
+
+        FOREACH (const auto& attributeKey, attributesToVisit) {
+            auto value = attributes.FindYson(attributeKey);
+            if  (value) {
+                writer.OnKeyedItem(attributeKey);
+                Consume(*value, &writer);
+            }
+        }
+
+        writer.OnEndAttributes();
+        writer.OnStringScalar(key);
+    }
+    writer.OnEndList();
+
+    response->set_keys(stream.Str());
     context->Reply();
 }
 

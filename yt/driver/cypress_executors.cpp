@@ -12,7 +12,7 @@ using namespace NYTree;
 
 TGetExecutor::TGetExecutor()
     : PathArg("path", "path to an object in Cypress that must be retrieved", true, TRichYPath(""), "YPATH")
-    , AttributeArg("", "attribute", "attribute to fetch with node", false, "ATTRIBUTE")
+    , AttributeArg("", "attr", "attribute to fetch with node", false, "ATTRIBUTE")
 {
     CmdLine.add(PathArg);
     CmdLine.add(AttributeArg);
@@ -103,8 +103,10 @@ Stroka TRemoveExecutor::GetCommandName() const
 
 TListExecutor::TListExecutor()
     : PathArg("path", "path to a object in Cypress whose children must be listed", true, TRichYPath(""), "YPATH")
+    , AttributeArg("", "attr", "attribute to fetch with node", false, "ATTRIBUTE")
 {
     CmdLine.add(PathArg);
+    CmdLine.add(AttributeArg);
 }
 
 void TListExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -112,7 +114,8 @@ void TListExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path);
+        .Item("path").Scalar(path)
+        .Item("attributes").List(AttributeArg);
 
     TTransactedExecutor::BuildArgs(consumer);
 }

@@ -26,6 +26,7 @@ void TGetCommand::DoExecute()
         GetTransactionId(false)));
 
     ToProto(req->mutable_attributes(), Request->Attributes);
+
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
 
@@ -85,6 +86,8 @@ void TListCommand::DoExecute()
     auto req = TYPathProxy::List(WithTransaction(
         Request->Path.GetPath(),
         GetTransactionId(false)));
+
+    ToProto(req->mutable_attributes(), Request->Attributes);
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();

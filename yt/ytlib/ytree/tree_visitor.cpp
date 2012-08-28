@@ -84,9 +84,10 @@ private:
     {
         if (AttributesFilter) {
             // Fast path.
+            const auto& attributes = node->Attributes();
             Consumer->OnBeginAttributes();    
             FOREACH (const auto& key, *AttributesFilter) {
-                auto value = node->Attributes().FindYson(key);
+                auto value = attributes.FindYson(key);
                 if (value) {
                     Consumer->OnKeyedItem(key);
                     Consume(*value, Consumer);

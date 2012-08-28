@@ -66,6 +66,7 @@ public:
 
 private:
     TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::MultiArg<Stroka> AttributeArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
