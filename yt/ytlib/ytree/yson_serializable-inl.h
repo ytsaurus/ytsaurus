@@ -352,9 +352,6 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     TIntrusivePtr<T> obj,
     NYTree::INodePtr patch)
 {
-    static_assert(
-        NMpl::TIsConvertible<T, TYsonSerializable>::Value,
-        "You try to update config that is not convertable to TYsonSerializable");
     using NYTree::INodePtr;
     using NYTree::ConvertTo;
 
